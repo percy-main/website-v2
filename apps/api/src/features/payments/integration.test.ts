@@ -200,6 +200,7 @@ describe("handleCheckoutCompleted", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler({ id: sessionId } as any, EVENT_CREATED);
@@ -255,6 +256,7 @@ describe("handleCheckoutCompleted", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler({ id: sessionId } as any, EVENT_CREATED);
@@ -300,6 +302,7 @@ describe("handleCheckoutCompleted", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler({ id: sessionId } as any, EVENT_CREATED);
@@ -357,6 +360,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler(
@@ -428,6 +432,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler(
@@ -487,6 +492,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler(
@@ -529,6 +535,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await expect(
@@ -548,6 +555,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await expect(
@@ -596,6 +604,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler(
@@ -680,6 +689,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: {} as any,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler(
@@ -738,6 +748,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: {} as any,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler(
@@ -801,6 +812,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: {} as any,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler(
@@ -850,6 +862,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler(
@@ -891,6 +904,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: {} as any,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     await handler(
@@ -936,6 +950,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      baseUrl: "http://localhost:5173",
     });
 
     const pi = {

@@ -1,35 +1,61 @@
-import { Body, Container, Html, Text } from "@react-email/components";
+import {
+  Body,
+  Button,
+  Container,
+  Head,
+  Hr,
+  Html,
+  Img,
+  Preview,
+  Section,
+  Text,
+} from "@react-email/components";
 import type { FC } from "react";
 import { email } from "../email.js";
 import * as styles from "../styles.js";
 
 interface Props {
-  url: string;
   imageBaseUrl: string;
+  url: string;
   name: string;
 }
 
-const Component: FC<Props> = ({ url, name }) => (
+const Component: FC<Props> = ({ url, name, imageBaseUrl }) => (
   <Html>
+    <Head />
+    <Preview>Percy Main Community Sports Club - Reset Your Password</Preview>
     <Body style={styles.main}>
       <Container style={styles.container}>
+        <Img
+          src={`${imageBaseUrl}/club_logo.png`}
+          width="100"
+          height="100"
+          alt="Percy Main Club Logo"
+          style={styles.logo}
+        />
+        <Text style={styles.paragraph}>Hi {name},</Text>
         <Text style={styles.paragraph}>
-          Hi {name}, click the link below to reset your password.
+          You requested to change your password to login to Percy Main Cricket
+          and Sports Club.
         </Text>
-        <Text style={styles.paragraph}>
-          <a href={url} style={styles.button}>
-            Reset Password
-          </a>
+        <Section style={styles.btnContainer}>
+          <Button style={styles.button} href={url}>
+            Reset My Password
+          </Button>
+        </Section>
+        <Hr style={styles.hr} />
+        <Text style={styles.footer}>
+          Percy Main Cricket Club, St. Johns Terrace, North Shields, NE29 6HS
         </Text>
       </Container>
     </Body>
   </Html>
 );
 
-export const ResetPassword = email<Props>("Reset your password", {
+export const ResetPassword = email<Props>("Reset Your Password", {
   preview: {
-    url: "https://example.com/reset",
-    imageBaseUrl: "/images",
+    url: "http://localhost:5173/auth/reset-password",
+    imageBaseUrl: "http://localhost:5173/images",
     name: "Alex",
   },
 })(Component);

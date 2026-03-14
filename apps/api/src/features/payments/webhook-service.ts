@@ -37,13 +37,20 @@ interface WebhookDeps {
   db: Kysely<DB>;
   stripe: Stripe;
   log: FastifyBaseLogger;
+  baseUrl: string;
 }
 
 // ---------------------------------------------------------------------------
 // checkout.session.completed / checkout.session.async_payment_succeeded
 // ---------------------------------------------------------------------------
 
-export function handleCheckoutCompleted({ db, stripe, log }: WebhookDeps) {
+export function handleCheckoutCompleted({
+  db,
+  stripe,
+  log,
+  baseUrl,
+}: WebhookDeps) {
+  const imageBaseUrl = `${baseUrl}/images`;
   const charge = createPaymentCharge(db);
   const membership = updateMembership(db);
 
@@ -127,7 +134,11 @@ export function handleCheckoutCompleted({ db, stripe, log }: WebhookDeps) {
         subject: MembershipUpdated.subject,
         html: await render(
           createElement(MembershipUpdated.component, {
-            name: result.name ?? undefined,
+            imageBaseUrl,
+            name: result.name ?? null,
+            type: result.type ?? undefined,
+            paid_until: result.paid_until,
+            isNew: result.isNew,
           }),
         ),
       });
@@ -218,7 +229,13 @@ async function resolveSubscriptionMembershipMetadata(
   return undefined;
 }
 
-export function handleInvoicePayment({ db, stripe, log }: WebhookDeps) {
+export function handleInvoicePayment({
+  db,
+  stripe,
+  log,
+  baseUrl,
+}: WebhookDeps) {
+  const imageBaseUrl = `${baseUrl}/images`;
   const charge = createPaymentCharge(db);
   const membership = updateMembership(db);
 
@@ -295,7 +312,11 @@ export function handleInvoicePayment({ db, stripe, log }: WebhookDeps) {
         subject: MembershipUpdated.subject,
         html: await render(
           createElement(MembershipUpdated.component, {
-            name: result.name ?? undefined,
+            imageBaseUrl,
+            name: result.name ?? null,
+            type: result.type ?? undefined,
+            paid_until: result.paid_until,
+            isNew: result.isNew,
           }),
         ),
       });
@@ -307,7 +328,13 @@ export function handleInvoicePayment({ db, stripe, log }: WebhookDeps) {
 // payment_intent.succeeded
 // ---------------------------------------------------------------------------
 
-export function handlePaymentIntentSucceeded({ db, stripe, log }: WebhookDeps) {
+export function handlePaymentIntentSucceeded({
+  db,
+  stripe,
+  log,
+  baseUrl,
+}: WebhookDeps) {
+  const imageBaseUrl = `${baseUrl}/images`;
   const charge = createPaymentCharge(db);
   const membership = updateMembership(db);
   const juniorMemberships = createJuniorMemberships(db);
@@ -411,7 +438,11 @@ export function handlePaymentIntentSucceeded({ db, stripe, log }: WebhookDeps) {
         subject: MembershipUpdated.subject,
         html: await render(
           createElement(MembershipUpdated.component, {
-            name: result.name ?? undefined,
+            imageBaseUrl,
+            name: result.name ?? null,
+            type: result.type ?? undefined,
+            paid_until: result.paid_until,
+            isNew: result.isNew,
           }),
         ),
       });
@@ -508,7 +539,10 @@ export function handlePaymentIntentSucceeded({ db, stripe, log }: WebhookDeps) {
           subject: SponsorshipConfirmation.subject,
           html: await render(
             createElement(SponsorshipConfirmation.component, {
-              name: sponsorship.sponsor_name,
+              imageBaseUrl,
+              sponsorName: sponsorship.sponsor_name,
+              gameId: sponsorship.game_id,
+              message: sponsorship.sponsor_message ?? undefined,
             }),
           ),
         });
@@ -578,7 +612,10 @@ export function handlePaymentIntentSucceeded({ db, stripe, log }: WebhookDeps) {
         subject: PlayerSponsorshipConfirmation.subject,
         html: await render(
           createElement(PlayerSponsorshipConfirmation.component, {
-            name: sponsorship.sponsor_name,
+            imageBaseUrl,
+            sponsorName: sponsorship.sponsor_name,
+            playerName: sponsorship.player_name,
+            message: sponsorship.sponsor_message ?? undefined,
           }),
         ),
       });

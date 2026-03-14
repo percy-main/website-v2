@@ -145,5 +145,5 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] `docs/` — admin guides, member guides, Play-Cricket API reference, AWS plan
 - [x] `packages/shared` — Zod schemas, member categories, payment metadata
 - [x] `packages/email` — 9 template stubs + SES sender + dev file writer
-- [ ] Port full email template content from v1
+- [x] Port full email template content from v1
 - [ ] ESLint + Prettier config for monorepo
