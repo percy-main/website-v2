@@ -47,10 +47,13 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
-      - name: Test
+      - name: Unit tests
         run: pnpm test
         env:
           DATABASE_URL: postgres://percy:percy@localhost:5432/percy_main
+
+      - name: Integration tests
+        run: pnpm --filter api test:integration
 
   build-api:
     runs-on: ubuntu-latest

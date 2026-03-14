@@ -5,6 +5,7 @@ import {
   stopTestContainer,
   type TestContext,
 } from "../../test/containers.js";
+import { createTestLogger } from "../../test/logger.js";
 import { healthRoutes } from "./routes.js";
 
 let ctx: TestContext;
@@ -19,7 +20,8 @@ afterAll(async () => {
 
 describe("health routes (integration)", () => {
   it("returns ok with a connected database", async () => {
-    const app = Fastify({ logger: false });
+    const logger = createTestLogger();
+    const app = Fastify({ logger: { level: "info", stream: logger.stream } });
     // Decorate with the test container's db so healthRoutes can use app.db
     app.decorate("db", ctx.db);
     await app.register(healthRoutes);
