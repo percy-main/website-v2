@@ -527,7 +527,6 @@ async function syncMatches(
  * function that accepts sync config and performs the sync.
  *
  * TODO: Wire up as EventBridge scheduled task or admin HTTP trigger
- * TODO: Call calculateFantasyScores() after sync when fantasy pipeline is ported
  */
 export function runSync(db: Kysely<DB>, api: PlayCricketApiClient) {
   return async (config: SyncConfig): Promise<SyncResult> => {
@@ -553,6 +552,22 @@ export function runSync(db: Kysely<DB>, api: PlayCricketApiClient) {
               : null,
         })
         .execute();
+
+      // Trigger fantasy score calculation for the current season.
+      // Non-fatal: scoring failures are logged but don't fail the sync.
+      if (result.matchesProcessed > 0) {
+        try {
+          const { calculateFantasyScores } = await import(
+            "../fantasy/calculate-scores.js"
+          );
+          const season = String(new Date().getFullYear());
+          await calculateFantasyScores(db)(season);
+        } catch (scoringErr) {
+          result.errors.push(
+            `Fantasy scoring failed: ${String(scoringErr)}`,
+          );
+        }
+      }
 
       return result;
     } catch (err) {

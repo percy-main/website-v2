@@ -60,7 +60,7 @@ function buildSquad(playerIds: string[]): PlayerInput[] {
         ? "batting"
         : i < SLOT_COUNTS.batting + SLOT_COUNTS.bowling
           ? "bowling"
-          : "fielding",
+          : "allrounder",
   }));
 }
 

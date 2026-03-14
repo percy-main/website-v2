@@ -57,7 +57,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] 78 unit tests + 69 integration tests (testcontainers), all passing
 - [x] Port full Stripe webhook handler logic (checkout, invoice, payment_intent)
 - [x] Port Play-Cricket background sync job
-- [ ] Port fantasy score calculation pipeline
+- [x] Port fantasy score calculation pipeline
 
 ### AWS infrastructure (not yet started)
 
