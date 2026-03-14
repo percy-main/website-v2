@@ -58,12 +58,13 @@ Post a new comment summarising the decisions:
 ```markdown
 ## Clarifications
 
-| Question | Decision |
-|----------|----------|
+| Question                      | Decision                 |
+| ----------------------------- | ------------------------ |
 | Should X use approach A or B? | Approach A — because ... |
 
 ---
-*Clarified by Claude*
+
+_Clarified by Claude_
 ```
 
 Then update the triage comment to check off resolved questions using `gh api`.
