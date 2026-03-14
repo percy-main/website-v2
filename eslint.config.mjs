@@ -32,10 +32,8 @@ export default tseslint.config(
   {
     rules: {
       "no-undef": "off",
-      "@typescript-eslint/consistent-type-definitions": "off",
       "@typescript-eslint/array-type": ["error", { default: "array-simple" }],
       "@typescript-eslint/no-unnecessary-condition": "off",
-      "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/no-confusing-void-expression": "off",
     },
   },

@@ -46,7 +46,7 @@ We currently run on a mix of third-party services:
 | **Monitoring** | CloudWatch (logs, metrics, alarms) | None (new capability) |
 | **Security** | WAF + VPC + Security Groups + CloudTrail | None (new capability) |
 | **Networking** | VPC + NAT Gateway | Managed by Netlify |
-| **Container registry** | ECR | N/A |
+| **Container registry** | ECR (management account, cross-account pull) | N/A |
 
 ### External Services (unchanged)
 
@@ -114,6 +114,15 @@ Our external data ingestion (Play Cricket match results, player statistics) curr
 
 ```
 Percy Main AWS Organization
+├── Management Account (root/payer)
+│   ├── AWS Organizations
+│   ├── Consolidated billing + non-profit credits
+│   ├── ECR (shared container registry)
+│   ├── Terraform state (S3 + DynamoDB lock table)
+│   ├── GitHub Actions OIDC identity provider
+│   ├── CloudTrail organization trail
+│   └── Route 53 hosted zone (DNS)
+│
 ├── Production Account
 │   ├── VPC + NAT Gateway
 │   ├── ECS Fargate (API service, 2 tasks)
@@ -122,7 +131,6 @@ Percy Main AWS Organization
 │   ├── S3 (frontend assets + user uploads)
 │   ├── CloudFront (CDN)
 │   ├── SES (transactional email)
-│   ├── Route 53 (DNS)
 │   ├── CloudWatch (monitoring + alerting)
 │   └── WAF (application firewall)
 │
@@ -139,9 +147,15 @@ Percy Main AWS Organization
     └── Per-PR S3 prefixes for frontend builds
 ```
 
-Separate accounts provide blast radius isolation, independent IAM policies, and per-environment cost visibility. We currently have no staging environment — deploy previews are our only pre-production testing.
+Three accounts within an AWS Organization: a management account for cross-cutting concerns, and separate workload accounts for production and staging.
 
-**Why separate accounts rather than a single account with resource-level separation?** A single account with tags and separate VPCs would be simpler to operate day-to-day. However, account-level isolation is the AWS-recommended best practice for environment separation — it provides hard IAM boundaries (a misconfigured staging policy cannot affect production resources), independent service quotas, and clean per-environment cost reporting without relying on tagging discipline. For a project funded by AWS non-profit credits, following AWS's own well-architected guidance is the right call. The additional IAM complexity (cross-account roles for CI/CD) is a one-time setup cost managed through Terraform.
+**Management account** — the Organization root and consolidated billing payer. Hosts resources shared across environments: ECR (CI pushes once, both environments pull via cross-account policies), Terraform remote state, the GitHub Actions OIDC trust anchor, and the Route 53 hosted zone. Running costs are negligible (ECR storage, S3 state bucket, CloudTrail first trail — all pennies). No application workloads run here.
+
+**Why a dedicated management account rather than co-locating shared resources in production?** Keeping ECR, Terraform state, and CI/CD trust in a neutral account avoids giving the deployment pipeline production-level access just to push images or read state. It also means a misconfigured production IAM policy cannot affect the container registry or deployment infrastructure.
+
+**Why not a separate billing account?** AWS Organizations already provides consolidated billing at the management account level — all member accounts roll up into a single invoice automatically. A dedicated payer account is a pattern for large enterprises separating financial access from org administration. At our scale (single developer, non-profit credits applied at the Organization level), it adds an account to manage with no practical benefit.
+
+**Why separate workload accounts rather than a single account with resource-level separation?** A single account with tags and separate VPCs would be simpler to operate day-to-day. However, account-level isolation is the AWS-recommended best practice for environment separation — it provides hard IAM boundaries (a misconfigured staging policy cannot affect production resources), independent service quotas, and clean per-environment cost reporting without relying on tagging discipline. For a project funded by AWS non-profit credits, following AWS's own well-architected guidance is the right call. The additional IAM complexity (cross-account roles for CI/CD) is a one-time setup cost managed through Terraform.
 
 ---
 

@@ -25,7 +25,8 @@ modules/
 ├── rds/           # RDS instance, subnet group, parameter group
 ├── cdn/           # CloudFront distribution, S3 origin, OAC
 ├── monitoring/    # CloudWatch dashboards, alarms, log groups
-└── dns/           # Route 53 records
+├── dns/           # Route 53 records (hosted zone in management account)
+└── ecr/           # ECR repository + cross-account pull policies
 ```
 
 Each module is parameterised:
@@ -46,19 +47,20 @@ Staging calls the same modules with smaller values. No duplication.
 
 ```
 environments/
-├── shared/        # Org-level resources: Route 53 zone, ECR, SES domain, IAM roles
-├── production/    # Calls modules with production values
-└── staging/       # Calls modules with staging values (fewer tasks, smaller instances)
+├── management/    # Management account: ECR, Route 53 zone, Terraform state, OIDC, CloudTrail
+├── production/    # Production account: calls modules with production values
+└── staging/       # Staging account: calls modules with staging values (fewer tasks, smaller instances)
 ```
 
-Each environment is an independent Terraform root module with its own state. This keeps the blast radius small — a bad staging apply cannot touch production state.
+Each environment is an independent Terraform root module with its own state, deployed to its own AWS account. This keeps the blast radius small — a bad staging apply cannot touch production state, and neither workload account can affect the shared container registry or deployment infrastructure in the management account.
 
 ---
 
 ## State Management
 
 - **S3 backend with DynamoDB locking** — standard, cheap, reliable
-- **One state file per environment** — `shared`, `production`, and `staging` each maintain separate state
+- **One state file per environment** — `management`, `production`, and `staging` each maintain separate state
+- State bucket and lock table live in the management account — neutral ground, not owned by any workload account
 - State bucket and lock table are created once during account bootstrap (see below)
 
 ---
@@ -111,14 +113,15 @@ Path filters ensure only infrastructure changes trigger Terraform pipelines.
 
 ## Account Bootstrap
 
-Before Terraform can manage anything, a small set of resources must exist. These are created once, manually, and documented as a runbook:
+Before Terraform can manage anything, a small set of resources must exist. These are created once, manually, in the management account and documented as a runbook:
 
-1. AWS Organization and member accounts (production, staging)
-2. S3 bucket and DynamoDB table for Terraform state
-3. OIDC identity provider for GitHub Actions
-4. IAM role that GitHub Actions assumes for Terraform operations
+1. AWS Organization and member accounts (management, production, staging)
+2. S3 bucket and DynamoDB table for Terraform state (in management account)
+3. OIDC identity provider for GitHub Actions (in management account)
+4. IAM roles that GitHub Actions assumes for Terraform operations (one per account, with cross-account trust)
+5. ECR repository (in management account — cross-account pull policies added by Terraform later)
 
-This is approximately 30 minutes of setup. Attempting to Terraform-bootstrap Terraform adds complexity without meaningful benefit at this scale.
+This is approximately 30–45 minutes of setup. Attempting to Terraform-bootstrap Terraform adds complexity without meaningful benefit at this scale.
 
 ---
 
@@ -128,8 +131,8 @@ Infrastructure as code is not a separate migration phase — it is the implement
 
 | Migration Phase | Terraform Work |
 |----------------|----------------|
-| Phase 1: Foundation & Database | `shared` environment + `production/vpc` + `production/rds` + DNS + SES |
-| Phase 2: Backend Service | `production/ecs-service` + ALB + ECR + monitoring |
+| Phase 1: Foundation & Database | `management` environment (ECR, Route 53, CloudTrail, OIDC) + `production/vpc` + `production/rds` + SES |
+| Phase 2: Backend Service | `production/ecs-service` + ALB + cross-account ECR pull policy + monitoring |
 | Phase 3: Data Pipelines | EventBridge rules + ECS scheduled task definitions |
 | Phase 4: Frontend Migration | `production/cdn` + S3 buckets |
 | Phase 6: Cutover & Environments | `staging` environment — same modules, smaller values |

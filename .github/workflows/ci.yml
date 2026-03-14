@@ -41,9 +41,8 @@ jobs:
         env:
           DATABASE_URL: postgres://percy:percy@localhost:5432/percy_main
 
-      # TODO: Enable linting once ESLint + Prettier config is set up for monorepo
-      # - name: Lint
-      #   run: pnpm lint
+      - name: Lint
+        run: pnpm lint
 
       - name: Type check
         run: pnpm typecheck

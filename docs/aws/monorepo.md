@@ -31,7 +31,7 @@ percy-main/
 | Package | Contents | Deploys To |
 |---------|----------|------------|
 | `apps/web` | React components, routes, pages, client-side logic | S3 + CloudFront |
-| `apps/api` | Express/Fastify handlers, middleware, service layer | ECS Fargate (Docker) |
+| `apps/api` | Express/Fastify handlers, middleware, service layer | ECS Fargate (Docker image from ECR in management account) |
 | `packages/shared` | Zod schemas, TypeScript types, constants used by both apps | Not deployed (build dependency) |
 | `packages/db` | Kysely config, migrations, generated types, query helpers | Not deployed (build dependency) |
 | `packages/email` | React Email templates | Not deployed (imported by API) |
@@ -73,7 +73,7 @@ Each deployable unit has its own pipeline, triggered by path filters:
 | Trigger Path | Pipeline | Action |
 |-------------|----------|--------|
 | `apps/web/**`, `packages/shared/**` | Frontend Deploy | `build` → `aws s3 sync` → CloudFront invalidation |
-| `apps/api/**`, `packages/shared/**`, `packages/db/**`, `packages/email/**` | API Deploy | `build` → Docker build → ECR push → ECS rolling update |
+| `apps/api/**`, `packages/shared/**`, `packages/db/**`, `packages/email/**` | API Deploy | `build` → Docker build → ECR push (management account) → ECS rolling update (workload account) |
 | `infra/**` | Terraform | `plan` on PR → `apply` on merge |
 | `packages/db/migrations/**` | DB Migration | Run as explicit ECS task before API deployment |
 
