@@ -192,7 +192,7 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
       .select([
         "season",
         sql<number>`count(*)`.as("innings"),
-        sql<number>`sum(overs)`.as("total_overs"),
+        sql<number>`sum(cast(overs as numeric))`.as("total_overs"),
         sql<number>`sum(maidens)`.as("total_maidens"),
         sql<number>`sum(runs)`.as("total_runs_conceded"),
         sql<number>`sum(wickets)`.as("total_wickets"),
@@ -202,29 +202,30 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
       .execute();
 
     // Calculate career totals
+    // PostgreSQL sum()/count() return bigint (string in node-pg), so Number() each
     const careerBatting = {
-      matches: battingBySeasonRows.reduce((sum, s) => sum + s.innings, 0),
-      runs: battingBySeasonRows.reduce((sum, s) => sum + s.total_runs, 0),
+      matches: battingBySeasonRows.reduce((sum, s) => sum + Number(s.innings), 0),
+      runs: battingBySeasonRows.reduce((sum, s) => sum + Number(s.total_runs), 0),
       highScore: Math.max(
         0,
-        ...battingBySeasonRows.map((s) => s.high_score),
+        ...battingBySeasonRows.map((s) => Number(s.high_score)),
       ),
-      notOuts: battingBySeasonRows.reduce((sum, s) => sum + s.not_outs, 0),
+      notOuts: battingBySeasonRows.reduce((sum, s) => sum + Number(s.not_outs), 0),
     };
 
     const careerBowling = {
-      innings: bowlingBySeasonRows.reduce((sum, s) => sum + s.innings, 0),
-      overs: bowlingBySeasonRows.reduce((sum, s) => sum + s.total_overs, 0),
+      innings: bowlingBySeasonRows.reduce((sum, s) => sum + Number(s.innings), 0),
+      overs: bowlingBySeasonRows.reduce((sum, s) => sum + Number(s.total_overs), 0),
       maidens: bowlingBySeasonRows.reduce(
-        (sum, s) => sum + s.total_maidens,
+        (sum, s) => sum + Number(s.total_maidens),
         0,
       ),
       runsConceded: bowlingBySeasonRows.reduce(
-        (sum, s) => sum + s.total_runs_conceded,
+        (sum, s) => sum + Number(s.total_runs_conceded),
         0,
       ),
       wickets: bowlingBySeasonRows.reduce(
-        (sum, s) => sum + s.total_wickets,
+        (sum, s) => sum + Number(s.total_wickets),
         0,
       ),
     };

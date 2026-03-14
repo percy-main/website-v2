@@ -29,7 +29,7 @@ export function getEligiblePlayers(db: Kysely<DB>) {
       .where("season", "=", previousSeason)
       .select([
         "play_cricket_id",
-        sql<number>`sum(points)`.as("total_points"),
+        sql<number>`sum(total_points)`.as("total_points"),
       ])
       .groupBy("play_cricket_id")
       .execute();
@@ -403,7 +403,7 @@ export function calculateSandwichCosts(db: Kysely<DB>) {
       .where("season", "=", previousSeason)
       .select([
         "play_cricket_id",
-        sql<number>`sum(points)`.as("total_points"),
+        sql<number>`sum(total_points)`.as("total_points"),
       ])
       .groupBy("play_cricket_id")
       .orderBy(sql`sum(points)`, "desc")
