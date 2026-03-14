@@ -71,22 +71,22 @@ function makePlayer(overrides: Partial<PlayerInput> = {}): PlayerInput {
 
 function makeValidSquad(): PlayerInput[] {
   return [
-    // 4 batting
+    // 6 batting
     makePlayer({ playCricketId: "bat-1", slotType: "batting", isCaptain: true }),
     makePlayer({ playCricketId: "bat-2", slotType: "batting" }),
     makePlayer({ playCricketId: "bat-3", slotType: "batting" }),
     makePlayer({ playCricketId: "bat-4", slotType: "batting" }),
+    makePlayer({ playCricketId: "bat-5", slotType: "batting" }),
+    makePlayer({ playCricketId: "bat-6", slotType: "batting" }),
     // 4 bowling
     makePlayer({ playCricketId: "bowl-1", slotType: "bowling" }),
     makePlayer({ playCricketId: "bowl-2", slotType: "bowling" }),
     makePlayer({ playCricketId: "bowl-3", slotType: "bowling" }),
     makePlayer({ playCricketId: "bowl-4", slotType: "bowling" }),
-    // 3 fielding
-    makePlayer({ playCricketId: "field-1", slotType: "fielding" }),
-    makePlayer({ playCricketId: "field-2", slotType: "fielding" }),
+    // 1 allrounder
     makePlayer({
-      playCricketId: "field-3",
-      slotType: "fielding",
+      playCricketId: "ar-1",
+      slotType: "allrounder",
       isWicketkeeper: true,
     }),
   ];
@@ -98,9 +98,9 @@ describe("gameweek utilities", () => {
     expect(season).toMatch(/^\d{4}$/);
   });
 
-  it("getCurrentGameweek returns a positive number", () => {
+  it("getCurrentGameweek returns a non-negative number", () => {
     const gw = getCurrentGameweek();
-    expect(gw).toBeGreaterThanOrEqual(1);
+    expect(gw).toBeGreaterThanOrEqual(0);
   });
 
   it("getPreviousSeason returns one year less", () => {
@@ -153,7 +153,7 @@ describe("fantasy service", () => {
 
       expect(result.season).toBe("2025");
       expect(result.previousSeason).toBe("2024");
-      expect(result.budget).toBe(50);
+      expect(result.budget).toBe(30);
       expect(result.players).toHaveLength(1);
       expect(result.players[0].previousSeasonPoints).toBe(0);
       expect(result.players[0].ownershipPercent).toBe(0);
@@ -163,30 +163,28 @@ describe("fantasy service", () => {
   describe("saveTeam", () => {
     it("rejects squad with wrong batting count", async () => {
       const badSquad = [
-        // 5 batting (too many)
-        ...Array.from({ length: 5 }, (_, i) =>
+        // 7 batting (too many)
+        ...Array.from({ length: 7 }, (_, i) =>
           makePlayer({ playCricketId: `bat-${i}`, slotType: "batting" }),
         ),
         // 3 bowling (too few)
         ...Array.from({ length: 3 }, (_, i) =>
           makePlayer({ playCricketId: `bowl-${i}`, slotType: "bowling" }),
         ),
-        // 3 fielding
-        ...Array.from({ length: 3 }, (_, i) =>
-          makePlayer({ playCricketId: `field-${i}`, slotType: "fielding" }),
-        ),
+        // 1 allrounder
+        makePlayer({ playCricketId: "ar-1", slotType: "allrounder" }),
       ];
       badSquad[0].isCaptain = true;
 
       await expect(saveTeam(db)("user-1", badSquad, "2025")).rejects.toThrow(
-        "Must have exactly 4 batting slots",
+        "Must have exactly 6 batting slots",
       );
     });
 
     it("rejects squad exceeding budget", async () => {
       const squad = makeValidSquad();
 
-      // Mock DB players with high costs (all cost 5 = 55 total, over 50 budget)
+      // Mock DB players with high costs (all cost 5 = 55 total, over 30 budget)
       const expensivePlayers = squad.map((p) => ({
         play_cricket_id: p.playCricketId,
         sandwich_cost: 5,

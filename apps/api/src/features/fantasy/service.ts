@@ -171,7 +171,7 @@ export function saveTeam(db: Kysely<DB>) {
     const gameweek = getCurrentGameweek(s);
 
     // Validate squad composition
-    const slotCounts = { batting: 0, bowling: 0, fielding: 0 };
+    const slotCounts = { batting: 0, bowling: 0, allrounder: 0 };
     let captainCount = 0;
     let wicketkeeperCount = 0;
 
@@ -195,9 +195,9 @@ export function saveTeam(db: Kysely<DB>) {
       error.statusCode = 400;
       throw error;
     }
-    if (slotCounts.fielding !== SLOT_COUNTS.fielding) {
+    if (slotCounts.allrounder !== SLOT_COUNTS.allrounder) {
       const error = new Error(
-        `Must have exactly ${SLOT_COUNTS.fielding} fielding slots`,
+        `Must have exactly ${SLOT_COUNTS.allrounder} allrounder slots`,
       ) as Error & { statusCode: number };
       error.statusCode = 400;
       throw error;
@@ -406,7 +406,7 @@ export function calculateSandwichCosts(db: Kysely<DB>) {
         sql<number>`sum(total_points)`.as("total_points"),
       ])
       .groupBy("play_cricket_id")
-      .orderBy(sql`sum(points)`, "desc")
+      .orderBy(sql`sum(total_points)`, "desc")
       .execute();
 
     if (playerPoints.length === 0) {

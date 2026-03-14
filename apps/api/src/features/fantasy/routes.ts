@@ -7,6 +7,7 @@ import {
   listPlayersSchema,
   toggleEligibilitySchema,
   calculateCostsSchema,
+  calculateScoresSchema,
 } from "./schemas.js";
 import {
   getEligiblePlayers,
@@ -17,6 +18,8 @@ import {
   populatePlayers,
   calculateSandwichCosts,
 } from "./service.js";
+import { calculateFantasyScores } from "./calculate-scores.js";
+import { getCurrentSeason } from "./gameweek.js";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const fantasyRoutes: FastifyPluginAsync = async (app) => {
@@ -27,6 +30,7 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
   const toggle = toggleEligibility(app.db);
   const populate = populatePlayers(app.db);
   const calcCosts = calculateSandwichCosts(app.db);
+  const calcScores = calculateFantasyScores(app.db);
 
   // --- Player-facing routes ---
 
@@ -96,6 +100,15 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { season } = parseBody(request, calculateCostsSchema);
       return await calcCosts(season);
+    },
+  );
+
+  app.post(
+    "/fantasy/admin/calculate-scores",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const { season } = parseBody(request, calculateScoresSchema);
+      return await calcScores(season ?? getCurrentSeason());
     },
   );
 };

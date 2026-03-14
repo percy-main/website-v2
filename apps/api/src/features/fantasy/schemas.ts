@@ -16,7 +16,7 @@ export const saveTeamSchema = z.object({
       z.object({
         playCricketId: z.string(),
         isCaptain: z.boolean(),
-        slotType: z.enum(["batting", "bowling", "fielding"]),
+        slotType: z.enum(["batting", "bowling", "allrounder"]),
         isWicketkeeper: z.boolean(),
       }),
     )
@@ -28,6 +28,10 @@ export const listPlayersSchema = z.object({
 });
 
 export const calculateCostsSchema = z.object({
+  season: z.string().optional(),
+});
+
+export const calculateScoresSchema = z.object({
   season: z.string().optional(),
 });
 
