@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
   startTestContainer,
   stopTestContainer,
@@ -6,6 +7,8 @@ import {
   type TestContext,
 } from "../../test/containers.js";
 import { getTeams, getMatchDetail, getPlayerCareerStats } from "./service.js";
+import type { PlayCricketApiClient } from "./api-client.js";
+import { runSync } from "./sync.js";
 
 let ctx: TestContext;
 
@@ -197,5 +200,444 @@ describe("play-cricket service (integration)", () => {
       expect(result?.battingBySeasonRows).toHaveLength(2);
       expect(result?.bowlingBySeasonRows).toHaveLength(1);
     });
+  });
+});
+
+// --- Sync integration tests ---
+
+function createMockApi(
+  overrides: Partial<PlayCricketApiClient> = {},
+): PlayCricketApiClient {
+  return {
+    getTeams: vi.fn().mockResolvedValue({ teams: [] }),
+    getMatchesSummary: vi.fn().mockResolvedValue({ matches: [] }),
+    getMatchDetail: vi.fn().mockResolvedValue({ match_details: [] }),
+    getLeagueTable: vi.fn().mockResolvedValue({}),
+    getMatchScorecard: vi.fn().mockResolvedValue({}),
+    ...overrides,
+  };
+}
+
+const SITE_ID = "134";
+const OUR_TEAM_ID = "68498";
+const OPPONENT_TEAM_ID = "99999";
+
+function makeMatchSummary(id: number, matchDate = "01/07/2026") {
+  return {
+    id,
+    status: "Completed",
+    published: "Yes",
+    last_updated: "2026-07-01",
+    season: "2026",
+    match_date: matchDate,
+    home_club_name: "Percy Main",
+    home_team_name: "1st XI",
+    home_team_id: OUR_TEAM_ID,
+    home_club_id: SITE_ID,
+    away_club_name: "Opposition CC",
+    away_team_name: "1st XI",
+    away_team_id: OPPONENT_TEAM_ID,
+    away_club_id: "999",
+  };
+}
+
+function makeMatchDetail(matchId: number) {
+  return {
+    match_details: [
+      {
+        id: matchId,
+        home_team_name: "Percy Main 1st XI",
+        home_team_id: OUR_TEAM_ID,
+        home_club_name: "Percy Main",
+        home_club_id: SITE_ID,
+        away_team_name: "Opposition 1st XI",
+        away_team_id: OPPONENT_TEAM_ID,
+        away_club_name: "Opposition CC",
+        away_club_id: "999",
+        result: "Won by 5 wickets",
+        result_description: "Percy Main won",
+        result_applied_to: OUR_TEAM_ID,
+        players: [
+          {
+            home_team: [
+              {
+                position: 1,
+                player_name: "A Batsman",
+                player_id: 1001,
+                captain: false,
+                wicket_keeper: false,
+              },
+              {
+                position: 7,
+                player_name: "B Keeper",
+                player_id: 1002,
+                captain: false,
+                wicket_keeper: true,
+              },
+            ],
+            away_team: [
+              {
+                position: 1,
+                player_name: "X Bowler",
+                player_id: 2001,
+                captain: false,
+                wicket_keeper: false,
+              },
+            ],
+          },
+        ],
+        innings: [
+          {
+            team_batting_name: "Opposition 1st XI",
+            team_batting_id: OPPONENT_TEAM_ID,
+            innings_number: 1,
+            extra_byes: "0",
+            extra_leg_byes: "2",
+            extra_wides: "5",
+            extra_no_balls: "1",
+            extra_penalty_runs: "0",
+            penalties_runs_awarded_in_other_innings: "0",
+            total_extras: "8",
+            runs: "150",
+            wickets: "10",
+            overs: "45",
+            declared: false,
+            revised_target_runs: "0",
+            revised_target_overs: "0",
+            bat: [
+              {
+                position: "1",
+                batsman_name: "X Bowler",
+                batsman_id: "2001",
+                how_out: "ct",
+                fielder_name: "B Keeper",
+                fielder_id: "1002",
+                bowler_name: "C Bowler",
+                bowler_id: "1003",
+                runs: "45",
+                fours: "5",
+                sixes: "1",
+                balls: "60",
+              },
+              {
+                position: "2",
+                batsman_name: "Y Batsman",
+                batsman_id: "2002",
+                how_out: "ro",
+                fielder_name: "A Batsman",
+                fielder_id: "1001",
+                runs: "30",
+                fours: "3",
+                sixes: "0",
+                balls: "40",
+              },
+            ],
+            bowl: [
+              {
+                bowler_name: "C Bowler",
+                bowler_id: "1003",
+                overs: "10",
+                maidens: "2",
+                runs: "35",
+                wickets: "3",
+                wides: "1",
+                no_balls: "0",
+              },
+            ],
+            fow: [],
+          },
+          {
+            team_batting_name: "Percy Main 1st XI",
+            team_batting_id: OUR_TEAM_ID,
+            innings_number: 2,
+            extra_byes: "1",
+            extra_leg_byes: "0",
+            extra_wides: "3",
+            extra_no_balls: "0",
+            extra_penalty_runs: "0",
+            penalties_runs_awarded_in_other_innings: "0",
+            total_extras: "4",
+            runs: "155",
+            wickets: "5",
+            overs: "40",
+            declared: false,
+            revised_target_runs: "0",
+            revised_target_overs: "0",
+            bat: [
+              {
+                position: "1",
+                batsman_name: "A Batsman",
+                batsman_id: "1001",
+                how_out: "caught",
+                fielder_name: "X Bowler",
+                fielder_id: "2001",
+                bowler_name: "Z Bowler",
+                bowler_id: "2003",
+                runs: "85",
+                fours: "10",
+                sixes: "2",
+                balls: "100",
+              },
+              {
+                position: "2",
+                batsman_name: "B Keeper",
+                batsman_id: "1002",
+                how_out: "no",
+                runs: "60",
+                fours: "7",
+                sixes: "1",
+                balls: "70",
+              },
+            ],
+            bowl: [],
+            fow: [],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe("play-cricket sync (integration)", () => {
+  it("syncs teams from API", async () => {
+    const api = createMockApi({
+      getTeams: vi.fn().mockResolvedValue({
+        teams: [
+          {
+            id: "68498",
+            status: "Active",
+            last_updated: "2026-01-01",
+            site_id: "134",
+            team_name: "1st XI",
+          },
+          {
+            id: "71066",
+            status: "Active",
+            last_updated: "2026-01-01",
+            site_id: "134",
+            team_name: "Under 13s",
+          },
+        ],
+      }),
+    });
+
+    const sync = runSync(ctx.db, api);
+    await sync({ siteId: SITE_ID });
+
+    const teams = await ctx.db
+      .selectFrom("play_cricket_team")
+      .where("site_id", "=", SITE_ID)
+      .selectAll()
+      .execute();
+
+    const teamNames = teams.map((t) => t.name);
+    expect(teamNames).toContain("1st XI");
+    expect(teamNames).toContain("Under 13s");
+
+    const juniorTeam = teams.find((t) => t.name === "Under 13s");
+    expect(juniorTeam?.is_junior).toBe(true);
+
+    const seniorTeam = teams.find((t) => t.name === "1st XI");
+    expect(seniorTeam?.is_junior).toBe(false);
+  });
+
+  it("stores batting, bowling, and fielding performances", async () => {
+    const matchId = 77700 + Math.floor(Math.random() * 1000);
+    const api = createMockApi({
+      getMatchesSummary: vi
+        .fn()
+        .mockResolvedValue({ matches: [makeMatchSummary(matchId)] }),
+      getMatchDetail: vi
+        .fn()
+        .mockResolvedValue(makeMatchDetail(matchId)),
+    });
+
+    const sync = runSync(ctx.db, api);
+    const result = await sync({ siteId: SITE_ID });
+
+    expect(result.matchesProcessed).toBe(1);
+    expect(result.errors).toHaveLength(0);
+
+    // Check batting (our team batted in innings 2)
+    const batting = await ctx.db
+      .selectFrom("match_performance_batting")
+      .where("match_id", "=", matchId.toString())
+      .selectAll()
+      .execute();
+
+    expect(batting).toHaveLength(2);
+    const aBatsman = batting.find((b) => b.player_id === "1001");
+    assert(aBatsman, "Expected batting record for player 1001");
+    expect(aBatsman.runs).toBe(85);
+    expect(aBatsman.not_out).toBe(false);
+
+    const bKeeper = batting.find((b) => b.player_id === "1002");
+    assert(bKeeper, "Expected batting record for player 1002");
+    expect(bKeeper.runs).toBe(60);
+    expect(bKeeper.not_out).toBe(true);
+
+    // Check bowling (our team bowled in innings 1)
+    const bowling = await ctx.db
+      .selectFrom("match_performance_bowling")
+      .where("match_id", "=", matchId.toString())
+      .selectAll()
+      .execute();
+
+    expect(bowling).toHaveLength(1);
+    expect(bowling[0].player_id).toBe("1003");
+    expect(bowling[0].wickets).toBe(3);
+    expect(bowling[0].overs).toBe("10");
+
+    // Check fielding (our team fielded in innings 1)
+    const fielding = await ctx.db
+      .selectFrom("match_performance_fielding")
+      .where("match_id", "=", matchId.toString())
+      .selectAll()
+      .execute();
+
+    expect(fielding).toHaveLength(2);
+
+    const keeperFielding = fielding.find((f) => f.player_id === "1002");
+    assert(keeperFielding, "Expected fielding record for player 1002");
+    expect(keeperFielding.catches).toBe(1);
+    expect(keeperFielding.is_wicketkeeper).toBe(true);
+
+    const batsmanFielding = fielding.find((f) => f.player_id === "1001");
+    assert(batsmanFielding, "Expected fielding record for player 1001");
+    expect(batsmanFielding.run_outs).toBe(1);
+    expect(batsmanFielding.is_wicketkeeper).toBe(false);
+  });
+
+  it("stores match result", async () => {
+    const matchId = 88800 + Math.floor(Math.random() * 1000);
+    const api = createMockApi({
+      getMatchesSummary: vi
+        .fn()
+        .mockResolvedValue({ matches: [makeMatchSummary(matchId)] }),
+      getMatchDetail: vi
+        .fn()
+        .mockResolvedValue(makeMatchDetail(matchId)),
+    });
+
+    const sync = runSync(ctx.db, api);
+    await sync({ siteId: SITE_ID });
+
+    const result = await ctx.db
+      .selectFrom("match_result")
+      .where("match_id", "=", matchId.toString())
+      .selectAll()
+      .executeTakeFirst();
+
+    assert(result, "Expected match result to be stored");
+    expect(result.result).toBe("Won by 5 wickets");
+    expect(result.home_team_id).toBe(OUR_TEAM_ID);
+    expect(result.season).toBe(2026);
+  });
+
+  it("logs sync to play_cricket_sync_log", async () => {
+    const api = createMockApi();
+
+    const sync = runSync(ctx.db, api);
+    await sync({ siteId: SITE_ID });
+
+    const logs = await ctx.db
+      .selectFrom("play_cricket_sync_log")
+      .selectAll()
+      .execute();
+
+    expect(logs.length).toBeGreaterThanOrEqual(1);
+    const latest = logs[logs.length - 1];
+    expect(latest.completed_at).not.toBeNull();
+    expect(latest.season).toBe(new Date().getFullYear());
+  });
+
+  it("skips matches that are already processed", async () => {
+    const matchId = 55500 + Math.floor(Math.random() * 1000);
+
+    await ctx.db
+      .insertInto("match_result")
+      .values({
+        id: crypto.randomUUID(),
+        match_id: matchId.toString(),
+        home_team_id: OUR_TEAM_ID,
+        away_team_id: OPPONENT_TEAM_ID,
+        home_team_name: "Percy Main 1st XI",
+        away_team_name: "Opposition 1st XI",
+        match_date: "01/07/2026",
+        season: 2026,
+      })
+      .execute();
+
+    const api = createMockApi({
+      getMatchesSummary: vi
+        .fn()
+        .mockResolvedValue({ matches: [makeMatchSummary(matchId)] }),
+    });
+
+    const sync = runSync(ctx.db, api);
+    const result = await sync({ siteId: SITE_ID });
+
+    expect(result.matchesProcessed).toBe(0);
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn() mock
+    expect(api.getMatchDetail).not.toHaveBeenCalled();
+  });
+
+  it("continues when individual match fails", async () => {
+    const goodMatchId = 66600 + Math.floor(Math.random() * 1000);
+    const badMatchId = goodMatchId + 1;
+
+    const api = createMockApi({
+      getMatchesSummary: vi.fn().mockResolvedValue({
+        matches: [
+          makeMatchSummary(badMatchId),
+          makeMatchSummary(goodMatchId),
+        ],
+      }),
+      getMatchDetail: vi.fn().mockImplementation((matchId: string) => {
+        if (matchId === badMatchId.toString()) {
+          throw new Error("API timeout");
+        }
+        return makeMatchDetail(goodMatchId);
+      }),
+    });
+
+    const sync = runSync(ctx.db, api);
+    const result = await sync({ siteId: SITE_ID });
+
+    expect(result.matchesProcessed).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("API timeout");
+  });
+
+  it("does not store result for recent matches without a result", async () => {
+    const matchId = 44400 + Math.floor(Math.random() * 1000);
+
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, "0");
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const yyyy = today.getFullYear();
+    const todayStr = `${dd}/${mm}/${yyyy}`;
+
+    const matchSummary = makeMatchSummary(matchId, todayStr);
+    const matchDetail = makeMatchDetail(matchId);
+    matchDetail.match_details[0].result = "";
+
+    const api = createMockApi({
+      getMatchesSummary: vi
+        .fn()
+        .mockResolvedValue({ matches: [matchSummary] }),
+      getMatchDetail: vi.fn().mockResolvedValue(matchDetail),
+    });
+
+    const sync = runSync(ctx.db, api);
+    await sync({ siteId: SITE_ID });
+
+    const result = await ctx.db
+      .selectFrom("match_result")
+      .where("match_id", "=", matchId.toString())
+      .selectAll()
+      .executeTakeFirst();
+
+    expect(result).toBeUndefined();
   });
 });
