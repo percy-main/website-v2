@@ -1,0 +1,23 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+
+# TODO: implement Terraform pipeline
+# PR: terraform plan → post plan output as PR comment
+# Merge: terraform apply (auto for staging, manual approval for production)
+#
+# Uses OIDC for AWS authentication.
+# Path filters ensure only infra changes trigger this pipeline.
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Terraform pipeline pending AWS account bootstrap"

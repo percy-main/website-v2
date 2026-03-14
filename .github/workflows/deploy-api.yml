@@ -1,0 +1,25 @@
+name: Deploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "packages/shared/**"
+      - "packages/db/**"
+      - "packages/email/**"
+
+# TODO: implement deployment pipeline
+# 1. Build Docker image (ARM64 for Graviton)
+# 2. Push to ECR
+# 3. Run DB migrations as one-off ECS task
+# 4. Update ECS service (rolling deployment)
+#
+# Uses OIDC for AWS authentication — no long-lived credentials.
+# Manual approval gate for production deployments.
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploy pipeline pending AWS account setup"

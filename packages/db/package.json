@@ -1,0 +1,29 @@
+{
+  "name": "@percy-main/db",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "db:up": "tsx ./scripts/migrate-up.ts",
+    "db:types": "kysely-codegen --out-file ./src/__generated__/db.ts",
+    "db:migration": "tsx ./scripts/create-migration.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/**"
+  },
+  "dependencies": {
+    "@percy-main/shared": "workspace:*",
+    "date-fns": "^4.1.0",
+    "kysely": "^0.28.11",
+    "pg": "^8.13.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.18.0",
+    "dotenv": "^17.3.0",
+    "kysely-codegen": "^0.20.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3"
+  }
+}

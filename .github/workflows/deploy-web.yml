@@ -1,0 +1,21 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "packages/shared/**"
+
+# TODO: implement deployment pipeline (Phase 4)
+# 1. Build Vite app
+# 2. Sync to S3
+# 3. Invalidate CloudFront cache
+#
+# Uses OIDC for AWS authentication.
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Frontend deploy pipeline pending Phase 4"
