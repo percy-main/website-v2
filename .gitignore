@@ -8,3 +8,4 @@ dist/
 .emails/
 .DS_Store
 coverage/
+*.tsbuildinfo
