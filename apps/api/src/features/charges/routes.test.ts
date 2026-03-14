@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
@@ -23,7 +23,7 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   },
 );
 
-import { getMyCharges, confirmPayment } from "./service.js";
+import { confirmPayment, getMyCharges } from "./service.js";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 

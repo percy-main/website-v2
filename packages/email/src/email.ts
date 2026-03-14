@@ -2,7 +2,7 @@ import type { FC } from "react";
 
 export interface EmailMetadata<T> {
   preview?: T;
-};
+}
 
 export const email =
   <T>(subject: string, metadata: EmailMetadata<T>) =>

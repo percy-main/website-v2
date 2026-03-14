@@ -1,10 +1,15 @@
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { Kysely, PostgresDialect, Migrator, FileMigrationProvider } from "kysely";
-import pg from "pg";
 import type { DB } from "@percy-main/db";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { promises as fs } from "fs";
+import {
+  FileMigrationProvider,
+  Kysely,
+  Migrator,
+  PostgresDialect,
+} from "kysely";
 import path from "path";
+import pg from "pg";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,7 +63,8 @@ export async function startTestContainer(): Promise<TestContext> {
   if (error) {
     await db.destroy();
     await container.stop();
-    const message = error instanceof Error ? error.message : JSON.stringify(error);
+    const message =
+      error instanceof Error ? error.message : JSON.stringify(error);
     throw new Error(`Migration failed: ${message}`);
   }
 

@@ -1,0 +1,4 @@
+pnpm-lock.yaml
+packages/db/src/__generated__/
+dist/
+.terraform/

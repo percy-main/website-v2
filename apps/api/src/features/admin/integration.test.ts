@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  seedTestUser,
   startTestContainer,
   stopTestContainer,
-  seedTestUser,
   type TestContext,
 } from "../../test/containers.js";
 import {
-  listUsers,
   createMember,
   linkPlayCricketPlayer,
+  listUsers,
   unlinkPlayCricketPlayer,
 } from "./service.js";
 

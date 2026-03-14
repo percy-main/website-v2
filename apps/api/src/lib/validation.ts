@@ -5,10 +5,12 @@ import { z } from "zod";
  * Parse and validate request body against a Zod schema.
  * Throws a structured error if validation fails.
  */
-export function parseBody<A, B extends z.ZodTypeDef, C, T extends z.ZodType<A, B, C>>(
-  request: FastifyRequest,
-  schema: T,
-): z.output<T> {
+export function parseBody<
+  A,
+  B extends z.ZodTypeDef,
+  C,
+  T extends z.ZodType<A, B, C>,
+>(request: FastifyRequest, schema: T): z.output<T> {
   const result = schema.safeParse(request.body);
   if (!result.success) {
     const error = new Error("Validation failed") as Error & {
@@ -26,10 +28,12 @@ export function parseBody<A, B extends z.ZodTypeDef, C, T extends z.ZodType<A, B
 /**
  * Parse and validate query parameters against a Zod schema.
  */
-export function parseQuery<A, B extends z.ZodTypeDef, C, T extends z.ZodType<A, B, C>>(
-  request: FastifyRequest,
-  schema: T,
-): z.output<T> {
+export function parseQuery<
+  A,
+  B extends z.ZodTypeDef,
+  C,
+  T extends z.ZodType<A, B, C>,
+>(request: FastifyRequest, schema: T): z.output<T> {
   const result = schema.safeParse(request.query);
   if (!result.success) {
     const error = new Error("Query validation failed") as Error & {
@@ -47,10 +51,12 @@ export function parseQuery<A, B extends z.ZodTypeDef, C, T extends z.ZodType<A, 
 /**
  * Parse and validate route parameters against a Zod schema.
  */
-export function parseParams<A, B extends z.ZodTypeDef, C, T extends z.ZodType<A, B, C>>(
-  request: FastifyRequest,
-  schema: T,
-): z.output<T> {
+export function parseParams<
+  A,
+  B extends z.ZodTypeDef,
+  C,
+  T extends z.ZodType<A, B, C>,
+>(request: FastifyRequest, schema: T): z.output<T> {
   const result = schema.safeParse(request.params);
   if (!result.success) {
     const error = new Error("Params validation failed") as Error & {

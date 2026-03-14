@@ -13,6 +13,7 @@ Issues discovered during migration that need fixing. Organised by priority.
 `count(*)` and `sum()` return strings in node-pg. The `sql<number>` annotation is a TypeScript-only assertion — at runtime the values are strings. Works by accident due to JS coercion but violates the CLAUDE.md guideline and will break strict equality checks (`"3" === 3` is `false`).
 
 Affected calls:
+
 - `totalTeams` in `getEligiblePlayers` — used in division for `ownershipPercent`
 - `transfersUsed` in `getMyTeam` — returned to frontend, compared to `MAX_TRANSFERS_PER_GAMEWEEK`
 - `sum(total_points)` and `count(distinct ...)` in `getEligiblePlayers`
@@ -28,7 +29,7 @@ Affected calls:
 The `onConflict` handler for `match_performance_fielding` uses additive SQL:
 
 ```typescript
-catches: sql`match_performance_fielding.catches + excluded.catches`
+catches: sql`match_performance_fielding.catches + excluded.catches`;
 ```
 
 Batting and bowling upserts use simple value replacement (idempotent). If a match is partially processed (batting stored, crash before `match_result` written), a re-run will double-count fielding stats.
@@ -48,7 +49,9 @@ No uniqueness check on `playCricketId` in the squad submission. Submitting the s
 ```typescript
 const uniqueIds = new Set(players.map((p) => p.playCricketId));
 if (uniqueIds.size !== players.length) {
-  throw Object.assign(new Error("Duplicate players are not allowed"), { statusCode: 400 });
+  throw Object.assign(new Error("Duplicate players are not allowed"), {
+    statusCode: 400,
+  });
 }
 ```
 

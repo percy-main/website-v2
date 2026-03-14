@@ -10,10 +10,10 @@ GET /api/v2/league_table.json
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `api_token` | string | Yes | API token |
-| `division_id` | int | Yes | Division ID (unique per division+season, so no season param needed) |
+| Parameter     | Type   | Required | Description                                                         |
+| ------------- | ------ | -------- | ------------------------------------------------------------------- |
+| `api_token`   | string | Yes      | API token                                                           |
+| `division_id` | int    | Yes      | Division ID (unique per division+season, so no season param needed) |
 
 ## Example Request
 
@@ -65,13 +65,13 @@ The response has three sections: column headings, row values, and a key legend.
 
 ### Table-level
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | int | Table ID |
-| `division_name` | string | Division name with match format |
-| `headings` | object | Column definitions (see below) |
-| `values` | array | Row data, one per team in position order |
-| `key` | string | Legend explaining column abbreviations |
+| Field           | Type   | Description                              |
+| --------------- | ------ | ---------------------------------------- |
+| `id`            | int    | Table ID                                 |
+| `division_name` | string | Division name with match format          |
+| `headings`      | object | Column definitions (see below)           |
+| `values`        | array  | Row data, one per team in position order |
+| `key`           | string | Legend explaining column abbreviations   |
 
 ### Headings object
 
@@ -79,31 +79,31 @@ Dynamic keys `column_1`, `column_2`, ... `column_N`. Values are the column headi
 
 ### Values array (per team)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `position` | string | League position (rank) |
-| `team_id` | string | Team ID |
+| Field                     | Type   | Description                          |
+| ------------------------- | ------ | ------------------------------------ |
+| `position`                | string | League position (rank)               |
+| `team_id`                 | string | Team ID                              |
 | `column_1` ... `column_N` | string | Values corresponding to the headings |
 
 ### Common Column Abbreviations
 
 These vary by league configuration. Common ones from the key:
 
-| Abbreviation | Meaning | Points |
-|--------------|---------|--------|
-| `p` | Played | - |
-| `w24` | Win 24pts | 24 |
-| `w20` | Win 20pts | 20 |
-| `wd` | Winning draw | - |
-| `ld4` | Losing draw >=75% | 4 |
-| `ld2` | Losing draw <75% | 2 |
-| `t` | Tied | 10 |
-| `a` | Abandoned | 4 |
-| `l` | Loss | - |
-| `BatP` | Batting Bonus Points | - |
-| `BowlP` | Bowling Bonus Points | - |
-| `Pen` | Penalty Points | - |
-| `Pts` | Total Points | - |
+| Abbreviation | Meaning              | Points |
+| ------------ | -------------------- | ------ |
+| `p`          | Played               | -      |
+| `w24`        | Win 24pts            | 24     |
+| `w20`        | Win 20pts            | 20     |
+| `wd`         | Winning draw         | -      |
+| `ld4`        | Losing draw >=75%    | 4      |
+| `ld2`        | Losing draw <75%     | 2      |
+| `t`          | Tied                 | 10     |
+| `a`          | Abandoned            | 4      |
+| `l`          | Loss                 | -      |
+| `BatP`       | Batting Bonus Points | -      |
+| `BowlP`      | Bowling Bonus Points | -      |
+| `Pen`        | Penalty Points       | -      |
+| `Pts`        | Total Points         | -      |
 
 ## Notes
 

@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireVerifiedEmail, getAuthSession } from "../auth/middleware.js";
 import { parseBody } from "../../lib/validation.js";
+import { getAuthSession, requireVerifiedEmail } from "../auth/middleware.js";
 import { updateMemberSchema } from "./schemas.js";
 import { getMemberDetails, updateMemberDetails } from "./service.js";
 

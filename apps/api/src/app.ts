@@ -1,27 +1,27 @@
-import Fastify from "fastify";
-import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
-import type { Kysely, PostgresDialect } from "kysely";
+import cors from "@fastify/cors";
 import type { DB } from "@percy-main/db";
+import Fastify from "fastify";
+import type { Kysely, PostgresDialect } from "kysely";
 import type { Config } from "./config.js";
 import { createAuth, type Auth } from "./features/auth/auth.js";
 
 // Feature routes
-import { healthRoutes } from "./features/health/routes.js";
+import { adminRoutes } from "./features/admin/routes.js";
 import { authRoutes } from "./features/auth/routes.js";
-import { memberRoutes } from "./features/members/routes.js";
 import { chargeRoutes } from "./features/charges/routes.js";
-import { juniorRoutes } from "./features/junior/routes.js";
+import { contactRoutes } from "./features/contact/routes.js";
 import { fantasyRoutes } from "./features/fantasy/routes.js";
+import { healthRoutes } from "./features/health/routes.js";
+import { juniorRoutes } from "./features/junior/routes.js";
+import { leaderboardRoutes } from "./features/leaderboard/routes.js";
+import { matchdayRoutes } from "./features/matchday/routes.js";
+import { memberRoutes } from "./features/members/routes.js";
+import { paymentRoutes } from "./features/payments/routes.js";
+import { webhookRoutes } from "./features/payments/webhook.js";
 import { playCricketRoutes } from "./features/play-cricket/routes.js";
 import { sponsorshipRoutes } from "./features/sponsorship/routes.js";
-import { matchdayRoutes } from "./features/matchday/routes.js";
-import { paymentRoutes } from "./features/payments/routes.js";
-import { adminRoutes } from "./features/admin/routes.js";
 import { treasurerRoutes } from "./features/treasurer/routes.js";
-import { leaderboardRoutes } from "./features/leaderboard/routes.js";
-import { contactRoutes } from "./features/contact/routes.js";
-import { webhookRoutes } from "./features/payments/webhook.js";
 
 // Extend Fastify types with our decorations
 declare module "fastify" {

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  seedTestUser,
   startTestContainer,
   stopTestContainer,
-  seedTestUser,
   type TestContext,
 } from "../../test/containers.js";
-import { getTeams, getMatchDetail, getPlayerCareerStats } from "./service.js";
 import type { PlayCricketApiClient } from "./api-client.js";
+import { getMatchDetail, getPlayerCareerStats, getTeams } from "./service.js";
 import { runSync } from "./sync.js";
 
 let ctx: TestContext;
@@ -54,7 +54,10 @@ describe("play-cricket service (integration)", () => {
         })
         .execute();
 
-      const result = await getMatchDetail(ctx.db)(matchId) as Record<string, unknown>;
+      const result = (await getMatchDetail(ctx.db)(matchId)) as Record<
+        string,
+        unknown
+      >;
       expect(result).toEqual(cachedPayload);
     });
 
@@ -447,9 +450,7 @@ describe("play-cricket sync (integration)", () => {
       getMatchesSummary: vi
         .fn()
         .mockResolvedValue({ matches: [makeMatchSummary(matchId)] }),
-      getMatchDetail: vi
-        .fn()
-        .mockResolvedValue(makeMatchDetail(matchId)),
+      getMatchDetail: vi.fn().mockResolvedValue(makeMatchDetail(matchId)),
     });
 
     const sync = runSync(ctx.db, api);
@@ -514,9 +515,7 @@ describe("play-cricket sync (integration)", () => {
       getMatchesSummary: vi
         .fn()
         .mockResolvedValue({ matches: [makeMatchSummary(matchId)] }),
-      getMatchDetail: vi
-        .fn()
-        .mockResolvedValue(makeMatchDetail(matchId)),
+      getMatchDetail: vi.fn().mockResolvedValue(makeMatchDetail(matchId)),
     });
 
     const sync = runSync(ctx.db, api);
@@ -588,10 +587,7 @@ describe("play-cricket sync (integration)", () => {
 
     const api = createMockApi({
       getMatchesSummary: vi.fn().mockResolvedValue({
-        matches: [
-          makeMatchSummary(badMatchId),
-          makeMatchSummary(goodMatchId),
-        ],
+        matches: [makeMatchSummary(badMatchId), makeMatchSummary(goodMatchId)],
       }),
       getMatchDetail: vi.fn().mockImplementation((matchId: string) => {
         if (matchId === badMatchId.toString()) {
@@ -623,9 +619,7 @@ describe("play-cricket sync (integration)", () => {
     matchDetail.match_details[0].result = "";
 
     const api = createMockApi({
-      getMatchesSummary: vi
-        .fn()
-        .mockResolvedValue({ matches: [matchSummary] }),
+      getMatchesSummary: vi.fn().mockResolvedValue({ matches: [matchSummary] }),
       getMatchDetail: vi.fn().mockResolvedValue(matchDetail),
     });
 

@@ -1,32 +1,32 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireRole } from "../auth/middleware.js";
 import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
+import { requireRole } from "../auth/middleware.js";
 import {
-  sponsorshipListSchema,
-  sponsorshipActionSchema,
-  sponsorshipUpdateSchema,
-  sponsorshipIdParamSchema,
+  allApprovedSchema,
+  byContentfulIdSchema,
+  byGameIdSchema,
   gameSponsorshipManualSchema,
   playerSponsorshipManualSchema,
-  allApprovedSchema,
-  byGameIdSchema,
-  byContentfulIdSchema,
+  sponsorshipActionSchema,
+  sponsorshipIdParamSchema,
+  sponsorshipListSchema,
+  sponsorshipUpdateSchema,
 } from "./schemas.js";
 import {
-  getGameSponsorshipPrice,
-  getPlayerSponsorshipPrice,
-  getGameSponsorByGameId,
-  getPlayerSponsorForPlayer,
-  hasPlayerPendingSponsor,
-  getAllApprovedPlayerSponsors,
-  listGameSponsorships,
-  listPlayerSponsorships,
   approveGameSponsorship,
   approvePlayerSponsorship,
-  rejectGameSponsorship,
-  rejectPlayerSponsorship,
   createManualGameSponsorship,
   createManualPlayerSponsorship,
+  getAllApprovedPlayerSponsors,
+  getGameSponsorByGameId,
+  getGameSponsorshipPrice,
+  getPlayerSponsorForPlayer,
+  getPlayerSponsorshipPrice,
+  hasPlayerPendingSponsor,
+  listGameSponsorships,
+  listPlayerSponsorships,
+  rejectGameSponsorship,
+  rejectPlayerSponsorship,
   updateGameSponsorship,
   updatePlayerSponsorship,
 } from "./service.js";
@@ -64,31 +64,22 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     return { sponsors };
   });
 
-  app.get(
-    "/sponsorship/game/:gameId",
-    async (request) => {
-      const { gameId } = parseParams(request, byGameIdSchema);
-      const sponsor = await gameSponsor(gameId);
-      return { sponsor };
-    },
-  );
+  app.get("/sponsorship/game/:gameId", async (request) => {
+    const { gameId } = parseParams(request, byGameIdSchema);
+    const sponsor = await gameSponsor(gameId);
+    return { sponsor };
+  });
 
-  app.get(
-    "/sponsorship/player/:contentfulEntryId",
-    async (request) => {
-      const { contentfulEntryId } = parseParams(request, byContentfulIdSchema);
-      const sponsor = await playerSponsor(contentfulEntryId);
-      return { sponsor };
-    },
-  );
+  app.get("/sponsorship/player/:contentfulEntryId", async (request) => {
+    const { contentfulEntryId } = parseParams(request, byContentfulIdSchema);
+    const sponsor = await playerSponsor(contentfulEntryId);
+    return { sponsor };
+  });
 
-  app.get(
-    "/sponsorship/player/:contentfulEntryId/pending",
-    async (request) => {
-      const { contentfulEntryId } = parseParams(request, byContentfulIdSchema);
-      return await playerPending(contentfulEntryId);
-    },
-  );
+  app.get("/sponsorship/player/:contentfulEntryId/pending", async (request) => {
+    const { contentfulEntryId } = parseParams(request, byContentfulIdSchema);
+    return await playerPending(contentfulEntryId);
+  });
 
   // --- Admin routes ---
 

@@ -1,5 +1,5 @@
-import type { FastifyReply, FastifyRequest } from "fastify";
 import type { Session, User } from "better-auth";
+import type { FastifyReply, FastifyRequest } from "fastify";
 
 declare module "fastify" {
   interface FastifyRequest {

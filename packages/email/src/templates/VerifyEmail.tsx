@@ -1,5 +1,5 @@
-import type { FC } from "react";
 import { Body, Container, Html, Text } from "@react-email/components";
+import type { FC } from "react";
 import { email } from "../email.js";
 import * as styles from "../styles.js";
 
@@ -27,5 +27,9 @@ const Component: FC<Props> = ({ url, name }) => (
 );
 
 export const VerifyEmail = email<Props>("Verify your email address", {
-  preview: { url: "https://example.com/verify", imageBaseUrl: "/images", name: "Alex" },
+  preview: {
+    url: "https://example.com/verify",
+    imageBaseUrl: "/images",
+    name: "Alex",
+  },
 })(Component);

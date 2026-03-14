@@ -1,27 +1,26 @@
-import { createElement } from "react";
-import type { Kysely } from "kysely";
-import type { DB } from "@percy-main/db";
-import type Stripe from "stripe";
-import type { FastifyBaseLogger } from "fastify";
-import { render } from "@react-email/render";
+import type { CreatePaymentChargeResult, DB } from "@percy-main/db";
 import {
-  membershipSchema,
-  gameSponsoredSchema,
-  playerSponsoredSchema,
-} from "@percy-main/shared";
-import {
+  createJuniorMemberships,
   createPaymentCharge,
   updateMembership,
-  createJuniorMemberships,
 } from "@percy-main/db";
 import {
-  send,
   MembershipUpdated,
-  SponsorshipConfirmation,
   PlayerSponsorshipConfirmation,
+  send,
+  SponsorshipConfirmation,
 } from "@percy-main/email";
-import type { CreatePaymentChargeResult } from "@percy-main/db";
-import { stripeDate, invoiceLinesToDuration } from "./stripe-utils.js";
+import {
+  gameSponsoredSchema,
+  membershipSchema,
+  playerSponsoredSchema,
+} from "@percy-main/shared";
+import { render } from "@react-email/render";
+import type { FastifyBaseLogger } from "fastify";
+import type { Kysely } from "kysely";
+import { createElement } from "react";
+import type Stripe from "stripe";
+import { invoiceLinesToDuration, stripeDate } from "./stripe-utils.js";
 
 /** Log a warning if a charge was not created due to missing member. */
 function logChargeResult(
@@ -126,7 +125,11 @@ export function handleCheckoutCompleted({ db, stripe, log }: WebhookDeps) {
       await send({
         to: email,
         subject: MembershipUpdated.subject,
-        html: await render(createElement(MembershipUpdated.component, { name: result.name ?? undefined })),
+        html: await render(
+          createElement(MembershipUpdated.component, {
+            name: result.name ?? undefined,
+          }),
+        ),
       });
       return;
     }
@@ -208,7 +211,10 @@ async function resolveSubscriptionMembershipMetadata(
     }
   }
 
-  log.warn({ subscriptionId }, "Could not resolve membership metadata for subscription");
+  log.warn(
+    { subscriptionId },
+    "Could not resolve membership metadata for subscription",
+  );
   return undefined;
 }
 
@@ -226,7 +232,7 @@ export function handleInvoicePayment({ db, stripe, log }: WebhookDeps) {
     const customerId =
       typeof invoice.customer === "string"
         ? invoice.customer
-        : invoice.customer?.id ?? "unknown";
+        : (invoice.customer?.id ?? "unknown");
 
     if (customer == null) {
       throw new Error(`Missing customer: ${customerId}`);
@@ -287,7 +293,11 @@ export function handleInvoicePayment({ db, stripe, log }: WebhookDeps) {
       await send({
         to: email,
         subject: MembershipUpdated.subject,
-        html: await render(createElement(MembershipUpdated.component, { name: result.name ?? undefined })),
+        html: await render(
+          createElement(MembershipUpdated.component, {
+            name: result.name ?? undefined,
+          }),
+        ),
       });
     }
   };
@@ -314,14 +324,26 @@ export function handlePaymentIntentSucceeded({ db, stripe, log }: WebhookDeps) {
     // --- Game sponsorship ---
     const gameMeta = gameSponsoredSchema.safeParse(metadata);
     if (gameMeta.success) {
-      await handleSponsorGame(db, paymentIntent, gameMeta.data, eventCreated, log);
+      await handleSponsorGame(
+        db,
+        paymentIntent,
+        gameMeta.data,
+        eventCreated,
+        log,
+      );
       return;
     }
 
     // --- Player sponsorship ---
     const playerMeta = playerSponsoredSchema.safeParse(metadata);
     if (playerMeta.success) {
-      await handleSponsorPlayer(db, paymentIntent, playerMeta.data, eventCreated, log);
+      await handleSponsorPlayer(
+        db,
+        paymentIntent,
+        playerMeta.data,
+        eventCreated,
+        log,
+      );
       return;
     }
 
@@ -353,7 +375,10 @@ export function handlePaymentIntentSucceeded({ db, stripe, log }: WebhookDeps) {
         price.type === "one_time"
           ? { months: 12 }
           : price.recurring
-            ? { [`${price.recurring.interval}s`]: price.recurring.interval_count }
+            ? {
+                [`${price.recurring.interval}s`]:
+                  price.recurring.interval_count,
+              }
             : { days: 0 };
 
       const paidUntil =
@@ -384,7 +409,11 @@ export function handlePaymentIntentSucceeded({ db, stripe, log }: WebhookDeps) {
       await send({
         to: email,
         subject: MembershipUpdated.subject,
-        html: await render(createElement(MembershipUpdated.component, { name: result.name ?? undefined })),
+        html: await render(
+          createElement(MembershipUpdated.component, {
+            name: result.name ?? undefined,
+          }),
+        ),
       });
       return;
     }
@@ -468,12 +497,7 @@ export function handlePaymentIntentSucceeded({ db, stripe, log }: WebhookDeps) {
       const sponsorship = await db
         .selectFrom("game_sponsorship")
         .where("id", "=", meta.sponsorshipId)
-        .select([
-          "sponsor_name",
-          "sponsor_email",
-          "sponsor_message",
-          "game_id",
-        ])
+        .select(["sponsor_name", "sponsor_email", "sponsor_message", "game_id"])
         .executeTakeFirst();
 
       if (sponsorship) {
@@ -491,7 +515,10 @@ export function handlePaymentIntentSucceeded({ db, stripe, log }: WebhookDeps) {
       }
     } else {
       // TODO: Slack notification (skip for now)
-      log.info({ gameId: meta.gameId }, "Game sponsored (no sponsorship record)");
+      log.info(
+        { gameId: meta.gameId },
+        "Game sponsored (no sponsorship record)",
+      );
     }
 
     if (email) {
@@ -570,7 +597,10 @@ export function handlePaymentIntentSucceeded({ db, stripe, log }: WebhookDeps) {
       logChargeResult(result, { email, type: "sponsorship" }, log);
     } else {
       log.warn(
-        { paymentIntentId: paymentIntent.id, sponsorshipId: meta.sponsorshipId },
+        {
+          paymentIntentId: paymentIntent.id,
+          sponsorshipId: meta.sponsorshipId,
+        },
         "Player sponsorship payment has no email — charge record not created",
       );
     }

@@ -10,6 +10,7 @@ Use **Fastify** as the API framework for `apps/api`.
 ## Options Considered
 
 ### Fastify (chosen)
+
 - First-class TypeScript support with typed plugins and hooks
 - Built-in schema validation (integrates well with Zod via plugins)
 - Async-first design — no callback patterns
@@ -18,12 +19,14 @@ Use **Fastify** as the API framework for `apps/api`.
 - Fastify v5 is stable and actively maintained
 
 ### Express
+
 - Larger ecosystem and more tutorials
 - More familiar to most Node.js developers
 - Simpler middleware model
 - Would work fine for our needs
 
 ### Hono
+
 - Ultra-lightweight, web-standard Request/Response
 - Good for edge/serverless but we're running persistent ECS tasks
 - Smaller ecosystem

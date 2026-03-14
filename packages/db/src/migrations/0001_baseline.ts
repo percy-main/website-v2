@@ -355,9 +355,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   // -- junior_team_manager --
   await db.schema
     .createTable("junior_team_manager")
-    .addColumn("user_id", "text", (col) =>
-      col.notNull().references("user.id"),
-    )
+    .addColumn("user_id", "text", (col) => col.notNull().references("user.id"))
     .addColumn("junior_team_id", "text", (col) =>
       col.notNull().references("junior_team.id"),
     )
@@ -378,9 +376,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .createTable("play_cricket_team")
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("name", "text", (col) => col.notNull())
-    .addColumn("is_junior", "boolean", (col) =>
-      col.notNull().defaultTo(false),
-    )
+    .addColumn("is_junior", "boolean", (col) => col.notNull().defaultTo(false))
     .addColumn("site_id", "text", (col) => col.notNull())
     .addColumn("last_updated", "text")
     .addColumn("created_at", "text", (col) =>
@@ -396,9 +392,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("player_id", "text", (col) => col.notNull())
     .addColumn("player_name", "text", (col) => col.notNull())
     .addColumn("team_id", "text", (col) => col.notNull())
-    .addColumn("competition_type", "text", (col) =>
-      col.notNull().defaultTo(""),
-    )
+    .addColumn("competition_type", "text", (col) => col.notNull().defaultTo(""))
     .addColumn("match_date", "text", (col) => col.notNull())
     .addColumn("season", "integer", (col) => col.notNull())
     .addColumn("runs", "integer", (col) => col.notNull().defaultTo(0))
@@ -436,9 +430,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("player_id", "text", (col) => col.notNull())
     .addColumn("player_name", "text", (col) => col.notNull())
     .addColumn("team_id", "text", (col) => col.notNull())
-    .addColumn("competition_type", "text", (col) =>
-      col.notNull().defaultTo(""),
-    )
+    .addColumn("competition_type", "text", (col) => col.notNull().defaultTo(""))
     .addColumn("match_date", "text", (col) => col.notNull())
     .addColumn("season", "integer", (col) => col.notNull())
     .addColumn("overs", "text", (col) => col.notNull().defaultTo("0"))
@@ -476,9 +468,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("player_id", "text", (col) => col.notNull())
     .addColumn("player_name", "text", (col) => col.notNull())
     .addColumn("team_id", "text", (col) => col.notNull())
-    .addColumn("competition_type", "text", (col) =>
-      col.notNull().defaultTo(""),
-    )
+    .addColumn("competition_type", "text", (col) => col.notNull().defaultTo(""))
     .addColumn("match_date", "text", (col) => col.notNull())
     .addColumn("season", "integer", (col) => col.notNull())
     .addColumn("catches", "integer", (col) => col.notNull().defaultTo(0))
@@ -524,9 +514,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("result_applied_to", "text", (col) =>
       col.notNull().defaultTo(""),
     )
-    .addColumn("competition_type", "text", (col) =>
-      col.notNull().defaultTo(""),
-    )
+    .addColumn("competition_type", "text", (col) => col.notNull().defaultTo(""))
     .addColumn("match_date", "text", (col) => col.notNull())
     .addColumn("season", "integer", (col) => col.notNull())
     .addColumn("created_at", "text", (col) =>
@@ -600,9 +588,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   // -- team_official --
   await db.schema
     .createTable("team_official")
-    .addColumn("user_id", "text", (col) =>
-      col.notNull().references("user.id"),
-    )
+    .addColumn("user_id", "text", (col) => col.notNull().references("user.id"))
     .addColumn("play_cricket_team_id", "text", (col) =>
       col.notNull().references("play_cricket_team.id"),
     )
@@ -731,9 +717,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("play_cricket_id", "text", (col) => col.primaryKey())
     .addColumn("player_name", "text", (col) => col.notNull())
     .addColumn("eligible", "boolean", (col) => col.notNull().defaultTo(false))
-    .addColumn("sandwich_cost", "integer", (col) =>
-      col.notNull().defaultTo(1),
-    )
+    .addColumn("sandwich_cost", "integer", (col) => col.notNull().defaultTo(1))
     .addColumn("created_at", "text", (col) =>
       col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
     )
@@ -770,14 +754,10 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("play_cricket_id", "text", (col) =>
       col.notNull().references("fantasy_player.play_cricket_id"),
     )
-    .addColumn("is_captain", "boolean", (col) =>
-      col.notNull().defaultTo(false),
-    )
+    .addColumn("is_captain", "boolean", (col) => col.notNull().defaultTo(false))
     .addColumn("gameweek_added", "integer", (col) => col.notNull())
     .addColumn("gameweek_removed", "integer")
-    .addColumn("slot_type", "text", (col) =>
-      col.notNull().defaultTo("batting"),
-    )
+    .addColumn("slot_type", "text", (col) => col.notNull().defaultTo("batting"))
     .addColumn("is_wicketkeeper", "boolean", (col) =>
       col.notNull().defaultTo(false),
     )
@@ -802,12 +782,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("gameweek_id", "integer", (col) => col.notNull())
     .addColumn("play_cricket_id", "text", (col) => col.notNull())
     .addColumn("match_id", "text", (col) => col.notNull())
-    .addColumn("batting_points", "integer", (col) =>
-      col.notNull().defaultTo(0),
-    )
-    .addColumn("bowling_points", "integer", (col) =>
-      col.notNull().defaultTo(0),
-    )
+    .addColumn("batting_points", "integer", (col) => col.notNull().defaultTo(0))
+    .addColumn("bowling_points", "integer", (col) => col.notNull().defaultTo(0))
     .addColumn("fielding_points", "integer", (col) =>
       col.notNull().defaultTo(0),
     )
@@ -893,9 +869,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("rule_type", "text", (col) => col.notNull())
     .addColumn("rule_config", "text", (col) => col.notNull().defaultTo("{}"))
     .addColumn("send_email", "boolean", (col) => col.notNull().defaultTo(true))
-    .addColumn("email_sent", "boolean", (col) =>
-      col.notNull().defaultTo(false),
-    )
+    .addColumn("email_sent", "boolean", (col) => col.notNull().defaultTo(false))
     .addColumn("created_at", "text", (col) =>
       col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
     )

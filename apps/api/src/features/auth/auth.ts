@@ -1,10 +1,10 @@
-import { createElement } from "react";
-import { send, VerifyEmail, ResetPassword } from "@percy-main/email";
 import { passkey } from "@better-auth/passkey";
+import { ResetPassword, send, VerifyEmail } from "@percy-main/email";
 import { render } from "@react-email/render";
 import { betterAuth } from "better-auth";
 import { admin, twoFactor } from "better-auth/plugins";
 import type { PostgresDialect } from "kysely";
+import { createElement } from "react";
 import type { Config } from "../../config.js";
 
 export function createAuth(config: Config, dialect: PostgresDialect) {
@@ -12,10 +12,9 @@ export function createAuth(config: Config, dialect: PostgresDialect) {
 
   return betterAuth({
     appName: config.BETTER_AUTH_RP_NAME,
-    trustedOrigins: [
-      baseURL,
-      config.DEPLOY_PRIME_URL,
-    ].filter(Boolean) as string[],
+    trustedOrigins: [baseURL, config.DEPLOY_PRIME_URL].filter(
+      Boolean,
+    ) as string[],
     database: {
       type: "postgres",
       dialect,

@@ -1,7 +1,7 @@
-import assert from "node:assert/strict";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
+import assert from "node:assert/strict";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
@@ -45,12 +45,8 @@ vi.mock("./api-client.js", () => ({
   getLeagueTable: vi.fn(),
 }));
 
-import {
-  getMatchDetail,
-  getTeams,
-  getPlayerCareerStats,
-} from "./service.js";
 import { getMatchDetail as apiGetMatchDetail } from "./api-client.js";
+import { getMatchDetail, getPlayerCareerStats, getTeams } from "./service.js";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 

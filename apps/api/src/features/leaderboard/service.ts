@@ -1,5 +1,5 @@
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
 import type { ScoreInput } from "./schemas.js";
 
 /**

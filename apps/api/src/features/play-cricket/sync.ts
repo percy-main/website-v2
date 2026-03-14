@@ -1,10 +1,10 @@
+import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import type { DB } from "@percy-main/db";
 import type { z } from "zod";
 import {
-  MatchDetailBat,
   GetMatchDetailResponse,
+  MatchDetailBat,
   type MatchSummaryMatch,
 } from "./api-schemas.js";
 
@@ -65,13 +65,15 @@ interface FieldingAgg {
 
 // --- Exported for testing ---
 
-export { isJuniorTeam, isNotOut, didBat, parseDismissalType };
+export { didBat, isJuniorTeam, isNotOut, parseDismissalType };
 
 // --- Main sync logic ---
 
 const DEADLINE_MS = 10 * 60 * 1000; // 10 minutes
 
-type MatchDetailType = z.output<typeof GetMatchDetailResponse>["match_details"][number];
+type MatchDetailType = z.output<
+  typeof GetMatchDetailResponse
+>["match_details"][number];
 
 function getWicketkeeperIds(
   players: MatchDetailType["players"],
@@ -79,8 +81,7 @@ function getWicketkeeperIds(
 ): Set<string> {
   const keeperIds = new Set<string>();
   for (const group of players) {
-    const squad =
-      teamSide === "home" ? group.home_team : group.away_team;
+    const squad = teamSide === "home" ? group.home_team : group.away_team;
     if (!squad) continue;
     for (const player of squad) {
       if (player.wicket_keeper && player.player_id != null) {
@@ -172,7 +173,11 @@ async function syncTeams(
 
 async function upsertTeamFromMatch(
   db: Kysely<DB>,
-  teamEntry: { id: string | undefined; name: string | undefined; clubId: string | undefined },
+  teamEntry: {
+    id: string | undefined;
+    name: string | undefined;
+    clubId: string | undefined;
+  },
   siteId: string,
 ): Promise<void> {
   if (!teamEntry.id || !teamEntry.name || teamEntry.clubId !== siteId) return;
@@ -391,19 +396,30 @@ async function syncMatches(
       if (!hasScorecard) continue;
 
       // Validate match_date format (DD/MM/YYYY)
-      if (!match.match_date || !/^\d{2}\/\d{2}\/\d{4}$/.test(match.match_date)) {
+      if (
+        !match.match_date ||
+        !/^\d{2}\/\d{2}\/\d{4}$/.test(match.match_date)
+      ) {
         continue;
       }
 
       // Upsert teams from match detail
       await upsertTeamFromMatch(
         db,
-        { id: detail.home_team_id, name: detail.home_team_name, clubId: detail.home_club_id },
+        {
+          id: detail.home_team_id,
+          name: detail.home_team_name,
+          clubId: detail.home_club_id,
+        },
         siteId,
       );
       await upsertTeamFromMatch(
         db,
-        { id: detail.away_team_id, name: detail.away_team_name, clubId: detail.away_club_id },
+        {
+          id: detail.away_team_id,
+          name: detail.away_team_name,
+          clubId: detail.away_club_id,
+        },
         siteId,
       );
 
@@ -427,9 +443,7 @@ async function syncMatches(
         const isFieldingTeamOurs = ourTeamIds.has(fieldingTeamId);
 
         const fieldingKeeperIds =
-          fieldingTeamId === match.home_team_id
-            ? homeKeeperIds
-            : awayKeeperIds;
+          fieldingTeamId === match.home_team_id ? homeKeeperIds : awayKeeperIds;
 
         if (isBattingTeamOurs) {
           await storeBattingPerformances(
@@ -547,9 +561,7 @@ export function runSync(db: Kysely<DB>, api: PlayCricketApiClient) {
           season: new Date().getFullYear(),
           matches_processed: result.matchesProcessed,
           errors:
-            result.errors.length > 0
-              ? JSON.stringify(result.errors)
-              : null,
+            result.errors.length > 0 ? JSON.stringify(result.errors) : null,
         })
         .execute();
 
@@ -557,15 +569,12 @@ export function runSync(db: Kysely<DB>, api: PlayCricketApiClient) {
       // Non-fatal: scoring failures are logged but don't fail the sync.
       if (result.matchesProcessed > 0) {
         try {
-          const { calculateFantasyScores } = await import(
-            "../fantasy/calculate-scores.js"
-          );
+          const { calculateFantasyScores } =
+            await import("../fantasy/calculate-scores.js");
           const season = String(new Date().getFullYear());
           await calculateFantasyScores(db)(season);
         } catch (scoringErr) {
-          result.errors.push(
-            `Fantasy scoring failed: ${String(scoringErr)}`,
-          );
+          result.errors.push(`Fantasy scoring failed: ${String(scoringErr)}`);
         }
       }
 

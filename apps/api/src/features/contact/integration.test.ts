@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   startTestContainer,
   stopTestContainer,
@@ -19,7 +19,9 @@ afterAll(async () => {
 describe("contact service (integration)", () => {
   describe("createContactSubmission", () => {
     it("stores a submission in the database and returns an id", async () => {
-      const result = await createContactSubmission(ctx.db, { slackWebhookUrl: undefined })({
+      const result = await createContactSubmission(ctx.db, {
+        slackWebhookUrl: undefined,
+      })({
         name: "Jane Doe",
         email: "jane@example.com",
         message: "Hello, I have a question.",

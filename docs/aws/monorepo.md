@@ -28,14 +28,14 @@ percy-main/
 
 ### What Goes Where
 
-| Package | Contents | Deploys To |
-|---------|----------|------------|
-| `apps/web` | React components, routes, pages, client-side logic | S3 + CloudFront |
-| `apps/api` | Express/Fastify handlers, middleware, service layer | ECS Fargate (Docker image from ECR in management account) |
-| `packages/shared` | Zod schemas, TypeScript types, constants used by both apps | Not deployed (build dependency) |
-| `packages/db` | Kysely config, migrations, generated types, query helpers | Not deployed (build dependency) |
-| `packages/email` | React Email templates | Not deployed (imported by API) |
-| `infra` | Terraform modules and environment configs | AWS (via `terraform apply`) |
+| Package           | Contents                                                   | Deploys To                                                |
+| ----------------- | ---------------------------------------------------------- | --------------------------------------------------------- |
+| `apps/web`        | React components, routes, pages, client-side logic         | S3 + CloudFront                                           |
+| `apps/api`        | Express/Fastify handlers, middleware, service layer        | ECS Fargate (Docker image from ECR in management account) |
+| `packages/shared` | Zod schemas, TypeScript types, constants used by both apps | Not deployed (build dependency)                           |
+| `packages/db`     | Kysely config, migrations, generated types, query helpers  | Not deployed (build dependency)                           |
+| `packages/email`  | React Email templates                                      | Not deployed (imported by API)                            |
+| `infra`           | Terraform modules and environment configs                  | AWS (via `terraform apply`)                               |
 
 ---
 
@@ -70,12 +70,12 @@ No additional build orchestrator is needed at our scale (2 apps, 3 shared packag
 
 Each deployable unit has its own pipeline, triggered by path filters:
 
-| Trigger Path | Pipeline | Action |
-|-------------|----------|--------|
-| `apps/web/**`, `packages/shared/**` | Frontend Deploy | `build` → `aws s3 sync` → CloudFront invalidation |
-| `apps/api/**`, `packages/shared/**`, `packages/db/**`, `packages/email/**` | API Deploy | `build` → Docker build → ECR push (management account) → ECS rolling update (workload account) |
-| `infra/**` | Terraform | `plan` on PR → `apply` on merge |
-| `packages/db/migrations/**` | DB Migration | Run as explicit ECS task before API deployment |
+| Trigger Path                                                               | Pipeline        | Action                                                                                         |
+| -------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------- |
+| `apps/web/**`, `packages/shared/**`                                        | Frontend Deploy | `build` → `aws s3 sync` → CloudFront invalidation                                              |
+| `apps/api/**`, `packages/shared/**`, `packages/db/**`, `packages/email/**` | API Deploy      | `build` → Docker build → ECR push (management account) → ECS rolling update (workload account) |
+| `infra/**`                                                                 | Terraform       | `plan` on PR → `apply` on merge                                                                |
+| `packages/db/migrations/**`                                                | DB Migration    | Run as explicit ECS task before API deployment                                                 |
 
 Changes to `packages/shared` trigger both frontend and API pipelines, since both depend on it. The build orchestrator handles this automatically — it knows the dependency graph.
 
@@ -105,13 +105,13 @@ Merge to main:
 
 The monorepo structure is established incrementally, not all at once:
 
-| Migration Phase | Monorepo Change |
-|----------------|-----------------|
-| **Phase 1: Foundation** | Add `infra/` and `packages/db/` (extract DB layer from current `src/lib/db/`) |
-| **Phase 2: Backend** | Add `apps/api/` (extract service layer from Astro actions), add `packages/shared/` (extract shared types/schemas) |
-| **Phase 3: Data Pipelines** | Pipeline ECS tasks use the same `apps/api` image and `packages/db` — no new packages needed |
-| **Phase 4: Frontend** | Rename/restructure current frontend into `apps/web/` as React + Vite SPA |
-| **Phase 5: Content** | Inline content as React components in `apps/web/`, remove Contentful packages |
+| Migration Phase             | Monorepo Change                                                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Phase 1: Foundation**     | Add `infra/` and `packages/db/` (extract DB layer from current `src/lib/db/`)                                     |
+| **Phase 2: Backend**        | Add `apps/api/` (extract service layer from Astro actions), add `packages/shared/` (extract shared types/schemas) |
+| **Phase 3: Data Pipelines** | Pipeline ECS tasks use the same `apps/api` image and `packages/db` — no new packages needed                       |
+| **Phase 4: Frontend**       | Rename/restructure current frontend into `apps/web/` as React + Vite SPA                                          |
+| **Phase 5: Content**        | Inline content as React components in `apps/web/`, remove Contentful packages                                     |
 
 The current Astro app continues to work throughout — it just gradually shrinks as pieces are extracted into their own packages.
 
@@ -136,6 +136,7 @@ RUN pnpm --filter api build
 ```
 
 Key considerations:
+
 - **Build context is the repo root** — allows COPY of shared packages, even though the Dockerfile lives in `apps/api/`
 - **Multi-stage build** — install dependencies and build in one stage, copy output to a slim runtime stage
 - **ARM-based image** — for Graviton-based Fargate tasks (cost savings)
@@ -151,9 +152,9 @@ The workspace layout is defined early rather than discovered incrementally. This
 
 ## Constraints and Trade-offs
 
-| Trade-off | Notes |
-|-----------|-------|
-| **Repo size** | Terraform state files are NOT in the repo (remote S3 backend). Docker images are NOT in the repo (ECR). Repo stays lean. |
-| **Permission boundaries** | Anyone with repo access can see infra config. Fine for our team size. For larger orgs, CODEOWNERS can gate infra changes. |
-| **CI time** | Without caching, every PR runs everything. Build orchestrator caching makes this manageable — only affected packages are rebuilt. |
+| Trade-off                  | Notes                                                                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Repo size**              | Terraform state files are NOT in the repo (remote S3 backend). Docker images are NOT in the repo (ECR). Repo stays lean.               |
+| **Permission boundaries**  | Anyone with repo access can see infra config. Fine for our team size. For larger orgs, CODEOWNERS can gate infra changes.              |
+| **CI time**                | Without caching, every PR runs everything. Build orchestrator caching makes this manageable — only affected packages are rebuilt.      |
 | **Terraform in same repo** | Terraform has no awareness of pnpm workspaces and vice versa. They coexist but don't interact — CI path filters keep them independent. |

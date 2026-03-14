@@ -10,8 +10,12 @@ const configSchema = z.object({
   // Server
   PORT: z.coerce.number().int().default(3000),
   HOST: z.string().default("0.0.0.0"),
-  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  LOG_LEVEL: z
+    .enum(["fatal", "error", "warn", "info", "debug", "trace"])
+    .default("info"),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
 
   // Auth
   BETTER_AUTH_SECRET: z.string().optional(),

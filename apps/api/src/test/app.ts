@@ -1,5 +1,5 @@
-import type { Kysely, PostgresDialect } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely, PostgresDialect } from "kysely";
 import { buildApp } from "../app.js";
 import { parseConfig } from "../config.js";
 

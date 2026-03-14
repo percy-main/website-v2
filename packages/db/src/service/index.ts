@@ -1,9 +1,9 @@
-export { updateMembership } from "./updateMembership.js";
+export { createJuniorMemberships } from "./createJuniorMemberships.js";
 export { createPaymentCharge } from "./createPaymentCharge.js";
 export type {
-  ChargeType,
   ChargeSource,
+  ChargeType,
   CreatePaymentChargeResult,
 } from "./createPaymentCharge.js";
-export { createJuniorMemberships } from "./createJuniorMemberships.js";
 export { NoMemberWithEmailError } from "./errors.js";
+export { updateMembership } from "./updateMembership.js";

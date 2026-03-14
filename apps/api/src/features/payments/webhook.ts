@@ -15,7 +15,9 @@ import {
  * routes that expect standard JSON parsing.
  */
 export const webhookRoutes: FastifyPluginAsync = async (app) => {
-  const stripe = createStripe({ stripeSecretKey: app.config.STRIPE_SECRET_KEY });
+  const stripe = createStripe({
+    stripeSecretKey: app.config.STRIPE_SECRET_KEY,
+  });
   const deps = { db: app.db, stripe, log: app.log };
 
   const onCheckoutCompleted = handleCheckoutCompleted(deps);
@@ -28,7 +30,11 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
     webhookScope.addContentTypeParser(
       "application/json",
       { parseAs: "buffer" },
-      (_req, body: Buffer, done: (err: Error | null, body?: unknown) => void) => {
+      (
+        _req,
+        body: Buffer,
+        done: (err: Error | null, body?: unknown) => void,
+      ) => {
         done(null, body);
       },
     );
@@ -37,7 +43,9 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
       const sig = request.headers["stripe-signature"];
 
       if (!sig) {
-        return reply.status(400).send({ error: "Missing stripe-signature header" });
+        return reply
+          .status(400)
+          .send({ error: "Missing stripe-signature header" });
       }
 
       const webhookSecret = app.config.STRIPE_WEBHOOK_SECRET;
@@ -58,30 +66,27 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
         return reply.status(400).send({ error: "Invalid signature" });
       }
 
-      request.log.info({ type: event.type, id: event.id }, "Stripe webhook received");
+      request.log.info(
+        { type: event.type, id: event.id },
+        "Stripe webhook received",
+      );
 
       switch (event.type) {
         case "checkout.session.completed":
         case "checkout.session.async_payment_succeeded":
-          await onCheckoutCompleted(
-            event.data.object,
-            event.created,
-          );
+          await onCheckoutCompleted(event.data.object, event.created);
           break;
         case "invoice.payment_succeeded":
-          await onInvoicePayment(
-            event.data.object,
-            event.created,
-          );
+          await onInvoicePayment(event.data.object, event.created);
           break;
         case "payment_intent.succeeded":
-          await onPaymentIntentSucceeded(
-            event.data.object,
-            event.created,
-          );
+          await onPaymentIntentSucceeded(event.data.object, event.created);
           break;
         default:
-          request.log.info({ type: event.type }, "Unhandled webhook event type");
+          request.log.info(
+            { type: event.type },
+            "Unhandled webhook event type",
+          );
       }
 
       return { received: true };

@@ -1,15 +1,15 @@
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import {
+  BUDGET,
+  getCurrentGameweek,
   getCurrentSeason,
   getPreviousSeason,
-  getCurrentGameweek,
-  BUDGET,
   MAX_TRANSFERS_PER_GAMEWEEK,
 } from "./gameweek.js";
-import { SLOT_COUNTS } from "./scoring.js";
 import type { PlayerInput } from "./schemas.js";
+import { SLOT_COUNTS } from "./scoring.js";
 
 export function getEligiblePlayers(db: Kysely<DB>) {
   return async (season?: string) => {
@@ -42,7 +42,11 @@ export function getEligiblePlayers(db: Kysely<DB>) {
     const gameweek = getCurrentGameweek(s);
     const ownership = await db
       .selectFrom("fantasy_team_player")
-      .innerJoin("fantasy_team", "fantasy_team.id", "fantasy_team_player.fantasy_team_id")
+      .innerJoin(
+        "fantasy_team",
+        "fantasy_team.id",
+        "fantasy_team_player.fantasy_team_id",
+      )
       .where("fantasy_team.season", "=", s)
       .where("fantasy_team_player.gameweek_added", "<=", gameweek)
       .where((eb) =>
@@ -162,11 +166,7 @@ export function getMyTeam(db: Kysely<DB>) {
 }
 
 export function saveTeam(db: Kysely<DB>) {
-  return async (
-    userId: string,
-    players: PlayerInput[],
-    season?: string,
-  ) => {
+  return async (userId: string, players: PlayerInput[], season?: string) => {
     const s = season ?? getCurrentSeason();
     const gameweek = getCurrentGameweek(s);
 
@@ -203,16 +203,16 @@ export function saveTeam(db: Kysely<DB>) {
       throw error;
     }
     if (captainCount !== 1) {
-      const error = new Error(
-        "Must have exactly 1 captain",
-      ) as Error & { statusCode: number };
+      const error = new Error("Must have exactly 1 captain") as Error & {
+        statusCode: number;
+      };
       error.statusCode = 400;
       throw error;
     }
     if (wicketkeeperCount > 1) {
-      const error = new Error(
-        "At most 1 wicketkeeper allowed",
-      ) as Error & { statusCode: number };
+      const error = new Error("At most 1 wicketkeeper allowed") as Error & {
+        statusCode: number;
+      };
       error.statusCode = 400;
       throw error;
     }
@@ -359,7 +359,11 @@ export function populatePlayers(db: Kysely<DB>) {
 
     // Merge all players by player_id
     const playerMap = new Map<string, string>();
-    for (const p of [...battingPlayers, ...bowlingPlayers, ...fieldingPlayers]) {
+    for (const p of [
+      ...battingPlayers,
+      ...bowlingPlayers,
+      ...fieldingPlayers,
+    ]) {
       if (p.player_id && p.player_name) {
         playerMap.set(p.player_id, p.player_name);
       }

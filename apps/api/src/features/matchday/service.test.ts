@@ -1,39 +1,33 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExecute, mockQueryBuilder } = vi.hoisted(
-  () => {
-    const mockExecuteTakeFirst = vi.fn();
-    const mockExecute = vi.fn();
+const { mockExecute, mockQueryBuilder } = vi.hoisted(() => {
+  const mockExecuteTakeFirst = vi.fn();
+  const mockExecute = vi.fn();
 
-    const mockQueryBuilder = {
-      selectFrom: vi.fn().mockReturnThis(),
-      updateTable: vi.fn().mockReturnThis(),
-      insertInto: vi.fn().mockReturnThis(),
-      deleteFrom: vi.fn().mockReturnThis(),
-      innerJoin: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      selectAll: vi.fn().mockReturnThis(),
-      set: vi.fn().mockReturnThis(),
-      values: vi.fn().mockReturnThis(),
-      orderBy: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      offset: vi.fn().mockReturnThis(),
-      executeTakeFirst: mockExecuteTakeFirst,
-      execute: mockExecute,
-    };
+  const mockQueryBuilder = {
+    selectFrom: vi.fn().mockReturnThis(),
+    updateTable: vi.fn().mockReturnThis(),
+    insertInto: vi.fn().mockReturnThis(),
+    deleteFrom: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    selectAll: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
+    values: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    offset: vi.fn().mockReturnThis(),
+    executeTakeFirst: mockExecuteTakeFirst,
+    execute: mockExecute,
+  };
 
-    return { mockExecuteTakeFirst, mockExecute, mockQueryBuilder };
-  },
-);
+  return { mockExecuteTakeFirst, mockExecute, mockQueryBuilder };
+});
 
-import {
-  listMatches,
-  recordExpense,
-  deleteExpense,
-} from "./service.js";
+import { deleteExpense, listMatches, recordExpense } from "./service.js";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 
@@ -118,11 +112,7 @@ describe("matchday service", () => {
       expect(mockQueryBuilder.deleteFrom).toHaveBeenCalledWith(
         "matchday_expense",
       );
-      expect(mockQueryBuilder.where).toHaveBeenCalledWith(
-        "id",
-        "=",
-        "exp-1",
-      );
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith("id", "=", "exp-1");
     });
   });
 });

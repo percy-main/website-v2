@@ -9,6 +9,7 @@ Detailed phased plan for migrating Percy Main CSC infrastructure to AWS. Phases 
 **Goal:** Establish the AWS account structure and migrate the database from SQLite to PostgreSQL.
 
 **Tasks:**
+
 - AWS Organization setup (management + production + staging accounts)
 - Management account baseline: ECR repository, Route 53 hosted zone, CloudTrail organization trail, GitHub Actions OIDC provider, Terraform state bucket + DynamoDB lock table
 - VPC configuration with public and private subnets
@@ -35,6 +36,7 @@ Detailed phased plan for migrating Percy Main CSC infrastructure to AWS. Phases 
 **Goal:** Extract the backend into a standalone API service running on ECS Fargate.
 
 **Tasks:**
+
 - Extract service layer from 19 Astro action handler files (~9,550 lines)
 - Build Node.js API service using Express or Fastify
 - Containerise with Docker (ARM-based image for Graviton)
@@ -63,6 +65,7 @@ Moving data pipelines earlier — immediately after the backend service exists �
 **Current state:**
 
 The Play Cricket data sync runs as a single monolithic background function (currently limited to 15 minutes execution time) on a cron schedule. It:
+
 1. Fetches all team definitions from the Play Cricket API
 2. Fetches match summaries for the current season
 3. Iterates through each unprocessed match, fetching full scorecards
@@ -128,6 +131,7 @@ Additional on-demand API calls happen at request time for live scores (cached 5 
 By this point, the backend API and data pipelines are already running independently. The frontend migration is now a pure presentation rewrite — no architectural untangling required.
 
 **Tasks:**
+
 - Scaffold React + Vite project
 - Implement React Router for client-side routing
 - Set up root-level providers (auth context, React Query)
@@ -156,6 +160,7 @@ By this point, the backend API and data pipelines are already running independen
 Content is edited by a single developer. The current workflow already requires a deploy to publish (Astro fetches Contentful at build time), so inlining content as components is zero regression — same "edit → commit → deploy" pipeline, without the external dependency.
 
 **Tasks:**
+
 - Inline existing Contentful content as React components:
   - Pages, news articles, events, people/trustees, locations
   - Image assets → S3 (referenced directly from components)
@@ -172,6 +177,7 @@ Content is edited by a single developer. The current workflow already requires a
 **Goal:** Provision staging, complete DNS cutover, decommission old services.
 
 **Tasks:**
+
 - Staging environment provisioning (mirrors production):
   - VPC + NAT Gateway
   - ECS Fargate (1 task)
@@ -213,9 +219,9 @@ The existing Netlify/Turso stack remains the production platform until the final
 
 **Key rollback boundaries:**
 
-| Phase | Rollback | Detail |
-|-------|----------|--------|
-| **Phases 1–5** | Stay on Netlify/Turso | No production traffic hits AWS until DNS cutover. All work is additive. |
+| Phase                 | Rollback              | Detail                                                                                                                                                                                                                                                                                                             |
+| --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Phases 1–5**        | Stay on Netlify/Turso | No production traffic hits AWS until DNS cutover. All work is additive.                                                                                                                                                                                                                                            |
 | **Phase 6 (cutover)** | Re-runnable data lift | A Turso→PostgreSQL data lift tool is built in Phase 1 for testing. It is idempotent and re-runnable, so it can be executed again immediately before go-live to capture all interim data. If issues are discovered post-cutover, DNS can be pointed back to Netlify and the existing stack resumes serving traffic. |
 
 **Data lift tool:** Built early in Phase 1 as a scripted export/transform/import from Turso to RDS. Used repeatedly throughout the migration for testing with realistic data. Run one final time during the cutover window to ensure data consistency.
@@ -224,12 +230,12 @@ The existing Netlify/Turso stack remains the production platform until the final
 
 ## Challenges & Mitigations
 
-| Challenge | Detail | Mitigation |
-|-----------|--------|------------|
-| **Database migration** | 47 migration files, ~5–10 with SQLite-specific SQL | Most use dialect-agnostic Kysely schema builder; manual changes localised to a few query files |
-| **Deploy preview databases** | RDS does not have branch database equivalents | Per-PR PostgreSQL schemas within a shared staging RDS instance — zero incremental cost |
-| **Frontend SPA routing** | Client-side routing requires all paths to serve index.html | Standard CloudFront custom error response configuration |
-| **Build plugin rewrite** | Custom Netlify migration plugin tied to Netlify APIs | Rewrite as platform-agnostic pre-build script |
-| **DNS cutover** | Propagation period during switch | Lower TTL in advance; run both platforms in parallel during transition |
-| **Local development** | Currently uses SQLite file; will need local PostgreSQL | Docker Compose with PostgreSQL container |
-| **Data migration** | 35 tables of production data to transfer | Small data volumes; scripted export/transform/import with testing |
+| Challenge                    | Detail                                                     | Mitigation                                                                                     |
+| ---------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Database migration**       | 47 migration files, ~5–10 with SQLite-specific SQL         | Most use dialect-agnostic Kysely schema builder; manual changes localised to a few query files |
+| **Deploy preview databases** | RDS does not have branch database equivalents              | Per-PR PostgreSQL schemas within a shared staging RDS instance — zero incremental cost         |
+| **Frontend SPA routing**     | Client-side routing requires all paths to serve index.html | Standard CloudFront custom error response configuration                                        |
+| **Build plugin rewrite**     | Custom Netlify migration plugin tied to Netlify APIs       | Rewrite as platform-agnostic pre-build script                                                  |
+| **DNS cutover**              | Propagation period during switch                           | Lower TTL in advance; run both platforms in parallel during transition                         |
+| **Local development**        | Currently uses SQLite file; will need local PostgreSQL     | Docker Compose with PostgreSQL container                                                       |
+| **Data migration**           | 35 tables of production data to transfer                   | Small data volumes; scripted export/transform/import with testing                              |

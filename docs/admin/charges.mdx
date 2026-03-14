@@ -1,43 +1,44 @@
 # Charges
 
 <AdminTab name="Charges">
-Monitor all member charges and payment status, sync Stripe history, and send payment reminders.
+  Monitor all member charges and payment status, sync Stripe history, and send
+  payment reminders.
 </AdminTab>
 
 ## Summary Cards
 
 At the top of the Charges tab, four summary cards give you an at-a-glance view:
 
-| Card | Colour | Description |
-|------|--------|-------------|
+| Card              | Colour  | Description                           |
+| ----------------- | ------- | ------------------------------------- |
 | **Total Charged** | Default | Total amount and count of all charges |
-| **Collected** | Green | Amount and count of paid charges |
-| **Outstanding** | Yellow | Amount and count of unpaid charges |
-| **Abandoned** | Red | Amount and count of abandoned charges |
+| **Collected**     | Green   | Amount and count of paid charges      |
+| **Outstanding**   | Yellow  | Amount and count of unpaid charges    |
+| **Abandoned**     | Red     | Amount and count of abandoned charges |
 
 ## Filters
 
-| Filter | Description |
-|--------|-------------|
-| **Search** | Search by member name or charge description |
-| **Status** | All Statuses, Unpaid, Pending, Paid, Abandoned |
-| **Date range** | From and To date pickers |
-| **Show deleted** | Checkbox to include soft-deleted charges |
+| Filter           | Description                                    |
+| ---------------- | ---------------------------------------------- |
+| **Search**       | Search by member name or charge description    |
+| **Status**       | All Statuses, Unpaid, Pending, Paid, Abandoned |
+| **Date range**   | From and To date pickers                       |
+| **Show deleted** | Checkbox to include soft-deleted charges       |
 
 A **Clear filters** button appears when any filter is active.
 
 ## Charges Table
 
-| Column | Description |
-|--------|-------------|
-| **Date** | When the charge was created |
-| **Member** | Member name and email |
-| **Description** | What the charge is for (deleted charges show deletion reason) |
-| **Amount** | Amount in GBP |
-| **Source** | Badge showing "stripe" or "admin" |
-| **Status** | Paid (green), Pending (blue), Unpaid (yellow), Abandoned (red), or Deleted (grey) |
-| **Payment Date** | When payment was received, or "-" |
-| **Actions** | Chase button for unpaid/abandoned charges |
+| Column           | Description                                                                       |
+| ---------------- | --------------------------------------------------------------------------------- |
+| **Date**         | When the charge was created                                                       |
+| **Member**       | Member name and email                                                             |
+| **Description**  | What the charge is for (deleted charges show deletion reason)                     |
+| **Amount**       | Amount in GBP                                                                     |
+| **Source**       | Badge showing "stripe" or "admin"                                                 |
+| **Status**       | Paid (green), Pending (blue), Unpaid (yellow), Abandoned (red), or Deleted (grey) |
+| **Payment Date** | When payment was received, or "-"                                                 |
+| **Actions**      | Chase button for unpaid/abandoned charges                                         |
 
 Deleted charges appear with reduced opacity.
 
@@ -76,5 +77,7 @@ The result shows:
 - Any errors encountered
 
 <Callout type="warning">
-Stripe sync processes all historical charges. Run it during quiet periods as it can take some time. Duplicate charges are automatically detected and skipped, so it's safe to run multiple times.
+  Stripe sync processes all historical charges. Run it during quiet periods as
+  it can take some time. Duplicate charges are automatically detected and
+  skipped, so it's safe to run multiple times.
 </Callout>
