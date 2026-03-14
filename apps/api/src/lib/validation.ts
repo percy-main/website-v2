@@ -41,3 +41,23 @@ export function parseQuery<T extends z.ZodType>(
   }
   return result.data as z.output<T>;
 }
+
+/**
+ * Parse and validate route parameters against a Zod schema.
+ */
+export function parseParams<T extends z.ZodType>(
+  request: FastifyRequest,
+  schema: T,
+): z.output<T> {
+  const result = schema.safeParse(request.params);
+  if (!result.success) {
+    const error = new Error("Params validation failed") as Error & {
+      statusCode: number;
+      validation: z.ZodIssue[];
+    };
+    error.statusCode = 400;
+    error.validation = result.error.issues;
+    throw error;
+  }
+  return result.data as z.output<T>;
+}

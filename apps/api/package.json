@@ -7,13 +7,19 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/**"
+    "lint": "eslint src/**",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@better-auth/passkey": "^1.5.4",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.0.0",
     "@percy-main/db": "workspace:*",
+    "kysely": "^0.28.11",
+    "pg": "^8.13.1",
     "@percy-main/email": "workspace:*",
     "@percy-main/shared": "workspace:*",
     "@react-email/render": "1.0.4",
@@ -31,8 +37,13 @@
     "@types/node": "^25.5.0",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@types/pg": "^8.18.0",
+    "@types/supertest": "^7.2.0",
+    "@vitest/coverage-v8": "^4.1.0",
     "dotenv": "^17.3.0",
+    "supertest": "^7.2.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
   }
 }

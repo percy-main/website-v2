@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { auth } from "../lib/auth.js";
+import { auth } from "./auth.js";
 
 /**
  * better-auth catch-all route handler.

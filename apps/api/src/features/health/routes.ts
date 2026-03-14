@@ -3,7 +3,6 @@ import { client } from "@percy-main/db";
 
 export const healthRoutes: FastifyPluginAsync = async (app) => {
   app.get("/health", async () => {
-    // Check database connectivity
     try {
       await client.selectFrom("user").select("id").limit(1).execute();
       return { status: "ok", database: "connected" };
