@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Kysely } from "kysely";
+import type { DB } from "@percy-main/db";
 
 const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
@@ -26,17 +28,6 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   },
 );
 
-vi.mock("@percy-main/db", () => ({
-  client: new Proxy(mockQueryBuilder, {
-    get(target, prop) {
-      if (prop in target) {
-        return (target as Record<string | symbol, unknown>)[prop];
-      }
-      return vi.fn().mockReturnValue(target);
-    },
-  }),
-}));
-
 vi.mock("kysely", () => ({
   sql: new Proxy(() => ({ as: () => "sql_expr" }), {
     get() {
@@ -59,6 +50,8 @@ import {
   getPlayerCareerStats,
 } from "./service.js";
 import { getMatchDetail as apiGetMatchDetail } from "./api-client.js";
+
+const db = mockQueryBuilder as unknown as Kysely<DB>;
 
 describe("play-cricket service", () => {
   beforeEach(() => {
@@ -85,7 +78,7 @@ describe("play-cricket service", () => {
       ];
       mockExecute.mockResolvedValueOnce(teamData);
 
-      const result = await getTeams();
+      const result = await getTeams(db)();
 
       expect(result.teams).toEqual(teamData);
       expect(mockQueryBuilder.selectFrom).toHaveBeenCalledWith(
@@ -96,7 +89,7 @@ describe("play-cricket service", () => {
     it("returns empty array when no teams exist", async () => {
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await getTeams();
+      const result = await getTeams(db)();
 
       expect(result.teams).toEqual([]);
     });
@@ -111,7 +104,7 @@ describe("play-cricket service", () => {
         fetched_at: new Date().toISOString(), // Just now = still fresh
       });
 
-      const result = await getMatchDetail("123");
+      const result = await getMatchDetail(db)("123");
 
       expect(result).toEqual(cachedData);
       // Should NOT have called the API
@@ -134,7 +127,7 @@ describe("play-cricket service", () => {
       // Mock the update
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await getMatchDetail("123");
+      const result = await getMatchDetail(db)("123");
 
       expect(result).toEqual(freshData);
       expect(apiGetMatchDetail).toHaveBeenCalledWith("123");
@@ -151,7 +144,7 @@ describe("play-cricket service", () => {
       // Mock the insert
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await getMatchDetail("456");
+      const result = await getMatchDetail(db)("456");
 
       expect(result).toEqual(apiData);
       expect(apiGetMatchDetail).toHaveBeenCalledWith("456");
@@ -165,7 +158,7 @@ describe("play-cricket service", () => {
     it("returns null when no contentful link exists", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // No member found
 
-      const result = await getPlayerCareerStats("entry-123");
+      const result = await getPlayerCareerStats(db)("entry-123");
 
       expect(result).toBeNull();
     });
@@ -175,7 +168,7 @@ describe("play-cricket service", () => {
         play_cricket_id: null,
       });
 
-      const result = await getPlayerCareerStats("entry-123");
+      const result = await getPlayerCareerStats(db)("entry-123");
 
       expect(result).toBeNull();
     });
@@ -216,7 +209,7 @@ describe("play-cricket service", () => {
         },
       ]);
 
-      const result = await getPlayerCareerStats("entry-123");
+      const result = await getPlayerCareerStats(db)("entry-123");
 
       expect(result).not.toBeNull();
       expect(result!.playCricketId).toBe("pc-100");

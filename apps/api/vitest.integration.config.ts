@@ -4,11 +4,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: [
-      "src/test/e2e.test.ts",
-      "src/features/junior/routes.test.ts",
-      "src/features/leaderboard/routes.test.ts",
-    ],
+    include: ["src/**/integration.test.ts"],
+    pool: "forks",
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
     setupFiles: ["./src/test/setup.ts"],
   },
 });

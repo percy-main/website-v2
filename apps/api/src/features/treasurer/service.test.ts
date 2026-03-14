@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Kysely } from "kysely";
+import type { DB } from "@percy-main/db";
 
 const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
@@ -28,17 +30,6 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   },
 );
 
-vi.mock("@percy-main/db", () => ({
-  client: new Proxy(mockQueryBuilder, {
-    get(target, prop) {
-      if (prop in target) {
-        return (target as Record<string | symbol, unknown>)[prop];
-      }
-      return vi.fn().mockReturnValue(target);
-    },
-  }),
-}));
-
 vi.mock("kysely", () => ({
   sql: new Proxy(() => "sql_expr", {
     get() {
@@ -60,6 +51,8 @@ import {
   getOutstandingPayments,
 } from "./service.js";
 
+const db = mockQueryBuilder as unknown as Kysely<DB>;
+
 describe("treasurer service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,7 +72,7 @@ describe("treasurer service", () => {
       ];
       mockExecute.mockResolvedValue(chargeData);
 
-      const result = await getIncomeByMonth();
+      const result = await getIncomeByMonth(db)();
 
       expect(result.charges).toEqual(chargeData);
       expect(mockQueryBuilder.selectFrom).toHaveBeenCalledWith("charge");
@@ -93,7 +86,7 @@ describe("treasurer service", () => {
     it("applies date range filters", async () => {
       mockExecute.mockResolvedValue([]);
 
-      await getIncomeByMonth("2026-01-01", "2026-03-31");
+      await getIncomeByMonth(db)("2026-01-01", "2026-03-31");
 
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
         "paid_at",
@@ -116,7 +109,7 @@ describe("treasurer service", () => {
       ];
       mockExecute.mockResolvedValue(summaryData);
 
-      const result = await getMembershipSummary();
+      const result = await getMembershipSummary(db)();
 
       expect(result.memberships).toEqual(summaryData);
       expect(mockQueryBuilder.selectFrom).toHaveBeenCalledWith("membership");
@@ -139,7 +132,7 @@ describe("treasurer service", () => {
       mockExecute.mockResolvedValue(unpaid);
       mockExecuteTakeFirst.mockResolvedValue({ total: 1 });
 
-      const result = await getOutstandingPayments(1, 20);
+      const result = await getOutstandingPayments(db)(1, 20);
 
       expect(result.items).toEqual(unpaid);
       expect(result.total).toBe(1);
@@ -164,7 +157,7 @@ describe("treasurer service", () => {
       mockExecute.mockResolvedValue([]);
       mockExecuteTakeFirst.mockResolvedValue({ total: 0 });
 
-      const result = await getOutstandingPayments(2, 10);
+      const result = await getOutstandingPayments(db)(2, 10);
 
       expect(result.page).toBe(2);
       expect(result.pageSize).toBe(10);

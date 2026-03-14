@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Kysely } from "kysely";
+import type { DB } from "@percy-main/db";
 
 const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
@@ -32,23 +34,14 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   },
 );
 
-vi.mock("@percy-main/db", () => ({
-  client: new Proxy(mockQueryBuilder, {
-    get(target, prop) {
-      if (prop in target) {
-        return (target as Record<string | symbol, unknown>)[prop];
-      }
-      return vi.fn().mockReturnValue(target);
-    },
-  }),
-}));
-
 import {
   getGameSponsorshipPrice,
   getPlayerSponsorshipPrice,
   approveGameSponsorship,
   listGameSponsorships,
 } from "./service.js";
+
+const db = mockQueryBuilder as unknown as Kysely<DB>;
 
 describe("sponsorship service", () => {
   beforeEach(() => {
@@ -90,7 +83,7 @@ describe("sponsorship service", () => {
     it("sets approved to true", async () => {
       mockExecute.mockResolvedValue([]);
 
-      const result = await approveGameSponsorship("sp-123");
+      const result = await approveGameSponsorship(db)("sp-123");
 
       expect(result).toEqual({ success: true });
       expect(mockQueryBuilder.updateTable).toHaveBeenCalledWith(
@@ -115,7 +108,7 @@ describe("sponsorship service", () => {
       mockExecute.mockResolvedValue(items);
       mockExecuteTakeFirst.mockResolvedValue({ total: 10 });
 
-      const result = await listGameSponsorships(1, 2, "all");
+      const result = await listGameSponsorships(db)(1, 2, "all");
 
       expect(result.items).toEqual(items);
       expect(result.total).toBe(10);
@@ -127,7 +120,7 @@ describe("sponsorship service", () => {
       mockExecute.mockResolvedValue([]);
       mockExecuteTakeFirst.mockResolvedValue({ total: 0 });
 
-      const result = await listGameSponsorships(1, 20, "all");
+      const result = await listGameSponsorships(db)(1, 20, "all");
 
       expect(result.items).toEqual([]);
       expect(result.total).toBe(0);

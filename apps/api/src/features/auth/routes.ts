@@ -1,5 +1,4 @@
 import type { FastifyPluginAsync } from "fastify";
-import { auth } from "./auth.js";
 
 /**
  * better-auth catch-all route handler.
@@ -36,7 +35,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           : undefined,
     });
 
-    const response = await auth.handler(webRequest);
+    const response = await app.auth.handler(webRequest);
 
     // Convert Web Response back to Fastify reply
     reply.status(response.status);

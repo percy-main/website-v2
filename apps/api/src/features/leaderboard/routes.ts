@@ -5,18 +5,21 @@ import { submitScoreSchema, leaderboardQuerySchema } from "./schemas.js";
 import { submitScore, getLeaderboard } from "./service.js";
 
 export const leaderboardRoutes: FastifyPluginAsync = async (app) => {
+  const submit = submitScore(app.db);
+  const leaderboard = getLeaderboard(app.db);
+
   app.post(
     "/game-score",
     { preHandler: [requireAuth] },
     async (request) => {
       const { user } = request.authSession!;
       const data = parseBody(request, submitScoreSchema);
-      return submitScore(user.id, data);
+      return submit(user.id, data);
     },
   );
 
   app.get("/leaderboard", async (request) => {
     const { game, limit } = parseQuery(request, leaderboardQuerySchema);
-    return getLeaderboard(game, limit);
+    return leaderboard(game, limit);
   });
 };

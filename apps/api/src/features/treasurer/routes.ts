@@ -12,12 +12,19 @@ import {
 } from "./service.js";
 
 export const treasurerRoutes: FastifyPluginAsync = async (app) => {
+  const income = getIncomeByMonth(app.db);
+  const membership = getMembershipSummary(app.db);
+  const outstanding = getOutstandingPayments(app.db);
+  const sponsorship = getSponsorshipSummary(app.db);
+  const matchdayExpenses = getMatchdayExpensesSummary(app.db);
+  const receipts = getExpensesWithReceipts(app.db);
+
   app.get(
     "/treasurer/income-by-month",
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
-      return getIncomeByMonth(dateFrom, dateTo);
+      return income(dateFrom, dateTo);
     },
   );
 
@@ -25,7 +32,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
     "/treasurer/membership-summary",
     { preHandler: [requireRole("admin")] },
     async () => {
-      return getMembershipSummary();
+      return membership();
     },
   );
 
@@ -37,7 +44,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
         request,
         paginatedDateRangeSchema,
       );
-      return getOutstandingPayments(page, pageSize);
+      return outstanding(page, pageSize);
     },
   );
 
@@ -46,7 +53,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
-      return getSponsorshipSummary(dateFrom, dateTo);
+      return sponsorship(dateFrom, dateTo);
     },
   );
 
@@ -55,7 +62,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
-      return getMatchdayExpensesSummary(dateFrom, dateTo);
+      return matchdayExpenses(dateFrom, dateTo);
     },
   );
 
@@ -64,7 +71,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
-      return getExpensesWithReceipts(dateFrom, dateTo);
+      return receipts(dateFrom, dateTo);
     },
   );
 };

@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
-import { client } from "../client.js";
+import type { Kysely } from "kysely";
+import type { DB } from "../__generated__/db.js";
 
 export type ChargeType =
   | "manual"
@@ -28,61 +29,63 @@ export type CreatePaymentChargeResult =
   | { created: true }
   | { created: false; reason: "no_member" | "duplicate" };
 
-export async function createPaymentCharge({
-  memberEmail,
-  description,
-  amountPence,
-  chargeDate,
-  type,
-  source,
-  stripePaymentIntentId,
-}: CreatePaymentChargeParams): Promise<CreatePaymentChargeResult> {
-  const member = await client
-    .selectFrom("member")
-    .where("email", "=", memberEmail)
-    .select(["id"])
-    .executeTakeFirst();
-
-  if (!member) {
-    return { created: false, reason: "no_member" };
-  }
-
-  if (stripePaymentIntentId) {
-    const existing = await client
-      .selectFrom("charge")
-      .where("stripe_payment_intent_id", "=", stripePaymentIntentId)
-      .where("member_id", "=", member.id)
-      .where("type", "=", type)
+export function createPaymentCharge(db: Kysely<DB>) {
+  return async ({
+    memberEmail,
+    description,
+    amountPence,
+    chargeDate,
+    type,
+    source,
+    stripePaymentIntentId,
+  }: CreatePaymentChargeParams): Promise<CreatePaymentChargeResult> => {
+    const member = await db
+      .selectFrom("member")
+      .where("email", "=", memberEmail)
       .select(["id"])
       .executeTakeFirst();
 
-    if (existing) {
-      return { created: false, reason: "duplicate" };
+    if (!member) {
+      return { created: false, reason: "no_member" };
     }
-  }
 
-  if (!stripePaymentIntentId) {
-    console.warn(
-      "createPaymentCharge: inserting charge without stripePaymentIntentId — no dedup protection",
-      { memberEmail, type, description },
-    );
-  }
+    if (stripePaymentIntentId) {
+      const existing = await db
+        .selectFrom("charge")
+        .where("stripe_payment_intent_id", "=", stripePaymentIntentId)
+        .where("member_id", "=", member.id)
+        .where("type", "=", type)
+        .select(["id"])
+        .executeTakeFirst();
 
-  await client
-    .insertInto("charge")
-    .values({
-      id: randomUUID(),
-      member_id: member.id,
-      description,
-      amount_pence: amountPence,
-      charge_date: chargeDate.toISOString().split("T")[0],
-      created_by: "system",
-      paid_at: chargeDate.toISOString(),
-      stripe_payment_intent_id: stripePaymentIntentId ?? null,
-      type,
-      source,
-    })
-    .execute();
+      if (existing) {
+        return { created: false, reason: "duplicate" };
+      }
+    }
 
-  return { created: true };
+    if (!stripePaymentIntentId) {
+      console.warn(
+        "createPaymentCharge: inserting charge without stripePaymentIntentId — no dedup protection",
+        { memberEmail, type, description },
+      );
+    }
+
+    await db
+      .insertInto("charge")
+      .values({
+        id: randomUUID(),
+        member_id: member.id,
+        description,
+        amount_pence: amountPence,
+        charge_date: chargeDate.toISOString().split("T")[0],
+        created_by: "system",
+        paid_at: chargeDate.toISOString(),
+        stripe_payment_intent_id: stripePaymentIntentId ?? null,
+        type,
+        source,
+      })
+      .execute();
+
+    return { created: true };
+  };
 }

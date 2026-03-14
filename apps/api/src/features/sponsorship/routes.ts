@@ -29,6 +29,21 @@ import {
 } from "./service.js";
 
 export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
+  const gameSponsor = getGameSponsorByGameId(app.db);
+  const playerSponsor = getPlayerSponsorForPlayer(app.db);
+  const playerPending = hasPlayerPendingSponsor(app.db);
+  const allApproved = getAllApprovedPlayerSponsors(app.db);
+  const listGame = listGameSponsorships(app.db);
+  const listPlayer = listPlayerSponsorships(app.db);
+  const approveGame = approveGameSponsorship(app.db);
+  const approvePlayer = approvePlayerSponsorship(app.db);
+  const rejectGame = rejectGameSponsorship(app.db);
+  const rejectPlayer = rejectPlayerSponsorship(app.db);
+  const manualGame = createManualGameSponsorship(app.db);
+  const manualPlayer = createManualPlayerSponsorship(app.db);
+  const updateGame = updateGameSponsorship(app.db);
+  const updatePlayer = updatePlayerSponsorship(app.db);
+
   // --- Public routes ---
 
   app.get("/sponsorship/game/price", async () => {
@@ -41,7 +56,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/sponsorship/player/approved", async (request) => {
     const { season } = parseQuery(request, allApprovedSchema);
-    const sponsors = await getAllApprovedPlayerSponsors(season);
+    const sponsors = await allApproved(season);
     return { sponsors };
   });
 
@@ -49,7 +64,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     "/sponsorship/game/:gameId",
     async (request) => {
       const { gameId } = request.params;
-      const sponsor = await getGameSponsorByGameId(gameId);
+      const sponsor = await gameSponsor(gameId);
       return { sponsor };
     },
   );
@@ -58,7 +73,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     "/sponsorship/player/:contentfulEntryId",
     async (request) => {
       const { contentfulEntryId } = request.params;
-      const sponsor = await getPlayerSponsorForPlayer(contentfulEntryId);
+      const sponsor = await playerSponsor(contentfulEntryId);
       return { sponsor };
     },
   );
@@ -67,7 +82,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     "/sponsorship/player/:contentfulEntryId/pending",
     async (request) => {
       const { contentfulEntryId } = request.params;
-      return hasPlayerPendingSponsor(contentfulEntryId);
+      return playerPending(contentfulEntryId);
     },
   );
 
@@ -81,7 +96,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
         request,
         sponsorshipListSchema,
       );
-      return listGameSponsorships(page, pageSize, filter);
+      return listGame(page, pageSize, filter);
     },
   );
 
@@ -93,7 +108,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
         request,
         sponsorshipListSchema,
       );
-      return listPlayerSponsorships(page, pageSize, filter);
+      return listPlayer(page, pageSize, filter);
     },
   );
 
@@ -102,7 +117,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { sponsorshipId } = parseBody(request, sponsorshipActionSchema);
-      return approveGameSponsorship(sponsorshipId);
+      return approveGame(sponsorshipId);
     },
   );
 
@@ -111,7 +126,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { sponsorshipId } = parseBody(request, sponsorshipActionSchema);
-      return rejectGameSponsorship(sponsorshipId);
+      return rejectGame(sponsorshipId);
     },
   );
 
@@ -120,7 +135,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { sponsorshipId } = parseBody(request, sponsorshipActionSchema);
-      return approvePlayerSponsorship(sponsorshipId);
+      return approvePlayer(sponsorshipId);
     },
   );
 
@@ -129,7 +144,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { sponsorshipId } = parseBody(request, sponsorshipActionSchema);
-      return rejectPlayerSponsorship(sponsorshipId);
+      return rejectPlayer(sponsorshipId);
     },
   );
 
@@ -138,7 +153,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const data = parseBody(request, gameSponsorshipManualSchema);
-      return createManualGameSponsorship(data);
+      return manualGame(data);
     },
   );
 
@@ -147,7 +162,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const data = parseBody(request, playerSponsorshipManualSchema);
-      return createManualPlayerSponsorship(data);
+      return manualPlayer(data);
     },
   );
 
@@ -157,7 +172,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { sponsorshipId } = request.params;
       const data = parseBody(request, sponsorshipUpdateSchema);
-      return updateGameSponsorship(sponsorshipId, data);
+      return updateGame(sponsorshipId, data);
     },
   );
 
@@ -167,7 +182,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { sponsorshipId } = request.params;
       const data = parseBody(request, sponsorshipUpdateSchema);
-      return updatePlayerSponsorship(sponsorshipId, data);
+      return updatePlayer(sponsorshipId, data);
     },
   );
 };

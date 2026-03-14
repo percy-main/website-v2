@@ -1,27 +1,29 @@
 import { randomUUID } from "crypto";
 import { add, type Duration } from "date-fns";
-import { client } from "../client.js";
+import type { Kysely } from "kysely";
+import type { DB } from "../__generated__/db.js";
 import { defaultCategoryForMembershipType } from "@percy-main/shared";
 
-export const updateMembership = async ({
-  membershipType,
-  email,
-  addedDuration,
-  paidAt,
-  paidUntil: explicitPaidUntil,
-}: {
-  membershipType: string;
-  email: string;
-  addedDuration: Duration;
-  paidAt: Date;
-  paidUntil?: Date;
-}) => {
+export function updateMembership(db: Kysely<DB>) {
+  return async ({
+    membershipType,
+    email,
+    addedDuration,
+    paidAt,
+    paidUntil: explicitPaidUntil,
+  }: {
+    membershipType: string;
+    email: string;
+    addedDuration: Duration;
+    paidAt: Date;
+    paidUntil?: Date;
+  }) => {
   console.log(
     "Updating membership",
     JSON.stringify({ membershipType, email, addedDuration, paidAt }, null, 2),
   );
 
-  const member = await client
+  const member = await db
     .selectFrom("member")
     .leftJoin("membership", (join) =>
       join
@@ -40,7 +42,7 @@ export const updateMembership = async ({
 
   if (!member) {
     const newMemberId = randomUUID();
-    await client
+    await db
       .insertInto("member")
       .values({ id: newMemberId, email })
       .execute();
@@ -49,7 +51,7 @@ export const updateMembership = async ({
       ? explicitPaidUntil.toISOString()
       : add(paidAt, addedDuration).toISOString();
 
-    const membership = await client
+    const membership = await db
       .insertInto("membership")
       .values({
         id: randomUUID(),
@@ -62,7 +64,7 @@ export const updateMembership = async ({
 
     const category = defaultCategoryForMembershipType(membershipType);
     if (category) {
-      await client
+      await db
         .updateTable("member")
         .set({ member_category: category })
         .where("id", "=", newMemberId)
@@ -81,7 +83,7 @@ export const updateMembership = async ({
       ? explicitPaidUntil.toISOString()
       : add(paidAt, addedDuration).toISOString();
 
-    const membership = await client
+    const membership = await db
       .insertInto("membership")
       .values({
         id: randomUUID(),
@@ -95,7 +97,7 @@ export const updateMembership = async ({
     if (!member.member_category) {
       const category = defaultCategoryForMembershipType(membershipType);
       if (category) {
-        await client
+        await db
           .updateTable("member")
           .set({ member_category: category })
           .where("id", "=", member.member_id)
@@ -114,7 +116,7 @@ export const updateMembership = async ({
           addedDuration,
         ).toISOString();
 
-    const membership = await client
+    const membership = await db
       .updateTable("membership")
       .set({ paid_until })
       .where("id", "=", member.membership_id)
@@ -124,7 +126,7 @@ export const updateMembership = async ({
     if (!member.member_category) {
       const category = defaultCategoryForMembershipType(membershipType);
       if (category) {
-        await client
+        await db
           .updateTable("member")
           .set({ member_category: category })
           .where("id", "=", member.member_id)
@@ -134,4 +136,5 @@ export const updateMembership = async ({
 
     return { ...membership, name: member.name, isNew: false };
   }
-};
+  };
+}

@@ -1,30 +1,28 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
-import { createTestDb, cleanDb, seedTestUser } from "../../test/db.js";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import {
+  startTestContainer,
+  stopTestContainer,
+  seedTestUser,
+  type TestContext,
+} from "../../test/containers.js";
+import { submitScore, getLeaderboard } from "./service.js";
 
-// Mock the db client used by the service
-vi.mock("@percy-main/db", async () => {
-  const testDb = createTestDb();
-  return { client: testDb };
+let ctx: TestContext;
+
+beforeAll(async () => {
+  ctx = await startTestContainer();
+}, 30_000);
+
+afterAll(async () => {
+  await stopTestContainer(ctx);
 });
 
-const db = createTestDb();
-
-describe("leaderboard service", () => {
-  beforeEach(async () => {
-    await cleanDb(db);
-  });
-
-  afterAll(async () => {
-    await cleanDb(db);
-    await db.destroy();
-  });
-
+describe("leaderboard service (integration)", () => {
   describe("submitScore", () => {
-    it("creates a new score", async () => {
-      const { submitScore } = await import("./service.js");
-      const { userId } = await seedTestUser(db);
+    it("creates a new score entry", async () => {
+      const { userId } = await seedTestUser(ctx.db, { withMember: false });
 
-      const result = await submitScore(userId, {
+      const result = await submitScore(ctx.db)(userId, {
         game: "be-the-keeper",
         score: 100,
         level: 3,
@@ -35,7 +33,7 @@ describe("leaderboard service", () => {
       expect(result.saved).toBe(true);
       expect(result.isNewBest).toBe(true);
 
-      const saved = await db
+      const saved = await ctx.db
         .selectFrom("game_score")
         .where("user_id", "=", userId)
         .selectAll()
@@ -43,13 +41,15 @@ describe("leaderboard service", () => {
 
       expect(saved).toBeTruthy();
       expect(saved!.score).toBe(100);
+      expect(saved!.level).toBe(3);
+      expect(saved!.catches).toBe(10);
+      expect(saved!.best_streak).toBe(5);
     });
 
-    it("updates when higher score is submitted", async () => {
-      const { submitScore } = await import("./service.js");
-      const { userId } = await seedTestUser(db);
+    it("updates when a higher score is submitted", async () => {
+      const { userId } = await seedTestUser(ctx.db, { withMember: false });
 
-      await submitScore(userId, {
+      await submitScore(ctx.db)(userId, {
         game: "be-the-keeper",
         score: 50,
         level: 2,
@@ -57,7 +57,7 @@ describe("leaderboard service", () => {
         bestStreak: 3,
       });
 
-      const result = await submitScore(userId, {
+      const result = await submitScore(ctx.db)(userId, {
         game: "be-the-keeper",
         score: 150,
         level: 5,
@@ -68,7 +68,7 @@ describe("leaderboard service", () => {
       expect(result.saved).toBe(true);
       expect(result.isNewBest).toBe(true);
 
-      const saved = await db
+      const saved = await ctx.db
         .selectFrom("game_score")
         .where("user_id", "=", userId)
         .selectAll()
@@ -78,11 +78,10 @@ describe("leaderboard service", () => {
       expect(saved!.level).toBe(5);
     });
 
-    it("ignores lower score", async () => {
-      const { submitScore } = await import("./service.js");
-      const { userId } = await seedTestUser(db);
+    it("ignores a lower score", async () => {
+      const { userId } = await seedTestUser(ctx.db, { withMember: false });
 
-      await submitScore(userId, {
+      await submitScore(ctx.db)(userId, {
         game: "be-the-keeper",
         score: 200,
         level: 7,
@@ -90,7 +89,7 @@ describe("leaderboard service", () => {
         bestStreak: 10,
       });
 
-      const result = await submitScore(userId, {
+      const result = await submitScore(ctx.db)(userId, {
         game: "be-the-keeper",
         score: 50,
         level: 1,
@@ -101,7 +100,7 @@ describe("leaderboard service", () => {
       expect(result.saved).toBe(false);
       expect(result.isNewBest).toBe(false);
 
-      const saved = await db
+      const saved = await ctx.db
         .selectFrom("game_score")
         .where("user_id", "=", userId)
         .selectAll()
@@ -113,34 +112,29 @@ describe("leaderboard service", () => {
 
   describe("getLeaderboard", () => {
     it("returns top scores ordered by score descending", async () => {
-      const { getLeaderboard } = await import("./service.js");
-
-      const user1 = await seedTestUser(db, {
-        id: "lb-user-1",
-        email: "lb1@test.com",
+      const user1 = await seedTestUser(ctx.db, {
         name: "Player One",
+        withMember: false,
       });
-      const user2 = await seedTestUser(db, {
-        id: "lb-user-2",
-        email: "lb2@test.com",
+      const user2 = await seedTestUser(ctx.db, {
         name: "Player Two",
         withMember: false,
       });
-      const user3 = await seedTestUser(db, {
-        id: "lb-user-3",
-        email: "lb3@test.com",
+      const user3 = await seedTestUser(ctx.db, {
         name: "Player Three",
         withMember: false,
       });
 
+      const game = `leaderboard-test-${crypto.randomUUID()}`;
       const now = new Date().toISOString();
-      await db
+
+      await ctx.db
         .insertInto("game_score")
         .values([
           {
-            id: "gs-1",
+            id: crypto.randomUUID(),
             user_id: user1.userId,
-            game: "be-the-keeper",
+            game,
             score: 300,
             level: 10,
             catches: 30,
@@ -148,9 +142,9 @@ describe("leaderboard service", () => {
             updated_at: now,
           },
           {
-            id: "gs-2",
+            id: crypto.randomUUID(),
             user_id: user2.userId,
-            game: "be-the-keeper",
+            game,
             score: 500,
             level: 15,
             catches: 50,
@@ -158,9 +152,9 @@ describe("leaderboard service", () => {
             updated_at: now,
           },
           {
-            id: "gs-3",
+            id: crypto.randomUUID(),
             user_id: user3.userId,
-            game: "be-the-keeper",
+            game,
             score: 100,
             level: 3,
             catches: 10,
@@ -170,7 +164,7 @@ describe("leaderboard service", () => {
         ])
         .execute();
 
-      const result = await getLeaderboard("be-the-keeper", 10);
+      const result = await getLeaderboard(ctx.db)(game, 10);
 
       expect(result).toHaveLength(3);
       expect(result[0].name).toBe("Player Two");
@@ -179,29 +173,26 @@ describe("leaderboard service", () => {
       expect(result[2].name).toBe("Player Three");
     });
 
-    it("respects limit parameter", async () => {
-      const { getLeaderboard } = await import("./service.js");
-
-      const user1 = await seedTestUser(db, {
-        id: "lim-1",
-        email: "lim1@test.com",
-        name: "A",
+    it("respects the limit parameter", async () => {
+      const user1 = await seedTestUser(ctx.db, {
+        name: "Limit A",
+        withMember: false,
       });
-      const user2 = await seedTestUser(db, {
-        id: "lim-2",
-        email: "lim2@test.com",
-        name: "B",
+      const user2 = await seedTestUser(ctx.db, {
+        name: "Limit B",
         withMember: false,
       });
 
+      const game = `limit-test-${crypto.randomUUID()}`;
       const now = new Date().toISOString();
-      await db
+
+      await ctx.db
         .insertInto("game_score")
         .values([
           {
-            id: "lgs-1",
+            id: crypto.randomUUID(),
             user_id: user1.userId,
-            game: "be-the-keeper",
+            game,
             score: 300,
             level: 10,
             catches: 30,
@@ -209,9 +200,9 @@ describe("leaderboard service", () => {
             updated_at: now,
           },
           {
-            id: "lgs-2",
+            id: crypto.randomUUID(),
             user_id: user2.userId,
-            game: "be-the-keeper",
+            game,
             score: 500,
             level: 15,
             catches: 50,
@@ -221,7 +212,7 @@ describe("leaderboard service", () => {
         ])
         .execute();
 
-      const result = await getLeaderboard("be-the-keeper", 1);
+      const result = await getLeaderboard(ctx.db)(game, 1);
       expect(result).toHaveLength(1);
       expect(result[0].score).toBe(500);
     });

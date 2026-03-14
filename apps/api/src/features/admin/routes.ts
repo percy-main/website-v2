@@ -24,12 +24,22 @@ import {
 } from "./service.js";
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
+  const list = listUsers(app.db);
+  const update = updateUser(app.db);
+  const create = createMember(app.db);
+  const notify = sendChargeNotification(app.db);
+  const recordLinking = getRecordLinking(app.db);
+  const linkPC = linkPlayCricketPlayer(app.db);
+  const unlinkPC = unlinkPlayCricketPlayer(app.db);
+  const linkCF = linkContentfulPerson(app.db);
+  const unlinkCF = unlinkContentfulPerson(app.db);
+
   app.get(
     "/admin/users",
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const params = parseQuery(request, listUsersSchema);
-      return listUsers(params);
+      return list(params);
     },
   );
 
@@ -39,7 +49,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { userId } = request.params;
       const data = parseBody(request, updateUserSchema);
-      return updateUser(userId, data);
+      return update(userId, data);
     },
   );
 
@@ -48,7 +58,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const data = parseBody(request, createMemberSchema);
-      return createMember(data);
+      return create(data);
     },
   );
 
@@ -57,7 +67,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { userId } = parseBody(request, chargeNotificationSchema);
-      return sendChargeNotification(userId);
+      return notify(userId);
     },
   );
 
@@ -65,7 +75,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     "/admin/record-linking",
     { preHandler: [requireRole("admin")] },
     async () => {
-      return getRecordLinking();
+      return recordLinking();
     },
   );
 
@@ -77,7 +87,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         request,
         recordLinkingSchema,
       );
-      return linkPlayCricketPlayer(type, id, playCricketId);
+      return linkPC(type, id, playCricketId);
     },
   );
 
@@ -86,7 +96,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { type, id } = parseBody(request, unlinkSchema);
-      return unlinkPlayCricketPlayer(type, id);
+      return unlinkPC(type, id);
     },
   );
 
@@ -98,7 +108,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         request,
         contentfulLinkSchema,
       );
-      return linkContentfulPerson(memberId, contentfulEntryId);
+      return linkCF(memberId, contentfulEntryId);
     },
   );
 
@@ -107,7 +117,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { memberId } = parseBody(request, contentfulUnlinkSchema);
-      return unlinkContentfulPerson(memberId);
+      return unlinkCF(memberId);
     },
   );
 };

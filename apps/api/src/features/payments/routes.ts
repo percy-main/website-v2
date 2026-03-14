@@ -2,15 +2,20 @@ import type { FastifyPluginAsync } from "fastify";
 import { parseBody } from "../../lib/validation.js";
 import { purchaseSchema, subscribeSchema } from "./schemas.js";
 import { createPurchase, createSubscription } from "./service.js";
+import { createStripe } from "./stripe.js";
 
 export const paymentRoutes: FastifyPluginAsync = async (app) => {
+  const stripe = createStripe({ stripeSecretKey: app.config.STRIPE_SECRET_KEY });
+  const purchase = createPurchase(app.db, stripe);
+  const subscribe = createSubscription(app.db, stripe);
+
   app.post("/purchase", async (request) => {
     const data = parseBody(request, purchaseSchema);
-    return createPurchase(data);
+    return purchase(data);
   });
 
   app.post("/subscribe", async (request) => {
     const data = parseBody(request, subscribeSchema);
-    return createSubscription(data);
+    return subscribe(data);
   });
 };

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Kysely } from "kysely";
+import type { DB } from "@percy-main/db";
 
 const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
@@ -33,23 +35,14 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   },
 );
 
-vi.mock("@percy-main/db", () => ({
-  client: new Proxy(mockQueryBuilder, {
-    get(target, prop) {
-      if (prop in target) {
-        return (target as Record<string | symbol, unknown>)[prop];
-      }
-      return vi.fn().mockReturnValue(target);
-    },
-  }),
-}));
-
 import {
   listUsers,
   createMember,
   linkPlayCricketPlayer,
   unlinkPlayCricketPlayer,
 } from "./service.js";
+
+const db = mockQueryBuilder as unknown as Kysely<DB>;
 
 describe("admin service", () => {
   beforeEach(() => {
@@ -72,7 +65,7 @@ describe("admin service", () => {
       mockExecute.mockResolvedValue(users);
       mockExecuteTakeFirst.mockResolvedValue({ total: 50 });
 
-      const result = await listUsers({
+      const result = await listUsers(db)({
         page: 1,
         pageSize: 20,
         includeArchived: false,
@@ -88,7 +81,7 @@ describe("admin service", () => {
       mockExecute.mockResolvedValue([]);
       mockExecuteTakeFirst.mockResolvedValue({ total: 0 });
 
-      await listUsers({
+      await listUsers(db)({
         page: 1,
         pageSize: 20,
         search: "alice",
@@ -104,7 +97,7 @@ describe("admin service", () => {
     it("creates member record and returns id", async () => {
       mockExecute.mockResolvedValue([]);
 
-      const result = await createMember({
+      const result = await createMember(db)({
         email: "new@example.com",
         name: "New Member",
       });
@@ -119,7 +112,7 @@ describe("admin service", () => {
     it("updates play_cricket_id on member", async () => {
       mockExecute.mockResolvedValue([]);
 
-      const result = await linkPlayCricketPlayer(
+      const result = await linkPlayCricketPlayer(db)(
         "member",
         "m-1",
         "pc-12345",
@@ -135,7 +128,7 @@ describe("admin service", () => {
     it("updates play_cricket_id on dependent", async () => {
       mockExecute.mockResolvedValue([]);
 
-      const result = await linkPlayCricketPlayer(
+      const result = await linkPlayCricketPlayer(db)(
         "dependent",
         "d-1",
         "pc-67890",
@@ -150,7 +143,7 @@ describe("admin service", () => {
     it("sets play_cricket_id to null", async () => {
       mockExecute.mockResolvedValue([]);
 
-      const result = await unlinkPlayCricketPlayer("member", "m-1");
+      const result = await unlinkPlayCricketPlayer(db)("member", "m-1");
 
       expect(result).toEqual({ success: true });
       expect(mockQueryBuilder.set).toHaveBeenCalledWith({

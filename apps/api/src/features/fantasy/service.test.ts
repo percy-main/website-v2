@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Kysely } from "kysely";
+import type { DB } from "@percy-main/db";
 
 const { mockExecuteTakeFirst, mockExecuteTakeFirstOrThrow, mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
@@ -31,17 +33,6 @@ const { mockExecuteTakeFirst, mockExecuteTakeFirstOrThrow, mockExecute, mockQuer
   },
 );
 
-vi.mock("@percy-main/db", () => ({
-  client: new Proxy(mockQueryBuilder, {
-    get(target, prop) {
-      if (prop in target) {
-        return (target as Record<string | symbol, unknown>)[prop];
-      }
-      return vi.fn().mockReturnValue(target);
-    },
-  }),
-}));
-
 vi.mock("kysely", () => ({
   sql: new Proxy(() => ({ as: () => "sql_expr" }), {
     get() {
@@ -65,6 +56,8 @@ import {
   getPreviousSeason,
 } from "./gameweek.js";
 import type { PlayerInput } from "./schemas.js";
+
+const db = mockQueryBuilder as unknown as Kysely<DB>;
 
 function makePlayer(overrides: Partial<PlayerInput> = {}): PlayerInput {
   return {
@@ -156,7 +149,7 @@ describe("fantasy service", () => {
 
       mockExecuteTakeFirst.mockResolvedValueOnce({ total: 0 }); // team count
 
-      const result = await getEligiblePlayers("2025");
+      const result = await getEligiblePlayers(db)("2025");
 
       expect(result.season).toBe("2025");
       expect(result.previousSeason).toBe("2024");
@@ -185,7 +178,7 @@ describe("fantasy service", () => {
       ];
       badSquad[0].isCaptain = true;
 
-      await expect(saveTeam("user-1", badSquad, "2025")).rejects.toThrow(
+      await expect(saveTeam(db)("user-1", badSquad, "2025")).rejects.toThrow(
         "Must have exactly 4 batting slots",
       );
     });
@@ -202,7 +195,7 @@ describe("fantasy service", () => {
       mockExecute.mockResolvedValueOnce(expensivePlayers);
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // no existing team
 
-      await expect(saveTeam("user-1", squad, "2025")).rejects.toThrow(
+      await expect(saveTeam(db)("user-1", squad, "2025")).rejects.toThrow(
         /exceeds budget/,
       );
     });
@@ -212,7 +205,7 @@ describe("fantasy service", () => {
       // Remove captain flag from all
       for (const p of squad) p.isCaptain = false;
 
-      await expect(saveTeam("user-1", squad, "2025")).rejects.toThrow(
+      await expect(saveTeam(db)("user-1", squad, "2025")).rejects.toThrow(
         "Must have exactly 1 captain",
       );
     });
@@ -221,7 +214,7 @@ describe("fantasy service", () => {
       const squad = makeValidSquad();
       squad[1].isCaptain = true; // second captain
 
-      await expect(saveTeam("user-1", squad, "2025")).rejects.toThrow(
+      await expect(saveTeam(db)("user-1", squad, "2025")).rejects.toThrow(
         "Must have exactly 1 captain",
       );
     });
@@ -245,7 +238,7 @@ describe("fantasy service", () => {
       // Subsequent execute calls for inserts
       mockExecute.mockResolvedValue([]);
 
-      const result = await saveTeam("user-1", squad, "2025");
+      const result = await saveTeam(db)("user-1", squad, "2025");
 
       expect(result.isNew).toBe(true);
       expect(result.teamId).toBeDefined();
@@ -257,7 +250,7 @@ describe("fantasy service", () => {
     it("updates player eligibility", async () => {
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await toggleEligibility("p1", true);
+      const result = await toggleEligibility(db)("p1", true);
 
       expect(result).toEqual({ playCricketId: "p1", eligible: true });
       expect(mockQueryBuilder.updateTable).toHaveBeenCalledWith(
@@ -299,7 +292,7 @@ describe("fantasy service", () => {
       // p3: already exists
       mockExecuteTakeFirst.mockResolvedValueOnce({ play_cricket_id: "p3" });
 
-      const result = await populatePlayers();
+      const result = await populatePlayers(db)();
 
       expect(result.total).toBe(3);
       expect(result.inserted).toBe(2);

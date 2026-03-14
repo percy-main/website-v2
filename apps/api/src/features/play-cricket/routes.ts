@@ -17,11 +17,19 @@ import {
 } from "./service.js";
 
 export const playCricketRoutes: FastifyPluginAsync = async (app) => {
+  const matchDetail = getMatchDetail(app.db);
+  const resultSummary = getResultSummary(app.db);
+  const leagueTable = getLeagueTable();
+  const teams = getTeams(app.db);
+  const liveScores = getLiveScores(app.db);
+  const careerStats = getPlayerCareerStats(app.db);
+  const seasonStats = getPlayerSeasonStats(app.db);
+
   app.get(
     "/play-cricket/match/:matchId",
     async (request) => {
       const { matchId } = request.params as { matchId: string };
-      return getMatchDetail(matchId);
+      return matchDetail(matchId);
     },
   );
 
@@ -32,7 +40,7 @@ export const playCricketRoutes: FastifyPluginAsync = async (app) => {
         request,
         resultSummarySchema,
       );
-      return getResultSummary(matchId, season, ourTeamId);
+      return resultSummary(matchId, season, ourTeamId);
     },
   );
 
@@ -40,21 +48,21 @@ export const playCricketRoutes: FastifyPluginAsync = async (app) => {
     "/play-cricket/league-table",
     async (request) => {
       const { divisionId } = parseQuery(request, leagueTableSchema);
-      return getLeagueTable(divisionId);
+      return leagueTable(divisionId);
     },
   );
 
   app.get(
     "/play-cricket/teams",
     async () => {
-      return getTeams();
+      return teams();
     },
   );
 
   app.get(
     "/play-cricket/live-scores",
     async () => {
-      return getLiveScores();
+      return liveScores();
     },
   );
 
@@ -62,7 +70,7 @@ export const playCricketRoutes: FastifyPluginAsync = async (app) => {
     "/play-cricket/player-career-stats",
     async (request) => {
       const { contentfulEntryId } = parseQuery(request, playerStatsSchema);
-      return getPlayerCareerStats(contentfulEntryId);
+      return careerStats(contentfulEntryId);
     },
   );
 
@@ -73,7 +81,7 @@ export const playCricketRoutes: FastifyPluginAsync = async (app) => {
         request,
         playerSeasonStatsSchema,
       );
-      return getPlayerSeasonStats(contentfulEntryId, season);
+      return seasonStats(contentfulEntryId, season);
     },
   );
 };

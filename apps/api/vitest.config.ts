@@ -6,14 +6,14 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     exclude: [
-      "src/test/e2e.test.ts",
-      "src/features/junior/routes.test.ts",
-      "src/features/leaderboard/routes.test.ts",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/integration.test.ts",
     ],
     coverage: {
       provider: "v8",
       include: ["src/features/**/*.ts"],
-      exclude: ["src/**/*.test.ts", "src/test/**"],
+      exclude: ["src/**/*.test.ts", "src/**/*.integration.test.ts", "src/test/**"],
     },
     setupFiles: ["./src/test/setup.ts"],
   },

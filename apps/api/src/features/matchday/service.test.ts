@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Kysely } from "kysely";
+import type { DB } from "@percy-main/db";
 
 const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
@@ -27,22 +29,13 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   },
 );
 
-vi.mock("@percy-main/db", () => ({
-  client: new Proxy(mockQueryBuilder, {
-    get(target, prop) {
-      if (prop in target) {
-        return (target as Record<string | symbol, unknown>)[prop];
-      }
-      return vi.fn().mockReturnValue(target);
-    },
-  }),
-}));
-
 import {
   listMatches,
   recordExpense,
   deleteExpense,
 } from "./service.js";
+
+const db = mockQueryBuilder as unknown as Kysely<DB>;
 
 describe("matchday service", () => {
   beforeEach(() => {
@@ -63,7 +56,7 @@ describe("matchday service", () => {
       ];
       mockExecute.mockResolvedValue(matches);
 
-      const result = await listMatches("user-1", "admin", {
+      const result = await listMatches(db)("user-1", "admin", {
         limit: 20,
         offset: 0,
         statusFilter: "all",
@@ -77,7 +70,7 @@ describe("matchday service", () => {
     it("filters by team for officials", async () => {
       mockExecute.mockResolvedValue([]);
 
-      await listMatches("user-1", "official", {
+      await listMatches(db)("user-1", "official", {
         limit: 20,
         offset: 0,
         statusFilter: "all",
@@ -101,7 +94,7 @@ describe("matchday service", () => {
     it("creates expense record and returns id", async () => {
       mockExecute.mockResolvedValue([]);
 
-      const result = await recordExpense("user-1", {
+      const result = await recordExpense(db)("user-1", {
         matchId: "m-1",
         type: "umpire_fee",
         amountPence: 5000,
@@ -119,7 +112,7 @@ describe("matchday service", () => {
     it("removes expense record", async () => {
       mockExecute.mockResolvedValue([]);
 
-      const result = await deleteExpense("user-1", "exp-1");
+      const result = await deleteExpense(db)("user-1", "exp-1");
 
       expect(result).toEqual({ success: true });
       expect(mockQueryBuilder.deleteFrom).toHaveBeenCalledWith(

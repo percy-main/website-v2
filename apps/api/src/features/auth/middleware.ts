@@ -1,6 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { Session, User } from "better-auth";
-import { auth } from "./auth.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -31,7 +30,7 @@ export async function requireAuth(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  const session = await auth.api.getSession({
+  const session = await request.server.auth.api.getSession({
     headers: toWebHeaders(request.headers),
   });
 

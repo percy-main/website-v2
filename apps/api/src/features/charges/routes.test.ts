@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Kysely } from "kysely";
+import type { DB } from "@percy-main/db";
 
 const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
@@ -21,18 +23,9 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   },
 );
 
-vi.mock("@percy-main/db", () => ({
-  client: new Proxy(mockQueryBuilder, {
-    get(target, prop) {
-      if (prop in target) {
-        return (target as Record<string | symbol, unknown>)[prop];
-      }
-      return vi.fn().mockReturnValue(target);
-    },
-  }),
-}));
-
 import { getMyCharges, confirmPayment } from "./service.js";
+
+const db = mockQueryBuilder as unknown as Kysely<DB>;
 
 describe("charges service", () => {
   beforeEach(() => {
@@ -50,7 +43,7 @@ describe("charges service", () => {
     it("returns empty array when no member exists", async () => {
       mockExecuteTakeFirst.mockResolvedValue(undefined);
 
-      const result = await getMyCharges("nobody@example.com");
+      const result = await getMyCharges(db)("nobody@example.com");
 
       expect(result).toEqual([]);
     });
@@ -64,7 +57,7 @@ describe("charges service", () => {
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
       mockExecute.mockResolvedValue(charges);
 
-      const result = await getMyCharges("user@example.com");
+      const result = await getMyCharges(db)("user@example.com");
 
       expect(result).toEqual(charges);
       expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
@@ -77,7 +70,7 @@ describe("charges service", () => {
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
       mockExecute.mockResolvedValue([]);
 
-      await getMyCharges("user@example.com");
+      await getMyCharges(db)("user@example.com");
 
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
         "deleted_at",
@@ -92,7 +85,7 @@ describe("charges service", () => {
       mockExecuteTakeFirst.mockResolvedValue(undefined);
 
       await expect(
-        confirmPayment("nobody@example.com", "pi_123"),
+        confirmPayment(db)("nobody@example.com", "pi_123"),
       ).rejects.toThrow("No member record found");
     });
 
@@ -100,7 +93,7 @@ describe("charges service", () => {
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
       mockExecute.mockResolvedValue([]);
 
-      await confirmPayment("user@example.com", "pi_abc");
+      await confirmPayment(db)("user@example.com", "pi_abc");
 
       expect(mockQueryBuilder.updateTable).toHaveBeenCalledWith("charge");
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
@@ -119,7 +112,7 @@ describe("charges service", () => {
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
       mockExecute.mockResolvedValue([]);
 
-      await confirmPayment("user@example.com", "pi_abc");
+      await confirmPayment(db)("user@example.com", "pi_abc");
 
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
         "paid_at",

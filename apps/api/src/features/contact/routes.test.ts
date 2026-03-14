@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Kysely } from "kysely";
+import type { DB } from "@percy-main/db";
 
 const { mockExecute, mockQueryBuilder } = vi.hoisted(() => {
   const mockExecute = vi.fn();
@@ -12,17 +14,6 @@ const { mockExecute, mockQueryBuilder } = vi.hoisted(() => {
   return { mockExecute, mockQueryBuilder };
 });
 
-vi.mock("@percy-main/db", () => ({
-  client: new Proxy(mockQueryBuilder, {
-    get(target, prop) {
-      if (prop in target) {
-        return (target as Record<string | symbol, unknown>)[prop];
-      }
-      return vi.fn().mockReturnValue(target);
-    },
-  }),
-}));
-
 // Mock crypto.randomUUID
 vi.stubGlobal("crypto", {
   randomUUID: vi.fn().mockReturnValue("test-uuid-1234"),
@@ -33,13 +24,14 @@ import {
   createEventSubscriber,
 } from "./service.js";
 
+const db = mockQueryBuilder as unknown as Kysely<DB>;
+
 describe("contact service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockQueryBuilder.insertInto.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.values.mockReturnValue(mockQueryBuilder);
     mockExecute.mockResolvedValue([]);
-    delete process.env.SLACK_WEBHOOK_URL;
   });
 
   describe("createContactSubmission", () => {
@@ -51,7 +43,7 @@ describe("contact service", () => {
         page: "/about",
       };
 
-      await createContactSubmission(data);
+      await createContactSubmission(db, { slackWebhookUrl: undefined })(data);
 
       expect(mockQueryBuilder.insertInto).toHaveBeenCalledWith(
         "contact_submission",
@@ -73,7 +65,7 @@ describe("contact service", () => {
         page: "/contact",
       };
 
-      const result = await createContactSubmission(data);
+      const result = await createContactSubmission(db, { slackWebhookUrl: undefined })(data);
 
       expect(result).toEqual({ id: "test-uuid-1234" });
     });
@@ -86,7 +78,7 @@ describe("contact service", () => {
         meta: { source: "homepage", eventType: "cricket" },
       };
 
-      await createEventSubscriber(data);
+      await createEventSubscriber(db)(data);
 
       expect(mockQueryBuilder.insertInto).toHaveBeenCalledWith(
         "event_subscriber",

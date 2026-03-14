@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Kysely } from "kysely";
+import type { DB } from "@percy-main/db";
 
 const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
@@ -21,18 +23,9 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   },
 );
 
-vi.mock("@percy-main/db", () => ({
-  client: new Proxy(mockQueryBuilder, {
-    get(target, prop) {
-      if (prop in target) {
-        return (target as Record<string | symbol, unknown>)[prop];
-      }
-      return vi.fn().mockReturnValue(target);
-    },
-  }),
-}));
-
 import { getMemberDetails, updateMemberDetails } from "./service.js";
+
+const db = mockQueryBuilder as unknown as Kysely<DB>;
 
 describe("members service", () => {
   beforeEach(() => {
@@ -50,7 +43,7 @@ describe("members service", () => {
     it("returns null when no member exists", async () => {
       mockExecuteTakeFirst.mockResolvedValue(undefined);
 
-      const result = await getMemberDetails("nobody@example.com");
+      const result = await getMemberDetails(db)("nobody@example.com");
 
       expect(result).toBeNull();
     });
@@ -69,7 +62,7 @@ describe("members service", () => {
       };
       mockExecuteTakeFirst.mockResolvedValue(memberData);
 
-      const result = await getMemberDetails("john@example.com");
+      const result = await getMemberDetails(db)("john@example.com");
 
       expect(result).toEqual(memberData);
       expect(mockQueryBuilder.selectFrom).toHaveBeenCalledWith("member");
@@ -88,7 +81,7 @@ describe("members service", () => {
     it("excludes soft-deleted members", async () => {
       mockExecuteTakeFirst.mockResolvedValue(undefined);
 
-      await getMemberDetails("deleted@example.com");
+      await getMemberDetails(db)("deleted@example.com");
 
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
         "deleted_at",
@@ -103,7 +96,7 @@ describe("members service", () => {
       mockExecuteTakeFirst.mockResolvedValue(undefined);
       mockExecute.mockResolvedValue([]);
 
-      await updateMemberDetails("new@example.com", {
+      await updateMemberDetails(db)("new@example.com", {
         name: "New User",
         telephone: "07700000000",
       });
@@ -122,7 +115,7 @@ describe("members service", () => {
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
       mockExecute.mockResolvedValue([]);
 
-      await updateMemberDetails("existing@example.com", {
+      await updateMemberDetails(db)("existing@example.com", {
         name: "Updated Name",
       });
 
@@ -141,7 +134,7 @@ describe("members service", () => {
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
       mockExecute.mockResolvedValue([]);
 
-      await updateMemberDetails("existing@example.com", {
+      await updateMemberDetails(db)("existing@example.com", {
         telephone: "07700000099",
       });
 

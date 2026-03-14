@@ -7,15 +7,20 @@ import {
 } from "./service.js";
 
 export const contactRoutes: FastifyPluginAsync = async (app) => {
+  const submitContact = createContactSubmission(app.db, {
+    slackWebhookUrl: app.config.SLACK_WEBHOOK_URL,
+  });
+  const subscribeEvent = createEventSubscriber(app.db);
+
   app.post("/contact", async (request) => {
     const data = parseBody(request, contactSubmissionSchema);
-    const result = await createContactSubmission(data);
+    const result = await submitContact(data);
     return result;
   });
 
   app.post("/events/subscribe", async (request) => {
     const data = parseBody(request, eventSubscriberSchema);
-    const result = await createEventSubscriber(data);
+    const result = await subscribeEvent(data);
     return result;
   });
 };

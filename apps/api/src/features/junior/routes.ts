@@ -14,13 +14,19 @@ import {
 } from "./service.js";
 
 export const juniorRoutes: FastifyPluginAsync = async (app) => {
+  const add = addDependents(app.db);
+  const get = getDependents(app.db);
+  const teams = listMyTeams(app.db);
+  const players = listPlayers(app.db);
+  const playerDetail = getPlayerDetail(app.db);
+
   app.post(
     "/junior/dependents",
     { preHandler: [requireVerifiedEmail] },
     async (request) => {
       const { user } = request.authSession!;
       const { dependents } = parseBody(request, addDependentsSchema);
-      const result = await addDependents(user.email, dependents);
+      const result = await add(user.email, dependents);
       return result;
     },
   );
@@ -30,7 +36,7 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireVerifiedEmail] },
     async (request) => {
       const { user } = request.authSession!;
-      return getDependents(user.email);
+      return get(user.email);
     },
   );
 
@@ -41,7 +47,7 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
       const { user } = request.authSession!;
       const role =
         (user as { role?: string | null }).role ?? "user";
-      return listMyTeams(user.id, role);
+      return teams(user.id, role);
     },
   );
 
@@ -53,7 +59,7 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
       const role =
         (user as { role?: string | null }).role ?? "user";
       const { teamId } = request.params;
-      return listPlayers(user.id, role, teamId);
+      return players(user.id, role, teamId);
     },
   );
 
@@ -65,7 +71,7 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
       const role =
         (user as { role?: string | null }).role ?? "user";
       const { dependentId } = request.params;
-      return getPlayerDetail(user.id, role, dependentId);
+      return playerDetail(user.id, role, dependentId);
     },
   );
 };

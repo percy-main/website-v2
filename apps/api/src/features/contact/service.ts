@@ -1,57 +1,65 @@
-import { client } from "@percy-main/db";
+import type { Kysely } from "kysely";
+import type { DB } from "@percy-main/db";
 import type { ContactSubmission, EventSubscriber } from "./schemas.js";
 
-async function sendSlackNotification(data: {
-  name: string;
-  email: string;
-  message: string;
-  page: string;
-}) {
-  const url = process.env.SLACK_WEBHOOK_URL;
-  if (!url) return;
+function createSlackNotifier(slackWebhookUrl?: string) {
+  return async (data: {
+    name: string;
+    email: string;
+    message: string;
+    page: string;
+  }) => {
+    if (!slackWebhookUrl) return;
 
-  await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: `New contact submission from ${data.name} (${data.email}) on ${data.page}:\n${data.message}`,
-    }),
-  });
+    await fetch(slackWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: `New contact submission from ${data.name} (${data.email}) on ${data.page}:\n${data.message}`,
+      }),
+    });
+  };
 }
 
-export async function createContactSubmission(data: ContactSubmission) {
-  const id = crypto.randomUUID();
+export function createContactSubmission(db: Kysely<DB>, config: { slackWebhookUrl?: string }) {
+  const sendSlackNotification = createSlackNotifier(config.slackWebhookUrl);
 
-  await client
-    .insertInto("contact_submission")
-    .values({
-      id,
-      name: data.name,
-      email: data.email,
-      message: data.message,
-      page: data.page,
-    })
-    .execute();
+  return async (data: ContactSubmission) => {
+    const id = crypto.randomUUID();
 
-  // Fire-and-forget — don't block the response on Slack delivery
-  sendSlackNotification(data).catch(() => {
-    // Silently ignore Slack failures
-  });
+    await db
+      .insertInto("contact_submission")
+      .values({
+        id,
+        name: data.name,
+        email: data.email,
+        message: data.message,
+        page: data.page,
+      })
+      .execute();
 
-  return { id };
+    // Fire-and-forget — don't block the response on Slack delivery
+    sendSlackNotification(data).catch(() => {
+      // Silently ignore Slack failures
+    });
+
+    return { id };
+  };
 }
 
-export async function createEventSubscriber(data: EventSubscriber) {
-  const id = crypto.randomUUID();
+export function createEventSubscriber(db: Kysely<DB>) {
+  return async (data: EventSubscriber) => {
+    const id = crypto.randomUUID();
 
-  await client
-    .insertInto("event_subscriber")
-    .values({
-      id,
-      email: data.email,
-      meta: JSON.stringify(data.meta),
-    })
-    .execute();
+    await db
+      .insertInto("event_subscriber")
+      .values({
+        id,
+        email: data.email,
+        meta: JSON.stringify(data.meta),
+      })
+      .execute();
 
-  return { id };
+    return { id };
+  };
 }

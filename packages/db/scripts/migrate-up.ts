@@ -3,9 +3,13 @@ import { promises as fs } from "fs";
 import { FileMigrationProvider, Migrator } from "kysely";
 import path from "path";
 import { fileURLToPath } from "url";
-import { client } from "../src/client.js";
+import { createClient } from "../src/client.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const connectionString =
+  process.env.DATABASE_URL ?? "postgres://percy:percy@localhost:5433/percy_main";
+const { client } = createClient(connectionString);
 
 const migrator = new Migrator({
   db: client,

@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
-import { getStripe } from "./stripe.js";
 import type Stripe from "stripe";
+import { createStripe } from "./stripe.js";
 
 /**
  * Handle checkout.session.completed events.
@@ -40,6 +40,8 @@ async function handlePaymentIntentSucceeded(
  * Registers with raw body parsing for signature verification.
  */
 export const webhookRoutes: FastifyPluginAsync = async (app) => {
+  const stripe = createStripe({ stripeSecretKey: app.config.STRIPE_SECRET_KEY });
+
   // Register raw body content type parser for webhook verification
   app.addContentTypeParser(
     "application/json",
@@ -50,14 +52,13 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
   );
 
   app.post("/stripe/webhook", async (request, reply) => {
-    const stripe = getStripe();
     const sig = request.headers["stripe-signature"];
 
     if (!sig) {
       return reply.status(400).send({ error: "Missing stripe-signature header" });
     }
 
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const webhookSecret = app.config.STRIPE_WEBHOOK_SECRET;
     if (!webhookSecret) {
       request.log.error("STRIPE_WEBHOOK_SECRET is not configured");
       return reply.status(500).send({ error: "Webhook not configured" });

@@ -15,6 +15,12 @@ import {
 } from "./service.js";
 
 export const matchdayRoutes: FastifyPluginAsync = async (app) => {
+  const list = listMatches(app.db);
+  const get = getMatch(app.db);
+  const record = recordExpense(app.db);
+  const update = updateExpense(app.db);
+  const remove = deleteExpense(app.db);
+
   app.get(
     "/matchday",
     { preHandler: [requireRole("official", "admin")] },
@@ -23,7 +29,7 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
       const role =
         (user as { role?: string | null }).role ?? "user";
       const params = parseQuery(request, listMatchesSchema);
-      return listMatches(user.id, role, params);
+      return list(user.id, role, params);
     },
   );
 
@@ -35,7 +41,7 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
       const role =
         (user as { role?: string | null }).role ?? "user";
       const { matchId } = request.params;
-      return getMatch(user.id, role, matchId);
+      return get(user.id, role, matchId);
     },
   );
 
@@ -46,7 +52,7 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
       const { user } = request.authSession!;
       const { matchId } = request.params;
       const data = parseBody(request, recordExpenseSchema);
-      return recordExpense(user.id, { ...data, matchId });
+      return record(user.id, { ...data, matchId });
     },
   );
 
@@ -57,7 +63,7 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
       const { user } = request.authSession!;
       const { expenseId } = request.params;
       const data = parseBody(request, updateExpenseSchema);
-      return updateExpense(user.id, { ...data, expenseId });
+      return update(user.id, { ...data, expenseId });
     },
   );
 
@@ -67,7 +73,7 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { user } = request.authSession!;
       const { expenseId } = request.params;
-      return deleteExpense(user.id, expenseId);
+      return remove(user.id, expenseId);
     },
   );
 };
