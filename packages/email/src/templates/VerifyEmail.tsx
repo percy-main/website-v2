@@ -1,25 +1,55 @@
-import { Body, Container, Html, Text } from "@react-email/components";
+import {
+  Body,
+  Button,
+  Container,
+  Head,
+  Hr,
+  Html,
+  Img,
+  Preview,
+  Section,
+  Text,
+} from "@react-email/components";
 import type { FC } from "react";
 import { email } from "../email.js";
 import * as styles from "../styles.js";
 
 interface Props {
-  url: string;
   imageBaseUrl: string;
+  url: string;
   name: string;
 }
 
-const Component: FC<Props> = ({ url, name }) => (
+const Component: FC<Props> = ({ url, name, imageBaseUrl }) => (
   <Html>
+    <Head />
+    <Preview>Percy Main Community Sports Club - Verify Your Email</Preview>
     <Body style={styles.main}>
       <Container style={styles.container}>
+        <Img
+          src={`${imageBaseUrl}/club_logo.png`}
+          width="100"
+          height="100"
+          alt="Percy Main Club Logo"
+          style={styles.logo}
+        />
+        <Text style={styles.paragraph}>Hi {name},</Text>
         <Text style={styles.paragraph}>
-          Hi {name}, please verify your email by clicking the link below.
+          Thanks for signing up to Percy Main Community Sports Club.
         </Text>
+        <Section style={styles.btnContainer}>
+          <Button style={styles.button} href={url}>
+            Verify Your Email
+          </Button>
+        </Section>
         <Text style={styles.paragraph}>
-          <a href={url} style={styles.button}>
-            Verify Email
-          </a>
+          Best,
+          <br />
+          The Trustees
+        </Text>
+        <Hr style={styles.hr} />
+        <Text style={styles.footer}>
+          Percy Main Cricket Club, St. Johns Terrace, North Shields, NE29 6HS
         </Text>
       </Container>
     </Body>
@@ -28,8 +58,8 @@ const Component: FC<Props> = ({ url, name }) => (
 
 export const VerifyEmail = email<Props>("Verify your email address", {
   preview: {
-    url: "https://example.com/verify",
-    imageBaseUrl: "/images",
+    url: "http://localhost:5173/auth/email-confirmed",
+    imageBaseUrl: "http://localhost:5173/images",
     name: "Alex",
   },
 })(Component);

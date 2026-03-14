@@ -18,7 +18,12 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
   const stripe = createStripe({
     stripeSecretKey: app.config.STRIPE_SECRET_KEY,
   });
-  const deps = { db: app.db, stripe, log: app.log };
+  const deps = {
+    db: app.db,
+    stripe,
+    log: app.log,
+    baseUrl: app.config.BASE_URL,
+  };
 
   const onCheckoutCompleted = handleCheckoutCompleted(deps);
   const onInvoicePayment = handleInvoicePayment(deps);
