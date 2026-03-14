@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockExecute, mockQueryBuilder } = vi.hoisted(() => {
   const mockExecute = vi.fn();
@@ -19,10 +19,7 @@ vi.stubGlobal("crypto", {
   randomUUID: vi.fn().mockReturnValue("test-uuid-1234"),
 });
 
-import {
-  createContactSubmission,
-  createEventSubscriber,
-} from "./service.js";
+import { createContactSubmission, createEventSubscriber } from "./service.js";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 
@@ -65,7 +62,9 @@ describe("contact service", () => {
         page: "/contact",
       };
 
-      const result = await createContactSubmission(db, { slackWebhookUrl: undefined })(data);
+      const result = await createContactSubmission(db, {
+        slackWebhookUrl: undefined,
+      })(data);
 
       expect(result).toEqual({ id: "test-uuid-1234" });
     });

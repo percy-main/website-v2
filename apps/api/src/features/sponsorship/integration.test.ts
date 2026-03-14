@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
 } from "../../test/containers.js";
 import {
+  approveGameSponsorship,
+  createManualGameSponsorship,
+  getGameSponsorByGameId,
   getGameSponsorshipPrice,
   getPlayerSponsorshipPrice,
-  getGameSponsorByGameId,
-  approveGameSponsorship,
   listGameSponsorships,
-  createManualGameSponsorship,
 } from "./service.js";
 
 let ctx: TestContext;

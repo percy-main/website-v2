@@ -1,10 +1,10 @@
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
 import type {
-  SponsorshipList,
-  SponsorshipUpdate,
   GameSponsorshipManual,
   PlayerSponsorshipManual,
+  SponsorshipList,
+  SponsorshipUpdate,
 } from "./schemas.js";
 
 export function getGameSponsorshipPrice() {
@@ -100,7 +100,12 @@ export function listGameSponsorships(db: Kysely<DB>) {
     query = applyGameSponsorshipFilter(query, filter);
 
     const [items, countResult] = await Promise.all([
-      query.selectAll().orderBy("created_at", "desc").limit(pageSize).offset(offset).execute(),
+      query
+        .selectAll()
+        .orderBy("created_at", "desc")
+        .limit(pageSize)
+        .offset(offset)
+        .execute(),
       db
         .selectFrom("game_sponsorship")
         .select(db.fn.countAll().as("total"))
@@ -128,7 +133,12 @@ export function listPlayerSponsorships(db: Kysely<DB>) {
     query = applyPlayerSponsorshipFilter(query, filter);
 
     const [items, countResult] = await Promise.all([
-      query.selectAll().orderBy("created_at", "desc").limit(pageSize).offset(offset).execute(),
+      query
+        .selectAll()
+        .orderBy("created_at", "desc")
+        .limit(pageSize)
+        .offset(offset)
+        .execute(),
       db
         .selectFrom("player_sponsorship")
         .select(db.fn.countAll().as("total"))
@@ -299,42 +309,32 @@ export function updatePlayerSponsorship(db: Kysely<DB>) {
 
 // --- Private helpers ---
 
-function applyGameSponsorshipFilter<T extends { where: (...args: unknown[]) => T }>(
-  query: T,
-  filter: SponsorshipList["filter"],
-): T {
+function applyGameSponsorshipFilter<
+  T extends { where: (...args: unknown[]) => T },
+>(query: T, filter: SponsorshipList["filter"]): T {
   if (filter === "pending_payment") {
     return query.where("paid_at", "is", null);
   }
   if (filter === "pending_approval") {
-    return query
-      .where("paid_at", "is not", null)
-      .where("approved", "=", false);
+    return query.where("paid_at", "is not", null).where("approved", "=", false);
   }
   if (filter === "approved") {
-    return query
-      .where("paid_at", "is not", null)
-      .where("approved", "=", true);
+    return query.where("paid_at", "is not", null).where("approved", "=", true);
   }
   return query;
 }
 
-function applyPlayerSponsorshipFilter<T extends { where: (...args: unknown[]) => T }>(
-  query: T,
-  filter: SponsorshipList["filter"],
-): T {
+function applyPlayerSponsorshipFilter<
+  T extends { where: (...args: unknown[]) => T },
+>(query: T, filter: SponsorshipList["filter"]): T {
   if (filter === "pending_payment") {
     return query.where("paid_at", "is", null);
   }
   if (filter === "pending_approval") {
-    return query
-      .where("paid_at", "is not", null)
-      .where("approved", "=", false);
+    return query.where("paid_at", "is not", null).where("approved", "=", false);
   }
   if (filter === "approved") {
-    return query
-      .where("paid_at", "is not", null)
-      .where("approved", "=", true);
+    return query.where("paid_at", "is not", null).where("approved", "=", true);
   }
   return query;
 }

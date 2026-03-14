@@ -1,27 +1,27 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireRole } from "../auth/middleware.js";
 import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
+import { requireRole } from "../auth/middleware.js";
 import {
-  listUsersSchema,
-  updateUserSchema,
-  userIdParamSchema,
-  createMemberSchema,
   chargeNotificationSchema,
-  recordLinkingSchema,
-  unlinkSchema,
   contentfulLinkSchema,
   contentfulUnlinkSchema,
+  createMemberSchema,
+  listUsersSchema,
+  recordLinkingSchema,
+  unlinkSchema,
+  updateUserSchema,
+  userIdParamSchema,
 } from "./schemas.js";
 import {
-  listUsers,
-  updateUser,
   createMember,
-  sendChargeNotification,
   getRecordLinking,
-  linkPlayCricketPlayer,
-  unlinkPlayCricketPlayer,
   linkContentfulPerson,
+  linkPlayCricketPlayer,
+  listUsers,
+  sendChargeNotification,
   unlinkContentfulPerson,
+  unlinkPlayCricketPlayer,
+  updateUser,
 } from "./service.js";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async

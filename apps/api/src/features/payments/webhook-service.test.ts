@@ -1,18 +1,24 @@
-import { describe, it, expect, vi } from "vitest";
 import {
   gameSponsoredSchema,
-  playerSponsoredSchema,
   membershipSchema,
+  playerSponsoredSchema,
 } from "@percy-main/shared";
 import type Stripe from "stripe";
-import { stripeDate, invoiceLinesToDuration } from "./stripe-utils.js";
+import { describe, expect, it, vi } from "vitest";
+import { invoiceLinesToDuration, stripeDate } from "./stripe-utils.js";
 
 // Mock email sending to avoid side effects in unit tests
 vi.mock("@percy-main/email", () => ({
   send: vi.fn().mockResolvedValue(undefined),
   MembershipUpdated: { subject: "Membership Updated", component: vi.fn() },
-  SponsorshipConfirmation: { subject: "Sponsorship Confirmation", component: vi.fn() },
-  PlayerSponsorshipConfirmation: { subject: "Player Sponsorship Confirmation", component: vi.fn() },
+  SponsorshipConfirmation: {
+    subject: "Sponsorship Confirmation",
+    component: vi.fn(),
+  },
+  PlayerSponsorshipConfirmation: {
+    subject: "Player Sponsorship Confirmation",
+    component: vi.fn(),
+  },
 }));
 
 vi.mock("@react-email/render", () => ({
@@ -57,7 +63,9 @@ describe("stripe-utils", () => {
     });
 
     it("returns zero duration for unknown price type", () => {
-      const lineItems = [{ price: { type: "unknown" } }] as unknown as Stripe.InvoiceLineItem[];
+      const lineItems = [
+        { price: { type: "unknown" } },
+      ] as unknown as Stripe.InvoiceLineItem[];
       const result = invoiceLinesToDuration(lineItems);
       expect(result.years ?? 0).toBe(0);
       expect(result.months ?? 0).toBe(0);
@@ -86,7 +94,9 @@ describe("stripe-utils", () => {
     });
 
     it("handles null price gracefully", () => {
-      const lineItems = [{ price: null }] as unknown as Stripe.InvoiceLineItem[];
+      const lineItems = [
+        { price: null },
+      ] as unknown as Stripe.InvoiceLineItem[];
       const result = invoiceLinesToDuration(lineItems);
       expect(result.years ?? 0).toBe(0);
       expect(result.months ?? 0).toBe(0);

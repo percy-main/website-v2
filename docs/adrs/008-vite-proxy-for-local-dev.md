@@ -25,6 +25,7 @@ server: {
 ## Production
 
 In production, CloudFront (or ALB) handles routing:
+
 - `percymain.org/*` → S3 (frontend)
 - `api.percymain.org/*` or `percymain.org/api/*` → ALB → ECS (API)
 

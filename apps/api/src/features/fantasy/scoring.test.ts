@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   calculateBattingPoints,
   calculateBowlingPoints,
@@ -189,7 +189,7 @@ describe("calculateMatchPoints", () => {
   it("combines all categories with win bonus", () => {
     const result = calculateMatchPoints(
       { runs: 50, balls: 40, fours: 5, sixes: 1, notOut: false },
-      { overs: "8", maidens: 1, runs: 30, wickets: 2, },
+      { overs: "8", maidens: 1, runs: 30, wickets: 2 },
       { catches: 1, runOuts: 0, stumpings: 0, isWicketkeeper: false },
       { teamWon: true },
     );

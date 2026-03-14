@@ -1,5 +1,5 @@
-import type { FC } from "react";
 import { Body, Container, Html, Text } from "@react-email/components";
+import type { FC } from "react";
 import { email } from "../email.js";
 import * as styles from "../styles.js";
 
@@ -21,7 +21,6 @@ const Component: FC<Props> = ({ name }) => (
   </Html>
 );
 
-export const ChaosWeekAnnouncement = email<Props>(
-  "Chaos Week Announcement",
-  { preview: { name: "Alex" } },
-)(Component);
+export const ChaosWeekAnnouncement = email<Props>("Chaos Week Announcement", {
+  preview: { name: "Alex" },
+})(Component);

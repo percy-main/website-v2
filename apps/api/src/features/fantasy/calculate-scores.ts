@@ -12,21 +12,21 @@
  * catch rates, and actual keepers not in the WK slot forfeit catch/stumping points.
  */
 
+import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { z } from "zod";
-import type { DB } from "@percy-main/db";
+import { getGameweekForDate } from "./gameweek.js";
 import {
   calculateBattingPoints,
   calculateBowlingPoints,
   calculateFieldingPoints,
   CHIPS,
-  type ChaosRuleType,
   ELIGIBLE_TEAM_IDS,
   LEAGUE_COMPETITION_TYPES,
   SCORING,
+  type ChaosRuleType,
   type SlotType,
 } from "./scoring.js";
-import { getGameweekForDate } from "./gameweek.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -557,9 +557,7 @@ export function calculateFantasyScores(db: Kysely<DB>) {
       .selectAll()
       .execute();
 
-    const chaosWeekByGw = new Map(
-      chaosWeeks.map((cw) => [cw.gameweek_id, cw]),
-    );
+    const chaosWeekByGw = new Map(chaosWeeks.map((cw) => [cw.gameweek_id, cw]));
 
     // Fetch player sandwich costs (needed for scoring_modifier chaos rule)
     const allFantasyPlayers = await db
@@ -603,15 +601,11 @@ export function calculateFantasyScores(db: Kysely<DB>) {
 
         // Check for chaos week rules
         const chaosWeek = chaosWeekByGw.get(gw);
-        const chaosRuleType = chaosWeek?.rule_type as
-          | ChaosRuleType
-          | undefined;
+        const chaosRuleType = chaosWeek?.rule_type as ChaosRuleType | undefined;
 
         const parsedModifierConfig =
           chaosRuleType === "scoring_modifier" && chaosWeek
-            ? scoringModifierSchema.safeParse(
-                JSON.parse(chaosWeek.rule_config),
-              )
+            ? scoringModifierSchema.safeParse(JSON.parse(chaosWeek.rule_config))
             : null;
         const parsedThresholdConfig =
           chaosRuleType === "scoring_threshold" && chaosWeek
@@ -659,8 +653,7 @@ export function calculateFantasyScores(db: Kysely<DB>) {
           // Apply chaos week scoring modifiers (before captain multiplier)
           if (parsedModifierConfig?.success) {
             const config = parsedModifierConfig.data;
-            const cost =
-              sandwichCostMap.get(player.play_cricket_id) ?? 1;
+            const cost = sandwichCostMap.get(player.play_cricket_id) ?? 1;
             if (
               cost >= config.sandwich_cost_min &&
               cost <= config.sandwich_cost_max

@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { cn, useDoxla } from "doxla";
 
 const roleColors = {
@@ -32,10 +31,12 @@ export default function RoleBadge({
     <span
       className={cn(
         "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
-        theme === "dark" ? colors.dark : colors.light
+        theme === "dark" ? colors.dark : colors.light,
       )}
     >
-      {role === "junior-manager" ? "Junior Manager" : role.charAt(0).toUpperCase() + role.slice(1)}
+      {role === "junior-manager"
+        ? "Junior Manager"
+        : role.charAt(0).toUpperCase() + role.slice(1)}
     </span>
   );
 }

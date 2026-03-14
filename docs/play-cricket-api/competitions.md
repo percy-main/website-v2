@@ -10,12 +10,12 @@ GET /api/v2/competitions.json
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `api_token` | string | Yes | API token |
-| `league_id` | int | Yes | League ID |
-| `season` | string | Yes | Season year (e.g. `"2024"`) |
-| `competition_type` | string | Yes | `"divisions"` or `"cups"` |
+| Parameter          | Type   | Required | Description                 |
+| ------------------ | ------ | -------- | --------------------------- |
+| `api_token`        | string | Yes      | API token                   |
+| `league_id`        | int    | Yes      | League ID                   |
+| `season`           | string | Yes      | Season year (e.g. `"2024"`) |
+| `competition_type` | string | Yes      | `"divisions"` or `"cups"`   |
 
 ## Example Request
 
@@ -42,10 +42,10 @@ GET https://play-cricket.com/api/v2/competitions.json?league_id=296&season=2024&
 
 ## Response Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | int | Competition (division/cup) ID - unique per season |
-| `name` | string | Competition name |
+| Field  | Type   | Description                                       |
+| ------ | ------ | ------------------------------------------------- |
+| `id`   | int    | Competition (division/cup) ID - unique per season |
+| `name` | string | Competition name                                  |
 
 ## Notes
 

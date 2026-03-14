@@ -39,9 +39,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 ## Options rejected
 
 ### vi.mock / vi.doMock
+
 Fragile, requires hoisting workarounds (`vi.hoisted`), fights with module caching, fails when vitest changes pooling behaviour. The whole point of testcontainers is to avoid mocking.
 
 ### Module-level singleton with process.env
+
 ```typescript
 // BAD — reads env at import time, impossible to override cleanly in tests
 const client = createClient(process.env.DATABASE_URL!);
@@ -49,6 +51,7 @@ export { client };
 ```
 
 ### DI container (Awilix, tsyringe, etc.)
+
 Over-engineered for this project. Function parameters are simpler, type-safe, and have zero runtime overhead.
 
 ## Why this matters

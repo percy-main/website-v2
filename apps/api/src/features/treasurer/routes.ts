@@ -1,14 +1,14 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireRole } from "../auth/middleware.js";
 import { parseQuery } from "../../lib/validation.js";
+import { requireRole } from "../auth/middleware.js";
 import { dateRangeSchema, paginatedDateRangeSchema } from "./schemas.js";
 import {
+  getExpensesWithReceipts,
   getIncomeByMonth,
+  getMatchdayExpensesSummary,
   getMembershipSummary,
   getOutstandingPayments,
   getSponsorshipSummary,
-  getMatchdayExpensesSummary,
-  getExpensesWithReceipts,
 } from "./service.js";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
@@ -41,10 +41,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
     "/treasurer/outstanding-payments",
     { preHandler: [requireRole("admin")] },
     async (request) => {
-      const { page, pageSize } = parseQuery(
-        request,
-        paginatedDateRangeSchema,
-      );
+      const { page, pageSize } = parseQuery(request, paginatedDateRangeSchema);
       return await outstanding(page, pageSize);
     },
   );

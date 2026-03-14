@@ -53,20 +53,24 @@ Post a comment on each issue using `gh issue comment`. Use this format:
 ## Triage
 
 ### Affected packages
+
 - `apps/api` — ...
 - `packages/db` — ...
 
 ### Plan
+
 - Step 1: ...
 - Step 2: ...
 - ...
 
 ### Open questions
+
 - [ ] Question 1?
 - [ ] Question 2?
 
 ---
-*Triaged by Claude*
+
+_Triaged by Claude_
 ```
 
 If there are no open questions, omit that section entirely.
@@ -77,12 +81,12 @@ If there are no open questions, omit that section entirely.
 
 Set the issue type and add appropriate labels. Always add the `triaged` label.
 
-| Label | Description |
-|-------|-------------|
-| `backlog` | Not for right now |
-| `bug` | Something isn't working |
-| `enhancement` | New feature or request |
-| `triaged` | This issue has been triaged |
+| Label           | Description                         |
+| --------------- | ----------------------------------- |
+| `backlog`       | Not for right now                   |
+| `bug`           | Something isn't working             |
+| `enhancement`   | New feature or request              |
+| `triaged`       | This issue has been triaged         |
 | `ready for dev` | This issue is ready for development |
 
 ### Step 5: Summarise

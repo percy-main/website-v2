@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  seedTestUser,
   startTestContainer,
   stopTestContainer,
-  seedTestUser,
   type TestContext,
 } from "../../test/containers.js";
-import { listMatches, recordExpense, deleteExpense } from "./service.js";
+import { deleteExpense, listMatches, recordExpense } from "./service.js";
 
 let ctx: TestContext;
 
@@ -109,7 +109,10 @@ describe("matchday service (integration)", () => {
 
       await seedTeamOfficial(officialId, teamA);
 
-      const matchA = await seedMatchday({ teamId: teamA, createdBy: officialId });
+      const matchA = await seedMatchday({
+        teamId: teamA,
+        createdBy: officialId,
+      });
       await seedMatchday({ teamId: teamB, createdBy: otherUserId });
 
       const result = await listMatches(ctx.db)(officialId, "official", {

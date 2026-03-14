@@ -10,19 +10,19 @@ GET /api/v2/result_summary.json
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `api_token` | string | Yes | API token |
-| `site_id` | int | Yes | Play-Cricket site ID |
-| `season` | string | Yes | Season year (e.g. `"2024"`) |
-| `division_id` | int | No | Filter to a specific division |
-| `cup_id` | int | No | Filter to a specific cup |
-| `team_id` | int | No | Filter to a specific team |
-| `competition_type` | string | No | `"League"`, `"Cup"`, or `"Friendly"` |
-| `from_match_date` | string | No | `dd/mm/yyyy` - matches on or after this date |
-| `end_match_date` | string | No | `dd/mm/yyyy` - matches on or before this date |
-| `from_entry_date` | string | No | `dd/mm/yyyy` - records updated on or after |
-| `end_entry_date` | string | No | `dd/mm/yyyy` - records updated on or before |
+| Parameter          | Type   | Required | Description                                   |
+| ------------------ | ------ | -------- | --------------------------------------------- |
+| `api_token`        | string | Yes      | API token                                     |
+| `site_id`          | int    | Yes      | Play-Cricket site ID                          |
+| `season`           | string | Yes      | Season year (e.g. `"2024"`)                   |
+| `division_id`      | int    | No       | Filter to a specific division                 |
+| `cup_id`           | int    | No       | Filter to a specific cup                      |
+| `team_id`          | int    | No       | Filter to a specific team                     |
+| `competition_type` | string | No       | `"League"`, `"Cup"`, or `"Friendly"`          |
+| `from_match_date`  | string | No       | `dd/mm/yyyy` - matches on or after this date  |
+| `end_match_date`   | string | No       | `dd/mm/yyyy` - matches on or before this date |
+| `from_entry_date`  | string | No       | `dd/mm/yyyy` - records updated on or after    |
+| `end_entry_date`   | string | No       | `dd/mm/yyyy` - records updated on or before   |
 
 ## Example Request
 
@@ -124,80 +124,80 @@ GET https://play-cricket.com/api/v2/result_summary.json?site_id=1234&season=2024
 
 ### Match-level fields
 
-| Field | Type | Always present? | Description |
-|-------|------|-----------------|-------------|
-| `id` | int | Yes | Match ID |
-| `status` | string | Yes | `"New"` or `"Deleted"` |
-| `published` | string | Yes | `"Yes"` or `"No"` |
-| `last_updated` | string | Yes | `dd/mm/yyyy` |
-| `league_name` | string | **No** | League name |
-| `league_id` | string | **No** | League ID |
-| `competition_name` | string | **No** | Division/cup name |
-| `competition_id` | string | **No** | Division/cup ID |
-| `competition_type` | string | **No** | `"League"`, `"Cup"`, or `"Friendly"` |
-| `match_type` | string | **No** | e.g. `"Limited Overs"`, `"Declaration"` |
-| `game_type` | string | **No** | e.g. `"Standard"` |
-| `match_date` | string | Yes | `dd/mm/yyyy` |
-| `match_time` | string | Yes | `HH:MM` |
-| `ground_name` | string | **No** | Ground name |
-| `ground_id` | string | **No** | Ground ID |
-| `home_team_name` | string | Yes | Home team name |
-| `home_team_id` | string | Yes | Home team ID |
-| `home_club_name` | string | Yes | Home club name |
-| `home_club_id` | string | Yes | Home club ID |
-| `away_team_name` | string | Yes | Away team name |
-| `away_team_id` | string | Yes | Away team ID |
-| `away_club_name` | string | Yes | Away club name |
-| `away_club_id` | string | Yes | Away club ID |
-| `umpire_1_name` | string | **No** | First umpire name |
-| `umpire_1_id` | string | **No** | First umpire ID |
-| `umpire_2_name` | string | **No** | Second umpire name |
-| `umpire_2_id` | string | **No** | Second umpire ID |
-| `umpire_3_id` | string | **No** | Third umpire ID |
-| `referee_id` | string | **No** | Referee ID |
-| `scorer_1_id` | string | **No** | First scorer ID |
-| `scorer_2_id` | string | **No** | Second scorer ID |
-| `toss_won_by_team_id` | string | **No** | Team ID that won the toss |
-| `toss` | string | **No** | Toss description text |
-| `batted_first` | string | **No** | Team ID that batted first |
-| `no_of_overs` | string | **No** | Number of overs (if applicable) |
-| `no_of_innings` | string | **No** | Number of innings per side |
-| `result` | string | Yes | Result code (e.g. `"W"`) |
-| `result_description` | string | **No** | Human-readable result |
-| `result_applied_to` | string | **No** | Team ID the result applies to |
-| `match_notes` | string | **No** | Free-text notes (may contain HTML) |
+| Field                 | Type   | Always present? | Description                             |
+| --------------------- | ------ | --------------- | --------------------------------------- |
+| `id`                  | int    | Yes             | Match ID                                |
+| `status`              | string | Yes             | `"New"` or `"Deleted"`                  |
+| `published`           | string | Yes             | `"Yes"` or `"No"`                       |
+| `last_updated`        | string | Yes             | `dd/mm/yyyy`                            |
+| `league_name`         | string | **No**          | League name                             |
+| `league_id`           | string | **No**          | League ID                               |
+| `competition_name`    | string | **No**          | Division/cup name                       |
+| `competition_id`      | string | **No**          | Division/cup ID                         |
+| `competition_type`    | string | **No**          | `"League"`, `"Cup"`, or `"Friendly"`    |
+| `match_type`          | string | **No**          | e.g. `"Limited Overs"`, `"Declaration"` |
+| `game_type`           | string | **No**          | e.g. `"Standard"`                       |
+| `match_date`          | string | Yes             | `dd/mm/yyyy`                            |
+| `match_time`          | string | Yes             | `HH:MM`                                 |
+| `ground_name`         | string | **No**          | Ground name                             |
+| `ground_id`           | string | **No**          | Ground ID                               |
+| `home_team_name`      | string | Yes             | Home team name                          |
+| `home_team_id`        | string | Yes             | Home team ID                            |
+| `home_club_name`      | string | Yes             | Home club name                          |
+| `home_club_id`        | string | Yes             | Home club ID                            |
+| `away_team_name`      | string | Yes             | Away team name                          |
+| `away_team_id`        | string | Yes             | Away team ID                            |
+| `away_club_name`      | string | Yes             | Away club name                          |
+| `away_club_id`        | string | Yes             | Away club ID                            |
+| `umpire_1_name`       | string | **No**          | First umpire name                       |
+| `umpire_1_id`         | string | **No**          | First umpire ID                         |
+| `umpire_2_name`       | string | **No**          | Second umpire name                      |
+| `umpire_2_id`         | string | **No**          | Second umpire ID                        |
+| `umpire_3_id`         | string | **No**          | Third umpire ID                         |
+| `referee_id`          | string | **No**          | Referee ID                              |
+| `scorer_1_id`         | string | **No**          | First scorer ID                         |
+| `scorer_2_id`         | string | **No**          | Second scorer ID                        |
+| `toss_won_by_team_id` | string | **No**          | Team ID that won the toss               |
+| `toss`                | string | **No**          | Toss description text                   |
+| `batted_first`        | string | **No**          | Team ID that batted first               |
+| `no_of_overs`         | string | **No**          | Number of overs (if applicable)         |
+| `no_of_innings`       | string | **No**          | Number of innings per side              |
+| `result`              | string | Yes             | Result code (e.g. `"W"`)                |
+| `result_description`  | string | **No**          | Human-readable result                   |
+| `result_applied_to`   | string | **No**          | Team ID the result applies to           |
+| `match_notes`         | string | **No**          | Free-text notes (may contain HTML)      |
 
 ### Points object
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `team_id` | int | Team ID |
-| `game_points` | string | Points awarded for the game result |
-| `penalty_points` | string | Penalty points deducted |
-| `bonus_points_together` | string | Combined bonus points (if league uses single bonus) |
-| `bonus_points_batting` | string | Batting bonus points |
-| `bonus_points_bowling` | string | Bowling bonus points |
-| `bonus_points_2nd_innings_together` | string | 2nd innings combined bonus (multi-innings matches) |
+| Field                               | Type   | Description                                         |
+| ----------------------------------- | ------ | --------------------------------------------------- |
+| `team_id`                           | int    | Team ID                                             |
+| `game_points`                       | string | Points awarded for the game result                  |
+| `penalty_points`                    | string | Penalty points deducted                             |
+| `bonus_points_together`             | string | Combined bonus points (if league uses single bonus) |
+| `bonus_points_batting`              | string | Batting bonus points                                |
+| `bonus_points_bowling`              | string | Bowling bonus points                                |
+| `bonus_points_2nd_innings_together` | string | 2nd innings combined bonus (multi-innings matches)  |
 
 ### Innings object
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `team_batting_id` | string | Team ID of the batting side |
-| `innings_number` | int | Innings number (1, 2, etc.) |
-| `extra_byes` | string | Byes |
-| `extra_leg_byes` | string | Leg byes |
-| `extra_wides` | string | Wides |
-| `extra_no_balls` | string | No balls |
-| `extra_penalty_runs` | string | Penalty runs |
-| `penalties_runs_awarded_in_other_innings` | string | Penalty runs from other innings |
-| `total_extras` | string | Total extras |
-| `runs` | string | Total runs scored |
-| `wickets` | string | Wickets lost |
-| `overs` | string | Overs faced (e.g. `"50.0"`, `"46.3"`) |
-| `declared` | boolean | Whether the innings was declared |
-| `revised_target_runs` | string | D/L revised target runs |
-| `revised_target_overs` | string | D/L revised target overs |
+| Field                                     | Type    | Description                           |
+| ----------------------------------------- | ------- | ------------------------------------- |
+| `team_batting_id`                         | string  | Team ID of the batting side           |
+| `innings_number`                          | int     | Innings number (1, 2, etc.)           |
+| `extra_byes`                              | string  | Byes                                  |
+| `extra_leg_byes`                          | string  | Leg byes                              |
+| `extra_wides`                             | string  | Wides                                 |
+| `extra_no_balls`                          | string  | No balls                              |
+| `extra_penalty_runs`                      | string  | Penalty runs                          |
+| `penalties_runs_awarded_in_other_innings` | string  | Penalty runs from other innings       |
+| `total_extras`                            | string  | Total extras                          |
+| `runs`                                    | string  | Total runs scored                     |
+| `wickets`                                 | string  | Wickets lost                          |
+| `overs`                                   | string  | Overs faced (e.g. `"50.0"`, `"46.3"`) |
+| `declared`                                | boolean | Whether the innings was declared      |
+| `revised_target_runs`                     | string  | D/L revised target runs               |
+| `revised_target_overs`                    | string  | D/L revised target overs              |
 
 ## Notes
 

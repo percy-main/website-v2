@@ -6,7 +6,9 @@ import { createStripe } from "./stripe.js";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const paymentRoutes: FastifyPluginAsync = async (app) => {
-  const stripe = createStripe({ stripeSecretKey: app.config.STRIPE_SECRET_KEY });
+  const stripe = createStripe({
+    stripeSecretKey: app.config.STRIPE_SECRET_KEY,
+  });
   const purchase = createPurchase(app.db, stripe);
   const subscribe = createSubscription(app.db, stripe);
 

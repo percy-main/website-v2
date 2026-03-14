@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlayCricketApiClient } from "./api-client.js";
 import {
+  didBat,
   isJuniorTeam,
   isNotOut,
-  didBat,
   parseDismissalType,
   runSync,
 } from "./sync.js";
@@ -145,7 +145,9 @@ describe("runSync", () => {
     return chainable as unknown as Kysely<DB>;
   }
 
-  function createMockApi(overrides: Partial<PlayCricketApiClient> = {}): PlayCricketApiClient {
+  function createMockApi(
+    overrides: Partial<PlayCricketApiClient> = {},
+  ): PlayCricketApiClient {
     return {
       getTeams: vi.fn().mockResolvedValue({ teams: [] }),
       getMatchesSummary: vi.fn().mockResolvedValue({ matches: [] }),
@@ -169,7 +171,9 @@ describe("runSync", () => {
     expect(result.matchesProcessed).toBe(0);
     expect(result.errors).toHaveLength(0);
     // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn() mock
-    expect(mockApi.getMatchesSummary).toHaveBeenCalledWith(new Date().getFullYear());
+    expect(mockApi.getMatchesSummary).toHaveBeenCalledWith(
+      new Date().getFullYear(),
+    );
   });
 
   it("syncs extra seasons", async () => {
@@ -179,7 +183,9 @@ describe("runSync", () => {
     /* eslint-disable @typescript-eslint/unbound-method -- vi.fn() mocks */
     expect(mockApi.getMatchesSummary).toHaveBeenCalledWith(2024);
     expect(mockApi.getMatchesSummary).toHaveBeenCalledWith(2025);
-    expect(mockApi.getMatchesSummary).toHaveBeenCalledWith(new Date().getFullYear());
+    expect(mockApi.getMatchesSummary).toHaveBeenCalledWith(
+      new Date().getFullYear(),
+    );
     /* eslint-enable @typescript-eslint/unbound-method */
   });
 

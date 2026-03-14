@@ -10,6 +10,7 @@ Replace Mailgun with **Amazon SES** for transactional email in the new codebase.
 ## Options Considered
 
 ### Amazon SES (chosen)
+
 - Part of the AWS ecosystem — covered by AWS credits
 - eu-west-2 region keeps email infrastructure in the same region as compute
 - Simple API via `@aws-sdk/client-sesv2`
@@ -17,11 +18,13 @@ Replace Mailgun with **Amazon SES** for transactional email in the new codebase.
 - Domain verification via Route 53 (same console)
 
 ### Keep Mailgun
+
 - Currently working, proven setup
 - Would add a separate billing relationship
 - Not covered by AWS credits
 
 ### SendGrid / Postmark
+
 - Good products but introduce additional third-party dependencies
 - Not covered by AWS credits
 

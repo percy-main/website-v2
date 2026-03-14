@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  seedTestUser,
   startTestContainer,
   stopTestContainer,
-  seedTestUser,
   type TestContext,
 } from "../../test/containers.js";
+import { BUDGET, getCurrentSeason } from "./gameweek.js";
+import type { PlayerInput } from "./schemas.js";
+import { SLOT_COUNTS } from "./scoring.js";
 import {
   getEligiblePlayers,
   getMyTeam,
+  populatePlayers,
   saveTeam,
   toggleEligibility,
-  populatePlayers,
 } from "./service.js";
-import { SLOT_COUNTS } from "./scoring.js";
-import { BUDGET, getCurrentSeason } from "./gameweek.js";
-import type { PlayerInput } from "./schemas.js";
 
 let ctx: TestContext;
 

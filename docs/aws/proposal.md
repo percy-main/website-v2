@@ -10,20 +10,20 @@ Percy Main CSC serves as grassroots sports infrastructure for North Tyneside —
 
 We currently run on a mix of third-party services:
 
-| Component | Current Provider | Notes |
-|-----------|-----------------|-------|
-| **Hosting & CDN** | Netlify | Static site generation + serverless functions, deploy previews per PR |
-| **Database** | Turso (libsql/SQLite) | Kysely ORM, per-PR branch databases for previews |
-| **Email** | Mailgun | Transactional email (verification, receipts, reminders) |
-| **Blob Storage** | Netlify Blobs | File storage for user uploads |
-| **Scheduled Jobs** | Netlify Scheduled Functions | External data sync, automated reminders |
-| **Edge Functions** | Netlify Edge | Stripe webhook proxy for deploy previews |
-| **CMS** | Contentful | Content delivery, preview, and management APIs |
-| **Payments** | Stripe | Subscriptions, one-off payments, webhook handling |
-| **Auth** | Better Auth (open-source library) | Email/password, Google OAuth, passkeys, 2FA |
-| **External Data** | Play Cricket API | Match results, player statistics, league tables |
-| **Notifications** | Slack Webhooks | Trustee notifications for payments and enquiries |
-| **Maps** | Google Maps API | Venue locations, address lookup |
+| Component          | Current Provider                  | Notes                                                                 |
+| ------------------ | --------------------------------- | --------------------------------------------------------------------- |
+| **Hosting & CDN**  | Netlify                           | Static site generation + serverless functions, deploy previews per PR |
+| **Database**       | Turso (libsql/SQLite)             | Kysely ORM, per-PR branch databases for previews                      |
+| **Email**          | Mailgun                           | Transactional email (verification, receipts, reminders)               |
+| **Blob Storage**   | Netlify Blobs                     | File storage for user uploads                                         |
+| **Scheduled Jobs** | Netlify Scheduled Functions       | External data sync, automated reminders                               |
+| **Edge Functions** | Netlify Edge                      | Stripe webhook proxy for deploy previews                              |
+| **CMS**            | Contentful                        | Content delivery, preview, and management APIs                        |
+| **Payments**       | Stripe                            | Subscriptions, one-off payments, webhook handling                     |
+| **Auth**           | Better Auth (open-source library) | Email/password, Google OAuth, passkeys, 2FA                           |
+| **External Data**  | Play Cricket API                  | Match results, player statistics, league tables                       |
+| **Notifications**  | Slack Webhooks                    | Trustee notifications for payments and enquiries                      |
+| **Maps**           | Google Maps API                   | Venue locations, address lookup                                       |
 
 ---
 
@@ -33,29 +33,29 @@ We currently run on a mix of third-party services:
 
 ### Services Replaced
 
-| Component | AWS Service | Replaces |
-|-----------|------------|----------|
-| **Frontend hosting** | S3 + CloudFront | Netlify |
-| **API service** | ECS Fargate + ALB | Netlify serverless functions |
-| **Database** | RDS PostgreSQL (db.t4g.micro) | Turso (libsql/SQLite) |
-| **Email** | Amazon SES | Mailgun |
-| **File storage** | S3 | Netlify Blobs |
-| **Scheduled jobs** | EventBridge + ECS | Netlify Scheduled Functions |
-| **Secrets** | SSM Parameter Store + Secrets Manager | Environment variables |
-| **DNS** | Route 53 | Third-party DNS |
-| **Monitoring** | CloudWatch (logs, metrics, alarms) | None (new capability) |
-| **Security** | WAF + VPC + Security Groups + CloudTrail | None (new capability) |
-| **Networking** | VPC + NAT Gateway | Managed by Netlify |
-| **Container registry** | ECR (management account, cross-account pull) | N/A |
+| Component              | AWS Service                                  | Replaces                     |
+| ---------------------- | -------------------------------------------- | ---------------------------- |
+| **Frontend hosting**   | S3 + CloudFront                              | Netlify                      |
+| **API service**        | ECS Fargate + ALB                            | Netlify serverless functions |
+| **Database**           | RDS PostgreSQL (db.t4g.micro)                | Turso (libsql/SQLite)        |
+| **Email**              | Amazon SES                                   | Mailgun                      |
+| **File storage**       | S3                                           | Netlify Blobs                |
+| **Scheduled jobs**     | EventBridge + ECS                            | Netlify Scheduled Functions  |
+| **Secrets**            | SSM Parameter Store + Secrets Manager        | Environment variables        |
+| **DNS**                | Route 53                                     | Third-party DNS              |
+| **Monitoring**         | CloudWatch (logs, metrics, alarms)           | None (new capability)        |
+| **Security**           | WAF + VPC + Security Groups + CloudTrail     | None (new capability)        |
+| **Networking**         | VPC + NAT Gateway                            | Managed by Netlify           |
+| **Container registry** | ECR (management account, cross-account pull) | N/A                          |
 
 ### External Services (unchanged)
 
-| Service | Role |
-|---------|------|
-| **Stripe** | Payment processing (webhook URLs updated to point at ECS) |
-| **Play Cricket API** | Cricket match data, player statistics, league tables |
-| **Google Maps** | Client-side location services |
-| **Slack** | Outbound trustee notifications |
+| Service              | Role                                                      |
+| -------------------- | --------------------------------------------------------- |
+| **Stripe**           | Payment processing (webhook URLs updated to point at ECS) |
+| **Play Cricket API** | Cricket match data, player statistics, league tables      |
+| **Google Maps**      | Client-side location services                             |
+| **Slack**            | Outbound trustee notifications                            |
 
 ---
 
@@ -70,6 +70,7 @@ The site currently uses Astro (a static site generator) with React "islands" for
 Astro does support Node.js SSR adapters (deployable to ECS) and static output (deployable to S3+CloudFront), so continuing with Astro on AWS is technically feasible. However, the migration is an opportunity to resolve a growing architectural tension: the application has evolved from a content site into an interactive, authenticated platform where the Astro/React split creates friction — duplicated routing concepts, awkward state sharing between islands, and server/client boundary complexity that adds development overhead without proportionate benefit. A unified React SPA better reflects what the application actually is.
 
 **Benefits:**
+
 - Single framework — eliminates the Astro/React split and associated complexity
 - Shared application state — auth context, data caching, and query providers work across the entire app
 - Standard tooling — React Router for client-side routing, Vite for builds
@@ -82,6 +83,7 @@ Astro does support Node.js SSR adapters (deployable to ECS) and static output (d
 Our backend logic (~9,550 lines across 19 handler files) currently runs inside Astro's serverless action system with no service layer separation. We propose extracting this into a standalone **Node.js API service** running on ECS Fargate.
 
 **Benefits:**
+
 - Service layer reuse — scheduled jobs, webhooks, and the frontend all use the same business logic
 - Independent scaling — API scales separately from frontend delivery
 - Connection pooling — persistent service enables proper PostgreSQL connection pooling
@@ -93,6 +95,7 @@ Our backend logic (~9,550 lines across 19 handler files) currently runs inside A
 Contentful currently manages ~6 content types via 4 API tokens, 6 npm packages, and a type generation pipeline. Content is edited by a single developer and already requires a deploy to publish (Astro fetches from Contentful at build time). We propose removing Contentful entirely and inlining editorial content directly as React components.
 
 **Benefits:**
+
 - Zero regression in publishing workflow — "edit → commit → deploy" is already the process
 - Massively simplified stack — removes external API, 4 tokens, 6 npm packages, and the type generation pipeline
 - Content is version-controlled, type-safe, and requires no runtime fetching
@@ -103,6 +106,7 @@ Contentful currently manages ~6 content types via 4 API tokens, 6 npm packages, 
 Our external data ingestion (Play Cricket match results, player statistics) currently runs as a single monolithic background function. We propose separating this into independent, resumable pipeline stages orchestrated by EventBridge.
 
 **Benefits:**
+
 - Decoupled ingestion and serving — external API issues do not affect user experience
 - Independent pipeline stages — ingest, scoring, and cache refresh run and fail independently
 - Idempotent and resumable — partial failures are recovered automatically on next run
@@ -161,30 +165,30 @@ Three accounts within an AWS Organization: a management account for cross-cuttin
 
 ## Key Benefits
 
-| Benefit | Detail |
-|---------|--------|
-| **Sustainable funding** | AWS non-profit credits would replace personal trustee funding, securing infrastructure long-term |
-| **Professional monitoring** | CloudWatch metrics, alarms, and dashboards — currently no monitoring capability |
-| **Application security** | WAF, VPC, Security Groups, IAM, encryption at rest, CloudTrail audit logging |
-| **Automated backups** | RDS automated daily snapshots with 35-day point-in-time recovery; staging environment is periodically seeded from a production snapshot restore, which doubles as a backup verification test |
-| **PostgreSQL** | Full-text search, JSON operators, window functions, CTEs, mature ecosystem |
-| **Environment parity** | Production, staging, and preview environments |
-| **Scalability** | Scale ECS tasks, upgrade RDS instance, or add read replicas as membership grows |
-| **Consolidated billing** | Single AWS account replaces four separate service subscriptions |
-| **Data pipeline resilience** | Decoupled ingestion and serving |
-| **Operational maturity** | Structured logging, alerting, and environment isolation |
+| Benefit                      | Detail                                                                                                                                                                                       |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sustainable funding**      | AWS non-profit credits would replace personal trustee funding, securing infrastructure long-term                                                                                             |
+| **Professional monitoring**  | CloudWatch metrics, alarms, and dashboards — currently no monitoring capability                                                                                                              |
+| **Application security**     | WAF, VPC, Security Groups, IAM, encryption at rest, CloudTrail audit logging                                                                                                                 |
+| **Automated backups**        | RDS automated daily snapshots with 35-day point-in-time recovery; staging environment is periodically seeded from a production snapshot restore, which doubles as a backup verification test |
+| **PostgreSQL**               | Full-text search, JSON operators, window functions, CTEs, mature ecosystem                                                                                                                   |
+| **Environment parity**       | Production, staging, and preview environments                                                                                                                                                |
+| **Scalability**              | Scale ECS tasks, upgrade RDS instance, or add read replicas as membership grows                                                                                                              |
+| **Consolidated billing**     | Single AWS account replaces four separate service subscriptions                                                                                                                              |
+| **Data pipeline resilience** | Decoupled ingestion and serving                                                                                                                                                              |
+| **Operational maturity**     | Structured logging, alerting, and environment isolation                                                                                                                                      |
 
 ---
 
 ## Broad Timeline
 
-| Phase | Summary | Key Milestone |
-|-------|---------|---------------|
-| **1. Foundation & Database** | AWS account setup, VPC, RDS, DNS, SES, S3. Migrate database from SQLite to PostgreSQL. | Production database live on RDS |
-| **2. Backend Service** | Extract API service, deploy to ECS Fargate behind ALB. Migrate webhooks and scheduled jobs. | API service serving production traffic |
-| **3. Data Pipelines** | Decouple external data ingestion into independent ETL stages. | Pipeline logic separated from request path |
-| **4. Frontend Migration** | Migrate from Astro to React/Vite SPA. Deploy to S3 + CloudFront. | Full application live on AWS |
-| **5. Content Migration** | Inline Contentful content as React components. Remove Contentful dependencies. | Contentful decommissioned |
-| **6. Cutover & Environments** | Staging environment. DNS cutover. Decommission old services. | Migration complete |
+| Phase                         | Summary                                                                                     | Key Milestone                              |
+| ----------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| **1. Foundation & Database**  | AWS account setup, VPC, RDS, DNS, SES, S3. Migrate database from SQLite to PostgreSQL.      | Production database live on RDS            |
+| **2. Backend Service**        | Extract API service, deploy to ECS Fargate behind ALB. Migrate webhooks and scheduled jobs. | API service serving production traffic     |
+| **3. Data Pipelines**         | Decouple external data ingestion into independent ETL stages.                               | Pipeline logic separated from request path |
+| **4. Frontend Migration**     | Migrate from Astro to React/Vite SPA. Deploy to S3 + CloudFront.                            | Full application live on AWS               |
+| **5. Content Migration**      | Inline Contentful content as React components. Remove Contentful dependencies.              | Contentful decommissioned                  |
+| **6. Cutover & Environments** | Staging environment. DNS cutover. Decommission old services.                                | Migration complete                         |
 
 See [Implementation Plan](./implementation-plan.md) for detailed phase breakdowns and [Cost Breakdown](./cost-breakdown.md) for per-phase cost build-up.

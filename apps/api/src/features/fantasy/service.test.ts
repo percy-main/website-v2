@@ -1,37 +1,45 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExecuteTakeFirst, mockExecuteTakeFirstOrThrow, mockExecute, mockQueryBuilder } = vi.hoisted(
-  () => {
-    const mockExecuteTakeFirst = vi.fn();
-    const mockExecute = vi.fn();
+const {
+  mockExecuteTakeFirst,
+  mockExecuteTakeFirstOrThrow,
+  mockExecute,
+  mockQueryBuilder,
+} = vi.hoisted(() => {
+  const mockExecuteTakeFirst = vi.fn();
+  const mockExecute = vi.fn();
 
-    const mockExecuteTakeFirstOrThrow = vi.fn();
+  const mockExecuteTakeFirstOrThrow = vi.fn();
 
-    const mockQueryBuilder = {
-      selectFrom: vi.fn().mockReturnThis(),
-      insertInto: vi.fn().mockReturnThis(),
-      updateTable: vi.fn().mockReturnThis(),
-      innerJoin: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      selectAll: vi.fn().mockReturnThis(),
-      set: vi.fn().mockReturnThis(),
-      values: vi.fn().mockReturnThis(),
-      distinct: vi.fn().mockReturnThis(),
-      groupBy: vi.fn().mockReturnThis(),
-      orderBy: vi.fn().mockReturnThis(),
-      or: vi.fn().mockReturnThis(),
-      returning: vi.fn().mockReturnThis(),
-      executeTakeFirst: mockExecuteTakeFirst,
-      executeTakeFirstOrThrow: mockExecuteTakeFirstOrThrow,
-      execute: mockExecute,
-    };
+  const mockQueryBuilder = {
+    selectFrom: vi.fn().mockReturnThis(),
+    insertInto: vi.fn().mockReturnThis(),
+    updateTable: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    selectAll: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
+    values: vi.fn().mockReturnThis(),
+    distinct: vi.fn().mockReturnThis(),
+    groupBy: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
+    or: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockReturnThis(),
+    executeTakeFirst: mockExecuteTakeFirst,
+    executeTakeFirstOrThrow: mockExecuteTakeFirstOrThrow,
+    execute: mockExecute,
+  };
 
-    return { mockExecuteTakeFirst, mockExecuteTakeFirstOrThrow, mockExecute, mockQueryBuilder };
-  },
-);
+  return {
+    mockExecuteTakeFirst,
+    mockExecuteTakeFirstOrThrow,
+    mockExecute,
+    mockQueryBuilder,
+  };
+});
 
 vi.mock("kysely", () => ({
   sql: new Proxy(() => ({ as: () => "sql_expr" }), {
@@ -45,17 +53,17 @@ vi.mock("kysely", () => ({
 }));
 
 import {
-  getEligiblePlayers,
-  saveTeam,
-  toggleEligibility,
-  populatePlayers,
-} from "./service.js";
-import {
-  getCurrentSeason,
   getCurrentGameweek,
+  getCurrentSeason,
   getPreviousSeason,
 } from "./gameweek.js";
 import type { PlayerInput } from "./schemas.js";
+import {
+  getEligiblePlayers,
+  populatePlayers,
+  saveTeam,
+  toggleEligibility,
+} from "./service.js";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 
@@ -72,7 +80,11 @@ function makePlayer(overrides: Partial<PlayerInput> = {}): PlayerInput {
 function makeValidSquad(): PlayerInput[] {
   return [
     // 6 batting
-    makePlayer({ playCricketId: "bat-1", slotType: "batting", isCaptain: true }),
+    makePlayer({
+      playCricketId: "bat-1",
+      slotType: "batting",
+      isCaptain: true,
+    }),
     makePlayer({ playCricketId: "bat-2", slotType: "batting" }),
     makePlayer({ playCricketId: "bat-3", slotType: "batting" }),
     makePlayer({ playCricketId: "bat-4", slotType: "batting" }),

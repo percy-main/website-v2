@@ -1,5 +1,5 @@
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
 import type Stripe from "stripe";
 import type { PurchaseInput, SubscribeInput } from "./schemas.js";
 
@@ -51,22 +51,25 @@ export function createPurchase(db: Kysely<DB>, stripe: Stripe) {
 
     const product = price.product as { name: string };
 
-    const amount = data.customAmountPence ?? ((price.unit_amount ?? 0) * (data.quantity ?? 1));
+    const amount =
+      data.customAmountPence ?? (price.unit_amount ?? 0) * (data.quantity ?? 1);
 
-    const paymentIntentParams: import("stripe").Stripe.PaymentIntentCreateParams = {
-      amount,
-      currency: "gbp",
-      metadata: {
-        ...data.metadata,
-        price_id: data.priceId,
-      },
-    };
+    const paymentIntentParams: import("stripe").Stripe.PaymentIntentCreateParams =
+      {
+        amount,
+        currency: "gbp",
+        metadata: {
+          ...data.metadata,
+          price_id: data.priceId,
+        },
+      };
 
     if (data.email) {
       paymentIntentParams.receipt_email = data.email;
     }
 
-    const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
+    const paymentIntent =
+      await stripe.paymentIntents.create(paymentIntentParams);
 
     return {
       clientSecret: paymentIntent.client_secret,
@@ -86,19 +89,20 @@ export function createSubscription(db: Kysely<DB>, stripe: Stripe) {
   return async (data: SubscribeInput) => {
     const customerId = await resolveCustomer(data.email);
 
-    const subscriptionParams: import("stripe").Stripe.SubscriptionCreateParams = {
-      customer: customerId,
-      items: [{ price: data.priceId }],
-      payment_behavior: "default_incomplete",
-      payment_settings: {
-        save_default_payment_method: "on_subscription",
-      },
-      expand: ["latest_invoice.payment_intent"],
-      metadata: {
-        membership: data.membership,
-        email: data.email,
-      },
-    };
+    const subscriptionParams: import("stripe").Stripe.SubscriptionCreateParams =
+      {
+        customer: customerId,
+        items: [{ price: data.priceId }],
+        payment_behavior: "default_incomplete",
+        payment_settings: {
+          save_default_payment_method: "on_subscription",
+        },
+        expand: ["latest_invoice.payment_intent"],
+        metadata: {
+          membership: data.membership,
+          email: data.email,
+        },
+      };
 
     // For senior women players, set cancel_at to the earlier of
     // 6 months from now or September 30th of the current year
@@ -107,7 +111,8 @@ export function createSubscription(db: Kysely<DB>, stripe: Stripe) {
       const sixMonths = new Date(now);
       sixMonths.setMonth(sixMonths.getMonth() + 6);
 
-      const year = now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear();
+      const year =
+        now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear();
       const sepThirty = new Date(year, 8, 30, 23, 59, 59);
 
       const cancelAt = sixMonths < sepThirty ? sixMonths : sepThirty;

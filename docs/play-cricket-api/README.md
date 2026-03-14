@@ -22,16 +22,16 @@ All endpoints require an `api_token` query parameter. Tokens are issued per-club
 
 ## Endpoints
 
-| Endpoint | Description | Doc |
-|----------|-------------|-----|
-| [Teams](./teams.md) | List teams for a site | `GET /sites/{site_id}/teams.json` |
-| [Players](./players.md) | List players for a site | `GET /sites/{site_id}/players` |
-| [Competitions](./competitions.md) | List divisions/cups for a league & season | `GET /competitions.json` |
-| [Teams in Division](./teams-in-division.md) | List teams in a division/cup | `GET /competition_teams.json` |
-| [Match Summary](./match-summary.md) | List fixtures & matches (lightweight) | `GET /matches.json` |
-| [Result Summary](./result-summary.md) | Matches with results (includes innings totals) | `GET /result_summary.json` |
-| [Match Detail](./match-detail.md) | Full scorecard for a single match | `GET /match_detail.json` |
-| [League Table](./league-table.md) | Calculated league table for a division | `GET /league_table.json` |
+| Endpoint                                    | Description                                    | Doc                               |
+| ------------------------------------------- | ---------------------------------------------- | --------------------------------- |
+| [Teams](./teams.md)                         | List teams for a site                          | `GET /sites/{site_id}/teams.json` |
+| [Players](./players.md)                     | List players for a site                        | `GET /sites/{site_id}/players`    |
+| [Competitions](./competitions.md)           | List divisions/cups for a league & season      | `GET /competitions.json`          |
+| [Teams in Division](./teams-in-division.md) | List teams in a division/cup                   | `GET /competition_teams.json`     |
+| [Match Summary](./match-summary.md)         | List fixtures & matches (lightweight)          | `GET /matches.json`               |
+| [Result Summary](./result-summary.md)       | Matches with results (includes innings totals) | `GET /result_summary.json`        |
+| [Match Detail](./match-detail.md)           | Full scorecard for a single match              | `GET /match_detail.json`          |
+| [League Table](./league-table.md)           | Calculated league table for a division         | `GET /league_table.json`          |
 
 ## Common Patterns
 
@@ -47,6 +47,7 @@ Two date-range patterns appear across endpoints:
 ### Status field
 
 Many responses include a `status` field with values:
+
 - `"New"` - active/current record
 - `"Deleted"` - soft-deleted record
 

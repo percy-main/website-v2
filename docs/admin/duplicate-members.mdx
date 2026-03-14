@@ -1,31 +1,31 @@
 # Duplicate Members
 
 <AdminTab name="Duplicates">
-Find and safely merge duplicate member records.
+  Find and safely merge duplicate member records.
 </AdminTab>
 
 ## How Duplicates are Detected
 
 The system identifies potential duplicates using two methods:
 
-| Method | Confidence | Badge |
-|--------|-----------|-------|
-| **Email match** | High — same email on multiple records | Green "Email match" |
-| **Name match** | Lower — fuzzy name matching (70%+ similarity) | Yellow "Name match" |
+| Method          | Confidence                                    | Badge               |
+| --------------- | --------------------------------------------- | ------------------- |
+| **Email match** | High — same email on multiple records         | Green "Email match" |
+| **Name match**  | Lower — fuzzy name matching (70%+ similarity) | Yellow "Name match" |
 
 ## Duplicate Groups
 
 Each group shows the matching records with:
 
-| Column | Description |
-|--------|-------------|
-| **Keep** | Radio button to select which record to retain |
-| **ID** | Truncated record ID |
-| **Name** | Full name |
-| **Stripe** | Whether the record has a Stripe customer ID |
-| **Memberships** | Count of membership records |
-| **Dependents** | Count of junior members |
-| **Charges** | Count of charges |
+| Column          | Description                                   |
+| --------------- | --------------------------------------------- |
+| **Keep**        | Radio button to select which record to retain |
+| **ID**          | Truncated record ID                           |
+| **Name**        | Full name                                     |
+| **Stripe**      | Whether the record has a Stripe customer ID   |
+| **Memberships** | Count of membership records                   |
+| **Dependents**  | Count of junior members                       |
+| **Charges**     | Count of charges                              |
 
 ## Merge Workflow
 
@@ -62,7 +62,9 @@ To prevent accidental merges, you must type a confirmation word:
 - For records with **different emails**: type `MERGE` (uppercase)
 
 <Callout type="danger">
-Merging is permanent and cannot be undone. Always verify that the two records genuinely belong to the same person before confirming, especially when emails differ.
+  Merging is permanent and cannot be undone. Always verify that the two records
+  genuinely belong to the same person before confirming, especially when emails
+  differ.
 </Callout>
 
 ### Cross-Email Merges

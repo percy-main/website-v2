@@ -10,10 +10,10 @@ GET /api/v2/match_detail.json
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `api_token` | string | Yes | API token |
-| `match_id` | int | Yes | Match ID (from Match Summary or Result Summary) |
+| Parameter   | Type   | Required | Description                                     |
+| ----------- | ------ | -------- | ----------------------------------------------- |
+| `api_token` | string | Yes      | API token                                       |
+| `match_id`  | int    | Yes      | Match ID (from Match Summary or Result Summary) |
 
 ## Example Request
 
@@ -88,18 +88,18 @@ The response is a single-element array containing the full match object.
 
 Same as [Result Summary](./result-summary.md) plus:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `match_id` | string | Match ID (also appears as top-level `id`) |
-| `ground_name` | string | Ground name |
-| `ground_id` | string | Ground ID |
-| `scorer_1_name` | string | First scorer name |
-| `scorer_1_id` | string | First scorer ID |
-| `scorer_2_name` | string | Second scorer name |
-| `scorer_2_id` | string | Second scorer ID |
-| `no_of_days` | string | Number of days (multi-day matches) |
-| `no_of_players` | string | Players per side |
-| `no_of_reserves` | string | Reserves per side |
+| Field            | Type   | Description                               |
+| ---------------- | ------ | ----------------------------------------- |
+| `match_id`       | string | Match ID (also appears as top-level `id`) |
+| `ground_name`    | string | Ground name                               |
+| `ground_id`      | string | Ground ID                                 |
+| `scorer_1_name`  | string | First scorer name                         |
+| `scorer_1_id`    | string | First scorer ID                           |
+| `scorer_2_name`  | string | Second scorer name                        |
+| `scorer_2_id`    | string | Second scorer ID                          |
+| `no_of_days`     | string | Number of days (multi-day matches)        |
+| `no_of_players`  | string | Players per side                          |
+| `no_of_reserves` | string | Reserves per side                         |
 
 ## Points Array
 
@@ -119,17 +119,17 @@ Per-team points breakdown (two entries, one per team):
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `team_id` | string | Team ID |
-| `game_points` | string | Points for the game result |
-| `penalty_points` | string | Penalty points |
-| `bonus_points_together` | string | Combined bonus (if league uses single bonus) |
-| `bonus_points_batting` | string | Batting bonus points |
-| `bonus_points_bowling` | string | Bowling bonus points |
-| `bonus_points_2nd_innings_together` | string | 2nd innings combined bonus |
-| `bonus_points_2nd_innings_batting` | string | 2nd innings batting bonus |
-| `bonus_points_2nd_innings_bowling` | string | 2nd innings bowling bonus |
+| Field                               | Type   | Description                                  |
+| ----------------------------------- | ------ | -------------------------------------------- |
+| `team_id`                           | string | Team ID                                      |
+| `game_points`                       | string | Points for the game result                   |
+| `penalty_points`                    | string | Penalty points                               |
+| `bonus_points_together`             | string | Combined bonus (if league uses single bonus) |
+| `bonus_points_batting`              | string | Batting bonus points                         |
+| `bonus_points_bowling`              | string | Bowling bonus points                         |
+| `bonus_points_2nd_innings_together` | string | 2nd innings combined bonus                   |
+| `bonus_points_2nd_innings_batting`  | string | 2nd innings batting bonus                    |
+| `bonus_points_2nd_innings_bowling`  | string | 2nd innings bowling bonus                    |
 
 ## Match Result Types Array
 
@@ -183,13 +183,13 @@ Team sheets with two entries: `home_team` and `away_team`.
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `position` | int | Batting order position |
-| `player_name` | string | Player name |
-| `player_id` | int | Player (member) ID |
-| `captain` | boolean | Is team captain |
-| `wicket_keeper` | boolean | Is wicket keeper |
+| Field           | Type    | Description            |
+| --------------- | ------- | ---------------------- |
+| `position`      | int     | Batting order position |
+| `player_name`   | string  | Player name            |
+| `player_id`     | int     | Player (member) ID     |
+| `captain`       | boolean | Is team captain        |
+| `wicket_keeper` | boolean | Is wicket keeper       |
 
 ## Innings Array
 
@@ -197,24 +197,24 @@ One entry per innings bowled. Each contains batting (`bat`), fall of wickets (`f
 
 ### Innings-Level Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `team_batting_name` | string | Batting team name |
-| `team_batting_id` | string | Batting team ID |
-| `innings_number` | int | Innings number |
-| `extra_byes` | string | Byes |
-| `extra_leg_byes` | string | Leg byes |
-| `extra_wides` | string | Wides |
-| `extra_no_balls` | string | No balls |
-| `extra_penalty_runs` | string | Penalty runs |
-| `penalties_runs_awarded_in_other_innings` | string | Penalty runs from other innings |
-| `total_extras` | string | Total extras |
-| `runs` | string | Total runs |
-| `wickets` | string | Wickets lost |
-| `overs` | string | Overs faced (e.g. `"10"`, `"9.5"`) |
-| `declared` | boolean / null | Whether the innings was declared. Can be `null` for historical matches. |
-| `revised_target_runs` | string | D/L revised target runs |
-| `revised_target_overs` | string | D/L revised target overs |
+| Field                                     | Type           | Description                                                             |
+| ----------------------------------------- | -------------- | ----------------------------------------------------------------------- |
+| `team_batting_name`                       | string         | Batting team name                                                       |
+| `team_batting_id`                         | string         | Batting team ID                                                         |
+| `innings_number`                          | int            | Innings number                                                          |
+| `extra_byes`                              | string         | Byes                                                                    |
+| `extra_leg_byes`                          | string         | Leg byes                                                                |
+| `extra_wides`                             | string         | Wides                                                                   |
+| `extra_no_balls`                          | string         | No balls                                                                |
+| `extra_penalty_runs`                      | string         | Penalty runs                                                            |
+| `penalties_runs_awarded_in_other_innings` | string         | Penalty runs from other innings                                         |
+| `total_extras`                            | string         | Total extras                                                            |
+| `runs`                                    | string         | Total runs                                                              |
+| `wickets`                                 | string         | Wickets lost                                                            |
+| `overs`                                   | string         | Overs faced (e.g. `"10"`, `"9.5"`)                                      |
+| `declared`                                | boolean / null | Whether the innings was declared. Can be `null` for historical matches. |
+| `revised_target_runs`                     | string         | D/L revised target runs                                                 |
+| `revised_target_overs`                    | string         | D/L revised target overs                                                |
 
 ### Batting (`bat`) Array
 
@@ -235,34 +235,34 @@ One entry per innings bowled. Each contains batting (`bat`), fall of wickets (`f
 }
 ```
 
-| Field | Type | Nullable? | Description |
-|-------|------|-----------|-------------|
-| `position` | string | No | Batting order position |
-| `batsman_name` | string | No | Batsman name |
-| `batsman_id` | string | No | Batsman ID |
-| `how_out` | string | **Yes** | Dismissal mode (see below). Can be `null` for some historical matches. |
-| `fielder_name` | string | **Yes** | Fielder involved (if applicable). Can be `null` or `""`. |
-| `fielder_id` | string | **Yes** | Fielder ID. Can be `null` or `""`. |
-| `bowler_name` | string | **Yes** | Bowler who took the wicket. Can be `null` or `""`. |
-| `bowler_id` | string | **Yes** | Bowler ID. Can be `null` or `""`. |
-| `runs` | string | No | Runs scored |
-| `fours` | string | No | Number of fours |
-| `sixes` | string | No | Number of sixes |
-| `balls` | string | No | Balls faced |
+| Field          | Type   | Nullable? | Description                                                            |
+| -------------- | ------ | --------- | ---------------------------------------------------------------------- |
+| `position`     | string | No        | Batting order position                                                 |
+| `batsman_name` | string | No        | Batsman name                                                           |
+| `batsman_id`   | string | No        | Batsman ID                                                             |
+| `how_out`      | string | **Yes**   | Dismissal mode (see below). Can be `null` for some historical matches. |
+| `fielder_name` | string | **Yes**   | Fielder involved (if applicable). Can be `null` or `""`.               |
+| `fielder_id`   | string | **Yes**   | Fielder ID. Can be `null` or `""`.                                     |
+| `bowler_name`  | string | **Yes**   | Bowler who took the wicket. Can be `null` or `""`.                     |
+| `bowler_id`    | string | **Yes**   | Bowler ID. Can be `null` or `""`.                                      |
+| `runs`         | string | No        | Runs scored                                                            |
+| `fours`        | string | No        | Number of fours                                                        |
+| `sixes`        | string | No        | Number of sixes                                                        |
+| `balls`        | string | No        | Balls faced                                                            |
 
 #### Dismissal Modes (`how_out`)
 
-| Code | Meaning |
-|------|---------|
-| `"b"` | Bowled |
-| `"ct"` | Caught |
-| `"no"` | Not out |
+| Code    | Meaning           |
+| ------- | ----------------- |
+| `"b"`   | Bowled            |
+| `"ct"`  | Caught            |
+| `"no"`  | Not out           |
 | `"lbw"` | Leg before wicket |
-| `"ro"` | Run out |
-| `"st"` | Stumped |
-| `"hw"` | Hit wicket |
-| `"rtd"` | Retired |
-| `"dnb"` | Did not bat |
+| `"ro"`  | Run out           |
+| `"st"`  | Stumped           |
+| `"hw"`  | Hit wicket        |
+| `"rtd"` | Retired           |
+| `"dnb"` | Did not bat       |
 
 > The full set of dismissal codes is not documented by the ECB. The above are observed values.
 
@@ -282,15 +282,15 @@ One entry per innings bowled. Each contains batting (`bat`), fall of wickets (`f
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `runs` | string | Team total when wicket fell |
-| `wickets` | int | Wicket number (1st, 2nd, etc.) |
-| `batsman_out_name` | string | Dismissed batsman |
-| `batsman_out_id` | string | Dismissed batsman ID |
-| `batsman_in_name` | string | Non-striker at time of dismissal |
-| `batsman_in_id` | string | Non-striker ID |
-| `batsman_in_runs` | string | Non-striker's score at time of dismissal |
+| Field              | Type   | Description                              |
+| ------------------ | ------ | ---------------------------------------- |
+| `runs`             | string | Team total when wicket fell              |
+| `wickets`          | int    | Wicket number (1st, 2nd, etc.)           |
+| `batsman_out_name` | string | Dismissed batsman                        |
+| `batsman_out_id`   | string | Dismissed batsman ID                     |
+| `batsman_in_name`  | string | Non-striker at time of dismissal         |
+| `batsman_in_id`    | string | Non-striker ID                           |
+| `batsman_in_runs`  | string | Non-striker's score at time of dismissal |
 
 ### Bowling (`bowl`) Array
 
@@ -307,16 +307,16 @@ One entry per innings bowled. Each contains batting (`bat`), fall of wickets (`f
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `bowler_name` | string | Bowler name |
-| `bowler_id` | string | Bowler ID |
-| `overs` | string | Overs bowled |
-| `maidens` | string | Maiden overs |
-| `runs` | string | Runs conceded |
-| `wides` | string | Wides bowled |
-| `wickets` | string | Wickets taken |
-| `no_balls` | string | No balls bowled |
+| Field         | Type   | Description     |
+| ------------- | ------ | --------------- |
+| `bowler_name` | string | Bowler name     |
+| `bowler_id`   | string | Bowler ID       |
+| `overs`       | string | Overs bowled    |
+| `maidens`     | string | Maiden overs    |
+| `runs`        | string | Runs conceded   |
+| `wides`       | string | Wides bowled    |
+| `wickets`     | string | Wickets taken   |
+| `no_balls`    | string | No balls bowled |
 
 ## Validation Notes
 

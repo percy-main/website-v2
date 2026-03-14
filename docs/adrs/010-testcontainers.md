@@ -10,7 +10,11 @@ Use `@testcontainers/postgresql` for integration tests. Each test file gets its 
 ## Pattern
 
 ```typescript
-import { startTestContainer, stopTestContainer, type TestContext } from "../../test/containers.js";
+import {
+  startTestContainer,
+  stopTestContainer,
+  type TestContext,
+} from "../../test/containers.js";
 import { getMemberDetails } from "./service.js"; // static import — no mocking needed
 
 let ctx: TestContext;
@@ -33,6 +37,7 @@ it("returns member details", async () => {
 ## Why not shared test database with cleanup?
 
 The previous approach used a shared test DB with `cleanDb()` between tests. Problems:
+
 - Tests can interfere with each other if cleanup is incomplete
 - Parallel test execution is impossible
 - Module-level DB singletons required process.env hacks
@@ -40,10 +45,10 @@ The previous approach used a shared test DB with `cleanDb()` between tests. Prob
 
 ## Test types
 
-| Type | Pattern | Config file | Runs in CI |
-|------|---------|-------------|------------|
-| Unit | Mock db with vi.fn, test service logic | `vitest.config.ts` | Always |
-| Integration | Real PostgreSQL via testcontainers | `vitest.integration.config.ts` | Docker required |
+| Type        | Pattern                                | Config file                    | Runs in CI      |
+| ----------- | -------------------------------------- | ------------------------------ | --------------- |
+| Unit        | Mock db with vi.fn, test service logic | `vitest.config.ts`             | Always          |
+| Integration | Real PostgreSQL via testcontainers     | `vitest.integration.config.ts` | Docker required |
 
 Integration tests use `pool: "forks"` for process-level isolation — each test file gets its own Node process, its own module instances, and its own container.
 

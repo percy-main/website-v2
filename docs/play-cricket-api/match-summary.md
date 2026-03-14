@@ -10,18 +10,18 @@ GET /api/v2/matches.json
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `api_token` | string | Yes | API token |
-| `site_id` | int | Yes | Play-Cricket site ID |
-| `season` | string | No | Season year (e.g. `"2024"`) |
-| `division_id` | int | No | Filter to a specific division |
-| `cup_id` | int | No | Filter to a specific cup |
-| `team_id` | int | No | Filter to a specific team |
-| `competition_type` | string | No | `"League"`, `"Cup"`, or `"Friendly"` |
-| `from_entry_date` | string | No | `dd/mm/yyyy` - records updated on or after |
-| `end_entry_date` | string | No | `dd/mm/yyyy` - records updated on or before |
-| `include_unpublished` | string | No | `"yes"` to include unpublished fixtures |
+| Parameter             | Type   | Required | Description                                 |
+| --------------------- | ------ | -------- | ------------------------------------------- |
+| `api_token`           | string | Yes      | API token                                   |
+| `site_id`             | int    | Yes      | Play-Cricket site ID                        |
+| `season`              | string | No       | Season year (e.g. `"2024"`)                 |
+| `division_id`         | int    | No       | Filter to a specific division               |
+| `cup_id`              | int    | No       | Filter to a specific cup                    |
+| `team_id`             | int    | No       | Filter to a specific team                   |
+| `competition_type`    | string | No       | `"League"`, `"Cup"`, or `"Friendly"`        |
+| `from_entry_date`     | string | No       | `dd/mm/yyyy` - records updated on or after  |
+| `end_entry_date`      | string | No       | `dd/mm/yyyy` - records updated on or before |
+| `include_unpublished` | string | No       | `"yes"` to include unpublished fixtures     |
 
 ## Typical Usage
 
@@ -63,46 +63,46 @@ GET https://play-cricket.com/api/v2/matches.json?site_id=1234&season=2024&api_to
 
 ## Response Fields
 
-| Field | Type | Always present? | Description |
-|-------|------|-----------------|-------------|
-| `id` | int | Yes | Match ID (use with Match Detail API) |
-| `status` | string | Yes | `"New"` or `"Deleted"` |
-| `published` | string | Yes | `"Yes"` or `"No"` |
-| `last_updated` | string | Yes | Date last modified (`dd/mm/yyyy`) |
-| `season` | string | Yes | Season year |
-| `match_date` | string | Yes | Date of match (`dd/mm/yyyy`) |
-| `match_time` | string | **No** | Start time (`HH:MM`) |
-| `home_club_name` | string | Yes | Home club name |
-| `home_team_name` | string | Yes | Home team name |
-| `home_club_id` | string | Yes | Home club ID |
-| `home_team_id` | string | Yes | Home team ID |
-| `away_club_name` | string | Yes | Away club name |
-| `away_team_name` | string | Yes | Away team name |
-| `away_club_id` | string | Yes | Away club ID |
-| `away_team_id` | string | Yes | Away team ID |
-| `league_name` | string | **No** | League name |
-| `league_id` | string | **No** | League ID |
-| `competition_name` | string | **No** | Division/cup name |
-| `competition_id` | string | **No** | Division/cup ID |
-| `competition_type` | string | **No** | `"League"`, `"Cup"`, or `"Friendly"` |
-| `match_type` | string | **No** | e.g. `"Limited Overs"`, `"Declaration"` |
-| `game_type` | string | **No** | e.g. `"Standard"` |
-| `ground_name` | string | **No** | Ground name |
-| `ground_id` | string | **No** | Ground ID |
-| `ground_latitude` | string | **No** | Ground latitude |
-| `ground_longitude` | string | **No** | Ground longitude |
-| `umpire_1_name` | string | **No** | First umpire name |
-| `umpire_1_id` | string | **No** | First umpire ID |
-| `umpire_2_name` | string | **No** | Second umpire name |
-| `umpire_2_id` | string | **No** | Second umpire ID |
-| `umpire_3_name` | string | **No** | Third umpire name |
-| `umpire_3_id` | string | **No** | Third umpire ID |
-| `referee_name` | string | **No** | Referee name |
-| `referee_id` | string | **No** | Referee ID |
-| `scorer_1_name` | string | **No** | First scorer name |
-| `scorer_1_id` | string | **No** | First scorer ID |
-| `scorer_2_name` | string | **No** | Second scorer name |
-| `scorer_2_id` | string | **No** | Second scorer ID |
+| Field              | Type   | Always present? | Description                             |
+| ------------------ | ------ | --------------- | --------------------------------------- |
+| `id`               | int    | Yes             | Match ID (use with Match Detail API)    |
+| `status`           | string | Yes             | `"New"` or `"Deleted"`                  |
+| `published`        | string | Yes             | `"Yes"` or `"No"`                       |
+| `last_updated`     | string | Yes             | Date last modified (`dd/mm/yyyy`)       |
+| `season`           | string | Yes             | Season year                             |
+| `match_date`       | string | Yes             | Date of match (`dd/mm/yyyy`)            |
+| `match_time`       | string | **No**          | Start time (`HH:MM`)                    |
+| `home_club_name`   | string | Yes             | Home club name                          |
+| `home_team_name`   | string | Yes             | Home team name                          |
+| `home_club_id`     | string | Yes             | Home club ID                            |
+| `home_team_id`     | string | Yes             | Home team ID                            |
+| `away_club_name`   | string | Yes             | Away club name                          |
+| `away_team_name`   | string | Yes             | Away team name                          |
+| `away_club_id`     | string | Yes             | Away club ID                            |
+| `away_team_id`     | string | Yes             | Away team ID                            |
+| `league_name`      | string | **No**          | League name                             |
+| `league_id`        | string | **No**          | League ID                               |
+| `competition_name` | string | **No**          | Division/cup name                       |
+| `competition_id`   | string | **No**          | Division/cup ID                         |
+| `competition_type` | string | **No**          | `"League"`, `"Cup"`, or `"Friendly"`    |
+| `match_type`       | string | **No**          | e.g. `"Limited Overs"`, `"Declaration"` |
+| `game_type`        | string | **No**          | e.g. `"Standard"`                       |
+| `ground_name`      | string | **No**          | Ground name                             |
+| `ground_id`        | string | **No**          | Ground ID                               |
+| `ground_latitude`  | string | **No**          | Ground latitude                         |
+| `ground_longitude` | string | **No**          | Ground longitude                        |
+| `umpire_1_name`    | string | **No**          | First umpire name                       |
+| `umpire_1_id`      | string | **No**          | First umpire ID                         |
+| `umpire_2_name`    | string | **No**          | Second umpire name                      |
+| `umpire_2_id`      | string | **No**          | Second umpire ID                        |
+| `umpire_3_name`    | string | **No**          | Third umpire name                       |
+| `umpire_3_id`      | string | **No**          | Third umpire ID                         |
+| `referee_name`     | string | **No**          | Referee name                            |
+| `referee_id`       | string | **No**          | Referee ID                              |
+| `scorer_1_name`    | string | **No**          | First scorer name                       |
+| `scorer_1_id`      | string | **No**          | First scorer ID                         |
+| `scorer_2_name`    | string | **No**          | Second scorer name                      |
+| `scorer_2_id`      | string | **No**          | Second scorer ID                        |
 
 ## Notes
 

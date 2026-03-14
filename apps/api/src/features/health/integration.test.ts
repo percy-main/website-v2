@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import Fastify from "fastify";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   startTestContainer,
   stopTestContainer,

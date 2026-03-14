@@ -1,21 +1,21 @@
 import type { FastifyPluginAsync } from "fastify";
-import {
-  requireVerifiedEmail,
-  requireRole,
-  getAuthSession,
-} from "../auth/middleware.js";
 import { parseBody, parseParams } from "../../lib/validation.js";
 import {
+  getAuthSession,
+  requireRole,
+  requireVerifiedEmail,
+} from "../auth/middleware.js";
+import {
   addDependentsSchema,
-  teamIdParamSchema,
   dependentIdParamSchema,
+  teamIdParamSchema,
 } from "./schemas.js";
 import {
   addDependents,
   getDependents,
+  getPlayerDetail,
   listMyTeams,
   listPlayers,
-  getPlayerDetail,
 } from "./service.js";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
@@ -51,8 +51,7 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("junior_manager", "admin")] },
     async (request) => {
       const { user } = getAuthSession(request);
-      const role =
-        (user as { role?: string | null }).role ?? "user";
+      const role = (user as { role?: string | null }).role ?? "user";
       return await teams(user.id, role);
     },
   );
@@ -62,8 +61,7 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("junior_manager", "admin")] },
     async (request) => {
       const { user } = getAuthSession(request);
-      const role =
-        (user as { role?: string | null }).role ?? "user";
+      const role = (user as { role?: string | null }).role ?? "user";
       const { teamId } = parseParams(request, teamIdParamSchema);
       return await players(user.id, role, teamId);
     },
@@ -74,8 +72,7 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("junior_manager", "admin")] },
     async (request) => {
       const { user } = getAuthSession(request);
-      const role =
-        (user as { role?: string | null }).role ?? "user";
+      const role = (user as { role?: string | null }).role ?? "user";
       const { dependentId } = parseParams(request, dependentIdParamSchema);
       return await playerDetail(user.id, role, dependentId);
     },

@@ -1,11 +1,11 @@
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
 import type {
-  ListUsers,
-  UpdateUser,
   CreateMember,
+  ListUsers,
   RecordLinking,
   Unlink,
+  UpdateUser,
 } from "./schemas.js";
 
 export function listUsers(db: Kysely<DB>) {
@@ -58,9 +58,7 @@ export function listUsers(db: Kysely<DB>) {
         .limit(pageSize)
         .offset(offset)
         .execute(),
-      query
-        .select(db.fn.countAll().as("total"))
-        .executeTakeFirst(),
+      query.select(db.fn.countAll().as("total")).executeTakeFirst(),
     ]);
 
     return {

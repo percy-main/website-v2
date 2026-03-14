@@ -8,9 +8,8 @@ const fromAddress =
 
 export const sesSend = async ({ to, subject, html }: Email) => {
   // Dynamic import to avoid requiring AWS SDK when not needed
-  const { SESv2Client, SendEmailCommand } = await import(
-    "@aws-sdk/client-sesv2"
-  );
+  const { SESv2Client, SendEmailCommand } =
+    await import("@aws-sdk/client-sesv2");
 
   const client = new SESv2Client({ region });
 

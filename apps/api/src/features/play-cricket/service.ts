@@ -1,5 +1,5 @@
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import * as apiClient from "./api-client.js";
 
@@ -41,7 +41,10 @@ export function getMatchDetail(db: Kysely<DB>) {
         .values({
           match_id: matchId,
           data: JSON.stringify(data),
-          match_date: (typeof dataRecord.match_date === "string" ? dataRecord.match_date : null) ?? new Date().toISOString().split("T")[0],
+          match_date:
+            (typeof dataRecord.match_date === "string"
+              ? dataRecord.match_date
+              : null) ?? new Date().toISOString().split("T")[0],
           fetched_at: new Date().toISOString(),
         })
         .execute();
@@ -52,11 +55,7 @@ export function getMatchDetail(db: Kysely<DB>) {
 }
 
 export function getResultSummary(db: Kysely<DB>) {
-  return async (
-    matchId: string,
-    season: number,
-    ourTeamId: string,
-  ) => {
+  return async (matchId: string, season: number, ourTeamId: string) => {
     const result = await db
       .selectFrom("match_result")
       .where("match_id", "=", matchId)
@@ -204,18 +203,33 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
     // Calculate career totals
     // PostgreSQL sum()/count() return bigint (string in node-pg), so Number() each
     const careerBatting = {
-      matches: battingBySeasonRows.reduce((sum, s) => sum + Number(s.innings), 0),
-      runs: battingBySeasonRows.reduce((sum, s) => sum + Number(s.total_runs), 0),
+      matches: battingBySeasonRows.reduce(
+        (sum, s) => sum + Number(s.innings),
+        0,
+      ),
+      runs: battingBySeasonRows.reduce(
+        (sum, s) => sum + Number(s.total_runs),
+        0,
+      ),
       highScore: Math.max(
         0,
         ...battingBySeasonRows.map((s) => Number(s.high_score)),
       ),
-      notOuts: battingBySeasonRows.reduce((sum, s) => sum + Number(s.not_outs), 0),
+      notOuts: battingBySeasonRows.reduce(
+        (sum, s) => sum + Number(s.not_outs),
+        0,
+      ),
     };
 
     const careerBowling = {
-      innings: bowlingBySeasonRows.reduce((sum, s) => sum + Number(s.innings), 0),
-      overs: bowlingBySeasonRows.reduce((sum, s) => sum + Number(s.total_overs), 0),
+      innings: bowlingBySeasonRows.reduce(
+        (sum, s) => sum + Number(s.innings),
+        0,
+      ),
+      overs: bowlingBySeasonRows.reduce(
+        (sum, s) => sum + Number(s.total_overs),
+        0,
+      ),
       maidens: bowlingBySeasonRows.reduce(
         (sum, s) => sum + Number(s.total_maidens),
         0,
@@ -271,19 +285,13 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
       .execute();
 
     // Calculate batting averages
-    const totalRuns = battingRows.reduce(
-      (sum, r) => sum + (r.runs ?? 0),
-      0,
-    );
+    const totalRuns = battingRows.reduce((sum, r) => sum + (r.runs ?? 0), 0);
     const innings = battingRows.length;
-    const notOuts = battingRows.filter(
-      (r) => r.how_out === "not out",
-    ).length;
+    const notOuts = battingRows.filter((r) => r.how_out === "not out").length;
     const dismissals = innings - notOuts;
     const battingAverage = dismissals > 0 ? totalRuns / dismissals : null;
-    const highScore = innings > 0
-      ? Math.max(...battingRows.map((r) => r.runs ?? 0))
-      : 0;
+    const highScore =
+      innings > 0 ? Math.max(...battingRows.map((r) => r.runs ?? 0)) : 0;
 
     // Calculate bowling stats
     const totalWickets = bowlingRows.reduce(

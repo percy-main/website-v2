@@ -1,9 +1,8 @@
-import { writeFile, mkdir } from "fs/promises";
+import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import type { Email } from "./types.js";
 
-const emailDir = () =>
-  process.env.EMAIL_DIR ?? join(process.cwd(), ".emails");
+const emailDir = () => process.env.EMAIL_DIR ?? join(process.cwd(), ".emails");
 
 export const devSend = async ({ html, ...rest }: Email) => {
   await mkdir(emailDir(), { recursive: true });

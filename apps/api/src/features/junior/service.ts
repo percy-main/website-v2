@@ -1,5 +1,5 @@
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
 import type { DependentInput } from "./schemas.js";
 
 const FIRST_CHILD_FEE_PENCE = 5000;
@@ -8,7 +8,10 @@ const ADDITIONAL_CHILD_FEE_PENCE = 3000;
 /**
  * Find an existing member by email or create a minimal record.
  */
-async function findOrCreateMember(db: Kysely<DB>, email: string): Promise<string> {
+async function findOrCreateMember(
+  db: Kysely<DB>,
+  email: string,
+): Promise<string> {
   const existing = await db
     .selectFrom("member")
     .where("email", "=", email)
@@ -21,10 +24,7 @@ async function findOrCreateMember(db: Kysely<DB>, email: string): Promise<string
   }
 
   const id = crypto.randomUUID();
-  await db
-    .insertInto("member")
-    .values({ id, email })
-    .execute();
+  await db.insertInto("member").values({ id, email }).execute();
 
   return id;
 }
@@ -32,7 +32,10 @@ async function findOrCreateMember(db: Kysely<DB>, email: string): Promise<string
 /**
  * Count dependents registered by a member in the current calendar year.
  */
-async function countDependentsThisYear(db: Kysely<DB>, memberId: string): Promise<number> {
+async function countDependentsThisYear(
+  db: Kysely<DB>,
+  memberId: string,
+): Promise<number> {
   const yearStart = `${new Date().getFullYear()}-01-01`;
   const result = await db
     .selectFrom("dependent")
@@ -95,7 +98,8 @@ export function addDependents(db: Kysely<DB>) {
           whatsapp_consent: dep.whatsapp_consent,
           alt_contact_name: dep.alt_contact_name ?? null,
           alt_contact_phone: dep.alt_contact_phone ?? null,
-          alt_contact_whatsapp_consent: dep.alt_contact_whatsapp_consent ?? null,
+          alt_contact_whatsapp_consent:
+            dep.alt_contact_whatsapp_consent ?? null,
           gp_surgery: dep.gp_surgery ?? null,
           gp_phone: dep.gp_phone ?? null,
           has_disability: dep.has_disability ?? null,
@@ -217,7 +221,11 @@ export function listMyTeams(db: Kysely<DB>) {
     // junior_manager: only assigned teams
     return db
       .selectFrom("junior_team_manager")
-      .innerJoin("junior_team", "junior_team.id", "junior_team_manager.junior_team_id")
+      .innerJoin(
+        "junior_team",
+        "junior_team.id",
+        "junior_team_manager.junior_team_id",
+      )
       .where("junior_team_manager.user_id", "=", userId)
       .select([
         "junior_team.id",
@@ -307,7 +315,9 @@ export function listPlayers(db: Kysely<DB>) {
       ])
       .execute();
 
-    return allDependents.filter((d) => computeAgeGroup(d.dob) === team.age_group);
+    return allDependents.filter(
+      (d) => computeAgeGroup(d.dob) === team.age_group,
+    );
   };
 }
 
@@ -376,7 +386,9 @@ export function getPlayerDetail(db: Kysely<DB>) {
         .executeTakeFirst();
 
       if (!assignedTeam) {
-        const error = new Error("Not authorized to view this player") as Error & {
+        const error = new Error(
+          "Not authorized to view this player",
+        ) as Error & {
           statusCode: number;
         };
         error.statusCode = 403;

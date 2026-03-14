@@ -31,13 +31,13 @@ modules/
 
 Each module is parameterised:
 
-| Module | Key Variables |
-|--------|--------------|
-| `vpc` | CIDR range, number of AZs, enable NAT Gateway |
+| Module        | Key Variables                                            |
+| ------------- | -------------------------------------------------------- |
+| `vpc`         | CIDR range, number of AZs, enable NAT Gateway            |
 | `ecs-service` | Task count, CPU/memory, image tag, environment variables |
-| `rds` | Instance class, storage size, multi-AZ |
-| `cdn` | Domain name, ACM certificate ARN, WAF ACL |
-| `monitoring` | Alarm thresholds, log retention days |
+| `rds`         | Instance class, storage size, multi-AZ                   |
+| `cdn`         | Domain name, ACM certificate ARN, WAF ACL                |
+| `monitoring`  | Alarm thresholds, log retention days                     |
 
 Staging calls the same modules with smaller values. No duplication.
 
@@ -129,13 +129,13 @@ This is approximately 30–45 minutes of setup. Attempting to Terraform-bootstra
 
 Infrastructure as code is not a separate migration phase — it is the implementation mechanism for each phase:
 
-| Migration Phase | Terraform Work |
-|----------------|----------------|
-| Phase 1: Foundation & Database | `management` environment (ECR, Route 53, CloudTrail, OIDC) + `production/vpc` + `production/rds` + SES |
-| Phase 2: Backend Service | `production/ecs-service` + ALB + cross-account ECR pull policy + monitoring |
-| Phase 3: Data Pipelines | EventBridge rules + ECS scheduled task definitions |
-| Phase 4: Frontend Migration | `production/cdn` + S3 buckets |
-| Phase 6: Cutover & Environments | `staging` environment — same modules, smaller values |
+| Migration Phase                 | Terraform Work                                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Phase 1: Foundation & Database  | `management` environment (ECR, Route 53, CloudTrail, OIDC) + `production/vpc` + `production/rds` + SES |
+| Phase 2: Backend Service        | `production/ecs-service` + ALB + cross-account ECR pull policy + monitoring                            |
+| Phase 3: Data Pipelines         | EventBridge rules + ECS scheduled task definitions                                                     |
+| Phase 4: Frontend Migration     | `production/cdn` + S3 buckets                                                                          |
+| Phase 6: Cutover & Environments | `staging` environment — same modules, smaller values                                                   |
 
 Each phase: write the modules, open a PR, review the plan output, merge to apply. Infrastructure grows incrementally.
 
@@ -143,9 +143,9 @@ Each phase: write the modules, open a PR, review the plan output, merge to apply
 
 ## What We Skip
 
-| Tool/Pattern | Why Not |
-|-------------|---------|
-| **Terragrunt** | Adds a dependency and abstraction layer; not needed at this scale (~15 resources per environment) |
-| **Workspaces** | Separate directories per environment is clearer and avoids accidental cross-environment operations |
-| **Complex module registry** | Local modules in the same repository are sufficient |
-| **Import of existing resources** | Greenfield AWS deployment — nothing to import |
+| Tool/Pattern                     | Why Not                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **Terragrunt**                   | Adds a dependency and abstraction layer; not needed at this scale (~15 resources per environment)  |
+| **Workspaces**                   | Separate directories per environment is clearer and avoids accidental cross-environment operations |
+| **Complex module registry**      | Local modules in the same repository are sufficient                                                |
+| **Import of existing resources** | Greenfield AWS deployment — nothing to import                                                      |

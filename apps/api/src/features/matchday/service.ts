@@ -1,5 +1,5 @@
-import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
 import type { ListMatches, RecordExpense, UpdateExpense } from "./schemas.js";
 
 export function listMatches(db: Kysely<DB>) {
@@ -11,7 +11,11 @@ export function listMatches(db: Kysely<DB>) {
     // Non-admin officials can only see matches for their assigned teams
     if (role !== "admin") {
       query = query
-        .innerJoin("team_official", "team_official.play_cricket_team_id", "matchday.play_cricket_team_id")
+        .innerJoin(
+          "team_official",
+          "team_official.play_cricket_team_id",
+          "matchday.play_cricket_team_id",
+        )
         .where("team_official.user_id", "=", userId) as typeof query;
     }
 
@@ -39,7 +43,11 @@ export function getMatch(db: Kysely<DB>) {
     if (role !== "admin") {
       const access = await db
         .selectFrom("matchday")
-        .innerJoin("team_official", "team_official.play_cricket_team_id", "matchday.play_cricket_team_id")
+        .innerJoin(
+          "team_official",
+          "team_official.play_cricket_team_id",
+          "matchday.play_cricket_team_id",
+        )
         .where("matchday.id", "=", matchId)
         .where("team_official.user_id", "=", userId)
         .select("matchday.id")

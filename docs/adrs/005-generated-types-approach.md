@@ -10,20 +10,22 @@ Ship a hand-ported `__generated__/db.ts` file with PostgreSQL-native types (bool
 ## Options Considered
 
 ### Hand-ported placeholder (chosen)
+
 - Allows the codebase to compile and type-check immediately
 - Documents the intended PostgreSQL schema types
 - Will be replaced by auto-generated version after first `pnpm db:up && pnpm db:types`
 
 ### Wait for running database
+
 - Would block all development until Docker + migrations are working
 - Not practical for initial scaffolding
 
 ## Key type changes from v1
 
-| v1 (SQLite) | v2 (PostgreSQL) | Example fields |
-|-------------|-----------------|----------------|
-| `number` (0/1) | `boolean` | emailVerified, banned, eligible, is_captain, approved |
-| `Generated<number \| null>` (serial) | `Generated<number>` | fantasy_team.id, fantasy_player_score.id |
-| `string` (JSON text) | `string` (jsonb) | event_subscriber.meta |
+| v1 (SQLite)                          | v2 (PostgreSQL)     | Example fields                                        |
+| ------------------------------------ | ------------------- | ----------------------------------------------------- |
+| `number` (0/1)                       | `boolean`           | emailVerified, banned, eligible, is_captain, approved |
+| `Generated<number \| null>` (serial) | `Generated<number>` | fantasy_team.id, fantasy_player_score.id              |
+| `string` (JSON text)                 | `string` (jsonb)    | event_subscriber.meta                                 |
 
 The placeholder file preserves the same interface (`DB`) and table names, so all existing query code continues to type-check.

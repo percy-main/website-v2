@@ -1,11 +1,6 @@
-import { describe, it, expect } from "vitest";
-import {
-  purchaseSchema,
-  subscribeSchema,
-} from "./schemas.js";
-import {
-  leaderboardQuerySchema,
-} from "../leaderboard/schemas.js";
+import { describe, expect, it } from "vitest";
+import { leaderboardQuerySchema } from "../leaderboard/schemas.js";
+import { purchaseSchema, subscribeSchema } from "./schemas.js";
 
 describe("payments schemas", () => {
   describe("purchaseSchema", () => {

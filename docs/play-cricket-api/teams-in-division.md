@@ -10,10 +10,10 @@ GET /api/v2/competition_teams.json
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `api_token` | string | Yes | API token |
-| `id` | int | Yes | Competition (division/cup) ID |
+| Parameter   | Type   | Required | Description                   |
+| ----------- | ------ | -------- | ----------------------------- |
+| `api_token` | string | Yes      | API token                     |
+| `id`        | int    | Yes      | Competition (division/cup) ID |
 
 ## Example Request
 
@@ -44,9 +44,9 @@ GET https://play-cricket.com/api/v2/competition_teams.json?id=12345&api_token=xx
 
 ## Response Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `club_id` | string | Club ID |
-| `club_name` | string | Club name |
-| `team_id` | string | Team ID |
+| Field       | Type   | Description                 |
+| ----------- | ------ | --------------------------- |
+| `club_id`   | string | Club ID                     |
+| `club_name` | string | Club name                   |
+| `team_id`   | string | Team ID                     |
 | `team_name` | string | Team name (e.g. `"2nd XI"`) |

@@ -14,13 +14,16 @@ Stripe webhook signature verification requires the raw request body (before JSON
 ## Options Considered
 
 ### Custom content type parser on the route (chosen)
+
 - Scoped to the webhook plugin only
 - Clean Fastify pattern — doesn't affect other routes
 - Raw body available as `request.body` (typed as string)
 
 ### @fastify/raw-body plugin
+
 - Adds raw body to all routes (unnecessary overhead)
 - Additional dependency
 
 ### Separate Express app for webhooks
+
 - Over-engineered for one route

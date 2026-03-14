@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { z } from "zod";
-import { parseBody, parseQuery, parseParams } from "./validation.js";
 import type { FastifyRequest } from "fastify";
+import { describe, expect, it } from "vitest";
+import { z } from "zod";
+import { parseBody, parseParams, parseQuery } from "./validation.js";
 
 function mockRequest(
   overrides: Partial<Pick<FastifyRequest, "body" | "query" | "params">> = {},

@@ -38,11 +38,11 @@ If specific issue numbers were provided, filter to only those issues.
 
 Categorise each issue:
 
-| Category | Condition | Action |
-|----------|-----------|--------|
-| **Skip** | Has `backlog` label | Ignore entirely |
-| **Ready** | Has `ready for dev` label | Proceed to development |
-| **Not ready** | No `ready for dev` label | Report status to user |
+| Category      | Condition                 | Action                 |
+| ------------- | ------------------------- | ---------------------- |
+| **Skip**      | Has `backlog` label       | Ignore entirely        |
+| **Ready**     | Has `ready for dev` label | Proceed to development |
+| **Not ready** | No `ready for dev` label  | Report status to user  |
 
 For issues that are **not ready**, advise the user what's needed (clarification or triage).
 

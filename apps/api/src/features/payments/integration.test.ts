@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access */
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { randomUUID } from "crypto";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  seedTestUser,
   startTestContainer,
   stopTestContainer,
-  seedTestUser,
   type TestContext,
 } from "../../test/containers.js";
 import { purchaseSchema, subscribeSchema } from "./schemas.js";

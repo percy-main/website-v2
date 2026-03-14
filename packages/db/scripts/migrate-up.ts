@@ -8,7 +8,8 @@ import { createClient } from "../src/client.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const connectionString =
-  process.env.DATABASE_URL ?? "postgres://percy:percy@localhost:5433/percy_main";
+  process.env.DATABASE_URL ??
+  "postgres://percy:percy@localhost:5433/percy_main";
 const { client } = createClient(connectionString);
 
 const migrator = new Migrator({

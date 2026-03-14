@@ -1,25 +1,29 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireAuth, requireRole, getAuthSession } from "../auth/middleware.js";
 import { parseBody, parseQuery } from "../../lib/validation.js";
 import {
-  seasonSchema,
-  saveTeamSchema,
-  listPlayersSchema,
-  toggleEligibilitySchema,
-  calculateCostsSchema,
-  calculateScoresSchema,
-} from "./schemas.js";
-import {
-  getEligiblePlayers,
-  getMyTeam,
-  saveTeam,
-  listPlayers,
-  toggleEligibility,
-  populatePlayers,
-  calculateSandwichCosts,
-} from "./service.js";
+  getAuthSession,
+  requireAuth,
+  requireRole,
+} from "../auth/middleware.js";
 import { calculateFantasyScores } from "./calculate-scores.js";
 import { getCurrentSeason } from "./gameweek.js";
+import {
+  calculateCostsSchema,
+  calculateScoresSchema,
+  listPlayersSchema,
+  saveTeamSchema,
+  seasonSchema,
+  toggleEligibilitySchema,
+} from "./schemas.js";
+import {
+  calculateSandwichCosts,
+  getEligiblePlayers,
+  getMyTeam,
+  listPlayers,
+  populatePlayers,
+  saveTeam,
+  toggleEligibility,
+} from "./service.js";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const fantasyRoutes: FastifyPluginAsync = async (app) => {
@@ -43,25 +47,17 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.get(
-    "/fantasy/team",
-    { preHandler: [requireAuth] },
-    async (request) => {
-      const { user } = getAuthSession(request);
-      const { season } = parseQuery(request, seasonSchema);
-      return await myTeam(user.id, season);
-    },
-  );
+  app.get("/fantasy/team", { preHandler: [requireAuth] }, async (request) => {
+    const { user } = getAuthSession(request);
+    const { season } = parseQuery(request, seasonSchema);
+    return await myTeam(user.id, season);
+  });
 
-  app.post(
-    "/fantasy/team",
-    { preHandler: [requireAuth] },
-    async (request) => {
-      const { user } = getAuthSession(request);
-      const { season, players } = parseBody(request, saveTeamSchema);
-      return await save(user.id, players, season);
-    },
-  );
+  app.post("/fantasy/team", { preHandler: [requireAuth] }, async (request) => {
+    const { user } = getAuthSession(request);
+    const { season, players } = parseBody(request, saveTeamSchema);
+    return await save(user.id, players, season);
+  });
 
   // --- Admin routes ---
 
