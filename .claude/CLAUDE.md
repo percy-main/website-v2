@@ -231,4 +231,8 @@ This repo is a greenfield rewrite of the Percy Main website, migrating from:
 - Contentful CMS → inline React components (Phase 5)
 
 The v1 repo continues to serve production. This repo builds the replacement incrementally.
-See `decisions/` for Architecture Decision Records and `docs/aws/` in v1 for the migration plan.
+See `docs/adrs/` for Architecture Decision Records and `docs/aws/` in v1 for the migration plan.
+
+## Architecture Decision Records
+
+ADRs are in `docs/adrs/`. When making a non-obvious architectural decision — especially when rejecting a reasonable alternative — record it as an ADR with the rationale. Use the existing format: decision, options considered, rationale, and rejected alternatives with reasons.
