@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireAuth } from "../auth/middleware.js";
+import { requireAuth, getAuthSession } from "../auth/middleware.js";
 import { parseBody } from "../../lib/validation.js";
 import { confirmPaymentSchema } from "./schemas.js";
 import { getMyCharges, confirmPayment } from "./service.js";
@@ -13,8 +13,7 @@ export const chargeRoutes: FastifyPluginAsync = async (app) => {
     "/charges",
     { preHandler: [requireAuth] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
+      const { user } = getAuthSession(request);
       const charges = await getCharges(user.email);
       return { charges };
     },
@@ -24,8 +23,7 @@ export const chargeRoutes: FastifyPluginAsync = async (app) => {
     "/charges/confirm-payment",
     { preHandler: [requireAuth] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
+      const { user } = getAuthSession(request);
       const { paymentIntentId } = parseBody(request, confirmPaymentSchema);
       await confirm(user.email, paymentIntentId);
       return { success: true };

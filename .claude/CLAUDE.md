@@ -91,13 +91,16 @@ The generator introspects the schema from the running PostgreSQL database.
 
 ## Coding Standards
 
+- **All incoming data is Zod-validated** — body (`parseBody`), query (`parseQuery`), and route params (`parseParams`). Never use Fastify's inline generics (`app.get<{ Params: { id: string } }>`) to type request data — this is a type assertion, not validation. Untrusted input must always pass through a Zod schema.
 - **Never type-assert API responses** — validate with zod schemas (`schema.parse(...)`) not `as SomeType`
+- **Use `getAuthSession(request)` for authenticated routes** — imported from `auth/middleware.js`. Returns typed session or throws 401. Never use `request.authSession!` or inline null checks.
 - **Use react-query for data fetching in React components** — no raw `fetch` in `useEffect`
 - **Use shadcn/ui components where possible** — compose smaller components into larger ones
 - **Use `NULL` for unset/missing values** — never empty string `""` for "no value"
 - **Services take `db: Kysely<DB>` as first parameter** — never import a client singleton
 - **PostgreSQL aggregates return bigint (string in node-pg)** — always wrap in `Number()` when used in arithmetic
 - **No `process.env` in services or routes** — use `app.config` via Fastify decoration
+- **Use `return await` in async route handlers** — preserves stack traces for error debugging
 
 ## Feature Folder Structure
 

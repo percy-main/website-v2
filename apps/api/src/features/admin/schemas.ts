@@ -52,6 +52,10 @@ export const contentfulUnlinkSchema = z.object({
   memberId: z.string(),
 });
 
+export const userIdParamSchema = z.object({
+  userId: z.string(),
+});
+
 export type ListUsers = z.infer<typeof listUsersSchema>;
 export type UpdateUser = z.infer<typeof updateUserSchema>;
 export type ChargeNotification = z.infer<typeof chargeNotificationSchema>;

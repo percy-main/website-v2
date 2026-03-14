@@ -1,9 +1,10 @@
 import type { FastifyPluginAsync } from "fastify";
 import { requireRole } from "../auth/middleware.js";
-import { parseBody, parseQuery } from "../../lib/validation.js";
+import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
 import {
   listUsersSchema,
   updateUserSchema,
+  userIdParamSchema,
   createMemberSchema,
   chargeNotificationSchema,
   recordLinkingSchema,
@@ -44,11 +45,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.put<{ Params: { userId: string } }>(
+  app.put(
     "/admin/users/:userId",
     { preHandler: [requireRole("admin")] },
     async (request) => {
-      const { userId } = request.params;
+      const { userId } = parseParams(request, userIdParamSchema);
       const data = parseBody(request, updateUserSchema);
       return await update(userId, data);
     },

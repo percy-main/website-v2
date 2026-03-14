@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireAuth } from "../auth/middleware.js";
+import { requireAuth, getAuthSession } from "../auth/middleware.js";
 import { parseBody, parseQuery } from "../../lib/validation.js";
 import { submitScoreSchema, leaderboardQuerySchema } from "./schemas.js";
 import { submitScore, getLeaderboard } from "./service.js";
@@ -13,8 +13,7 @@ export const leaderboardRoutes: FastifyPluginAsync = async (app) => {
     "/game-score",
     { preHandler: [requireAuth] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
+      const { user } = getAuthSession(request);
       const data = parseBody(request, submitScoreSchema);
       return await submit(user.id, data);
     },

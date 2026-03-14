@@ -1,8 +1,10 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireRole } from "../auth/middleware.js";
-import { parseBody, parseQuery } from "../../lib/validation.js";
+import { requireRole, getAuthSession } from "../auth/middleware.js";
+import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
 import {
   listMatchesSchema,
+  matchIdParamSchema,
+  expenseIdParamSchema,
   recordExpenseSchema,
   updateExpenseSchema,
 } from "./schemas.js";
@@ -26,8 +28,7 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     "/matchday",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
+      const { user } = getAuthSession(request);
       const role =
         (user as { role?: string | null }).role ?? "user";
       const params = parseQuery(request, listMatchesSchema);
@@ -35,50 +36,46 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.get<{ Params: { matchId: string } }>(
+  app.get(
     "/matchday/:matchId",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
+      const { user } = getAuthSession(request);
       const role =
         (user as { role?: string | null }).role ?? "user";
-      const { matchId } = request.params;
+      const { matchId } = parseParams(request, matchIdParamSchema);
       return await get(user.id, role, matchId);
     },
   );
 
-  app.post<{ Params: { matchId: string } }>(
+  app.post(
     "/matchday/:matchId/expenses",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
-      const { matchId } = request.params;
+      const { user } = getAuthSession(request);
+      const { matchId } = parseParams(request, matchIdParamSchema);
       const data = parseBody(request, recordExpenseSchema);
       return await record(user.id, { ...data, matchId });
     },
   );
 
-  app.put<{ Params: { expenseId: string } }>(
+  app.put(
     "/matchday/expenses/:expenseId",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
-      const { expenseId } = request.params;
+      const { user } = getAuthSession(request);
+      const { expenseId } = parseParams(request, expenseIdParamSchema);
       const data = parseBody(request, updateExpenseSchema);
       return await update(user.id, { ...data, expenseId });
     },
   );
 
-  app.delete<{ Params: { expenseId: string } }>(
+  app.delete(
     "/matchday/expenses/:expenseId",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
-      const { expenseId } = request.params;
+      const { user } = getAuthSession(request);
+      const { expenseId } = parseParams(request, expenseIdParamSchema);
       return await remove(user.id, expenseId);
     },
   );

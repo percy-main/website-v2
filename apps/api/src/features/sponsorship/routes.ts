@@ -1,13 +1,16 @@
 import type { FastifyPluginAsync } from "fastify";
 import { requireRole } from "../auth/middleware.js";
-import { parseBody, parseQuery } from "../../lib/validation.js";
+import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
 import {
   sponsorshipListSchema,
   sponsorshipActionSchema,
   sponsorshipUpdateSchema,
+  sponsorshipIdParamSchema,
   gameSponsorshipManualSchema,
   playerSponsorshipManualSchema,
   allApprovedSchema,
+  byGameIdSchema,
+  byContentfulIdSchema,
 } from "./schemas.js";
 import {
   getGameSponsorshipPrice,
@@ -61,28 +64,28 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     return { sponsors };
   });
 
-  app.get<{ Params: { gameId: string } }>(
+  app.get(
     "/sponsorship/game/:gameId",
     async (request) => {
-      const { gameId } = request.params;
+      const { gameId } = parseParams(request, byGameIdSchema);
       const sponsor = await gameSponsor(gameId);
       return { sponsor };
     },
   );
 
-  app.get<{ Params: { contentfulEntryId: string } }>(
+  app.get(
     "/sponsorship/player/:contentfulEntryId",
     async (request) => {
-      const { contentfulEntryId } = request.params;
+      const { contentfulEntryId } = parseParams(request, byContentfulIdSchema);
       const sponsor = await playerSponsor(contentfulEntryId);
       return { sponsor };
     },
   );
 
-  app.get<{ Params: { contentfulEntryId: string } }>(
+  app.get(
     "/sponsorship/player/:contentfulEntryId/pending",
     async (request) => {
-      const { contentfulEntryId } = request.params;
+      const { contentfulEntryId } = parseParams(request, byContentfulIdSchema);
       return await playerPending(contentfulEntryId);
     },
   );
@@ -167,21 +170,21 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.put<{ Params: { sponsorshipId: string } }>(
+  app.put(
     "/sponsorship/admin/game/:sponsorshipId",
     { preHandler: [requireRole("admin")] },
     async (request) => {
-      const { sponsorshipId } = request.params;
+      const { sponsorshipId } = parseParams(request, sponsorshipIdParamSchema);
       const data = parseBody(request, sponsorshipUpdateSchema);
       return updateGame(sponsorshipId, data);
     },
   );
 
-  app.put<{ Params: { sponsorshipId: string } }>(
+  app.put(
     "/sponsorship/admin/player/:sponsorshipId",
     { preHandler: [requireRole("admin")] },
     async (request) => {
-      const { sponsorshipId } = request.params;
+      const { sponsorshipId } = parseParams(request, sponsorshipIdParamSchema);
       const data = parseBody(request, sponsorshipUpdateSchema);
       return updatePlayer(sponsorshipId, data);
     },

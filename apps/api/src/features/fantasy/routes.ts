@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireAuth, requireRole } from "../auth/middleware.js";
+import { requireAuth, requireRole, getAuthSession } from "../auth/middleware.js";
 import { parseBody, parseQuery } from "../../lib/validation.js";
 import {
   seasonSchema,
@@ -43,8 +43,7 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     "/fantasy/team",
     { preHandler: [requireAuth] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
+      const { user } = getAuthSession(request);
       const { season } = parseQuery(request, seasonSchema);
       return await myTeam(user.id, season);
     },
@@ -54,8 +53,7 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     "/fantasy/team",
     { preHandler: [requireAuth] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
+      const { user } = getAuthSession(request);
       const { season, players } = parseBody(request, saveTeamSchema);
       return await save(user.id, players, season);
     },

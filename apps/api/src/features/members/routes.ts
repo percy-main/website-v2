@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireVerifiedEmail } from "../auth/middleware.js";
+import { requireVerifiedEmail, getAuthSession } from "../auth/middleware.js";
 import { parseBody } from "../../lib/validation.js";
 import { updateMemberSchema } from "./schemas.js";
 import { getMemberDetails, updateMemberDetails } from "./service.js";
@@ -13,8 +13,7 @@ export const memberRoutes: FastifyPluginAsync = async (app) => {
     "/members/me",
     { preHandler: [requireVerifiedEmail] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
+      const { user } = getAuthSession(request);
       const member = await getDetails(user.email);
       return { member };
     },
@@ -24,8 +23,7 @@ export const memberRoutes: FastifyPluginAsync = async (app) => {
     "/members/me",
     { preHandler: [requireVerifiedEmail] },
     async (request) => {
-      if (!request.authSession) throw new Error("Unauthorized");
-      const { user } = request.authSession;
+      const { user } = getAuthSession(request);
       const data = parseBody(request, updateMemberSchema);
       await updateDetails(user.email, data);
       return { success: true };
