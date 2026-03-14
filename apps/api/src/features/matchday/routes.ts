@@ -1,8 +1,10 @@
 import type { FastifyPluginAsync } from "fastify";
-import { requireRole } from "../auth/middleware.js";
-import { parseBody, parseQuery } from "../../lib/validation.js";
+import { requireRole, getAuthSession } from "../auth/middleware.js";
+import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
 import {
   listMatchesSchema,
+  matchIdParamSchema,
+  expenseIdParamSchema,
   recordExpenseSchema,
   updateExpenseSchema,
 } from "./schemas.js";
@@ -14,6 +16,7 @@ import {
   deleteExpense,
 } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const matchdayRoutes: FastifyPluginAsync = async (app) => {
   const list = listMatches(app.db);
   const get = getMatch(app.db);
@@ -25,55 +28,55 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     "/matchday",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      const { user } = getAuthSession(request);
       const role =
         (user as { role?: string | null }).role ?? "user";
       const params = parseQuery(request, listMatchesSchema);
-      return list(user.id, role, params);
+      return await list(user.id, role, params);
     },
   );
 
-  app.get<{ Params: { matchId: string } }>(
+  app.get(
     "/matchday/:matchId",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      const { user } = getAuthSession(request);
       const role =
         (user as { role?: string | null }).role ?? "user";
-      const { matchId } = request.params;
-      return get(user.id, role, matchId);
+      const { matchId } = parseParams(request, matchIdParamSchema);
+      return await get(user.id, role, matchId);
     },
   );
 
-  app.post<{ Params: { matchId: string } }>(
+  app.post(
     "/matchday/:matchId/expenses",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
-      const { matchId } = request.params;
+      const { user } = getAuthSession(request);
+      const { matchId } = parseParams(request, matchIdParamSchema);
       const data = parseBody(request, recordExpenseSchema);
-      return record(user.id, { ...data, matchId });
+      return await record(user.id, { ...data, matchId });
     },
   );
 
-  app.put<{ Params: { expenseId: string } }>(
+  app.put(
     "/matchday/expenses/:expenseId",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
-      const { expenseId } = request.params;
+      const { user } = getAuthSession(request);
+      const { expenseId } = parseParams(request, expenseIdParamSchema);
       const data = parseBody(request, updateExpenseSchema);
-      return update(user.id, { ...data, expenseId });
+      return await update(user.id, { ...data, expenseId });
     },
   );
 
-  app.delete<{ Params: { expenseId: string } }>(
+  app.delete(
     "/matchday/expenses/:expenseId",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
-      const { expenseId } = request.params;
-      return remove(user.id, expenseId);
+      const { user } = getAuthSession(request);
+      const { expenseId } = parseParams(request, expenseIdParamSchema);
+      return await remove(user.id, expenseId);
     },
   );
 };

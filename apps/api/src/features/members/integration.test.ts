@@ -51,8 +51,8 @@ describe("members service (integration)", () => {
 
       const result = await getMemberDetails(ctx.db)(email);
       expect(result).toBeTruthy();
-      expect(result!.name).toBe("New Member");
-      expect(result!.telephone).toBe("01onal234");
+      expect(result?.name).toBe("New Member");
+      expect(result?.telephone).toBe("01onal234");
     });
 
     it("updates only provided fields and leaves others unchanged", async () => {
@@ -75,11 +75,11 @@ describe("members service (integration)", () => {
 
       const result = await getMemberDetails(ctx.db)(email);
       expect(result).toBeTruthy();
-      expect(result!.telephone).toBe("0191-222-2222");
+      expect(result?.telephone).toBe("0191-222-2222");
       // Other fields should remain unchanged
-      expect(result!.address).toBe("123 Main St");
-      expect(result!.postcode).toBe("NE1 1AA");
-      expect(result!.name).toBe("Original Name");
+      expect(result?.address).toBe("123 Main St");
+      expect(result?.postcode).toBe("NE1 1AA");
+      expect(result?.name).toBe("Original Name");
     });
   });
 });

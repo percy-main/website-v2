@@ -78,6 +78,10 @@ export const byContentfulIdSchema = z.object({
   contentfulEntryId: z.string(),
 });
 
+export const sponsorshipIdParamSchema = z.object({
+  sponsorshipId: z.string(),
+});
+
 export const allApprovedSchema = z.object({
   season: z.coerce.number().optional(),
 });

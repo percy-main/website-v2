@@ -103,7 +103,7 @@ describe("charges service", () => {
       );
       expect(mockQueryBuilder.set).toHaveBeenCalledWith(
         expect.objectContaining({
-          payment_confirmed_at: expect.any(String),
+          payment_confirmed_at: expect.any(String) as string,
         }),
       );
     });

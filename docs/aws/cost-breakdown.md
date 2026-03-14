@@ -124,7 +124,7 @@ Single-AZ instances are appropriate for our availability requirements. Automated
 
 ---
 
-## DNS — Route 53
+## DNS — Route 53 (Management Account)
 
 | Item | Count | Unit Price | Monthly |
 |------|-------|-----------|---------|
@@ -134,11 +134,12 @@ Single-AZ instances are appropriate for our availability requirements. Automated
 
 ---
 
-## Container Registry — ECR
+## Container Registry — ECR (Management Account)
 
 | Item | Estimate | Unit Price | Monthly |
 |------|----------|-----------|---------|
 | Image storage (5 images retained) | ~1 GB | $0.10/GB | $0.10 |
+| Cross-account image pulls | Included in data transfer | $0 | $0 |
 | **Subtotal** | | | **~$0.10** |
 
 ---
@@ -176,12 +177,23 @@ While the application already mitigates common attack vectors at the code level 
 
 ---
 
-## Audit & Compliance — CloudTrail
+## Audit & Compliance — CloudTrail (Management Account)
 
 | Item | Notes | Monthly |
 |------|-------|---------|
-| Management events trail (1 per account) | Free for first trail per account | $0 |
+| Organization trail (management events) | Free for first trail per organization | $0 |
 | **Subtotal** | | **$0** |
+
+---
+
+## Management Account — Other
+
+| Item | Notes | Monthly |
+|------|-------|---------|
+| Terraform state S3 bucket | < 1 MB | ~$0 |
+| DynamoDB lock table (on-demand) | Minimal reads/writes | ~$0 |
+| Route 53 hosted zone | 1 zone | $0.50 |
+| **Subtotal** | | **~$0.50** |
 
 ---
 
@@ -197,13 +209,13 @@ While the application already mitigates common attack vectors at the code level 
 | WAF | $10.30 |
 | Secrets Manager | $1.00 |
 | Cross-AZ transfer | $1.00 |
-| Route 53 | $0.54 |
+| Route 53 + Management account | $1.04 |
 | S3 + CloudFront | $0.14 |
 | ECR | $0.10 |
 | SES | $0.05 |
 | EventBridge + Lambda | $0 |
 | SSM Parameter Store | $0 |
-| **Total** | **~$192/month** |
+| **Total** | **~$193/month** |
 
 ## Cost Summary — Production Only
 
@@ -230,7 +242,7 @@ While the application already mitigates common attack vectors at the code level 
 | 4 | **ECS Fargate** | $24.88 | 13% | Application compute. |
 | 5 | **CloudWatch** | $12.27 | 6% | Grows with monitoring maturity. |
 | 6 | **WAF** | $10.30 | 5% | Recommended for application security. |
-| 7 | **Everything else** | $2.83 | 1% | S3, CloudFront, SES, Route 53, ECR, SSM, EventBridge |
+| 7 | **Everything else** | $2.83 | 1% | S3, CloudFront, SES, Route 53, ECR, SSM, EventBridge, management account |
 
 ---
 
@@ -252,8 +264,8 @@ Infrastructure is provisioned incrementally. Not all costs are incurred from day
 
 | Phase | New AWS Services Added | Incremental Monthly Cost | Cumulative Monthly Cost |
 |-------|----------------------|-------------------------|------------------------|
-| **Phase 1: Foundation & Database** | RDS (prod), Route 53, SES, S3, VPC + NAT (prod) | ~$50 | ~$50 |
-| **Phase 2: Backend Service** | ECS Fargate (prod, 2 tasks), ALB (prod), ECR, CloudWatch, WAF | ~$58 | ~$108 |
+| **Phase 1: Foundation & Database** | Management account (ECR, Route 53, state bucket), RDS (prod), SES, S3, VPC + NAT (prod) | ~$50 | ~$50 |
+| **Phase 2: Backend Service** | ECS Fargate (prod, 2 tasks), ALB (prod), cross-account ECR pull, CloudWatch, WAF | ~$58 | ~$108 |
 | **Phase 3: Data Pipelines** | ECS scheduled tasks (on-demand, minimal cost) | ~$1 | ~$109 |
 | **Phase 4: Frontend Migration** | CloudFront (frontend) — mostly within free tier | ~$1 | ~$110 |
 | **Phase 5: Content Migration** | No new services (uses existing RDS + S3) | $0 | ~$110 |

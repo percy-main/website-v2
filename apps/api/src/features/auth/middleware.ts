@@ -73,4 +73,17 @@ export function requireRole(...roles: string[]) {
   };
 }
 
+/**
+ * Extract the authenticated session from a request.
+ * Use in route handlers after requireAuth middleware.
+ * Throws 401 if session is missing (should not happen after middleware).
+ */
+export function getAuthSession(request: FastifyRequest) {
+  const session = request.authSession;
+  if (!session) {
+    throw Object.assign(new Error("Unauthorized"), { statusCode: 401 });
+  }
+  return session;
+}
+
 export { toWebHeaders };

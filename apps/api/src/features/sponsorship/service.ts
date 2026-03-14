@@ -97,7 +97,7 @@ export function listGameSponsorships(db: Kysely<DB>) {
     const offset = (page - 1) * pageSize;
 
     let query = db.selectFrom("game_sponsorship");
-    query = applyGameSponsorshipFilter(query, filter) as typeof query;
+    query = applyGameSponsorshipFilter(query, filter);
 
     const [items, countResult] = await Promise.all([
       query.selectAll().orderBy("created_at", "desc").limit(pageSize).offset(offset).execute(),
@@ -125,7 +125,7 @@ export function listPlayerSponsorships(db: Kysely<DB>) {
     const offset = (page - 1) * pageSize;
 
     let query = db.selectFrom("player_sponsorship");
-    query = applyPlayerSponsorshipFilter(query, filter) as typeof query;
+    query = applyPlayerSponsorshipFilter(query, filter);
 
     const [items, countResult] = await Promise.all([
       query.selectAll().orderBy("created_at", "desc").limit(pageSize).offset(offset).execute(),

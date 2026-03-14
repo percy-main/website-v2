@@ -1,6 +1,6 @@
 import type { FC } from "react";
 
-export type EmailMetadata<T> = {
+export interface EmailMetadata<T> {
   preview?: T;
 };
 

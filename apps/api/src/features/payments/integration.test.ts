@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { randomUUID } from "crypto";
 import {
@@ -205,25 +206,25 @@ describe("handleCheckoutCompleted", () => {
 
     const membership = await ctx.db
       .selectFrom("membership")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("type", "=", "senior_player")
       .selectAll()
       .executeTakeFirst();
 
     expect(membership).toBeDefined();
-    expect(membership!.paid_until).toBeDefined();
+    expect(membership?.paid_until).toBeDefined();
 
     const charge = await ctx.db
       .selectFrom("charge")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("stripe_payment_intent_id", "=", paymentIntentId)
       .selectAll()
       .executeTakeFirst();
 
     expect(charge).toBeDefined();
-    expect(charge!.amount_pence).toBe(5000);
-    expect(charge!.type).toBe("membership");
-    expect(charge!.source).toBe("webhook");
+    expect(charge?.amount_pence).toBe(5000);
+    expect(charge?.type).toBe("membership");
+    expect(charge?.source).toBe("webhook");
   });
 
   it("creates a charge for a game sponsorship checkout", async () => {
@@ -260,14 +261,14 @@ describe("handleCheckoutCompleted", () => {
 
     const charge = await ctx.db
       .selectFrom("charge")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("stripe_payment_intent_id", "=", paymentIntentId)
       .selectAll()
       .executeTakeFirst();
 
     expect(charge).toBeDefined();
-    expect(charge!.type).toBe("sponsorship");
-    expect(charge!.amount_pence).toBe(10000);
+    expect(charge?.type).toBe("sponsorship");
+    expect(charge?.amount_pence).toBe(10000);
   });
 
   it("skips charge creation for subscription-mode checkouts (no payment_intent)", async () => {
@@ -305,14 +306,14 @@ describe("handleCheckoutCompleted", () => {
 
     const membership = await ctx.db
       .selectFrom("membership")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .selectAll()
       .executeTakeFirst();
     expect(membership).toBeDefined();
 
     const charges = await ctx.db
       .selectFrom("charge")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .selectAll()
       .execute();
     expect(charges).toHaveLength(0);
@@ -381,7 +382,7 @@ describe("handleInvoicePayment", () => {
 
     const membership = await ctx.db
       .selectFrom("membership")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("type", "=", "senior_player")
       .selectAll()
       .executeTakeFirst();
@@ -389,12 +390,12 @@ describe("handleInvoicePayment", () => {
 
     const charge = await ctx.db
       .selectFrom("charge")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("stripe_payment_intent_id", "=", paymentIntentId)
       .selectAll()
       .executeTakeFirst();
     expect(charge).toBeDefined();
-    expect(charge!.description).toContain("Membership payment");
+    expect(charge?.description).toContain("Membership payment");
   });
 
   it("skips initial invoice for checkout-created subscriptions", async () => {
@@ -452,7 +453,7 @@ describe("handleInvoicePayment", () => {
 
     const membership = await ctx.db
       .selectFrom("membership")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .selectAll()
       .executeTakeFirst();
     expect(membership).toBeUndefined();
@@ -511,12 +512,12 @@ describe("handleInvoicePayment", () => {
 
     const charge = await ctx.db
       .selectFrom("charge")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("stripe_payment_intent_id", "=", paymentIntentId)
       .selectAll()
       .executeTakeFirst();
     expect(charge).toBeDefined();
-    expect(charge!.description).toContain("Membership renewal");
+    expect(charge?.description).toContain("Membership renewal");
   });
 
   it("throws on missing customer", async () => {
@@ -566,7 +567,7 @@ describe("handleInvoicePayment", () => {
       .insertInto("membership")
       .values({
         id: randomUUID(),
-        member_id: memberId!,
+        member_id: memberId ?? "",
         type: "social",
         paid_until: new Date("2026-01-01").toISOString(),
       })
@@ -620,12 +621,12 @@ describe("handleInvoicePayment", () => {
 
     const charge = await ctx.db
       .selectFrom("charge")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("stripe_payment_intent_id", "=", paymentIntentId)
       .selectAll()
       .executeTakeFirst();
     expect(charge).toBeDefined();
-    expect(charge!.description).toContain("social");
+    expect(charge?.description).toContain("social");
   });
 });
 
@@ -644,7 +645,7 @@ describe("handlePaymentIntentSucceeded", () => {
       .insertInto("dependent")
       .values({
         id: dependentId,
-        member_id: memberId!,
+        member_id: memberId ?? "",
         name: "Junior Child",
         sex: "male",
         dob: "2015-06-01",
@@ -658,7 +659,7 @@ describe("handlePaymentIntentSucceeded", () => {
       .insertInto("charge")
       .values({
         id: chargeId,
-        member_id: memberId!,
+        member_id: memberId ?? "",
         description: "Junior membership",
         amount_pence: 2500,
         charge_date: "2026-03-14",
@@ -697,7 +698,7 @@ describe("handlePaymentIntentSucceeded", () => {
       .where("id", "=", chargeId)
       .selectAll()
       .executeTakeFirst();
-    expect(charge!.paid_at).not.toBeNull();
+    expect(charge?.paid_at).not.toBeNull();
 
     const juniorMembership = await ctx.db
       .selectFrom("membership")
@@ -706,7 +707,7 @@ describe("handlePaymentIntentSucceeded", () => {
       .selectAll()
       .executeTakeFirst();
     expect(juniorMembership).toBeDefined();
-    const paidUntil = new Date(juniorMembership!.paid_until);
+    const paidUntil = new Date(juniorMembership?.paid_until ?? "");
     expect(paidUntil.getMonth()).toBe(11);
     expect(paidUntil.getDate()).toBe(31);
   });
@@ -760,17 +761,17 @@ describe("handlePaymentIntentSucceeded", () => {
       .where("id", "=", sponsorshipId)
       .selectAll()
       .executeTakeFirst();
-    expect(sponsorship!.paid_at).not.toBeNull();
-    expect(sponsorship!.stripe_payment_intent_id).toBe(paymentIntentId);
+    expect(sponsorship?.paid_at).not.toBeNull();
+    expect(sponsorship?.stripe_payment_intent_id).toBe(paymentIntentId);
 
     const charge = await ctx.db
       .selectFrom("charge")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("type", "=", "sponsorship")
       .selectAll()
       .executeTakeFirst();
     expect(charge).toBeDefined();
-    expect(charge!.amount_pence).toBe(15000);
+    expect(charge?.amount_pence).toBe(15000);
   });
 
   it("updates player sponsorship record on payment", async () => {
@@ -823,8 +824,8 @@ describe("handlePaymentIntentSucceeded", () => {
       .where("id", "=", sponsorshipId)
       .selectAll()
       .executeTakeFirst();
-    expect(sponsorship!.paid_at).not.toBeNull();
-    expect(sponsorship!.stripe_payment_intent_id).toBe(paymentIntentId);
+    expect(sponsorship?.paid_at).not.toBeNull();
+    expect(sponsorship?.stripe_payment_intent_id).toBe(paymentIntentId);
   });
 
   it("creates membership for one-off payment via payment_intent", async () => {
@@ -869,7 +870,7 @@ describe("handlePaymentIntentSucceeded", () => {
 
     const membership = await ctx.db
       .selectFrom("membership")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("type", "=", "social")
       .selectAll()
       .executeTakeFirst();
@@ -877,12 +878,12 @@ describe("handlePaymentIntentSucceeded", () => {
 
     const charge = await ctx.db
       .selectFrom("charge")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("stripe_payment_intent_id", "=", paymentIntentId)
       .selectAll()
       .executeTakeFirst();
     expect(charge).toBeDefined();
-    expect(charge!.type).toBe("membership");
+    expect(charge?.type).toBe("membership");
   });
 
   it("skips membership creation when email is missing from metadata", async () => {
@@ -955,7 +956,7 @@ describe("handlePaymentIntentSucceeded", () => {
 
     const charges = await ctx.db
       .selectFrom("charge")
-      .where("member_id", "=", memberId!)
+      .where("member_id", "=", memberId ?? "")
       .where("stripe_payment_intent_id", "=", paymentIntentId)
       .where("type", "=", "membership")
       .selectAll()

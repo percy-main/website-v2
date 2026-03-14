@@ -30,4 +30,12 @@ export const listPlayersSchema = z.object({
   teamId: z.string(),
 });
 
+export const teamIdParamSchema = z.object({
+  teamId: z.string(),
+});
+
+export const dependentIdParamSchema = z.object({
+  dependentId: z.string(),
+});
+
 export type DependentInput = z.infer<typeof dependentSchema>;

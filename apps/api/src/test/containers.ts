@@ -58,7 +58,8 @@ export async function startTestContainer(): Promise<TestContext> {
   if (error) {
     await db.destroy();
     await container.stop();
-    throw new Error(`Migration failed: ${error}`);
+    const message = error instanceof Error ? error.message : JSON.stringify(error);
+    throw new Error(`Migration failed: ${message}`);
   }
 
   return { container, db, dialect, connectionString };

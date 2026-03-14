@@ -142,7 +142,7 @@ describe("members service", () => {
         telephone: "07700000099",
       });
       expect(mockQueryBuilder.set).not.toHaveBeenCalledWith(
-        expect.objectContaining({ name: expect.anything() }),
+        expect.objectContaining({ name: expect.anything() as unknown }),
       );
     });
   });

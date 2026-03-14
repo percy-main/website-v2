@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
 
-const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
+const { mockExecute, mockQueryBuilder } = vi.hoisted(
   () => {
     const mockExecuteTakeFirst = vi.fn();
     const mockExecute = vi.fn();

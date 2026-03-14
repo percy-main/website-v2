@@ -6,6 +6,7 @@ import {
   createEventSubscriber,
 } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const contactRoutes: FastifyPluginAsync = async (app) => {
   const submitContact = createContactSubmission(app.db, {
     slackWebhookUrl: app.config.SLACK_WEBHOOK_URL,

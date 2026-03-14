@@ -14,15 +14,16 @@ export function getMatchDetail(db: Kysely<DB>) {
       .selectAll()
       .executeTakeFirst();
 
-    if (cached && cached.fetched_at) {
+    if (cached?.fetched_at) {
       const fetchedAt = new Date(cached.fetched_at).getTime();
       if (Date.now() - fetchedAt < CACHE_TTL_MS) {
-        return JSON.parse(cached.data as string);
+        return JSON.parse(cached.data) as unknown;
       }
     }
 
     // Fetch from API
     const data = await apiClient.getMatchDetail(matchId);
+    const dataRecord = data as Record<string, unknown>;
 
     // Upsert cache
     if (cached) {
@@ -40,7 +41,7 @@ export function getMatchDetail(db: Kysely<DB>) {
         .values({
           match_id: matchId,
           data: JSON.stringify(data),
-          match_date: data.match_date ?? new Date().toISOString().split("T")[0],
+          match_date: (typeof dataRecord.match_date === "string" ? dataRecord.match_date : null) ?? new Date().toISOString().split("T")[0],
           fetched_at: new Date().toISOString(),
         })
         .execute();
@@ -78,9 +79,8 @@ export function getResultSummary(db: Kysely<DB>) {
 }
 
 export function getLeagueTable() {
-  return async (divisionId: string) => {
-    const data = await apiClient.getLeagueTable(divisionId);
-    return data;
+  return async (divisionId: string): Promise<unknown> => {
+    return apiClient.getLeagueTable(divisionId);
   };
 }
 
@@ -142,7 +142,7 @@ export function getLiveScores(db: Kysely<DB>) {
     for (const match of todayMatches) {
       matchMap.set(match.match_id, {
         matchId: match.match_id,
-        matchDate: match.match_date as string,
+        matchDate: match.match_date,
         batting: batting.filter((b) => b.match_id === match.match_id),
         bowling: bowling.filter((b) => b.match_id === match.match_id),
         status: "in_progress", // If we have data rows, match is at least in progress
@@ -174,10 +174,10 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
       .where("player_id", "=", playCricketId)
       .select([
         "season",
-        sql<number>`count(*)`.as("innings"),
-        sql<number>`sum(runs)`.as("total_runs"),
-        sql<number>`max(runs)`.as("high_score"),
-        sql<number>`count(case when how_out = 'not out' then 1 end)`.as(
+        sql<string>`count(*)`.as("innings"),
+        sql<string>`sum(runs)`.as("total_runs"),
+        sql<string>`max(runs)`.as("high_score"),
+        sql<string>`count(case when how_out = 'not out' then 1 end)`.as(
           "not_outs",
         ),
       ])
@@ -191,11 +191,11 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
       .where("player_id", "=", playCricketId)
       .select([
         "season",
-        sql<number>`count(*)`.as("innings"),
-        sql<number>`sum(cast(overs as numeric))`.as("total_overs"),
-        sql<number>`sum(maidens)`.as("total_maidens"),
-        sql<number>`sum(runs)`.as("total_runs_conceded"),
-        sql<number>`sum(wickets)`.as("total_wickets"),
+        sql<string>`count(*)`.as("innings"),
+        sql<string>`sum(cast(overs as numeric))`.as("total_overs"),
+        sql<string>`sum(maidens)`.as("total_maidens"),
+        sql<string>`sum(runs)`.as("total_runs_conceded"),
+        sql<string>`sum(wickets)`.as("total_wickets"),
       ])
       .groupBy("season")
       .orderBy("season", "desc")
@@ -272,7 +272,7 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
 
     // Calculate batting averages
     const totalRuns = battingRows.reduce(
-      (sum, r) => sum + ((r.runs as number) ?? 0),
+      (sum, r) => sum + (r.runs ?? 0),
       0,
     );
     const innings = battingRows.length;
@@ -282,16 +282,16 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
     const dismissals = innings - notOuts;
     const battingAverage = dismissals > 0 ? totalRuns / dismissals : null;
     const highScore = innings > 0
-      ? Math.max(...battingRows.map((r) => (r.runs as number) ?? 0))
+      ? Math.max(...battingRows.map((r) => r.runs ?? 0))
       : 0;
 
     // Calculate bowling stats
     const totalWickets = bowlingRows.reduce(
-      (sum, r) => sum + ((r.wickets as number) ?? 0),
+      (sum, r) => sum + (r.wickets ?? 0),
       0,
     );
     const totalRunsConceded = bowlingRows.reduce(
-      (sum, r) => sum + ((r.runs as number) ?? 0),
+      (sum, r) => sum + (r.runs ?? 0),
       0,
     );
     const totalOvers = bowlingRows.reduce(

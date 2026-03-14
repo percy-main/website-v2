@@ -2,9 +2,14 @@ import type { FastifyPluginAsync } from "fastify";
 import {
   requireVerifiedEmail,
   requireRole,
+  getAuthSession,
 } from "../auth/middleware.js";
-import { parseBody } from "../../lib/validation.js";
-import { addDependentsSchema } from "./schemas.js";
+import { parseBody, parseParams } from "../../lib/validation.js";
+import {
+  addDependentsSchema,
+  teamIdParamSchema,
+  dependentIdParamSchema,
+} from "./schemas.js";
 import {
   addDependents,
   getDependents,
@@ -13,6 +18,7 @@ import {
   getPlayerDetail,
 } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const juniorRoutes: FastifyPluginAsync = async (app) => {
   const add = addDependents(app.db);
   const get = getDependents(app.db);
@@ -24,7 +30,7 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     "/junior/dependents",
     { preHandler: [requireVerifiedEmail] },
     async (request) => {
-      const { user } = request.authSession!;
+      const { user } = getAuthSession(request);
       const { dependents } = parseBody(request, addDependentsSchema);
       const result = await add(user.email, dependents);
       return result;
@@ -35,8 +41,8 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     "/junior/dependents",
     { preHandler: [requireVerifiedEmail] },
     async (request) => {
-      const { user } = request.authSession!;
-      return get(user.email);
+      const { user } = getAuthSession(request);
+      return await get(user.email);
     },
   );
 
@@ -44,34 +50,34 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     "/junior/teams",
     { preHandler: [requireRole("junior_manager", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      const { user } = getAuthSession(request);
       const role =
         (user as { role?: string | null }).role ?? "user";
-      return teams(user.id, role);
+      return await teams(user.id, role);
     },
   );
 
-  app.get<{ Params: { teamId: string } }>(
+  app.get(
     "/junior/teams/:teamId/players",
     { preHandler: [requireRole("junior_manager", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      const { user } = getAuthSession(request);
       const role =
         (user as { role?: string | null }).role ?? "user";
-      const { teamId } = request.params;
-      return players(user.id, role, teamId);
+      const { teamId } = parseParams(request, teamIdParamSchema);
+      return await players(user.id, role, teamId);
     },
   );
 
-  app.get<{ Params: { dependentId: string } }>(
+  app.get(
     "/junior/players/:dependentId",
     { preHandler: [requireRole("junior_manager", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      const { user } = getAuthSession(request);
       const role =
         (user as { role?: string | null }).role ?? "user";
-      const { dependentId } = request.params;
-      return playerDetail(user.id, role, dependentId);
+      const { dependentId } = parseParams(request, dependentIdParamSchema);
+      return await playerDetail(user.id, role, dependentId);
     },
   );
 };

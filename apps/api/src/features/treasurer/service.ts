@@ -210,7 +210,7 @@ export function getMatchdayExpensesSummary(db: Kysely<DB>) {
       .execute();
 
     const grandTotal = breakdown.reduce(
-      (sum, row) => sum + Number(row.total_pence ?? 0),
+      (sum, row) => sum + (row.total_pence ?? 0),
       0,
     );
 

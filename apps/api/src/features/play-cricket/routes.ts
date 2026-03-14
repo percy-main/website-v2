@@ -16,6 +16,7 @@ import {
   getPlayerSeasonStats,
 } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const playCricketRoutes: FastifyPluginAsync = async (app) => {
   const matchDetail = getMatchDetail(app.db);
   const resultSummary = getResultSummary(app.db);
@@ -29,7 +30,7 @@ export const playCricketRoutes: FastifyPluginAsync = async (app) => {
     "/play-cricket/match/:matchId",
     async (request) => {
       const { matchId } = request.params as { matchId: string };
-      return matchDetail(matchId);
+      return await matchDetail(matchId);
     },
   );
 
@@ -40,7 +41,7 @@ export const playCricketRoutes: FastifyPluginAsync = async (app) => {
         request,
         resultSummarySchema,
       );
-      return resultSummary(matchId, season, ourTeamId);
+      return await resultSummary(matchId, season, ourTeamId);
     },
   );
 
@@ -48,21 +49,21 @@ export const playCricketRoutes: FastifyPluginAsync = async (app) => {
     "/play-cricket/league-table",
     async (request) => {
       const { divisionId } = parseQuery(request, leagueTableSchema);
-      return leagueTable(divisionId);
+      return await leagueTable(divisionId);
     },
   );
 
   app.get(
     "/play-cricket/teams",
     async () => {
-      return teams();
+      return await teams();
     },
   );
 
   app.get(
     "/play-cricket/live-scores",
     async () => {
-      return liveScores();
+      return await liveScores();
     },
   );
 
@@ -70,7 +71,7 @@ export const playCricketRoutes: FastifyPluginAsync = async (app) => {
     "/play-cricket/player-career-stats",
     async (request) => {
       const { contentfulEntryId } = parseQuery(request, playerStatsSchema);
-      return careerStats(contentfulEntryId);
+      return await careerStats(contentfulEntryId);
     },
   );
 
@@ -81,7 +82,7 @@ export const playCricketRoutes: FastifyPluginAsync = async (app) => {
         request,
         playerSeasonStatsSchema,
       );
-      return seasonStats(contentfulEntryId, season);
+      return await seasonStats(contentfulEntryId, season);
     },
   );
 };

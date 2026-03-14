@@ -40,6 +40,14 @@ export const deleteExpenseSchema = z.object({
   expenseId: z.string(),
 });
 
+export const matchIdParamSchema = z.object({
+  matchId: z.string(),
+});
+
+export const expenseIdParamSchema = z.object({
+  expenseId: z.string(),
+});
+
 export type ListMatches = z.infer<typeof listMatchesSchema>;
 export type GetMatch = z.infer<typeof getMatchSchema>;
 export type RecordExpense = z.infer<typeof recordExpenseSchema>;

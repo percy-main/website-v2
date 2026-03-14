@@ -105,8 +105,8 @@ describe("sponsorship service (integration)", () => {
 
       const result = await getGameSponsorByGameId(ctx.db)(gameId);
       expect(result).not.toBeNull();
-      expect(result!.game_id).toBe(gameId);
-      expect(result!.approved).toBe(true);
+      expect(result?.game_id).toBe(gameId);
+      expect(result?.approved).toBe(true);
     });
   });
 
@@ -125,7 +125,7 @@ describe("sponsorship service (integration)", () => {
         .where("id", "=", id)
         .select("approved")
         .executeTakeFirst();
-      expect(row!.approved).toBe(true);
+      expect(row?.approved).toBe(true);
     });
   });
 
@@ -174,11 +174,11 @@ describe("sponsorship service (integration)", () => {
         .selectAll()
         .executeTakeFirst();
       expect(row).toBeTruthy();
-      expect(row!.approved).toBe(true);
-      expect(row!.paid_at).toBeTruthy();
-      expect(row!.sponsor_name).toBe("Manual Sponsor");
-      expect(row!.amount_pence).toBe(7500);
-      expect(row!.game_id).toBe(gameId);
+      expect(row?.approved).toBe(true);
+      expect(row?.paid_at).toBeTruthy();
+      expect(row?.sponsor_name).toBe("Manual Sponsor");
+      expect(row?.amount_pence).toBe(7500);
+      expect(row?.game_id).toBe(gameId);
     });
   });
 });

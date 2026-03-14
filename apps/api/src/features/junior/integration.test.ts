@@ -54,8 +54,8 @@ describe("junior service (integration)", () => {
         .executeTakeFirst();
 
       expect(dependent).toBeTruthy();
-      expect(dependent!.name).toBe("Child One");
-      expect(dependent!.sex).toBe("male");
+      expect(dependent?.name).toBe("Child One");
+      expect(dependent?.sex).toBe("male");
     });
 
     it("creates a charge with correct amount: 5000 for first, 3000 for additional", async () => {
@@ -95,7 +95,7 @@ describe("junior service (integration)", () => {
 
       expect(charge).toBeTruthy();
       // First child = 5000, second child = 3000
-      expect(charge!.amount_pence).toBe(8000);
+      expect(charge?.amount_pence).toBe(8000);
     });
 
     it("links charge to dependents via charge_dependent", async () => {
@@ -136,7 +136,7 @@ describe("junior service (integration)", () => {
         .insertInto("dependent")
         .values({
           id: depId,
-          member_id: memberId!,
+          member_id: memberId ?? "",
           name: "Test Child",
           sex: "male",
           dob: "2015-06-01",
@@ -147,7 +147,7 @@ describe("junior service (integration)", () => {
         .insertInto("membership")
         .values({
           id: crypto.randomUUID(),
-          member_id: memberId!,
+          member_id: memberId ?? "",
           dependent_id: depId,
           paid_until: "2026-09-30",
           type: "junior",

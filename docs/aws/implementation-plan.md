@@ -9,12 +9,11 @@ Detailed phased plan for migrating Percy Main CSC infrastructure to AWS. Phases 
 **Goal:** Establish the AWS account structure and migrate the database from SQLite to PostgreSQL.
 
 **Tasks:**
-- AWS Organization setup (production + staging accounts)
-- CloudTrail enabled (management events — free for one trail per account)
+- AWS Organization setup (management + production + staging accounts)
+- Management account baseline: ECR repository, Route 53 hosted zone, CloudTrail organization trail, GitHub Actions OIDC provider, Terraform state bucket + DynamoDB lock table
 - VPC configuration with public and private subnets
 - NAT Gateway for private subnet internet access
-- Route 53 DNS for percymain.org
-- SES domain verification (SPF/DKIM/DMARC)
+- SES domain verification (SPF/DKIM/DMARC) in production account
 - S3 buckets for frontend and asset storage
 - RDS PostgreSQL provisioning (db.t4g.micro, single-AZ)
 - Database migration:
@@ -27,7 +26,7 @@ Detailed phased plan for migrating Percy Main CSC infrastructure to AWS. Phases 
 - Data migration from Turso to RDS (35 tables, small data volume — scripted export/transform/import)
 - Docker Compose setup for local development (PostgreSQL container)
 
-**Estimated effort:** 3–5 days for database migration. 1–2 days for AWS account and networking setup.
+**Estimated effort:** 3–5 days for database migration. 1–2 days for AWS account, Organization, and networking setup.
 
 ---
 
@@ -39,7 +38,7 @@ Detailed phased plan for migrating Percy Main CSC infrastructure to AWS. Phases 
 - Extract service layer from 19 Astro action handler files (~9,550 lines)
 - Build Node.js API service using Express or Fastify
 - Containerise with Docker (ARM-based image for Graviton)
-- Push to ECR (Elastic Container Registry)
+- Push to ECR in management account (cross-account pull policy for production)
 - Deploy to ECS Fargate behind ALB:
   - Production: 2 tasks for availability during rolling deployments
   - Health check endpoint for ALB target group

@@ -27,8 +27,9 @@ describe("health routes (integration)", () => {
     const res = await app.inject({ method: "GET", url: "/health" });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().status).toBe("ok");
-    expect(res.json().database).toBe("connected");
+    const body = res.json<{ status: string; database: string }>();
+    expect(body.status).toBe("ok");
+    expect(body.database).toBe("connected");
 
     await app.close();
   });

@@ -51,7 +51,7 @@ describe("play-cricket service (integration)", () => {
         })
         .execute();
 
-      const result = await getMatchDetail(ctx.db)(matchId);
+      const result = await getMatchDetail(ctx.db)(matchId) as Record<string, unknown>;
       expect(result).toEqual(cachedPayload);
     });
 
@@ -93,7 +93,7 @@ describe("play-cricket service (integration)", () => {
       await ctx.db
         .updateTable("member")
         .set({ contentful_entry_id: contentfulId, play_cricket_id: null })
-        .where("id", "=", memberId!)
+        .where("id", "=", memberId ?? "")
         .execute();
 
       const result = await getPlayerCareerStats(ctx.db)(contentfulId);
@@ -113,7 +113,7 @@ describe("play-cricket service (integration)", () => {
           contentful_entry_id: contentfulId,
           play_cricket_id: playCricketId,
         })
-        .where("id", "=", memberId!)
+        .where("id", "=", memberId ?? "")
         .execute();
 
       // Seed batting performances across two seasons
@@ -180,22 +180,22 @@ describe("play-cricket service (integration)", () => {
 
       const result = await getPlayerCareerStats(ctx.db)(contentfulId);
       expect(result).not.toBeNull();
-      expect(result!.playCricketId).toBe(playCricketId);
+      expect(result?.playCricketId).toBe(playCricketId);
 
       // Career batting totals
-      expect(result!.career.batting.runs).toBe(150); // 50 + 100
-      expect(result!.career.batting.matches).toBe(2);
-      expect(result!.career.batting.highScore).toBe(100);
-      expect(result!.career.batting.notOuts).toBe(1);
+      expect(result?.career.batting.runs).toBe(150); // 50 + 100
+      expect(result?.career.batting.matches).toBe(2);
+      expect(result?.career.batting.highScore).toBe(100);
+      expect(result?.career.batting.notOuts).toBe(1);
 
       // Career bowling totals
-      expect(result!.career.bowling.wickets).toBe(3);
-      expect(result!.career.bowling.runsConceded).toBe(30);
-      expect(result!.career.bowling.innings).toBe(1);
+      expect(result?.career.bowling.wickets).toBe(3);
+      expect(result?.career.bowling.runsConceded).toBe(30);
+      expect(result?.career.bowling.innings).toBe(1);
 
       // Season breakdown
-      expect(result!.battingBySeasonRows).toHaveLength(2);
-      expect(result!.bowlingBySeasonRows).toHaveLength(1);
+      expect(result?.battingBySeasonRows).toHaveLength(2);
+      expect(result?.bowlingBySeasonRows).toHaveLength(1);
     });
   });
 });

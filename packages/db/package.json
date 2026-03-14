@@ -9,7 +9,7 @@
     "db:types": "kysely-codegen --out-file ./src/__generated__/db.ts",
     "db:migration": "tsx ./scripts/create-migration.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/**"
+    "lint": "eslint src/"
   },
   "dependencies": {
     "@percy-main/shared": "workspace:*",

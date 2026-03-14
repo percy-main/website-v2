@@ -36,10 +36,10 @@ describe("contact service (integration)", () => {
         .executeTakeFirst();
 
       expect(row).toBeTruthy();
-      expect(row!.name).toBe("Jane Doe");
-      expect(row!.email).toBe("jane@example.com");
-      expect(row!.message).toBe("Hello, I have a question.");
-      expect(row!.page).toBe("/contact");
+      expect(row?.name).toBe("Jane Doe");
+      expect(row?.email).toBe("jane@example.com");
+      expect(row?.message).toBe("Hello, I have a question.");
+      expect(row?.page).toBe("/contact");
     });
   });
 
@@ -60,12 +60,14 @@ describe("contact service (integration)", () => {
         .executeTakeFirst();
 
       expect(row).toBeTruthy();
-      expect(row!.email).toBe("subscriber@example.com");
+      expect(row?.email).toBe("subscriber@example.com");
 
       const storedMeta =
-        typeof row!.meta === "string" ? JSON.parse(row!.meta) : row!.meta;
-      expect(storedMeta.event).toBe("summer-camp");
-      expect(storedMeta.year).toBe(2026);
+        typeof row?.meta === "string"
+          ? (JSON.parse(row.meta) as Record<string, unknown>)
+          : (row?.meta as Record<string, unknown> | undefined);
+      expect(storedMeta?.event).toBe("summer-camp");
+      expect(storedMeta?.year).toBe(2026);
     });
   });
 });

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const healthRoutes: FastifyPluginAsync = async (app) => {
   app.get("/health", async () => {
     try {
