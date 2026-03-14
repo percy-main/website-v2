@@ -13,7 +13,7 @@ import {
   populatePlayers,
 } from "./service.js";
 import { SLOT_COUNTS } from "./scoring.js";
-import { BUDGET, getCurrentSeason, getCurrentGameweek } from "./gameweek.js";
+import { BUDGET, getCurrentSeason } from "./gameweek.js";
 import type { PlayerInput } from "./schemas.js";
 
 let ctx: TestContext;
@@ -126,7 +126,7 @@ describe("fantasy service (integration)", () => {
       // Verify via getMyTeam
       const team = await getMyTeam(ctx.db)(userId, season);
       expect(team).not.toBeNull();
-      expect(team!.players).toHaveLength(11);
+      expect(team?.players).toHaveLength(11);
     });
 
     it("rejects invalid squad composition (wrong slot counts)", async () => {
@@ -186,7 +186,7 @@ describe("fantasy service (integration)", () => {
         .where("play_cricket_id", "=", id)
         .select("eligible")
         .executeTakeFirst();
-      expect(row!.eligible).toBe(false);
+      expect(row?.eligible).toBe(false);
 
       await toggleEligibility(ctx.db)(id, true);
       const row2 = await ctx.db
@@ -194,7 +194,7 @@ describe("fantasy service (integration)", () => {
         .where("play_cricket_id", "=", id)
         .select("eligible")
         .executeTakeFirst();
-      expect(row2!.eligible).toBe(true);
+      expect(row2?.eligible).toBe(true);
     });
   });
 
@@ -235,8 +235,8 @@ describe("fantasy service (integration)", () => {
         .selectAll()
         .executeTakeFirst();
       expect(row).toBeTruthy();
-      expect(row!.player_name).toBe(playerName);
-      expect(row!.eligible).toBe(false); // default
+      expect(row?.player_name).toBe(playerName);
+      expect(row?.eligible).toBe(false); // default
     });
   });
 });

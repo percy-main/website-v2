@@ -7,6 +7,7 @@ import type { FastifyPluginAsync } from "fastify";
  * under this prefix through to the better-auth handler, which manages
  * sign-up, sign-in, sessions, OAuth callbacks, passkeys, 2FA, etc.
  */
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const authRoutes: FastifyPluginAsync = async (app) => {
   app.all("/*", async (request, reply) => {
     // Convert Fastify request to Web Request for better-auth

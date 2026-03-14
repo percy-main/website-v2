@@ -51,7 +51,7 @@ export function createPurchase(db: Kysely<DB>, stripe: Stripe) {
 
     const product = price.product as { name: string };
 
-    const amount = data.customAmountPence ?? (price.unit_amount! * (data.quantity ?? 1));
+    const amount = data.customAmountPence ?? ((price.unit_amount ?? 0) * (data.quantity ?? 1));
 
     const paymentIntentParams: import("stripe").Stripe.PaymentIntentCreateParams = {
       amount,

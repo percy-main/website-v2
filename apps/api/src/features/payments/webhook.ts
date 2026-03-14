@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import type Stripe from "stripe";
 import { createStripe } from "./stripe.js";
 import {
@@ -23,11 +23,12 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
   const onPaymentIntentSucceeded = handlePaymentIntentSucceeded(deps);
 
   // Encapsulated sub-plugin: raw body parser is scoped to this plugin only
+  // eslint-disable-next-line @typescript-eslint/require-await -- Fastify plugin functions must be async
   await app.register(async (webhookScope) => {
     webhookScope.addContentTypeParser(
       "application/json",
       { parseAs: "buffer" },
-      (_req: FastifyRequest, body: Buffer, done: (err: Error | null, body?: unknown) => void) => {
+      (_req, body: Buffer, done: (err: Error | null, body?: unknown) => void) => {
         done(null, body);
       },
     );
@@ -63,19 +64,19 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
         case "checkout.session.completed":
         case "checkout.session.async_payment_succeeded":
           await onCheckoutCompleted(
-            event.data.object as Stripe.Checkout.Session,
+            event.data.object,
             event.created,
           );
           break;
         case "invoice.payment_succeeded":
           await onInvoicePayment(
-            event.data.object as Stripe.Invoice,
+            event.data.object,
             event.created,
           );
           break;
         case "payment_intent.succeeded":
           await onPaymentIntentSucceeded(
-            event.data.object as Stripe.PaymentIntent,
+            event.data.object,
             event.created,
           );
           break;

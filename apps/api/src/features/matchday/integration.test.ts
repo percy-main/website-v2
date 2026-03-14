@@ -181,8 +181,8 @@ describe("matchday service (integration)", () => {
         .selectAll()
         .executeTakeFirst();
       expect(row).toBeTruthy();
-      expect(row!.expense_type).toBe("umpire_fee");
-      expect(row!.amount_pence).toBe(5000);
+      expect(row?.expense_type).toBe("umpire_fee");
+      expect(row?.amount_pence).toBe(5000);
 
       // Delete
       const deleteResult = await deleteExpense(ctx.db)(userId, expenseId);

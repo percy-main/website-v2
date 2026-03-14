@@ -14,6 +14,7 @@ import {
   deleteExpense,
 } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const matchdayRoutes: FastifyPluginAsync = async (app) => {
   const list = listMatches(app.db);
   const get = getMatch(app.db);
@@ -25,11 +26,12 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     "/matchday",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const role =
         (user as { role?: string | null }).role ?? "user";
       const params = parseQuery(request, listMatchesSchema);
-      return list(user.id, role, params);
+      return await list(user.id, role, params);
     },
   );
 
@@ -37,11 +39,12 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     "/matchday/:matchId",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const role =
         (user as { role?: string | null }).role ?? "user";
       const { matchId } = request.params;
-      return get(user.id, role, matchId);
+      return await get(user.id, role, matchId);
     },
   );
 
@@ -49,10 +52,11 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     "/matchday/:matchId/expenses",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const { matchId } = request.params;
       const data = parseBody(request, recordExpenseSchema);
-      return record(user.id, { ...data, matchId });
+      return await record(user.id, { ...data, matchId });
     },
   );
 
@@ -60,10 +64,11 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     "/matchday/expenses/:expenseId",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const { expenseId } = request.params;
       const data = parseBody(request, updateExpenseSchema);
-      return update(user.id, { ...data, expenseId });
+      return await update(user.id, { ...data, expenseId });
     },
   );
 
@@ -71,9 +76,10 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     "/matchday/expenses/:expenseId",
     { preHandler: [requireRole("official", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const { expenseId } = request.params;
-      return remove(user.id, expenseId);
+      return await remove(user.id, expenseId);
     },
   );
 };

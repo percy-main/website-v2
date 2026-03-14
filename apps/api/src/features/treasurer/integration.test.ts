@@ -47,9 +47,12 @@ describe("treasurer service (integration)", () => {
       const email2 = `mem-lapsed-${crypto.randomUUID()}@test.com`;
       const email3 = `mem-active2-${crypto.randomUUID()}@test.com`;
 
-      const { memberId: m1 } = await seedTestUser(ctx.db, { email: email1 });
-      const { memberId: m2 } = await seedTestUser(ctx.db, { email: email2 });
-      const { memberId: m3 } = await seedTestUser(ctx.db, { email: email3 });
+      const s1 = await seedTestUser(ctx.db, { email: email1 });
+      const s2 = await seedTestUser(ctx.db, { email: email2 });
+      const s3 = await seedTestUser(ctx.db, { email: email3 });
+      const m1 = s1.memberId ?? "";
+      const m2 = s2.memberId ?? "";
+      const m3 = s3.memberId ?? "";
 
       const futureDate = "2027-12-31T23:59:59Z";
       const pastDate = "2024-01-01T00:00:00Z";
@@ -59,19 +62,19 @@ describe("treasurer service (integration)", () => {
         .values([
           {
             id: `ms-${crypto.randomUUID()}`,
-            member_id: m1!,
+            member_id: m1,
             type: "senior_player",
             paid_until: futureDate,
           },
           {
             id: `ms-${crypto.randomUUID()}`,
-            member_id: m2!,
+            member_id: m2,
             type: "senior_player",
             paid_until: pastDate, // lapsed
           },
           {
             id: `ms-${crypto.randomUUID()}`,
-            member_id: m3!,
+            member_id: m3,
             type: "social",
             paid_until: futureDate,
           },
@@ -85,20 +88,21 @@ describe("treasurer service (integration)", () => {
         (m) => m.type === "senior_player",
       );
       expect(seniorPlayer).toBeTruthy();
-      expect(Number(seniorPlayer!.total)).toBeGreaterThanOrEqual(2);
-      expect(Number(seniorPlayer!.active)).toBeGreaterThanOrEqual(1);
-      expect(Number(seniorPlayer!.lapsed)).toBeGreaterThanOrEqual(1);
+      expect(Number(seniorPlayer?.total)).toBeGreaterThanOrEqual(2);
+      expect(Number(seniorPlayer?.active)).toBeGreaterThanOrEqual(1);
+      expect(Number(seniorPlayer?.lapsed)).toBeGreaterThanOrEqual(1);
 
       const social = result.memberships.find((m) => m.type === "social");
       expect(social).toBeTruthy();
-      expect(Number(social!.active)).toBeGreaterThanOrEqual(1);
+      expect(Number(social?.active)).toBeGreaterThanOrEqual(1);
     });
   });
 
   describe("getOutstandingPayments", () => {
     it("returns only unpaid charges", async () => {
       const email = `outstanding-${crypto.randomUUID()}@test.com`;
-      const { memberId } = await seedTestUser(ctx.db, { email });
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
 
       const unpaidId = `ch-unpaid-${crypto.randomUUID()}`;
       const paidId = `ch-paid-${crypto.randomUUID()}`;
@@ -109,7 +113,7 @@ describe("treasurer service (integration)", () => {
         .values([
           {
             id: unpaidId,
-            member_id: memberId!,
+            member_id: memberId,
             description: "Unpaid charge",
             amount_pence: 2000,
             charge_date: "2026-03-01",
@@ -119,7 +123,7 @@ describe("treasurer service (integration)", () => {
           },
           {
             id: paidId,
-            member_id: memberId!,
+            member_id: memberId,
             description: "Paid charge",
             amount_pence: 1500,
             charge_date: "2026-03-01",
@@ -130,7 +134,7 @@ describe("treasurer service (integration)", () => {
           },
           {
             id: confirmedId,
-            member_id: memberId!,
+            member_id: memberId,
             description: "Confirmed charge",
             amount_pence: 1000,
             charge_date: "2026-03-01",
@@ -153,14 +157,15 @@ describe("treasurer service (integration)", () => {
     it("paginates correctly", async () => {
       // Seed 5 unpaid charges
       const email = `paginate-${crypto.randomUUID()}@test.com`;
-      const { memberId } = await seedTestUser(ctx.db, { email });
+      const seed2 = await seedTestUser(ctx.db, { email });
+      const memberId = seed2.memberId ?? "";
 
       for (let i = 0; i < 5; i++) {
         await ctx.db
           .insertInto("charge")
           .values({
             id: `ch-page-${crypto.randomUUID()}`,
-            member_id: memberId!,
+            member_id: memberId,
             description: `Charge ${i}`,
             amount_pence: 1000 + i * 100,
             charge_date: `2026-04-${String(i + 1).padStart(2, "0")}`,

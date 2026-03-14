@@ -28,6 +28,7 @@ import {
   updatePlayerSponsorship,
 } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
   const gameSponsor = getGameSponsorByGameId(app.db);
   const playerSponsor = getPlayerSponsorForPlayer(app.db);
@@ -46,11 +47,11 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
 
   // --- Public routes ---
 
-  app.get("/sponsorship/game/price", async () => {
+  app.get("/sponsorship/game/price", () => {
     return getGameSponsorshipPrice();
   });
 
-  app.get("/sponsorship/player/price", async () => {
+  app.get("/sponsorship/player/price", () => {
     return getPlayerSponsorshipPrice();
   });
 
@@ -82,7 +83,7 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     "/sponsorship/player/:contentfulEntryId/pending",
     async (request) => {
       const { contentfulEntryId } = request.params;
-      return playerPending(contentfulEntryId);
+      return await playerPending(contentfulEntryId);
     },
   );
 

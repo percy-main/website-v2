@@ -38,7 +38,7 @@ async function countDependentsThisYear(db: Kysely<DB>, memberId: string): Promis
     .selectFrom("dependent")
     .where("member_id", "=", memberId)
     .where("created_at", ">=", yearStart)
-    .select((eb) => eb.fn.countAll<number>().as("count"))
+    .select((eb) => eb.fn.countAll<string>().as("count"))
     .executeTakeFirst();
 
   return Number(result?.count ?? 0);

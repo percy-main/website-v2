@@ -18,6 +18,7 @@ import {
   calculateSandwichCosts,
 } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const fantasyRoutes: FastifyPluginAsync = async (app) => {
   const eligible = getEligiblePlayers(app.db);
   const myTeam = getMyTeam(app.db);
@@ -34,7 +35,7 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireAuth] },
     async (request) => {
       const { season } = parseQuery(request, seasonSchema);
-      return eligible(season);
+      return await eligible(season);
     },
   );
 
@@ -42,9 +43,10 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     "/fantasy/team",
     { preHandler: [requireAuth] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const { season } = parseQuery(request, seasonSchema);
-      return myTeam(user.id, season);
+      return await myTeam(user.id, season);
     },
   );
 
@@ -52,9 +54,10 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     "/fantasy/team",
     { preHandler: [requireAuth] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const { season, players } = parseBody(request, saveTeamSchema);
-      return save(user.id, players, season);
+      return await save(user.id, players, season);
     },
   );
 
@@ -65,7 +68,7 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { search } = parseQuery(request, listPlayersSchema);
-      return list(search);
+      return await list(search);
     },
   );
 
@@ -77,7 +80,7 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
         request,
         toggleEligibilitySchema,
       );
-      return toggle(playCricketId, isEligible);
+      return await toggle(playCricketId, isEligible);
     },
   );
 
@@ -85,7 +88,7 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     "/fantasy/admin/populate-players",
     { preHandler: [requireRole("admin")] },
     async () => {
-      return populate();
+      return await populate();
     },
   );
 
@@ -94,7 +97,7 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { season } = parseBody(request, calculateCostsSchema);
-      return calcCosts(season);
+      return await calcCosts(season);
     },
   );
 };

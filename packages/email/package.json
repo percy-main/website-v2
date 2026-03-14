@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "email dev",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/**"
+    "lint": "eslint src/"
   },
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.1009.0",

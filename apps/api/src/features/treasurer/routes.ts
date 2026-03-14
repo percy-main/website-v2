@@ -11,6 +11,7 @@ import {
   getExpensesWithReceipts,
 } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const treasurerRoutes: FastifyPluginAsync = async (app) => {
   const income = getIncomeByMonth(app.db);
   const membership = getMembershipSummary(app.db);
@@ -24,7 +25,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
-      return income(dateFrom, dateTo);
+      return await income(dateFrom, dateTo);
     },
   );
 
@@ -32,7 +33,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
     "/treasurer/membership-summary",
     { preHandler: [requireRole("admin")] },
     async () => {
-      return membership();
+      return await membership();
     },
   );
 
@@ -44,7 +45,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
         request,
         paginatedDateRangeSchema,
       );
-      return outstanding(page, pageSize);
+      return await outstanding(page, pageSize);
     },
   );
 
@@ -53,7 +54,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
-      return sponsorship(dateFrom, dateTo);
+      return await sponsorship(dateFrom, dateTo);
     },
   );
 
@@ -62,7 +63,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
-      return matchdayExpenses(dateFrom, dateTo);
+      return await matchdayExpenses(dateFrom, dateTo);
     },
   );
 
@@ -71,7 +72,7 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
-      return receipts(dateFrom, dateTo);
+      return await receipts(dateFrom, dateTo);
     },
   );
 };

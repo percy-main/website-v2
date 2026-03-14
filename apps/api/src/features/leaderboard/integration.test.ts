@@ -40,10 +40,10 @@ describe("leaderboard service (integration)", () => {
         .executeTakeFirst();
 
       expect(saved).toBeTruthy();
-      expect(saved!.score).toBe(100);
-      expect(saved!.level).toBe(3);
-      expect(saved!.catches).toBe(10);
-      expect(saved!.best_streak).toBe(5);
+      expect(saved?.score).toBe(100);
+      expect(saved?.level).toBe(3);
+      expect(saved?.catches).toBe(10);
+      expect(saved?.best_streak).toBe(5);
     });
 
     it("updates when a higher score is submitted", async () => {
@@ -74,8 +74,8 @@ describe("leaderboard service (integration)", () => {
         .selectAll()
         .executeTakeFirst();
 
-      expect(saved!.score).toBe(150);
-      expect(saved!.level).toBe(5);
+      expect(saved?.score).toBe(150);
+      expect(saved?.level).toBe(5);
     });
 
     it("ignores a lower score", async () => {
@@ -106,7 +106,7 @@ describe("leaderboard service (integration)", () => {
         .selectAll()
         .executeTakeFirst();
 
-      expect(saved!.score).toBe(200);
+      expect(saved?.score).toBe(200);
     });
   });
 

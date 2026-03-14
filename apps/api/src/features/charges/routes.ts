@@ -4,6 +4,7 @@ import { parseBody } from "../../lib/validation.js";
 import { confirmPaymentSchema } from "./schemas.js";
 import { getMyCharges, confirmPayment } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const chargeRoutes: FastifyPluginAsync = async (app) => {
   const getCharges = getMyCharges(app.db);
   const confirm = confirmPayment(app.db);
@@ -12,7 +13,8 @@ export const chargeRoutes: FastifyPluginAsync = async (app) => {
     "/charges",
     { preHandler: [requireAuth] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const charges = await getCharges(user.email);
       return { charges };
     },
@@ -22,7 +24,8 @@ export const chargeRoutes: FastifyPluginAsync = async (app) => {
     "/charges/confirm-payment",
     { preHandler: [requireAuth] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const { paymentIntentId } = parseBody(request, confirmPaymentSchema);
       await confirm(user.email, paymentIntentId);
       return { success: true };

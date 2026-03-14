@@ -19,6 +19,7 @@ export function parseBody<T extends z.ZodType>(
     error.validation = result.error.issues;
     throw error;
   }
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return result.data as z.output<T>;
 }
 
@@ -39,6 +40,7 @@ export function parseQuery<T extends z.ZodType>(
     error.validation = result.error.issues;
     throw error;
   }
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return result.data as z.output<T>;
 }
 
@@ -59,5 +61,6 @@ export function parseParams<T extends z.ZodType>(
     error.validation = result.error.issues;
     throw error;
   }
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return result.data as z.output<T>;
 }

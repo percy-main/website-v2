@@ -34,7 +34,7 @@ describe("charges service (integration)", () => {
         .values([
           {
             id: `ch-old-${crypto.randomUUID()}`,
-            member_id: memberId!,
+            member_id: memberId ?? "",
             description: "Old charge",
             amount_pence: 1000,
             charge_date: "2025-01-01",
@@ -44,7 +44,7 @@ describe("charges service (integration)", () => {
           },
           {
             id: `ch-new-${crypto.randomUUID()}`,
-            member_id: memberId!,
+            member_id: memberId ?? "",
             description: "New charge",
             amount_pence: 2000,
             charge_date: "2026-03-01",
@@ -54,7 +54,7 @@ describe("charges service (integration)", () => {
           },
           {
             id: `ch-mid-${crypto.randomUUID()}`,
-            member_id: memberId!,
+            member_id: memberId ?? "",
             description: "Mid charge",
             amount_pence: 1500,
             charge_date: "2025-06-15",
@@ -85,7 +85,7 @@ describe("charges service (integration)", () => {
         .values([
           {
             id: activeId,
-            member_id: memberId!,
+            member_id: memberId ?? "",
             description: "Active charge",
             amount_pence: 1000,
             charge_date: "2026-01-01",
@@ -95,7 +95,7 @@ describe("charges service (integration)", () => {
           },
           {
             id: deletedId,
-            member_id: memberId!,
+            member_id: memberId ?? "",
             description: "Deleted charge",
             amount_pence: 2000,
             charge_date: "2026-02-01",
@@ -126,7 +126,7 @@ describe("charges service (integration)", () => {
         .insertInto("charge")
         .values({
           id: chargeId,
-          member_id: memberId!,
+          member_id: memberId ?? "",
           description: "Match fee",
           amount_pence: 1500,
           charge_date: "2026-03-01",
@@ -143,7 +143,7 @@ describe("charges service (integration)", () => {
       const updated = charges.find((c) => c.id === chargeId);
 
       expect(updated).toBeTruthy();
-      expect(updated!.payment_confirmed_at).toBeTruthy();
+      expect(updated?.payment_confirmed_at).toBeTruthy();
     });
   });
 });

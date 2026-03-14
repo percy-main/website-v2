@@ -223,16 +223,21 @@ export function handleInvoicePayment({ db, stripe, log }: WebhookDeps) {
         ? await stripe.customers.retrieve(invoice.customer)
         : invoice.customer;
 
+    const customerId =
+      typeof invoice.customer === "string"
+        ? invoice.customer
+        : invoice.customer?.id ?? "unknown";
+
     if (customer == null) {
-      throw new Error(`Missing customer: ${invoice.customer}`);
+      throw new Error(`Missing customer: ${customerId}`);
     }
     if (customer.deleted) {
-      throw new Error(`Deleted customer: ${invoice.customer}`);
+      throw new Error(`Deleted customer: ${customerId}`);
     }
 
     const { email } = customer;
     if (email == null) {
-      throw new Error(`Customer missing email: ${invoice.customer}`);
+      throw new Error(`Customer missing email: ${customerId}`);
     }
 
     const meta = await resolveSubscriptionMembershipMetadata(

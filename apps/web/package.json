@@ -7,7 +7,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/**"
+    "lint": "eslint src/"
   },
   "dependencies": {
     "@percy-main/shared": "workspace:*",

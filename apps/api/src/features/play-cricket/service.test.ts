@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Kysely } from "kysely";
 import type { DB } from "@percy-main/db";
@@ -104,7 +105,7 @@ describe("play-cricket service", () => {
         fetched_at: new Date().toISOString(), // Just now = still fresh
       });
 
-      const result = await getMatchDetail(db)("123");
+      const result: unknown = await getMatchDetail(db)("123");
 
       expect(result).toEqual(cachedData);
       // Should NOT have called the API
@@ -127,7 +128,7 @@ describe("play-cricket service", () => {
       // Mock the update
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await getMatchDetail(db)("123");
+      const result: unknown = await getMatchDetail(db)("123");
 
       expect(result).toEqual(freshData);
       expect(apiGetMatchDetail).toHaveBeenCalledWith("123");
@@ -144,7 +145,7 @@ describe("play-cricket service", () => {
       // Mock the insert
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await getMatchDetail(db)("456");
+      const result: unknown = await getMatchDetail(db)("456");
 
       expect(result).toEqual(apiData);
       expect(apiGetMatchDetail).toHaveBeenCalledWith("456");
@@ -211,12 +212,12 @@ describe("play-cricket service", () => {
 
       const result = await getPlayerCareerStats(db)("entry-123");
 
-      expect(result).not.toBeNull();
-      expect(result!.playCricketId).toBe("pc-100");
-      expect(result!.career.batting.runs).toBe(550);
-      expect(result!.career.batting.highScore).toBe(85);
-      expect(result!.career.batting.matches).toBe(18);
-      expect(result!.career.bowling.wickets).toBe(22);
+      assert(result !== null);
+      expect(result.playCricketId).toBe("pc-100");
+      expect(result.career.batting.runs).toBe(550);
+      expect(result.career.batting.highScore).toBe(85);
+      expect(result.career.batting.matches).toBe(18);
+      expect(result.career.bowling.wickets).toBe(22);
     });
   });
 });

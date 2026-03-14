@@ -13,6 +13,7 @@ import {
   getPlayerDetail,
 } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const juniorRoutes: FastifyPluginAsync = async (app) => {
   const add = addDependents(app.db);
   const get = getDependents(app.db);
@@ -24,7 +25,8 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     "/junior/dependents",
     { preHandler: [requireVerifiedEmail] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const { dependents } = parseBody(request, addDependentsSchema);
       const result = await add(user.email, dependents);
       return result;
@@ -35,8 +37,9 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     "/junior/dependents",
     { preHandler: [requireVerifiedEmail] },
     async (request) => {
-      const { user } = request.authSession!;
-      return get(user.email);
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
+      return await get(user.email);
     },
   );
 
@@ -44,10 +47,11 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     "/junior/teams",
     { preHandler: [requireRole("junior_manager", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const role =
         (user as { role?: string | null }).role ?? "user";
-      return teams(user.id, role);
+      return await teams(user.id, role);
     },
   );
 
@@ -55,11 +59,12 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     "/junior/teams/:teamId/players",
     { preHandler: [requireRole("junior_manager", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const role =
         (user as { role?: string | null }).role ?? "user";
       const { teamId } = request.params;
-      return players(user.id, role, teamId);
+      return await players(user.id, role, teamId);
     },
   );
 
@@ -67,11 +72,12 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
     "/junior/players/:dependentId",
     { preHandler: [requireRole("junior_manager", "admin")] },
     async (request) => {
-      const { user } = request.authSession!;
+      if (!request.authSession) throw new Error("Unauthorized");
+      const { user } = request.authSession;
       const role =
         (user as { role?: string | null }).role ?? "user";
       const { dependentId } = request.params;
-      return playerDetail(user.id, role, dependentId);
+      return await playerDetail(user.id, role, dependentId);
     },
   );
 };

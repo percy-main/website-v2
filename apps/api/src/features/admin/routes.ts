@@ -23,6 +23,7 @@ import {
   unlinkContentfulPerson,
 } from "./service.js";
 
+// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const adminRoutes: FastifyPluginAsync = async (app) => {
   const list = listUsers(app.db);
   const update = updateUser(app.db);
@@ -39,7 +40,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const params = parseQuery(request, listUsersSchema);
-      return list(params);
+      return await list(params);
     },
   );
 
@@ -49,7 +50,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { userId } = request.params;
       const data = parseBody(request, updateUserSchema);
-      return update(userId, data);
+      return await update(userId, data);
     },
   );
 
@@ -58,7 +59,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const data = parseBody(request, createMemberSchema);
-      return create(data);
+      return await create(data);
     },
   );
 
@@ -67,7 +68,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { userId } = parseBody(request, chargeNotificationSchema);
-      return notify(userId);
+      return await notify(userId);
     },
   );
 
@@ -75,7 +76,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     "/admin/record-linking",
     { preHandler: [requireRole("admin")] },
     async () => {
-      return recordLinking();
+      return await recordLinking();
     },
   );
 
@@ -87,7 +88,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         request,
         recordLinkingSchema,
       );
-      return linkPC(type, id, playCricketId);
+      return await linkPC(type, id, playCricketId);
     },
   );
 
@@ -96,7 +97,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { type, id } = parseBody(request, unlinkSchema);
-      return unlinkPC(type, id);
+      return await unlinkPC(type, id);
     },
   );
 
@@ -108,7 +109,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         request,
         contentfulLinkSchema,
       );
-      return linkCF(memberId, contentfulEntryId);
+      return await linkCF(memberId, contentfulEntryId);
     },
   );
 
@@ -117,7 +118,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { memberId } = parseBody(request, contentfulUnlinkSchema);
-      return unlinkCF(memberId);
+      return await unlinkCF(memberId);
     },
   );
 };
