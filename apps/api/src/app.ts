@@ -21,6 +21,7 @@ import { adminRoutes } from "./features/admin/routes.js";
 import { treasurerRoutes } from "./features/treasurer/routes.js";
 import { leaderboardRoutes } from "./features/leaderboard/routes.js";
 import { contactRoutes } from "./features/contact/routes.js";
+import { webhookRoutes } from "./features/payments/webhook.js";
 
 // Extend Fastify types with our decorations
 declare module "fastify" {
@@ -82,6 +83,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(treasurerRoutes, { prefix: "/api" });
   await app.register(leaderboardRoutes, { prefix: "/api" });
   await app.register(contactRoutes, { prefix: "/api" });
+  await app.register(webhookRoutes, { prefix: "/api" });
 
   return app;
 }

@@ -2,6 +2,8 @@
 
 Tracking progress of the AWS migration from v1 (Astro/Netlify/SQLite) to v2 (React/AWS/PostgreSQL).
 
+This repo will replace the existing v1 repo, which is in `@../website`
+
 See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 
 ---
@@ -53,7 +55,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] Stripe webhook handler ported (raw body parsing, ts-pattern routing)
 - [x] Dockerfile (multi-stage, ARM-ready for Graviton)
 - [x] 78 unit tests + 69 integration tests (testcontainers), all passing
-- [ ] Port full Stripe webhook handler logic (checkout, invoice, payment_intent)
+- [x] Port full Stripe webhook handler logic (checkout, invoice, payment_intent)
 - [ ] Port Play-Cricket background sync job
 - [ ] Port fantasy score calculation pipeline
 
