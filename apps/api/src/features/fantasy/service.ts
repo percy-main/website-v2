@@ -406,7 +406,7 @@ export function calculateSandwichCosts(db: Kysely<DB>) {
         sql<number>`sum(total_points)`.as("total_points"),
       ])
       .groupBy("play_cricket_id")
-      .orderBy(sql`sum(points)`, "desc")
+      .orderBy(sql`sum(total_points)`, "desc")
       .execute();
 
     if (playerPoints.length === 0) {
