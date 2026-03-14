@@ -438,7 +438,19 @@ describe("calculateFantasyScores (integration)", () => {
       .executeTakeFirst();
 
     expect(teamScore).toBeTruthy();
-    expect(teamScore?.total_points).toBeGreaterThan(0);
+    // Batter (batting slot, captain 2x):
+    //   batting = 50 runs + 5 fours + 1*2 sixes + 20 fifty bonus = 77
+    //   fielding = 1 catch * 10 = 10
+    //   team = 10 (win bonus)
+    //   slot effective (batting) = 77 + 10 + 10 = 97, * 2 captain = 194
+    // Bowler (bowling slot):
+    //   bowling = 3*10 wickets + 15 three-wicket bonus + 1*10 maiden = 55
+    //   economy = 25/8 = 3.125 < 4.0, so +10 = 65
+    //   fielding = 0 catches * 10 = 0
+    //   team = 10 (win bonus)
+    //   slot effective (bowling) = 65 + 0 + 10 = 75
+    // Total = 194 + 75 = 269
+    expect(teamScore?.total_points).toBe(269);
   });
 
   it("applies duck penalty for 0 runs (not not-out)", async () => {

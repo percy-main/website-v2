@@ -33,11 +33,24 @@ import { getGameweekForDate } from "./gameweek.js";
 // ---------------------------------------------------------------------------
 
 /**
- * Parse a YYYY-MM-DD date string (as stored in v2 match_performance tables)
- * into a UTC Date object.
+ * Parse a match date string into a UTC Date object.
+ * Handles both DD/MM/YYYY (Play-Cricket API format stored by sync) and
+ * YYYY-MM-DD (ISO format used in tests and manual inserts).
  */
-function parseMatchDate(isoDate: string): Date {
-  const [yyyy, mm, dd] = isoDate.split("-");
+function parseMatchDate(dateStr: string): Date {
+  if (dateStr.includes("/")) {
+    // DD/MM/YYYY format (from Play-Cricket sync)
+    const [dd, mm, yyyy] = dateStr.split("/");
+    return new Date(
+      Date.UTC(
+        parseInt(yyyy ?? "0"),
+        parseInt(mm ?? "1") - 1,
+        parseInt(dd ?? "1"),
+      ),
+    );
+  }
+  // YYYY-MM-DD format (ISO)
+  const [yyyy, mm, dd] = dateStr.split("-");
   return new Date(
     Date.UTC(
       parseInt(yyyy ?? "0"),
