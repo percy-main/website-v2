@@ -91,7 +91,14 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] Vite dev proxy (`/api` → localhost:3000)
 - [x] React Router route definitions
 - [x] Root providers (auth context, React Query)
-- [ ] Port non-Contentful pages (Batch 2: cricket leaderboard, fantasy, games, static pages, admin/official/junior-manager)
+- [ ] Port non-Contentful pages (Batch 2):
+  - [x] Cricket leaderboard
+  - [x] Fantasy cricket (3 pages: home with tabs, scoring rules, team management + 20 new API endpoints)
+  - [ ] Be the Keeper game (2 pages)
+  - [ ] Static pages (privacy policy, nets redirect, payment confirmation)
+  - [ ] Admin panel
+  - [ ] Official panel
+  - [ ] Junior manager panel
 - [ ] Port Contentful-dependent pages (Batch 3 — deferred to cutover: news, calendar, person profiles, CMS pages)
 - [x] Replace Astro actions with API calls (api client + react-query pattern established)
 - [ ] CloudFront distribution + S3 origin
