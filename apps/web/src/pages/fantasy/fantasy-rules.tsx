@@ -7,7 +7,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Link } from "react-router";
 
 function fmt(v: number) {
   return v > 0 ? `+${v}` : `${v}`;
@@ -474,20 +473,3 @@ export function ScoringRulesContent() {
   );
 }
 
-/** Full scoring rules page with heading and back link */
-export function Component() {
-  return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Scoring Rules</h1>
-        <Link
-          to="/fantasy"
-          className="text-primary text-sm underline-offset-4 hover:underline"
-        >
-          Back to Fantasy
-        </Link>
-      </div>
-      <ScoringRulesContent />
-    </div>
-  );
-}

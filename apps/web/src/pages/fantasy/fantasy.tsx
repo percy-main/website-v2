@@ -306,7 +306,7 @@ function HomeTab() {
             <Link to="/members/fantasy">
               <Button size="sm">Go to My Team</Button>
             </Link>
-            <Link to="/fantasy/rules">
+            <Link to="/fantasy?tab=rules">
               <Button variant="outline" size="sm">
                 View Scoring Rules
               </Button>
