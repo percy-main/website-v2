@@ -55,19 +55,19 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
   }, [navigate]);
 
   const signin = useMutation({
-    mutationFn: () =>
-      authClient.signIn.email(
-        { email, password },
-        {
-          onSuccess(response) {
-            if ("twoFactorRedirect" in response.data) {
-              setPhase("2fa");
-              return;
-            }
-            void navigate("/members");
-          },
-        },
-      ),
+    mutationFn: async () => {
+      const result = await authClient.signIn.email({ email, password });
+      if (result.error)
+        throw new Error(result.error.message ?? "Sign in failed");
+      return result.data;
+    },
+    onSuccess(data) {
+      if (data && "twoFactorRedirect" in data) {
+        setPhase("2fa");
+        return;
+      }
+      void navigate("/members");
+    },
   });
 
   const googleSignIn = useMutation({
@@ -86,11 +86,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
     [signin],
   );
 
-  const error =
-    signin.error ??
-    signin.data?.error ??
-    googleSignIn.error ??
-    googleSignIn.data?.error;
+  const error = signin.error ?? googleSignIn.error ?? googleSignIn.data?.error;
 
   return (
     <section>
