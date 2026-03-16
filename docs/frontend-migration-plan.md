@@ -84,6 +84,18 @@ The v2 frontend scaffold, routing, auth flow, header/footer, and API client are 
 
 ---
 
+## Missing API Endpoints
+
+All three missing endpoints have been implemented:
+
+| Endpoint                    | Method | Description                                                   | Status |
+| --------------------------- | ------ | ------------------------------------------------------------- | ------ |
+| `/members/me/membership`    | GET    | Return current user's membership type, created_at, paid_until | Done   |
+| `/members/me/subscriptions` | GET    | Return current user's active Stripe subscriptions             | Done   |
+| `/charges/pay-outstanding`  | POST   | Create a Stripe PaymentIntent for all unpaid charges          | Done   |
+
+---
+
 ## Adaptation Patterns (v1 → v2)
 
 | v1 Pattern                           | v2 Pattern                                            |

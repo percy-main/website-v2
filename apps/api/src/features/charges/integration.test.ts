@@ -1,11 +1,21 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type Stripe from "stripe";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   seedTestUser,
   startTestContainer,
   stopTestContainer,
   type TestContext,
 } from "../../test/containers.js";
-import { confirmPayment, getMyCharges } from "./service.js";
+import {
+  confirmPayment,
+  getMyCharges,
+  payOutstandingCharges,
+} from "./service.js";
+
+const mockPaymentIntentsCreate = vi.fn();
+const mockStripe = {
+  paymentIntents: { create: mockPaymentIntentsCreate },
+} as unknown as Stripe;
 
 let ctx: TestContext;
 
@@ -111,6 +121,138 @@ describe("charges service (integration)", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].description).toBe("Active charge");
+    });
+  });
+
+  describe("payOutstandingCharges", () => {
+    it("throws when no member exists", async () => {
+      await expect(
+        payOutstandingCharges(ctx.db, mockStripe)("nonexistent@test.com"),
+      ).rejects.toThrow("No member record found");
+    });
+
+    it("throws when no unpaid charges exist", async () => {
+      const email = `no-unpaid-${crypto.randomUUID()}@test.com`;
+      await seedTestUser(ctx.db, { email });
+
+      await expect(
+        payOutstandingCharges(ctx.db, mockStripe)(email),
+      ).rejects.toThrow("No unpaid charges found");
+    });
+
+    it("creates a payment intent and links charges", async () => {
+      const email = `pay-outstanding-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+
+      const chargeId1 = `ch-pay-${crypto.randomUUID()}`;
+      const chargeId2 = `ch-pay-${crypto.randomUUID()}`;
+
+      await ctx.db
+        .insertInto("charge")
+        .values([
+          {
+            id: chargeId1,
+            member_id: memberId ?? "",
+            description: "Match fee 1",
+            amount_pence: 1000,
+            charge_date: "2026-03-01",
+            created_by: "system",
+            type: "manual",
+            source: "admin",
+          },
+          {
+            id: chargeId2,
+            member_id: memberId ?? "",
+            description: "Match fee 2",
+            amount_pence: 1500,
+            charge_date: "2026-03-08",
+            created_by: "system",
+            type: "manual",
+            source: "admin",
+          },
+        ])
+        .execute();
+
+      mockPaymentIntentsCreate.mockResolvedValue({
+        id: "pi_test_123",
+        client_secret: "pi_test_123_secret_abc",
+      } as never);
+
+      const result = await payOutstandingCharges(ctx.db, mockStripe)(email);
+
+      expect(result.totalAmountPence).toBe(2500);
+      expect(result.clientSecret).toBe("pi_test_123_secret_abc");
+      expect(result.chargeIds).toHaveLength(2);
+      expect(result.chargeIds).toContain(chargeId1);
+      expect(result.chargeIds).toContain(chargeId2);
+
+      // Verify charges are linked to the payment intent
+      const charges = await getMyCharges(ctx.db)(email);
+      const linked = charges.filter(
+        (c) => c.stripe_payment_intent_id === "pi_test_123",
+      );
+      expect(linked).toHaveLength(2);
+    });
+
+    it("excludes already-paid and already-linked charges", async () => {
+      const email = `exclude-paid-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+
+      await ctx.db
+        .insertInto("charge")
+        .values([
+          {
+            id: `ch-unpaid-${crypto.randomUUID()}`,
+            member_id: memberId ?? "",
+            description: "Unpaid charge",
+            amount_pence: 500,
+            charge_date: "2026-03-01",
+            created_by: "system",
+            type: "manual",
+            source: "admin",
+          },
+          {
+            id: `ch-paid-${crypto.randomUUID()}`,
+            member_id: memberId ?? "",
+            description: "Already paid",
+            amount_pence: 2000,
+            charge_date: "2026-02-01",
+            created_by: "system",
+            type: "manual",
+            source: "admin",
+            paid_at: new Date().toISOString(),
+          },
+          {
+            id: `ch-linked-${crypto.randomUUID()}`,
+            member_id: memberId ?? "",
+            description: "Already linked to PI",
+            amount_pence: 3000,
+            charge_date: "2026-02-15",
+            created_by: "system",
+            type: "manual",
+            source: "admin",
+            stripe_payment_intent_id: "pi_existing",
+          },
+        ])
+        .execute();
+
+      mockPaymentIntentsCreate.mockResolvedValue({
+        id: "pi_new_456",
+        client_secret: "pi_new_456_secret",
+      } as never);
+
+      const result = await payOutstandingCharges(ctx.db, mockStripe)(email);
+
+      // Only the unpaid, unlinked charge should be included
+      expect(result.totalAmountPence).toBe(500);
+      expect(result.chargeIds).toHaveLength(1);
+
+      expect(mockPaymentIntentsCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 500,
+          currency: "gbp",
+        }),
+      );
     });
   });
 

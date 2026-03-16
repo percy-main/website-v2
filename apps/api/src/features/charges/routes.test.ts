@@ -15,6 +15,8 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
       selectAll: vi.fn().mockReturnThis(),
       set: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
+      forUpdate: vi.fn().mockReturnThis(),
+      transaction: vi.fn(),
       executeTakeFirst: mockExecuteTakeFirst,
       execute: mockExecute,
     };
@@ -23,9 +25,19 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   },
 );
 
-import { confirmPayment, getMyCharges } from "./service.js";
+import type Stripe from "stripe";
+import {
+  confirmPayment,
+  getMyCharges,
+  payOutstandingCharges,
+} from "./service.js";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
+
+const mockPaymentIntentsCreate = vi.fn();
+const mockStripe = {
+  paymentIntents: { create: mockPaymentIntentsCreate },
+} as unknown as Stripe;
 
 describe("charges service", () => {
   beforeEach(() => {
@@ -37,6 +49,11 @@ describe("charges service", () => {
     mockQueryBuilder.selectAll.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.set.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.orderBy.mockReturnValue(mockQueryBuilder);
+    mockQueryBuilder.forUpdate.mockReturnValue(mockQueryBuilder);
+    mockQueryBuilder.transaction.mockReturnValue({
+      execute: (cb: (trx: typeof mockQueryBuilder) => unknown) =>
+        cb(mockQueryBuilder),
+    });
   });
 
   describe("getMyCharges", () => {
@@ -124,6 +141,25 @@ describe("charges service", () => {
         "is",
         null,
       );
+    });
+  });
+
+  describe("payOutstandingCharges", () => {
+    it("throws when no member found", async () => {
+      mockExecuteTakeFirst.mockResolvedValue(undefined);
+
+      await expect(
+        payOutstandingCharges(db, mockStripe)("nobody@example.com"),
+      ).rejects.toThrow("No member record found");
+    });
+
+    it("throws when no unpaid charges exist", async () => {
+      mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
+      mockExecute.mockResolvedValue([]);
+
+      await expect(
+        payOutstandingCharges(db, mockStripe)("user@example.com"),
+      ).rejects.toThrow("No unpaid charges found");
     });
   });
 });
