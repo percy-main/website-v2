@@ -15,6 +15,8 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
       selectAll: vi.fn().mockReturnThis(),
       set: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
+      forUpdate: vi.fn().mockReturnThis(),
+      transaction: vi.fn(),
       executeTakeFirst: mockExecuteTakeFirst,
       execute: mockExecute,
     };
@@ -47,6 +49,11 @@ describe("charges service", () => {
     mockQueryBuilder.selectAll.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.set.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.orderBy.mockReturnValue(mockQueryBuilder);
+    mockQueryBuilder.forUpdate.mockReturnValue(mockQueryBuilder);
+    mockQueryBuilder.transaction.mockReturnValue({
+      execute: (cb: (trx: typeof mockQueryBuilder) => unknown) =>
+        cb(mockQueryBuilder),
+    });
   });
 
   describe("getMyCharges", () => {

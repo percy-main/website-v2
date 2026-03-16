@@ -16,6 +16,7 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
       select: vi.fn().mockReturnThis(),
       set: vi.fn().mockReturnThis(),
       values: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
       executeTakeFirst: mockExecuteTakeFirst,
       execute: mockExecute,
     };
@@ -52,6 +53,7 @@ describe("members service", () => {
     mockQueryBuilder.select.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.set.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.values.mockReturnValue(mockQueryBuilder);
+    mockQueryBuilder.orderBy.mockReturnValue(mockQueryBuilder);
   });
 
   describe("getMemberDetails", () => {
@@ -207,6 +209,17 @@ describe("members service", () => {
         null,
       );
     });
+
+    it("orders by paid_until descending to get the current membership", async () => {
+      mockExecuteTakeFirst.mockResolvedValue(undefined);
+
+      await getMyMembership(db)("user@example.com");
+
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
+        "membership.paid_until",
+        "desc",
+      );
+    });
   });
 
   describe("getMySubscriptions", () => {
@@ -259,6 +272,7 @@ describe("members service", () => {
       expect(result[0].status).toBe("active");
       expect(mockSubscriptionsList).toHaveBeenCalledWith({
         customer: "cus_123",
+        status: "active",
         expand: ["data.items.data.price.product"],
       });
     });

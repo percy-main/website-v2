@@ -30,6 +30,7 @@ export function getMyMembership(db: Kysely<DB>) {
       .where("member.email", "=", email)
       .where("membership.dependent_id", "is", null)
       .select([...MEMBERSHIP_COLUMNS])
+      .orderBy("membership.paid_until", "desc")
       .executeTakeFirst();
 
     return membership ?? null;
@@ -47,6 +48,7 @@ export function getMySubscriptions(stripe: Stripe) {
 
     const subscriptions = await stripe.subscriptions.list({
       customer: customer.id,
+      status: "active",
       expand: ["data.items.data.price.product"],
     });
 
