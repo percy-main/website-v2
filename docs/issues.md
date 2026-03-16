@@ -57,6 +57,28 @@ if (uniqueIds.size !== players.length) {
 
 ---
 
+## Medium Priority
+
+### Auth route guards return `null` during session loading, causing layout flash
+
+**Location:** `apps/web/src/components/require-auth.tsx`, `require-verified-email.tsx`, `require-role.tsx`
+
+`RequireAuth`, `RequireVerifiedEmail`, and `RequireRole` all return `null` while the session is loading (`isPending`). Since these components sit inside `RootLayout`, the header and footer remain visible but `<main>` goes blank momentarily before the protected content appears. This causes a visible flash on every navigation to an authenticated route.
+
+**Fix:** Return a loading skeleton or spinner instead of `null`. Consider a shared `<PageLoading />` component that all guards use for consistency. Worth doing as part of a broader loading/suspense strategy when porting more protected pages.
+
+---
+
+### Mobile drawer lacks keyboard trap
+
+**Location:** `apps/web/src/components/site-header.tsx` (mobile drawer)
+
+The drawer has `role="dialog"`, `aria-modal`, `aria-label`, and focus-on-open, but does not trap keyboard focus within the drawer. A user pressing Tab can move focus behind the overlay to page content. Full WCAG 2.1 compliance requires a focus trap (e.g. looping focus between the first and last focusable elements inside the drawer).
+
+**Fix:** Add a focus trap — either manually with `onKeyDown` Tab handling, or use a library like `focus-trap-react`.
+
+---
+
 ## Low Priority
 
 ### `scoring_threshold` chaos rule guard is semantically wrong
