@@ -14,6 +14,7 @@ export async function buildTestApp(db: Kysely<DB>, dialect: PostgresDialect) {
     EMAIL_PROVIDER: "dev",
     BASE_URL: "http://localhost:5173",
     LOG_LEVEL: "error",
+    STRIPE_SECRET_KEY: "unused-stripe-key",
   });
 
   return buildApp({ db, dialect, config });
