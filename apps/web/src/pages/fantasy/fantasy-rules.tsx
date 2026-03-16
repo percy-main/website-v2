@@ -472,4 +472,3 @@ export function ScoringRulesContent() {
     </div>
   );
 }
-
