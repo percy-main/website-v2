@@ -70,7 +70,7 @@ function buildQueryString(params: Record<string, string | undefined>) {
 function useTeams() {
   return useQuery({
     queryKey: ["play-cricket-teams"],
-    queryFn: () => api.get<Team[]>("/play-cricket/teams"),
+    queryFn: () => api.get<{ teams: Team[] }>("/play-cricket/teams"),
     staleTime: 30 * 60 * 1000,
   });
 }
@@ -433,7 +433,7 @@ export function Component() {
     competitionTypes,
   );
 
-  const teams = teamsQuery.data ?? [];
+  const teams = teamsQuery.data?.teams ?? [];
   const filteredTeams = teams.filter((t) => t.is_junior === isJunior);
 
   const sponsorMap = new Map<string, SponsorEntry>();

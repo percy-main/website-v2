@@ -12,13 +12,13 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
       .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
       .where("b.season", "=", params.season)
-      .groupBy(["b.player_id", "b.player_name", "m.contentful_entry_id"])
+      .groupBy(["b.player_id", "m.contentful_entry_id"])
       .select([
         "b.player_id as playerId",
-        "b.player_name as playerName",
         "m.contentful_entry_id as contentfulEntryId",
       ])
       .select((eb) => [
+        eb.fn.max("b.player_name").as("playerName"),
         eb.fn.countAll().as("innings"),
         eb.fn.sum<string>("b.runs").as("totalRuns"),
         eb.fn
@@ -55,10 +55,10 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
     if (params.competitionTypes) {
       const types = params.competitionTypes
         .split(",")
-        .map((t) => t.trim())
+        .map((t) => t.trim().toLowerCase())
         .filter(Boolean);
       if (types.length > 0) {
-        query = query.where("b.competition_type", "in", types);
+        query = query.where(sql`LOWER(b.competition_type)`, "in", types);
       }
     }
 
@@ -118,13 +118,13 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
       .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
       .where("b.season", "=", params.season)
-      .groupBy(["b.player_id", "b.player_name", "m.contentful_entry_id"])
+      .groupBy(["b.player_id", "m.contentful_entry_id"])
       .select([
         "b.player_id as playerId",
-        "b.player_name as playerName",
         "m.contentful_entry_id as contentfulEntryId",
       ])
       .select((eb) => [
+        eb.fn.max("b.player_name").as("playerName"),
         eb.fn.countAll().as("matches"),
         eb.fn.sum<string>("b.wickets").as("totalWickets"),
         eb.fn.sum<string>("b.runs").as("totalRuns"),
@@ -146,10 +146,10 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
     if (params.competitionTypes) {
       const types = params.competitionTypes
         .split(",")
-        .map((t) => t.trim())
+        .map((t) => t.trim().toLowerCase())
         .filter(Boolean);
       if (types.length > 0) {
-        query = query.where("b.competition_type", "in", types);
+        query = query.where(sql`LOWER(b.competition_type)`, "in", types);
       }
     }
 
