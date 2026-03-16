@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unnecessary-type-conversion -- PostgreSQL aggregates return bigint as string in node-pg; Number() is needed at runtime */
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
@@ -6,7 +7,6 @@ import {
   BUDGET,
   getCurrentGameweek,
   getCurrentSeason,
-  getGW1StartDate,
   getPreviousSeason,
   getTransferWindowInfo,
   isGameweekLocked,
@@ -15,16 +15,10 @@ import {
 } from "./gameweek.js";
 import type { PlayerInput } from "./schemas.js";
 import {
-  calculateBattingPoints,
-  calculateBowlingPoints,
-  calculateFieldingPoints,
-  CHIPS,
-  type ChipType,
   CHIP_TYPES,
-  ELIGIBLE_TEAM_IDS,
-  LEAGUE_COMPETITION_TYPES,
-  SCORING,
+  CHIPS,
   SLOT_COUNTS,
+  type ChipType,
   type SlotType,
 } from "./scoring.js";
 
@@ -403,9 +397,7 @@ export function saveTeam(db: Kysely<DB>) {
 
           const previousTransfers = Number(persistedTransfers?.count ?? 0);
           const netTransfers =
-            previousTransfers +
-            playersToAdd.length -
-            addedThisWeekBeingRemoved;
+            previousTransfers + playersToAdd.length - addedThisWeekBeingRemoved;
 
           if (netTransfers > MAX_TRANSFERS_PER_GAMEWEEK) {
             throw httpError(
@@ -657,12 +649,12 @@ async function getActiveChaosWeek(
   );
 }
 
-type OwnershipEntry = {
+interface OwnershipEntry {
   ownerCount: number;
   captainCount: number;
   ownershipPct: number;
   captainPct: number;
-};
+}
 
 async function getOwnershipData(
   db: Kysely<DB>,
@@ -760,8 +752,7 @@ function rankDifferentials(
 
   return candidates
     .sort(
-      (a, b) =>
-        b.diffValue - a.diffValue || a.ownershipPct - b.ownershipPct,
+      (a, b) => b.diffValue - a.diffValue || a.ownershipPct - b.ownershipPct,
     )
     .slice(0, limit)
     .map(
@@ -978,9 +969,7 @@ export function getSandwichEfficiency(db: Kysely<DB>) {
       .select(["play_cricket_id", "player_name", "sandwich_cost"])
       .execute();
 
-    const playerMap = new Map(
-      players.map((p) => [p.play_cricket_id, p]),
-    );
+    const playerMap = new Map(players.map((p) => [p.play_cricket_id, p]));
 
     const scoreRows = await db
       .selectFrom("fantasy_player_score")
@@ -997,7 +986,9 @@ export function getSandwichEfficiency(db: Kysely<DB>) {
     const entries = scoreRows
       .filter((r) => playerMap.has(r.play_cricket_id))
       .map((r) => {
-        const player = playerMap.get(r.play_cricket_id)!;
+        // Safe: filtered to only include players in playerMap above
+        const player = playerMap.get(r.play_cricket_id);
+        if (!player) return null;
         const cost = player.sandwich_cost > 0 ? player.sandwich_cost : 1;
         return {
           playCricketId: r.play_cricket_id,
@@ -1009,15 +1000,13 @@ export function getSandwichEfficiency(db: Kysely<DB>) {
             Math.round((Number(r.total_points) / cost) * 10) / 10,
         };
       })
+      .filter((e): e is NonNullable<typeof e> => e !== null)
       .sort((a, b) => b.pointsPerSandwich - a.pointsPerSandwich);
 
     return {
       season: effectiveSeason,
       isFromPreviousSeason: preseason,
-      entries: assignRanks(entries, (e) => e.pointsPerSandwich).slice(
-        0,
-        limit,
-      ),
+      entries: assignRanks(entries, (e) => e.pointsPerSandwich).slice(0, limit),
     };
   };
 }
@@ -2169,10 +2158,7 @@ export function createChaosWeek(db: Kysely<DB>) {
 
 export function deleteChaosWeek(db: Kysely<DB>) {
   return async (id: number) => {
-    await db
-      .deleteFrom("fantasy_chaos_week")
-      .where("id", "=", id)
-      .execute();
+    await db.deleteFrom("fantasy_chaos_week").where("id", "=", id).execute();
     return { success: true };
   };
 }

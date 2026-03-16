@@ -91,7 +91,8 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/fantasy/transfer-window", async (request) => {
     const { season } = parseQuery(request, seasonSchema);
-    return transferWindow(season);
+    // transferWindow is sync; wrap to satisfy return await pattern
+    return await Promise.resolve(transferWindow(season));
   });
 
   app.get("/fantasy/chaos-week", async (request) => {
@@ -159,10 +160,7 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/fantasy/players/:playCricketId/history", async (request) => {
-    const { playCricketId, season } = parseParams(
-      request,
-      playerHistorySchema,
-    );
+    const { playCricketId, season } = parseParams(request, playerHistorySchema);
     return await playerHist(playCricketId, season);
   });
 
