@@ -152,15 +152,14 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/fantasy/teams/:teamId/gameweek/:gameweek", async (request) => {
-    const { teamId, gameweek, season } = parseParams(
-      request,
-      gameweekDetailSchema,
-    );
+    const { teamId, gameweek } = parseParams(request, gameweekDetailSchema);
+    const { season } = parseQuery(request, seasonSchema);
     return await gwDetail(teamId, gameweek, season);
   });
 
   app.get("/fantasy/players/:playCricketId/history", async (request) => {
-    const { playCricketId, season } = parseParams(request, playerHistorySchema);
+    const { playCricketId } = parseParams(request, playerHistorySchema);
+    const { season } = parseQuery(request, seasonSchema);
     return await playerHist(playCricketId, season);
   });
 
@@ -199,8 +198,8 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
     return await chipActivate(user.id, chipType, season);
   });
 
-  app.delete(
-    "/fantasy/chip",
+  app.post(
+    "/fantasy/chip/deactivate",
     { preHandler: [requireAuth] },
     async (request) => {
       const { user } = getAuthSession(request);

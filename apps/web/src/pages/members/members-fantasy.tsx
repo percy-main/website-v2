@@ -184,7 +184,9 @@ export function Component() {
     mutationFn: (params: { action: "activate" | "deactivate" }) =>
       params.action === "activate"
         ? api.post("/fantasy/chip", { chipType: "triple_captain" })
-        : api.delete("/fantasy/chip"),
+        : api.post("/fantasy/chip/deactivate", {
+            chipType: "triple_captain",
+          }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["fantasy", "chip-status"],

@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { ScoringRulesContent } from "./fantasy-rules.js";
 
@@ -958,8 +959,6 @@ function LoadingTable({ rows, cols }: { rows: number; cols: number }) {
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
-
-import { useState } from "react";
 
 export function Component() {
   const [params, setParams] = useSearchParams();

@@ -155,7 +155,7 @@ export function getMyTeam(db: Kysely<DB>) {
       .select(sql<number>`count(*)`.as("count"))
       .executeTakeFirst();
 
-    const transfersUsed = transfersResult?.count ?? 0;
+    const transfersUsed = Number(transfersResult?.count ?? 0);
 
     // Check for chaos week
     const chaosWeek = await db
@@ -396,8 +396,10 @@ export function saveTeam(db: Kysely<DB>) {
             .executeTakeFirst();
 
           const previousTransfers = Number(persistedTransfers?.count ?? 0);
+          // Subtract cancelled transfers (added this week but being removed now)
+          // before adding new ones — removals haven't been applied to DB yet
           const netTransfers =
-            previousTransfers + playersToAdd.length - addedThisWeekBeingRemoved;
+            previousTransfers - addedThisWeekBeingRemoved + playersToAdd.length;
 
           if (netTransfers > MAX_TRANSFERS_PER_GAMEWEEK) {
             throw httpError(
@@ -904,7 +906,7 @@ export function getOwnershipOverview(db: Kysely<DB>) {
           "fp.player_name",
           sql<number>`SUM(fps.total_points)`.as("total_points"),
         ])
-        .groupBy("fps.play_cricket_id")
+        .groupBy(["fps.play_cricket_id", "fp.player_name"])
         .execute();
 
       for (const row of gwScores) {
@@ -931,7 +933,7 @@ export function getOwnershipOverview(db: Kysely<DB>) {
           "fp.player_name",
           sql<number>`SUM(fps.total_points)`.as("total_points"),
         ])
-        .groupBy("fps.play_cricket_id")
+        .groupBy(["fps.play_cricket_id", "fp.player_name"])
         .having(sql`SUM(fps.total_points)`, ">", 0)
         .execute();
 
@@ -1065,7 +1067,7 @@ export function getGameweekHighlights(db: Kysely<DB>) {
         sql<number>`SUM(fps.batting_points)`.as("batting_points"),
         sql<number>`SUM(fps.bowling_points)`.as("bowling_points"),
       ])
-      .groupBy("fps.play_cricket_id")
+      .groupBy(["fps.play_cricket_id", "fp.player_name"])
       .orderBy(sql`SUM(fps.total_points)`, "desc")
       .limit(1)
       .execute();
@@ -1087,7 +1089,7 @@ export function getGameweekHighlights(db: Kysely<DB>) {
         sql<number>`SUM(fps.bowling_points)`.as("bowling_points"),
         sql<number>`SUM(fps.total_points)`.as("total_points"),
       ])
-      .groupBy("fps.play_cricket_id")
+      .groupBy(["fps.play_cricket_id", "fp.player_name"])
       .orderBy(sql`SUM(fps.bowling_points)`, "desc")
       .limit(1)
       .execute();
@@ -1114,7 +1116,7 @@ export function getGameweekHighlights(db: Kysely<DB>) {
         "fp.player_name",
         sql<number>`SUM(fps.total_points)`.as("total_points"),
       ])
-      .groupBy("fps.play_cricket_id")
+      .groupBy(["fps.play_cricket_id", "fp.player_name"])
       .orderBy(sql`SUM(fps.total_points)`, "desc")
       .execute();
 
@@ -1274,7 +1276,7 @@ export function getGameweekHighlights(db: Kysely<DB>) {
           sql<number>`SUM(fts.total_points)`.as("cumulative_points"),
           "u.name as ownerName",
         ])
-        .groupBy("fts.fantasy_team_id")
+        .groupBy(["fts.fantasy_team_id", "ft.user_id", "u.name"])
         .orderBy(sql`SUM(fts.total_points)`, "desc")
         .execute();
 
@@ -1387,7 +1389,7 @@ export function getSeasonLeaderboard(db: Kysely<DB>) {
         sql<number>`COUNT(DISTINCT fts.gameweek_id)`.as("gameweeks_played"),
         "u.name as ownerName",
       ])
-      .groupBy("fts.fantasy_team_id")
+      .groupBy(["fts.fantasy_team_id", "ft.user_id", "u.name"])
       .orderBy(sql`SUM(fts.total_points)`, "desc")
       .execute();
 
@@ -1512,7 +1514,7 @@ export function getPlayerLeaderboard(db: Kysely<DB>) {
         sql<number>`SUM(fps.total_points)`.as("total_points"),
         sql<number>`COUNT(DISTINCT fps.match_id)`.as("matches_played"),
       ])
-      .groupBy("fps.play_cricket_id")
+      .groupBy(["fps.play_cricket_id", "fp.player_name"])
       .orderBy(sql`SUM(fps.total_points)`, "desc")
       .execute();
 

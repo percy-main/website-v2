@@ -47,12 +47,10 @@ export const teamIdSchema = z.object({
 export const gameweekDetailSchema = z.object({
   teamId: z.coerce.number(),
   gameweek: z.coerce.number(),
-  season: z.string().optional(),
 });
 
 export const playerHistorySchema = z.object({
   playCricketId: z.string(),
-  season: z.string().optional(),
 });
 
 export const chipSchema = z.object({
