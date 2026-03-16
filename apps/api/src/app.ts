@@ -1,6 +1,7 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import type { DB } from "@percy-main/db";
+import { createSend, type Email } from "@percy-main/email";
 import Fastify from "fastify";
 import type { Kysely, PostgresDialect } from "kysely";
 import type { Config } from "./config.js";
@@ -29,6 +30,7 @@ declare module "fastify" {
     db: Kysely<DB>;
     config: Config;
     auth: Auth;
+    send: (email: Email) => Promise<void>;
   }
 }
 
@@ -57,8 +59,16 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   app.decorate("db", db);
   app.decorate("config", config);
 
+  // Create and decorate the email sender
+  const send = createSend({
+    provider: config.EMAIL_PROVIDER,
+    sesRegion: config.SES_REGION,
+    fromAddress: config.SES_FROM_ADDRESS,
+  });
+  app.decorate("send", send);
+
   // Create and decorate the auth instance
-  const auth = createAuth(config, dialect);
+  const auth = createAuth(config, dialect, send);
   app.decorate("auth", auth);
 
   // Plugins

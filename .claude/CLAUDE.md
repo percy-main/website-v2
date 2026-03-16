@@ -188,7 +188,7 @@ pnpm run dev:api              # start API on port 3000
 pnpm run dev:web              # start frontend on port 5173 (proxies /api to :3000)
 ```
 
-The `.env.example` file documents all required environment variables. Copy to `.env` and fill in values.
+Each app/package has its own `.env.example` documenting required environment variables. Copy to `.env` in the same directory and fill in values. Currently only `apps/api/` needs a `.env` file.
 
 ## Development Workflow
 

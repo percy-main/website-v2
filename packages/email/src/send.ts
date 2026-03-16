@@ -1,8 +1,12 @@
 import { devSend } from "./devSend.js";
-import { sesSend } from "./sesSend.js";
-import type { Email } from "./types.js";
+import { createSesSend } from "./sesSend.js";
+import type { Email, EmailConfig } from "./types.js";
 
-const provider = process.env.EMAIL_PROVIDER ?? "dev";
-
-export const send: (email: Email) => Promise<void> =
-  provider === "dev" ? devSend : sesSend;
+export function createSend(
+  config: EmailConfig,
+): (email: Email) => Promise<void> {
+  if (config.provider === "dev") {
+    return devSend;
+  }
+  return createSesSend(config);
+}

@@ -7,8 +7,8 @@ import {
 import {
   MembershipUpdated,
   PlayerSponsorshipConfirmation,
-  send,
   SponsorshipConfirmation,
+  type Email,
 } from "@percy-main/email";
 import {
   gameSponsoredSchema,
@@ -38,6 +38,7 @@ interface WebhookDeps {
   stripe: Stripe;
   log: FastifyBaseLogger;
   baseUrl: string;
+  send: (email: Email) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,7 @@ export function handleCheckoutCompleted({
   stripe,
   log,
   baseUrl,
+  send,
 }: WebhookDeps) {
   const imageBaseUrl = `${baseUrl}/images`;
   const charge = createPaymentCharge(db);
@@ -234,6 +236,7 @@ export function handleInvoicePayment({
   stripe,
   log,
   baseUrl,
+  send,
 }: WebhookDeps) {
   const imageBaseUrl = `${baseUrl}/images`;
   const charge = createPaymentCharge(db);
@@ -333,6 +336,7 @@ export function handlePaymentIntentSucceeded({
   stripe,
   log,
   baseUrl,
+  send,
 }: WebhookDeps) {
   const imageBaseUrl = `${baseUrl}/images`;
   const charge = createPaymentCharge(db);
