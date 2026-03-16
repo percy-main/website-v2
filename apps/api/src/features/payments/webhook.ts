@@ -23,6 +23,7 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
     stripe,
     log: app.log,
     baseUrl: app.config.BASE_URL,
+    send: app.send,
   };
 
   const onCheckoutCompleted = handleCheckoutCompleted(deps);

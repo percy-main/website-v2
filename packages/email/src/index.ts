@@ -1,5 +1,5 @@
 export { email } from "./email.js";
-export { send } from "./send.js";
+export { createSend } from "./send.js";
 export { ChaosWeekAnnouncement } from "./templates/ChaosWeekAnnouncement.js";
 export { ChargeNotification } from "./templates/ChargeNotification.js";
 export { FantasyReminder } from "./templates/FantasyReminder.js";
@@ -9,4 +9,4 @@ export { PlayerSponsorshipConfirmation } from "./templates/PlayerSponsorshipConf
 export { ResetPassword } from "./templates/ResetPassword.js";
 export { SponsorshipConfirmation } from "./templates/SponsorshipConfirmation.js";
 export { VerifyEmail } from "./templates/VerifyEmail.js";
-export type { Email } from "./types.js";
+export type { Email, EmailConfig } from "./types.js";

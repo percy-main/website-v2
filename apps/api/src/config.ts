@@ -27,7 +27,7 @@ const configSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().default(""),
 
   // Stripe
-  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_SECRET_KEY: z.string(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
   // Email

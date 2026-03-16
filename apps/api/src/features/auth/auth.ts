@@ -1,5 +1,5 @@
 import { passkey } from "@better-auth/passkey";
-import { ResetPassword, send, VerifyEmail } from "@percy-main/email";
+import { ResetPassword, VerifyEmail, type Email } from "@percy-main/email";
 import { render } from "@react-email/render";
 import { betterAuth } from "better-auth";
 import { admin, twoFactor } from "better-auth/plugins";
@@ -7,7 +7,11 @@ import type { PostgresDialect } from "kysely";
 import { createElement } from "react";
 import type { Config } from "../../config.js";
 
-export function createAuth(config: Config, dialect: PostgresDialect) {
+export function createAuth(
+  config: Config,
+  dialect: PostgresDialect,
+  send: (email: Email) => Promise<void>,
+) {
   const baseURL = config.BASE_URL;
 
   return betterAuth({

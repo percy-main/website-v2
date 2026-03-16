@@ -201,6 +201,7 @@ describe("handleCheckoutCompleted", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler({ id: sessionId } as any, EVENT_CREATED);
@@ -257,6 +258,7 @@ describe("handleCheckoutCompleted", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler({ id: sessionId } as any, EVENT_CREATED);
@@ -303,6 +305,7 @@ describe("handleCheckoutCompleted", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler({ id: sessionId } as any, EVENT_CREATED);
@@ -361,6 +364,7 @@ describe("handleInvoicePayment", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler(
@@ -433,6 +437,7 @@ describe("handleInvoicePayment", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler(
@@ -493,6 +498,7 @@ describe("handleInvoicePayment", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler(
@@ -536,6 +542,7 @@ describe("handleInvoicePayment", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await expect(
@@ -556,6 +563,7 @@ describe("handleInvoicePayment", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await expect(
@@ -605,6 +613,7 @@ describe("handleInvoicePayment", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler(
@@ -690,6 +699,7 @@ describe("handlePaymentIntentSucceeded", () => {
       stripe: {} as any,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler(
@@ -749,6 +759,7 @@ describe("handlePaymentIntentSucceeded", () => {
       stripe: {} as any,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler(
@@ -813,6 +824,7 @@ describe("handlePaymentIntentSucceeded", () => {
       stripe: {} as any,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler(
@@ -863,6 +875,7 @@ describe("handlePaymentIntentSucceeded", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler(
@@ -905,6 +918,7 @@ describe("handlePaymentIntentSucceeded", () => {
       stripe: {} as any,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     await handler(
@@ -951,6 +965,7 @@ describe("handlePaymentIntentSucceeded", () => {
       stripe: mockStripe,
       log: mockLog,
       baseUrl: "http://localhost:5173",
+      send: vi.fn(),
     });
 
     const pi = {
