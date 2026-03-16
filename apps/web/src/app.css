@@ -73,7 +73,7 @@
 
   body {
     font-family: var(--font-primary);
-    @apply bg-creamy text-text min-h-svh antialiased leading-relaxed;
+    @apply bg-creamy text-text min-h-svh leading-relaxed antialiased;
   }
 
   h1,
@@ -83,7 +83,7 @@
   h5,
   h6 {
     font-family: var(--font-secondary);
-    @apply text-dark font-bold leading-tight;
+    @apply text-dark leading-tight font-bold;
   }
 
   h1,
@@ -143,6 +143,6 @@
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    @apply outline-2 outline-offset-2 outline-primary;
+    @apply outline-primary outline-2 outline-offset-2;
   }
 }

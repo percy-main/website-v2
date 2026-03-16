@@ -29,7 +29,7 @@ export const SiteFooter: FC = () => {
 
           {/* Column 2: Quick Links */}
           <div>
-            <h4 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
+            <h4 className="mb-4 text-sm font-semibold tracking-wider text-white uppercase">
               Quick Links
             </h4>
             <ul className="space-y-2 text-sm">
@@ -78,17 +78,17 @@ export const SiteFooter: FC = () => {
 
           {/* Column 3: Contact */}
           <div>
-            <h4 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
+            <h4 className="mb-4 text-sm font-semibold tracking-wider text-white uppercase">
               Contact
             </h4>
-            <address className="space-y-1 text-sm not-italic text-white/80">
+            <address className="space-y-1 text-sm text-white/80 not-italic">
               <p>St. Johns Terrace</p>
               <p>North Shields</p>
               <p>NE29 6HS</p>
             </address>
             <a
               href="mailto:trustees@percymain.org"
-              className="mt-3 inline-block text-sm text-cta transition hover:text-orange-300"
+              className="text-cta mt-3 inline-block text-sm transition hover:text-orange-300"
             >
               trustees@percymain.org
             </a>

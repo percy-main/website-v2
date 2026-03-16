@@ -1,6 +1,6 @@
-import { Outlet } from "react-router";
 import { SiteFooter } from "@/components/site-footer.js";
 import { SiteHeader } from "@/components/site-header.js";
+import { Outlet } from "react-router";
 
 export function RootLayout() {
   return (

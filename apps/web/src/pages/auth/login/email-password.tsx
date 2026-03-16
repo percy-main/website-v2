@@ -149,10 +149,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
           )}
           <p className="text-sm font-light text-gray-500">
             Don&apos;t have an account yet?{" "}
-            <Link
-              to="/auth/register"
-              className="font-medium hover:underline"
-            >
+            <Link to="/auth/register" className="font-medium hover:underline">
               Sign up
             </Link>
           </p>

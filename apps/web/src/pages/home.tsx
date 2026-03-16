@@ -38,7 +38,7 @@ export function Component() {
       {/* Hero */}
       <section className="bg-primary py-16 text-white md:py-24">
         <div className="container mx-auto px-8 text-center">
-          <h1 className="mb-4 text-h1-sm text-white md:text-h1">
+          <h1 className="text-h1-sm md:text-h1 mb-4 text-white">
             Percy Main Community Sports Club
           </h1>
           <p className="mx-auto mb-8 max-w-2xl text-lg text-white/80">
@@ -49,7 +49,7 @@ export function Component() {
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link
               to="/auth/register"
-              className="rounded-lg bg-cta px-8 py-3 text-lg font-medium text-white transition hover:bg-cta-dark"
+              className="bg-cta hover:bg-cta-dark rounded-lg px-8 py-3 text-lg font-medium text-white transition"
             >
               Join Us
             </Link>
@@ -66,7 +66,7 @@ export function Component() {
       {/* Our Sports */}
       <section className="bg-primary/5 py-12">
         <div className="container mx-auto px-8">
-          <h3 className="mb-8 text-center text-h4">Our Sports</h3>
+          <h3 className="text-h4 mb-8 text-center">Our Sports</h3>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {sports.map((sport) => (
               <Link
@@ -75,7 +75,7 @@ export function Component() {
                 className="rounded-lg bg-white p-6 shadow-sm transition hover:shadow-md"
               >
                 <span className="mb-3 block text-3xl">{sport.icon}</span>
-                <h4 className="mb-2 text-lg font-bold text-dark">
+                <h4 className="text-dark mb-2 text-lg font-bold">
                   {sport.name}
                 </h4>
                 <p className="text-sm text-gray-600">{sport.description}</p>
@@ -88,7 +88,7 @@ export function Component() {
       {/* Support CTA */}
       <section className="bg-primary py-16">
         <div className="container mx-auto px-8 text-center">
-          <h3 className="mb-4 text-h3 text-white">
+          <h3 className="text-h3 mb-4 text-white">
             Support Your Local Sports Club
           </h3>
           <p className="mx-auto mb-8 max-w-2xl text-lg text-white/80">
@@ -97,7 +97,7 @@ export function Component() {
           </p>
           <Link
             to={DONATE_URL}
-            className="inline-block rounded-lg bg-cta px-8 py-3.5 text-lg font-medium text-white transition-colors hover:bg-cta-dark"
+            className="bg-cta hover:bg-cta-dark inline-block rounded-lg px-8 py-3.5 text-lg font-medium text-white transition-colors"
           >
             Donate Now
           </Link>

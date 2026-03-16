@@ -55,11 +55,7 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
           Something went wrong
         </h1>
         <p>We can&apos;t reset your password right now.</p>
-        <Button
-          onClick={() => setPhase("forgot")}
-          type="button"
-          variant="link"
-        >
+        <Button onClick={() => setPhase("forgot")} type="button" variant="link">
           Try again
         </Button>
       </section>
@@ -74,11 +70,7 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
         </h1>
         <p>You sneaky devil.</p>
         <p>Let&apos;s try resetting your password again.</p>
-        <Button
-          onClick={() => setPhase("forgot")}
-          type="button"
-          variant="link"
-        >
+        <Button onClick={() => setPhase("forgot")} type="button" variant="link">
           Try again
         </Button>
       </section>

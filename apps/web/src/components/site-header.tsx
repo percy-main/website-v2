@@ -1,6 +1,6 @@
+import { useSession } from "@/lib/auth-client.js";
 import { useCallback, useEffect, useRef, useState, type FC } from "react";
 import { Link, useLocation } from "react-router";
-import { useSession } from "@/lib/auth-client.js";
 import { Logo } from "./logo.js";
 
 interface MenuItem {
@@ -60,8 +60,10 @@ const AuthNav: FC<{ variant: "utility" | "nav" }> = ({ variant }) => {
   return (
     <Link
       to={url}
-      className={`inline-block min-w-28 border-b-2 px-3 py-2 text-center text-sm font-medium uppercase tracking-wider transition hover:text-primary ${
-        active ? "border-primary/40 text-primary" : "border-transparent text-dark"
+      className={`hover:text-primary inline-block min-w-28 border-b-2 px-3 py-2 text-center text-sm font-medium tracking-wider uppercase transition ${
+        active
+          ? "border-primary/40 text-primary"
+          : "text-dark border-transparent"
       }`}
     >
       {label}
@@ -80,7 +82,7 @@ const NavItem: FC<{
       <Link
         to={item.url}
         onClick={onClick}
-        className={`block px-3 py-2 text-sm font-medium uppercase tracking-wider transition hover:text-primary ${
+        className={`hover:text-primary block px-3 py-2 text-sm font-medium tracking-wider uppercase transition ${
           active ? "text-primary" : "text-dark"
         }`}
       >
@@ -92,8 +94,10 @@ const NavItem: FC<{
   return (
     <Link
       to={item.url}
-      className={`inline-block border-b-2 px-3 py-2 text-sm font-medium uppercase tracking-wider transition hover:text-primary lg:block ${
-        active ? "border-primary/40 text-primary" : "border-transparent text-dark"
+      className={`hover:text-primary inline-block border-b-2 px-3 py-2 text-sm font-medium tracking-wider uppercase transition lg:block ${
+        active
+          ? "border-primary/40 text-primary"
+          : "text-dark border-transparent"
       }`}
     >
       {item.name}
@@ -159,7 +163,7 @@ export const SiteHeader: FC = () => {
             <AuthNav variant="utility" />
             <Link
               to={DONATE_URL}
-              className="rounded-full bg-cta px-4 py-1 text-sm font-medium text-white transition hover:bg-cta-dark"
+              className="bg-cta hover:bg-cta-dark rounded-full px-4 py-1 text-sm font-medium text-white transition"
             >
               Donate
             </Link>
@@ -171,7 +175,7 @@ export const SiteHeader: FC = () => {
       <div ref={mastheadRef} className="bg-creamy py-6 md:py-8">
         <div className="container mx-auto flex flex-col items-center justify-center gap-3 px-8">
           <Logo size="lg" />
-          <p className="mb-0 text-center font-secondary text-h4 font-bold text-dark md:text-h3">
+          <p className="font-secondary text-h4 text-dark md:text-h3 mb-0 text-center font-bold">
             Percy Main Community Sports Club
           </p>
         </div>
@@ -184,10 +188,7 @@ export const SiteHeader: FC = () => {
             {menu.map((item, i) => (
               <li key={item.name} className="flex items-center">
                 {i > 0 && (
-                  <span
-                    className="h-4 w-px bg-gray-200"
-                    aria-hidden="true"
-                  />
+                  <span className="h-4 w-px bg-gray-200" aria-hidden="true" />
                 )}
                 <span className="px-1">
                   <NavItem
@@ -211,7 +212,7 @@ export const SiteHeader: FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={openDrawer}
-              className="flex items-center p-1 text-dark lg:hidden"
+              className="text-dark flex items-center p-1 lg:hidden"
               aria-label="Open menu"
             >
               <HamburgerIcon />
@@ -222,10 +223,7 @@ export const SiteHeader: FC = () => {
             {menu.map((item, i) => (
               <li key={item.name} className="flex items-center">
                 {i > 0 && (
-                  <span
-                    className="h-4 w-px bg-gray-200"
-                    aria-hidden="true"
-                  />
+                  <span className="h-4 w-px bg-gray-200" aria-hidden="true" />
                 )}
                 <span className="px-1">
                   <NavItem
@@ -238,7 +236,7 @@ export const SiteHeader: FC = () => {
           </ul>
           <Link
             to={DONATE_URL}
-            className="rounded-full bg-cta px-4 py-1.5 text-sm font-medium text-white transition hover:bg-cta-dark"
+            className="bg-cta hover:bg-cta-dark rounded-full px-4 py-1.5 text-sm font-medium text-white transition"
           >
             Donate
           </Link>
@@ -259,13 +257,13 @@ export const SiteHeader: FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
-              <span className="font-secondary text-lg font-bold text-dark">
+              <span className="font-secondary text-dark text-lg font-bold">
                 Menu
               </span>
               <button
                 ref={closeButtonRef}
                 onClick={closeDrawer}
-                className="p-2 text-dark"
+                className="text-dark p-2"
                 aria-label="Close menu"
               >
                 <CloseIcon />
@@ -286,7 +284,7 @@ export const SiteHeader: FC = () => {
                 <Link
                   to={DONATE_URL}
                   onClick={closeDrawer}
-                  className="block rounded-lg bg-cta px-5 py-2.5 text-center text-sm font-medium text-white transition hover:bg-cta-dark"
+                  className="bg-cta hover:bg-cta-dark block rounded-lg px-5 py-2.5 text-center text-sm font-medium text-white transition"
                 >
                   Donate Now
                 </Link>

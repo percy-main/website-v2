@@ -33,7 +33,9 @@ export const ForgotPassword: FC = () => {
       </h1>
       {match(requestReset)
         .with({ data: { data: P.not(P.nullish) } }, () => (
-          <p>We&apos;ve sent you an email with a link to reset your password.</p>
+          <p>
+            We&apos;ve sent you an email with a link to reset your password.
+          </p>
         ))
         .otherwise(() => (
           <form
@@ -55,9 +57,7 @@ export const ForgotPassword: FC = () => {
               Submit
             </Button>
             {error && (
-              <p className="text-sm font-light text-red-800">
-                {error.message}
-              </p>
+              <p className="text-sm font-light text-red-800">{error.message}</p>
             )}
           </form>
         ))}

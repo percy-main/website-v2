@@ -178,10 +178,7 @@ export function Component() {
               className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               required
             />
-            <label
-              htmlFor="age-confirmed"
-              className="text-sm text-gray-700"
-            >
+            <label htmlFor="age-confirmed" className="text-sm text-gray-700">
               I confirm I am aged 13 or over
             </label>
           </div>
@@ -200,10 +197,7 @@ export function Component() {
 
           <p className="text-sm font-light text-gray-500">
             Already have an account?{" "}
-            <Link
-              to="/auth/login"
-              className="font-medium hover:underline"
-            >
+            <Link to="/auth/login" className="font-medium hover:underline">
               Sign in
             </Link>
           </p>

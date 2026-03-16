@@ -27,10 +27,7 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(
-  path: string,
-  options?: RequestInit,
-): Promise<T> {
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const { headers: extraHeaders, body, ...restOptions } = options ?? {};
   const response = await fetch(`/api${path}`, {
     credentials: "include",

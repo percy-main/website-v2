@@ -13,7 +13,9 @@ export function Component() {
         {match(phase)
           .with("forgot", () => <ForgotPassword />)
           .with("reset", () => <ResetPasswordForm setPhase={setPhase} />)
-          .otherwise(() => <ForgotPassword />)}
+          .otherwise(() => (
+            <ForgotPassword />
+          ))}
       </div>
     </div>
   );
