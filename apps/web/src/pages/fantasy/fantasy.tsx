@@ -290,62 +290,113 @@ function HomeTab() {
 
   return (
     <div className="space-y-6">
-      {/* Countdown / Status */}
+      {/* Welcome hero */}
       <Card>
-        <CardContent className="flex flex-col items-center gap-2 py-6">
-          {tw.isPending ? (
-            <Skeleton className="h-6 w-48" />
-          ) : tw.data?.isPreSeason ? (
-            <>
-              <p className="text-lg font-semibold">
-                Season starts in {tw.data.daysUntilLock} days
-              </p>
-              {stats.data && (
-                <p className="text-muted-foreground text-sm">
-                  {stats.data.teamCount} teams registered &middot;{" "}
-                  {stats.data.totalSandwiches} sandwiches consumed
-                </p>
-              )}
-            </>
-          ) : tw.data?.locked ? (
-            <p className="text-lg font-semibold text-amber-600">
-              Teams locked — reopens in {tw.data.daysUntilLock} day
-              {tw.data.daysUntilLock !== 1 ? "s" : ""}
-            </p>
-          ) : (
-            <p className="text-lg font-semibold text-green-600">
-              Transfer window open — GW{tw.data?.gameweek} &middot; Locks in{" "}
-              {tw.data?.daysUntilLock} day
-              {tw.data?.daysUntilLock !== 1 ? "s" : ""}
-            </p>
-          )}
+        <CardHeader>
+          <CardTitle>Welcome to Percy Main Fantasy Cricket</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p>
+            Pick your squad of 11 players from Percy Main&apos;s 1st and 2nd XI,
+            choose a captain for double points, and compete against other
+            members throughout the season. Points are scored from real match
+            performances in league games.
+          </p>
+          <div className="flex gap-2">
+            <Link to="/members/fantasy">
+              <Button size="sm">Go to My Team</Button>
+            </Link>
+            <Link to="/fantasy/rules">
+              <Button variant="outline" size="sm">
+                View Scoring Rules
+              </Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
 
-      {/* How it works */}
+      {/* Countdown stat cards */}
+      {tw.isPending ? (
+        <div className="grid grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="flex flex-col items-center py-6">
+                <Skeleton className="mb-1 h-10 w-16" />
+                <Skeleton className="h-4 w-20" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : tw.data?.isPreSeason ? (
+        <div className="grid grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="flex flex-col items-center py-6">
+              <span className="text-4xl font-bold text-blue-600">
+                {tw.data.daysUntilLock}
+              </span>
+              <span className="text-muted-foreground text-sm">days to go</span>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex flex-col items-center py-6">
+              <span className="text-4xl font-bold">
+                {stats.data?.teamCount ?? 0}
+              </span>
+              <span className="text-muted-foreground text-sm">
+                teams registered
+              </span>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex flex-col items-center py-6">
+              <span className="text-4xl font-bold text-amber-500">
+                {stats.data?.totalSandwiches ?? 0}
+              </span>
+              <span className="text-muted-foreground text-sm">
+                sandwiches consumed
+              </span>
+            </CardContent>
+          </Card>
+        </div>
+      ) : tw.data?.locked ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-1 py-6">
+            <span className="text-lg font-semibold text-amber-600">
+              Teams locked
+            </span>
+            <span className="text-muted-foreground text-sm">
+              Reopens in {tw.data.daysUntilLock} day
+              {tw.data.daysUntilLock !== 1 ? "s" : ""}
+            </span>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-1 py-6">
+            <span className="text-lg font-semibold text-green-600">
+              Transfer window open — GW{tw.data?.gameweek}
+            </span>
+            <span className="text-muted-foreground text-sm">
+              Locks in {tw.data?.daysUntilLock} day
+              {tw.data?.daysUntilLock !== 1 ? "s" : ""}
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* How it works — concise bullet list */}
       <Card>
         <CardHeader>
           <CardTitle>How It Works</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p>
-            Pick 11 players, assign them to batting, bowling, or all-rounder
-            slots, and earn points based on their real match performances.
-          </p>
-          <p>
-            Designate a captain (2x points) and a wicketkeeper. Stay within your
-            30-sandwich budget. Make up to 3 transfers per gameweek.
-          </p>
-          <div className="flex gap-2 pt-2">
-            <Link to="/fantasy/rules">
-              <Button variant="outline" size="sm">
-                Full Scoring Rules
-              </Button>
-            </Link>
-            <Link to="/members/fantasy">
-              <Button size="sm">Pick Your Team</Button>
-            </Link>
-          </div>
+        <CardContent>
+          <ul className="text-muted-foreground space-y-1 text-sm">
+            <li>Pick 11 players and designate a captain (2x points)</li>
+            <li>Points from batting, bowling, fielding, and team wins</li>
+            <li>Up to 3 transfers per gameweek during the season</li>
+            <li>Teams lock Friday night, reopen Monday</li>
+            <li>Only 1st XI and 2nd XI league matches count</li>
+          </ul>
         </CardContent>
       </Card>
 
@@ -975,14 +1026,7 @@ export function Component() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Fantasy Cricket</h1>
-        {session && (
-          <Link to="/members/fantasy">
-            <Button size="sm">My Team</Button>
-          </Link>
-        )}
-      </div>
+      <h1 className="mb-6 text-3xl font-bold">Fantasy Cricket</h1>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-4 w-full justify-start">
