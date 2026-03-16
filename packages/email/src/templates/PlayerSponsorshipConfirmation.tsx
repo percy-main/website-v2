@@ -1,4 +1,3 @@
-/** @jsxImportSource react */
 import {
   Body,
   Container,
@@ -9,7 +8,7 @@ import {
   Preview,
   Text,
 } from "@react-email/components";
-import type { FC } from "react";
+import React, { type FC } from "react";
 import { email } from "../email.js";
 import * as styles from "../styles.js";
 
