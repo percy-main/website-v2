@@ -1,12 +1,21 @@
 import type { FastifyPluginAsync } from "fastify";
 import { parseBody } from "../../lib/validation.js";
 import { getAuthSession, requireAuth } from "../auth/middleware.js";
+import { createStripe } from "../payments/stripe.js";
 import { confirmPaymentSchema } from "./schemas.js";
-import { confirmPayment, getMyCharges } from "./service.js";
+import {
+  confirmPayment,
+  getMyCharges,
+  payOutstandingCharges,
+} from "./service.js";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const chargeRoutes: FastifyPluginAsync = async (app) => {
+  const stripe = createStripe({
+    stripeSecretKey: app.config.STRIPE_SECRET_KEY,
+  });
   const getCharges = getMyCharges(app.db);
+  const payOutstanding = payOutstandingCharges(app.db, stripe);
   const confirm = confirmPayment(app.db);
 
   app.get("/charges", { preHandler: [requireAuth] }, async (request) => {
@@ -14,6 +23,15 @@ export const chargeRoutes: FastifyPluginAsync = async (app) => {
     const charges = await getCharges(user.email);
     return { charges };
   });
+
+  app.post(
+    "/charges/pay-outstanding",
+    { preHandler: [requireAuth] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      return await payOutstanding(user.email);
+    },
+  );
 
   app.post(
     "/charges/confirm-payment",
