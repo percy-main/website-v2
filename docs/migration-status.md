@@ -91,8 +91,8 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] Vite dev proxy (`/api` → localhost:3000)
 - [x] React Router route definitions
 - [x] Root providers (auth context, React Query)
-- [ ] Port React island components (these move as-is)
-- [ ] Port Astro-native components (layouts, navigation, pages)
+- [ ] Port React island components (Batch 1 done: members dashboard, payments, simple pages)
+- [ ] Port Astro-native components (layouts/nav done; remaining pages in batches 2-4)
 - [x] Replace Astro actions with API calls (api client + react-query pattern established)
 - [ ] CloudFront distribution + S3 origin
 - [ ] SPA routing (custom error response → index.html)
