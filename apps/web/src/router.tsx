@@ -143,11 +143,16 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           {
-            element: <RequireRole roles={["admin"]} />,
+            element: <RequireVerifiedEmail />,
             children: [
               {
-                path: "admin",
-                lazy: () => import("./pages/admin/admin-panel.js"),
+                element: <RequireRole roles={["admin"]} />,
+                children: [
+                  {
+                    path: "admin",
+                    lazy: () => import("./pages/admin/admin-panel.js"),
+                  },
+                ],
               },
             ],
           },
@@ -159,11 +164,16 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           {
-            element: <RequireRole roles={["official", "admin"]} />,
+            element: <RequireVerifiedEmail />,
             children: [
               {
-                path: "official",
-                lazy: () => import("./pages/official/official.js"),
+                element: <RequireRole roles={["official", "admin"]} />,
+                children: [
+                  {
+                    path: "official",
+                    lazy: () => import("./pages/official/official.js"),
+                  },
+                ],
               },
             ],
           },
@@ -175,12 +185,17 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           {
-            element: <RequireRole roles={["junior_manager", "admin"]} />,
+            element: <RequireVerifiedEmail />,
             children: [
               {
-                path: "junior-manager",
-                lazy: () =>
-                  import("./pages/junior-manager/junior-manager.js"),
+                element: <RequireRole roles={["junior_manager", "admin"]} />,
+                children: [
+                  {
+                    path: "junior-manager",
+                    lazy: () =>
+                      import("./pages/junior-manager/junior-manager.js"),
+                  },
+                ],
               },
             ],
           },
