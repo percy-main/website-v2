@@ -27,19 +27,13 @@ const GoogleIcon: FC = () => (
 );
 
 export function Component() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [searchParams] = useSearchParams();
+  const [name, setName] = useState(() => searchParams.get("name") ?? "");
+  const [email, setEmail] = useState(() => searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [ageError, setAgeError] = useState(false);
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-
-  // Pre-fill from query params (backwards-compatible)
-  const initialName = searchParams.get("name") ?? "";
-  const initialEmail = searchParams.get("email") ?? "";
-  if (initialName && !name) setName(initialName);
-  if (initialEmail && !email) setEmail(initialEmail);
 
   const register = useMutation({
     mutationFn: () =>

@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router";
 import type { z } from "zod";
 
 export function useSearchParam<T>({
@@ -11,8 +12,8 @@ export function useSearchParam<T>({
   parse?: (params: string) => unknown;
   schema: z.ZodType<T>;
 }) {
-  const params = new URLSearchParams(window.location.search);
-  const rawValue = params.get(param) ?? undefined;
+  const [searchParams] = useSearchParams();
+  const rawValue = searchParams.get(param) ?? undefined;
   const value = decode && rawValue ? decodeURIComponent(rawValue) : rawValue;
   const candidate = parse && value ? parse(value) : value;
   return schema.parse(candidate);

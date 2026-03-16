@@ -31,13 +31,14 @@ async function request<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
-  const { headers: extraHeaders, ...restOptions } = options ?? {};
+  const { headers: extraHeaders, body, ...restOptions } = options ?? {};
   const response = await fetch(`/api${path}`, {
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(body != null ? { "Content-Type": "application/json" } : {}),
       ...(extraHeaders as Record<string, string>),
     },
+    body,
     ...restOptions,
   });
 
@@ -50,6 +51,9 @@ async function request<T>(
     return undefined as T;
   }
 
+  // Type assertion is intentional here — this is a generic transport layer.
+  // Callers validate responses with Zod schemas at the call site
+  // (e.g. in react-query queryFn: schema.parse(await api.get(...))).
   return response.json() as Promise<T>;
 }
 

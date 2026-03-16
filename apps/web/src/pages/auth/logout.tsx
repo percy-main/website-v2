@@ -6,9 +6,14 @@ export function Component() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    void authClient.signOut().then(() => {
-      void navigate("/");
-    });
+    void authClient
+      .signOut()
+      .catch(() => {
+        // Sign out failed (network error, etc.) — navigate home regardless
+      })
+      .then(() => {
+        void navigate("/");
+      });
   }, [navigate]);
 
   return (

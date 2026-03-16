@@ -45,7 +45,7 @@ export const ForgotPassword: FC = () => {
               password.
             </p>
             <SimpleInput
-              type="text"
+              type="email"
               id="email-forgotten"
               label="Email"
               value={email}

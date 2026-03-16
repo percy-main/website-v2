@@ -130,7 +130,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
             value={password}
             onChange={(e) => setPassword(e.currentTarget.value)}
             required
-            autoComplete="password web-authn"
+            autoComplete="current-password webauthn"
           />
           <div className="flex items-center justify-end">
             <Button

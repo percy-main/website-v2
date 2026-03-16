@@ -106,6 +106,7 @@ export const SiteHeader: FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [stickyVisible, setStickyVisible] = useState(false);
   const mastheadRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   // Sticky bar via IntersectionObserver
   useEffect(() => {
@@ -125,9 +126,12 @@ export const SiteHeader: FC = () => {
     return () => observer.disconnect();
   }, []);
 
-  // Prevent body scroll when drawer is open
+  // Prevent body scroll when drawer is open + focus management
   useEffect(() => {
     document.body.style.overflow = drawerOpen ? "hidden" : "";
+    if (drawerOpen) {
+      closeButtonRef.current?.focus();
+    }
     return () => {
       document.body.style.overflow = "";
     };
@@ -167,9 +171,9 @@ export const SiteHeader: FC = () => {
       <div ref={mastheadRef} className="bg-creamy py-6 md:py-8">
         <div className="container mx-auto flex flex-col items-center justify-center gap-3 px-8">
           <Logo size="lg" />
-          <h1 className="mb-0 text-center text-h4 font-bold text-dark md:text-h3">
+          <p className="mb-0 text-center font-secondary text-h4 font-bold text-dark md:text-h3">
             Percy Main Community Sports Club
-          </h1>
+          </p>
         </div>
       </div>
 
@@ -248,6 +252,9 @@ export const SiteHeader: FC = () => {
           onClick={closeDrawer}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation menu"
             className="absolute top-0 right-0 h-full w-72 bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
@@ -256,6 +263,7 @@ export const SiteHeader: FC = () => {
                 Menu
               </span>
               <button
+                ref={closeButtonRef}
                 onClick={closeDrawer}
                 className="p-2 text-dark"
                 aria-label="Close menu"
