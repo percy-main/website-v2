@@ -8,7 +8,7 @@ import {
   Preview,
   Text,
 } from "@react-email/components";
-import React, { type FC } from "react";
+import { type FC } from "react";
 import { email } from "../email.js";
 import * as styles from "../styles.js";
 
