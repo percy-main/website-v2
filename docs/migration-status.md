@@ -141,9 +141,15 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 
 - [x] `.claude/CLAUDE.md` — project guide for v2
 - [x] `.claude/skills/` — triage, clarify, devit
-- [x] `docs/adrs/` — 10 Architecture Decision Records
+- [x] `docs/adrs/` — 11 Architecture Decision Records
 - [x] `docs/` — admin guides, member guides, Play-Cricket API reference, AWS plan
 - [x] `packages/shared` — Zod schemas, member categories, payment metadata
 - [x] `packages/email` — 9 template stubs + SES sender + dev file writer
 - [x] Port full email template content from v1
 - [x] ESLint + Prettier config for monorepo
+
+### API type safety (ADR 011)
+
+- [ ] Shared Zod response schemas in `packages/shared/src/api/` (Phase 1 — adopt for new endpoints, backfill existing)
+- [ ] Wire up `fastify-type-provider-zod` + `@fastify/swagger` for OpenAPI generation (Phase 2)
+- [ ] Generate typed frontend client from OpenAPI spec via `openapi-typescript` + `openapi-fetch` (Phase 2)
