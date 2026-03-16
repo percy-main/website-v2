@@ -206,17 +206,19 @@ When beginning work on a ticket:
 
 6. **Execute** — commit frequently, ensure lint + test + typecheck pass locally.
 
-7. **Open a PR** — against `main`, include `Closes #N`.
+7. **Pre-PR verification** — before opening a PR, run the full CI check suite locally: `pnpm run typecheck && pnpm run lint && pnpm format:check && pnpm --filter api test`. Fix any issues before proceeding.
 
-8. **Review** — use a code-reviewer agent. Instruct it to read files locally (not via WebFetch). Post comments on the PR.
+8. **Open a PR** — against `main`, include `Closes #N`.
 
-9. **Address review comments** — commit fixes, reply to each comment.
+9. **Review** — use a code-reviewer agent. Instruct it to read files locally (not via WebFetch). Post comments on the PR.
 
-10. **Finalise** — ensure all CI checks pass and review comments are addressed.
+10. **Address review comments** — commit fixes, reply to each comment.
 
-11. **Clean up** — stop local processes, delete worktree.
+11. **Finalise** — ensure all CI checks pass and review comments are addressed.
 
-12. **Report** — notify user with summary and PR link.
+12. **Clean up** — stop local processes, delete worktree.
+
+13. **Report** — notify user with summary and PR link.
 
 ## Key Scripts
 

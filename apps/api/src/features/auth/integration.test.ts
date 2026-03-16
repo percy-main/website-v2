@@ -56,8 +56,9 @@ describe("auth registration email (integration)", () => {
     expect(meta.subject).toBe("Verify your email address");
 
     // The HTML should be a properly rendered email, not an error template
-    const htmlFile = files.find((f) => f.endsWith(".html"))!;
-    const html = await readFile(join(emailDir, htmlFile), "utf-8");
+    const htmlFiles = files.filter((f) => f.endsWith(".html"));
+    expect(htmlFiles.length).toBeGreaterThanOrEqual(1);
+    const html = await readFile(join(emailDir, htmlFiles[0]), "utf-8");
 
     expect(html).not.toContain("React is not defined");
     expect(html).not.toContain("server rendering errored");
