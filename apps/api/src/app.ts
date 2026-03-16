@@ -12,6 +12,7 @@ import { adminRoutes } from "./features/admin/routes.js";
 import { authRoutes } from "./features/auth/routes.js";
 import { chargeRoutes } from "./features/charges/routes.js";
 import { contactRoutes } from "./features/contact/routes.js";
+import { cricketLeaderboardRoutes } from "./features/cricket-leaderboard/routes.js";
 import { fantasyRoutes } from "./features/fantasy/routes.js";
 import { healthRoutes } from "./features/health/routes.js";
 import { juniorRoutes } from "./features/junior/routes.js";
@@ -92,6 +93,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(adminRoutes, { prefix: "/api" });
   await app.register(treasurerRoutes, { prefix: "/api" });
   await app.register(leaderboardRoutes, { prefix: "/api" });
+  await app.register(cricketLeaderboardRoutes, { prefix: "/api" });
   await app.register(contactRoutes, { prefix: "/api" });
   await app.register(webhookRoutes, { prefix: "/api" });
 
