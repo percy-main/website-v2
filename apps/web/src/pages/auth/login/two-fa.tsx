@@ -1,0 +1,82 @@
+import { Button } from "@/components/ui/button.js";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
+} from "@/components/ui/input-otp.js";
+import { authClient } from "@/lib/auth-client.js";
+import { useMutation } from "@tanstack/react-query";
+import { useCallback, useState, type FC } from "react";
+import { useNavigate } from "react-router";
+import type { LoginPhase } from "../login.js";
+
+interface Props {
+  setPhase: (phase: LoginPhase) => void;
+}
+
+export const TwoFA: FC<Props> = ({ setPhase }) => {
+  const [otp, setOtp] = useState("");
+  const navigate = useNavigate();
+
+  const signin = useMutation({
+    mutationFn: () =>
+      authClient.twoFactor.verifyTotp(
+        { code: otp },
+        {
+          onSuccess() {
+            void navigate("/members");
+          },
+        },
+      ),
+  });
+
+  const handleSubmit = useCallback(
+    (event: React.SyntheticEvent) => {
+      event.preventDefault();
+      signin.mutate();
+    },
+    [signin],
+  );
+
+  const error = signin.error ?? signin.data?.error;
+
+  return (
+    <section>
+      <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+        Two-factor Authentication Required
+      </h1>
+      <form
+        className="flex flex-col items-center justify-center space-y-4 md:space-y-6"
+        onSubmit={handleSubmit}
+      >
+        <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+          <InputOTPGroup>
+            <InputOTPSlot index={0} />
+            <InputOTPSlot index={1} />
+            <InputOTPSlot index={2} />
+          </InputOTPGroup>
+          <InputOTPSeparator />
+          <InputOTPGroup>
+            <InputOTPSlot index={3} />
+            <InputOTPSlot index={4} />
+            <InputOTPSlot index={5} />
+          </InputOTPGroup>
+        </InputOTP>
+        <Button type="submit" className="w-full">
+          Submit
+        </Button>
+        {error && (
+          <p className="text-sm font-light text-red-800">{error.message}</p>
+        )}
+        <Button
+          type="button"
+          variant="link"
+          onClick={() => setPhase("recovery")}
+        >
+          Stuck? Use a recovery code.
+        </Button>
+      </form>
+    </section>
+  );
+};

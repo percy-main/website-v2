@@ -1,0 +1,148 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-text: #444;
+  --color-light: #ceced0;
+  --color-dark: #222;
+  --color-primary: #1b3d2f;
+  --color-primary-light: #2d4a3e;
+  --color-cta: #fe6019;
+  --color-cta-dark: #e5540f;
+  --color-secondary: #fee140;
+  --color-body: #faf8f3;
+  --color-creamy: #faf8f3;
+  --color-win: #16a34a;
+  --color-win-bg: #dcfce7;
+  --color-loss: #dc2626;
+  --color-loss-bg: #fee2e2;
+  --color-draw: #d97706;
+  --color-draw-bg: #fef3c7;
+  --color-home: #1b3d2f;
+  --color-home-bg: #e8f0ec;
+  --color-away: #7c3aed;
+  --color-away-bg: #ede9fe;
+  --color-team-1xi: #1b3d2f;
+  --color-team-2xi: #2563eb;
+  --color-team-mid: #7c3aed;
+  --color-team-jun: #d97706;
+
+  /* Typography scale (base 16px, ratio 1.24571) */
+  --font-size-h6: 1rem;
+  --font-size-h5: 1.24571rem;
+  --font-size-h4: 1.55179rem;
+  --font-size-h3: 1.93325rem;
+  --font-size-h3-sm: 1.5466rem;
+  --font-size-h2: 2.40862rem;
+  --font-size-h2-sm: 1.9269rem;
+  --font-size-h1: 3.00042rem;
+  --font-size-h1-sm: 2.40034rem;
+
+  /* Font families */
+  --font-primary: "Source Sans 3", sans-serif;
+  --font-secondary: "Lora", serif;
+
+  /* Breakpoints */
+  --breakpoint-sm: 540px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  /* Animation */
+  --animate-caret-blink: caret-blink 1.25s ease-out infinite;
+
+  @keyframes caret-blink {
+    0%,
+    70%,
+    100% {
+      opacity: 1;
+    }
+    20%,
+    50% {
+      opacity: 0;
+    }
+  }
+}
+
+@layer base {
+  html {
+    font-size: 16px;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    font-family: var(--font-primary);
+    @apply bg-creamy text-text min-h-svh leading-relaxed antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-secondary);
+    @apply text-dark leading-tight font-bold;
+  }
+
+  h1,
+  .h1 {
+    font-size: var(--font-size-h1-sm);
+    margin-bottom: 1.5rem;
+  }
+
+  h2,
+  .h2 {
+    font-size: var(--font-size-h2-sm);
+    margin-bottom: 1.25rem;
+  }
+
+  h3,
+  .h3 {
+    font-size: var(--font-size-h3-sm);
+    margin-bottom: 1rem;
+  }
+
+  h4,
+  .h4 {
+    font-size: var(--font-size-h4);
+    margin-bottom: 0.75rem;
+  }
+
+  h5,
+  .h5 {
+    font-size: var(--font-size-h5);
+    margin-bottom: 0.5rem;
+  }
+
+  h6,
+  .h6 {
+    font-size: var(--font-size-h6);
+    margin-bottom: 0.25rem;
+  }
+
+  @media (min-width: 768px) {
+    h1,
+    .h1 {
+      font-size: var(--font-size-h2);
+    }
+
+    h3,
+    .h3 {
+      font-size: var(--font-size-h3);
+    }
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    @apply outline-primary outline-2 outline-offset-2;
+  }
+}
