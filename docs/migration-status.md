@@ -76,6 +76,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 
 - [ ] Separate Play-Cricket sync into independent pipeline stages
 - [ ] Fantasy scoring pipeline (triggered after ingest)
+- [ ] Fantasy reminder scheduled job (Thursday email to inactive teams — replaces Netlify cron)
 - [ ] Cache refresh for league tables and leaderboards
 - [ ] EventBridge scheduling
 - [ ] CloudWatch metrics per pipeline stage
@@ -93,7 +94,10 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] Root providers (auth context, React Query)
 - [ ] Port non-Contentful pages (Batch 2):
   - [x] Cricket leaderboard
-  - [x] Fantasy cricket (3 pages: home with tabs, scoring rules, team management + 20 new API endpoints)
+  - [x] Fantasy cricket (3 pages: home with tabs, scoring rules, team management + 20 new API endpoints). Deferred items:
+    - [ ] Recharts season timeline chart on history tab (hooks wired, chart rendering TODO)
+    - [ ] Chaos week admin email sending (needs `packages/email` ChaosWeekAnnouncement template wiring)
+    - [ ] Team share image generation (depends on Contentful player photos — deferred to Phase 5)
   - [ ] Be the Keeper game (2 pages)
   - [ ] Static pages (privacy policy, nets redirect, payment confirmation)
   - [ ] Admin panel
