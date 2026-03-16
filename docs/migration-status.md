@@ -89,11 +89,11 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 
 - [x] `apps/web` scaffold (React + Vite + React Router + Tailwind v4 + React Query)
 - [x] Vite dev proxy (`/api` → localhost:3000)
-- [ ] React Router route definitions
-- [ ] Root providers (auth context, React Query)
+- [x] React Router route definitions
+- [x] Root providers (auth context, React Query)
 - [ ] Port React island components (these move as-is)
 - [ ] Port Astro-native components (layouts, navigation, pages)
-- [ ] Replace Astro actions with API calls
+- [x] Replace Astro actions with API calls (api client + react-query pattern established)
 - [ ] CloudFront distribution + S3 origin
 - [ ] SPA routing (custom error response → index.html)
 - [ ] Deploy preview infrastructure (per-PR S3 prefixes)
@@ -146,4 +146,4 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] `packages/shared` — Zod schemas, member categories, payment metadata
 - [x] `packages/email` — 9 template stubs + SES sender + dev file writer
 - [x] Port full email template content from v1
-- [ ] ESLint + Prettier config for monorepo
+- [x] ESLint + Prettier config for monorepo
