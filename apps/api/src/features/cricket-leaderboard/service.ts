@@ -79,7 +79,7 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
           innings,
           notOuts,
           runs,
-          highScore: Number(row.highScore),
+          highScore: row.highScore,
           average:
             innings >= 3 && dismissals > 0
               ? Number((runs / dismissals).toFixed(2))
@@ -184,7 +184,7 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
             totalBalls >= 60 && wickets > 0
               ? Number((totalBalls / wickets).toFixed(1))
               : null,
-          bestWickets: Number(row.bestWickets),
+          bestWickets: row.bestWickets,
         };
       }),
     };

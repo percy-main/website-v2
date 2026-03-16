@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   startTestContainer,
@@ -152,19 +153,19 @@ describe("cricket leaderboard service (integration)", () => {
       });
 
       const entry = result.entries.find((e) => e.playerId === playerId);
-      expect(entry).toBeTruthy();
-      expect(entry!.innings).toBe(2);
-      expect(entry!.runs).toBe(150);
-      expect(entry!.notOuts).toBe(1);
-      expect(entry!.highScore).toBe(100);
-      expect(entry!.fours).toBe(10);
-      expect(entry!.sixes).toBe(4);
-      expect(entry!.fifties).toBe(1);
-      expect(entry!.hundreds).toBe(1);
+      assert(entry, "Expected batting entry for player");
+      expect(entry.innings).toBe(2);
+      expect(entry.runs).toBe(150);
+      expect(entry.notOuts).toBe(1);
+      expect(entry.highScore).toBe(100);
+      expect(entry.fours).toBe(10);
+      expect(entry.sixes).toBe(4);
+      expect(entry.fifties).toBe(1);
+      expect(entry.hundreds).toBe(1);
       // Only 2 innings, average not shown (requires 3+)
-      expect(entry!.average).toBeNull();
+      expect(entry.average).toBeNull();
       // Strike rate: 150/90 * 100 = 166.67
-      expect(entry!.strikeRate).toBeCloseTo(166.67, 1);
+      expect(entry.strikeRate).toBeCloseTo(166.67, 1);
     });
 
     it("calculates batting average when 3+ innings", async () => {
@@ -188,9 +189,9 @@ describe("cricket leaderboard service (integration)", () => {
       });
 
       const entry = result.entries.find((e) => e.playerId === playerId);
-      expect(entry).toBeTruthy();
+      assert(entry, "Expected batting entry for player");
       // 90 runs / 3 dismissals = 30.00
-      expect(entry!.average).toBe(30);
+      expect(entry.average).toBe(30);
     });
 
     it("filters by junior/senior teams", async () => {
@@ -264,10 +265,10 @@ describe("cricket leaderboard service (integration)", () => {
       });
 
       const entry = leagueOnly.entries.find((e) => e.playerId === playerId);
-      expect(entry).toBeTruthy();
+      assert(entry, "Expected batting entry for player");
       // Only the league innings (60 runs), not cup (20)
-      expect(entry!.runs).toBe(60);
-      expect(entry!.innings).toBe(1);
+      expect(entry.runs).toBe(60);
+      expect(entry.innings).toBe(1);
     });
 
     it("joins with member table for contentfulEntryId", async () => {
@@ -328,20 +329,20 @@ describe("cricket leaderboard service (integration)", () => {
       });
 
       const entry = result.entries.find((e) => e.playerId === playerId);
-      expect(entry).toBeTruthy();
-      expect(entry!.matches).toBe(2);
+      assert(entry, "Expected bowling entry for player");
+      expect(entry.matches).toBe(2);
       // 5.3 = 33 balls + 7.0 = 42 balls = 75 balls = 12.3 overs
-      expect(entry!.overs).toBe("12.3");
-      expect(entry!.maidens).toBe(3);
-      expect(entry!.runs).toBe(55);
-      expect(entry!.wickets).toBe(5);
-      expect(entry!.bestWickets).toBe(3);
+      expect(entry.overs).toBe("12.3");
+      expect(entry.maidens).toBe(3);
+      expect(entry.runs).toBe(55);
+      expect(entry.wickets).toBe(5);
+      expect(entry.bestWickets).toBe(3);
       // Average: 55/5 = 11.00
-      expect(entry!.average).toBe(11);
+      expect(entry.average).toBe(11);
       // Economy: 55/(75/6) = 4.40
-      expect(entry!.economy).toBe(4.4);
+      expect(entry.economy).toBe(4.4);
       // Strike rate: 75/5 = 15.0
-      expect(entry!.strikeRate).toBe(15);
+      expect(entry.strikeRate).toBe(15);
     });
 
     it("does not show bowling average/SR when under 10 overs", async () => {
@@ -364,12 +365,12 @@ describe("cricket leaderboard service (integration)", () => {
       });
 
       const entry = result.entries.find((e) => e.playerId === playerId);
-      expect(entry).toBeTruthy();
+      assert(entry, "Expected bowling entry for player");
       // 18 balls < 60, so average and strike rate should be null
-      expect(entry!.average).toBeNull();
-      expect(entry!.strikeRate).toBeNull();
+      expect(entry.average).toBeNull();
+      expect(entry.strikeRate).toBeNull();
       // Economy should still show
-      expect(entry!.economy).toBeTruthy();
+      expect(entry.economy).toBeTruthy();
     });
   });
 });
