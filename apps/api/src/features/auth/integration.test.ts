@@ -1,13 +1,13 @@
+import type { FastifyInstance } from "fastify";
 import { readdir, readFile, rm } from "fs/promises";
 import { join } from "path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { buildTestApp } from "../../test/app.js";
 import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
 } from "../../test/containers.js";
-import { buildTestApp } from "../../test/app.js";
-import type { FastifyInstance } from "fastify";
 
 let ctx: TestContext;
 let app: FastifyInstance;
@@ -26,9 +26,7 @@ afterAll(async () => {
 /** Remove any leftover dev emails so each test starts clean. */
 beforeEach(async () => {
   const files = await readdir(emailDir).catch(() => []);
-  await Promise.all(
-    files.map((f) => rm(join(emailDir, f), { force: true })),
-  );
+  await Promise.all(files.map((f) => rm(join(emailDir, f), { force: true })));
 });
 
 describe("auth registration email (integration)", () => {
