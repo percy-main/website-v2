@@ -2,32 +2,50 @@ import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExecute, mockQueryBuilder } = vi.hoisted(() => {
-  const mockExecuteTakeFirst = vi.fn();
-  const mockExecute = vi.fn();
+const { mockExecute, mockExecuteTakeFirst, mockQueryBuilder } = vi.hoisted(
+  () => {
+    const mockExecuteTakeFirst = vi.fn();
+    const mockExecute = vi.fn();
 
-  const mockQueryBuilder = {
-    selectFrom: vi.fn().mockReturnThis(),
-    updateTable: vi.fn().mockReturnThis(),
-    insertInto: vi.fn().mockReturnThis(),
-    deleteFrom: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    select: vi.fn().mockReturnThis(),
-    selectAll: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    values: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    offset: vi.fn().mockReturnThis(),
-    executeTakeFirst: mockExecuteTakeFirst,
-    execute: mockExecute,
-  };
+    const mockQueryBuilder = {
+      selectFrom: vi.fn().mockReturnThis(),
+      updateTable: vi.fn().mockReturnThis(),
+      insertInto: vi.fn().mockReturnThis(),
+      deleteFrom: vi.fn().mockReturnThis(),
+      innerJoin: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      selectAll: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      values: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      offset: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
+      transaction: vi.fn().mockReturnValue({
+        execute: vi.fn(async (cb: (trx: unknown) => Promise<unknown>) =>
+          cb(mockQueryBuilder),
+        ),
+      }),
+      executeTakeFirst: mockExecuteTakeFirst,
+      execute: mockExecute,
+    };
 
-  return { mockExecuteTakeFirst, mockExecute, mockQueryBuilder };
-});
+    return { mockExecuteTakeFirst, mockExecute, mockQueryBuilder };
+  },
+);
 
-import { deleteExpense, listMatches, recordExpense } from "./service.js";
+import {
+  addPlayer,
+  createMatchday,
+  deleteExpense,
+  listMatches,
+  listTeams,
+  recordExpense,
+  removePlayer,
+  searchMembers,
+} from "./service.js";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 
@@ -40,6 +58,12 @@ describe("matchday service", () => {
         (val as ReturnType<typeof vi.fn>).mockReturnValue(mockQueryBuilder);
       }
     }
+    // Reset transaction mock
+    mockQueryBuilder.transaction.mockReturnValue({
+      execute: vi.fn(async (cb: (trx: unknown) => Promise<unknown>) =>
+        cb(mockQueryBuilder),
+      ),
+    });
   });
 
   describe("listMatches", () => {
@@ -84,11 +108,121 @@ describe("matchday service", () => {
     });
   });
 
-  describe("recordExpense", () => {
-    it("creates expense record and returns id", async () => {
+  describe("listTeams", () => {
+    it("returns all teams for admin", async () => {
+      const teams = [{ id: "t1", name: "1st XI", is_junior: false }];
+      mockExecute.mockResolvedValueOnce(teams); // getAccessibleTeamIds
+      mockExecute.mockResolvedValueOnce(teams); // selectFrom play_cricket_team
+
+      const result = await listTeams(db)("user-1", "admin");
+      expect(result).toEqual(teams);
+    });
+
+    it("returns empty for official with no teams", async () => {
+      mockExecute.mockResolvedValueOnce([]); // getAccessibleTeamIds (team_official)
+
+      const result = await listTeams(db)("user-1", "official");
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("searchMembers", () => {
+    it("searches members by name", async () => {
+      const members = [
+        { id: "m1", name: "John", email: "j@t.com", member_category: "senior" },
+      ];
+      mockExecute.mockResolvedValue(members);
+
+      const result = await searchMembers(db)({ query: "John" });
+      expect(result).toEqual(members);
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+        "name",
+        "ilike",
+        "%John%",
+      );
+      expect(mockQueryBuilder.limit).toHaveBeenCalledWith(20);
+    });
+  });
+
+  describe("createMatchday", () => {
+    it("creates a matchday for accessible team", async () => {
+      // getAccessibleTeamIds returns the team
+      mockExecute.mockResolvedValueOnce([{ id: "t1" }]);
+      // No existing matchday
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+      // Insert
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await createMatchday(db)("user-1", "admin", {
+        teamId: "t1",
+        matchDate: "2026-06-15",
+        opposition: "Test CC",
+      });
+
+      expect(result.id).toBeDefined();
+      expect(mockQueryBuilder.insertInto).toHaveBeenCalledWith("matchday");
+    });
+  });
+
+  describe("addPlayer", () => {
+    it("adds a member player to a pending matchday", async () => {
+      // getMatchday
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "md1",
+        play_cricket_team_id: "t1",
+        status: "pending",
+      });
+      // getAccessibleTeamIds
+      mockExecute.mockResolvedValueOnce([{ id: "t1" }]);
+      // Duplicate check
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+      // Transaction inserts
       mockExecute.mockResolvedValue([]);
 
-      const result = await recordExpense(db)("user-1", {
+      const result = await addPlayer(db)("user-1", "admin", "md1", {
+        memberId: "member-1",
+        playerName: "Test Player",
+      });
+
+      expect(result.id).toBeDefined();
+    });
+  });
+
+  describe("removePlayer", () => {
+    it("removes a player from a pending matchday", async () => {
+      // Player lookup
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "p1",
+        play_cricket_team_id: "t1",
+        matchday_status: "pending",
+      });
+      // getAccessibleTeamIds
+      mockExecute.mockResolvedValueOnce([{ id: "t1" }]);
+      // Delete
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await removePlayer(db)("user-1", "admin", "md1", "p1");
+      expect(result.success).toBe(true);
+      expect(mockQueryBuilder.deleteFrom).toHaveBeenCalledWith(
+        "matchday_player",
+      );
+    });
+  });
+
+  describe("recordExpense", () => {
+    it("creates expense record and returns id", async () => {
+      // Matchday lookup
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "m-1",
+        play_cricket_team_id: "t1",
+        status: "confirmed",
+      });
+      // getAccessibleTeamIds
+      mockExecute.mockResolvedValueOnce([{ id: "t1" }]);
+      // Insert
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await recordExpense(db)("user-1", "admin", {
         matchId: "m-1",
         type: "umpire_fee",
         amountPence: 5000,
@@ -104,9 +238,18 @@ describe("matchday service", () => {
 
   describe("deleteExpense", () => {
     it("removes expense record", async () => {
-      mockExecute.mockResolvedValue([]);
+      // Expense lookup
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "exp-1",
+        play_cricket_team_id: "t1",
+        matchday_status: "confirmed",
+      });
+      // getAccessibleTeamIds
+      mockExecute.mockResolvedValueOnce([{ id: "t1" }]);
+      // Delete
+      mockExecute.mockResolvedValueOnce([]);
 
-      const result = await deleteExpense(db)("user-1", "exp-1");
+      const result = await deleteExpense(db)("user-1", "admin", "exp-1");
 
       expect(result).toEqual({ success: true });
       expect(mockQueryBuilder.deleteFrom).toHaveBeenCalledWith(

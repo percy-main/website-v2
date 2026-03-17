@@ -102,7 +102,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
   - [x] Be the Keeper game (2 pages)
   - [x] Static pages (privacy policy, nets redirect, payment confirmation)
   - [ ] Admin panel
-  - [ ] Official panel
+  - [x] Official panel
   - [x] Junior manager panel
 - [ ] Port Contentful-dependent pages (Batch 3 — deferred to cutover: news, calendar, person profiles, CMS pages)
 - [x] Replace Astro actions with API calls (api client + react-query pattern established)
