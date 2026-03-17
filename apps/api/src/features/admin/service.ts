@@ -966,7 +966,9 @@ export function listAllCharges(db: Kysely<DB>) {
       }
 
       if (status === "paid") {
-        q = q.where("charge.paid_at", "is not", null);
+        q = q
+          .where("charge.paid_at", "is not", null)
+          .where("charge.deleted_at", "is", null);
       } else if (status === "pending") {
         q = q
           .where("charge.payment_confirmed_at", "is not", null)
