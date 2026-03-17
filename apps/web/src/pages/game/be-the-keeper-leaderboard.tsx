@@ -1,22 +1,27 @@
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
+import { z } from "zod";
 
 const medals = ["\ud83e\udd47", "\ud83e\udd48", "\ud83e\udd49"];
 
-interface LeaderboardEntry {
-  name: string;
-  score: number;
-  level: number;
-  catches: number;
-  bestStreak: number;
-}
+const leaderboardSchema = z.array(
+  z.object({
+    name: z.string().nullable(),
+    score: z.number(),
+    level: z.number(),
+    catches: z.number(),
+    bestStreak: z.number(),
+  }),
+);
 
 function useLeaderboard() {
   return useQuery({
     queryKey: ["leaderboard", "be-the-keeper"],
-    queryFn: () =>
-      api.get<LeaderboardEntry[]>("/leaderboard?game=be-the-keeper&limit=25"),
+    queryFn: async () =>
+      leaderboardSchema.parse(
+        await api.get("/leaderboard?game=be-the-keeper&limit=25"),
+      ),
   });
 }
 
@@ -82,7 +87,7 @@ export function Component() {
                   className={`border-t border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"} ${i < 3 ? "font-semibold" : ""}`}
                 >
                   <td className="px-4 py-3">{medals[i] ?? i + 1}</td>
-                  <td className="px-4 py-3">{row.name}</td>
+                  <td className="px-4 py-3">{row.name ?? "Unknown"}</td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     {row.score}
                   </td>

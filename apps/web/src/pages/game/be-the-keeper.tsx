@@ -1,6 +1,7 @@
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { z } from "zod";
 
 // ══════════════════════════════════════════════════════════════
 //  BE THE KEEPER — Percy Main CC Wicketkeeper Catching Game
@@ -83,13 +84,20 @@ interface PopText {
   size: number;
 }
 
-interface LeaderboardEntry {
-  name: string;
-  score: number;
-  level: number;
-  catches: number;
-  bestStreak: number;
-}
+const leaderboardEntrySchema = z.object({
+  name: z.string().nullable(),
+  score: z.number(),
+  level: z.number(),
+  catches: z.number(),
+  bestStreak: z.number(),
+});
+const leaderboardSchema = z.array(leaderboardEntrySchema);
+type LeaderboardEntry = z.infer<typeof leaderboardEntrySchema>;
+
+const scoreResponseSchema = z.object({
+  saved: z.boolean(),
+  isNewBest: z.boolean(),
+});
 
 interface GS {
   phase: "menu" | "play" | "over";
@@ -1229,10 +1237,11 @@ function drawGameOver(
       ctx.fillStyle = isTop ? P.gold : "rgba(255,255,255,0.65)";
       ctx.textAlign = "left";
       ctx.fillText(`${i + 1}.`, w * 0.28, y);
+      const displayName = entry.name ?? "Unknown";
       ctx.fillText(
-        entry.name.length > 16
-          ? entry.name.slice(0, 15) + "\u2026"
-          : entry.name,
+        displayName.length > 16
+          ? displayName.slice(0, 15) + "\u2026"
+          : displayName,
         colName,
         y,
       );
@@ -1489,12 +1498,15 @@ function BeTheKeeper() {
   }, [isLoggedIn]);
 
   const handleGameOver = useCallback(async (s: GS) => {
+    // Guard: only write back if the game hasn't been restarted
+    const isStillOver = () => s.phase === "over";
+
     // Fetch leaderboard (always)
     try {
-      const result = await api.get<LeaderboardEntry[]>(
-        "/leaderboard?game=be-the-keeper&limit=5",
+      const result = leaderboardSchema.parse(
+        await api.get("/leaderboard?game=be-the-keeper&limit=5"),
       );
-      s.leaderboard = result;
+      if (isStillOver()) s.leaderboard = result;
     } catch {
       /* leaderboard fetch failed silently */
     }
@@ -1502,23 +1514,22 @@ function BeTheKeeper() {
     // Submit score if logged in
     if (isLoggedInRef.current && s.score > 0) {
       try {
-        const result = await api.post<{ saved: boolean; isNewBest: boolean }>(
-          "/game-score",
-          {
+        const result = scoreResponseSchema.parse(
+          await api.post("/game-score", {
             game: "be-the-keeper",
             score: s.score,
             level: s.level,
             catches: s.catches,
             bestStreak: s.bestStreak,
-          },
+          }),
         );
-        if (result.saved) {
+        if (result.saved && isStillOver()) {
           s.scoreSaved = true;
           // Re-fetch leaderboard to reflect new score
-          const lb = await api.get<LeaderboardEntry[]>(
-            "/leaderboard?game=be-the-keeper&limit=5",
+          const lb = leaderboardSchema.parse(
+            await api.get("/leaderboard?game=be-the-keeper&limit=5"),
           );
-          s.leaderboard = lb;
+          if (isStillOver()) s.leaderboard = lb;
         }
       } catch {
         /* score submit failed silently */
