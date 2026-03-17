@@ -242,10 +242,7 @@ export function getMatchdayExpensesSummary(db: Kysely<DB>) {
       total_pence: Number(row.total_pence),
     }));
 
-    const grandTotal = breakdown.reduce(
-      (sum, row) => sum + row.total_pence,
-      0,
-    );
+    const grandTotal = breakdown.reduce((sum, row) => sum + row.total_pence, 0);
 
     return { breakdown, grandTotal };
   };
