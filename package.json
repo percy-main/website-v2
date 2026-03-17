@@ -19,6 +19,8 @@
     "db:up": "pnpm --filter @percy-main/db db:up",
     "db:types": "pnpm --filter @percy-main/db db:types",
     "db:migration": "pnpm --filter @percy-main/db db:migration",
+    "db:reset": "pnpm --filter @percy-main/db db:reset",
+    "db:lift": "pnpm --filter @percy-main/db db:lift",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"
   },
