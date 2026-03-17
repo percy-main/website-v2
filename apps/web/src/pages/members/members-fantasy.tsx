@@ -126,37 +126,82 @@ function useChipStatus() {
 }
 
 // ---------------------------------------------------------------------------
-// Component
+// Container — fetches data, handles loading/error, renders TeamBuilder
 // ---------------------------------------------------------------------------
 
 export function Component() {
   const playersQuery = useEligiblePlayers();
   const teamQuery = useMyTeam();
   const chipQuery = useChipStatus();
-  const queryClient = useQueryClient();
 
-  const [squad, setSquad] = useState<SelectedPlayer[]>([]);
-  const [hasLoadedTeam, setHasLoadedTeam] = useState(false);
-  const [search, setSearch] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  if (playersQuery.isPending || teamQuery.isPending) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <h1 className="mb-6 text-3xl font-bold">My Fantasy Team</h1>
+        <div className="space-y-2">
+          {Array.from({ length: 11 }).map((_, i) => (
+            <div key={i} className="h-10 animate-pulse rounded bg-gray-200" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-  // Load existing team into local state once
-  if (teamQuery.data && !hasLoadedTeam) {
-    if (teamQuery.data.team && teamQuery.data.players.length > 0) {
-      setSquad(
-        teamQuery.data.players.map((p) => ({
+  if (playersQuery.error || teamQuery.error) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <h1 className="mb-6 text-3xl font-bold">My Fantasy Team</h1>
+        <p className="text-center text-red-600">
+          Failed to load fantasy data. Please try again.
+        </p>
+      </div>
+    );
+  }
+
+  // Data is guaranteed non-null below this point
+  const initialSquad: SelectedPlayer[] =
+    teamQuery.data.team && teamQuery.data.players.length > 0
+      ? teamQuery.data.players.map((p) => ({
           playCricketId: p.play_cricket_id,
           playerName: p.player_name,
           sandwichCost: p.sandwich_cost,
           isCaptain: p.is_captain,
           slotType: p.slot_type as SlotType,
           isWicketkeeper: p.is_wicketkeeper,
-        })),
-      );
-    }
-    setHasLoadedTeam(true);
-  }
+        }))
+      : [];
+
+  return (
+    <TeamBuilder
+      initialSquad={initialSquad}
+      eligiblePlayers={playersQuery.data.players}
+      teamData={teamQuery.data}
+      chipData={chipQuery.data ?? null}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TeamBuilder — pure component, receives resolved data as props
+// ---------------------------------------------------------------------------
+
+function TeamBuilder({
+  initialSquad,
+  eligiblePlayers,
+  teamData,
+  chipData,
+}: {
+  initialSquad: SelectedPlayer[];
+  eligiblePlayers: EligiblePlayer[];
+  teamData: MyTeamResponse;
+  chipData: ChipStatus | null;
+}) {
+  const queryClient = useQueryClient();
+
+  const [squad, setSquad] = useState<SelectedPlayer[]>(initialSquad);
+  const [search, setSearch] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const saveMutation = useMutation({
     mutationFn: (players: SelectedPlayer[]) =>
@@ -235,9 +280,9 @@ export function Component() {
         playCricketId: player.play_cricket_id,
         playerName: player.player_name,
         sandwichCost: player.sandwich_cost,
-        isCaptain: prev.length === 0, // First player is captain by default
+        isCaptain: prev.length === 0,
         slotType,
-        isWicketkeeper: prev.length === 0, // First player is WK by default
+        isWicketkeeper: prev.length === 0,
       },
     ]);
     setSaveError(null);
@@ -276,19 +321,16 @@ export function Component() {
     );
   }
 
-  // Available players (filtered)
   const availablePlayers = useMemo(() => {
-    if (!playersQuery.data) return [];
-    return playersQuery.data.players
+    return eligiblePlayers
       .filter((p) => !squadPlayerIds.has(p.play_cricket_id))
       .filter(
         (p) =>
           !search || p.player_name.toLowerCase().includes(search.toLowerCase()),
       )
       .sort((a, b) => b.previousSeasonPoints - a.previousSeasonPoints);
-  }, [playersQuery.data, squadPlayerIds, search]);
+  }, [eligiblePlayers, squadPlayerIds, search]);
 
-  // Drag and drop
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -312,25 +354,10 @@ export function Component() {
     });
   }
 
-  const isLoading = playersQuery.isPending || teamQuery.isPending;
-
-  if (isLoading) {
-    return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
-        <h1 className="mb-6 text-3xl font-bold">My Fantasy Team</h1>
-        <div className="space-y-2">
-          {Array.from({ length: 11 }).map((_, i) => (
-            <div key={i} className="h-10 animate-pulse rounded bg-gray-200" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const chaosWeek = teamQuery.data?.chaosWeek;
-  const transfersUsed = teamQuery.data?.transfersUsed ?? 0;
-  const maxTransfers = teamQuery.data?.maxTransfers ?? null;
-  const tripleCaptain = chipQuery.data?.chips.find(
+  const chaosWeek = teamData.chaosWeek;
+  const transfersUsed = teamData.transfersUsed;
+  const maxTransfers = teamData.maxTransfers;
+  const tripleCaptain = chipData?.chips.find(
     (c) => c.chipType === "triple_captain",
   );
 
@@ -345,7 +372,6 @@ export function Component() {
         </Link>
       </div>
 
-      {/* Chaos week banner */}
       {chaosWeek && (
         <Alert className="mb-4 border-amber-400 bg-amber-50 text-amber-800">
           <strong>Chaos Week: {chaosWeek.name}</strong> —{" "}
@@ -353,7 +379,6 @@ export function Component() {
         </Alert>
       )}
 
-      {/* Status bar */}
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-center gap-4 py-3">
           <div className="text-sm">
@@ -406,8 +431,7 @@ export function Component() {
         </Alert>
       )}
 
-      {/* Triple Captain chip */}
-      {tripleCaptain && teamQuery.data?.team && teamQuery.data.gameweek > 0 && (
+      {tripleCaptain && teamData.team && teamData.gameweek > 0 && (
         <Card className="mb-4">
           <CardContent className="flex items-center justify-between py-3">
             <div className="text-sm">
@@ -440,7 +464,6 @@ export function Component() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Squad */}
         <Card>
           <CardHeader>
             <CardTitle>Your Squad</CardTitle>
@@ -492,7 +515,6 @@ export function Component() {
           </CardContent>
         </Card>
 
-        {/* Available Players */}
         <Card>
           <CardHeader>
             <CardTitle>Available Players</CardTitle>
