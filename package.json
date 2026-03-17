@@ -7,6 +7,7 @@
     "dev": "pnpm -r --parallel run dev",
     "dev:api": "pnpm --filter api dev",
     "dev:web": "pnpm --filter web dev",
+    "dev:email": "pnpm --filter email-viewer dev",
     "build": "pnpm -r run build",
     "build:api": "pnpm --filter api build",
     "build:web": "pnpm --filter web build",

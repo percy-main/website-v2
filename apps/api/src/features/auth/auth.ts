@@ -15,6 +15,8 @@ export function createAuth(
   const baseURL = config.BASE_URL;
 
   return betterAuth({
+    baseURL,
+    basePath: "/api/auth",
     appName: config.BETTER_AUTH_RP_NAME,
     trustedOrigins: [baseURL, config.DEPLOY_PRIME_URL].filter(
       Boolean,
