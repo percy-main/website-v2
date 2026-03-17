@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
 import { getAuthSession, requireRole } from "../auth/middleware.js";
+import { createApiClient } from "../play-cricket/api-client.js";
 import {
   archiveMemberSchema,
   chargeIdParamSchema,
@@ -175,6 +176,35 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async () => {
       return await pcTeams();
+    },
+  );
+
+  // Fetch players from the Play-Cricket external API (mirrors v1 refreshPlayCricketPlayers action)
+  app.get(
+    "/admin/play-cricket-players",
+    { preHandler: [requireRole("admin")] },
+    async () => {
+      if (
+        !app.config.PLAY_CRICKET_API_TOKEN ||
+        !app.config.PLAY_CRICKET_SITE_ID
+      ) {
+        const error = new Error("Play-Cricket API not configured") as Error & {
+          statusCode: number;
+        };
+        error.statusCode = 503;
+        throw error;
+      }
+      const pcApi = createApiClient({
+        apiToken: app.config.PLAY_CRICKET_API_TOKEN,
+        siteId: app.config.PLAY_CRICKET_SITE_ID,
+      });
+      const { players } = await pcApi.getPlayers();
+      return {
+        players: players.map((p) => ({
+          memberId: p.member_id,
+          name: p.name,
+        })),
+      };
     },
   );
 

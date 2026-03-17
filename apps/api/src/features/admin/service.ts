@@ -195,19 +195,20 @@ export function getRecordLinking(db: Kysely<DB>) {
       db
         .selectFrom("member")
         .where("deleted_at", "is", null)
-        .select([
-          "id",
-          "name",
-          "email",
-          "play_cricket_id",
-          "contentful_entry_id",
-        ])
+        .select(["id", "name", "play_cricket_id", "contentful_entry_id"])
         .orderBy("name", "asc")
         .execute(),
       db
         .selectFrom("dependent")
-        .select(["id", "name", "play_cricket_id"])
-        .orderBy("name", "asc")
+        .innerJoin("member", "member.id", "dependent.member_id")
+        .where("member.deleted_at", "is", null)
+        .select([
+          "dependent.id",
+          "dependent.name",
+          "dependent.play_cricket_id",
+          "member.name as parentName",
+        ])
+        .orderBy("dependent.name", "asc")
         .execute(),
     ]);
 

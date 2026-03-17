@@ -153,6 +153,15 @@ export const GetMatchDetailResponse = z.object({
 
 // --- Teams ---
 
+export const GetPlayersResponse = z.object({
+  players: z.array(
+    z.object({
+      member_id: z.number(),
+      name: z.string(),
+    }),
+  ),
+});
+
 export const GetTeamsResponse = z.object({
   teams: z.array(
     z.object({

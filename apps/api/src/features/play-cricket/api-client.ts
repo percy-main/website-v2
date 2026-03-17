@@ -1,6 +1,7 @@
 import {
   GetMatchDetailResponse,
   GetMatchSummaryResponse,
+  GetPlayersResponse,
   GetTeamsResponse,
 } from "./api-schemas.js";
 
@@ -56,6 +57,15 @@ export function createApiClient(config: PlayCricketApiConfig) {
         season: String(season),
       });
       return GetMatchSummaryResponse.parse(json);
+    },
+
+    async getPlayers() {
+      const json = await fetchPlayCricket(
+        config,
+        `/sites/${config.siteId}/players.json`,
+        { include_everyone: "yes" },
+      );
+      return GetPlayersResponse.parse(json);
     },
 
     async getTeams() {
