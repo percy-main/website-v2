@@ -246,8 +246,9 @@ describe("admin service (integration)", () => {
       const memberId = seed.memberId ?? "";
       expect(memberId).toBeTruthy();
 
+      // Use initial + surname so name similarity triggers initial match (score 0.8)
       const depId = await seedDependent(ctx.db, memberId, {
-        name: "John Smith Jr",
+        name: "J Smith",
         sex: "male",
         dob: "2015-01-01",
       });
@@ -256,10 +257,11 @@ describe("admin service (integration)", () => {
         dependentId: depId,
       });
 
-      expect(result.dependentName).toBe("John Smith Jr");
+      expect(result.dependentName).toBe("J Smith");
       expect(result.users.length).toBeGreaterThanOrEqual(1);
 
-      // The parent user should appear with a reasonable score
+      // The parent user "John Smith" should appear with a high score
+      // ("J Smith" vs "John Smith" = initial match = 0.8)
       const match = result.users.find((u) => u.email === email);
       expect(match).toBeDefined();
       if (!match) return;
