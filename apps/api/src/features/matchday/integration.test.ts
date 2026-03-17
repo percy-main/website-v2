@@ -286,7 +286,10 @@ describe("matchday service (integration)", () => {
       });
       const teamId = await seedTeam();
       const matchdayId = await seedMatchday({ teamId, createdBy: userId });
-      const memberId = await seedMember("Test Player", `tp-${crypto.randomUUID()}@test.com`);
+      const memberId = await seedMember(
+        "Test Player",
+        `tp-${crypto.randomUUID()}@test.com`,
+      );
 
       const { id: playerId } = await addPlayer(ctx.db)(
         userId,
@@ -344,14 +347,17 @@ describe("matchday service (integration)", () => {
         .where("id", "=", playerId)
         .selectAll()
         .executeTakeFirst();
-      expect(player?.member_id).toBeDefined();
+      const memberId = player?.member_id;
+      expect(memberId).toBeDefined();
 
-      const member = await ctx.db
-        .selectFrom("member")
-        .where("id", "=", player!.member_id!)
-        .selectAll()
-        .executeTakeFirst();
-      expect(member?.member_category).toBe("guest");
+      if (memberId) {
+        const member = await ctx.db
+          .selectFrom("member")
+          .where("id", "=", memberId)
+          .selectAll()
+          .executeTakeFirst();
+        expect(member?.member_category).toBe("guest");
+      }
     });
   });
 
@@ -409,15 +415,18 @@ describe("matchday service (integration)", () => {
         .where("id", "=", playerId)
         .selectAll()
         .executeTakeFirst();
-      expect(player?.charge_id).toBeDefined();
+      const chargeId = player?.charge_id;
+      expect(chargeId).toBeDefined();
 
-      const charge = await ctx.db
-        .selectFrom("charge")
-        .where("id", "=", player!.charge_id!)
-        .selectAll()
-        .executeTakeFirst();
-      expect(charge?.amount_pence).toBe(500);
-      expect(charge?.type).toBe("match_fee");
+      if (chargeId) {
+        const charge = await ctx.db
+          .selectFrom("charge")
+          .where("id", "=", chargeId)
+          .selectAll()
+          .executeTakeFirst();
+        expect(charge?.amount_pence).toBe(500);
+        expect(charge?.type).toBe("match_fee");
+      }
     });
   });
 

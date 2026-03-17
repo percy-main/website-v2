@@ -1,5 +1,11 @@
 import type { DB } from "@percy-main/db";
-import { format as formatDate, isBefore, parse, startOfDay, subDays } from "date-fns";
+import {
+  format as formatDate,
+  isBefore,
+  parse,
+  startOfDay,
+  subDays,
+} from "date-fns";
 import type { Kysely } from "kysely";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.js";
 import type {
@@ -7,7 +13,6 @@ import type {
   ConfirmTeam,
   CreateMatchday,
   ListMatches,
-  MarkPaid,
   RecordExpense,
   SearchMembers,
   UpdateExpense,
@@ -235,7 +240,10 @@ export function recordExpense(db: Kysely<DB>) {
 
       const imageBytes = Buffer.from(match[2], "base64");
       if (imageBytes.byteLength > 500_000) {
-        throwHttpError(400, "Receipt image is too large. Maximum size is 500KB");
+        throwHttpError(
+          400,
+          "Receipt image is too large. Maximum size is 500KB",
+        );
       }
 
       // TODO: Replace with S3 upload once infra is live:
@@ -336,9 +344,7 @@ export function listTeams(db: Kysely<DB>) {
       .orderBy("name", "asc")
       .execute();
 
-    return teams.filter(
-      (t): t is typeof t & { id: string } => t.id !== null,
-    );
+    return teams.filter((t): t is typeof t & { id: string } => t.id !== null);
   };
 }
 
@@ -587,10 +593,7 @@ export function removePlayer(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this matchday");
     }
 
-    await db
-      .deleteFrom("matchday_player")
-      .where("id", "=", playerId)
-      .execute();
+    await db.deleteFrom("matchday_player").where("id", "=", playerId).execute();
 
     return { success: true };
   };
@@ -774,7 +777,11 @@ export function markFeePaid(db: Kysely<DB>) {
 
 export function finishMatch(
   db: Kysely<DB>,
-  sendEmail: (email: { to: string; subject: string; html: string }) => Promise<void>,
+  sendEmail: (email: {
+    to: string;
+    subject: string;
+    html: string;
+  }) => Promise<void>,
   config: { BASE_URL: string },
 ) {
   return async (userId: string, role: string, matchdayId: string) => {
@@ -908,18 +915,16 @@ export function finishMatch(
         name: player.member_name ?? "Member",
         description: player.charge_description,
         amount: amountFormatted,
-        chargeDate: formatDate(
-          new Date(player.charge_date),
-          "dd/MM/yyyy",
-        ),
+        chargeDate: formatDate(new Date(player.charge_date), "dd/MM/yyyy"),
         loginUrl: `${config.BASE_URL}/auth/login`,
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+      const html = await render(element as any);
       await sendEmail({
         to: player.member_email,
         subject: ChargeNotification.subject,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        html: await render(element as any),
+        html,
       });
       emailsSent++;
     }

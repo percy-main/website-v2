@@ -24,7 +24,9 @@ const { mockExecute, mockExecuteTakeFirst, mockQueryBuilder } = vi.hoisted(
       offset: vi.fn().mockReturnThis(),
       or: vi.fn().mockReturnThis(),
       transaction: vi.fn().mockReturnValue({
-        execute: vi.fn(async (cb) => cb(mockQueryBuilder)),
+        execute: vi.fn(async (cb: (trx: unknown) => Promise<unknown>) =>
+          cb(mockQueryBuilder),
+        ),
       }),
       executeTakeFirst: mockExecuteTakeFirst,
       execute: mockExecute,
@@ -126,7 +128,9 @@ describe("matchday service", () => {
 
   describe("searchMembers", () => {
     it("searches members by name", async () => {
-      const members = [{ id: "m1", name: "John", email: "j@t.com", member_category: "senior" }];
+      const members = [
+        { id: "m1", name: "John", email: "j@t.com", member_category: "senior" },
+      ];
       mockExecute.mockResolvedValue(members);
 
       const result = await searchMembers(db)({ query: "John" });

@@ -45,16 +45,12 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
   const update = updateExpense(app.db);
   const remove = deleteExpense(app.db);
 
-  app.get(
-    "/matchday",
-    { preHandler: [officialRole] },
-    async (request) => {
-      const { user } = getAuthSession(request);
-      const role = (user as { role?: string | null }).role ?? "user";
-      const params = parseQuery(request, listMatchesSchema);
-      return await list(user.id, role, params);
-    },
-  );
+  app.get("/matchday", { preHandler: [officialRole] }, async (request) => {
+    const { user } = getAuthSession(request);
+    const role = (user as { role?: string | null }).role ?? "user";
+    const params = parseQuery(request, listMatchesSchema);
+    return await list(user.id, role, params);
+  });
 
   app.get(
     "/matchday/:matchId",
@@ -113,13 +109,13 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
   const finish = finishMatch(app.db, app.send, app.config);
 
   // Play-Cricket API client for upcoming matches
-  const playCricketConfig = app.config.PLAY_CRICKET_API_TOKEN &&
-    app.config.PLAY_CRICKET_SITE_ID
-    ? createApiClient({
-        apiToken: app.config.PLAY_CRICKET_API_TOKEN,
-        siteId: app.config.PLAY_CRICKET_SITE_ID,
-      })
-    : null;
+  const playCricketConfig =
+    app.config.PLAY_CRICKET_API_TOKEN && app.config.PLAY_CRICKET_SITE_ID
+      ? createApiClient({
+          apiToken: app.config.PLAY_CRICKET_API_TOKEN,
+          siteId: app.config.PLAY_CRICKET_SITE_ID,
+        })
+      : null;
 
   app.get(
     "/matchday/teams",
@@ -152,16 +148,12 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.post(
-    "/matchday",
-    { preHandler: [officialRole] },
-    async (request) => {
-      const { user } = getAuthSession(request);
-      const role = (user as { role?: string | null }).role ?? "user";
-      const data = parseBody(request, createMatchdaySchema);
-      return await create(user.id, role, data);
-    },
-  );
+  app.post("/matchday", { preHandler: [officialRole] }, async (request) => {
+    const { user } = getAuthSession(request);
+    const role = (user as { role?: string | null }).role ?? "user";
+    const data = parseBody(request, createMatchdaySchema);
+    return await create(user.id, role, data);
+  });
 
   app.get(
     "/matchday/members/search",
