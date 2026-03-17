@@ -8,9 +8,12 @@ import {
   type TestContext,
 } from "../../test/containers.js";
 import {
+  chasePayment,
   createMember,
+  getChargeAggregates,
   linkDependentToUser,
   linkPlayCricketPlayer,
+  listAllCharges,
   listJuniors,
   listUsers,
   searchUsersForLinking,
@@ -341,6 +344,300 @@ describe("admin service (integration)", () => {
       await expect(
         unlinkDependentUser(ctx.db)({ dependentId: "non-existent" }),
       ).rejects.toThrow("Dependent not found");
+    });
+  });
+
+  describe("listAllCharges", () => {
+    it("returns charges with member info and computed status", async () => {
+      const email = `charges-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email, name: "Charge User" });
+      const memberId = seed.memberId ?? "";
+      expect(memberId).toBeTruthy();
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Test charge",
+          amount_pence: 5000,
+          charge_date: "2026-03-01",
+          created_by: "admin-user",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      const result = await listAllCharges(ctx.db)({
+        page: 1,
+        pageSize: 20,
+        status: "all",
+        showDeleted: false,
+      });
+
+      const charge = result.charges.find((c) => c.id === chargeId);
+      expect(charge).toBeDefined();
+      if (!charge) return;
+      expect(charge.memberName).toBe("Charge User");
+      expect(charge.memberEmail).toBe(email);
+      expect(charge.amountPence).toBe(5000);
+      expect(charge.status).toBe("unpaid");
+    });
+
+    it("filters by paid status", async () => {
+      const email = `charges-paid-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: crypto.randomUUID(),
+          member_id: memberId,
+          description: "Paid charge",
+          amount_pence: 3000,
+          charge_date: "2026-03-01",
+          paid_at: new Date().toISOString(),
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: crypto.randomUUID(),
+          member_id: memberId,
+          description: "Unpaid charge",
+          amount_pence: 2000,
+          charge_date: "2026-03-01",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      const paidResult = await listAllCharges(ctx.db)({
+        page: 1,
+        pageSize: 100,
+        status: "paid",
+        showDeleted: false,
+      });
+
+      expect(paidResult.charges.every((c) => c.status === "paid")).toBe(true);
+    });
+
+    it("filters by search term (case insensitive)", async () => {
+      const uniqueDesc = `UniqueDesc-${crypto.randomUUID().slice(0, 8)}`;
+      const email = `charges-search-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: crypto.randomUUID(),
+          member_id: memberId,
+          description: uniqueDesc,
+          amount_pence: 1000,
+          charge_date: "2026-03-01",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      const result = await listAllCharges(ctx.db)({
+        page: 1,
+        pageSize: 100,
+        status: "all",
+        showDeleted: false,
+        search: uniqueDesc.toLowerCase(),
+      });
+
+      expect(result.charges.length).toBeGreaterThanOrEqual(1);
+      expect(result.charges.some((c) => c.description === uniqueDesc)).toBe(
+        true,
+      );
+    });
+
+    it("excludes deleted charges by default", async () => {
+      const email = `charges-del-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const deletedId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: deletedId,
+          member_id: memberId,
+          description: "Deleted charge",
+          amount_pence: 500,
+          charge_date: "2026-03-01",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+          deleted_at: new Date().toISOString(),
+          deleted_by: "admin",
+          deleted_reason: "Duplicate",
+        })
+        .execute();
+
+      const resultExcluded = await listAllCharges(ctx.db)({
+        page: 1,
+        pageSize: 100,
+        status: "all",
+        showDeleted: false,
+      });
+      expect(
+        resultExcluded.charges.find((c) => c.id === deletedId),
+      ).toBeUndefined();
+
+      const resultIncluded = await listAllCharges(ctx.db)({
+        page: 1,
+        pageSize: 100,
+        status: "all",
+        showDeleted: true,
+      });
+      expect(
+        resultIncluded.charges.find((c) => c.id === deletedId),
+      ).toBeDefined();
+    });
+  });
+
+  describe("getChargeAggregates", () => {
+    it("returns correct aggregate totals", async () => {
+      const email = `agg-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      // Insert one paid and one unpaid charge
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: crypto.randomUUID(),
+          member_id: memberId,
+          description: "Paid agg",
+          amount_pence: 4000,
+          charge_date: "2026-03-10",
+          paid_at: new Date().toISOString(),
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: crypto.randomUUID(),
+          member_id: memberId,
+          description: "Unpaid agg",
+          amount_pence: 3000,
+          charge_date: "2026-03-10",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      const result = await getChargeAggregates(ctx.db)({
+        dateFrom: "2026-03-01",
+        dateTo: "2026-03-31",
+      });
+
+      expect(result.totalCharged).toBeGreaterThanOrEqual(7000);
+      expect(result.totalPaid).toBeGreaterThanOrEqual(4000);
+      expect(result.totalOutstanding).toBeGreaterThanOrEqual(3000);
+      expect(result.countPaid).toBeGreaterThanOrEqual(1);
+      expect(result.countUnpaid).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("chasePayment", () => {
+    it("returns success for existing unpaid charge", async () => {
+      const email = `chase-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email, name: "Chase User" });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Chase me",
+          amount_pence: 2500,
+          charge_date: "2026-03-15",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      const result = await chasePayment(ctx.db)(chargeId);
+      expect(result).toEqual({ success: true });
+    });
+
+    it("throws 404 for paid charge", async () => {
+      const email = `chase-paid-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Already paid",
+          amount_pence: 1000,
+          charge_date: "2026-03-15",
+          paid_at: new Date().toISOString(),
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await expect(chasePayment(ctx.db)(chargeId)).rejects.toThrow(
+        "Charge not found or already paid/deleted",
+      );
+    });
+
+    it("throws 404 for non-existent charge", async () => {
+      await expect(chasePayment(ctx.db)("non-existent")).rejects.toThrow(
+        "Charge not found or already paid/deleted",
+      );
+    });
+
+    it("throws 404 for pending charge (payment in flight)", async () => {
+      const email = `chase-pending-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Pending payment",
+          amount_pence: 2000,
+          charge_date: "2026-03-15",
+          payment_confirmed_at: new Date().toISOString(),
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await expect(chasePayment(ctx.db)(chargeId)).rejects.toThrow(
+        "Charge not found or already paid/deleted",
+      );
     });
   });
 });

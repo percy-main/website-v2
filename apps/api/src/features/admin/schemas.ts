@@ -105,6 +105,31 @@ export type DeleteCharge = z.infer<typeof deleteChargeSchema>;
 export type SetJuniorManagerTeams = z.infer<typeof setJuniorManagerTeamsSchema>;
 export type SetOfficialTeams = z.infer<typeof setOfficialTeamsSchema>;
 
+export const listChargesSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  status: z
+    .enum(["all", "unpaid", "pending", "paid", "abandoned"])
+    .default("all"),
+  showDeleted: z.coerce.boolean().default(false),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  search: z.string().optional(),
+});
+
+export const chargeAggregatesSchema = z.object({
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+});
+
+export const chasePaymentSchema = z.object({
+  chargeId: z.string(),
+});
+
+export type ListCharges = z.infer<typeof listChargesSchema>;
+export type ChargeAggregates = z.infer<typeof chargeAggregatesSchema>;
+export type ChasePayment = z.infer<typeof chasePaymentSchema>;
+
 export const listJuniorsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(100),

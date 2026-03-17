@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSession } from "@/lib/auth-client";
 import { Link, useSearchParams } from "react-router";
+import { ChargesTab } from "./charges-tab";
 import { FantasyTab } from "./fantasy-tab";
 import { JuniorsTab } from "./juniors-tab";
 import { MembersTab } from "./members-tab";
@@ -26,6 +27,7 @@ type Tab = (typeof TABS)[number];
 const ACTIVE_TABS: Tab[] = [
   "members",
   "juniors",
+  "charges",
   "sponsorships",
   "treasurer",
   "fantasy",
@@ -84,6 +86,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="juniors">
             <JuniorsTab />
+          </TabsContent>
+          <TabsContent value="charges">
+            <ChargesTab />
           </TabsContent>
           <TabsContent value="sponsorships">
             <SponsorshipsTab />

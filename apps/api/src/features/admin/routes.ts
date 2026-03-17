@@ -4,14 +4,17 @@ import { getAuthSession, requireRole } from "../auth/middleware.js";
 import { createApiClient } from "../play-cricket/api-client.js";
 import {
   archiveMemberSchema,
+  chargeAggregatesSchema,
   chargeIdParamSchema,
   chargeNotificationSchema,
+  chasePaymentSchema,
   contentfulLinkSchema,
   contentfulUnlinkSchema,
   createChargeSchema,
   createMemberSchema,
   deleteChargeSchema,
   linkDependentSchema,
+  listChargesSchema,
   listJuniorsSchema,
   listUsersSchema,
   recordLinkingSchema,
@@ -26,16 +29,19 @@ import {
 } from "./schemas.js";
 import {
   archiveMember,
+  chasePayment,
   createCharge,
   createMember,
   deleteCharge,
   getAllJuniorTeams,
   getAllPlayCricketTeams,
+  getChargeAggregates,
   getRecordLinking,
   getUserDetail,
   linkContentfulPerson,
   linkDependentToUser,
   linkPlayCricketPlayer,
+  listAllCharges,
   listJuniors,
   listUsers,
   restoreMember,
@@ -75,6 +81,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const searchForLinking = searchUsersForLinking(app.db);
   const linkDep = linkDependentToUser(app.db);
   const unlinkDep = unlinkDependentUser(app.db);
+  const listCharges = listAllCharges(app.db);
+  const chargeAggregates = getChargeAggregates(app.db);
+  const chase = chasePayment(app.db);
 
   app.get(
     "/admin/users",
@@ -285,6 +294,35 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { memberId } = parseBody(request, contentfulUnlinkSchema);
       return await unlinkCF(memberId);
+    },
+  );
+
+  // --- Charges tab endpoints ---
+
+  app.get(
+    "/admin/charges",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseQuery(request, listChargesSchema);
+      return await listCharges(params);
+    },
+  );
+
+  app.get(
+    "/admin/charge-aggregates",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseQuery(request, chargeAggregatesSchema);
+      return await chargeAggregates(params);
+    },
+  );
+
+  app.post(
+    "/admin/chase-payment",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const { chargeId } = parseBody(request, chasePaymentSchema);
+      return await chase(chargeId);
     },
   );
 
