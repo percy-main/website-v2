@@ -1,0 +1,622 @@
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { api } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { StatusPill } from "./status-pill";
+
+/** Simple substring + token-match score. Returns 0..1 where 1 is a perfect match. */
+function fuzzyScore(query: string, target: string): number {
+  const q = query.toLowerCase().trim();
+  const t = target.toLowerCase().trim();
+
+  if (q.length === 0 || t.length === 0) return 0;
+  if (q === t) return 1;
+  if (t.includes(q)) return 0.8;
+  if (q.includes(t)) return 0.7;
+
+  const queryTokens = q.split(/\s+/);
+  const targetTokens = t.split(/\s+/);
+  let matchedTokens = 0;
+
+  for (const qt of queryTokens) {
+    for (const tt of targetTokens) {
+      if (tt.includes(qt) || qt.includes(tt)) {
+        matchedTokens++;
+        break;
+      }
+    }
+  }
+
+  let reverseMatchedTokens = 0;
+  for (const tt of targetTokens) {
+    for (const qt of queryTokens) {
+      if (qt.includes(tt) || tt.includes(qt)) {
+        reverseMatchedTokens++;
+        break;
+      }
+    }
+  }
+
+  const forwardRatio = matchedTokens / queryTokens.length;
+  const reverseRatio = reverseMatchedTokens / targetTokens.length;
+
+  return Math.max(forwardRatio, reverseRatio) * 0.6;
+}
+
+interface PlayCricketPlayer {
+  memberId: number;
+  name: string;
+}
+
+interface MemberRecord {
+  id: string;
+  name: string | null;
+  play_cricket_id: string | null;
+  contentful_entry_id: string | null;
+}
+
+interface DependentRecord {
+  id: string;
+  name: string | null;
+  play_cricket_id: string | null;
+  parentName: string | null;
+}
+
+interface RecordLinkingResponse {
+  members: MemberRecord[];
+  dependents: DependentRecord[];
+}
+
+interface PersonRow {
+  id: string;
+  name: string | null;
+  playCricketId: string | null;
+  parentName?: string | null;
+  type: "member" | "dependent";
+}
+
+interface DetailModalState {
+  person: PersonRow;
+  linking: boolean;
+}
+
+export function RecordLinkingTab() {
+  const queryClient = useQueryClient();
+  const [pcPlayers, setPcPlayers] = useState<PlayCricketPlayer[] | null>(null);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [detailModal, setDetailModal] = useState<DetailModalState | null>(null);
+  const [linkSearch, setLinkSearch] = useState("");
+  const [showLinked, setShowLinked] = useState(true);
+  const [showUnlinked, setShowUnlinked] = useState(true);
+  const [personTypeFilter, setPersonTypeFilter] = useState<
+    "all" | "member" | "dependent"
+  >("all");
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  const { data: linkingData, isLoading } = useQuery({
+    queryKey: ["admin", "recordLinking"],
+    queryFn: () => api.get<RecordLinkingResponse>("/admin/record-linking"),
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: () =>
+      api.get<{ players: PlayCricketPlayer[] }>("/admin/play-cricket-players"),
+    onSuccess: (result) => {
+      setPcPlayers(result.players);
+    },
+  });
+
+  const linkPcMutation = useMutation({
+    mutationFn: (params: {
+      type: "member" | "dependent";
+      id: string;
+      playCricketId: string;
+    }) => api.post("/admin/record-linking/play-cricket/link", params),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "recordLinking"],
+      });
+      setDetailModal((prev) => (prev ? { ...prev, linking: false } : null));
+      setLinkSearch("");
+    },
+  });
+
+  const unlinkPcMutation = useMutation({
+    mutationFn: (params: { type: "member" | "dependent"; id: string }) =>
+      api.post("/admin/record-linking/play-cricket/unlink", params),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "recordLinking"],
+      });
+    },
+  });
+
+  // Combine members and dependents into a single list
+  const allPeople: PersonRow[] = useMemo(() => {
+    if (!linkingData) return [];
+    const members: PersonRow[] = linkingData.members.map((m) => ({
+      id: m.id,
+      name: m.name,
+      playCricketId: m.play_cricket_id,
+      type: "member" as const,
+    }));
+    const deps: PersonRow[] = linkingData.dependents.map((d) => ({
+      id: d.id,
+      name: d.name,
+      parentName: d.parentName,
+      playCricketId: d.play_cricket_id,
+      type: "dependent" as const,
+    }));
+    return [...members, ...deps];
+  }, [linkingData]);
+
+  // Filter people
+  const filteredPeople = useMemo(() => {
+    return allPeople.filter((person) => {
+      if (personTypeFilter !== "all" && person.type !== personTypeFilter)
+        return false;
+
+      const isLinked = Boolean(person.playCricketId);
+
+      if (!showLinked && isLinked) return false;
+      if (!showUnlinked && !isLinked) return false;
+
+      if (debouncedSearch.trim().length > 0) {
+        const term = debouncedSearch.toLowerCase();
+        const nameMatch = person.name?.toLowerCase().includes(term) ?? false;
+        const parentMatch =
+          person.parentName?.toLowerCase().includes(term) ?? false;
+        if (!nameMatch && !parentMatch) return false;
+      }
+
+      return true;
+    });
+  }, [allPeople, debouncedSearch, showLinked, showUnlinked, personTypeFilter]);
+
+  // Stats
+  const linkedPcMembers = allPeople.filter(
+    (p) => p.type === "member" && p.playCricketId,
+  ).length;
+  const totalMembers = allPeople.filter((p) => p.type === "member").length;
+  const linkedPcDeps = allPeople.filter(
+    (p) => p.type === "dependent" && p.playCricketId,
+  ).length;
+  const totalDependents = allPeople.filter(
+    (p) => p.type === "dependent",
+  ).length;
+
+  // Player name lookup for PC IDs
+  const playerNameById = useMemo(() => {
+    if (!pcPlayers) return new Map<string, string>();
+    return new Map(pcPlayers.map((p) => [p.memberId.toString(), p.name]));
+  }, [pcPlayers]);
+
+  // Keep detail modal person in sync with linkingData refreshes
+  useEffect(() => {
+    if (detailModal && linkingData) {
+      const updated = allPeople.find(
+        (p) =>
+          p.id === detailModal.person.id && p.type === detailModal.person.type,
+      );
+      if (updated) {
+        setDetailModal((prev) => (prev ? { ...prev, person: updated } : null));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- same pattern as v1
+  }, [allPeople]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header stats */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-3">
+          <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+            <span className="text-gray-500">Members:</span>{" "}
+            <span className="font-medium">{totalMembers}</span>
+          </div>
+          <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+            <span className="text-gray-500">Play-Cricket:</span>{" "}
+            <span className="font-medium">
+              {linkedPcMembers}/{totalMembers}
+            </span>{" "}
+            <span className="text-gray-400">members</span>
+            {totalDependents > 0 && (
+              <>
+                {", "}
+                <span className="font-medium">
+                  {linkedPcDeps}/{totalDependents}
+                </span>{" "}
+                <span className="text-gray-400">juniors</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            onClick={() => refreshMutation.mutate()}
+            disabled={refreshMutation.isPending}
+            size="sm"
+            variant="outline"
+          >
+            {refreshMutation.isPending
+              ? "Fetching..."
+              : pcPlayers
+                ? "Refresh PC Players"
+                : "Load PC Players"}
+          </Button>
+        </div>
+      </div>
+
+      {refreshMutation.isError && (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          Failed to fetch Play-Cricket players. Please try again.
+        </div>
+      )}
+
+      {!pcPlayers && !refreshMutation.isPending && (
+        <div className="rounded border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+          Click &quot;Load PC Players&quot; to fetch the Play-Cricket player
+          list. This is needed to link Play-Cricket records.
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-4">
+        <Input
+          type="text"
+          placeholder="Search by name..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-md"
+        />
+        <div className="flex items-center gap-3 text-sm">
+          <label className="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={showLinked}
+              onChange={(e) => setShowLinked(e.target.checked)}
+            />
+            Fully linked
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={showUnlinked}
+              onChange={(e) => setShowUnlinked(e.target.checked)}
+            />
+            Unlinked
+          </label>
+        </div>
+        <Select
+          value={personTypeFilter}
+          onValueChange={(value) =>
+            setPersonTypeFilter(value as "all" | "member" | "dependent")
+          }
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            <SelectItem value="member">Members only</SelectItem>
+            <SelectItem value="dependent">Juniors only</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Table */}
+      {isLoading && <p className="text-gray-500">Loading...</p>}
+
+      {linkingData && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead className="text-center">Play-Cricket</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredPeople.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={3}
+                  className="py-6 text-center text-gray-500"
+                >
+                  No matching people found.
+                </TableCell>
+              </TableRow>
+            )}
+            {filteredPeople.map((person) => (
+              <TableRow
+                key={`${person.type}-${person.id}`}
+                className="cursor-pointer"
+                onClick={() => setDetailModal({ person, linking: false })}
+              >
+                <TableCell>
+                  <div className="font-medium">{person.name}</div>
+                  {person.parentName && (
+                    <div className="text-xs text-gray-500">
+                      Parent: {person.parentName}
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <StatusPill
+                    variant={person.type === "member" ? "blue" : "green"}
+                  >
+                    {person.type === "member" ? "Member" : "Junior"}
+                  </StatusPill>
+                </TableCell>
+                <TableCell className="text-center">
+                  {person.playCricketId ? (
+                    <span
+                      className="inline-block text-green-600"
+                      title={`PC #${person.playCricketId}${playerNameById.get(person.playCricketId) ? ` - ${playerNameById.get(person.playCricketId)}` : ""}`}
+                    >
+                      &#10003;
+                    </span>
+                  ) : (
+                    <span className="inline-block text-gray-300">&#10007;</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {/* Detail Modal */}
+      {detailModal && (
+        <DetailModal
+          person={detailModal.person}
+          linking={detailModal.linking}
+          pcPlayers={pcPlayers}
+          playerNameById={playerNameById}
+          linkSearch={linkSearch}
+          onLinkSearchChange={setLinkSearch}
+          onStartLinking={() => {
+            setDetailModal((prev) =>
+              prev ? { ...prev, linking: true } : null,
+            );
+            setLinkSearch("");
+          }}
+          onCancelLinking={() => {
+            setDetailModal((prev) =>
+              prev ? { ...prev, linking: false } : null,
+            );
+            setLinkSearch("");
+          }}
+          onLinkPlayCricket={(playCricketId) =>
+            linkPcMutation.mutate({
+              type: detailModal.person.type,
+              id: detailModal.person.id,
+              playCricketId,
+            })
+          }
+          onUnlinkPlayCricket={() =>
+            unlinkPcMutation.mutate({
+              type: detailModal.person.type,
+              id: detailModal.person.id,
+            })
+          }
+          isLinking={linkPcMutation.isPending}
+          isUnlinking={unlinkPcMutation.isPending}
+          onClose={() => {
+            setDetailModal(null);
+            setLinkSearch("");
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function DetailModal({
+  person,
+  linking,
+  pcPlayers,
+  playerNameById,
+  linkSearch,
+  onLinkSearchChange,
+  onStartLinking,
+  onCancelLinking,
+  onLinkPlayCricket,
+  onUnlinkPlayCricket,
+  isLinking,
+  isUnlinking,
+  onClose,
+}: {
+  person: PersonRow;
+  linking: boolean;
+  pcPlayers: PlayCricketPlayer[] | null;
+  playerNameById: Map<string, string>;
+  linkSearch: string;
+  onLinkSearchChange: (value: string) => void;
+  onStartLinking: () => void;
+  onCancelLinking: () => void;
+  onLinkPlayCricket: (playCricketId: string) => void;
+  onUnlinkPlayCricket: () => void;
+  isLinking: boolean;
+  isUnlinking: boolean;
+  onClose: () => void;
+}) {
+  // Suggested PC players
+  const suggestedPcPlayers = useMemo(() => {
+    if (!pcPlayers || !linking) return [];
+    const query =
+      linkSearch.trim().length > 0 ? linkSearch : (person.name ?? "");
+    return pcPlayers
+      .map((player) => ({
+        ...player,
+        score: fuzzyScore(query, player.name),
+      }))
+      .filter((p) => {
+        if (linkSearch.trim().length > 0) {
+          const term = linkSearch.toLowerCase().trim();
+          return (
+            p.name.toLowerCase().includes(term) ||
+            p.memberId.toString().includes(term) ||
+            p.score > 0.3
+          );
+        }
+        return p.score > 0.2;
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+  }, [pcPlayers, linking, linkSearch, person.name]);
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{person.name}</DialogTitle>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <StatusPill variant={person.type === "member" ? "blue" : "green"}>
+              {person.type === "member" ? "Member" : "Junior"}
+            </StatusPill>
+            {person.parentName && <span>Parent: {person.parentName}</span>}
+          </div>
+        </DialogHeader>
+
+        {/* Play-Cricket section */}
+        <div className="rounded border border-gray-200 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-gray-700">
+            Play-Cricket
+          </h3>
+          {person.playCricketId ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <StatusPill variant="green">Linked</StatusPill>
+                <span className="ml-2 font-mono text-xs text-gray-500">
+                  #{person.playCricketId}
+                </span>
+                {playerNameById.get(person.playCricketId) && (
+                  <span className="ml-1 text-sm text-gray-700">
+                    {playerNameById.get(person.playCricketId)}
+                  </span>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onUnlinkPlayCricket}
+                disabled={isUnlinking}
+                className="border-red-300 text-red-700 hover:bg-red-50"
+              >
+                Unlink
+              </Button>
+            </div>
+          ) : linking ? (
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <Input
+                  type="text"
+                  placeholder="Search Play-Cricket players..."
+                  value={linkSearch}
+                  onChange={(e) => onLinkSearchChange(e.target.value)}
+                  className="flex-1"
+                  autoFocus
+                />
+                <Button variant="ghost" size="sm" onClick={onCancelLinking}>
+                  Cancel
+                </Button>
+              </div>
+              {!pcPlayers && (
+                <p className="text-sm text-yellow-600">
+                  Load Play-Cricket players first using the button above.
+                </p>
+              )}
+              <div className="flex max-h-60 flex-col gap-1 overflow-y-auto">
+                {suggestedPcPlayers.length === 0 && pcPlayers && (
+                  <p className="py-2 text-center text-sm text-gray-500">
+                    No matching players found.
+                  </p>
+                )}
+                {suggestedPcPlayers.map((player) => (
+                  <div
+                    key={player.memberId}
+                    className="flex items-center justify-between rounded px-3 py-2 hover:bg-gray-50"
+                  >
+                    <div>
+                      <span className="font-medium">{player.name}</span>
+                      <span className="ml-2 font-mono text-xs text-gray-400">
+                        #{player.memberId}
+                      </span>
+                      {player.score >= 0.7 && (
+                        <StatusPill variant="green">Strong match</StatusPill>
+                      )}
+                      {player.score >= 0.4 && player.score < 0.7 && (
+                        <StatusPill variant="yellow">Possible match</StatusPill>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        onLinkPlayCricket(player.memberId.toString())
+                      }
+                      disabled={isLinking}
+                    >
+                      Link
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <StatusPill variant="gray">Not linked</StatusPill>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onStartLinking}
+                disabled={!pcPlayers}
+                title={
+                  !pcPlayers ? "Load Play-Cricket players first" : undefined
+                }
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                Link
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

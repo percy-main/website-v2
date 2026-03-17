@@ -1,6 +1,7 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import type {
+  CreateCharge,
   CreateMember,
   ListUsers,
   RecordLinking,
@@ -15,7 +16,8 @@ export function listUsers(db: Kysely<DB>) {
 
     let query = db
       .selectFrom("user")
-      .leftJoin("member", "member.email", "user.email");
+      .leftJoin("member", "member.email", "user.email")
+      .leftJoin("membership", "membership.member_id", "member.id");
 
     if (!includeArchived) {
       query = query.where((eb) =>
@@ -27,8 +29,8 @@ export function listUsers(db: Kysely<DB>) {
       const pattern = `%${search}%`;
       query = query.where((eb) =>
         eb.or([
-          eb("user.name", "like", pattern),
-          eb("user.email", "like", pattern),
+          eb("user.name", "ilike", pattern),
+          eb("user.email", "ilike", pattern),
         ]),
       );
     }
@@ -39,6 +41,31 @@ export function listUsers(db: Kysely<DB>) {
 
     if (params.memberCategory) {
       query = query.where("member.member_category", "=", params.memberCategory);
+    }
+
+    if (params.isMember !== undefined) {
+      if (params.isMember) {
+        query = query.where("member.id", "is not", null);
+      } else {
+        query = query.where("member.id", "is", null);
+      }
+    }
+
+    if (params.membershipStatus) {
+      const now = new Date().toISOString();
+      if (params.membershipStatus === "active") {
+        query = query.where("membership.paid_until", ">", now);
+      } else if (params.membershipStatus === "lapsed") {
+        query = query
+          .where("membership.paid_until", "is not", null)
+          .where("membership.paid_until", "<=", now);
+      } else if (params.membershipStatus === "none") {
+        query = query.where("membership.id", "is", null);
+      }
+    }
+
+    if (params.membershipType) {
+      query = query.where("membership.type", "=", params.membershipType);
     }
 
     const [items, countResult] = await Promise.all([
@@ -53,6 +80,10 @@ export function listUsers(db: Kysely<DB>) {
           "user.createdAt",
           "member.id as memberId",
           "member.member_category",
+          "member.deleted_at as memberDeletedAt",
+          "member.deleted_reason as memberDeletedReason",
+          "membership.type as membershipType",
+          "membership.paid_until as membershipPaidUntil",
         ])
         .orderBy("user.createdAt", "desc")
         .limit(pageSize)
@@ -164,19 +195,20 @@ export function getRecordLinking(db: Kysely<DB>) {
       db
         .selectFrom("member")
         .where("deleted_at", "is", null)
-        .select([
-          "id",
-          "name",
-          "email",
-          "play_cricket_id",
-          "contentful_entry_id",
-        ])
+        .select(["id", "name", "play_cricket_id", "contentful_entry_id"])
         .orderBy("name", "asc")
         .execute(),
       db
         .selectFrom("dependent")
-        .select(["id", "name", "play_cricket_id"])
-        .orderBy("name", "asc")
+        .innerJoin("member", "member.id", "dependent.member_id")
+        .where("member.deleted_at", "is", null)
+        .select([
+          "dependent.id",
+          "dependent.name",
+          "dependent.play_cricket_id",
+          "member.name as parentName",
+        ])
+        .orderBy("dependent.name", "asc")
         .execute(),
     ]);
 
@@ -237,5 +269,425 @@ export function unlinkContentfulPerson(db: Kysely<DB>) {
       .execute();
 
     return { success: true };
+  };
+}
+
+export function getUserDetail(db: Kysely<DB>) {
+  return async (userId: string) => {
+    const user = await db
+      .selectFrom("user")
+      .where("id", "=", userId)
+      .select([
+        "id",
+        "name",
+        "email",
+        "role",
+        "banned",
+        "emailVerified",
+        "createdAt",
+      ])
+      .executeTakeFirst();
+
+    if (!user) {
+      const error = new Error("User not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const member = await db
+      .selectFrom("member")
+      .where("email", "=", user.email)
+      .selectAll()
+      .executeTakeFirst();
+
+    const membership = member
+      ? await db
+          .selectFrom("membership")
+          .where("member_id", "=", member.id)
+          .selectAll()
+          .executeTakeFirst()
+      : null;
+
+    const dependents = member
+      ? await db
+          .selectFrom("dependent")
+          .where("dependent.member_id", "=", member.id)
+          .leftJoin("membership", (join) =>
+            join
+              .onRef("membership.dependent_id", "=", "dependent.id")
+              .onRef("membership.member_id", "=", "dependent.member_id"),
+          )
+          .select([
+            "dependent.id",
+            "dependent.name",
+            "dependent.dob",
+            "dependent.sex",
+            "dependent.school_year",
+            "dependent.photo_consent",
+            "dependent.gp_surgery",
+            "dependent.gp_phone",
+            "dependent.alt_contact_name",
+            "dependent.alt_contact_phone",
+            "dependent.emergency_medical_consent",
+            "dependent.has_disability",
+            "dependent.disability_type",
+            "dependent.medical_info",
+            "membership.paid_until as membershipPaidUntil",
+          ])
+          .execute()
+      : [];
+
+    const charges = member
+      ? await db
+          .selectFrom("charge")
+          .where("member_id", "=", member.id)
+          .selectAll()
+          .orderBy("charge_date", "desc")
+          .execute()
+      : [];
+
+    const juniorManagerTeams = await db
+      .selectFrom("junior_team_manager")
+      .innerJoin(
+        "junior_team",
+        "junior_team.id",
+        "junior_team_manager.junior_team_id",
+      )
+      .where("junior_team_manager.user_id", "=", userId)
+      .select([
+        "junior_team.id",
+        "junior_team.name",
+        "junior_team.age_group",
+        "junior_team.sex",
+      ])
+      .execute();
+
+    const officialTeams = await db
+      .selectFrom("team_official")
+      .innerJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "team_official.play_cricket_team_id",
+      )
+      .where("team_official.user_id", "=", userId)
+      .select(["play_cricket_team.id", "play_cricket_team.name"])
+      .execute();
+
+    return {
+      user,
+      member: member ?? null,
+      membership: membership ?? null,
+      dependents,
+      charges,
+      juniorManagerTeams,
+      officialTeams,
+    };
+  };
+}
+
+export function setMemberCategory(db: Kysely<DB>) {
+  return async (userId: string, memberCategory: string | null) => {
+    const user = await db
+      .selectFrom("user")
+      .where("id", "=", userId)
+      .select("email")
+      .executeTakeFirst();
+
+    if (!user) {
+      const error = new Error("User not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await db
+      .updateTable("member")
+      .set({ member_category: memberCategory })
+      .where("email", "=", user.email)
+      .execute();
+
+    return { success: true };
+  };
+}
+
+export function archiveMember(db: Kysely<DB>) {
+  return async (userId: string, reason: string) => {
+    const user = await db
+      .selectFrom("user")
+      .where("id", "=", userId)
+      .select("email")
+      .executeTakeFirst();
+
+    if (!user) {
+      const error = new Error("User not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const now = new Date().toISOString();
+
+    await Promise.all([
+      db
+        .updateTable("user")
+        .set({ banned: true, banReason: reason })
+        .where("id", "=", userId)
+        .execute(),
+      db
+        .updateTable("member")
+        .set({
+          deleted_at: now,
+          deleted_by: userId,
+          deleted_reason: reason,
+        })
+        .where("email", "=", user.email)
+        .execute(),
+    ]);
+
+    return { success: true };
+  };
+}
+
+export function restoreMember(db: Kysely<DB>) {
+  return async (userId: string) => {
+    const user = await db
+      .selectFrom("user")
+      .where("id", "=", userId)
+      .select("email")
+      .executeTakeFirst();
+
+    if (!user) {
+      const error = new Error("User not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await Promise.all([
+      db
+        .updateTable("user")
+        .set({ banned: false, banReason: null })
+        .where("id", "=", userId)
+        .execute(),
+      db
+        .updateTable("member")
+        .set({
+          deleted_at: null,
+          deleted_by: null,
+          deleted_reason: null,
+        })
+        .where("email", "=", user.email)
+        .execute(),
+    ]);
+
+    return { success: true };
+  };
+}
+
+export function createCharge(db: Kysely<DB>) {
+  return async (userId: string, adminUserId: string, data: CreateCharge) => {
+    const user = await db
+      .selectFrom("user")
+      .where("id", "=", userId)
+      .select("email")
+      .executeTakeFirst();
+
+    if (!user) {
+      const error = new Error("User not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const member = await db
+      .selectFrom("member")
+      .where("email", "=", user.email)
+      .select("id")
+      .executeTakeFirst();
+
+    if (!member) {
+      const error = new Error("No member record found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const id = crypto.randomUUID();
+
+    await db
+      .insertInto("charge")
+      .values({
+        id,
+        member_id: member.id,
+        description: data.description,
+        amount_pence: data.amountPence,
+        charge_date: data.chargeDate,
+        created_by: adminUserId,
+        source: "admin",
+        type: "manual",
+      })
+      .execute();
+
+    return { id };
+  };
+}
+
+export function deleteCharge(db: Kysely<DB>) {
+  return async (chargeId: string, adminUserId: string, reason: string) => {
+    const now = new Date().toISOString();
+
+    const result = await db
+      .updateTable("charge")
+      .set({
+        deleted_at: now,
+        deleted_by: adminUserId,
+        deleted_reason: reason,
+      })
+      .where("id", "=", chargeId)
+      .where("paid_at", "is", null)
+      .where("payment_confirmed_at", "is", null)
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows === 0n) {
+      const error = new Error("Charge not found or already paid") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return { success: true };
+  };
+}
+
+export function setJuniorManagerTeams(db: Kysely<DB>) {
+  return async (userId: string, teamIds: string[]) => {
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .deleteFrom("junior_team_manager")
+        .where("user_id", "=", userId)
+        .execute();
+
+      if (teamIds.length > 0) {
+        await trx
+          .insertInto("junior_team_manager")
+          .values(
+            teamIds.map((teamId) => ({
+              user_id: userId,
+              junior_team_id: teamId,
+            })),
+          )
+          .execute();
+
+        await trx
+          .updateTable("user")
+          .set({ role: "junior_manager" })
+          .where("id", "=", userId)
+          .execute();
+      } else {
+        const user = await trx
+          .selectFrom("user")
+          .where("id", "=", userId)
+          .select("role")
+          .executeTakeFirst();
+
+        if (user?.role === "junior_manager") {
+          await trx
+            .updateTable("user")
+            .set({ role: "user" })
+            .where("id", "=", userId)
+            .execute();
+        }
+      }
+    });
+
+    return { success: true };
+  };
+}
+
+export function setOfficialTeams(db: Kysely<DB>) {
+  return async (userId: string, teamIds: string[]) => {
+    const user = await db
+      .selectFrom("user")
+      .where("id", "=", userId)
+      .select("role")
+      .executeTakeFirst();
+
+    if (!user) {
+      const error = new Error("User not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (user.role === "admin") {
+      const error = new Error(
+        "Cannot assign official role to an admin. Demote them first.",
+      ) as Error & { statusCode: number };
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await db
+      .deleteFrom("team_official")
+      .where("user_id", "=", userId)
+      .execute();
+
+    if (teamIds.length > 0) {
+      await db
+        .insertInto("team_official")
+        .values(
+          teamIds.map((teamId) => ({
+            user_id: userId,
+            play_cricket_team_id: teamId,
+          })),
+        )
+        .execute();
+
+      await db
+        .updateTable("user")
+        .set({ role: "official" })
+        .where("id", "=", userId)
+        .execute();
+    } else {
+      if (user.role === "official") {
+        await db
+          .updateTable("user")
+          .set({ role: "user" })
+          .where("id", "=", userId)
+          .execute();
+      }
+    }
+
+    return { success: true };
+  };
+}
+
+export function getAllJuniorTeams(db: Kysely<DB>) {
+  return async () => {
+    return await db
+      .selectFrom("junior_team")
+      .selectAll()
+      .orderBy("sex", "asc")
+      .orderBy("age_group", "asc")
+      .execute();
+  };
+}
+
+export function getAllPlayCricketTeams(db: Kysely<DB>) {
+  return async () => {
+    return await db
+      .selectFrom("play_cricket_team")
+      .selectAll()
+      .orderBy("name", "asc")
+      .execute();
   };
 }
