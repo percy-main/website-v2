@@ -98,11 +98,12 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
     - [ ] Recharts season timeline chart on history tab (hooks wired, chart rendering TODO)
     - [ ] Chaos week admin email sending (needs `packages/email` ChaosWeekAnnouncement template wiring)
     - [ ] Team share image generation (depends on Contentful player photos — deferred to Phase 5)
+    - [ ] Fix flaky fantasy integration tests on CI (`startTestContainer()` exceeds 30s timeout on GitHub Actions — currently skipped, passes locally)
     - **Note:** Fantasy team builder cannot be fully tested until admin side of fantasy is completed (player population, cost calculation, eligibility toggling)
   - [x] Be the Keeper game (2 pages)
   - [x] Static pages (privacy policy, nets redirect, payment confirmation)
   - [x] Admin panel (5 of 11 tabs: Members, Sponsorships, Treasurer, Fantasy, Record Linking). Deferred tabs:
-    - [ ] Juniors tab (needs admin junior listing API)
+    - [x] Juniors tab (admin junior listing API + frontend tab)
     - [ ] Charges tab (needs admin charge listing/aggregates API)
     - [ ] Contacts tab (needs contact submission listing API)
     - [ ] Duplicates tab (needs find/merge duplicates API)

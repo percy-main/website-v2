@@ -17,6 +17,15 @@ export {
   type PlayerSponsored,
 } from "./payment-metadata.js";
 
-export { AGE_GROUPS, type AgeGroup } from "./age-group.js";
+export {
+  AGE_GROUPS,
+  getAgeGroup,
+  getAgeOnCutoff,
+  getSeasonCutoffDate,
+  getTeamName,
+  type AgeGroup,
+} from "./age-group.js";
 
 export { stripeConfig, type StripeConfig } from "./stripe-config.js";
+
+export { nameSimilarity, normalizeName } from "./name-similarity.js";
