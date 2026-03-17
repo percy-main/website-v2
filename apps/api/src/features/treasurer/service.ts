@@ -18,11 +18,11 @@ export function getIncomeByMonth(db: Kysely<DB>) {
 
     const charges = await query
       .select([
-        sql<string>`strftime('%Y-%m', paid_at)`.as("month"),
+        sql<string>`to_char(paid_at, 'YYYY-MM')`.as("month"),
         "type",
         sql<number>`SUM(amount_pence)`.as("total_pence"),
       ])
-      .groupBy([sql`strftime('%Y-%m', paid_at)`, "type"])
+      .groupBy([sql`to_char(paid_at, 'YYYY-MM')`, "type"])
       .orderBy("month", "asc")
       .execute();
 
@@ -40,10 +40,10 @@ export function getIncomeByMonth(db: Kysely<DB>) {
 
     const gameSponsorIncome = await gameSponsorQuery
       .select([
-        sql<string>`strftime('%Y-%m', paid_at)`.as("month"),
+        sql<string>`to_char(paid_at, 'YYYY-MM')`.as("month"),
         sql<number>`SUM(amount_pence)`.as("total_pence"),
       ])
-      .groupBy(sql`strftime('%Y-%m', paid_at)`)
+      .groupBy(sql`to_char(paid_at, 'YYYY-MM')`)
       .execute();
 
     let playerSponsorQuery = db
@@ -59,10 +59,10 @@ export function getIncomeByMonth(db: Kysely<DB>) {
 
     const playerSponsorIncome = await playerSponsorQuery
       .select([
-        sql<string>`strftime('%Y-%m', paid_at)`.as("month"),
+        sql<string>`to_char(paid_at, 'YYYY-MM')`.as("month"),
         sql<number>`SUM(amount_pence)`.as("total_pence"),
       ])
-      .groupBy(sql`strftime('%Y-%m', paid_at)`)
+      .groupBy(sql`to_char(paid_at, 'YYYY-MM')`)
       .execute();
 
     return {
