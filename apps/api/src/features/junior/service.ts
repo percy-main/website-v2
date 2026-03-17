@@ -319,6 +319,7 @@ export function listPlayers(db: Kysely<DB>) {
         "member.emergency_contact_name",
         "member.emergency_contact_telephone",
       ])
+      .orderBy("dependent.name", "asc")
       .execute();
 
     return allDependents.filter(

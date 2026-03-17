@@ -135,11 +135,13 @@ function TeamCard({ teamId, teamName }: { teamId: string; teamName: string }) {
 
   return (
     <Card>
-      <CardHeader
-        className="cursor-pointer"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="flex items-center justify-between">
+      <CardHeader className="p-0">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between p-6 text-left"
+          aria-expanded={expanded}
+          onClick={() => setExpanded(!expanded)}
+        >
           <CardTitle className="flex items-center gap-2">
             {teamName}
             {players && <Badge variant="secondary">{players.length}</Badge>}
@@ -147,7 +149,7 @@ function TeamCard({ teamId, teamName }: { teamId: string; teamName: string }) {
           <span className="text-sm text-gray-400">
             {expanded ? "Collapse" : "Expand"}
           </span>
-        </div>
+        </button>
       </CardHeader>
       {expanded && (
         <CardContent>
