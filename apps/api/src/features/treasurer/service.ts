@@ -18,11 +18,11 @@ export function getIncomeByMonth(db: Kysely<DB>) {
 
     const charges = await query
       .select([
-        sql<string>`to_char(paid_at, 'YYYY-MM')`.as("month"),
+        sql<string>`LEFT(paid_at, 7)`.as("month"),
         "type",
         sql<number>`SUM(amount_pence)`.as("total_pence"),
       ])
-      .groupBy([sql`to_char(paid_at, 'YYYY-MM')`, "type"])
+      .groupBy([sql`LEFT(paid_at, 7)`, "type"])
       .orderBy("month", "asc")
       .execute();
 
@@ -40,10 +40,10 @@ export function getIncomeByMonth(db: Kysely<DB>) {
 
     const gameSponsorIncome = await gameSponsorQuery
       .select([
-        sql<string>`to_char(paid_at, 'YYYY-MM')`.as("month"),
+        sql<string>`LEFT(paid_at, 7)`.as("month"),
         sql<number>`SUM(amount_pence)`.as("total_pence"),
       ])
-      .groupBy(sql`to_char(paid_at, 'YYYY-MM')`)
+      .groupBy(sql`LEFT(paid_at, 7)`)
       .execute();
 
     let playerSponsorQuery = db
@@ -59,16 +59,25 @@ export function getIncomeByMonth(db: Kysely<DB>) {
 
     const playerSponsorIncome = await playerSponsorQuery
       .select([
-        sql<string>`to_char(paid_at, 'YYYY-MM')`.as("month"),
+        sql<string>`LEFT(paid_at, 7)`.as("month"),
         sql<number>`SUM(amount_pence)`.as("total_pence"),
       ])
-      .groupBy(sql`to_char(paid_at, 'YYYY-MM')`)
+      .groupBy(sql`LEFT(paid_at, 7)`)
       .execute();
 
     return {
-      charges,
-      gameSponsorIncome,
-      playerSponsorIncome,
+      charges: charges.map((c) => ({
+        ...c,
+        total_pence: Number(c.total_pence),
+      })),
+      gameSponsorIncome: gameSponsorIncome.map((s) => ({
+        ...s,
+        total_pence: Number(s.total_pence),
+      })),
+      playerSponsorIncome: playerSponsorIncome.map((s) => ({
+        ...s,
+        total_pence: Number(s.total_pence),
+      })),
     };
   };
 }
@@ -92,7 +101,14 @@ export function getMembershipSummary(db: Kysely<DB>) {
       .groupBy("type")
       .execute();
 
-    return { memberships };
+    return {
+      memberships: memberships.map((m) => ({
+        ...m,
+        total: Number(m.total),
+        active: Number(m.active),
+        lapsed: Number(m.lapsed),
+      })),
+    };
   };
 }
 
@@ -185,7 +201,18 @@ export function getSponsorshipSummary(db: Kysely<DB>) {
         .executeTakeFirst(),
     ]);
 
-    return { gameSponsorship: gameStats, playerSponsorship: playerStats };
+    const toNumbers = (stats: typeof gameStats) => ({
+      total: Number(stats?.total ?? 0),
+      approved_paid: Number(stats?.approved_paid ?? 0),
+      pending_payment: Number(stats?.pending_payment ?? 0),
+      pending_approval: Number(stats?.pending_approval ?? 0),
+      total_amount_pence: Number(stats?.total_amount_pence ?? 0),
+    });
+
+    return {
+      gameSponsorship: toNumbers(gameStats),
+      playerSponsorship: toNumbers(playerStats),
+    };
   };
 }
 
@@ -200,7 +227,7 @@ export function getMatchdayExpensesSummary(db: Kysely<DB>) {
       query = query.where("created_at", "<=", dateTo);
     }
 
-    const breakdown = await query
+    const rawBreakdown = await query
       .select([
         "expense_type",
         sql<number>`COUNT(*)`.as("count"),
@@ -209,8 +236,14 @@ export function getMatchdayExpensesSummary(db: Kysely<DB>) {
       .groupBy("expense_type")
       .execute();
 
+    const breakdown = rawBreakdown.map((row) => ({
+      ...row,
+      count: Number(row.count),
+      total_pence: Number(row.total_pence),
+    }));
+
     const grandTotal = breakdown.reduce(
-      (sum, row) => sum + (row.total_pence ?? 0),
+      (sum, row) => sum + row.total_pence,
       0,
     );
 
