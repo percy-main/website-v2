@@ -54,7 +54,7 @@ function buildSquad(playerIds: string[]): PlayerInput[] {
   return playerIds.map((id, i) => ({
     playCricketId: id,
     isCaptain: i === 0,
-    isWicketkeeper: false,
+    isWicketkeeper: i === 0,
     slotType:
       i < SLOT_COUNTS.batting
         ? "batting"
@@ -97,7 +97,8 @@ describe("fantasy service (integration)", () => {
         email: `noteam-${crypto.randomUUID()}@test.com`,
       });
       const result = await getMyTeam(ctx.db)(userId);
-      expect(result).toBeNull();
+      expect(result.team).toBeNull();
+      expect(result.players).toEqual([]);
     });
   });
 
@@ -146,7 +147,7 @@ describe("fantasy service (integration)", () => {
       const badSquad: PlayerInput[] = playerIds.map((id, i) => ({
         playCricketId: id,
         isCaptain: i === 0,
-        isWicketkeeper: false,
+        isWicketkeeper: i === 0,
         slotType: "batting",
       }));
 
@@ -171,7 +172,7 @@ describe("fantasy service (integration)", () => {
 
       const squad = buildSquad(playerIds);
       await expect(saveTeam(ctx.db)(userId, squad, season)).rejects.toThrow(
-        /exceeds budget/,
+        /budget exceeded/,
       );
     });
   });

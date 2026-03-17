@@ -120,7 +120,14 @@ export function getMyTeam(db: Kysely<DB>) {
       .executeTakeFirst();
 
     if (!team) {
-      return null;
+      return {
+        team: null,
+        players: [],
+        gameweek,
+        transfersUsed: 0,
+        maxTransfers: MAX_TRANSFERS_PER_GAMEWEEK,
+        chaosWeek: null,
+      };
     }
 
     // Get active players for the current gameweek
