@@ -98,6 +98,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
     - [ ] Recharts season timeline chart on history tab (hooks wired, chart rendering TODO)
     - [ ] Chaos week admin email sending (needs `packages/email` ChaosWeekAnnouncement template wiring)
     - [ ] Team share image generation (depends on Contentful player photos — deferred to Phase 5)
+    - **Note:** Fantasy team builder cannot be fully tested until admin side of fantasy is completed (player population, cost calculation, eligibility toggling)
   - [ ] Be the Keeper game (2 pages)
   - [ ] Static pages (privacy policy, nets redirect, payment confirmation)
   - [ ] Admin panel
