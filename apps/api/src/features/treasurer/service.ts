@@ -20,7 +20,7 @@ export function getIncomeByMonth(db: Kysely<DB>) {
       .select([
         sql<string>`LEFT(paid_at, 7)`.as("month"),
         "type",
-        sql<number>`SUM(amount_pence)`.as("total_pence"),
+        sql<string>`SUM(amount_pence)`.as("total_pence"),
       ])
       .groupBy([sql`LEFT(paid_at, 7)`, "type"])
       .orderBy("month", "asc")
@@ -41,7 +41,7 @@ export function getIncomeByMonth(db: Kysely<DB>) {
     const gameSponsorIncome = await gameSponsorQuery
       .select([
         sql<string>`LEFT(paid_at, 7)`.as("month"),
-        sql<number>`SUM(amount_pence)`.as("total_pence"),
+        sql<string>`SUM(amount_pence)`.as("total_pence"),
       ])
       .groupBy(sql`LEFT(paid_at, 7)`)
       .execute();
@@ -60,7 +60,7 @@ export function getIncomeByMonth(db: Kysely<DB>) {
     const playerSponsorIncome = await playerSponsorQuery
       .select([
         sql<string>`LEFT(paid_at, 7)`.as("month"),
-        sql<number>`SUM(amount_pence)`.as("total_pence"),
+        sql<string>`SUM(amount_pence)`.as("total_pence"),
       ])
       .groupBy(sql`LEFT(paid_at, 7)`)
       .execute();
@@ -90,11 +90,11 @@ export function getMembershipSummary(db: Kysely<DB>) {
       .selectFrom("membership")
       .select([
         "type",
-        sql<number>`COUNT(*)`.as("total"),
-        sql<number>`SUM(CASE WHEN paid_until > ${now} THEN 1 ELSE 0 END)`.as(
+        sql<string>`COUNT(*)`.as("total"),
+        sql<string>`SUM(CASE WHEN paid_until > ${now} THEN 1 ELSE 0 END)`.as(
           "active",
         ),
-        sql<number>`SUM(CASE WHEN paid_until <= ${now} OR paid_until IS NULL THEN 1 ELSE 0 END)`.as(
+        sql<string>`SUM(CASE WHEN paid_until <= ${now} OR paid_until IS NULL THEN 1 ELSE 0 END)`.as(
           "lapsed",
         ),
       ])
@@ -171,32 +171,32 @@ export function getSponsorshipSummary(db: Kysely<DB>) {
     const [gameStats, playerStats] = await Promise.all([
       gameQuery
         .select([
-          sql<number>`COUNT(*)`.as("total"),
-          sql<number>`SUM(CASE WHEN paid_at IS NOT NULL AND approved = true THEN 1 ELSE 0 END)`.as(
+          sql<string>`COUNT(*)`.as("total"),
+          sql<string>`SUM(CASE WHEN paid_at IS NOT NULL AND approved = true THEN 1 ELSE 0 END)`.as(
             "approved_paid",
           ),
-          sql<number>`SUM(CASE WHEN paid_at IS NULL THEN 1 ELSE 0 END)`.as(
+          sql<string>`SUM(CASE WHEN paid_at IS NULL THEN 1 ELSE 0 END)`.as(
             "pending_payment",
           ),
-          sql<number>`SUM(CASE WHEN paid_at IS NOT NULL AND approved = false THEN 1 ELSE 0 END)`.as(
+          sql<string>`SUM(CASE WHEN paid_at IS NOT NULL AND approved = false THEN 1 ELSE 0 END)`.as(
             "pending_approval",
           ),
-          sql<number>`COALESCE(SUM(amount_pence), 0)`.as("total_amount_pence"),
+          sql<string>`COALESCE(SUM(amount_pence), 0)`.as("total_amount_pence"),
         ])
         .executeTakeFirst(),
       playerQuery
         .select([
-          sql<number>`COUNT(*)`.as("total"),
-          sql<number>`SUM(CASE WHEN paid_at IS NOT NULL AND approved = true THEN 1 ELSE 0 END)`.as(
+          sql<string>`COUNT(*)`.as("total"),
+          sql<string>`SUM(CASE WHEN paid_at IS NOT NULL AND approved = true THEN 1 ELSE 0 END)`.as(
             "approved_paid",
           ),
-          sql<number>`SUM(CASE WHEN paid_at IS NULL THEN 1 ELSE 0 END)`.as(
+          sql<string>`SUM(CASE WHEN paid_at IS NULL THEN 1 ELSE 0 END)`.as(
             "pending_payment",
           ),
-          sql<number>`SUM(CASE WHEN paid_at IS NOT NULL AND approved = false THEN 1 ELSE 0 END)`.as(
+          sql<string>`SUM(CASE WHEN paid_at IS NOT NULL AND approved = false THEN 1 ELSE 0 END)`.as(
             "pending_approval",
           ),
-          sql<number>`COALESCE(SUM(amount_pence), 0)`.as("total_amount_pence"),
+          sql<string>`COALESCE(SUM(amount_pence), 0)`.as("total_amount_pence"),
         ])
         .executeTakeFirst(),
     ]);
@@ -230,8 +230,8 @@ export function getMatchdayExpensesSummary(db: Kysely<DB>) {
     const rawBreakdown = await query
       .select([
         "expense_type",
-        sql<number>`COUNT(*)`.as("count"),
-        sql<number>`SUM(amount_pence)`.as("total_pence"),
+        sql<string>`COUNT(*)`.as("count"),
+        sql<string>`SUM(amount_pence)`.as("total_pence"),
       ])
       .groupBy("expense_type")
       .execute();

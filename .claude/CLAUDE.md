@@ -104,7 +104,7 @@ The generator introspects the schema from the running PostgreSQL database.
 - **Use shadcn/ui components where possible** — compose smaller components into larger ones
 - **Use `NULL` for unset/missing values** — never empty string `""` for "no value"
 - **Services take `db: Kysely<DB>` as first parameter** — never import a client singleton
-- **PostgreSQL aggregates return bigint (string in node-pg)** — always wrap in `Number()` when used in arithmetic
+- **PostgreSQL aggregates return bigint (string in node-pg)** — use `sql<string>` (not `sql<number>`) for all aggregate expressions (`SUM`, `COUNT`, `MAX`, `COALESCE(SUM(...))`, etc.) so the type honestly reflects what node-pg returns. Then wrap in `Number()` when converting to a JS number. Using `sql<number>` lies to TypeScript and causes the lint rule `@typescript-eslint/no-unnecessary-type-conversion` to flag the `Number()` call as redundant.
 - **No `process.env` in services or routes** — use `app.config` via Fastify decoration
 - **Use `return await` in async route handlers** — preserves stack traces for error debugging
 
