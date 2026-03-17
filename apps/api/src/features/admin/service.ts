@@ -312,7 +312,7 @@ export function getUserDetail(db: Kysely<DB>) {
     const dependents = member
       ? await db
           .selectFrom("dependent")
-          .where("member_id", "=", member.id)
+          .where("dependent.member_id", "=", member.id)
           .leftJoin("membership", (join) =>
             join
               .onRef("membership.dependent_id", "=", "dependent.id")
