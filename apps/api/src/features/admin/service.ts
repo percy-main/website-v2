@@ -614,6 +614,28 @@ export function setJuniorManagerTeams(db: Kysely<DB>) {
 
 export function setOfficialTeams(db: Kysely<DB>) {
   return async (userId: string, teamIds: string[]) => {
+    const user = await db
+      .selectFrom("user")
+      .where("id", "=", userId)
+      .select("role")
+      .executeTakeFirst();
+
+    if (!user) {
+      const error = new Error("User not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (user.role === "admin") {
+      const error = new Error(
+        "Cannot assign official role to an admin. Demote them first.",
+      ) as Error & { statusCode: number };
+      error.statusCode = 400;
+      throw error;
+    }
+
     await db
       .deleteFrom("team_official")
       .where("user_id", "=", userId)
@@ -629,6 +651,20 @@ export function setOfficialTeams(db: Kysely<DB>) {
           })),
         )
         .execute();
+
+      await db
+        .updateTable("user")
+        .set({ role: "official" })
+        .where("id", "=", userId)
+        .execute();
+    } else {
+      if (user.role === "official") {
+        await db
+          .updateTable("user")
+          .set({ role: "user" })
+          .where("id", "=", userId)
+          .execute();
+      }
     }
 
     return { success: true };

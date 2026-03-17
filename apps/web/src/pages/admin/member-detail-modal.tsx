@@ -50,8 +50,7 @@ interface UserDetail {
   member: {
     id: string;
     title: string | null;
-    first_name: string | null;
-    last_name: string | null;
+    name: string | null;
     address: string | null;
     postcode: string | null;
     dob: string | null;
@@ -70,8 +69,7 @@ interface UserDetail {
   } | null;
   dependents: Array<{
     id: string;
-    first_name: string;
-    last_name: string;
+    name: string;
     dob: string | null;
     sex: string | null;
     school_year: string | null;
@@ -378,7 +376,7 @@ function MemberDetailsSection({ member }: { member: UserDetail["member"] }) {
     { label: "Title", value: member.title },
     {
       label: "Name",
-      value: [member.first_name, member.last_name].filter(Boolean).join(" "),
+      value: member.name,
     },
     { label: "Address", value: member.address },
     { label: "Postcode", value: member.postcode },
@@ -549,7 +547,7 @@ function DependentCard({
 }: {
   dependent: UserDetail["dependents"][number];
 }) {
-  const name = `${dependent.first_name} ${dependent.last_name}`;
+  const name = dependent.name;
   const paidUntil = dependent.membershipPaidUntil;
   const hasPaid = paidUntil !== null;
 
