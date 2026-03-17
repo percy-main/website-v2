@@ -67,7 +67,7 @@ export function Component() {
           </div>
         </div>
         <Tabs value={tab} onValueChange={onTabChange} className="w-full">
-          <TabsList className="flex flex-wrap gap-1">
+          <TabsList>
             <TabsTrigger value="members">Members</TabsTrigger>
             <TabsTrigger value="juniors">Juniors</TabsTrigger>
             <TabsTrigger value="charges">Charges</TabsTrigger>

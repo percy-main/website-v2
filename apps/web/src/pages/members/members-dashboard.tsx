@@ -49,12 +49,12 @@ export function Component() {
     <div className="container mx-auto px-4 py-8">
       <OnboardingModal onGoToDetails={() => onTabChange("details")} />
       <div className="flex flex-col items-start justify-stretch gap-4">
-        <div className="flex w-full flex-row items-start justify-between">
+        <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1>Members Area</h1>
-          <div className="flex flex-row flex-wrap gap-4">
+          <div className="flex flex-wrap gap-2">
             {user.role === "admin" && (
               <Link
-                className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+                className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
                 to="/admin"
               >
                 Admin Panel
@@ -63,7 +63,7 @@ export function Component() {
 
             {(user.role === "junior_manager" || user.role === "admin") && (
               <Link
-                className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+                className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
                 to="/junior-manager"
               >
                 Junior Teams
@@ -71,13 +71,13 @@ export function Component() {
             )}
 
             <Link
-              className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+              className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
               to="/members/fantasy"
             >
               Fantasy Cricket
             </Link>
             <Link
-              className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+              className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
               to="/auth/logout"
             >
               Sign Out

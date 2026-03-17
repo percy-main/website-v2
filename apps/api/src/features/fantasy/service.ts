@@ -15,8 +15,14 @@ import {
 } from "./gameweek.js";
 import type { PlayerInput } from "./schemas.js";
 import {
+  calculateBattingPoints,
+  calculateBowlingPoints,
+  calculateFieldingPoints,
   CHIP_TYPES,
   CHIPS,
+  ELIGIBLE_TEAM_IDS,
+  LEAGUE_COMPETITION_TYPES,
+  SCORING,
   SLOT_COUNTS,
   type ChipType,
   type SlotType,
@@ -125,7 +131,7 @@ export function getMyTeam(db: Kysely<DB>) {
         players: [],
         gameweek,
         transfersUsed: 0,
-        maxTransfers: MAX_TRANSFERS_PER_GAMEWEEK,
+        maxTransfers: null, // No team yet = unlimited initial selection
         chaosWeek: null,
       };
     }
@@ -154,15 +160,41 @@ export function getMyTeam(db: Kysely<DB>) {
       ])
       .execute();
 
-    // Count transfers this gameweek
-    const transfersResult = await db
+    // Count transfers this gameweek (only still-active ones, not reverted)
+    const transfersThisWeek = await db
       .selectFrom("fantasy_team_player")
       .where("fantasy_team_id", "=", team.id)
       .where("gameweek_added", "=", gameweek)
+      .where((eb) =>
+        eb.or([
+          eb("gameweek_removed", "is", null),
+          eb("gameweek_removed", ">", gameweek),
+        ]),
+      )
       .select(sql<number>`count(*)`.as("count"))
       .executeTakeFirst();
 
-    const transfersUsed = Number(transfersResult?.count ?? 0);
+    // Check if this is the user's initial squad (no players from before this gameweek)
+    const initialPlayers = await db
+      .selectFrom("fantasy_team_player")
+      .where("fantasy_team_id", "=", team.id)
+      .where("gameweek_added", "<", gameweek)
+      .where((eb) =>
+        eb.or([
+          eb("gameweek_removed", "is", null),
+          eb("gameweek_removed", ">", gameweek),
+        ]),
+      )
+      .select(sql<number>`count(*)`.as("count"))
+      .executeTakeFirst();
+
+    const isInitialSquad = Number(initialPlayers?.count ?? 0) === 0;
+    const transfersUsed = isInitialSquad
+      ? 0
+      : Number(transfersThisWeek?.count ?? 0);
+
+    // Transfers are unlimited in pre-season or if this is the user's first squad
+    const unlimitedTransfers = isPreSeason(s) || isInitialSquad;
 
     // Check for chaos week
     const chaosWeek = await db
@@ -177,7 +209,7 @@ export function getMyTeam(db: Kysely<DB>) {
       players,
       gameweek,
       transfersUsed,
-      maxTransfers: MAX_TRANSFERS_PER_GAMEWEEK,
+      maxTransfers: unlimitedTransfers ? null : MAX_TRANSFERS_PER_GAMEWEEK,
       chaosWeek: chaosWeek ?? null,
     };
   };
@@ -718,8 +750,196 @@ async function getOwnershipData(
   return { ownershipMap, teamCount };
 }
 
+/**
+ * Calculate total fantasy points from raw match performance data for given seasons.
+ * Used as a fallback when fantasy_player_score has no data (e.g. pre-season).
+ * Matches v1's calculateSeasonPoints().
+ */
+async function calculateSeasonPointsFromMatches(
+  db: Kysely<DB>,
+  seasons: string[],
+): Promise<Map<string, { totalPoints: number; matchesPlayed: number }>> {
+  const eligibleTeamIds = Array.from(ELIGIBLE_TEAM_IDS);
+  const leagueTypes = Array.from(LEAGUE_COMPETITION_TYPES);
+  const numericSeasons = seasons.map(Number);
+
+  const [battingPerfs, bowlingPerfs, fieldingPerfs, matchResults] =
+    await Promise.all([
+      db
+        .selectFrom("match_performance_batting")
+        .where("season", "in", numericSeasons)
+        .where("team_id", "in", eligibleTeamIds)
+        .where("competition_type", "in", leagueTypes)
+        .select([
+          "player_id",
+          "match_id",
+          "season",
+          "team_id",
+          "runs",
+          "balls",
+          "fours",
+          "sixes",
+          "not_out",
+        ])
+        .execute(),
+      db
+        .selectFrom("match_performance_bowling")
+        .where("season", "in", numericSeasons)
+        .where("team_id", "in", eligibleTeamIds)
+        .where("competition_type", "in", leagueTypes)
+        .select([
+          "player_id",
+          "match_id",
+          "season",
+          "team_id",
+          "overs",
+          "maidens",
+          "runs",
+          "wickets",
+        ])
+        .execute(),
+      db
+        .selectFrom("match_performance_fielding")
+        .where("season", "in", numericSeasons)
+        .where("team_id", "in", eligibleTeamIds)
+        .where("competition_type", "in", leagueTypes)
+        .select([
+          "player_id",
+          "match_id",
+          "season",
+          "team_id",
+          "catches",
+          "run_outs",
+          "stumpings",
+          "is_wicketkeeper",
+        ])
+        .execute(),
+      db
+        .selectFrom("match_result")
+        .where("season", "in", numericSeasons)
+        .where("competition_type", "in", leagueTypes)
+        .select(["match_id", "result_applied_to"])
+        .execute(),
+    ]);
+
+  const winnerByMatch = new Map<string, string>();
+  for (const r of matchResults) {
+    if (r.result_applied_to) winnerByMatch.set(r.match_id, r.result_applied_to);
+  }
+
+  const mkKey = (playerId: string, matchId: string) => `${playerId}:${matchId}`;
+
+  const battingByMatch = new Map<string, (typeof battingPerfs)[0]>();
+  for (const b of battingPerfs)
+    battingByMatch.set(mkKey(b.player_id, b.match_id), b);
+
+  const bowlingByMatch = new Map<string, (typeof bowlingPerfs)[0]>();
+  for (const b of bowlingPerfs)
+    bowlingByMatch.set(mkKey(b.player_id, b.match_id), b);
+
+  const fieldingByMatch = new Map<string, (typeof fieldingPerfs)[0]>();
+  for (const f of fieldingPerfs)
+    fieldingByMatch.set(mkKey(f.player_id, f.match_id), f);
+
+  interface Appearance {
+    playerId: string;
+    matchId: string;
+    teamId: string;
+  }
+  const appearances = new Map<string, Appearance>();
+  for (const b of battingPerfs) {
+    const k = mkKey(b.player_id, b.match_id);
+    if (!appearances.has(k))
+      appearances.set(k, {
+        playerId: b.player_id,
+        matchId: b.match_id,
+        teamId: b.team_id,
+      });
+  }
+  for (const b of bowlingPerfs) {
+    const k = mkKey(b.player_id, b.match_id);
+    if (!appearances.has(k))
+      appearances.set(k, {
+        playerId: b.player_id,
+        matchId: b.match_id,
+        teamId: b.team_id,
+      });
+  }
+  for (const f of fieldingPerfs) {
+    const k = mkKey(f.player_id, f.match_id);
+    if (!appearances.has(k))
+      appearances.set(k, {
+        playerId: f.player_id,
+        matchId: f.match_id,
+        teamId: f.team_id,
+      });
+  }
+
+  const result = new Map<
+    string,
+    { totalPoints: number; matchesPlayed: number }
+  >();
+
+  for (const [mk, app] of appearances) {
+    const bat = battingByMatch.get(mk);
+    const bowl = bowlingByMatch.get(mk);
+    const field = fieldingByMatch.get(mk);
+
+    let matchPoints = 0;
+
+    if (bat) {
+      matchPoints += calculateBattingPoints({
+        runs: bat.runs,
+        balls: bat.balls,
+        fours: bat.fours,
+        sixes: bat.sixes,
+        notOut: Boolean(bat.not_out),
+      }).total;
+    }
+
+    if (bowl) {
+      matchPoints += calculateBowlingPoints({
+        overs: bowl.overs,
+        maidens: bowl.maidens,
+        runs: bowl.runs,
+        wickets: bowl.wickets,
+      }).total;
+    }
+
+    if (field) {
+      matchPoints += calculateFieldingPoints({
+        catches: field.catches,
+        runOuts: field.run_outs,
+        stumpings: field.stumpings,
+        isWicketkeeper: Boolean(field.is_wicketkeeper),
+      }).total;
+    }
+
+    const winner = winnerByMatch.get(app.matchId);
+    if (winner === app.teamId) {
+      matchPoints += SCORING.team.winBonus;
+    }
+
+    const existing = result.get(app.playerId) ?? {
+      totalPoints: 0,
+      matchesPlayed: 0,
+    };
+    existing.totalPoints += matchPoints;
+    existing.matchesPlayed += 1;
+    result.set(app.playerId, existing);
+  }
+
+  return result;
+}
+
 function getDifferentialThreshold(teamCount: number): number {
-  return Math.max(10, Math.min(20, 30 - teamCount));
+  if (teamCount <= 1) return 100;
+  // Ensure at least single-owner players can qualify (e.g. 1/3 teams = 34%)
+  const minSingleOwnerPct = Math.ceil(100 / teamCount);
+  return Math.max(
+    minSingleOwnerPct,
+    Math.max(10, Math.min(20, 30 - teamCount)),
+  );
 }
 
 function rankDifferentials(
@@ -925,7 +1145,7 @@ export function getOwnershipOverview(db: Kysely<DB>) {
     }
 
     // Fall back to previous season totals from fantasy_player_score
-    if (diffPointsMap.size === 0) {
+    if (diffPointsMap.size === 0 || lastCompletedGw === 0) {
       const prevSeason = getPreviousSeason(s);
       const prevScores = await db
         .selectFrom("fantasy_player_score as fps")
@@ -949,6 +1169,21 @@ export function getOwnershipOverview(db: Kysely<DB>) {
           diffPointsMap.set(row.play_cricket_id, {
             playerName: row.player_name,
             points: Number(row.total_points),
+          });
+        }
+      }
+
+      // Fall back to raw match performance data if fantasy_player_score is empty
+      if (diffPointsMap.size === 0) {
+        const rawPoints = await calculateSeasonPointsFromMatches(db, [
+          prevSeason,
+        ]);
+        for (const [playerId, pts] of rawPoints) {
+          if (diffPointsMap.has(playerId)) continue;
+          if (pts.totalPoints <= 0) continue;
+          diffPointsMap.set(playerId, {
+            playerName: nameMap.get(playerId) ?? "Unknown",
+            points: pts.totalPoints,
           });
         }
       }
@@ -980,6 +1215,7 @@ export function getSandwichEfficiency(db: Kysely<DB>) {
 
     const playerMap = new Map(players.map((p) => [p.play_cricket_id, p]));
 
+    // Try fantasy_player_score first
     const scoreRows = await db
       .selectFrom("fantasy_player_score")
       .where("season", "=", effectiveSeason)
@@ -992,10 +1228,35 @@ export function getSandwichEfficiency(db: Kysely<DB>) {
       .having(sql`SUM(total_points)`, ">", 0)
       .execute();
 
-    const entries = scoreRows
+    // Fall back to raw match performance data if fantasy_player_score is empty
+    let pointsSource: Array<{
+      play_cricket_id: string;
+      total_points: number;
+      matches_played: number;
+    }>;
+
+    if (scoreRows.length > 0) {
+      pointsSource = scoreRows.map((r) => ({
+        play_cricket_id: r.play_cricket_id,
+        total_points: Number(r.total_points),
+        matches_played: Number(r.matches_played),
+      }));
+    } else {
+      const rawPoints = await calculateSeasonPointsFromMatches(db, [
+        effectiveSeason,
+      ]);
+      pointsSource = Array.from(rawPoints.entries())
+        .filter(([, pts]) => pts.totalPoints > 0)
+        .map(([id, pts]) => ({
+          play_cricket_id: id,
+          total_points: pts.totalPoints,
+          matches_played: pts.matchesPlayed,
+        }));
+    }
+
+    const entries = pointsSource
       .filter((r) => playerMap.has(r.play_cricket_id))
       .map((r) => {
-        // Safe: filtered to only include players in playerMap above
         const player = playerMap.get(r.play_cricket_id);
         if (!player) return null;
         const cost = player.sandwich_cost > 0 ? player.sandwich_cost : 1;
@@ -1003,10 +1264,9 @@ export function getSandwichEfficiency(db: Kysely<DB>) {
           playCricketId: r.play_cricket_id,
           playerName: player.player_name,
           sandwichCost: cost,
-          totalPoints: Number(r.total_points),
-          matchesPlayed: Number(r.matches_played),
-          pointsPerSandwich:
-            Math.round((Number(r.total_points) / cost) * 10) / 10,
+          totalPoints: r.total_points,
+          matchesPlayed: r.matches_played,
+          pointsPerSandwich: Math.round((r.total_points / cost) * 10) / 10,
         };
       })
       .filter((e): e is NonNullable<typeof e> => e !== null)

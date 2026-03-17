@@ -464,35 +464,74 @@ function HomeTab() {
         </Card>
       )}
 
-      {/* Ownership */}
+      {/* Ownership: Most Owned + Most Captained (2-col grid, matches v1) */}
       {ownership.data && ownership.data.teamCount > 0 && (
         <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Most Owned</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Player</TableHead>
-                    <TableHead className="text-right">Owned</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ownership.data.mostOwned.map((p) => (
-                    <TableRow key={p.playCricketId}>
-                      <TableCell>{p.playerName}</TableCell>
-                      <TableCell className="text-right">
-                        {p.ownershipPct}%
-                      </TableCell>
+          {ownership.data.mostOwned.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Most Owned</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Player</TableHead>
+                      <TableHead className="w-20 text-right">Owned</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {ownership.data.mostOwned.map((p) => (
+                      <TableRow key={p.playCricketId}>
+                        <TableCell className="font-medium">
+                          {p.playerName}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {p.ownershipPct}%
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
 
+          {ownership.data.mostCaptained.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Most Captained</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Player</TableHead>
+                      <TableHead className="w-20 text-right">Captain</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ownership.data.mostCaptained.map((p) => (
+                      <TableRow key={p.playCricketId}>
+                        <TableCell className="font-medium">
+                          {p.playerName}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {p.captainPct}%
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Differential Picks + Sandwich Efficiency (2-col grid, matches v1) */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {ownership.data && ownership.data.differentials.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Differential Picks</CardTitle>
@@ -502,72 +541,77 @@ function HomeTab() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Player</TableHead>
-                    <TableHead className="text-right">Owned</TableHead>
                     <TableHead className="text-right">Pts</TableHead>
+                    <TableHead className="text-right">Owned</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {ownership.data.differentials.map((p) => (
                     <TableRow key={p.playCricketId}>
-                      <TableCell>{p.playerName}</TableCell>
+                      <TableCell>
+                        <div className="font-medium">{p.playerName}</div>
+                        <div className="text-xs">
+                          {"🥪".repeat(p.sandwichCost)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">{p.points}</TableCell>
                       <TableCell className="text-right">
                         {p.ownershipPct}%
                       </TableCell>
-                      <TableCell className="text-right">{p.points}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
-        </div>
-      )}
+        )}
 
-      {/* Sandwich Efficiency */}
-      {sandwich.data && sandwich.data.entries.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              Points Per Sandwich
-              {sandwich.data.isFromPreviousSeason && (
-                <Badge variant="secondary" className="ml-2">
-                  Previous Season
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>Player</TableHead>
-                  <TableHead className="text-right">Cost</TableHead>
-                  <TableHead className="text-right">Pts</TableHead>
-                  <TableHead className="text-right">PPS</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sandwich.data.entries.map((e) => (
-                  <TableRow key={e.playCricketId}>
-                    <TableCell>{e.rank}</TableCell>
-                    <TableCell>{e.playerName}</TableCell>
-                    <TableCell className="text-right">
-                      {e.sandwichCost}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {e.totalPoints}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {e.pointsPerSandwich}
-                    </TableCell>
+        {sandwich.data && sandwich.data.entries.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                Sandwich Efficiency
+                {sandwich.data.isFromPreviousSeason && (
+                  <Badge variant="secondary" className="ml-2">
+                    Previous Season
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Player</TableHead>
+                    <TableHead className="text-right">Pts</TableHead>
+                    <TableHead className="text-right">PPS</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                </TableHeader>
+                <TableBody>
+                  {sandwich.data.entries.map((e) => (
+                    <TableRow key={e.playCricketId}>
+                      <TableCell>{e.rank}</TableCell>
+                      <TableCell>
+                        <div>{e.playerName}</div>
+                        <div className="text-xs">
+                          {"🥪".repeat(e.sandwichCost)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {e.totalPoints}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {e.pointsPerSandwich}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Top 5 teams */}
       {seasonBoard.data && seasonBoard.data.entries.length > 0 && (
@@ -878,7 +922,7 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
           <TableRow>
             <TableHead>Player</TableHead>
             <TableHead>Slot</TableHead>
-            <TableHead className="text-right">Cost</TableHead>
+            <TableHead className="text-center">Cost</TableHead>
             <TableHead className="text-right">Owned</TableHead>
           </TableRow>
         </TableHeader>
@@ -899,7 +943,11 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
                 )}
               </TableCell>
               <TableCell className="capitalize">{p.slotType}</TableCell>
-              <TableCell className="text-right">{p.sandwichCost}</TableCell>
+              <TableCell className="text-center">
+                <span className="inline-flex items-center gap-0.5 text-sm whitespace-nowrap">
+                  {"🥪".repeat(p.sandwichCost)}
+                </span>
+              </TableCell>
               <TableCell className="text-right">{p.ownershipPct}%</TableCell>
             </TableRow>
           ))}

@@ -14,11 +14,14 @@ import { api } from "@/lib/api";
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -66,7 +69,7 @@ interface MyTeamResponse {
   }>;
   gameweek: number;
   transfersUsed: number;
-  maxTransfers: number;
+  maxTransfers: number | null;
   chaosWeek: {
     name: string;
     description: string;
@@ -90,6 +93,30 @@ interface ChipStatus {
 
 const SLOT_COUNTS = { batting: 6, bowling: 4, allrounder: 1 };
 const BUDGET = 30;
+const EMPTY_SLOT_PREFIX = "empty-slot:";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function SandwichCost({ cost }: { cost: number }) {
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-sm whitespace-nowrap"
+      title={`Sandwich cost: ${cost}`}
+    >
+      {"🥪".repeat(cost)}
+    </span>
+  );
+}
+
+function parseEmptySlotId(id: string): SlotType | null {
+  if (!id.startsWith(EMPTY_SLOT_PREFIX)) return null;
+  const rest = id.slice(EMPTY_SLOT_PREFIX.length);
+  const slotType = rest.split(":")[0] as SlotType;
+  if (["batting", "bowling", "allrounder"].includes(slotType)) return slotType;
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Hooks
@@ -241,7 +268,6 @@ function TeamBuilder({
 
   // Derived state
   const totalCost = squad.reduce((sum, p) => sum + p.sandwichCost, 0);
-  const budgetRemaining = BUDGET - totalCost;
   const captainCount = squad.filter((p) => p.isCaptain).length;
   const wkCount = squad.filter((p) => p.isWicketkeeper).length;
   const squadPlayerIds = useMemo(
@@ -331,6 +357,11 @@ function TeamBuilder({
       .sort((a, b) => b.previousSeasonPoints - a.previousSeasonPoints);
   }, [eligiblePlayers, squadPlayerIds, search]);
 
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const activePlayer = activeId
+    ? (squad.find((p) => p.playCricketId === activeId) ?? null)
+    : null;
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -338,19 +369,82 @@ function TeamBuilder({
     }),
   );
 
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id as string);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    setSquad((prev) => {
-      const oldIndex = prev.findIndex((p) => p.playCricketId === active.id);
-      const newIndex = prev.findIndex((p) => p.playCricketId === over.id);
-      if (oldIndex === -1 || newIndex === -1) return prev;
+    const overId = over.id as string;
 
-      const copy = [...prev];
-      const [moved] = copy.splice(oldIndex, 1);
-      copy.splice(newIndex, 0, moved);
-      return copy;
+    // Dropping onto an empty slot — change the dragged player's slot type
+    const emptySlotType = parseEmptySlotId(overId);
+    if (emptySlotType) {
+      setSquad((prev) => {
+        const result = prev.map((p) => {
+          if (p.playCricketId !== active.id) return p;
+          const updated = { ...p, slotType: emptySlotType };
+          if (emptySlotType === "allrounder" && p.isCaptain) {
+            updated.isCaptain = false;
+          }
+          return updated;
+        });
+        // Ensure there's still a captain
+        if (!result.some((x) => x.isCaptain)) {
+          const first = result.find((x) => x.slotType !== "allrounder");
+          if (first) {
+            return result.map((p) =>
+              p.playCricketId === first.playCricketId
+                ? { ...p, isCaptain: true }
+                : p,
+            );
+          }
+        }
+        return result;
+      });
+      return;
+    }
+
+    setSquad((prev) => {
+      const activePlayer = prev.find((p) => p.playCricketId === active.id);
+      const overPlayer = prev.find((p) => p.playCricketId === overId);
+      if (!activePlayer || !overPlayer) return prev;
+
+      // Different slot type: move dragged player to the target's section (no swap)
+      if (activePlayer.slotType !== overPlayer.slotType) {
+        const targetSlotType = overPlayer.slotType;
+        const result = prev.map((p) => {
+          if (p.playCricketId !== active.id) return p;
+          const updated = { ...p, slotType: targetSlotType };
+          if (targetSlotType === "allrounder" && p.isCaptain) {
+            updated.isCaptain = false;
+          }
+          return updated;
+        });
+        // Ensure there's still a captain
+        if (!result.some((x) => x.isCaptain)) {
+          const first = result.find((x) => x.slotType !== "allrounder");
+          if (first) {
+            return result.map((p) =>
+              p.playCricketId === first.playCricketId
+                ? { ...p, isCaptain: true }
+                : p,
+            );
+          }
+        }
+        return result;
+      }
+
+      // Same slot type: reorder within the section
+      const activeIdx = prev.indexOf(activePlayer);
+      const overIdx = prev.indexOf(overPlayer);
+      const result = [...prev];
+      result.splice(activeIdx, 1);
+      result.splice(overIdx, 0, activePlayer);
+      return result;
     });
   }
 
@@ -360,6 +454,24 @@ function TeamBuilder({
   const tripleCaptain = chipData?.chips.find(
     (c) => c.chipType === "triple_captain",
   );
+
+  // Build validation messages for slot distribution
+  const validationMessages: string[] = [];
+  if (slotCounts.batting !== SLOT_COUNTS.batting) {
+    validationMessages.push(
+      `Batting: ${slotCounts.batting}/${SLOT_COUNTS.batting}`,
+    );
+  }
+  if (slotCounts.bowling !== SLOT_COUNTS.bowling) {
+    validationMessages.push(
+      `Bowling: ${slotCounts.bowling}/${SLOT_COUNTS.bowling}`,
+    );
+  }
+  if (slotCounts.allrounder !== SLOT_COUNTS.allrounder) {
+    validationMessages.push(
+      `All-rounder: ${slotCounts.allrounder}/${SLOT_COUNTS.allrounder}`,
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -385,12 +497,10 @@ function TeamBuilder({
             <span className="font-medium">Budget:</span>{" "}
             <span
               className={
-                budgetRemaining < 0
-                  ? "font-bold text-red-600"
-                  : "text-green-600"
+                totalCost > BUDGET ? "font-bold text-red-600" : "text-green-600"
               }
             >
-              {budgetRemaining}/{BUDGET}
+              {totalCost}/{BUDGET}
             </span>
           </div>
           <div className="text-sm">
@@ -428,6 +538,15 @@ function TeamBuilder({
       {saveSuccess && (
         <Alert className="mb-4 border-green-400 bg-green-50 text-green-800">
           Team saved successfully!
+        </Alert>
+      )}
+
+      {/* Validation warnings for slot distribution */}
+      {squad.length > 0 && validationMessages.length > 0 && (
+        <Alert className="mb-4 border-amber-400 bg-amber-50 text-amber-800">
+          <strong>Fix slot distribution to save:</strong>{" "}
+          {validationMessages.join(", ")}. Drag players between sections to
+          adjust.
         </Alert>
       )}
 
@@ -477,39 +596,69 @@ function TeamBuilder({
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
               >
-                <SortableContext
-                  items={squad.map((p) => p.playCricketId)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {(["batting", "bowling", "allrounder"] as const).map(
-                    (slot) => {
-                      const slotPlayers = squad.filter(
-                        (p) => p.slotType === slot,
-                      );
-                      if (slotPlayers.length === 0) return null;
+                {(["batting", "bowling", "allrounder"] as const).map((slot) => {
+                  const slotPlayers = squad.filter((p) => p.slotType === slot);
+                  const isOverfilled = slotPlayers.length > SLOT_COUNTS[slot];
+                  const emptyCount = Math.max(
+                    0,
+                    SLOT_COUNTS[slot] - slotPlayers.length,
+                  );
 
-                      return (
-                        <div key={slot} className="mb-3">
-                          <p className="text-muted-foreground mb-1 text-xs font-semibold uppercase">
-                            {slot} ({slotPlayers.length}/{SLOT_COUNTS[slot]})
-                          </p>
-                          {slotPlayers.map((p) => (
-                            <SortableSquadRow
-                              key={p.playCricketId}
-                              player={p}
-                              onRemove={() => removePlayer(p.playCricketId)}
-                              onSetCaptain={() => setCaptain(p.playCricketId)}
-                              onSetWk={() => setWicketkeeper(p.playCricketId)}
-                              onSetSlot={(s) => setSlotType(p.playCricketId, s)}
-                            />
-                          ))}
-                        </div>
-                      );
-                    },
+                  return (
+                    <div
+                      key={slot}
+                      className={`mb-3 ${isOverfilled ? "rounded border-2 border-red-300" : ""}`}
+                    >
+                      <p
+                        className={`mb-1 text-xs font-semibold uppercase ${
+                          isOverfilled
+                            ? "text-red-600"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {slot} ({slotPlayers.length}/{SLOT_COUNTS[slot]})
+                      </p>
+                      <SortableContext
+                        items={slotPlayers.map((p) => p.playCricketId)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {slotPlayers.map((p) => (
+                          <SortableSquadRow
+                            key={p.playCricketId}
+                            player={p}
+                            isOverflow={isOverfilled}
+                            onRemove={() => removePlayer(p.playCricketId)}
+                            onSetCaptain={() => setCaptain(p.playCricketId)}
+                            onSetWk={() => setWicketkeeper(p.playCricketId)}
+                            onSetSlot={(s) => setSlotType(p.playCricketId, s)}
+                          />
+                        ))}
+                      </SortableContext>
+                      {/* Empty slot placeholders as drop targets */}
+                      {Array.from({ length: emptyCount }).map((_, i) => (
+                        <EmptySlotRow
+                          key={`${slot}-empty-${i}`}
+                          slotType={slot}
+                          index={i}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
+                <DragOverlay>
+                  {activePlayer && (
+                    <div className="flex items-center gap-2 rounded border bg-white p-2 text-sm shadow-lg">
+                      <span className="text-muted-foreground">&#x2630;</span>
+                      <span className="flex-1 font-medium">
+                        {activePlayer.playerName}
+                      </span>
+                      <SandwichCost cost={activePlayer.sandwichCost} />
+                    </div>
                   )}
-                </SortableContext>
+                </DragOverlay>
               </DndContext>
             )}
           </CardContent>
@@ -531,7 +680,7 @@ function TeamBuilder({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Player</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
+                    <TableHead className="text-center">Cost</TableHead>
                     <TableHead className="text-right">Prev Pts</TableHead>
                     <TableHead className="text-right">Owned</TableHead>
                     <TableHead />
@@ -541,8 +690,8 @@ function TeamBuilder({
                   {availablePlayers.slice(0, 50).map((p) => (
                     <TableRow key={p.play_cricket_id}>
                       <TableCell className="text-sm">{p.player_name}</TableCell>
-                      <TableCell className="text-right text-sm">
-                        {p.sandwich_cost}
+                      <TableCell className="text-center text-sm">
+                        <SandwichCost cost={p.sandwich_cost} />
                       </TableCell>
                       <TableCell className="text-right text-sm">
                         {p.previousSeasonPoints}
@@ -573,17 +722,46 @@ function TeamBuilder({
 }
 
 // ---------------------------------------------------------------------------
+// Empty Slot Row (drop target for cross-slot drag)
+// ---------------------------------------------------------------------------
+
+function EmptySlotRow({
+  slotType,
+  index,
+}: {
+  slotType: SlotType;
+  index: number;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `${EMPTY_SLOT_PREFIX}${slotType}:${index}`,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`mb-1 rounded border border-dashed p-2 text-center text-xs text-gray-400 ${
+        isOver ? "border-blue-400 bg-blue-50" : ""
+      }`}
+    >
+      Empty slot
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sortable Squad Row
 // ---------------------------------------------------------------------------
 
 function SortableSquadRow({
   player,
+  isOverflow,
   onRemove,
   onSetCaptain,
   onSetWk,
   onSetSlot,
 }: {
   player: SelectedPlayer;
+  isOverflow: boolean;
   onRemove: () => void;
   onSetCaptain: () => void;
   onSetWk: () => void;
@@ -601,7 +779,9 @@ function SortableSquadRow({
     <div
       ref={setNodeRef}
       style={style}
-      className="mb-1 flex items-center gap-2 rounded border bg-white p-2 text-sm"
+      className={`mb-1 flex items-center gap-2 rounded border p-2 text-sm ${
+        isOverflow ? "border-red-300 bg-red-50" : "bg-white"
+      }`}
     >
       <span
         {...attributes}
@@ -611,7 +791,7 @@ function SortableSquadRow({
         &#x2630;
       </span>
       <span className="flex-1 font-medium">{player.playerName}</span>
-      <span className="text-muted-foreground">{player.sandwichCost}</span>
+      <SandwichCost cost={player.sandwichCost} />
 
       {/* Slot selector */}
       <select
