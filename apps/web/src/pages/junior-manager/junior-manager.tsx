@@ -13,7 +13,7 @@ import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "react-router";
 
 interface Team {
@@ -162,7 +162,9 @@ function TeamCard({ teamId, teamName }: { teamId: string; teamName: string }) {
               No players registered in this team.
             </p>
           )}
-          {players && players.length > 0 && <PlayersTable players={players} />}
+          {isSuccess && players.length > 0 && (
+            <PlayersTable players={players} />
+          )}
         </CardContent>
       )}
     </Card>
@@ -185,8 +187,8 @@ function PlayersTable({ players }: { players: Player[] }) {
       </TableHeader>
       <TableBody>
         {players.map((player) => (
-          <>
-            <TableRow key={player.id}>
+          <Fragment key={player.id}>
+            <TableRow>
               <TableCell className="font-medium">{player.name}</TableCell>
               <TableCell>{format(player.dob, "dd/MM/yyyy")}</TableCell>
               <TableCell>{player.parent_name}</TableCell>
@@ -216,7 +218,7 @@ function PlayersTable({ players }: { players: Player[] }) {
               </TableCell>
             </TableRow>
             {expandedPlayer === player.id && (
-              <TableRow key={`${player.id}-detail`}>
+              <TableRow>
                 <TableCell colSpan={5}>
                   <div className="rounded bg-gray-50 p-4">
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -265,7 +267,7 @@ function PlayersTable({ players }: { players: Player[] }) {
                 </TableCell>
               </TableRow>
             )}
-          </>
+          </Fragment>
         ))}
       </TableBody>
     </Table>
