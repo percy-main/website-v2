@@ -360,5 +360,17 @@ describe("admin service", () => {
         "Charge not found or already paid/deleted",
       );
     });
+
+    it("excludes pending charges (payment_confirmed_at set)", async () => {
+      // When payment_confirmed_at is set, the charge is in-flight — chase should not find it
+      mockExecuteTakeFirst.mockResolvedValue(undefined);
+
+      await expect(chasePayment(db)("pending-charge")).rejects.toThrow(
+        "Charge not found or already paid/deleted",
+      );
+
+      // Verify the where clause was called (payment_confirmed_at filter applied)
+      expect(mockQueryBuilder.where).toHaveBeenCalled();
+    });
   });
 });

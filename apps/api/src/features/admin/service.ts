@@ -1151,6 +1151,7 @@ export function chasePayment(db: Kysely<DB>) {
       .innerJoin("member", "member.id", "charge.member_id")
       .where("charge.id", "=", chargeId)
       .where("charge.paid_at", "is", null)
+      .where("charge.payment_confirmed_at", "is", null)
       .where("charge.deleted_at", "is", null)
       .select([
         "charge.id",

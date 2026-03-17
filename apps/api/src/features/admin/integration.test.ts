@@ -613,5 +613,31 @@ describe("admin service (integration)", () => {
         "Charge not found or already paid/deleted",
       );
     });
+
+    it("throws 404 for pending charge (payment in flight)", async () => {
+      const email = `chase-pending-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Pending payment",
+          amount_pence: 2000,
+          charge_date: "2026-03-15",
+          payment_confirmed_at: new Date().toISOString(),
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await expect(chasePayment(ctx.db)(chargeId)).rejects.toThrow(
+        "Charge not found or already paid/deleted",
+      );
+    });
   });
 });
