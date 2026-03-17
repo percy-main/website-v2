@@ -136,35 +136,98 @@ export function Component() {
             other information such as details about where we get personal
             information from and who we share personal information with. There
             are some exemptions which means you may not receive all the
-            information you ask for.
+            information you ask for.{" "}
+            <a
+              className="text-blue-900 underline"
+              href="https://ico.org.uk/for-organisations/advice-for-small-organisations/create-your-own-privacy-notice/your-data-protection-rights/#roa"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              You can read more about this right here
+            </a>
+            .
           </li>
           <li>
             <strong>Your right to rectification</strong> &mdash; You have the
             right to ask us to correct or delete personal information you think
-            is inaccurate or incomplete.
+            is inaccurate or incomplete.{" "}
+            <a
+              className="text-blue-900 underline"
+              href="https://ico.org.uk/for-organisations/advice-for-small-organisations/create-your-own-privacy-notice/your-data-protection-rights/#rtr"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              You can read more about this right here
+            </a>
+            .
           </li>
           <li>
             <strong>Your right to erasure</strong> &mdash; You have the right to
-            ask us to delete your personal information.
+            ask us to delete your personal information.{" "}
+            <a
+              className="text-blue-900 underline"
+              href="https://ico.org.uk/for-organisations/advice-for-small-organisations/create-your-own-privacy-notice/your-data-protection-rights/#rte"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              You can read more about this right here
+            </a>
+            .
           </li>
           <li>
             <strong>Your right to restriction of processing</strong> &mdash; You
             have the right to ask us to limit how we can use your personal
-            information.
+            information.{" "}
+            <a
+              className="text-blue-900 underline"
+              href="https://ico.org.uk/for-organisations/advice-for-small-organisations/create-your-own-privacy-notice/your-data-protection-rights/#rtrop"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              You can read more about this right here
+            </a>
+            .
           </li>
           <li>
             <strong>Your right to object to processing</strong> &mdash; You have
-            the right to object to the processing of your personal data.
+            the right to object to the processing of your personal data.{" "}
+            <a
+              className="text-blue-900 underline"
+              href="https://ico.org.uk/for-organisations/advice-for-small-organisations/create-your-own-privacy-notice/your-data-protection-rights/#rto"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              You can read more about this right here
+            </a>
+            .
           </li>
           <li>
             <strong>Your right to data portability</strong> &mdash; You have the
             right to ask that we transfer the personal information you gave us
-            to another organisation, or to you.
+            to another organisation, or to you.{" "}
+            <a
+              className="text-blue-900 underline"
+              href="https://ico.org.uk/for-organisations/advice-for-small-organisations/create-your-own-privacy-notice/your-data-protection-rights/#rtdp"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              You can read more about this right here
+            </a>
+            .
           </li>
           <li>
             <strong>Your right to withdraw consent</strong> &mdash; When we use
             consent as our lawful basis you have the right to withdraw your
-            consent at any time.
+            consent at any time.{" "}
+            <a
+              className="text-blue-900 underline"
+              href="https://ico.org.uk/for-organisations/advice-for-small-organisations/create-your-own-privacy-notice/your-data-protection-rights/#rtwc"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              You can read more about this right here
+            </a>
+            .
           </li>
         </ul>
         <p>

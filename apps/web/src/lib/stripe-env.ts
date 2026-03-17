@@ -5,7 +5,7 @@ import { stripeConfig, type StripeConfig } from "@percy-main/shared";
  * environment, derived from the VITE_STRIPE_PUBLIC_KEY prefix.
  */
 export function getStripeConfig(): StripeConfig {
-  const key = import.meta.env.VITE_STRIPE_PUBLIC_KEY as string | undefined;
+  const key = String(import.meta.env.VITE_STRIPE_PUBLIC_KEY ?? "");
   if (key?.startsWith("pk_live_")) return stripeConfig.live;
   return stripeConfig.dev;
 }
