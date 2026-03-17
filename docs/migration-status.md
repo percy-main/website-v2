@@ -102,7 +102,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
   - [x] Be the Keeper game (2 pages)
   - [x] Static pages (privacy policy, nets redirect, payment confirmation)
   - [x] Admin panel (5 of 11 tabs: Members, Sponsorships, Treasurer, Fantasy, Record Linking). Deferred tabs:
-    - [ ] Juniors tab (needs admin junior listing API)
+    - [x] Juniors tab (admin junior listing API + frontend tab)
     - [ ] Charges tab (needs admin charge listing/aggregates API)
     - [ ] Contacts tab (needs contact submission listing API)
     - [ ] Duplicates tab (needs find/merge duplicates API)
