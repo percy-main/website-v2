@@ -18,3 +18,5 @@ export {
 } from "./payment-metadata.js";
 
 export { AGE_GROUPS, type AgeGroup } from "./age-group.js";
+
+export { stripeConfig, type StripeConfig } from "./stripe-config.js";
