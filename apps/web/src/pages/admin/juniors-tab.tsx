@@ -1,11 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -29,10 +24,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
-import { formatDate } from "./status-pill";
 import { AGE_GROUPS, type AgeGroup } from "@percy-main/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatDate } from "./status-pill";
 
 type MembershipFilter = "all" | "paid" | "unpaid";
 type SexFilter = "all" | "male" | "female";
@@ -89,9 +84,7 @@ export function JuniorsTab() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [ageGroupFilter, setAgeGroupFilter] = useState<AgeGroup | "all">(
-    "all",
-  );
+  const [ageGroupFilter, setAgeGroupFilter] = useState<AgeGroup | "all">("all");
   const [sexFilter, setSexFilter] = useState<SexFilter>("all");
   const [membershipFilter, setMembershipFilter] =
     useState<MembershipFilter>("all");
@@ -355,9 +348,7 @@ function TeamCard({
                     className="cursor-pointer"
                     onClick={() => onJuniorClick(junior)}
                   >
-                    <TableCell className="font-medium">
-                      {junior.name}
-                    </TableCell>
+                    <TableCell className="font-medium">{junior.name}</TableCell>
                     <TableCell>{formatDate(junior.dob)}</TableCell>
                     <TableCell>{junior.parentName}</TableCell>
                     <TableCell>
@@ -487,9 +478,7 @@ function LinkingDialog({
             <div className="mt-2 flex items-center justify-between">
               <p className="text-sm">
                 <span className="font-medium">Linked to:</span>{" "}
-                <span className="text-blue-700">
-                  {junior.linkedUserEmail}
-                </span>
+                <span className="text-blue-700">{junior.linkedUserEmail}</span>
               </p>
               <Button
                 variant="outline"

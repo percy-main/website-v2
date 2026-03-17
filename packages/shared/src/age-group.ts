@@ -49,10 +49,7 @@ export function getAgeOnCutoff(dob: string, seasonYear?: number): number {
  * Returns the age group for a player based on their DOB, or null if they
  * are 19 or older on the cut-off date (i.e. too old for junior cricket).
  */
-export function getAgeGroup(
-  dob: string,
-  seasonYear?: number,
-): AgeGroup | null {
+export function getAgeGroup(dob: string, seasonYear?: number): AgeGroup | null {
   const age = getAgeOnCutoff(dob, seasonYear);
 
   for (const group of AGE_GROUPS) {

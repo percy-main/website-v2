@@ -110,9 +110,7 @@ export const listJuniorsSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(100),
   search: z.string().optional(),
   sex: z.enum(["all", "male", "female"]).default("all"),
-  ageGroup: z
-    .enum(["all", ...AGE_GROUPS])
-    .default("all"),
+  ageGroup: z.enum(["all", ...AGE_GROUPS]).default("all"),
   membershipStatus: z.enum(["all", "paid", "unpaid"]).default("all"),
 });
 
