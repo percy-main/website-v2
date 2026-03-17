@@ -46,9 +46,7 @@ try {
 
   if (tables.length > 0) {
     // CASCADE drops dependent objects (indexes, constraints, etc.)
-    const dropSql = tables
-      .map((t) => `"${t}"`)
-      .join(", ");
+    const dropSql = tables.map((t) => `"${t}"`).join(", ");
     await client.query(`DROP TABLE IF EXISTS ${dropSql} CASCADE`);
     console.log(`  ✓ Dropped ${tables.length} tables`);
   } else {
