@@ -274,7 +274,29 @@ export function recordExpense(db: Kysely<DB>) {
 }
 
 export function updateExpense(db: Kysely<DB>) {
-  return async (userId: string, data: UpdateExpense) => {
+  return async (userId: string, role: string, data: UpdateExpense) => {
+    const expense = await db
+      .selectFrom("matchday_expense")
+      .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
+      .where("matchday_expense.id", "=", data.expenseId)
+      .select([
+        "matchday_expense.id",
+        "matchday.play_cricket_team_id",
+        "matchday.status as matchday_status",
+      ])
+      .executeTakeFirst();
+
+    if (!expense) throwHttpError(404, "Expense not found");
+
+    if (expense.matchday_status === "finished") {
+      throwHttpError(400, "Cannot update expenses on a finished matchday");
+    }
+
+    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
+    if (!accessibleIds.includes(expense.play_cricket_team_id)) {
+      throwHttpError(403, "You do not have access to this matchday");
+    }
+
     const fieldsToUpdate: Record<string, unknown> = {};
     if (data.type !== undefined) fieldsToUpdate.expense_type = data.type;
     if (data.description !== undefined)
@@ -623,18 +645,7 @@ export function confirmTeam(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this matchday");
     }
 
-    // Update matchday status
-    await db
-      .updateTable("matchday")
-      .set({
-        status: "confirmed",
-        confirmed_at: new Date().toISOString(),
-        confirmed_by: userId,
-      })
-      .where("id", "=", matchdayId)
-      .execute();
-
-    // Validate all player IDs belong to this matchday
+    // Validate all player IDs belong to this matchday BEFORE changing status
     const playerIds = data.playerStatuses.map((ps) => ps.matchdayPlayerId);
     if (playerIds.length > 0) {
       const validPlayers = await db
@@ -654,77 +665,91 @@ export function confirmTeam(db: Kysely<DB>) {
       }
     }
 
-    // Update player statuses
-    for (const { matchdayPlayerId, status } of data.playerStatuses) {
-      await db
-        .updateTable("matchday_player")
-        .set({ status })
-        .where("id", "=", matchdayPlayerId)
-        .where("matchday_id", "=", matchdayId)
-        .execute();
-    }
-
-    // Generate match fees for "playing" players
-    const playingPlayers = await db
-      .selectFrom("matchday_player")
-      .leftJoin("member", "member.id", "matchday_player.member_id")
-      .where("matchday_player.matchday_id", "=", matchdayId)
-      .where("matchday_player.status", "=", "playing")
-      .select([
-        "matchday_player.id as matchdayPlayerId",
-        "matchday_player.member_id",
-        "matchday_player.player_name",
-        "member.member_category",
-      ])
-      .execute();
-
-    const feeRates = await db
-      .selectFrom("match_fee_rate")
-      .where((eb) =>
-        eb.or([
-          eb("play_cricket_team_id", "=", matchday.play_cricket_team_id),
-          eb("play_cricket_team_id", "is", null),
-        ]),
-      )
-      .selectAll()
-      .execute();
-
-    for (const player of playingPlayers) {
-      if (!player.member_id) continue;
-
-      const category = player.member_category ?? "guest";
-      if (category === "bursary") continue;
-
-      const rate = findFeeRate(
-        feeRates,
-        matchday.play_cricket_team_id,
-        matchday.competition_type,
-        category,
-      );
-
-      if (!rate || rate.amount_pence === 0) continue;
-
-      const chargeId = crypto.randomUUID();
-      await db
-        .insertInto("charge")
-        .values({
-          id: chargeId,
-          member_id: player.member_id,
-          description: `Match fee - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
-          amount_pence: rate.amount_pence,
-          charge_date: matchday.match_date,
-          created_by: userId,
-          type: "match_fee",
-          source: "matchday",
+    // Wrap all mutations in a transaction for atomicity
+    await db.transaction().execute(async (trx) => {
+      // Update matchday status
+      await trx
+        .updateTable("matchday")
+        .set({
+          status: "confirmed",
+          confirmed_at: new Date().toISOString(),
+          confirmed_by: userId,
         })
+        .where("id", "=", matchdayId)
         .execute();
 
-      await db
-        .updateTable("matchday_player")
-        .set({ charge_id: chargeId })
-        .where("id", "=", player.matchdayPlayerId)
+      // Update player statuses
+      for (const { matchdayPlayerId, status } of data.playerStatuses) {
+        await trx
+          .updateTable("matchday_player")
+          .set({ status })
+          .where("id", "=", matchdayPlayerId)
+          .where("matchday_id", "=", matchdayId)
+          .execute();
+      }
+
+      // Generate match fees for "playing" players
+      const playingPlayers = await trx
+        .selectFrom("matchday_player")
+        .leftJoin("member", "member.id", "matchday_player.member_id")
+        .where("matchday_player.matchday_id", "=", matchdayId)
+        .where("matchday_player.status", "=", "playing")
+        .select([
+          "matchday_player.id as matchdayPlayerId",
+          "matchday_player.member_id",
+          "matchday_player.player_name",
+          "member.member_category",
+        ])
         .execute();
-    }
+
+      const feeRates = await trx
+        .selectFrom("match_fee_rate")
+        .where((eb) =>
+          eb.or([
+            eb("play_cricket_team_id", "=", matchday.play_cricket_team_id),
+            eb("play_cricket_team_id", "is", null),
+          ]),
+        )
+        .selectAll()
+        .execute();
+
+      for (const player of playingPlayers) {
+        if (!player.member_id) continue;
+
+        const category = player.member_category ?? "guest";
+        if (category === "bursary") continue;
+
+        const rate = findFeeRate(
+          feeRates,
+          matchday.play_cricket_team_id,
+          matchday.competition_type,
+          category,
+        );
+
+        if (!rate || rate.amount_pence === 0) continue;
+
+        const chargeId = crypto.randomUUID();
+        await trx
+          .insertInto("charge")
+          .values({
+            id: chargeId,
+            member_id: player.member_id,
+            description: `Match fee - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
+            amount_pence: rate.amount_pence,
+            charge_date: matchday.match_date,
+            created_by: userId,
+            type: "match_fee",
+            source: "matchday",
+          })
+          .execute();
+
+        await trx
+          .updateTable("matchday_player")
+          .set({ charge_id: chargeId })
+          .where("id", "=", player.matchdayPlayerId)
+          .execute();
+      }
+    });
 
     return { success: true };
   };

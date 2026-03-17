@@ -31,7 +31,7 @@ export const recordExpenseSchema = z.object({
   type: expenseTypeSchema,
   description: z.string().optional(),
   amountPence: z.number().int().positive(),
-  receiptImage: z.string().optional(),
+  receiptImage: z.string().max(700_000).optional(),
 });
 
 export const updateExpenseSchema = z.object({

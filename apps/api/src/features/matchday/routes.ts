@@ -80,9 +80,10 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [officialRole] },
     async (request) => {
       const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       const { expenseId } = parseParams(request, expenseIdParamSchema);
       const data = parseBody(request, updateExpenseSchema);
-      return await update(user.id, { ...data, expenseId });
+      return await update(user.id, role, { ...data, expenseId });
     },
   );
 
@@ -108,13 +109,17 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
   const paid = markFeePaid(app.db);
   const finish = finishMatch(app.db, app.send, app.config);
 
-  // Play-Cricket API client for upcoming matches
-  const playCricketConfig =
+  // Play-Cricket API client for upcoming matches — wired at registration time
+  const upcoming =
     app.config.PLAY_CRICKET_API_TOKEN && app.config.PLAY_CRICKET_SITE_ID
-      ? createApiClient({
-          apiToken: app.config.PLAY_CRICKET_API_TOKEN,
-          siteId: app.config.PLAY_CRICKET_SITE_ID,
-        })
+      ? getUpcomingMatches(
+          app.db,
+          createApiClient({
+            apiToken: app.config.PLAY_CRICKET_API_TOKEN,
+            siteId: app.config.PLAY_CRICKET_SITE_ID,
+          }),
+          app.config.PLAY_CRICKET_SITE_ID,
+        )
       : null;
 
   app.get(
@@ -135,15 +140,7 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
       const role = (user as { role?: string | null }).role ?? "user";
       const { teamId } = parseParams(request, teamIdParamSchema);
 
-      if (!playCricketConfig || !app.config.PLAY_CRICKET_SITE_ID) {
-        return [];
-      }
-
-      const upcoming = getUpcomingMatches(
-        app.db,
-        playCricketConfig,
-        app.config.PLAY_CRICKET_SITE_ID,
-      );
+      if (!upcoming) return [];
       return await upcoming(user.id, role, teamId);
     },
   );
