@@ -76,6 +76,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 
 - [ ] Separate Play-Cricket sync into independent pipeline stages
 - [ ] Fantasy scoring pipeline (triggered after ingest)
+- [ ] Fantasy reminder scheduled job (Thursday email to inactive teams — replaces Netlify cron)
 - [ ] Cache refresh for league tables and leaderboards
 - [ ] EventBridge scheduling
 - [ ] CloudWatch metrics per pipeline stage
@@ -91,7 +92,18 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] Vite dev proxy (`/api` → localhost:3000)
 - [x] React Router route definitions
 - [x] Root providers (auth context, React Query)
-- [ ] Port non-Contentful pages (Batch 2: cricket leaderboard, fantasy, games, static pages, admin/official/junior-manager)
+- [ ] Port non-Contentful pages (Batch 2):
+  - [x] Cricket leaderboard
+  - [x] Fantasy cricket (3 pages: home with tabs, scoring rules, team management + 20 new API endpoints). Deferred items:
+    - [ ] Recharts season timeline chart on history tab (hooks wired, chart rendering TODO)
+    - [ ] Chaos week admin email sending (needs `packages/email` ChaosWeekAnnouncement template wiring)
+    - [ ] Team share image generation (depends on Contentful player photos — deferred to Phase 5)
+    - **Note:** Fantasy team builder cannot be fully tested until admin side of fantasy is completed (player population, cost calculation, eligibility toggling)
+  - [ ] Be the Keeper game (2 pages)
+  - [ ] Static pages (privacy policy, nets redirect, payment confirmation)
+  - [ ] Admin panel
+  - [ ] Official panel
+  - [ ] Junior manager panel
 - [ ] Port Contentful-dependent pages (Batch 3 — deferred to cutover: news, calendar, person profiles, CMS pages)
 - [x] Replace Astro actions with API calls (api client + react-query pattern established)
 - [ ] CloudFront distribution + S3 origin

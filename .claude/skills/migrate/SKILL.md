@@ -229,3 +229,13 @@ Present a final summary to the user:
 - If a task is too large for one session, propose breaking it down and only tackle the first piece
 - When porting from v1, adapt to v2 patterns — do not copy v1 code verbatim
 - Always check the v1 repo (`@../website`) for the source implementation
+
+### Content parity is non-negotiable
+
+When porting frontend pages, the v2 output must be **visually and structurally faithful** to the v1 original. This is a migration, not a rewrite.
+
+- **Read v1 component source carefully** before writing any v2 code. Match the card ordering, section structure, headings, and content — don't paraphrase or reorganise.
+- **Preserve UI patterns**: if v1 uses a table, use a table. If v1 uses subheadings with descriptions, do the same. Don't collapse a structured layout into bullet points or paragraphs.
+- **Preserve copy**: keep the same wording, labels, footnotes, and explanatory text. Only change what's necessary for the v2 tech stack (e.g. Astro → React Router links, `client:only` → lazy route).
+- **Preserve styling details**: if v1 uses `font-medium` on point values, red on penalties, or emoji in cells — carry them over.
+- **Compare side-by-side**: after building a page, visually compare with the live v1 version. If they look noticeably different, fix it before committing.

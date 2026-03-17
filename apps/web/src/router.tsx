@@ -51,10 +51,6 @@ export const router = createBrowserRouter([
         lazy: () => import("./pages/fantasy/fantasy.js"),
       },
       {
-        path: "fantasy/rules",
-        lazy: () => import("./pages/fantasy/fantasy-rules.js"),
-      },
-      {
         path: "leaderboard",
         lazy: () => import("./pages/leaderboard/leaderboard.js"),
       },

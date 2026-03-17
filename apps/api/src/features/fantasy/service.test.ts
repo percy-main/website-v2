@@ -28,9 +28,20 @@ const {
     orderBy: vi.fn().mockReturnThis(),
     or: vi.fn().mockReturnThis(),
     returning: vi.fn().mockReturnThis(),
+    deleteFrom: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    having: vi.fn().mockReturnThis(),
     executeTakeFirst: mockExecuteTakeFirst,
     executeTakeFirstOrThrow: mockExecuteTakeFirstOrThrow,
     execute: mockExecute,
+    transaction: vi.fn().mockReturnValue({
+      execute: vi
+        .fn()
+        .mockImplementation(
+          async (fn: (trx: unknown) => Promise<unknown>) =>
+            await fn(mockQueryBuilder),
+        ),
+    }),
   };
 
   return {
@@ -134,6 +145,15 @@ describe("fantasy service", () => {
           mockExecuteTakeFirstOrThrow.mockResolvedValue({});
         } else if (key === "execute") {
           mockExecute.mockResolvedValue([]);
+        } else if (key === "transaction") {
+          (fn as ReturnType<typeof vi.fn>).mockReturnValue({
+            execute: vi
+              .fn()
+              .mockImplementation(
+                async (cb: (trx: unknown) => Promise<unknown>) =>
+                  await cb(mockQueryBuilder),
+              ),
+          });
         } else {
           (fn as ReturnType<typeof vi.fn>).mockReturnValue(mockQueryBuilder);
         }
@@ -196,6 +216,9 @@ describe("fantasy service", () => {
     it("rejects squad exceeding budget", async () => {
       const squad = makeValidSquad();
 
+      // Mock chaos week check
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+
       // Mock DB players with high costs (all cost 5 = 55 total, over 30 budget)
       const expensivePlayers = squad.map((p) => ({
         play_cricket_id: p.playCricketId,
@@ -203,10 +226,9 @@ describe("fantasy service", () => {
       }));
 
       mockExecute.mockResolvedValueOnce(expensivePlayers);
-      mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // no existing team
 
       await expect(saveTeam(db)("user-1", squad, "2025")).rejects.toThrow(
-        /exceeds budget/,
+        /budget/,
       );
     });
 
@@ -216,7 +238,7 @@ describe("fantasy service", () => {
       for (const p of squad) p.isCaptain = false;
 
       await expect(saveTeam(db)("user-1", squad, "2025")).rejects.toThrow(
-        "Must have exactly 1 captain",
+        /captain/,
       );
     });
 
@@ -225,21 +247,25 @@ describe("fantasy service", () => {
       squad[1].isCaptain = true; // second captain
 
       await expect(saveTeam(db)("user-1", squad, "2025")).rejects.toThrow(
-        "Must have exactly 1 captain",
+        /captain/,
       );
     });
 
     it("creates new team when none exists", async () => {
       const squad = makeValidSquad();
 
-      // Mock budget check - all cost 1
+      // Mock chaos week check
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+
+      // Mock eligible players check (budget)
       const cheapPlayers = squad.map((p) => ({
         play_cricket_id: p.playCricketId,
         sandwich_cost: 1,
+        eligible: true,
       }));
-      mockExecute.mockResolvedValueOnce(cheapPlayers); // budget query
+      mockExecute.mockResolvedValueOnce(cheapPlayers);
 
-      // No existing team
+      // No existing team (inside transaction)
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
 
       // insertInto("fantasy_team").returning("id").executeTakeFirstOrThrow()
