@@ -340,11 +340,29 @@ function TeamBuilder({
   }
 
   function setSlotType(playCricketId: string, slotType: SlotType) {
-    setSquad((prev) =>
-      prev.map((p) =>
-        p.playCricketId === playCricketId ? { ...p, slotType } : p,
-      ),
-    );
+    setSquad((prev) => {
+      const result = prev.map((p) => {
+        if (p.playCricketId !== playCricketId) return p;
+        const updated = { ...p, slotType };
+        // Captain cannot be in allrounder slot
+        if (slotType === "allrounder" && p.isCaptain) {
+          updated.isCaptain = false;
+        }
+        return updated;
+      });
+      // Ensure there's still a captain
+      if (!result.some((x) => x.isCaptain)) {
+        const first = result.find((x) => x.slotType !== "allrounder");
+        if (first) {
+          return result.map((p) =>
+            p.playCricketId === first.playCricketId
+              ? { ...p, isCaptain: true }
+              : p,
+          );
+        }
+      }
+      return result;
+    });
   }
 
   const availablePlayers = useMemo(() => {

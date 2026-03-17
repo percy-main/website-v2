@@ -7,6 +7,7 @@ import {
   BUDGET,
   getCurrentGameweek,
   getCurrentSeason,
+  getGameweekForDate,
   getPreviousSeason,
   getTransferWindowInfo,
   isGameweekLocked,
@@ -755,6 +756,25 @@ async function getOwnershipData(
  * Used as a fallback when fantasy_player_score has no data (e.g. pre-season).
  * Matches v1's calculateSeasonPoints().
  */
+/**
+ * Parse a match date string into a Date for gameweek filtering.
+ * Handles DD/MM/YYYY (Play-Cricket sync format) and YYYY-MM-DD (ISO).
+ */
+function parseMatchDateForFilter(dateStr: string): Date | null {
+  if (dateStr.includes("/")) {
+    const [dd, mm, yyyy] = dateStr.split("/");
+    return new Date(
+      Date.UTC(
+        parseInt(yyyy ?? "0"),
+        parseInt(mm ?? "1") - 1,
+        parseInt(dd ?? "1"),
+      ),
+    );
+  }
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 async function calculateSeasonPointsFromMatches(
   db: Kysely<DB>,
   seasons: string[],
@@ -773,6 +793,7 @@ async function calculateSeasonPointsFromMatches(
         .select([
           "player_id",
           "match_id",
+          "match_date",
           "season",
           "team_id",
           "runs",
@@ -790,6 +811,7 @@ async function calculateSeasonPointsFromMatches(
         .select([
           "player_id",
           "match_id",
+          "match_date",
           "season",
           "team_id",
           "overs",
@@ -806,6 +828,7 @@ async function calculateSeasonPointsFromMatches(
         .select([
           "player_id",
           "match_id",
+          "match_date",
           "season",
           "team_id",
           "catches",
@@ -844,6 +867,8 @@ async function calculateSeasonPointsFromMatches(
   interface Appearance {
     playerId: string;
     matchId: string;
+    matchDate: string;
+    season: number;
     teamId: string;
   }
   const appearances = new Map<string, Appearance>();
@@ -853,6 +878,8 @@ async function calculateSeasonPointsFromMatches(
       appearances.set(k, {
         playerId: b.player_id,
         matchId: b.match_id,
+        matchDate: b.match_date,
+        season: b.season,
         teamId: b.team_id,
       });
   }
@@ -862,6 +889,8 @@ async function calculateSeasonPointsFromMatches(
       appearances.set(k, {
         playerId: b.player_id,
         matchId: b.match_id,
+        matchDate: b.match_date,
+        season: b.season,
         teamId: b.team_id,
       });
   }
@@ -871,6 +900,8 @@ async function calculateSeasonPointsFromMatches(
       appearances.set(k, {
         playerId: f.player_id,
         matchId: f.match_id,
+        matchDate: f.match_date,
+        season: f.season,
         teamId: f.team_id,
       });
   }
@@ -881,6 +912,15 @@ async function calculateSeasonPointsFromMatches(
   >();
 
   for (const [mk, app] of appearances) {
+    // Skip matches outside the fantasy calendar (same gate as calculate-scores.ts)
+    const matchDate = parseMatchDateForFilter(app.matchDate);
+    if (
+      matchDate &&
+      getGameweekForDate(matchDate, String(app.season)) === null
+    ) {
+      continue;
+    }
+
     const bat = battingByMatch.get(mk);
     const bowl = bowlingByMatch.get(mk);
     const field = fieldingByMatch.get(mk);
