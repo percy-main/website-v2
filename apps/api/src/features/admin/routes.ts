@@ -11,11 +11,15 @@ import {
   createChargeSchema,
   createMemberSchema,
   deleteChargeSchema,
+  linkDependentSchema,
+  listJuniorsSchema,
   listUsersSchema,
   recordLinkingSchema,
+  searchUsersForLinkingSchema,
   setJuniorManagerTeamsSchema,
   setMemberCategorySchema,
   setOfficialTeamsSchema,
+  unlinkDependentSchema,
   unlinkSchema,
   updateUserSchema,
   userIdParamSchema,
@@ -30,14 +34,18 @@ import {
   getRecordLinking,
   getUserDetail,
   linkContentfulPerson,
+  linkDependentToUser,
   linkPlayCricketPlayer,
+  listJuniors,
   listUsers,
   restoreMember,
+  searchUsersForLinking,
   sendChargeNotification,
   setJuniorManagerTeams,
   setMemberCategory,
   setOfficialTeams,
   unlinkContentfulPerson,
+  unlinkDependentUser,
   unlinkPlayCricketPlayer,
   updateUser,
 } from "./service.js";
@@ -63,6 +71,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const setOffTeams = setOfficialTeams(app.db);
   const juniorTeams = getAllJuniorTeams(app.db);
   const pcTeams = getAllPlayCricketTeams(app.db);
+  const listJr = listJuniors(app.db);
+  const searchForLinking = searchUsersForLinking(app.db);
+  const linkDep = linkDependentToUser(app.db);
+  const unlinkDep = unlinkDependentUser(app.db);
 
   app.get(
     "/admin/users",
@@ -273,6 +285,44 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { memberId } = parseBody(request, contentfulUnlinkSchema);
       return await unlinkCF(memberId);
+    },
+  );
+
+  // --- Juniors tab endpoints ---
+
+  app.get(
+    "/admin/juniors",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseQuery(request, listJuniorsSchema);
+      return await listJr(params);
+    },
+  );
+
+  app.get(
+    "/admin/juniors/search-users",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseQuery(request, searchUsersForLinkingSchema);
+      return await searchForLinking(params);
+    },
+  );
+
+  app.post(
+    "/admin/juniors/link",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseBody(request, linkDependentSchema);
+      return await linkDep(params);
+    },
+  );
+
+  app.post(
+    "/admin/juniors/unlink",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseBody(request, unlinkDependentSchema);
+      return await unlinkDep(params);
     },
   );
 };

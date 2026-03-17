@@ -1,11 +1,16 @@
 import type { DB } from "@percy-main/db";
+import { getAgeGroup, getTeamName, nameSimilarity } from "@percy-main/shared";
 import type { Kysely } from "kysely";
 import type {
   CreateCharge,
   CreateMember,
+  LinkDependent,
+  ListJuniors,
   ListUsers,
   RecordLinking,
+  SearchUsersForLinking,
   Unlink,
+  UnlinkDependent,
   UpdateUser,
 } from "./schemas.js";
 
@@ -689,5 +694,215 @@ export function getAllPlayCricketTeams(db: Kysely<DB>) {
       .selectAll()
       .orderBy("name", "asc")
       .execute();
+  };
+}
+
+export function listJuniors(db: Kysely<DB>) {
+  return async (params: ListJuniors) => {
+    const { page, pageSize, search, sex, ageGroup, membershipStatus } = params;
+
+    let query = db
+      .selectFrom("dependent")
+      .innerJoin("member", "member.id", "dependent.member_id")
+      .leftJoin("membership", (join) =>
+        join
+          .onRef("membership.dependent_id", "=", "dependent.id")
+          .on("membership.type", "=", "junior"),
+      )
+      .leftJoin("user", "user.id", "dependent.user_id")
+      .where("member.deleted_at", "is", null);
+
+    if (sex !== "all") {
+      query = query.where("dependent.sex", "=", sex);
+    }
+
+    if (search && search.trim().length > 0) {
+      const term = `%${search.trim()}%`;
+      query = query.where((eb) =>
+        eb.or([
+          eb("dependent.name", "ilike", term),
+          eb("member.name", "ilike", term),
+        ]),
+      );
+    }
+
+    // Age group and membership status are computed values — must post-filter
+    const allRows = await query
+      .select([
+        "dependent.id",
+        "dependent.name",
+        "dependent.sex",
+        "dependent.dob",
+        "dependent.created_at as registeredAt",
+        "member.name as parentName",
+        "member.email as parentEmail",
+        "member.telephone as parentTelephone",
+        "membership.paid_until as paidUntil",
+        "dependent.user_id as linkedUserId",
+        "user.email as linkedUserEmail",
+      ])
+      .orderBy("dependent.name", "asc")
+      .execute();
+
+    const now = new Date();
+    const filtered = allRows.filter((row) => {
+      if (ageGroup !== "all" && getAgeGroup(row.dob) !== ageGroup) {
+        return false;
+      }
+      if (
+        membershipStatus === "paid" &&
+        !(row.paidUntil && new Date(row.paidUntil) >= now)
+      ) {
+        return false;
+      }
+      if (
+        membershipStatus === "unpaid" &&
+        row.paidUntil &&
+        new Date(row.paidUntil) >= now
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    const total = filtered.length;
+    const offset = (page - 1) * pageSize;
+    const paged = filtered.slice(offset, offset + pageSize);
+
+    return {
+      juniors: paged.map((row) => ({
+        id: row.id,
+        name: row.name,
+        sex: row.sex,
+        dob: row.dob,
+        registeredAt: row.registeredAt,
+        parentName: row.parentName,
+        parentEmail: row.parentEmail,
+        parentTelephone: row.parentTelephone,
+        paidUntil: row.paidUntil,
+        ageGroup: getAgeGroup(row.dob),
+        teamName: getTeamName(row.dob, row.sex),
+        hasOwnAccount: row.linkedUserId != null,
+        linkedUserEmail: row.linkedUserEmail ?? null,
+      })),
+      total,
+      page,
+      pageSize,
+    };
+  };
+}
+
+export function searchUsersForLinking(db: Kysely<DB>) {
+  return async (params: SearchUsersForLinking) => {
+    const { dependentId, search } = params;
+
+    const dep = await db
+      .selectFrom("dependent")
+      .select("name")
+      .where("id", "=", dependentId)
+      .executeTakeFirst();
+
+    if (!dep) {
+      const error = new Error("Dependent not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    let query = db.selectFrom("user").select(["id", "name", "email"]);
+
+    if (search && search.trim().length > 0) {
+      const term = `%${search.trim()}%`;
+      query = query.where((eb) =>
+        eb.or([eb("name", "ilike", term), eb("email", "ilike", term)]),
+      );
+    }
+
+    const users = await query.limit(50).execute();
+
+    const scored = users
+      .map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        score: nameSimilarity(dep.name, u.name),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+
+    return { dependentName: dep.name, users: scored };
+  };
+}
+
+export function linkDependentToUser(db: Kysely<DB>) {
+  return async (params: LinkDependent) => {
+    const { dependentId, userId } = params;
+
+    const dep = await db
+      .selectFrom("dependent")
+      .select(["id", "user_id"])
+      .where("id", "=", dependentId)
+      .executeTakeFirst();
+
+    if (!dep) {
+      const error = new Error("Dependent not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (dep.user_id != null) {
+      const error = new Error(
+        "Dependent is already linked to a user. Unlink first.",
+      ) as Error & { statusCode: number };
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const user = await db
+      .selectFrom("user")
+      .select("id")
+      .where("id", "=", userId)
+      .executeTakeFirst();
+
+    if (!user) {
+      const error = new Error("User not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await db
+      .updateTable("dependent")
+      .set({ user_id: userId })
+      .where("id", "=", dependentId)
+      .execute();
+
+    return { success: true };
+  };
+}
+
+export function unlinkDependentUser(db: Kysely<DB>) {
+  return async (params: UnlinkDependent) => {
+    const { dependentId } = params;
+
+    const result = await db
+      .updateTable("dependent")
+      .set({ user_id: null })
+      .where("id", "=", dependentId)
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows === 0n) {
+      const error = new Error("Dependent not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return { success: true };
   };
 }

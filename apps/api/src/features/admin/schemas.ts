@@ -1,3 +1,4 @@
+import { AGE_GROUPS } from "@percy-main/shared";
 import { z } from "zod";
 
 export const listUsersSchema = z.object({
@@ -103,3 +104,33 @@ export type CreateCharge = z.infer<typeof createChargeSchema>;
 export type DeleteCharge = z.infer<typeof deleteChargeSchema>;
 export type SetJuniorManagerTeams = z.infer<typeof setJuniorManagerTeamsSchema>;
 export type SetOfficialTeams = z.infer<typeof setOfficialTeamsSchema>;
+
+export const listJuniorsSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(100),
+  search: z.string().optional(),
+  sex: z.enum(["all", "male", "female"]).default("all"),
+  ageGroup: z
+    .enum(["all", ...AGE_GROUPS])
+    .default("all"),
+  membershipStatus: z.enum(["all", "paid", "unpaid"]).default("all"),
+});
+
+export const searchUsersForLinkingSchema = z.object({
+  dependentId: z.string().min(1),
+  search: z.string().optional(),
+});
+
+export const linkDependentSchema = z.object({
+  dependentId: z.string().min(1),
+  userId: z.string().min(1),
+});
+
+export const unlinkDependentSchema = z.object({
+  dependentId: z.string().min(1),
+});
+
+export type ListJuniors = z.infer<typeof listJuniorsSchema>;
+export type SearchUsersForLinking = z.infer<typeof searchUsersForLinkingSchema>;
+export type LinkDependent = z.infer<typeof linkDependentSchema>;
+export type UnlinkDependent = z.infer<typeof unlinkDependentSchema>;
