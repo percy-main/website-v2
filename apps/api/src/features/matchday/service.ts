@@ -928,32 +928,42 @@ export function finishMatch(
     const { ChargeNotification } = await import("@percy-main/email");
 
     let emailsSent = 0;
+    const emailErrors: string[] = [];
     for (const player of unpaidPlayers) {
       if (!player.member_email) continue;
 
-      const amountFormatted = currencyFormatter.format(
-        player.amount_pence / 100,
-      );
+      try {
+        const amountFormatted = currencyFormatter.format(
+          player.amount_pence / 100,
+        );
 
-      const element = ChargeNotification.component({
-        imageBaseUrl: `${config.BASE_URL}/images`,
-        name: player.member_name ?? "Member",
-        description: player.charge_description,
-        amount: amountFormatted,
-        chargeDate: formatDate(new Date(player.charge_date), "dd/MM/yyyy"),
-        loginUrl: `${config.BASE_URL}/auth/login`,
-      });
+        const element = ChargeNotification.component({
+          imageBaseUrl: `${config.BASE_URL}/images`,
+          name: player.member_name ?? "Member",
+          description: player.charge_description,
+          amount: amountFormatted,
+          chargeDate: formatDate(new Date(player.charge_date), "dd/MM/yyyy"),
+          loginUrl: `${config.BASE_URL}/auth/login`,
+        });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-      const html = await render(element as any);
-      await sendEmail({
-        to: player.member_email,
-        subject: ChargeNotification.subject,
-        html,
-      });
-      emailsSent++;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+        const html = await render(element as any);
+        await sendEmail({
+          to: player.member_email,
+          subject: ChargeNotification.subject,
+          html,
+        });
+        emailsSent++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown email error";
+        emailErrors.push(`${player.member_email}: ${msg}`);
+        console.error(
+          `Failed to send charge notification to ${player.member_email}:`,
+          err,
+        );
+      }
     }
 
-    return { success: true, emailsSent };
+    return { success: true, emailsSent, emailErrors };
   };
 }
