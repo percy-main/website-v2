@@ -1,7 +1,6 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import type {
-  ArchiveMember,
   CreateCharge,
   CreateMember,
   ListUsers,
@@ -372,10 +371,7 @@ export function getUserDetail(db: Kysely<DB>) {
         "team_official.play_cricket_team_id",
       )
       .where("team_official.user_id", "=", userId)
-      .select([
-        "play_cricket_team.id",
-        "play_cricket_team.name",
-      ])
+      .select(["play_cricket_team.id", "play_cricket_team.name"])
       .execute();
 
     return {
