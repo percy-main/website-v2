@@ -726,7 +726,9 @@ export function listJuniors(db: Kysely<DB>) {
       );
     }
 
-    // Age group and membership status are computed values — must post-filter
+    // Age group and membership status are computed values — must post-filter.
+    // The membership join can produce duplicates if a dependent has multiple
+    // membership records. Deduplicate by keeping the latest paid_until per dependent.
     const allRows = await query
       .select([
         "dependent.id",
@@ -744,8 +746,21 @@ export function listJuniors(db: Kysely<DB>) {
       .orderBy("dependent.name", "asc")
       .execute();
 
+    // Deduplicate: keep the row with the latest paid_until per dependent
+    const deduped = new Map<string, (typeof allRows)[number]>();
+    for (const row of allRows) {
+      const existing = deduped.get(row.id);
+      if (
+        !existing ||
+        (row.paidUntil &&
+          (!existing.paidUntil || row.paidUntil > existing.paidUntil))
+      ) {
+        deduped.set(row.id, row);
+      }
+    }
+
     const now = new Date();
-    const filtered = allRows.filter((row) => {
+    const filtered = [...deduped.values()].filter((row) => {
       if (ageGroup !== "all" && getAgeGroup(row.dob) !== ageGroup) {
         return false;
       }
@@ -819,7 +834,9 @@ export function searchUsersForLinking(db: Kysely<DB>) {
       );
     }
 
-    const users = await query.limit(50).execute();
+    // Score all matching users to avoid missing valid matches.
+    // For a community club (~hundreds of users) this is fine.
+    const users = await query.orderBy("name", "asc").execute();
 
     const scored = users
       .map((u) => ({
