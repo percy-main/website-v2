@@ -184,11 +184,12 @@ function convertRow(
 
     // SQLite TEXT JSON → PG jsonb (needs to be a valid JSON string for pg)
     if (jsonbCols?.has(key) && typeof converted === "string") {
-      // Validate it's parseable JSON, pass through as-is (pg driver handles it)
       try {
         JSON.parse(converted);
       } catch {
-        converted = "{}";
+        throw new Error(
+          `Invalid JSON in ${table}.${key}: ${String(converted).slice(0, 100)}`,
+        );
       }
     }
 
@@ -241,9 +242,6 @@ async function main() {
   const client = await pool.connect();
 
   try {
-    // Disable FK checks during load, re-enable after
-    await client.query("SET session_replication_role = 'replica'");
-
     const stats: { table: string; rows: number }[] = [];
 
     for (const table of TABLE_ORDER) {
@@ -285,9 +283,6 @@ async function main() {
         console.log(`  ↻ ${seqName} → ${maxId}`);
       }
     }
-
-    // Re-enable FK checks
-    await client.query("SET session_replication_role = 'origin'");
 
     // Summary
     const totalRows = stats.reduce((sum, s) => sum + s.rows, 0);

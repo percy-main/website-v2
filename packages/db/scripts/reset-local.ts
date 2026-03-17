@@ -21,11 +21,12 @@ const connectionString =
   "postgres://percy:percy@localhost:5433/percy_main";
 
 // Safety: refuse to run against anything that doesn't look local
-if (
-  !connectionString.includes("localhost") &&
-  !connectionString.includes("127.0.0.1")
-) {
-  console.error("Refusing to reset a non-local database. Aborting.");
+const parsed = new URL(connectionString);
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+if (!LOCAL_HOSTS.has(parsed.hostname)) {
+  console.error(
+    `Refusing to reset non-local database (hostname: ${parsed.hostname}). Aborting.`,
+  );
   process.exit(1);
 }
 
