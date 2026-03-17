@@ -1,4 +1,5 @@
 import type { DB } from "@percy-main/db";
+import { getAgeGroup } from "@percy-main/shared";
 import type { Kysely } from "kysely";
 import type { DependentInput } from "./schemas.js";
 
@@ -240,25 +241,6 @@ export function listMyTeams(db: Kysely<DB>) {
 }
 
 /**
- * Compute an age group string (e.g. "U11") from a date of birth,
- * based on age on September 1st of the current year.
- */
-function computeAgeGroup(dob: string): string {
-  const birthDate = new Date(dob);
-  const year = new Date().getFullYear();
-  const septFirst = new Date(year, 8, 1); // September 1
-  let age = septFirst.getFullYear() - birthDate.getFullYear();
-  const monthDiff = septFirst.getMonth() - birthDate.getMonth();
-  if (
-    monthDiff < 0 ||
-    (monthDiff === 0 && septFirst.getDate() < birthDate.getDate())
-  ) {
-    age--;
-  }
-  return `U${age + 1}`;
-}
-
-/**
  * List players (dependents) matching a team's age group and sex.
  * Verifies the user has access to the team.
  */
@@ -322,9 +304,7 @@ export function listPlayers(db: Kysely<DB>) {
       .orderBy("dependent.name", "asc")
       .execute();
 
-    return allDependents.filter(
-      (d) => computeAgeGroup(d.dob) === team.age_group,
-    );
+    return allDependents.filter((d) => getAgeGroup(d.dob) === team.age_group);
   };
 }
 
@@ -378,7 +358,7 @@ export function getPlayerDetail(db: Kysely<DB>) {
     // Verify access: admin can see all; junior_manager must be assigned to a
     // team whose age group and sex match this dependent
     if (role !== "admin") {
-      const ageGroup = computeAgeGroup(dependent.dob);
+      const ageGroup = getAgeGroup(dependent.dob);
       const assignedTeam = await db
         .selectFrom("junior_team_manager")
         .innerJoin(
