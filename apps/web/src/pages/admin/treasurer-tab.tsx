@@ -646,10 +646,13 @@ export function TreasurerTab() {
                             <Button
                               variant="default"
                               size="sm"
-                              disabled={chaseMutation.isPending}
-                              onClick={() =>
-                                chaseMutation.mutate(item.user_id ?? item.id)
+                              disabled={
+                                chaseMutation.isPending || !item.user_id
                               }
+                              onClick={() => {
+                                if (item.user_id)
+                                  chaseMutation.mutate(item.user_id);
+                              }}
                             >
                               Send
                             </Button>

@@ -182,7 +182,7 @@ export function MembersTab() {
           <SelectContent>
             <SelectItem value="__all__">All Statuses</SelectItem>
             <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="expired">Expired</SelectItem>
+            <SelectItem value="lapsed">Expired</SelectItem>
             <SelectItem value="none">None</SelectItem>
           </SelectContent>
         </Select>

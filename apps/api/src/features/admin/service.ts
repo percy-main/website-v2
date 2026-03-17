@@ -489,7 +489,7 @@ export function restoreMember(db: Kysely<DB>) {
 }
 
 export function createCharge(db: Kysely<DB>) {
-  return async (userId: string, data: CreateCharge) => {
+  return async (userId: string, adminUserId: string, data: CreateCharge) => {
     const user = await db
       .selectFrom("user")
       .where("id", "=", userId)
@@ -528,7 +528,7 @@ export function createCharge(db: Kysely<DB>) {
         description: data.description,
         amount_pence: data.amountPence,
         charge_date: data.chargeDate,
-        created_by: "admin",
+        created_by: adminUserId,
         source: "admin",
         type: "manual",
       })
@@ -539,20 +539,28 @@ export function createCharge(db: Kysely<DB>) {
 }
 
 export function deleteCharge(db: Kysely<DB>) {
-  return async (chargeId: string, reason: string) => {
+  return async (chargeId: string, adminUserId: string, reason: string) => {
     const now = new Date().toISOString();
 
-    await db
+    const result = await db
       .updateTable("charge")
       .set({
         deleted_at: now,
-        deleted_by: "admin",
+        deleted_by: adminUserId,
         deleted_reason: reason,
       })
       .where("id", "=", chargeId)
       .where("paid_at", "is", null)
       .where("payment_confirmed_at", "is", null)
-      .execute();
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows === 0n) {
+      const error = new Error("Charge not found or already paid") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
 
     return { success: true };
   };
@@ -560,43 +568,44 @@ export function deleteCharge(db: Kysely<DB>) {
 
 export function setJuniorManagerTeams(db: Kysely<DB>) {
   return async (userId: string, teamIds: string[]) => {
-    await db
-      .deleteFrom("junior_team_manager")
-      .where("user_id", "=", userId)
-      .execute();
-
-    if (teamIds.length > 0) {
-      await db
-        .insertInto("junior_team_manager")
-        .values(
-          teamIds.map((teamId) => ({
-            user_id: userId,
-            junior_team_id: teamId,
-          })),
-        )
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .deleteFrom("junior_team_manager")
+        .where("user_id", "=", userId)
         .execute();
 
-      await db
-        .updateTable("user")
-        .set({ role: "junior_manager" })
-        .where("id", "=", userId)
-        .execute();
-    } else {
-      // If all teams removed, check if they should lose the role
-      const user = await db
-        .selectFrom("user")
-        .where("id", "=", userId)
-        .select("role")
-        .executeTakeFirst();
+      if (teamIds.length > 0) {
+        await trx
+          .insertInto("junior_team_manager")
+          .values(
+            teamIds.map((teamId) => ({
+              user_id: userId,
+              junior_team_id: teamId,
+            })),
+          )
+          .execute();
 
-      if (user?.role === "junior_manager") {
-        await db
+        await trx
           .updateTable("user")
-          .set({ role: "user" })
+          .set({ role: "junior_manager" })
           .where("id", "=", userId)
           .execute();
+      } else {
+        const user = await trx
+          .selectFrom("user")
+          .where("id", "=", userId)
+          .select("role")
+          .executeTakeFirst();
+
+        if (user?.role === "junior_manager") {
+          await trx
+            .updateTable("user")
+            .set({ role: "user" })
+            .where("id", "=", userId)
+            .execute();
+        }
       }
-    }
+    });
 
     return { success: true };
   };

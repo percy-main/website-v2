@@ -216,6 +216,7 @@ function MemberDetailContent({
 
       {/* 7. Junior Manager Teams */}
       <JuniorManagerTeamsSection
+        key={`jm-${data.juniorManagerTeams.map((t) => t.id).join(",")}`}
         userId={userId}
         userRole={user.role}
         selectedTeamIds={data.juniorManagerTeams.map((t) => t.id)}
@@ -226,6 +227,7 @@ function MemberDetailContent({
 
       {/* 8. Match Official Teams */}
       <OfficialTeamsSection
+        key={`off-${data.officialTeams.map((t) => t.id).join(",")}`}
         userId={userId}
         userRole={user.role}
         selectedTeamIds={data.officialTeams.map((t) => t.id)}

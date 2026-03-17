@@ -16,7 +16,10 @@ export const updateUserSchema = z.object({
   userId: z.string(),
   name: z.string().optional(),
   email: z.string().email().optional(),
-  role: z.string().nullable().optional(),
+  role: z
+    .enum(["user", "admin", "junior_manager", "official"])
+    .nullable()
+    .optional(),
   banned: z.boolean().optional(),
   banReason: z.string().optional(),
 });

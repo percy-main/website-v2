@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
-import { requireRole } from "../auth/middleware.js";
+import { getAuthSession, requireRole } from "../auth/middleware.js";
 import {
   archiveMemberSchema,
   chargeIdParamSchema,
@@ -125,8 +125,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { userId } = parseParams(request, userIdParamSchema);
+      const { user } = getAuthSession(request);
       const data = parseBody(request, createChargeSchema);
-      return await addCharge(userId, data);
+      return await addCharge(userId, user.id, data);
     },
   );
 
@@ -135,8 +136,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requireRole("admin")] },
     async (request) => {
       const { chargeId } = parseParams(request, chargeIdParamSchema);
+      const { user } = getAuthSession(request);
       const { reason } = parseBody(request, deleteChargeSchema);
-      return await removeCharge(chargeId, reason);
+      return await removeCharge(chargeId, user.id, reason);
     },
   );
 
