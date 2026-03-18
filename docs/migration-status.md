@@ -95,7 +95,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [ ] Port non-Contentful pages (Batch 2):
   - [x] Cricket leaderboard
   - [x] Fantasy cricket (3 pages: home with tabs, scoring rules, team management + 20 new API endpoints). Deferred items:
-    - [ ] Recharts season timeline chart on history tab (hooks wired, chart rendering TODO)
+    - [x] Recharts season timeline chart on history tab
     - [ ] Chaos week admin email sending (needs `packages/email` ChaosWeekAnnouncement template wiring)
     - [ ] Team share image generation (depends on Contentful player photos — deferred to Phase 5)
     - [ ] Fix flaky fantasy integration tests on CI (`startTestContainer()` exceeds 30s timeout on GitHub Actions — currently skipped, passes locally)

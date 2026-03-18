@@ -15,6 +15,15 @@ import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { ScoringRulesContent } from "./fantasy-rules.js";
 
 // ---------------------------------------------------------------------------
@@ -998,10 +1007,16 @@ function HistoryTab() {
     );
   }
 
-  return <TimelineView teamId={myTeam.teamId} />;
+  return <TimelineView teamId={myTeam.teamId} ownerName={myTeam.ownerName} />;
 }
 
-function TimelineView({ teamId }: { teamId: number }) {
+function TimelineView({
+  teamId,
+  ownerName,
+}: {
+  teamId: number;
+  ownerName: string;
+}) {
   const { data, isPending } = useTimeline(teamId);
 
   if (isPending) return <LoadingTable rows={5} cols={3} />;
@@ -1013,27 +1028,60 @@ function TimelineView({ teamId }: { teamId: number }) {
     );
   }
 
+  const chartData = data.timeline.map((t) => ({
+    name: `GW${t.gameweek}`,
+    weekly: t.weeklyPoints,
+    cumulative: t.cumulativePoints,
+  }));
+
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Gameweek</TableHead>
-          <TableHead className="text-right">Weekly</TableHead>
-          <TableHead className="text-right">Cumulative</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {data.timeline.map((t) => (
-          <TableRow key={t.gameweek}>
-            <TableCell>GW{t.gameweek}</TableCell>
-            <TableCell className="text-right">{t.weeklyPoints}</TableCell>
-            <TableCell className="text-right font-semibold">
-              {t.cumulativePoints}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <Card>
+      <CardHeader>
+        <CardTitle>{ownerName}&apos;s Season Timeline</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={chartData}
+              margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="cumulative"
+                name="Cumulative"
+                stroke="#2563eb"
+                strokeWidth={2}
+                dot={{ r: 4 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="weekly"
+                name="Weekly"
+                stroke="#9ca3af"
+                strokeWidth={1}
+                strokeDasharray="4 4"
+                dot={{ r: 3 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-3 flex gap-6 text-sm">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-0.5 w-4 bg-blue-600" /> Cumulative
+            points
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-0.5 w-4 border-t-2 border-dashed border-gray-400" />{" "}
+            Weekly points
+          </span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
