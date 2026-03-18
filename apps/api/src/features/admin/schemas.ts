@@ -159,6 +159,16 @@ export const listContactSubmissionsSchema = z.object({
   search: z.string().optional(),
 });
 
+export const mergePreviewSchema = z.object({
+  keepMemberId: z.string().min(1),
+  removeMemberId: z.string().min(1),
+});
+
+export const mergeMembersSchema = z.object({
+  keepMemberId: z.string().min(1),
+  removeMemberId: z.string().min(1),
+});
+
 export type ListContactSubmissions = z.infer<
   typeof listContactSubmissionsSchema
 >;
@@ -166,3 +176,5 @@ export type ListJuniors = z.infer<typeof listJuniorsSchema>;
 export type SearchUsersForLinking = z.infer<typeof searchUsersForLinkingSchema>;
 export type LinkDependent = z.infer<typeof linkDependentSchema>;
 export type UnlinkDependent = z.infer<typeof unlinkDependentSchema>;
+export type MergePreview = z.infer<typeof mergePreviewSchema>;
+export type MergeMembers = z.infer<typeof mergeMembersSchema>;

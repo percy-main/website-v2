@@ -12,7 +12,7 @@ const {
   const mockExecuteTakeFirstOrThrow = vi.fn();
   const mockExecute = vi.fn();
 
-  const mockQueryBuilder = {
+  const mockQueryBuilder: Record<string, unknown> = {
     selectFrom: vi.fn().mockReturnThis(),
     updateTable: vi.fn().mockReturnThis(),
     insertInto: vi.fn().mockReturnThis(),
@@ -38,6 +38,16 @@ const {
     },
   };
 
+  // transaction() returns an object with execute() that runs the callback with
+  // the same mock query builder (acting as the transaction handle)
+  mockQueryBuilder.transaction = vi.fn().mockReturnValue({
+    execute: vi
+      .fn()
+      .mockImplementation(async (cb: (trx: unknown) => Promise<unknown>) => {
+        return await cb(mockQueryBuilder);
+      }),
+  });
+
   return {
     mockExecuteTakeFirst,
     mockExecuteTakeFirstOrThrow,
@@ -50,10 +60,12 @@ import {
   chasePayment,
   createMember,
   getChargeAggregates,
+  getMergePreview,
   linkPlayCricketPlayer,
   listAllCharges,
   listContactSubmissions,
   listUsers,
+  mergeMembers,
   unlinkPlayCricketPlayer,
 } from "./service.js";
 
@@ -63,7 +75,7 @@ describe("admin service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     for (const key of Object.keys(mockQueryBuilder)) {
-      const val = (mockQueryBuilder as Record<string, unknown>)[key];
+      const val = mockQueryBuilder[key];
       if (typeof val === "function" && "mockReturnValue" in (val as object)) {
         (val as ReturnType<typeof vi.fn>).mockReturnValue(mockQueryBuilder);
       }
@@ -422,5 +434,40 @@ describe("admin service", () => {
 
       expect(mockQueryBuilder.where).toHaveBeenCalled();
     });
+  });
+
+  describe("getMergePreview", () => {
+    it("throws 400 when merging a member with itself", async () => {
+      await expect(
+        getMergePreview(db)({
+          keepMemberId: "m1",
+          removeMemberId: "m1",
+        }),
+      ).rejects.toThrow("Cannot merge a member with itself");
+    });
+
+    it("throws 404 when member not found", async () => {
+      mockExecuteTakeFirst.mockResolvedValue(undefined);
+
+      await expect(
+        getMergePreview(db)({
+          keepMemberId: "m1",
+          removeMemberId: "m2",
+        }),
+      ).rejects.toThrow("One or both member records not found");
+    });
+  });
+
+  describe("mergeMembers", () => {
+    it("throws 400 when merging a member with itself", async () => {
+      await expect(
+        mergeMembers(db)({
+          keepMemberId: "m1",
+          removeMemberId: "m1",
+        }),
+      ).rejects.toThrow("Cannot merge a member with itself");
+    });
+
+    // 404 for missing members is tested in integration tests (requires real transaction)
   });
 });

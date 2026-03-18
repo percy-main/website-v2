@@ -18,6 +18,8 @@ import {
   listContactSubmissionsSchema,
   listJuniorsSchema,
   listUsersSchema,
+  mergeMembersSchema,
+  mergePreviewSchema,
   recordLinkingSchema,
   searchUsersForLinkingSchema,
   setJuniorManagerTeamsSchema,
@@ -34,9 +36,11 @@ import {
   createCharge,
   createMember,
   deleteCharge,
+  findDuplicateMembers,
   getAllJuniorTeams,
   getAllPlayCricketTeams,
   getChargeAggregates,
+  getMergePreview,
   getRecordLinking,
   getUserDetail,
   linkContentfulPerson,
@@ -46,6 +50,7 @@ import {
   listContactSubmissions,
   listJuniors,
   listUsers,
+  mergeMembers,
   restoreMember,
   searchUsersForLinking,
   sendChargeNotification,
@@ -87,6 +92,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const chargeAggregates = getChargeAggregates(app.db);
   const chase = chasePayment(app.db);
   const listContacts = listContactSubmissions(app.db);
+  const findDuplicates = findDuplicateMembers(app.db);
+  const previewMerge = getMergePreview(app.db);
+  const merge = mergeMembers(app.db);
 
   app.get(
     "/admin/users",
@@ -375,6 +383,34 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const params = parseBody(request, unlinkDependentSchema);
       return await unlinkDep(params);
+    },
+  );
+
+  // --- Duplicates tab endpoints ---
+
+  app.get(
+    "/admin/duplicates",
+    { preHandler: [requireRole("admin")] },
+    async () => {
+      return await findDuplicates();
+    },
+  );
+
+  app.get(
+    "/admin/merge-preview",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseQuery(request, mergePreviewSchema);
+      return await previewMerge(params);
+    },
+  );
+
+  app.post(
+    "/admin/merge-members",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseBody(request, mergeMembersSchema);
+      return await merge(params);
     },
   );
 };

@@ -3,6 +3,7 @@ import { useSession } from "@/lib/auth-client";
 import { Link, useSearchParams } from "react-router";
 import { ChargesTab } from "./charges-tab";
 import { ContactsTab } from "./contacts-tab";
+import { DuplicatesTab } from "./duplicates-tab";
 import { FantasyTab } from "./fantasy-tab";
 import { JuniorsTab } from "./juniors-tab";
 import { MembersTab } from "./members-tab";
@@ -31,6 +32,7 @@ const ACTIVE_TABS: Tab[] = [
   "charges",
   "contacts",
   "sponsorships",
+  "duplicates",
   "treasurer",
   "fantasy",
   "record-linking",
@@ -97,6 +99,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="sponsorships">
             <SponsorshipsTab />
+          </TabsContent>
+          <TabsContent value="duplicates">
+            <DuplicatesTab />
           </TabsContent>
           <TabsContent value="treasurer">
             <TreasurerTab />
