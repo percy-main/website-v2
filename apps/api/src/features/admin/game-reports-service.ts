@@ -3,6 +3,36 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type { ListGameReports } from "./schemas.js";
 
+const ABANDONED_THRESHOLD_HOURS = 1;
+
+function getAbandonedCutoff(): string {
+  return new Date(
+    Date.now() - ABANDONED_THRESHOLD_HOURS * 60 * 60 * 1000,
+  ).toISOString();
+}
+
+export type ChargeStatus =
+  | "paid"
+  | "pending"
+  | "unpaid"
+  | "abandoned"
+  | "deleted";
+
+function getChargeStatus(
+  paidAt: string | null,
+  paymentConfirmedAt: string | null,
+  deletedAt: string | null,
+  stripePaymentIntentId: string | null,
+  abandonedCutoff: string,
+  createdAt: string,
+): ChargeStatus {
+  if (deletedAt) return "deleted";
+  if (paidAt) return "paid";
+  if (paymentConfirmedAt) return "pending";
+  if (stripePaymentIntentId && createdAt < abandonedCutoff) return "abandoned";
+  return "unpaid";
+}
+
 export function listGameReports(db: Kysely<DB>) {
   return async (params: ListGameReports) => {
     const { teamId, limit, offset } = params;
@@ -81,6 +111,9 @@ export function getMatchdayReport(db: Kysely<DB>) {
           "charge.paid_at as charge_paid_at",
           "charge.payment_method as charge_payment_method",
           "charge.deleted_at as charge_deleted_at",
+          "charge.payment_confirmed_at as charge_payment_confirmed_at",
+          "charge.stripe_payment_intent_id as charge_stripe_payment_intent_id",
+          "charge.created_at as charge_created_at",
         ])
         .orderBy("matchday_player.created_at", "asc")
         .execute(),
@@ -112,18 +145,41 @@ export function getMatchdayReport(db: Kysely<DB>) {
           .executeTakeFirst()) ?? null;
     }
 
-    // Calculate financial summary
-    const activeCharges = players.filter(
-      (p) => p.charge_amount_pence != null && p.charge_deleted_at == null,
+    // Derive charge status for each player
+    const abandonedCutoff = getAbandonedCutoff();
+    const playersWithStatus = players.map((p) => ({
+      ...p,
+      charge_status:
+        p.charge_amount_pence != null
+          ? getChargeStatus(
+              p.charge_paid_at,
+              p.charge_payment_confirmed_at,
+              p.charge_deleted_at,
+              p.charge_stripe_payment_intent_id,
+              abandonedCutoff,
+              p.charge_created_at ?? "",
+            )
+          : null,
+    }));
+
+    // Calculate financial summary using derived status
+    const activeCharges = playersWithStatus.filter(
+      (p) =>
+        p.charge_amount_pence != null &&
+        p.charge_status !== "deleted" &&
+        p.charge_status !== "abandoned",
     );
     const totalIncoming = activeCharges.reduce(
       (sum, p) => sum + (p.charge_amount_pence ?? 0),
       0,
     );
     const totalPaid = activeCharges
-      .filter((p) => p.charge_paid_at != null)
+      .filter((p) => p.charge_status === "paid")
       .reduce((sum, p) => sum + (p.charge_amount_pence ?? 0), 0);
-    const totalOutstanding = totalIncoming - totalPaid;
+    const totalPending = activeCharges
+      .filter((p) => p.charge_status === "pending")
+      .reduce((sum, p) => sum + (p.charge_amount_pence ?? 0), 0);
+    const totalOutstanding = totalIncoming - totalPaid - totalPending;
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount_pence, 0);
     const sponsorshipIncome = sponsorship?.amount_pence ?? 0;
     const profitLoss = totalIncoming + sponsorshipIncome - totalExpenses;
@@ -131,12 +187,13 @@ export function getMatchdayReport(db: Kysely<DB>) {
     return {
       matchday,
       team: team ?? null,
-      players,
+      players: playersWithStatus,
       expenses,
       sponsorship,
       summary: {
         totalIncoming,
         totalPaid,
+        totalPending,
         totalOutstanding,
         totalExpenses,
         sponsorshipIncome,

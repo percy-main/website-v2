@@ -133,6 +133,9 @@ describe("game-reports-service", () => {
           charge_paid_at: "2026-06-15",
           charge_payment_method: "card",
           charge_deleted_at: null,
+          charge_payment_confirmed_at: null,
+          charge_stripe_payment_intent_id: null,
+          charge_created_at: "2026-06-15",
         },
         {
           id: "p2",
@@ -144,6 +147,9 @@ describe("game-reports-service", () => {
           charge_paid_at: null,
           charge_payment_method: null,
           charge_deleted_at: null,
+          charge_payment_confirmed_at: null,
+          charge_stripe_payment_intent_id: null,
+          charge_created_at: "2026-06-15",
         },
       ]);
 
@@ -174,6 +180,7 @@ describe("game-reports-service", () => {
       // Financial summary
       expect(result.summary.totalIncoming).toBe(2000);
       expect(result.summary.totalPaid).toBe(1000);
+      expect(result.summary.totalPending).toBe(0);
       expect(result.summary.totalOutstanding).toBe(1000);
       expect(result.summary.totalExpenses).toBe(500);
       expect(result.summary.sponsorshipIncome).toBe(0);
@@ -242,6 +249,9 @@ describe("game-reports-service", () => {
           charge_paid_at: null,
           charge_payment_method: null,
           charge_deleted_at: "2026-06-16",
+          charge_payment_confirmed_at: null,
+          charge_stripe_payment_intent_id: null,
+          charge_created_at: "2026-06-15",
         },
       ]);
 

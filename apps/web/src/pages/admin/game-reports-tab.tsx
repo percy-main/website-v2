@@ -48,6 +48,8 @@ interface MatchdayListResponse {
   total: number;
 }
 
+type ChargeStatus = "paid" | "pending" | "unpaid" | "abandoned" | "deleted";
+
 interface MatchdayReportPlayer {
   id: string | null;
   player_name: string;
@@ -57,7 +59,7 @@ interface MatchdayReportPlayer {
   charge_amount_pence: number | null;
   charge_paid_at: string | null;
   charge_payment_method: string | null;
-  charge_deleted_at: string | null;
+  charge_status: ChargeStatus | null;
 }
 
 interface MatchdayReportExpense {
@@ -83,6 +85,7 @@ interface MatchdayReportResponse {
   summary: {
     totalIncoming: number;
     totalPaid: number;
+    totalPending: number;
     totalOutstanding: number;
     totalExpenses: number;
     sponsorshipIncome: number;
@@ -217,6 +220,44 @@ export function GameReportsTab() {
   );
 }
 
+function ChargeStatusBadge({
+  status,
+  paymentMethod,
+}: {
+  status: ChargeStatus | null;
+  paymentMethod: string | null;
+}) {
+  switch (status) {
+    case "paid":
+      return (
+        <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">
+          Paid
+          {paymentMethod && (
+            <span className="ml-1 text-green-600">({paymentMethod})</span>
+          )}
+        </span>
+      );
+    case "pending":
+      return (
+        <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800">
+          Pending
+        </span>
+      );
+    case "unpaid":
+      return (
+        <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-800">
+          Outstanding
+        </span>
+      );
+    case "abandoned":
+      return <span className="text-xs text-gray-400">Abandoned</span>;
+    case "deleted":
+      return <span className="text-xs text-gray-400">Deleted</span>;
+    default:
+      return <span className="text-xs text-gray-400">-</span>;
+  }
+}
+
 function MatchdayReport({
   matchdayId,
   onBack,
@@ -275,10 +316,15 @@ function MatchdayReport({
                   <p className="text-lg font-semibold">
                     {formatPence(data.summary.totalIncoming)}
                   </p>
-                  <div className="mt-1 flex gap-3 text-xs">
+                  <div className="mt-1 flex flex-wrap gap-3 text-xs">
                     <span className="text-green-600">
                       Paid: {formatPence(data.summary.totalPaid)}
                     </span>
+                    {data.summary.totalPending > 0 && (
+                      <span className="text-blue-600">
+                        Pending: {formatPence(data.summary.totalPending)}
+                      </span>
+                    )}
                     <span className="text-yellow-600">
                       Outstanding: {formatPence(data.summary.totalOutstanding)}
                     </span>
@@ -372,31 +418,16 @@ function MatchdayReport({
                         </TableCell>
                         <TableCell className="text-right">
                           {player.charge_amount_pence != null &&
-                          player.charge_deleted_at == null
+                          player.charge_status !== "deleted" &&
+                          player.charge_status !== "abandoned"
                             ? formatPence(player.charge_amount_pence)
                             : "-"}
                         </TableCell>
                         <TableCell>
-                          {player.charge_deleted_at != null ? (
-                            <span className="text-xs text-gray-400">
-                              Deleted
-                            </span>
-                          ) : player.charge_paid_at ? (
-                            <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">
-                              Paid
-                              {player.charge_payment_method && (
-                                <span className="ml-1 text-green-600">
-                                  ({player.charge_payment_method})
-                                </span>
-                              )}
-                            </span>
-                          ) : player.charge_amount_pence != null ? (
-                            <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-800">
-                              Outstanding
-                            </span>
-                          ) : (
-                            <span className="text-xs text-gray-400">-</span>
-                          )}
+                          <ChargeStatusBadge
+                            status={player.charge_status}
+                            paymentMethod={player.charge_payment_method}
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
