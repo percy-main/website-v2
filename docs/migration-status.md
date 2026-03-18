@@ -106,7 +106,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
     - [x] Juniors tab (admin junior listing API + frontend tab)
     - [x] Charges tab (admin charge listing/aggregates API + frontend tab)
     - [x] Contacts tab (admin contact submission listing API + frontend tab)
-    - [ ] Duplicates tab (needs find/merge duplicates API)
+    - [x] Duplicates tab (admin duplicate detection + merge API + frontend tab)
     - [ ] Match Fees tab (needs match fee rates CRUD API)
     - [ ] Game Reports tab (needs matchday report aggregation API)
   - [x] Official panel

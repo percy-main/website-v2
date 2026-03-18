@@ -10,13 +10,16 @@ import {
 import {
   chasePayment,
   createMember,
+  findDuplicateMembers,
   getChargeAggregates,
+  getMergePreview,
   linkDependentToUser,
   linkPlayCricketPlayer,
   listAllCharges,
   listContactSubmissions,
   listJuniors,
   listUsers,
+  mergeMembers,
   searchUsersForLinking,
   unlinkDependentUser,
   unlinkPlayCricketPlayer,
@@ -751,6 +754,305 @@ describe("admin service (integration)", () => {
       expect(page1.total).toBeGreaterThanOrEqual(3);
       expect(page1.page).toBe(1);
       expect(page1.pageSize).toBe(2);
+    });
+  });
+
+  describe("findDuplicateMembers", () => {
+    it("detects fuzzy name-based duplicates", async () => {
+      const suffix = crypto.randomUUID().slice(0, 8);
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: `name-a-${suffix}`,
+          email: `name-a-${suffix}@test.com`,
+          name: `John Testington${suffix}`,
+        })
+        .execute();
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: `name-b-${suffix}`,
+          email: `name-b-${suffix}@test.com`,
+          name: `J Testington${suffix}`,
+        })
+        .execute();
+
+      const result = await findDuplicateMembers(ctx.db)();
+      const nameGroup = result.groups.find(
+        (g) =>
+          g.matchType === "name" &&
+          g.members.some((m) => m.id === `name-a-${suffix}`),
+      );
+
+      expect(nameGroup).toBeDefined();
+      expect(nameGroup?.members.length).toBe(2);
+    });
+
+    it("returns correct shape when no duplicates exist", async () => {
+      const result = await findDuplicateMembers(ctx.db)();
+      expect(result).toHaveProperty("groups");
+      expect(Array.isArray(result.groups)).toBe(true);
+    });
+
+    it("includes membership, dependent, and charge counts", async () => {
+      const suffix = crypto.randomUUID().slice(0, 8);
+      const memberIdA = `dup-counts-a-${suffix}`;
+      const memberIdB = `dup-counts-b-${suffix}`;
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: memberIdA,
+          email: `dup-counts-a-${suffix}@test.com`,
+          name: `Alexander Countsworth${suffix}`,
+        })
+        .execute();
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: memberIdB,
+          email: `dup-counts-b-${suffix}@test.com`,
+          name: `Alex Countsworth${suffix}`,
+        })
+        .execute();
+
+      // Add a charge to the first member
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: crypto.randomUUID(),
+          member_id: memberIdA,
+          description: "Test charge",
+          amount_pence: 1000,
+          charge_date: "2026-01-01",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      const result = await findDuplicateMembers(ctx.db)();
+      const group = result.groups.find(
+        (g) =>
+          g.matchType === "name" && g.members.some((m) => m.id === memberIdA),
+      );
+
+      expect(group).toBeDefined();
+      const memberWithCharge = group?.members.find((m) => m.id === memberIdA);
+      expect(memberWithCharge?.chargeCount).toBe(1);
+    });
+  });
+
+  describe("getMergePreview", () => {
+    it("returns preview with member details and related records", async () => {
+      const email1 = `preview-a-${crypto.randomUUID()}@test.com`;
+      const email2 = `preview-b-${crypto.randomUUID()}@test.com`;
+      const keepId = `preview-keep-${crypto.randomUUID()}`;
+      const removeId = `preview-rm-${crypto.randomUUID()}`;
+
+      await ctx.db
+        .insertInto("member")
+        .values({ id: keepId, email: email1, name: "Keep Me" })
+        .execute();
+      await ctx.db
+        .insertInto("member")
+        .values({ id: removeId, email: email2, name: "Remove Me" })
+        .execute();
+
+      const result = await getMergePreview(ctx.db)({
+        keepMemberId: keepId,
+        removeMemberId: removeId,
+      });
+
+      expect(result.isCrossEmailMerge).toBe(true);
+      expect(result.keep.member.id).toBe(keepId);
+      expect(result.remove.member.id).toBe(removeId);
+      expect(Array.isArray(result.keep.memberships)).toBe(true);
+      expect(Array.isArray(result.remove.dependents)).toBe(true);
+    });
+
+    it("throws 400 for self-merge", async () => {
+      await expect(
+        getMergePreview(ctx.db)({
+          keepMemberId: "same-id",
+          removeMemberId: "same-id",
+        }),
+      ).rejects.toThrow("Cannot merge a member with itself");
+    });
+  });
+
+  describe("mergeMembers", () => {
+    it("re-points foreign keys and deletes the duplicate", async () => {
+      const suffix = crypto.randomUUID().slice(0, 8);
+      const keepId = `merge-keep-${suffix}`;
+      const removeId = `merge-rm-${suffix}`;
+
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: keepId,
+          email: `merge-keep-${suffix}@test.com`,
+          name: "Keep",
+        })
+        .execute();
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: removeId,
+          email: `merge-rm-${suffix}@test.com`,
+          name: "Remove",
+        })
+        .execute();
+
+      // Add a charge, dependent, and membership to the remove member
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: removeId,
+          description: "Merge charge",
+          amount_pence: 500,
+          charge_date: "2026-01-01",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      const depId = await seedDependent(ctx.db, removeId, {
+        name: "Merge Dep",
+      });
+
+      const membershipId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("membership")
+        .values({
+          id: membershipId,
+          member_id: removeId,
+          type: "senior_player",
+          paid_until: "2027-04-01",
+        })
+        .execute();
+
+      const result = await mergeMembers(ctx.db)({
+        keepMemberId: keepId,
+        removeMemberId: removeId,
+      });
+
+      expect(result).toEqual({ success: true });
+
+      // Verify charge was re-pointed
+      const charge = await ctx.db
+        .selectFrom("charge")
+        .where("id", "=", chargeId)
+        .select("member_id")
+        .executeTakeFirst();
+      expect(charge?.member_id).toBe(keepId);
+
+      // Verify dependent was re-pointed
+      const dep = await ctx.db
+        .selectFrom("dependent")
+        .where("id", "=", depId)
+        .select("member_id")
+        .executeTakeFirst();
+      expect(dep?.member_id).toBe(keepId);
+
+      // Verify membership was re-pointed
+      const membership = await ctx.db
+        .selectFrom("membership")
+        .where("id", "=", membershipId)
+        .select("member_id")
+        .executeTakeFirst();
+      expect(membership?.member_id).toBe(keepId);
+
+      // Verify removed member is deleted
+      const removed = await ctx.db
+        .selectFrom("member")
+        .where("id", "=", removeId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(removed).toBeUndefined();
+    });
+
+    it("preserves stripe_customer_id from removed member when keep has none", async () => {
+      const keepId = `merge-stripe-keep-${crypto.randomUUID()}`;
+      const removeId = `merge-stripe-rm-${crypto.randomUUID()}`;
+
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: keepId,
+          email: `stripe-k-${crypto.randomUUID()}@test.com`,
+          name: "No Stripe",
+          stripe_customer_id: null,
+        })
+        .execute();
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: removeId,
+          email: `stripe-r-${crypto.randomUUID()}@test.com`,
+          name: "Has Stripe",
+          stripe_customer_id: "cus_test123",
+        })
+        .execute();
+
+      await mergeMembers(ctx.db)({
+        keepMemberId: keepId,
+        removeMemberId: removeId,
+      });
+
+      const kept = await ctx.db
+        .selectFrom("member")
+        .where("id", "=", keepId)
+        .select("stripe_customer_id")
+        .executeTakeFirst();
+      expect(kept?.stripe_customer_id).toBe("cus_test123");
+    });
+
+    it("does not overwrite existing stripe_customer_id", async () => {
+      const keepId = `merge-stripe2-keep-${crypto.randomUUID()}`;
+      const removeId = `merge-stripe2-rm-${crypto.randomUUID()}`;
+
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: keepId,
+          email: `stripe2-k-${crypto.randomUUID()}@test.com`,
+          name: "Has Stripe Keep",
+          stripe_customer_id: "cus_keep",
+        })
+        .execute();
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: removeId,
+          email: `stripe2-r-${crypto.randomUUID()}@test.com`,
+          name: "Has Stripe Remove",
+          stripe_customer_id: "cus_remove",
+        })
+        .execute();
+
+      await mergeMembers(ctx.db)({
+        keepMemberId: keepId,
+        removeMemberId: removeId,
+      });
+
+      const kept = await ctx.db
+        .selectFrom("member")
+        .where("id", "=", keepId)
+        .select("stripe_customer_id")
+        .executeTakeFirst();
+      expect(kept?.stripe_customer_id).toBe("cus_keep");
+    });
+
+    it("throws 404 for non-existent members", async () => {
+      await expect(
+        mergeMembers(ctx.db)({
+          keepMemberId: "nonexistent-a",
+          removeMemberId: "nonexistent-b",
+        }),
+      ).rejects.toThrow("One or both member records not found");
     });
   });
 });

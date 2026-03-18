@@ -1,5 +1,10 @@
 import type { DB } from "@percy-main/db";
-import { getAgeGroup, getTeamName, nameSimilarity } from "@percy-main/shared";
+import {
+  getAgeGroup,
+  getTeamName,
+  nameSimilarity,
+  normalizeName,
+} from "@percy-main/shared";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type {
@@ -11,6 +16,8 @@ import type {
   ListContactSubmissions,
   ListJuniors,
   ListUsers,
+  MergeMembers,
+  MergePreview,
   RecordLinking,
   SearchUsersForLinking,
   Unlink,
@@ -1174,6 +1181,329 @@ export function chasePayment(db: Kysely<DB>) {
 
     // TODO: Send PaymentReminder email via email service
     // For now, return success — email integration will be wired when packages/email is complete
+    return { success: true };
+  };
+}
+
+const NAME_SIMILARITY_THRESHOLD = 0.7;
+
+export function findDuplicateMembers(db: Kysely<DB>) {
+  return async () => {
+    const allMembers = await db
+      .selectFrom("member")
+      .where("deleted_at", "is", null)
+      .select(["id", "name", "email", "title", "stripe_customer_id"])
+      .execute();
+
+    if (allMembers.length === 0) return { groups: [] };
+
+    const allIds = allMembers.map((m) => m.id);
+    const memberById = new Map(allMembers.map((m) => [m.id, m]));
+
+    // Batch-fetch counts — PostgreSQL COUNT returns bigint (string in node-pg)
+    const [membershipCounts, dependentCounts, chargeCounts] = await Promise.all(
+      [
+        db
+          .selectFrom("membership")
+          .where("member_id", "in", allIds)
+          .select(["member_id", sql<string>`COUNT(*)`.as("count")])
+          .groupBy("member_id")
+          .execute(),
+        db
+          .selectFrom("dependent")
+          .where("member_id", "in", allIds)
+          .select(["member_id", sql<string>`COUNT(*)`.as("count")])
+          .groupBy("member_id")
+          .execute(),
+        db
+          .selectFrom("charge")
+          .where("member_id", "in", allIds)
+          .select(["member_id", sql<string>`COUNT(*)`.as("count")])
+          .groupBy("member_id")
+          .execute(),
+      ],
+    );
+
+    const mcMap = new Map(
+      membershipCounts.map((r) => [r.member_id, Number(r.count)]),
+    );
+    const dcMap = new Map(
+      dependentCounts.map((r) => [r.member_id, Number(r.count)]),
+    );
+    const ccMap = new Map(
+      chargeCounts.map((r) => [r.member_id, Number(r.count)]),
+    );
+
+    function toGroupMember(id: string) {
+      const m = memberById.get(id);
+      if (!m) throw new Error(`Member ${id} not found`);
+      return {
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        title: m.title,
+        stripeCustomerId: m.stripe_customer_id,
+        membershipCount: mcMap.get(m.id) ?? 0,
+        dependentCount: dcMap.get(m.id) ?? 0,
+        chargeCount: ccMap.get(m.id) ?? 0,
+      };
+    }
+
+    // 1. Email duplicate groups
+    const emailBuckets = new Map<string, string[]>();
+    for (const m of allMembers) {
+      const ids = emailBuckets.get(m.email) ?? [];
+      ids.push(m.id);
+      emailBuckets.set(m.email, ids);
+    }
+
+    const emailLinked = new Set<string>();
+    const emailGroups: Array<{
+      matchType: "email";
+      matchKey: string;
+      members: Array<ReturnType<typeof toGroupMember>>;
+    }> = [];
+
+    for (const [email, ids] of emailBuckets) {
+      if (ids.length < 2) continue;
+      emailGroups.push({
+        matchType: "email",
+        matchKey: email,
+        members: ids.map(toGroupMember),
+      });
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          emailLinked.add([ids[i], ids[j]].sort().join(":"));
+        }
+      }
+    }
+
+    // 2. Fuzzy name duplicate groups (pre-bucketed by normalised surname)
+    const surnameBuckets = new Map<string, typeof allMembers>();
+    for (const m of allMembers) {
+      if (!m.name) continue;
+      const normalized = normalizeName(m.name);
+      const tokens = normalized.split(" ");
+      const surname = tokens[tokens.length - 1] ?? "";
+      if (!surname) continue;
+      const bucket = surnameBuckets.get(surname) ?? [];
+      bucket.push(m);
+      surnameBuckets.set(surname, bucket);
+    }
+
+    // Direct pair matching — each similar pair becomes its own group.
+    // This avoids transitive chains (A~B, B~C does not imply A~C)
+    // and ensures no valid pair is dropped.
+    const namePairKeys = new Set<string>();
+    const nameGroups: Array<{
+      matchType: "name";
+      matchKey: string;
+      members: Array<ReturnType<typeof toGroupMember>>;
+    }> = [];
+
+    for (const bucket of surnameBuckets.values()) {
+      if (bucket.length < 2) continue;
+      for (let i = 0; i < bucket.length; i++) {
+        for (let j = i + 1; j < bucket.length; j++) {
+          const a = bucket[i];
+          const b = bucket[j];
+          const pairKey = [a.id, b.id].sort().join(":");
+          if (emailLinked.has(pairKey)) continue;
+          if (namePairKeys.has(pairKey)) continue;
+
+          const sim = nameSimilarity(a.name ?? "", b.name ?? "");
+          if (sim >= NAME_SIMILARITY_THRESHOLD) {
+            namePairKeys.add(pairKey);
+            nameGroups.push({
+              matchType: "name",
+              matchKey: a.name ?? "Unknown",
+              members: [toGroupMember(a.id), toGroupMember(b.id)],
+            });
+          }
+        }
+      }
+    }
+
+    // Email groups first (higher confidence), then name groups
+    return { groups: [...emailGroups, ...nameGroups] };
+  };
+}
+
+export function getMergePreview(db: Kysely<DB>) {
+  return async (params: MergePreview) => {
+    const { keepMemberId, removeMemberId } = params;
+
+    if (keepMemberId === removeMemberId) {
+      const error = new Error("Cannot merge a member with itself") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const memberColumns = [
+      "id",
+      "name",
+      "title",
+      "email",
+      "address",
+      "postcode",
+      "dob",
+      "telephone",
+      "stripe_customer_id",
+    ] as const;
+
+    const [keepMember, removeMember] = await Promise.all([
+      db
+        .selectFrom("member")
+        .where("id", "=", keepMemberId)
+        .select(memberColumns)
+        .executeTakeFirst(),
+      db
+        .selectFrom("member")
+        .where("id", "=", removeMemberId)
+        .select(memberColumns)
+        .executeTakeFirst(),
+    ]);
+
+    if (!keepMember || !removeMember) {
+      const error = new Error(
+        "One or both member records not found",
+      ) as Error & { statusCode: number };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const [keepMemberships, removeMemberships] = await Promise.all([
+      db
+        .selectFrom("membership")
+        .where("member_id", "=", keepMemberId)
+        .select(["id", "type", "paid_until"])
+        .execute(),
+      db
+        .selectFrom("membership")
+        .where("member_id", "=", removeMemberId)
+        .select(["id", "type", "paid_until"])
+        .execute(),
+    ]);
+
+    const [keepDependents, removeDependents] = await Promise.all([
+      db
+        .selectFrom("dependent")
+        .where("member_id", "=", keepMemberId)
+        .select(["id", "name", "dob"])
+        .execute(),
+      db
+        .selectFrom("dependent")
+        .where("member_id", "=", removeMemberId)
+        .select(["id", "name", "dob"])
+        .execute(),
+    ]);
+
+    const [keepCharges, removeCharges] = await Promise.all([
+      db
+        .selectFrom("charge")
+        .where("member_id", "=", keepMemberId)
+        .select(["id", "description", "amount_pence", "paid_at"])
+        .execute(),
+      db
+        .selectFrom("charge")
+        .where("member_id", "=", removeMemberId)
+        .select(["id", "description", "amount_pence", "paid_at"])
+        .execute(),
+    ]);
+
+    return {
+      isCrossEmailMerge: keepMember.email !== removeMember.email,
+      keep: {
+        member: keepMember,
+        memberships: keepMemberships,
+        dependents: keepDependents,
+        charges: keepCharges,
+      },
+      remove: {
+        member: removeMember,
+        memberships: removeMemberships,
+        dependents: removeDependents,
+        charges: removeCharges,
+      },
+    };
+  };
+}
+
+export function mergeMembers(db: Kysely<DB>) {
+  return async (params: MergeMembers) => {
+    const { keepMemberId, removeMemberId } = params;
+
+    if (keepMemberId === removeMemberId) {
+      const error = new Error("Cannot merge a member with itself") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await db.transaction().execute(async (trx) => {
+      // Fetch inside transaction to avoid TOCTOU race
+      const [keepMember, removeMember] = await Promise.all([
+        trx
+          .selectFrom("member")
+          .where("id", "=", keepMemberId)
+          .selectAll()
+          .executeTakeFirst(),
+        trx
+          .selectFrom("member")
+          .where("id", "=", removeMemberId)
+          .selectAll()
+          .executeTakeFirst(),
+      ]);
+
+      if (!keepMember || !removeMember) {
+        const error = new Error(
+          "One or both member records not found",
+        ) as Error & { statusCode: number };
+        error.statusCode = 404;
+        throw error;
+      }
+
+      // Re-point all foreign keys from removeMember to keepMember
+      await trx
+        .updateTable("membership")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      await trx
+        .updateTable("dependent")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      await trx
+        .updateTable("charge")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      await trx
+        .updateTable("matchday_player")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      // Preserve stripe_customer_id if keepMember doesn't have one
+      if (!keepMember.stripe_customer_id && removeMember.stripe_customer_id) {
+        await trx
+          .updateTable("member")
+          .set({ stripe_customer_id: removeMember.stripe_customer_id })
+          .where("id", "=", keepMemberId)
+          .execute();
+      }
+
+      // Delete the duplicate member record
+      await trx.deleteFrom("member").where("id", "=", removeMemberId).execute();
+    });
+
     return { success: true };
   };
 }
