@@ -111,7 +111,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
     - [x] Game Reports tab (admin matchday listing + drill-down report API + frontend tab)
   - [x] Official panel
   - [x] Junior manager panel
-- [ ] Port Contentful-dependent pages (Batch 3 — deferred to cutover: news, calendar, person profiles, CMS pages)
+- [x] Port Contentful-dependent pages (Batch 3): news, calendar, person profiles, CMS pages, game reports
 - [x] Replace Astro actions with API calls (api client + react-query pattern established)
 - [ ] CloudFront distribution + S3 origin
 - [ ] SPA routing (custom error response → index.html)
@@ -119,14 +119,22 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 
 ---
 
-## Phase 5: Content Migration
+## Phase 5: Content Migration — COMPLETE
 
-**Goal:** Remove Contentful, inline content as React components.
+**Goal:** Remove Contentful, inline content as MDX.
 
-- [ ] Inline pages, news, events, people/trustees as React components
-- [ ] Image assets → S3
-- [ ] Remove Contentful dependencies
-- [ ] Preserve URL slugs/routes
+- [x] MDX content infrastructure (Vite import.meta.glob, file-based routing, MDX components)
+- [x] Pages migrated from Contentful `page` → `content/pages/**/*.mdx`
+- [x] News migrated from Contentful `news` → `content/news/**/*.mdx`
+- [x] Events migrated from Contentful `event` → `content/events/*.mdx`
+- [x] People migrated from Contentful `trustee` → `content/people/*.mdx`
+- [x] Game reports migrated from Contentful `gameDetail` → `content/games/*.mdx` (9 reports)
+- [x] Calendar pages (`/calendar`, `/calendar/:year/:month`) — games from Play Cricket API + events from MDX
+- [x] Game detail page (`/calendar/game/:id`) — scorecard, result, MDX report, sponsor, map
+- [x] MDX components: LeagueTable, ContactForm, EventPreview, GamePreview, Person, PersonGrid, Image
+- [x] Preserve URL slugs/routes
+- [ ] Image assets → S3 (currently using original URLs)
+- [ ] Remove Contentful dependencies from v1 at cutover
 
 ---
 
