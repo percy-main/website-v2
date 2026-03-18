@@ -295,16 +295,6 @@ function ContactForm({
   );
 }
 
-function CollectEmail({ listId }: { listId?: string }) {
-  return (
-    <div className="my-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-sm text-gray-500">
-        Email signup placeholder{listId ? `: ${listId}` : ""}
-      </p>
-    </div>
-  );
-}
-
 function ContentImage({
   src,
   alt,
@@ -338,6 +328,5 @@ export const mdxComponents: Record<string, FC<Record<string, unknown>>> = {
   EventPreview: EventPreview as FC<Record<string, unknown>>,
   GamePreview: GamePreview as FC<Record<string, unknown>>,
   ContactForm: ContactForm as FC<Record<string, unknown>>,
-  CollectEmail: CollectEmail as FC<Record<string, unknown>>,
   Image: ContentImage as FC<Record<string, unknown>>,
 };
