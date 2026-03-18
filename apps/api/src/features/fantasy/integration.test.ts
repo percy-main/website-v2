@@ -20,7 +20,7 @@ let ctx: TestContext;
 
 beforeAll(async () => {
   ctx = await startTestContainer();
-}, 30_000);
+});
 
 afterAll(async () => {
   await stopTestContainer(ctx);
@@ -64,10 +64,7 @@ function buildSquad(playerIds: string[]): PlayerInput[] {
   }));
 }
 
-// TODO: Flaky on CI — startTestContainer() exceeds the 30s timeout on GitHub
-// Actions runners. All 8 tests pass locally. Needs investigation: either bump
-// the beforeAll timeout or diagnose why the container is slow on CI.
-describe.skip("fantasy service (integration)", () => {
+describe("fantasy service (integration)", () => {
   describe("getEligiblePlayers", () => {
     it("returns empty players array when no fantasy players exist", async () => {
       // Use a season that won't collide with other tests' data

@@ -33,7 +33,7 @@ export interface TestContext {
  * Usage:
  * ```ts
  * let ctx: TestContext;
- * beforeAll(async () => { ctx = await startTestContainer(); }, 30_000);
+ * beforeAll(async () => { ctx = await startTestContainer(); });
  * afterAll(async () => { await stopTestContainer(ctx); });
  *
  * it("lists users", async () => {
