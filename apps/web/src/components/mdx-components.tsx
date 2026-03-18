@@ -209,21 +209,23 @@ interface GameListItem {
 }
 
 function GamePreview({ playCricketId }: { playCricketId: string }) {
-  const season = new Date().getFullYear();
-  const { data: games } = useQuery<GameListItem[]>({
-    queryKey: ["games", season],
-    queryFn: () => api.get(`/games?season=${season}`),
+  const { data: game, isLoading } = useQuery<GameListItem>({
+    queryKey: ["game", playCricketId],
+    queryFn: () => api.get(`/games/${playCricketId}`),
     staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 
-  const game = games?.find((g) => g.id === playCricketId);
-
-  if (!game) {
+  if (isLoading) {
     return (
       <div className="my-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
         <p className="text-sm text-gray-500">Loading game...</p>
       </div>
     );
+  }
+
+  if (!game) {
+    return null;
   }
 
   const dateStr = game.when

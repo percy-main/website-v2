@@ -142,47 +142,6 @@ function oversToDecimal(overs: string): number {
   return completedOvers + balls / 6;
 }
 
-function buildResultText(data: MatchDetailData): string {
-  if (!data.result) return "";
-  if (data.result === "D") return "Match drawn";
-  if (data.result === "T") return "Match tied";
-
-  const desc = data.resultDescription.toLowerCase();
-  if (desc.includes("abandon")) return "Match abandoned";
-  if (desc.includes("cancel")) return "Match cancelled";
-  if (desc.includes("no result")) return "No result";
-
-  if (data.result === "W" && data.resultAppliedTo && data.innings.length >= 2) {
-    const winningTeamId = data.resultAppliedTo;
-    const winningTeamName =
-      winningTeamId === data.homeTeamId ? data.homeTeamName : data.awayTeamName;
-
-    const secondInnings = data.innings[1];
-
-    if (secondInnings.total.runs !== undefined) {
-      const firstInnings = data.innings[0];
-      // Second innings team chased — won by wickets
-      // First innings team set target — won by runs
-      if (
-        winningTeamId === data.homeTeamId ||
-        winningTeamId === data.awayTeamId
-      ) {
-        const secondBattingTeamWon =
-          secondInnings.teamBattingName.includes(winningTeamName) || false;
-        if (secondBattingTeamWon) {
-          const wicketsInHand = 10 - secondInnings.total.wickets;
-          return `${winningTeamName} won by ${wicketsInHand} wicket${wicketsInHand !== 1 ? "s" : ""}`;
-        } else {
-          const margin = firstInnings.total.runs - secondInnings.total.runs;
-          return `${winningTeamName} won by ${margin} run${margin !== 1 ? "s" : ""}`;
-        }
-      }
-    }
-  }
-
-  return data.resultDescription;
-}
-
 // --- Transform API response to display types ---
 
 function transformMatchDetail(
