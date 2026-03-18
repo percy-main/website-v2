@@ -1,4 +1,5 @@
 import { useSession } from "@/lib/auth-client.js";
+import { getMainMenuItems } from "@/lib/content.js";
 import { useCallback, useEffect, useRef, useState, type FC } from "react";
 import { Link, useLocation } from "react-router";
 import { Logo } from "./logo.js";
@@ -11,13 +12,25 @@ interface MenuItem {
 
 const DONATE_URL = "/purchase/donation";
 
-const menu: MenuItem[] = [
-  { name: "Home", url: "/", match: "exact" },
+/** Fixed items that aren't content pages */
+const fixedMenuStart: MenuItem[] = [{ name: "Home", url: "/", match: "exact" }];
+const fixedMenuEnd: MenuItem[] = [
   { name: "News", url: "/news/1", match: { start: "/news" } },
   { name: "Calendar", url: "/calendar", match: { start: "/calendar" } },
-  { name: "People", url: "/person", match: { start: "/person" } },
-  { name: "Cricket", url: "/leaderboard", match: { start: "/leaderboard" } },
   { name: "Fantasy", url: "/fantasy", match: { start: "/fantasy" } },
+];
+
+/** Content pages with isMainMenu: true, sorted by menuOrder */
+const contentMenuItems: MenuItem[] = getMainMenuItems().map((page) => ({
+  name: page.title,
+  url: page.path,
+  match: { start: page.path },
+}));
+
+const menu: MenuItem[] = [
+  ...fixedMenuStart,
+  ...contentMenuItems,
+  ...fixedMenuEnd,
 ];
 
 function isActive(pathname: string, item: MenuItem): boolean {

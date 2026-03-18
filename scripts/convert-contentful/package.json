@@ -1,0 +1,13 @@
+{
+  "name": "convert-contentful",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "convert": "node --env-file=../../.env.contentful convert.mjs"
+  },
+  "dependencies": {
+    "contentful": "^11.5.0",
+    "yaml": "^2.7.0"
+  }
+}
