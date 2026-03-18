@@ -47,13 +47,13 @@ function PersonGrid({
 }) {
   if (children) {
     return (
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {children}
       </div>
     );
   }
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {slugs?.map((slug) => (
         <Person key={slug} slug={slug} />
       ))}
@@ -184,7 +184,7 @@ function ContactForm({
   });
 
   return (
-    <div className="mx-auto max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="mx-auto w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
       <h2 className="text-lg font-semibold tracking-tight text-gray-900">
         {title}
       </h2>
