@@ -1,3 +1,5 @@
+import { Navigate } from "react-router";
+
 export function Component() {
-  return <h1>People</h1>;
+  return <Navigate to="/people" replace />;
 }

@@ -1,4 +1,7 @@
+import type { FC } from "react";
+
 interface PeopleMdxModule {
+  default: FC;
   frontmatter: Record<string, unknown>;
 }
 
@@ -8,6 +11,7 @@ export interface PersonData {
   photo?: string;
   isDBSChecked: boolean;
   hasLeftClub: boolean;
+  Component: FC;
 }
 
 const modules = import.meta.glob<PeopleMdxModule>(
@@ -26,6 +30,7 @@ for (const mod of Object.values(modules)) {
     photo: fm.photo as string | undefined,
     isDBSChecked: (fm.isDBSChecked as boolean) ?? false,
     hasLeftClub: (fm.hasLeftClub as boolean) ?? false,
+    Component: mod.default,
   });
 }
 

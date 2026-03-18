@@ -372,8 +372,8 @@ export function Component() {
     ? allNews.filter((a) => a.tags.includes(activeTag))
     : allNews;
 
-  const currentPage = Math.max(1, Number(params.page) || 1);
   const lastPage = Math.max(1, Math.ceil(filteredNews.length / PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, Number(params.page) || 1), lastPage);
 
   const pageArticles = filteredNews.slice(
     (currentPage - 1) * PAGE_SIZE,
