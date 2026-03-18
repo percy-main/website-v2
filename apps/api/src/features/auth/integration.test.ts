@@ -16,7 +16,7 @@ const emailDir = join(process.cwd(), ".emails");
 beforeAll(async () => {
   ctx = await startTestContainer();
   app = await buildTestApp(ctx.db, ctx.dialect);
-}, 30_000);
+});
 
 afterAll(async () => {
   await app.close();

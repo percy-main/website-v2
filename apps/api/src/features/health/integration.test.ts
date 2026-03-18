@@ -12,7 +12,7 @@ let ctx: TestContext;
 
 beforeAll(async () => {
   ctx = await startTestContainer();
-}, 30_000);
+});
 
 afterAll(async () => {
   await stopTestContainer(ctx);
