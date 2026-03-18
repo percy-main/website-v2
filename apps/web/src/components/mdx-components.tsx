@@ -7,7 +7,7 @@ import { getPersonBySlug } from "@/lib/people.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
-import { type FC, type ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { IoCalendar, IoChevronForward } from "react-icons/io5";
 import { Link, useLocation } from "react-router";
 
@@ -127,25 +127,6 @@ function LeagueTable({
           </table>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Leaderboard({
-  discipline,
-  category,
-  limit,
-}: {
-  discipline?: string;
-  category?: string;
-  limit?: number;
-}) {
-  return (
-    <div className="my-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-sm text-gray-500">
-        Leaderboard: {discipline ?? "all"} / {category ?? "seniors"} (top{" "}
-        {limit ?? 10})
-      </p>
     </div>
   );
 }
@@ -405,13 +386,12 @@ function ContentImage({
  * Component map provided to MDX content.
  * MDX files can use these as JSX tags: <Person slug="..." />, <LeagueTable divisionId="..." />, etc.
  */
-export const mdxComponents: Record<string, FC<Record<string, unknown>>> = {
-  Person: Person as FC<Record<string, unknown>>,
-  PersonGrid: PersonGrid as FC<Record<string, unknown>>,
-  LeagueTable: LeagueTable as FC<Record<string, unknown>>,
-  Leaderboard: Leaderboard as FC<Record<string, unknown>>,
-  EventPreview: EventPreview as FC<Record<string, unknown>>,
-  GamePreview: GamePreview as FC<Record<string, unknown>>,
-  ContactForm: ContactForm as FC<Record<string, unknown>>,
-  Image: ContentImage as FC<Record<string, unknown>>,
+export const mdxComponents = {
+  Person,
+  PersonGrid,
+  LeagueTable,
+  EventPreview,
+  GamePreview,
+  ContactForm,
+  Image: ContentImage,
 };
