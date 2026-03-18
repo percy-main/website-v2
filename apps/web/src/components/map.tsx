@@ -57,7 +57,7 @@ export const Map: FC<Props> = ({ center, infoWindow, children }) => {
     <APIProvider apiKey={MAPS_API_KEY}>
       <GMap
         mapId={MAPS_MAP_ID}
-        className="mt-8 h-[24rem] w-96 md:h-[48rem] md:w-full"
+        className="mt-8 h-[24rem] w-full md:h-[48rem]"
         defaultCenter={position}
         defaultZoom={15}
         gestureHandling={"greedy"}

@@ -92,15 +92,21 @@ export function getLeagueTable() {
     const table = raw.league_table[0];
     if (!table) return { columns: [], rows: [] };
 
-    const columns = Object.values(table.headings);
+    const headingKeys = Object.keys(table.headings);
+    const columns = headingKeys.map((k) => table.headings[k]);
 
-    const rows = table.values.map(({ position, team_id, ...rest }) => {
-      const values = Object.values(rest);
-      return {
-        position,
-        team_id,
-        ...Object.fromEntries(columns.map((col, i) => [col, values[i]])),
-      } as { position: string; team_id: string } & Record<string, string>;
+    const rows = table.values.map((row) => {
+      const mapped: Record<string, string> = {
+        position: row.position,
+        team_id: row.team_id,
+      };
+      for (let i = 0; i < headingKeys.length; i++) {
+        mapped[columns[i]] = row[headingKeys[i]] ?? "";
+      }
+      return mapped as { position: string; team_id: string } & Record<
+        string,
+        string
+      >;
     });
 
     return { id: table.id, name: table.division_name, columns, rows };
