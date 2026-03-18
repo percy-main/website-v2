@@ -285,7 +285,7 @@ export function getGame(
 
     const location = matchSummary.home
       ? {
-          name: "Percy Main Community Sports Club",
+          name: "Percy Main Cricket and Sports Club",
           street: "St Johns Terrace",
           city: "North Shields",
           postcode: "NE29 6HS",
