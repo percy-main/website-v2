@@ -8,6 +8,7 @@ import {
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type {
+  AddMatchFeeRate,
   ChargeAggregates,
   CreateCharge,
   CreateMember,
@@ -1559,5 +1560,57 @@ export function listContactSubmissions(db: Kysely<DB>) {
       page,
       pageSize,
     };
+  };
+}
+
+// --- Match fee rates ---
+
+export function listMatchFeeRates(db: Kysely<DB>) {
+  return async () => {
+    const rates = await db
+      .selectFrom("match_fee_rate")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "match_fee_rate.play_cricket_team_id",
+      )
+      .select([
+        "match_fee_rate.id",
+        "match_fee_rate.play_cricket_team_id",
+        "match_fee_rate.competition_type",
+        "match_fee_rate.member_category",
+        "match_fee_rate.amount_pence",
+        "play_cricket_team.name as team_name",
+      ])
+      .orderBy("match_fee_rate.member_category", "asc")
+      .execute();
+
+    return { rates };
+  };
+}
+
+export function addMatchFeeRate(db: Kysely<DB>) {
+  return async (params: AddMatchFeeRate) => {
+    const id = crypto.randomUUID();
+    await db
+      .insertInto("match_fee_rate")
+      .values({
+        id,
+        play_cricket_team_id: params.playCricketTeamId ?? null,
+        competition_type: params.competitionType ?? null,
+        member_category: params.memberCategory,
+        amount_pence: params.amountPence,
+      })
+      .execute();
+
+    return { id };
+  };
+}
+
+export function deleteMatchFeeRate(db: Kysely<DB>) {
+  return async (rateId: string) => {
+    await db.deleteFrom("match_fee_rate").where("id", "=", rateId).execute();
+
+    return { success: true };
   };
 }

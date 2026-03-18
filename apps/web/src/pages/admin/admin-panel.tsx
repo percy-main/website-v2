@@ -6,6 +6,7 @@ import { ContactsTab } from "./contacts-tab";
 import { DuplicatesTab } from "./duplicates-tab";
 import { FantasyTab } from "./fantasy-tab";
 import { JuniorsTab } from "./juniors-tab";
+import { MatchFeesTab } from "./match-fees-tab";
 import { MembersTab } from "./members-tab";
 import { RecordLinkingTab } from "./record-linking-tab";
 import { SponsorshipsTab } from "./sponsorships-tab";
@@ -33,6 +34,7 @@ const ACTIVE_TABS: Tab[] = [
   "contacts",
   "sponsorships",
   "duplicates",
+  "match-fees",
   "treasurer",
   "fantasy",
   "record-linking",
@@ -102,6 +104,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="duplicates">
             <DuplicatesTab />
+          </TabsContent>
+          <TabsContent value="match-fees">
+            <MatchFeesTab />
           </TabsContent>
           <TabsContent value="treasurer">
             <TreasurerTab />

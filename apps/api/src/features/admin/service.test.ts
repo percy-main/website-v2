@@ -57,13 +57,16 @@ const {
 });
 
 import {
+  addMatchFeeRate,
   chasePayment,
   createMember,
+  deleteMatchFeeRate,
   getChargeAggregates,
   getMergePreview,
   linkPlayCricketPlayer,
   listAllCharges,
   listContactSubmissions,
+  listMatchFeeRates,
   listUsers,
   mergeMembers,
   unlinkPlayCricketPlayer,
@@ -469,5 +472,96 @@ describe("admin service", () => {
     });
 
     // 404 for missing members is tested in integration tests (requires real transaction)
+  });
+
+  describe("listMatchFeeRates", () => {
+    it("returns all rates with team names", async () => {
+      const rates = [
+        {
+          id: "r1",
+          play_cricket_team_id: "t1",
+          competition_type: "League",
+          member_category: "senior",
+          amount_pence: 500,
+          team_name: "1st XI",
+        },
+        {
+          id: "r2",
+          play_cricket_team_id: null,
+          competition_type: null,
+          member_category: "junior",
+          amount_pence: 200,
+          team_name: null,
+        },
+      ];
+
+      mockExecute.mockResolvedValue(rates);
+
+      const result = await listMatchFeeRates(db)();
+
+      expect(result.rates).toEqual(rates);
+      expect(mockQueryBuilder.selectFrom).toHaveBeenCalledWith(
+        "match_fee_rate",
+      );
+      expect(mockQueryBuilder.leftJoin).toHaveBeenCalled();
+    });
+  });
+
+  describe("addMatchFeeRate", () => {
+    it("inserts a new rate with team and competition", async () => {
+      mockExecute.mockResolvedValue([]);
+
+      const result = await addMatchFeeRate(db)({
+        playCricketTeamId: "t1",
+        competitionType: "League",
+        memberCategory: "senior",
+        amountPence: 500,
+      });
+
+      expect(result.id).toBeDefined();
+      expect(mockQueryBuilder.insertInto).toHaveBeenCalledWith(
+        "match_fee_rate",
+      );
+      expect(mockQueryBuilder.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          play_cricket_team_id: "t1",
+          competition_type: "League",
+          member_category: "senior",
+          amount_pence: 500,
+        }),
+      );
+    });
+
+    it("sets nullable fields to null when not provided", async () => {
+      mockExecute.mockResolvedValue([]);
+
+      await addMatchFeeRate(db)({
+        memberCategory: "guest",
+        amountPence: 0,
+      });
+
+      expect(mockQueryBuilder.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          play_cricket_team_id: null,
+          competition_type: null,
+          member_category: "guest",
+          amount_pence: 0,
+        }),
+      );
+    });
+  });
+
+  describe("deleteMatchFeeRate", () => {
+    it("deletes a rate by id", async () => {
+      mockExecute.mockResolvedValue([]);
+
+      const result = await deleteMatchFeeRate(db)("r1");
+
+      expect(result).toEqual({ success: true });
+      expect(mockQueryBuilder.deleteFrom).toHaveBeenCalledWith(
+        "match_fee_rate",
+      );
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith("id", "=", "r1");
+    });
   });
 });
