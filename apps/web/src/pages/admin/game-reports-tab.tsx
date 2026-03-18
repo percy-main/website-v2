@@ -34,7 +34,7 @@ interface PlayCricketTeam {
 }
 
 interface MatchdayListItem {
-  id: string | null;
+  id: string;
   match_date: string;
   opposition: string;
   status: string;
@@ -126,9 +126,7 @@ export function GameReportsTab() {
   });
 
   const teams = teamsQuery.data ?? [];
-  const matchdays = (matchdaysQuery.data?.matchdays ?? []).filter(
-    (m): m is typeof m & { id: string } => m.id !== null,
-  );
+  const matchdays = matchdaysQuery.data?.matchdays ?? [];
 
   if (selectedMatchdayId) {
     return (
