@@ -184,7 +184,7 @@ function ContactForm({
   });
 
   return (
-    <div className="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="mx-auto max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
       <h2 className="text-lg font-semibold tracking-tight text-gray-900">
         {title}
       </h2>
