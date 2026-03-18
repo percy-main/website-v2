@@ -105,7 +105,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
   - [x] Admin panel (5 of 11 tabs: Members, Sponsorships, Treasurer, Fantasy, Record Linking). Deferred tabs:
     - [x] Juniors tab (admin junior listing API + frontend tab)
     - [x] Charges tab (admin charge listing/aggregates API + frontend tab)
-    - [ ] Contacts tab (needs contact submission listing API)
+    - [x] Contacts tab (admin contact submission listing API + frontend tab)
     - [ ] Duplicates tab (needs find/merge duplicates API)
     - [ ] Match Fees tab (needs match fee rates CRUD API)
     - [ ] Game Reports tab (needs matchday report aggregation API)
