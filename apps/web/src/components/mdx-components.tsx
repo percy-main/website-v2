@@ -1,9 +1,12 @@
+import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { api } from "@/lib/api.js";
 import { getPersonBySlug } from "@/lib/people.js";
+import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { formatInTimeZone } from "date-fns-tz";
 import { type FC, type ReactNode, useState } from "react";
 import { IoCalendar, IoChevronForward } from "react-icons/io5";
 import { Link, useLocation } from "react-router";
@@ -187,11 +190,91 @@ function EventPreview({
   );
 }
 
+type Outcome = "W" | "L" | "D" | "T" | "A" | "C" | "N";
+
+interface GameListItem {
+  id: string;
+  home: boolean;
+  team: { name: string };
+  opposition: {
+    club: { name: string };
+    team: { name: string };
+  };
+  league: { name: string };
+  competition: { name: string };
+  when: string | null;
+  outcome: Outcome | null;
+  scoreDescription: string | null;
+  sponsorName: string | null;
+}
+
 function GamePreview({ playCricketId }: { playCricketId: string }) {
+  const season = new Date().getFullYear();
+  const { data: games } = useQuery<GameListItem[]>({
+    queryKey: ["games", season],
+    queryFn: () => api.get(`/games?season=${season}`),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const game = games?.find((g) => g.id === playCricketId);
+
+  if (!game) {
+    return (
+      <div className="my-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <p className="text-sm text-gray-500">Loading game...</p>
+      </div>
+    );
+  }
+
+  const dateStr = game.when
+    ? formatInTimeZone(new Date(game.when), "Europe/London", "dd/MM/yyyy HH:mm")
+    : "TBC";
+
   return (
-    <div className="my-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-sm text-gray-500">Game preview: {playCricketId}</p>
-    </div>
+    <Link
+      to={`/calendar/game/${game.id}`}
+      className={cn(
+        "my-2 flex items-center gap-3 rounded-lg border-l-4 bg-white p-4 shadow-sm transition-all hover:translate-x-1 hover:shadow-md",
+        game.home ? "border-l-green-800" : "border-l-blue-600",
+      )}
+    >
+      <div className="flex shrink-0 flex-col items-center gap-1">
+        <span
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-md text-xs font-extrabold",
+            game.home
+              ? "bg-green-100 text-green-800"
+              : "bg-blue-100 text-blue-800",
+          )}
+        >
+          {game.home ? "H" : "A"}
+        </span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+          <span className="text-sm font-bold text-gray-900">
+            {game.team.name}
+          </span>
+          <span className="text-sm text-gray-400">vs.</span>
+          <span className="text-sm font-semibold text-gray-900">
+            {game.opposition.club.name} {game.opposition.team.name}
+          </span>
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-gray-400">{dateStr}</span>
+          <span className="text-xs text-gray-400">
+            {game.league.name || game.competition.name}
+          </span>
+        </div>
+      </div>
+      {game.outcome && (
+        <OutcomeBadge
+          outcome={game.outcome}
+          scoreDescription={game.scoreDescription ?? undefined}
+        />
+      )}
+      <IoChevronForward className="h-5 w-5 shrink-0 text-gray-300" />
+    </Link>
   );
 }
 

@@ -1,11 +1,5 @@
 # Content Migration — Remaining Work
 
-## Deferred to next PR
-
-- **Calendar overview** (`/calendar`) — Needs games from API + events from MDX.
-- **Calendar month** (`/calendar/:year/:month`) — Needs API data.
-- **`<GamePreview>`** — Inline game card, depends on calendar/games work.
-
 ## Placeholder MDX Components (not currently used)
 
 - **`<Leaderboard>`** — Cricket stats leaderboard. Not embedded in any page.
@@ -20,3 +14,10 @@
 - ~~Person profile (`/person/:slug`)~~ — Renders from people MDX.
 - ~~`/person` → `/people` redirect~~ — Done.
 - ~~`/news/tag/:tag/:page` redirect~~ — Redirects to `/news/1`.
+- ~~Calendar overview (`/calendar`)~~ — Redirects to current month.
+- ~~Calendar month (`/calendar/:year/:month`)~~ — Agenda view with games from API + events from MDX, filter pills, mini calendar, month summary.
+- ~~Game detail page (`/calendar/game/:id`)~~ — Match details, result, scorecard, MDX report, sponsor, add-to-calendar, map.
+- ~~`<GamePreview>`~~ — Inline game card with team, result, link to game detail.
+- ~~Game report MDX infrastructure~~ — `content/games/*.mdx` with `playCricketId` frontmatter, indexed by match ID.
+- ~~`GET /api/games`~~ — Fixture list from Play Cricket API with in-memory cache, merged with DB results + sponsorships.
+- ~~`GET /api/games/:matchId`~~ — Game detail combining API data with DB results, sponsorship, and location.

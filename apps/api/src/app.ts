@@ -14,6 +14,7 @@ import { chargeRoutes } from "./features/charges/routes.js";
 import { contactRoutes } from "./features/contact/routes.js";
 import { cricketLeaderboardRoutes } from "./features/cricket-leaderboard/routes.js";
 import { fantasyRoutes } from "./features/fantasy/routes.js";
+import { gamesRoutes } from "./features/games/routes.js";
 import { healthRoutes } from "./features/health/routes.js";
 import { juniorRoutes } from "./features/junior/routes.js";
 import { leaderboardRoutes } from "./features/leaderboard/routes.js";
@@ -86,6 +87,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(chargeRoutes, { prefix: "/api" });
   await app.register(juniorRoutes, { prefix: "/api" });
   await app.register(fantasyRoutes, { prefix: "/api" });
+  await app.register(gamesRoutes, { prefix: "/api" });
   await app.register(playCricketRoutes, { prefix: "/api" });
   await app.register(sponsorshipRoutes, { prefix: "/api" });
   await app.register(matchdayRoutes, { prefix: "/api" });

@@ -44,10 +44,9 @@ async function fetchPlayCricket(
 export function createApiClient(config: PlayCricketApiConfig) {
   return {
     async getMatchDetail(matchId: string) {
-      const json = await fetchPlayCricket(
-        config,
-        `/match_detail/${matchId}.json`,
-      );
+      const json = await fetchPlayCricket(config, "/match_detail.json", {
+        match_id: matchId,
+      });
       return GetMatchDetailResponse.parse(json);
     },
 
@@ -81,10 +80,6 @@ export function createApiClient(config: PlayCricketApiConfig) {
         division_id: divisionId,
       });
     },
-
-    async getMatchScorecard(matchId: string) {
-      return fetchPlayCricket(config, `/match_detail/${matchId}.json`);
-    },
   };
 }
 
@@ -94,7 +89,7 @@ export type PlayCricketApiClient = ReturnType<typeof createApiClient>;
 // These read from process.env — used only during route wiring, not in services
 export async function getMatchDetail(matchId: string): Promise<unknown> {
   const config = getConfigFromEnv();
-  return createApiClient(config).getMatchScorecard(matchId);
+  return createApiClient(config).getMatchDetail(matchId);
 }
 
 export async function getLeagueTable(divisionId: string): Promise<unknown> {
