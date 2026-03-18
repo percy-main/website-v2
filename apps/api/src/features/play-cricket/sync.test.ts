@@ -154,7 +154,6 @@ describe("runSync", () => {
       getMatchDetail: vi.fn().mockResolvedValue({ match_details: [] }),
       getPlayers: vi.fn().mockResolvedValue({ players: [] }),
       getLeagueTable: vi.fn().mockResolvedValue({}),
-      getMatchScorecard: vi.fn().mockResolvedValue({}),
       ...overrides,
     };
   }

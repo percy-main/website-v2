@@ -1,3 +1,10 @@
+import { format } from "date-fns";
+import { Navigate } from "react-router";
+
 export function Component() {
-  return <h1>Calendar</h1>;
+  const now = new Date();
+  const year = format(now, "yyyy");
+  const month = format(now, "MMMM").toLowerCase();
+
+  return <Navigate to={`/calendar/${year}/${month}`} replace />;
 }

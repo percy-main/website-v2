@@ -39,6 +39,10 @@ export const router = createBrowserRouter([
         lazy: () => import("./pages/calendar/calendar-event.js"),
       },
       {
+        path: "calendar/game/:id",
+        lazy: () => import("./pages/calendar/game-detail.js"),
+      },
+      {
         path: "person",
         lazy: () => import("./pages/person/person-directory.js"),
       },
