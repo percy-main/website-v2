@@ -1591,13 +1591,43 @@ export function listMatchFeeRates(db: Kysely<DB>) {
 
 export function addMatchFeeRate(db: Kysely<DB>) {
   return async (params: AddMatchFeeRate) => {
+    const teamId = params.playCricketTeamId ?? null;
+    const competitionType = params.competitionType ?? null;
+
+    // Check for duplicate scope before inserting
+    let existsQuery = db
+      .selectFrom("match_fee_rate")
+      .where("member_category", "=", params.memberCategory);
+
+    if (teamId === null) {
+      existsQuery = existsQuery.where("play_cricket_team_id", "is", null);
+    } else {
+      existsQuery = existsQuery.where("play_cricket_team_id", "=", teamId);
+    }
+
+    if (competitionType === null) {
+      existsQuery = existsQuery.where("competition_type", "is", null);
+    } else {
+      existsQuery = existsQuery.where("competition_type", "=", competitionType);
+    }
+
+    const existing = await existsQuery.select("id").executeTakeFirst();
+
+    if (existing) {
+      const error = new Error(
+        "A rate already exists for this team, competition type, and member category",
+      ) as Error & { statusCode: number };
+      error.statusCode = 409;
+      throw error;
+    }
+
     const id = crypto.randomUUID();
     await db
       .insertInto("match_fee_rate")
       .values({
         id,
-        play_cricket_team_id: params.playCricketTeamId ?? null,
-        competition_type: params.competitionType ?? null,
+        play_cricket_team_id: teamId,
+        competition_type: competitionType,
         member_category: params.memberCategory,
         amount_pence: params.amountPence,
       })

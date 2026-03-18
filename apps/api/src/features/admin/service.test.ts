@@ -509,6 +509,7 @@ describe("admin service", () => {
 
   describe("addMatchFeeRate", () => {
     it("inserts a new rate with team and competition", async () => {
+      mockExecuteTakeFirst.mockResolvedValue(undefined);
       mockExecute.mockResolvedValue([]);
 
       const result = await addMatchFeeRate(db)({
@@ -533,6 +534,7 @@ describe("admin service", () => {
     });
 
     it("sets nullable fields to null when not provided", async () => {
+      mockExecuteTakeFirst.mockResolvedValue(undefined);
       mockExecute.mockResolvedValue([]);
 
       await addMatchFeeRate(db)({
@@ -547,6 +549,21 @@ describe("admin service", () => {
           member_category: "guest",
           amount_pence: 0,
         }),
+      );
+    });
+
+    it("throws 409 when a duplicate scope already exists", async () => {
+      mockExecuteTakeFirst.mockResolvedValue({ id: "existing-rate" });
+
+      await expect(
+        addMatchFeeRate(db)({
+          playCricketTeamId: "t1",
+          competitionType: "League",
+          memberCategory: "senior",
+          amountPence: 500,
+        }),
+      ).rejects.toThrow(
+        "A rate already exists for this team, competition type, and member category",
       );
     });
   });
