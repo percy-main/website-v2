@@ -9,7 +9,6 @@
 ## Placeholder MDX Components (not currently used)
 
 - **`<Leaderboard>`** — Cricket stats leaderboard. Not embedded in any page.
-- **`<CollectEmail>`** — Email signup form. Embedded on refugee week page but not yet implemented.
 
 ## Completed
 
