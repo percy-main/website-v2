@@ -3,6 +3,7 @@ import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
 import { getAuthSession, requireRole } from "../auth/middleware.js";
 import { createApiClient } from "../play-cricket/api-client.js";
 import {
+  addMatchFeeRateSchema,
   archiveMemberSchema,
   chargeAggregatesSchema,
   chargeIdParamSchema,
@@ -20,6 +21,7 @@ import {
   listUsersSchema,
   mergeMembersSchema,
   mergePreviewSchema,
+  rateIdParamSchema,
   recordLinkingSchema,
   searchUsersForLinkingSchema,
   setJuniorManagerTeamsSchema,
@@ -31,11 +33,13 @@ import {
   userIdParamSchema,
 } from "./schemas.js";
 import {
+  addMatchFeeRate,
   archiveMember,
   chasePayment,
   createCharge,
   createMember,
   deleteCharge,
+  deleteMatchFeeRate,
   findDuplicateMembers,
   getAllJuniorTeams,
   getAllPlayCricketTeams,
@@ -49,6 +53,7 @@ import {
   listAllCharges,
   listContactSubmissions,
   listJuniors,
+  listMatchFeeRates,
   listUsers,
   mergeMembers,
   restoreMember,
@@ -95,6 +100,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const findDuplicates = findDuplicateMembers(app.db);
   const previewMerge = getMergePreview(app.db);
   const merge = mergeMembers(app.db);
+  const listFeeRates = listMatchFeeRates(app.db);
+  const addFeeRate = addMatchFeeRate(app.db);
+  const deleteFeeRate = deleteMatchFeeRate(app.db);
 
   app.get(
     "/admin/users",
@@ -411,6 +419,34 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const params = parseBody(request, mergeMembersSchema);
       return await merge(params);
+    },
+  );
+
+  // --- Match fee rates endpoints ---
+
+  app.get(
+    "/admin/match-fee-rates",
+    { preHandler: [requireRole("admin")] },
+    async () => {
+      return await listFeeRates();
+    },
+  );
+
+  app.post(
+    "/admin/match-fee-rates",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseBody(request, addMatchFeeRateSchema);
+      return await addFeeRate(params);
+    },
+  );
+
+  app.delete(
+    "/admin/match-fee-rates/:rateId",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const { rateId } = parseParams(request, rateIdParamSchema);
+      return await deleteFeeRate(rateId);
     },
   );
 };

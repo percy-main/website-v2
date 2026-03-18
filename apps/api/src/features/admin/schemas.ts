@@ -178,3 +178,17 @@ export type LinkDependent = z.infer<typeof linkDependentSchema>;
 export type UnlinkDependent = z.infer<typeof unlinkDependentSchema>;
 export type MergePreview = z.infer<typeof mergePreviewSchema>;
 export type MergeMembers = z.infer<typeof mergeMembersSchema>;
+
+export const addMatchFeeRateSchema = z.object({
+  playCricketTeamId: z.string().optional(),
+  competitionType: z.string().optional(),
+  memberCategory: z.string(),
+  amountPence: z.number().int().min(0),
+});
+
+export const rateIdParamSchema = z.object({
+  rateId: z.string(),
+});
+
+export type AddMatchFeeRate = z.infer<typeof addMatchFeeRateSchema>;
+export type RateIdParam = z.infer<typeof rateIdParamSchema>;

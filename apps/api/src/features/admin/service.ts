@@ -8,6 +8,7 @@ import {
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type {
+  AddMatchFeeRate,
   ChargeAggregates,
   CreateCharge,
   CreateMember,
@@ -1559,5 +1560,98 @@ export function listContactSubmissions(db: Kysely<DB>) {
       page,
       pageSize,
     };
+  };
+}
+
+// --- Match fee rates ---
+
+export function listMatchFeeRates(db: Kysely<DB>) {
+  return async () => {
+    const rates = await db
+      .selectFrom("match_fee_rate")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "match_fee_rate.play_cricket_team_id",
+      )
+      .select([
+        "match_fee_rate.id",
+        "match_fee_rate.play_cricket_team_id",
+        "match_fee_rate.competition_type",
+        "match_fee_rate.member_category",
+        "match_fee_rate.amount_pence",
+        "play_cricket_team.name as team_name",
+      ])
+      .orderBy("match_fee_rate.member_category", "asc")
+      .execute();
+
+    return { rates };
+  };
+}
+
+export function addMatchFeeRate(db: Kysely<DB>) {
+  return async (params: AddMatchFeeRate) => {
+    const teamId = params.playCricketTeamId ?? null;
+    const competitionType = params.competitionType ?? null;
+
+    // Check for duplicate scope before inserting
+    let existsQuery = db
+      .selectFrom("match_fee_rate")
+      .where("member_category", "=", params.memberCategory);
+
+    if (teamId === null) {
+      existsQuery = existsQuery.where("play_cricket_team_id", "is", null);
+    } else {
+      existsQuery = existsQuery.where("play_cricket_team_id", "=", teamId);
+    }
+
+    if (competitionType === null) {
+      existsQuery = existsQuery.where("competition_type", "is", null);
+    } else {
+      existsQuery = existsQuery.where("competition_type", "=", competitionType);
+    }
+
+    const existing = await existsQuery.select("id").executeTakeFirst();
+
+    if (existing) {
+      const error = new Error(
+        "A rate already exists for this team, competition type, and member category",
+      ) as Error & { statusCode: number };
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const id = crypto.randomUUID();
+    await db
+      .insertInto("match_fee_rate")
+      .values({
+        id,
+        play_cricket_team_id: teamId,
+        competition_type: competitionType,
+        member_category: params.memberCategory,
+        amount_pence: params.amountPence,
+      })
+      .execute();
+
+    return { id };
+  };
+}
+
+export function deleteMatchFeeRate(db: Kysely<DB>) {
+  return async (rateId: string) => {
+    const result = await db
+      .deleteFrom("match_fee_rate")
+      .where("id", "=", rateId)
+      .executeTakeFirst();
+
+    if (!result.numDeletedRows || result.numDeletedRows === 0n) {
+      const error = new Error("Rate not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return { success: true };
   };
 }
