@@ -1291,8 +1291,16 @@ export function findDuplicateMembers(db: Kysely<DB>) {
       surnameBuckets.set(surname, bucket);
     }
 
-    // Direct pair matching (not transitive) to avoid false-positive chains
-    const nameGroupMap = new Map<string, Set<string>>();
+    // Direct pair matching — each similar pair becomes its own group.
+    // This avoids transitive chains (A~B, B~C does not imply A~C)
+    // and ensures no valid pair is dropped.
+    const namePairKeys = new Set<string>();
+    const nameGroups: Array<{
+      matchType: "name";
+      matchKey: string;
+      members: Array<ReturnType<typeof toGroupMember>>;
+    }> = [];
+
     for (const bucket of surnameBuckets.values()) {
       if (bucket.length < 2) continue;
       for (let i = 0; i < bucket.length; i++) {
@@ -1301,34 +1309,19 @@ export function findDuplicateMembers(db: Kysely<DB>) {
           const b = bucket[j];
           const pairKey = [a.id, b.id].sort().join(":");
           if (emailLinked.has(pairKey)) continue;
+          if (namePairKeys.has(pairKey)) continue;
 
           const sim = nameSimilarity(a.name ?? "", b.name ?? "");
           if (sim >= NAME_SIMILARITY_THRESHOLD) {
-            const existing = nameGroupMap.get(a.id) ?? new Set<string>();
-            existing.add(a.id);
-            existing.add(b.id);
-            nameGroupMap.set(a.id, existing);
+            namePairKeys.add(pairKey);
+            nameGroups.push({
+              matchType: "name",
+              matchKey: a.name ?? "Unknown",
+              members: [toGroupMember(a.id), toGroupMember(b.id)],
+            });
           }
         }
       }
-    }
-
-    // Deduplicate overlapping name groups
-    const seen = new Set<string>();
-    const nameGroups: Array<{
-      matchType: "name";
-      matchKey: string;
-      members: Array<ReturnType<typeof toGroupMember>>;
-    }> = [];
-    for (const [anchor, ids] of nameGroupMap) {
-      if (seen.has(anchor)) continue;
-      for (const id of ids) seen.add(id);
-      const first = memberById.get(anchor);
-      nameGroups.push({
-        matchType: "name",
-        matchKey: first?.name ?? "Unknown",
-        members: [...ids].map(toGroupMember),
-      });
     }
 
     // Email groups first (higher confidence), then name groups
@@ -1488,6 +1481,12 @@ export function mergeMembers(db: Kysely<DB>) {
 
       await trx
         .updateTable("charge")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      await trx
+        .updateTable("matchday_player")
         .set({ member_id: keepMemberId })
         .where("member_id", "=", removeMemberId)
         .execute();
