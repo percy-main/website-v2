@@ -52,4 +52,8 @@ function emailApi() {
 
 export default defineConfig({
   plugins: [react(), emailApi()],
+  server: {
+    port: 5174,
+    strictPort: true,
+  },
 });

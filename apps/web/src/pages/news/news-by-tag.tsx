@@ -1,3 +1,5 @@
+import { Navigate } from "react-router";
+
 export function Component() {
-  return <h1>News by tag</h1>;
+  return <Navigate to="/news/1" replace />;
 }
