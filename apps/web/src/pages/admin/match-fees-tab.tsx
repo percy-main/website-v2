@@ -77,14 +77,19 @@ export function MatchFeesTab() {
     },
   });
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const deleteRateMutation = useMutation({
-    mutationFn: (rateId: string) =>
-      api.delete(`/admin/match-fee-rates/${rateId}`),
+    mutationFn: (rateId: string) => {
+      setDeletingId(rateId);
+      return api.delete(`/admin/match-fee-rates/${rateId}`);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "matchFeeRates"],
       });
     },
+    onSettled: () => setDeletingId(null),
   });
 
   const rates = ratesQuery.data?.rates ?? [];
@@ -231,7 +236,7 @@ export function MatchFeesTab() {
                         variant="ghost"
                         size="sm"
                         className="text-red-600 hover:text-red-800"
-                        disabled={deleteRateMutation.isPending}
+                        disabled={deletingId === rate.id}
                         onClick={() => deleteRateMutation.mutate(rate.id)}
                       >
                         Delete

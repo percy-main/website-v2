@@ -553,7 +553,7 @@ describe("admin service", () => {
 
   describe("deleteMatchFeeRate", () => {
     it("deletes a rate by id", async () => {
-      mockExecute.mockResolvedValue([]);
+      mockExecuteTakeFirst.mockResolvedValue({ numDeletedRows: 1n });
 
       const result = await deleteMatchFeeRate(db)("r1");
 
@@ -562,6 +562,14 @@ describe("admin service", () => {
         "match_fee_rate",
       );
       expect(mockQueryBuilder.where).toHaveBeenCalledWith("id", "=", "r1");
+    });
+
+    it("throws 404 when rate not found", async () => {
+      mockExecuteTakeFirst.mockResolvedValue({ numDeletedRows: 0n });
+
+      await expect(deleteMatchFeeRate(db)("nonexistent")).rejects.toThrow(
+        "Rate not found",
+      );
     });
   });
 });

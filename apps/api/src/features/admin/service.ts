@@ -1609,7 +1609,18 @@ export function addMatchFeeRate(db: Kysely<DB>) {
 
 export function deleteMatchFeeRate(db: Kysely<DB>) {
   return async (rateId: string) => {
-    await db.deleteFrom("match_fee_rate").where("id", "=", rateId).execute();
+    const result = await db
+      .deleteFrom("match_fee_rate")
+      .where("id", "=", rateId)
+      .executeTakeFirst();
+
+    if (!result.numDeletedRows || result.numDeletedRows === 0n) {
+      const error = new Error("Rate not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
 
     return { success: true };
   };
