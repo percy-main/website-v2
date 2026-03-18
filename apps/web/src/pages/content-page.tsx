@@ -1,14 +1,14 @@
-import { useLocation, Link } from "react-router";
+import { mdxComponents } from "@/components/mdx-components.js";
 import {
   contentPageMap,
-  getNavigationTree,
   getBreadcrumbs,
+  getNavigationTree,
   type ContentNode,
 } from "@/lib/content.js";
-import { mdxComponents } from "@/components/mdx-components.js";
 import { MDXProvider } from "@mdx-js/react";
-import { IoChevronForward } from "react-icons/io5";
 import { Fragment, useState } from "react";
+import { IoChevronForward } from "react-icons/io5";
+import { Link, useLocation } from "react-router";
 
 function SidebarNav({
   tree,
@@ -27,8 +27,8 @@ function SidebarNav({
               to={child.page.path}
               className={`py-1 ${
                 isActive
-                  ? "ml-[-0.76rem] border-l-4 border-primary pl-2 font-medium text-primary"
-                  : "text-gray-700 hover:text-primary"
+                  ? "border-primary text-primary ml-[-0.76rem] border-l-4 pl-2 font-medium"
+                  : "hover:text-primary text-gray-700"
               }`}
             >
               {child.page.title}
@@ -45,8 +45,8 @@ function SidebarNav({
                       to={grandchild.page.path}
                       className={`py-1 ${
                         isChildActive
-                          ? "ml-[-1.76rem] border-l-4 border-primary pl-4 font-medium text-primary"
-                          : "text-gray-600 hover:text-primary"
+                          ? "border-primary text-primary ml-[-1.76rem] border-l-4 pl-4 font-medium"
+                          : "hover:text-primary text-gray-600"
                       }`}
                     >
                       <span className={isChildActive ? "pl-2" : ""}>
@@ -84,10 +84,10 @@ function MobileSidebarNav({
             <div key={child.page.path}>
               <Link
                 to={child.page.path}
-                className={`border-b border-gray-100 px-4 py-2.5 font-medium transition-colors last:border-b-0 block ${
+                className={`block border-b border-gray-100 px-4 py-2.5 font-medium transition-colors last:border-b-0 ${
                   isActive
                     ? "bg-primary/5 text-primary"
-                    : "text-gray-800 hover:bg-gray-50 hover:text-primary"
+                    : "hover:text-primary text-gray-800 hover:bg-gray-50"
                 }`}
               >
                 {child.page.title}
@@ -100,10 +100,10 @@ function MobileSidebarNav({
                   <Link
                     key={grandchild.page.path}
                     to={grandchild.page.path}
-                    className={`border-b border-gray-100 py-2.5 pl-9 pr-4 transition-colors last:border-b-0 block ${
+                    className={`block border-b border-gray-100 py-2.5 pr-4 pl-9 transition-colors last:border-b-0 ${
                       isChildActive
-                        ? "bg-primary/5 font-medium text-primary"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-primary"
+                        ? "bg-primary/5 text-primary font-medium"
+                        : "hover:text-primary text-gray-600 hover:bg-gray-50"
                     }`}
                   >
                     {grandchild.page.title}
@@ -148,7 +148,7 @@ export function Component() {
         {hasSidebar && (
           <button
             onClick={() => setMobileNavOpen(!mobileNavOpen)}
-            className="flex cursor-pointer items-center p-1 text-dark md:hidden"
+            className="text-dark flex cursor-pointer items-center p-1 md:hidden"
             aria-label="Toggle section menu"
           >
             <svg className="h-5 w-5 fill-current" viewBox="0 0 20 20">
@@ -158,13 +158,14 @@ export function Component() {
         )}
         {breadcrumbs.map((crumb, i) => (
           <span key={crumb.path} className="flex items-center gap-2">
-            {i > 0 && (
-              <IoChevronForward className="text-gray-400" size={14} />
-            )}
+            {i > 0 && <IoChevronForward className="text-gray-400" size={14} />}
             {i === breadcrumbs.length - 1 ? (
               <span className="text-dark font-medium">{crumb.title}</span>
             ) : (
-              <Link to={crumb.path} className="text-gray-600 hover:text-primary">
+              <Link
+                to={crumb.path}
+                className="hover:text-primary text-gray-600"
+              >
                 {crumb.title}
               </Link>
             )}

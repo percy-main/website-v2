@@ -1,5 +1,5 @@
-import { getPersonBySlug, type PersonData } from "./people.js";
 import type { FC } from "react";
+import { getPersonBySlug, type PersonData } from "./people.js";
 
 interface NewsMdxModule {
   default: FC;
@@ -16,10 +16,9 @@ export interface NewsArticle {
   Component: FC;
 }
 
-const modules = import.meta.glob<NewsMdxModule>(
-  "../../content/news/**/*.mdx",
-  { eager: true },
-);
+const modules = import.meta.glob<NewsMdxModule>("../../content/news/**/*.mdx", {
+  eager: true,
+});
 
 const articles: NewsArticle[] = Object.values(modules)
   .map((mod) => {

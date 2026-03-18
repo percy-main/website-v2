@@ -173,7 +173,7 @@
 }
 
 .mdx-content blockquote {
-  @apply rounded-lg border-l-4 border-cta bg-white p-6 shadow-sm;
+  @apply border-cta rounded-lg border-l-4 bg-white p-6 shadow-sm;
 }
 
 .mdx-content hr {

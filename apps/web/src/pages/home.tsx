@@ -1,5 +1,5 @@
-import { allNews } from "@/lib/news.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
+import { allNews } from "@/lib/news.js";
 import { format } from "date-fns";
 import { Link } from "react-router";
 
@@ -37,11 +37,7 @@ const sports = [
 
 const top5 = allNews.slice(0, 5);
 
-function HomeArticleCard({
-  article,
-}: {
-  article: (typeof allNews)[number];
-}) {
+function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
   const firstTag = article.tags[0];
   const accentColor = firstTag
     ? getCategoryColor(firstTag)
@@ -76,12 +72,12 @@ function HomeArticleCard({
               );
             })}
           </div>
-          <span className="shrink-0 whitespace-nowrap text-[13px] text-text opacity-45 max-md:hidden">
+          <span className="text-text shrink-0 text-[13px] whitespace-nowrap opacity-45 max-md:hidden">
             {format(article.date, "d MMM yyyy")}
           </span>
         </div>
 
-        <h3 className="font-secondary m-0 text-[20px] font-bold leading-snug text-dark transition-colors duration-150 group-hover:text-primary">
+        <h3 className="font-secondary text-dark group-hover:text-primary m-0 text-[20px] leading-snug font-bold transition-colors duration-150">
           {article.title}
         </h3>
 
@@ -104,7 +100,7 @@ function HomeArticleCard({
                 {initials}
               </div>
             )}
-            <span className="text-[13px] font-semibold text-dark">
+            <span className="text-dark text-[13px] font-semibold">
               {article.author?.name}
             </span>
           </div>
@@ -170,7 +166,7 @@ export function Component() {
             <div className="mt-8 text-center">
               <Link
                 to="/news/1"
-                className="text-sm font-medium text-primary transition hover:text-primary-light"
+                className="text-primary hover:text-primary-light text-sm font-medium transition"
               >
                 View all news &rarr;
               </Link>

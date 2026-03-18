@@ -37,9 +37,7 @@ const modules = import.meta.glob<MdxModule>("../../content/pages/**/*.mdx", {
 function filePathToUrlPath(filePath: string): string {
   // filePath looks like "../../content/pages/club/history/_index.mdx"
   // Strip the prefix and extension
-  let path = filePath
-    .replace("../../content/pages/", "")
-    .replace(/\.mdx$/, "");
+  let path = filePath.replace("../../content/pages/", "").replace(/\.mdx$/, "");
 
   // _index files represent the directory itself
   path = path.replace(/\/_index$/, "").replace(/^_index$/, "");

@@ -1,5 +1,5 @@
-import { allNews, type NewsArticle } from "@/lib/news.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
+import { allNews, type NewsArticle } from "@/lib/news.js";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
@@ -33,10 +33,10 @@ function FeaturedArticleCard({ article }: { article: NewsArticle }) {
       to={`/news/article/${article.slug}`}
       className="featured-card relative mb-7 block cursor-pointer overflow-hidden rounded-2xl bg-white"
     >
-      <div className="h-1 bg-gradient-to-r from-primary via-primary-light to-cta" />
+      <div className="from-primary via-primary-light to-cta h-1 bg-gradient-to-r" />
       <div className="flex flex-col gap-3.5 p-5 pb-6 sm:p-7">
         <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
+          <span className="bg-primary inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-[11px] font-bold tracking-wider text-white uppercase">
             <svg
               className="h-3 w-3"
               viewBox="0 0 24 24"
@@ -50,12 +50,12 @@ function FeaturedArticleCard({ article }: { article: NewsArticle }) {
             </svg>
             Latest
           </span>
-          <span className="text-[13px] text-text opacity-45">
+          <span className="text-text text-[13px] opacity-45">
             {format(article.date, "d MMMM yyyy")}
           </span>
         </div>
 
-        <h2 className="font-secondary m-0 text-[22px] font-bold leading-snug text-dark sm:text-[28px]">
+        <h2 className="font-secondary text-dark m-0 text-[22px] leading-snug font-bold sm:text-[28px]">
           {article.title}
         </h2>
 
@@ -68,17 +68,17 @@ function FeaturedArticleCard({ article }: { article: NewsArticle }) {
                 alt={article.author.name}
               />
             ) : (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-home-bg text-xs font-bold text-primary">
+              <div className="bg-home-bg text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold">
                 {initials}
               </div>
             )}
-            <span className="text-sm font-semibold text-dark">
+            <span className="text-dark text-sm font-semibold">
               {article.author?.name}
             </span>
           </div>
-          <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+          <span className="text-primary inline-flex items-center gap-2 text-sm font-semibold">
             Read article
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-home-bg transition-all duration-200">
+            <span className="bg-home-bg flex h-7 w-7 items-center justify-center rounded-full transition-all duration-200">
               <svg
                 className="h-3.5 w-3.5"
                 viewBox="0 0 24 24"
@@ -129,12 +129,12 @@ function ArticleCard({ article }: { article: NewsArticle }) {
               );
             })}
           </div>
-          <span className="shrink-0 whitespace-nowrap text-[13px] text-text opacity-45 max-md:hidden">
+          <span className="text-text shrink-0 text-[13px] whitespace-nowrap opacity-45 max-md:hidden">
             {format(article.date, "EEEE, d MMMM yyyy")}
           </span>
         </div>
 
-        <h3 className="font-secondary m-0 text-[20px] font-bold leading-snug text-dark transition-colors duration-150">
+        <h3 className="font-secondary text-dark m-0 text-[20px] leading-snug font-bold transition-colors duration-150">
           {article.title}
         </h3>
 
@@ -147,15 +147,15 @@ function ArticleCard({ article }: { article: NewsArticle }) {
                 alt={article.author.name}
               />
             ) : (
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-home-bg text-[11px] font-bold text-primary">
+              <div className="bg-home-bg text-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">
                 {initials}
               </div>
             )}
-            <span className="text-[13px] font-semibold text-dark">
+            <span className="text-dark text-[13px] font-semibold">
               {article.author?.name}
             </span>
           </div>
-          <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-primary">
+          <span className="text-primary inline-flex items-center gap-1.5 text-[13px] font-semibold">
             Read article
             <svg
               width="16"
@@ -187,32 +187,79 @@ function Pagination({
   if (lastPage <= 1) return null;
 
   return (
-    <nav aria-label="Page navigation" className="flex items-center justify-center gap-1 pt-4">
+    <nav
+      aria-label="Page navigation"
+      className="flex items-center justify-center gap-1 pt-4"
+    >
       {currentPage > 1 ? (
         <Link
           to={`/news/${currentPage - 1}`}
-          className="flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white text-text transition-all duration-150 hover:border-primary hover:text-primary"
+          className="text-text hover:border-primary hover:text-primary flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white transition-all duration-150"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </Link>
       ) : (
-        <span className="pointer-events-none flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white text-text opacity-30">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+        <span className="text-text pointer-events-none flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white opacity-30">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </span>
       )}
-      <span className="min-w-[60px] px-2 text-center text-[13px] text-text opacity-50">
+      <span className="text-text min-w-[60px] px-2 text-center text-[13px] opacity-50">
         {currentPage} / {lastPage}
       </span>
       {currentPage < lastPage ? (
         <Link
           to={`/news/${currentPage + 1}`}
-          className="flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white text-text transition-all duration-150 hover:border-primary hover:text-primary"
+          className="text-text hover:border-primary hover:text-primary flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white transition-all duration-150"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
         </Link>
       ) : (
-        <span className="pointer-events-none flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white text-text opacity-30">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+        <span className="text-text pointer-events-none flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white opacity-30">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
         </span>
       )}
     </nav>
@@ -234,19 +281,19 @@ function NewsSidebar({
         <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
           <h3 className="mb-3 text-sm font-bold">Overview</h3>
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-home-bg p-2.5 text-center text-primary">
-              <div className="font-secondary text-xl font-bold leading-none">
+            <div className="bg-home-bg text-primary rounded-lg p-2.5 text-center">
+              <div className="font-secondary text-xl leading-none font-bold">
                 {totalArticleCount}
               </div>
-              <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide">
+              <div className="mt-1 text-[10px] font-semibold tracking-wide uppercase">
                 Articles
               </div>
             </div>
             <div className="rounded-lg bg-[#fef3c7] p-2.5 text-center text-[#d97706]">
-              <div className="font-secondary text-xl font-bold leading-none">
+              <div className="font-secondary text-xl leading-none font-bold">
                 {uniqueAuthorCount}
               </div>
-              <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide">
+              <div className="mt-1 text-[10px] font-semibold tracking-wide uppercase">
                 Authors
               </div>
             </div>
@@ -259,7 +306,7 @@ function NewsSidebar({
             {archiveMonths.map((m) => (
               <div
                 key={m.month}
-                className="flex items-center justify-between border-b border-black/[0.04] py-1.5 text-[13px] text-text last:border-b-0"
+                className="text-text flex items-center justify-between border-b border-black/[0.04] py-1.5 text-[13px] last:border-b-0"
               >
                 <span>{m.month}</span>
                 <span className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-semibold">
@@ -288,11 +335,10 @@ function FilterPills({
         className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-all ${
           activeTag === null
             ? "bg-primary text-white"
-            : "bg-white text-text hover:bg-gray-50"
+            : "text-text bg-white hover:bg-gray-50"
         }`}
       >
-        All{" "}
-        <span className="text-[11px] opacity-70">{allNews.length}</span>
+        All <span className="text-[11px] opacity-70">{allNews.length}</span>
       </button>
       {allTags.map((tag) => {
         const c = getCategoryColor(tag.name);
@@ -302,7 +348,7 @@ function FilterPills({
             key={tag.name}
             onClick={() => onTagChange(isActive ? null : tag.name)}
             className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-all ${
-              isActive ? "ring-2 ring-primary/30" : "bg-white hover:bg-gray-50"
+              isActive ? "ring-primary/30 ring-2" : "bg-white hover:bg-gray-50"
             }`}
           >
             <span
@@ -379,7 +425,7 @@ export function Component() {
       <div className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div>
           <h1 className="mb-1 text-[2rem] leading-tight">News</h1>
-          <div className="text-sm text-text opacity-60">
+          <div className="text-text text-sm opacity-60">
             {allNews.length} articles &middot; {allTags.length} tags
           </div>
         </div>
@@ -400,13 +446,11 @@ export function Component() {
         />
 
         <div className="min-w-0 flex-1">
-          {featuredArticle && (
-            <FeaturedArticleCard article={featuredArticle} />
-          )}
+          {featuredArticle && <FeaturedArticleCard article={featuredArticle} />}
 
           {[...byMonth.entries()].map(([month, articles]) => (
             <div key={month} className="mb-7">
-              <div className="font-secondary mb-3.5 inline-block border-b-2 border-primary pb-2 text-base font-bold text-dark">
+              <div className="font-secondary border-primary text-dark mb-3.5 inline-block border-b-2 pb-2 text-base font-bold">
                 {month}
               </div>
               {articles.map((article) => (

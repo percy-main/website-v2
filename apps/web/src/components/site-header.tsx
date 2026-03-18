@@ -13,9 +13,7 @@ interface MenuItem {
 const DONATE_URL = "/purchase/donation";
 
 /** Fixed items that aren't content pages */
-const fixedMenuStart: MenuItem[] = [
-  { name: "Home", url: "/", match: "exact" },
-];
+const fixedMenuStart: MenuItem[] = [{ name: "Home", url: "/", match: "exact" }];
 const fixedMenuEnd: MenuItem[] = [
   { name: "News", url: "/news/1", match: { start: "/news" } },
   { name: "Calendar", url: "/calendar", match: { start: "/calendar" } },

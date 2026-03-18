@@ -22,8 +22,8 @@
  */
 
 import { createClient } from "contentful";
-import { writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
 
@@ -183,8 +183,10 @@ function listItemToMdx(item, indent, prefix) {
 
   const parts = item.content.map((child, i) => {
     if (child.nodeType === "paragraph") {
-      return (i === 0 ? indent + prefix : indent + "  ") +
-        inlineContent(child.content);
+      return (
+        (i === 0 ? indent + prefix : indent + "  ") +
+        inlineContent(child.content)
+      );
     }
     if (
       child.nodeType === "unordered-list" ||
@@ -220,11 +222,7 @@ function inlineNodeToMdx(node) {
     case "asset-hyperlink": {
       const asset = node.data?.target;
       const url = asset?.fields?.file?.url;
-      const href = url
-        ? url.startsWith("//")
-          ? `https:${url}`
-          : url
-        : "#";
+      const href = url ? (url.startsWith("//") ? `https:${url}` : url) : "#";
       return `[${inlineContent(node.content)}](${href})`;
     }
 
@@ -480,8 +478,7 @@ async function convertNews(newsItems) {
     const slug = item.fields.slug;
 
     const author = item.fields.author;
-    const authorSlug =
-      author && author.fields ? author.fields.slug : undefined;
+    const authorSlug = author && author.fields ? author.fields.slug : undefined;
 
     // Extract page tags (pages field links to content pages used as categories)
     const tags = (item.fields.pages ?? [])
@@ -507,7 +504,12 @@ async function convertNews(newsItems) {
         ? fm + "\n\n" + body + "\n"
         : fm + "\n\n" + body + "\n";
 
-    const fileName = path.join(CONTENT_DIR, "news", String(year), slug + ".mdx");
+    const fileName = path.join(
+      CONTENT_DIR,
+      "news",
+      String(year),
+      slug + ".mdx",
+    );
     await writeContent(fileName, content);
     console.log(`  → ${path.relative(ROOT, fileName)}`);
   }
@@ -669,8 +671,7 @@ async function rewriteImages() {
   const mdxFiles = await walkDir(CONTENT_DIR);
   const imgRegex =
     /!\[([^\]]*)\]\((https?:\/\/images\.ctfassets\.net\/[^)]+)\)/g;
-  const srcRegex =
-    /src="(https?:\/\/images\.ctfassets\.net\/[^"]+)"/g;
+  const srcRegex = /src="(https?:\/\/images\.ctfassets\.net\/[^"]+)"/g;
 
   for (const file of mdxFiles) {
     let content = await readFile(file, "utf-8");

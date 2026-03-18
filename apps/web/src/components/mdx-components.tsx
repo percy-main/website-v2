@@ -1,6 +1,6 @@
 import { getPersonBySlug } from "@/lib/people.js";
-import { Link } from "react-router";
 import type { FC, ReactNode } from "react";
+import { Link } from "react-router";
 
 const ANON_IMAGE = "/images/anon.jpg";
 
@@ -11,7 +11,7 @@ function Person({ slug, role }: { slug: string; role?: string }) {
 
   return (
     <div className="person h-full rounded-lg bg-white pb-4 text-gray-900 shadow-md">
-      <div className="h-2 rounded-t-lg bg-gradient-to-r from-cta to-orange-400" />
+      <div className="from-cta h-2 rounded-t-lg bg-gradient-to-r to-orange-400" />
       <div className="mx-auto mt-4 h-24 w-24 overflow-hidden rounded-full border-4 border-gray-100">
         <img
           className="h-24 w-24 object-cover object-center"
@@ -24,7 +24,7 @@ function Person({ slug, role }: { slug: string; role?: string }) {
         {role && <p className="text-sm text-gray-600">{role}</p>}
         <Link
           to={`/person/${slug}`}
-          className="mt-2 inline-block px-2 text-sm text-primary font-medium hover:underline"
+          className="text-primary mt-2 inline-block px-2 text-sm font-medium hover:underline"
         >
           Profile
         </Link>
@@ -49,7 +49,9 @@ function PersonGrid({
   }
   return (
     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-      {slugs?.map((slug) => <Person key={slug} slug={slug} />)}
+      {slugs?.map((slug) => (
+        <Person key={slug} slug={slug} />
+      ))}
     </div>
   );
 }
@@ -134,11 +136,7 @@ function ContentImage({
 }) {
   return (
     <figure className="my-4 max-w-lg self-center">
-      <img
-        src={src}
-        alt={alt ?? ""}
-        className="h-auto max-w-full rounded-lg"
-      />
+      <img src={src} alt={alt ?? ""} className="h-auto max-w-full rounded-lg" />
       {caption && (
         <figcaption className="mt-2 text-sm text-gray-600">
           {caption}

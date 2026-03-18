@@ -1,9 +1,9 @@
-import { newsBySlug } from "@/lib/news.js";
 import { mdxComponents } from "@/components/mdx-components.js";
+import { newsBySlug } from "@/lib/news.js";
 import { MDXProvider } from "@mdx-js/react";
 import { format } from "date-fns";
-import { Link, useParams } from "react-router";
 import { IoChevronForward } from "react-icons/io5";
+import { Link, useParams } from "react-router";
 
 const ANON_IMAGE = "/images/anon.jpg";
 
@@ -29,7 +29,7 @@ export function Component() {
     <div className="container mx-auto px-4 py-6">
       {/* Breadcrumbs */}
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/news/1" className="text-gray-600 hover:text-primary">
+        <Link to="/news/1" className="hover:text-primary text-gray-600">
           News
         </Link>
         <IoChevronForward className="text-gray-400" size={14} />
@@ -48,9 +48,7 @@ export function Component() {
               src={article.author.photo ?? ANON_IMAGE}
               alt={article.author.name}
             />
-            <span className="font-medium text-dark">
-              {article.author.name}
-            </span>
+            <span className="text-dark font-medium">{article.author.name}</span>
           </Link>
         )}
         <p className="pb-4 text-sm text-gray-600">
