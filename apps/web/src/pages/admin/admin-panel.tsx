@@ -5,6 +5,7 @@ import { ChargesTab } from "./charges-tab";
 import { ContactsTab } from "./contacts-tab";
 import { DuplicatesTab } from "./duplicates-tab";
 import { FantasyTab } from "./fantasy-tab";
+import { GameReportsTab } from "./game-reports-tab";
 import { JuniorsTab } from "./juniors-tab";
 import { MatchFeesTab } from "./match-fees-tab";
 import { MembersTab } from "./members-tab";
@@ -35,9 +36,10 @@ const ACTIVE_TABS: Tab[] = [
   "sponsorships",
   "duplicates",
   "match-fees",
+  "record-linking",
+  "game-reports",
   "treasurer",
   "fantasy",
-  "record-linking",
 ];
 
 function isValidTab(value: string | null): value is Tab {
@@ -116,6 +118,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="record-linking">
             <RecordLinkingTab />
+          </TabsContent>
+          <TabsContent value="game-reports">
+            <GameReportsTab />
           </TabsContent>
 
           {TABS.filter((t) => !ACTIVE_TABS.includes(t)).map((t) => (
