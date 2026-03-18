@@ -1195,25 +1195,26 @@ export function listContactSubmissions(db: Kysely<DB>) {
       );
     }
 
-    const countResult = await baseQuery
-      .select((eb) => eb.fn.countAll<string>().as("total"))
-      .executeTakeFirstOrThrow();
+    const [countResult, submissions] = await Promise.all([
+      baseQuery
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .executeTakeFirstOrThrow(),
+      baseQuery
+        .select([
+          "contact_submission.id",
+          "contact_submission.name",
+          "contact_submission.email",
+          "contact_submission.message",
+          "contact_submission.page",
+          "contact_submission.created_at",
+        ])
+        .orderBy("contact_submission.created_at", "desc")
+        .limit(pageSize)
+        .offset(offset)
+        .execute(),
+    ]);
 
     const total = Number(countResult.total);
-
-    const submissions = await baseQuery
-      .select([
-        "contact_submission.id",
-        "contact_submission.name",
-        "contact_submission.email",
-        "contact_submission.message",
-        "contact_submission.page",
-        "contact_submission.created_at",
-      ])
-      .orderBy("contact_submission.created_at", "desc")
-      .limit(pageSize)
-      .offset(offset)
-      .execute();
 
     return {
       submissions: submissions.map((s) => ({
