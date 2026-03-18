@@ -5,6 +5,7 @@ import { api } from "@/lib/api.js";
 import { getPersonBySlug } from "@/lib/people.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type FC, type ReactNode, useState } from "react";
+import { IoCalendar, IoChevronForward } from "react-icons/io5";
 import { Link, useLocation } from "react-router";
 
 const ANON_IMAGE = "/images/anon.jpg";
@@ -146,10 +147,42 @@ function Leaderboard({
   );
 }
 
-function EventPreview({ id }: { id: string }) {
+function EventPreview({
+  id,
+  name,
+  when,
+}: {
+  id: string;
+  name: string;
+  when: string;
+}) {
+  const formatted = new Date(when).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
   return (
-    <div className="my-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-sm text-gray-500">Event preview: {id}</p>
+    <div className="mb-2 h-full max-w-sm rounded-none bg-white p-4 shadow-md lg:rounded-lg">
+      <div className="flex flex-col items-stretch justify-between">
+        <div className="flex flex-row gap-4">
+          <IoCalendar title="Event" fontSize={32} />
+          <h4 className="text-lg font-semibold">{formatted}</h4>
+        </div>
+        <div className="mt-4 flex flex-row items-center justify-between gap-4">
+          <p className="text-sm">{name}</p>
+          <Link
+            to={`/calendar/event/${id}`}
+            className="flex flex-col items-center justify-center self-stretch"
+          >
+            <IoChevronForward
+              className="text-gray-700 hover:text-gray-400"
+              fontSize={32}
+              aria-label="Read more about this event"
+            />
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

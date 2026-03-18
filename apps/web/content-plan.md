@@ -1,26 +1,23 @@
 # Content Migration — Remaining Work
 
-## Placeholder MDX Components (not currently used)
-
-These are registered but not embedded in any converted page. Implement when needed:
-
-- **`<Leaderboard>`** — Cricket stats leaderboard.
-- **`<EventPreview>`** — Inline event card.
-- **`<GamePreview>`** — Inline game card.
-- **`<CollectEmail>`** — Email signup form.
-
-## Stub Pages
-
-These routes exist but render only a heading:
+## Deferred to next PR
 
 - **Calendar overview** (`/calendar`) — Needs games from API + events from MDX.
 - **Calendar month** (`/calendar/:year/:month`) — Needs API data.
-- **Calendar event** (`/calendar/event/:id`) — Needs event data.
+- **`<GamePreview>`** — Inline game card, depends on calendar/games work.
+
+## Placeholder MDX Components (not currently used)
+
+- **`<Leaderboard>`** — Cricket stats leaderboard. Not embedded in any page.
+- **`<CollectEmail>`** — Email signup form. Embedded on refugee week page but not yet implemented.
 
 ## Completed
 
-- ~~`<LeagueTable>`~~ — Implemented, fetches from Play Cricket API.
-- ~~`<ContactForm>`~~ — Implemented, POSTs to `/api/contact`.
+- ~~`<LeagueTable>`~~ — Fetches from Play Cricket API.
+- ~~`<ContactForm>`~~ — POSTs to `/api/contact` with Input/Textarea/Button UI.
+- ~~`<EventPreview>`~~ — Inline event card with calendar icon, date, name, link.
+- ~~Event detail page (`/calendar/event/:id`)~~ — Renders event MDX, map, add-to-calendar.
+- ~~Event data migration~~ — 3 events converted from Contentful to MDX.
 - ~~Person profile (`/person/:slug`)~~ — Renders from people MDX.
 - ~~`/person` → `/people` redirect~~ — Done.
 - ~~`/news/tag/:tag/:page` redirect~~ — Redirects to `/news/1`.
