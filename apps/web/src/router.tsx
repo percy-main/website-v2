@@ -198,10 +198,11 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // Catch-all
+      // Content pages (MDX) — catch-all for CMS-style pages
+      // Must come after all explicit routes so they take precedence
       {
         path: "*",
-        lazy: () => import("./pages/not-found.js"),
+        lazy: () => import("./pages/content-page.js"),
       },
     ],
   },

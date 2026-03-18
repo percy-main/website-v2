@@ -1,0 +1,152 @@
+import type { FC, ReactNode } from "react";
+
+/**
+ * Placeholder MDX components.
+ * These will be replaced with real implementations as content features are built.
+ * For now they render enough to verify the MDX pipeline works.
+ */
+
+function Person({ slug, role }: { slug: string; role?: string }) {
+  return (
+    <div className="my-2 flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">
+        {slug.charAt(0).toUpperCase()}
+      </div>
+      <div>
+        <p className="font-semibold text-dark">{slug}</p>
+        {role && <p className="text-sm text-gray-600">{role}</p>}
+      </div>
+    </div>
+  );
+}
+
+function PersonGrid({
+  slugs,
+  children,
+}: {
+  slugs?: string[];
+  children?: ReactNode;
+}) {
+  if (children) {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {slugs?.map((slug) => <Person key={slug} slug={slug} />)}
+    </div>
+  );
+}
+
+function LeagueTable({
+  divisionId,
+  name,
+}: {
+  divisionId: string;
+  name?: string;
+}) {
+  return (
+    <div className="my-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <p className="text-sm text-gray-500">
+        League table: {name ?? divisionId} (loading from API...)
+      </p>
+    </div>
+  );
+}
+
+function Leaderboard({
+  discipline,
+  category,
+  limit,
+}: {
+  discipline?: string;
+  category?: string;
+  limit?: number;
+}) {
+  return (
+    <div className="my-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <p className="text-sm text-gray-500">
+        Leaderboard: {discipline ?? "all"} / {category ?? "seniors"} (top{" "}
+        {limit ?? 10})
+      </p>
+    </div>
+  );
+}
+
+function EventPreview({ id }: { id: string }) {
+  return (
+    <div className="my-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <p className="text-sm text-gray-500">Event preview: {id}</p>
+    </div>
+  );
+}
+
+function GamePreview({ playCricketId }: { playCricketId: string }) {
+  return (
+    <div className="my-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <p className="text-sm text-gray-500">Game preview: {playCricketId}</p>
+    </div>
+  );
+}
+
+function ContactForm() {
+  return (
+    <div className="my-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <p className="text-sm text-gray-500">Contact form placeholder</p>
+    </div>
+  );
+}
+
+function CollectEmail({ listId }: { listId?: string }) {
+  return (
+    <div className="my-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <p className="text-sm text-gray-500">
+        Email signup placeholder{listId ? `: ${listId}` : ""}
+      </p>
+    </div>
+  );
+}
+
+function ContentImage({
+  src,
+  alt,
+  caption,
+}: {
+  src: string;
+  alt?: string;
+  caption?: string;
+}) {
+  return (
+    <figure className="my-4 max-w-lg self-center">
+      <img
+        src={src}
+        alt={alt ?? ""}
+        className="h-auto max-w-full rounded-lg"
+      />
+      {caption && (
+        <figcaption className="mt-2 text-sm text-gray-600">
+          {caption}
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
+/**
+ * Component map provided to MDX content.
+ * MDX files can use these as JSX tags: <Person slug="..." />, <LeagueTable divisionId="..." />, etc.
+ */
+export const mdxComponents: Record<string, FC<Record<string, unknown>>> = {
+  Person: Person as FC<Record<string, unknown>>,
+  PersonGrid: PersonGrid as FC<Record<string, unknown>>,
+  LeagueTable: LeagueTable as FC<Record<string, unknown>>,
+  Leaderboard: Leaderboard as FC<Record<string, unknown>>,
+  EventPreview: EventPreview as FC<Record<string, unknown>>,
+  GamePreview: GamePreview as FC<Record<string, unknown>>,
+  ContactForm: ContactForm as FC<Record<string, unknown>>,
+  CollectEmail: CollectEmail as FC<Record<string, unknown>>,
+  Image: ContentImage as FC<Record<string, unknown>>,
+};

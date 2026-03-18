@@ -146,3 +146,40 @@
     @apply outline-primary outline-2 outline-offset-2;
   }
 }
+
+/* MDX content prose styles */
+.mdx-content a {
+  @apply text-blue-600 hover:underline;
+}
+
+.mdx-content ul {
+  @apply ml-4 list-disc;
+}
+
+.mdx-content ul > li {
+  @apply mb-2;
+}
+
+.mdx-content ul > li > ul {
+  list-style-type: circle;
+}
+
+.mdx-content ol {
+  @apply ml-4 list-decimal;
+}
+
+.mdx-content ol > li {
+  @apply mb-2;
+}
+
+.mdx-content blockquote {
+  @apply rounded-lg border-l-4 border-cta bg-white p-6 shadow-sm;
+}
+
+.mdx-content hr {
+  @apply my-8 border-gray-200;
+}
+
+.mdx-content img {
+  @apply h-auto max-w-full rounded-lg;
+}
