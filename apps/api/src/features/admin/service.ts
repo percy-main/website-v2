@@ -8,6 +8,7 @@ import type {
   CreateMember,
   LinkDependent,
   ListCharges,
+  ListContactSubmissions,
   ListJuniors,
   ListUsers,
   RecordLinking,
@@ -1174,5 +1175,58 @@ export function chasePayment(db: Kysely<DB>) {
     // TODO: Send PaymentReminder email via email service
     // For now, return success — email integration will be wired when packages/email is complete
     return { success: true };
+  };
+}
+
+export function listContactSubmissions(db: Kysely<DB>) {
+  return async (params: ListContactSubmissions) => {
+    const { page, pageSize, search } = params;
+    const offset = (page - 1) * pageSize;
+
+    let baseQuery = db.selectFrom("contact_submission");
+
+    if (search && search.trim().length > 0) {
+      const term = `%${search.trim()}%`;
+      baseQuery = baseQuery.where((eb) =>
+        eb.or([
+          eb("contact_submission.name", "ilike", term),
+          eb("contact_submission.email", "ilike", term),
+        ]),
+      );
+    }
+
+    const countResult = await baseQuery
+      .select((eb) => eb.fn.countAll<string>().as("total"))
+      .executeTakeFirstOrThrow();
+
+    const total = Number(countResult.total);
+
+    const submissions = await baseQuery
+      .select([
+        "contact_submission.id",
+        "contact_submission.name",
+        "contact_submission.email",
+        "contact_submission.message",
+        "contact_submission.page",
+        "contact_submission.created_at",
+      ])
+      .orderBy("contact_submission.created_at", "desc")
+      .limit(pageSize)
+      .offset(offset)
+      .execute();
+
+    return {
+      submissions: submissions.map((s) => ({
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        message: s.message,
+        page: s.page,
+        createdAt: s.created_at,
+      })),
+      total,
+      page,
+      pageSize,
+    };
   };
 }

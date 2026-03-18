@@ -14,6 +14,7 @@ import {
   linkDependentToUser,
   linkPlayCricketPlayer,
   listAllCharges,
+  listContactSubmissions,
   listJuniors,
   listUsers,
   searchUsersForLinking,
@@ -638,6 +639,118 @@ describe("admin service (integration)", () => {
       await expect(chasePayment(ctx.db)(chargeId)).rejects.toThrow(
         "Charge not found or already paid/deleted",
       );
+    });
+  });
+
+  describe("listContactSubmissions", () => {
+    it("returns paginated contact submissions", async () => {
+      // Seed submissions
+      await ctx.db
+        .insertInto("contact_submission")
+        .values({
+          id: `cs-${crypto.randomUUID()}`,
+          name: "Alice Test",
+          email: "alice@test.com",
+          message: "Hello, I have a question",
+          page: "/contact",
+        })
+        .execute();
+      await ctx.db
+        .insertInto("contact_submission")
+        .values({
+          id: `cs-${crypto.randomUUID()}`,
+          name: "Bob Test",
+          email: "bob@test.com",
+          message: "Another message",
+          page: "/juniors",
+        })
+        .execute();
+
+      const result = await listContactSubmissions(ctx.db)({
+        page: 1,
+        pageSize: 10,
+      });
+
+      expect(result.submissions.length).toBeGreaterThanOrEqual(2);
+      expect(result.total).toBeGreaterThanOrEqual(2);
+      expect(result.submissions[0]).toHaveProperty("id");
+      expect(result.submissions[0]).toHaveProperty("name");
+      expect(result.submissions[0]).toHaveProperty("email");
+      expect(result.submissions[0]).toHaveProperty("message");
+      expect(result.submissions[0]).toHaveProperty("page");
+      expect(result.submissions[0]).toHaveProperty("createdAt");
+    });
+
+    it("filters by search term (name)", async () => {
+      const uniqueName = `SearchTest-${crypto.randomUUID().slice(0, 8)}`;
+      await ctx.db
+        .insertInto("contact_submission")
+        .values({
+          id: `cs-${crypto.randomUUID()}`,
+          name: uniqueName,
+          email: "search@test.com",
+          message: "Search test",
+          page: "/contact",
+        })
+        .execute();
+
+      const result = await listContactSubmissions(ctx.db)({
+        page: 1,
+        pageSize: 10,
+        search: uniqueName,
+      });
+
+      expect(result.submissions).toHaveLength(1);
+      expect(result.submissions[0].name).toBe(uniqueName);
+    });
+
+    it("filters by search term (email)", async () => {
+      const uniqueEmail = `unique-${crypto.randomUUID().slice(0, 8)}@test.com`;
+      await ctx.db
+        .insertInto("contact_submission")
+        .values({
+          id: `cs-${crypto.randomUUID()}`,
+          name: "Email Search",
+          email: uniqueEmail,
+          message: "Email search test",
+          page: "/contact",
+        })
+        .execute();
+
+      const result = await listContactSubmissions(ctx.db)({
+        page: 1,
+        pageSize: 10,
+        search: uniqueEmail,
+      });
+
+      expect(result.submissions).toHaveLength(1);
+      expect(result.submissions[0].email).toBe(uniqueEmail);
+    });
+
+    it("paginates correctly", async () => {
+      // Seed enough for pagination
+      for (let i = 0; i < 3; i++) {
+        await ctx.db
+          .insertInto("contact_submission")
+          .values({
+            id: `cs-page-${crypto.randomUUID()}`,
+            name: `Paginate User ${i}`,
+            email: `paginate${i}@test.com`,
+            message: "Pagination test",
+            page: "/contact",
+          })
+          .execute();
+      }
+
+      const page1 = await listContactSubmissions(ctx.db)({
+        page: 1,
+        pageSize: 2,
+      });
+
+      expect(page1.submissions).toHaveLength(2);
+      expect(page1.total).toBeGreaterThanOrEqual(3);
+      expect(page1.page).toBe(1);
+      expect(page1.pageSize).toBe(2);
     });
   });
 });

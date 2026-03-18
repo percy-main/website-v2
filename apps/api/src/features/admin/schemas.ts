@@ -153,6 +153,15 @@ export const unlinkDependentSchema = z.object({
   dependentId: z.string().min(1),
 });
 
+export const listContactSubmissionsSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+});
+
+export type ListContactSubmissions = z.infer<
+  typeof listContactSubmissionsSchema
+>;
 export type ListJuniors = z.infer<typeof listJuniorsSchema>;
 export type SearchUsersForLinking = z.infer<typeof searchUsersForLinkingSchema>;
 export type LinkDependent = z.infer<typeof linkDependentSchema>;

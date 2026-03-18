@@ -15,6 +15,7 @@ import {
   deleteChargeSchema,
   linkDependentSchema,
   listChargesSchema,
+  listContactSubmissionsSchema,
   listJuniorsSchema,
   listUsersSchema,
   recordLinkingSchema,
@@ -42,6 +43,7 @@ import {
   linkDependentToUser,
   linkPlayCricketPlayer,
   listAllCharges,
+  listContactSubmissions,
   listJuniors,
   listUsers,
   restoreMember,
@@ -84,6 +86,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const listCharges = listAllCharges(app.db);
   const chargeAggregates = getChargeAggregates(app.db);
   const chase = chasePayment(app.db);
+  const listContacts = listContactSubmissions(app.db);
 
   app.get(
     "/admin/users",
@@ -323,6 +326,17 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { chargeId } = parseBody(request, chasePaymentSchema);
       return await chase(chargeId);
+    },
+  );
+
+  // --- Contacts tab endpoints ---
+
+  app.get(
+    "/admin/contact-submissions",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseQuery(request, listContactSubmissionsSchema);
+      return await listContacts(params);
     },
   );
 

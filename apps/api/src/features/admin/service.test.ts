@@ -52,6 +52,7 @@ import {
   getChargeAggregates,
   linkPlayCricketPlayer,
   listAllCharges,
+  listContactSubmissions,
   listUsers,
   unlinkPlayCricketPlayer,
 } from "./service.js";
@@ -370,6 +371,55 @@ describe("admin service", () => {
       );
 
       // Verify the where clause was called (payment_confirmed_at filter applied)
+      expect(mockQueryBuilder.where).toHaveBeenCalled();
+    });
+  });
+
+  describe("listContactSubmissions", () => {
+    it("returns paginated submissions", async () => {
+      const submissions = [
+        {
+          id: "cs1",
+          name: "Alice",
+          email: "alice@example.com",
+          message: "Hello",
+          page: "/contact",
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ];
+
+      mockExecuteTakeFirstOrThrow.mockResolvedValue({ total: "1" });
+      mockExecute.mockResolvedValue(submissions);
+
+      const result = await listContactSubmissions(db)({
+        page: 1,
+        pageSize: 20,
+      });
+
+      expect(result.submissions).toHaveLength(1);
+      expect(result.submissions[0]).toEqual({
+        id: "cs1",
+        name: "Alice",
+        email: "alice@example.com",
+        message: "Hello",
+        page: "/contact",
+        createdAt: "2026-01-01T00:00:00Z",
+      });
+      expect(result.total).toBe(1);
+      expect(result.page).toBe(1);
+      expect(result.pageSize).toBe(20);
+    });
+
+    it("applies search filter", async () => {
+      mockExecuteTakeFirstOrThrow.mockResolvedValue({ total: "0" });
+      mockExecute.mockResolvedValue([]);
+
+      await listContactSubmissions(db)({
+        page: 1,
+        pageSize: 20,
+        search: "alice",
+      });
+
       expect(mockQueryBuilder.where).toHaveBeenCalled();
     });
   });
