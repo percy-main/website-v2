@@ -63,40 +63,41 @@ export function getMatchdayReport(db: Kysely<DB>) {
       });
     }
 
-    // Players with charge info
-    const players = await db
-      .selectFrom("matchday_player")
-      .leftJoin("member", "member.id", "matchday_player.member_id")
-      .leftJoin("charge", "charge.id", "matchday_player.charge_id")
-      .where("matchday_player.matchday_id", "=", matchdayId)
-      .select([
-        "matchday_player.id",
-        "matchday_player.player_name",
-        "matchday_player.status",
-        "matchday_player.member_id",
-        "member.member_category",
-        "charge.amount_pence as charge_amount_pence",
-        "charge.paid_at as charge_paid_at",
-        "charge.payment_method as charge_payment_method",
-        "charge.deleted_at as charge_deleted_at",
-      ])
-      .orderBy("matchday_player.created_at", "asc")
-      .execute();
-
-    // Expenses
-    const expenses = await db
-      .selectFrom("matchday_expense")
-      .where("matchday_id", "=", matchdayId)
-      .selectAll()
-      .orderBy("created_at", "asc")
-      .execute();
-
-    // Team info
-    const team = await db
-      .selectFrom("play_cricket_team")
-      .where("id", "=", matchday.play_cricket_team_id)
-      .select(["id", "name"])
-      .executeTakeFirst();
+    // Run independent queries in parallel
+    const [players, expenses, team] = await Promise.all([
+      // Players with charge info
+      db
+        .selectFrom("matchday_player")
+        .leftJoin("member", "member.id", "matchday_player.member_id")
+        .leftJoin("charge", "charge.id", "matchday_player.charge_id")
+        .where("matchday_player.matchday_id", "=", matchdayId)
+        .select([
+          "matchday_player.id",
+          "matchday_player.player_name",
+          "matchday_player.status",
+          "matchday_player.member_id",
+          "member.member_category",
+          "charge.amount_pence as charge_amount_pence",
+          "charge.paid_at as charge_paid_at",
+          "charge.payment_method as charge_payment_method",
+          "charge.deleted_at as charge_deleted_at",
+        ])
+        .orderBy("matchday_player.created_at", "asc")
+        .execute(),
+      // Expenses
+      db
+        .selectFrom("matchday_expense")
+        .where("matchday_id", "=", matchdayId)
+        .selectAll()
+        .orderBy("created_at", "asc")
+        .execute(),
+      // Team info
+      db
+        .selectFrom("play_cricket_team")
+        .where("id", "=", matchday.play_cricket_team_id)
+        .select(["id", "name"])
+        .executeTakeFirst(),
+    ]);
 
     // Game sponsorship (if we have a Play-Cricket match ID)
     let sponsorship = null;
