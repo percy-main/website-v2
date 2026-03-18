@@ -77,7 +77,9 @@ export function createApiClient(config: PlayCricketApiConfig) {
     },
 
     async getLeagueTable(divisionId: string) {
-      return fetchPlayCricket(config, `/league_table/${divisionId}.json`);
+      return fetchPlayCricket(config, `/league_table.json`, {
+        division_id: divisionId,
+      });
     },
 
     async getMatchScorecard(matchId: string) {

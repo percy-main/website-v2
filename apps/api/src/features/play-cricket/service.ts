@@ -78,8 +78,32 @@ export function getResultSummary(db: Kysely<DB>) {
 }
 
 export function getLeagueTable() {
-  return async (divisionId: string): Promise<unknown> => {
-    return apiClient.getLeagueTable(divisionId);
+  return async (divisionId: string) => {
+    const raw = (await apiClient.getLeagueTable(divisionId)) as {
+      league_table: Array<{
+        id: number;
+        division_name: string;
+        headings: Record<string, string>;
+        values: Array<Record<string, string>>;
+        key: string;
+      }>;
+    };
+
+    const table = raw.league_table[0];
+    if (!table) return { columns: [], rows: [] };
+
+    const columns = Object.values(table.headings);
+
+    const rows = table.values.map(({ position, team_id, ...rest }) => {
+      const values = Object.values(rest);
+      return {
+        position,
+        team_id,
+        ...Object.fromEntries(columns.map((col, i) => [col, values[i]])),
+      } as { position: string; team_id: string } & Record<string, string>;
+    });
+
+    return { id: table.id, name: table.division_name, columns, rows };
   };
 }
 
