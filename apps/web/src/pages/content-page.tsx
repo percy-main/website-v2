@@ -8,7 +8,7 @@ import {
 import { mdxComponents } from "@/components/mdx-components.js";
 import { MDXProvider } from "@mdx-js/react";
 import { IoChevronForward } from "react-icons/io5";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 function SidebarNav({
   tree,
@@ -22,14 +22,14 @@ function SidebarNav({
       {tree.children.map((child) => {
         const isActive = currentPath.startsWith(child.page.path);
         return (
-          <div key={child.page.path}>
+          <Fragment key={child.page.path}>
             <Link
               to={child.page.path}
-              className={
+              className={`py-1 ${
                 isActive
-                  ? "ml-[-0.76rem] border-l-4 border-primary py-1 pl-2 font-medium text-primary"
-                  : "py-1 text-gray-700 hover:text-primary"
-              }
+                  ? "ml-[-0.76rem] border-l-4 border-primary pl-2 font-medium text-primary"
+                  : "text-gray-700 hover:text-primary"
+              }`}
             >
               {child.page.title}
             </Link>
@@ -43,19 +43,21 @@ function SidebarNav({
                     <Link
                       key={grandchild.page.path}
                       to={grandchild.page.path}
-                      className={
+                      className={`py-1 ${
                         isChildActive
-                          ? "ml-[-1.76rem] border-l-4 border-primary py-1 pl-6 font-medium text-primary"
-                          : "py-1 text-gray-600 hover:text-primary"
-                      }
+                          ? "ml-[-1.76rem] border-l-4 border-primary pl-4 font-medium text-primary"
+                          : "text-gray-600 hover:text-primary"
+                      }`}
                     >
-                      {grandchild.page.title}
+                      <span className={isChildActive ? "pl-2" : ""}>
+                        {grandchild.page.title}
+                      </span>
                     </Link>
                   );
                 })}
               </div>
             )}
-          </div>
+          </Fragment>
         );
       })}
     </>
@@ -184,9 +186,11 @@ export function Component() {
         {/* Desktop sidebar */}
         {hasSidebar && (
           <aside className="hidden w-64 shrink-0 md:block">
-            <nav className="space-y-2 text-sm">
-              <div className="flex flex-col">
-                <SidebarNav tree={navTree} currentPath={path} />
+            <nav className="hidden space-y-8 text-sm md:block">
+              <div className="space-y-2">
+                <div className="flex flex-col">
+                  <SidebarNav tree={navTree} currentPath={path} />
+                </div>
               </div>
             </nav>
           </aside>

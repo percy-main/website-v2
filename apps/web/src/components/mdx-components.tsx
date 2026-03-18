@@ -1,20 +1,33 @@
+import { getPersonBySlug } from "@/lib/people.js";
+import { Link } from "react-router";
 import type { FC, ReactNode } from "react";
 
-/**
- * Placeholder MDX components.
- * These will be replaced with real implementations as content features are built.
- * For now they render enough to verify the MDX pipeline works.
- */
+const ANON_IMAGE = "/images/anon.jpg";
 
 function Person({ slug, role }: { slug: string; role?: string }) {
+  const person = getPersonBySlug(slug);
+  const name = person?.name ?? slug;
+  const photo = person?.photo;
+
   return (
-    <div className="my-2 flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">
-        {slug.charAt(0).toUpperCase()}
+    <div className="person h-full rounded-lg bg-white pb-4 text-gray-900 shadow-md">
+      <div className="h-2 rounded-t-lg bg-gradient-to-r from-cta to-orange-400" />
+      <div className="mx-auto mt-4 h-24 w-24 overflow-hidden rounded-full border-4 border-gray-100">
+        <img
+          className="h-24 w-24 object-cover object-center"
+          src={photo ?? ANON_IMAGE}
+          alt={name}
+        />
       </div>
-      <div>
-        <p className="font-semibold text-dark">{slug}</p>
+      <div className="mt-3 text-center">
+        <h5 className="pb-1 font-semibold">{name}</h5>
         {role && <p className="text-sm text-gray-600">{role}</p>}
+        <Link
+          to={`/person/${slug}`}
+          className="mt-2 inline-block px-2 text-sm text-primary font-medium hover:underline"
+        >
+          Profile
+        </Link>
       </div>
     </div>
   );
@@ -29,13 +42,13 @@ function PersonGrid({
 }) {
   if (children) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {children}
       </div>
     );
   }
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {slugs?.map((slug) => <Person key={slug} slug={slug} />)}
     </div>
   );
