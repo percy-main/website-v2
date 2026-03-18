@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
 import { getAuthSession, requireRole } from "../auth/middleware.js";
 import { createApiClient } from "../play-cricket/api-client.js";
+import { getMatchdayReport, listGameReports } from "./game-reports-service.js";
 import {
   addMatchFeeRateSchema,
   archiveMemberSchema,
@@ -17,8 +18,10 @@ import {
   linkDependentSchema,
   listChargesSchema,
   listContactSubmissionsSchema,
+  listGameReportsSchema,
   listJuniorsSchema,
   listUsersSchema,
+  matchdayIdParamSchema,
   mergeMembersSchema,
   mergePreviewSchema,
   rateIdParamSchema,
@@ -103,6 +106,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const listFeeRates = listMatchFeeRates(app.db);
   const addFeeRate = addMatchFeeRate(app.db);
   const deleteFeeRate = deleteMatchFeeRate(app.db);
+  const listReports = listGameReports(app.db);
+  const getReport = getMatchdayReport(app.db);
 
   app.get(
     "/admin/users",
@@ -447,6 +452,26 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { rateId } = parseParams(request, rateIdParamSchema);
       return await deleteFeeRate(rateId);
+    },
+  );
+
+  // --- Game Reports tab endpoints ---
+
+  app.get(
+    "/admin/game-reports",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const params = parseQuery(request, listGameReportsSchema);
+      return await listReports(params);
+    },
+  );
+
+  app.get(
+    "/admin/game-reports/:matchdayId",
+    { preHandler: [requireRole("admin")] },
+    async (request) => {
+      const { matchdayId } = parseParams(request, matchdayIdParamSchema);
+      return await getReport(matchdayId);
     },
   );
 };

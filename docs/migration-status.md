@@ -108,7 +108,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
     - [x] Contacts tab (admin contact submission listing API + frontend tab)
     - [x] Duplicates tab (admin duplicate detection + merge API + frontend tab)
     - [x] Match Fees tab (match fee rates CRUD API + frontend tab)
-    - [ ] Game Reports tab (needs matchday report aggregation API)
+    - [x] Game Reports tab (admin matchday listing + drill-down report API + frontend tab)
   - [x] Official panel
   - [x] Junior manager panel
 - [ ] Port Contentful-dependent pages (Batch 3 — deferred to cutover: news, calendar, person profiles, CMS pages)

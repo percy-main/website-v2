@@ -192,3 +192,18 @@ export const rateIdParamSchema = z.object({
 
 export type AddMatchFeeRate = z.infer<typeof addMatchFeeRateSchema>;
 export type RateIdParam = z.infer<typeof rateIdParamSchema>;
+
+// --- Game Reports schemas ---
+
+export const listGameReportsSchema = z.object({
+  teamId: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const matchdayIdParamSchema = z.object({
+  matchdayId: z.string(),
+});
+
+export type ListGameReports = z.infer<typeof listGameReportsSchema>;
+export type MatchdayIdParam = z.infer<typeof matchdayIdParamSchema>;
