@@ -70,7 +70,7 @@ import {
   listUsers,
   mergeMembers,
   unlinkPlayCricketPlayer,
-} from "./service.js";
+} from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 

@@ -4,12 +4,12 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
+} from "../../test/containers.ts";
 import {
   calculateFantasyScores,
   calculateSlotEffectivePoints,
-} from "./calculate-scores.js";
-import { SCORING } from "./scoring.js";
+} from "./calculate-scores.ts";
+import { SCORING } from "./scoring.ts";
 
 let ctx: TestContext;
 

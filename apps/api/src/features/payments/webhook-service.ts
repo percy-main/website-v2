@@ -20,7 +20,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { createElement } from "react";
 import type Stripe from "stripe";
-import { invoiceLinesToDuration, stripeDate } from "./stripe-utils.js";
+import { invoiceLinesToDuration, stripeDate } from "./stripe-utils.ts";
 
 /** Log a warning if a charge was not created due to missing member. */
 function logChargeResult(

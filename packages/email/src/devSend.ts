@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
-import type { Email } from "./types.js";
+import type { Email } from "./types.ts";
 
 const emailDir = join(process.cwd(), ".emails");
 

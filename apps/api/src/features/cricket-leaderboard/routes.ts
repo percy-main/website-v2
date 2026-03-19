@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseQuery } from "../../lib/validation.js";
-import { cricketLeaderboardQuerySchema } from "./schemas.js";
-import { listBattingLeaderboard, listBowlingLeaderboard } from "./service.js";
+import { parseQuery } from "../../lib/validation.ts";
+import { cricketLeaderboardQuerySchema } from "./schemas.ts";
+import { listBattingLeaderboard, listBowlingLeaderboard } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const cricketLeaderboardRoutes: FastifyPluginAsync = async (app) => {

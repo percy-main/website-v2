@@ -24,7 +24,7 @@ import type {
   Unlink,
   UnlinkDependent,
   UpdateUser,
-} from "./schemas.js";
+} from "./schemas.ts";
 
 export function listUsers(db: Kysely<DB>) {
   return async (params: ListUsers) => {

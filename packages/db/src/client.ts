@@ -1,6 +1,6 @@
 import { Kysely, PostgresDialect } from "kysely";
 import pg from "pg";
-import type { DB } from "./__generated__/db.js";
+import type { DB } from "./__generated__/db.ts";
 
 /**
  * Creates a typed Kysely client for the given connection string.

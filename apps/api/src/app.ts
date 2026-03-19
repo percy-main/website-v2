@@ -4,27 +4,27 @@ import type { DB } from "@percy-main/db";
 import { createSend, type Email } from "@percy-main/email";
 import Fastify from "fastify";
 import type { Kysely, PostgresDialect } from "kysely";
-import type { Config } from "./config.js";
-import { createAuth, type Auth } from "./features/auth/auth.js";
+import type { Config } from "./config.ts";
+import { createAuth, type Auth } from "./features/auth/auth.ts";
 
 // Feature routes
-import { adminRoutes } from "./features/admin/routes.js";
-import { authRoutes } from "./features/auth/routes.js";
-import { chargeRoutes } from "./features/charges/routes.js";
-import { contactRoutes } from "./features/contact/routes.js";
-import { cricketLeaderboardRoutes } from "./features/cricket-leaderboard/routes.js";
-import { fantasyRoutes } from "./features/fantasy/routes.js";
-import { gamesRoutes } from "./features/games/routes.js";
-import { healthRoutes } from "./features/health/routes.js";
-import { juniorRoutes } from "./features/junior/routes.js";
-import { leaderboardRoutes } from "./features/leaderboard/routes.js";
-import { matchdayRoutes } from "./features/matchday/routes.js";
-import { memberRoutes } from "./features/members/routes.js";
-import { paymentRoutes } from "./features/payments/routes.js";
-import { webhookRoutes } from "./features/payments/webhook.js";
-import { playCricketRoutes } from "./features/play-cricket/routes.js";
-import { sponsorshipRoutes } from "./features/sponsorship/routes.js";
-import { treasurerRoutes } from "./features/treasurer/routes.js";
+import { adminRoutes } from "./features/admin/routes.ts";
+import { authRoutes } from "./features/auth/routes.ts";
+import { chargeRoutes } from "./features/charges/routes.ts";
+import { contactRoutes } from "./features/contact/routes.ts";
+import { cricketLeaderboardRoutes } from "./features/cricket-leaderboard/routes.ts";
+import { fantasyRoutes } from "./features/fantasy/routes.ts";
+import { gamesRoutes } from "./features/games/routes.ts";
+import { healthRoutes } from "./features/health/routes.ts";
+import { juniorRoutes } from "./features/junior/routes.ts";
+import { leaderboardRoutes } from "./features/leaderboard/routes.ts";
+import { matchdayRoutes } from "./features/matchday/routes.ts";
+import { memberRoutes } from "./features/members/routes.ts";
+import { paymentRoutes } from "./features/payments/routes.ts";
+import { webhookRoutes } from "./features/payments/webhook.ts";
+import { playCricketRoutes } from "./features/play-cricket/routes.ts";
+import { sponsorshipRoutes } from "./features/sponsorship/routes.ts";
+import { treasurerRoutes } from "./features/treasurer/routes.ts";
 
 // Extend Fastify types with our decorations
 declare module "fastify" {

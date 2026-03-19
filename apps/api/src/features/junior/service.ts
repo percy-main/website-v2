@@ -1,7 +1,7 @@
 import type { DB } from "@percy-main/db";
 import { getAgeGroup } from "@percy-main/shared";
 import type { Kysely } from "kysely";
-import type { DependentInput } from "./schemas.js";
+import type { DependentInput } from "./schemas.ts";
 
 const FIRST_CHILD_FEE_PENCE = 5000;
 const ADDITIONAL_CHILD_FEE_PENCE = 3000;

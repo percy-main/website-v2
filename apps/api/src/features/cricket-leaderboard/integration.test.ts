@@ -4,8 +4,8 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
-import { listBattingLeaderboard, listBowlingLeaderboard } from "./service.js";
+} from "../../test/containers.ts";
+import { listBattingLeaderboard, listBowlingLeaderboard } from "./service.ts";
 
 let ctx: TestContext;
 

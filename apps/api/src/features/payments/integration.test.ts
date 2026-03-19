@@ -6,13 +6,13 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
-import { purchaseSchema, subscribeSchema } from "./schemas.js";
+} from "../../test/containers.ts";
+import { purchaseSchema, subscribeSchema } from "./schemas.ts";
 import {
   handleCheckoutCompleted,
   handleInvoicePayment,
   handlePaymentIntentSucceeded,
-} from "./webhook-service.js";
+} from "./webhook-service.ts";
 
 // Mock email + render to avoid side effects in webhook handler tests
 vi.mock("@percy-main/email", () => ({

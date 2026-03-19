@@ -1,5 +1,5 @@
 import { htmlToText } from "html-to-text";
-import type { Email, EmailConfig } from "./types.js";
+import type { Email, EmailConfig } from "./types.ts";
 
 export function createSesSend(
   config: Pick<EmailConfig, "sesRegion" | "fromAddress">,

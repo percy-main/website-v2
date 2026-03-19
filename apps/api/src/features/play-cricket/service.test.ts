@@ -45,8 +45,8 @@ vi.mock("./api-client.js", () => ({
   getLeagueTable: vi.fn(),
 }));
 
-import { getMatchDetail as apiGetMatchDetail } from "./api-client.js";
-import { getMatchDetail, getPlayerCareerStats, getTeams } from "./service.js";
+import { getMatchDetail as apiGetMatchDetail } from "./api-client.ts";
+import { getMatchDetail, getPlayerCareerStats, getTeams } from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 

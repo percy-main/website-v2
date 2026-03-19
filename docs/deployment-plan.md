@@ -5,11 +5,17 @@ This document is the bootstrap runbook for deploying Percy Main v2 to AWS. It co
 ## Prerequisites
 
 - AWS account with root access (initial setup only)
-- AWS CLI v2 installed and configured
+- AWS CLI v2 installed and configured (profile: `percy-main`)
 - Terraform >= 1.7 installed
 - GitHub repository: `percy-main/website-v2`
 - Domain: `percymain.org` (registered with external registrar)
 - Docker installed locally (for initial image build)
+
+All `aws` CLI commands in this runbook use `--profile percy-main`. For Terraform, export the profile:
+
+```bash
+export AWS_PROFILE=percy-main
+```
 
 ## Phase 1: AWS Account Bootstrap
 
@@ -26,28 +32,28 @@ These steps must be done manually before any Terraform runs.
 
 ```bash
 # S3 bucket for state
-aws s3api create-bucket \
-  --bucket percy-main-terraform-state \
+aws --profile percy-main s3api create-bucket \
+  --bucket percy-main-terraform-state-bucket \
   --region eu-west-2 \
   --create-bucket-configuration LocationConstraint=eu-west-2
 
-aws s3api put-bucket-versioning \
-  --bucket percy-main-terraform-state \
+aws --profile percy-main s3api put-bucket-versioning \
+  --bucket percy-main-terraform-state-bucket \
   --versioning-configuration Status=Enabled
 
-aws s3api put-bucket-encryption \
-  --bucket percy-main-terraform-state \
+aws --profile percy-main s3api put-bucket-encryption \
+  --bucket percy-main-terraform-state-bucket \
   --server-side-encryption-configuration '{
     "Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "aws:kms"}}]
   }'
 
-aws s3api put-public-access-block \
-  --bucket percy-main-terraform-state \
+aws --profile percy-main s3api put-public-access-block \
+  --bucket percy-main-terraform-state-bucket \
   --public-access-block-configuration \
     BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 
 # DynamoDB table for state locking
-aws dynamodb create-table \
+aws --profile percy-main dynamodb create-table \
   --table-name percy-main-terraform-locks \
   --attribute-definitions AttributeName=LockID,AttributeType=S \
   --key-schema AttributeName=LockID,KeyType=HASH \
@@ -79,42 +85,78 @@ This creates:
 
 - Route 53 hosted zone
 - ECR repository (immutable tags, scan on push, 25-image retention)
-- SES domain identity + DKIM records
 - GitHub Actions OIDC provider
 - IAM roles:
   - `percy-main-terraform` — apply role (main branch only)
   - `percy-main-terraform-plan` — read-only plan role (PRs)
   - `percy-main-deploy` — deploy role (main branch only, scoped ECS/ECR/S3 permissions)
+- SES domain identity (`contact.percymain.org`) + DKIM records
 - ACM certificates:
-  - ALB cert (eu-west-2): `api.percymain.org` + `api.staging.percymain.org`
-  - CloudFront cert (us-east-1): `percymain.org` + `*.percymain.org`
+  - ALB cert (eu-west-2): `api.v2.percymain.org`
+  - CloudFront cert (us-east-1): `percymain.org` + `*.percymain.org` (wildcard covers `v2.percymain.org`)
 
-### 2.2 DNS delegation
+### 2.2 Subdomain delegation at Netlify
 
-After applying shared, Terraform outputs `zone_name_servers`. Update your domain registrar's NS records:
+The v1 site continues to serve `percymain.org` via Netlify DNS. Rather than moving the full zone, delegate only the subdomains AWS needs. After applying shared, get the Route 53 nameservers:
 
 ```bash
 terraform output zone_name_servers
 ```
 
-At your registrar (e.g. Namecheap, GoDaddy), set the nameservers for `percymain.org` to the four values output above.
+At **Netlify DNS** (percymain.org zone), add the following NS records:
 
-**Wait for propagation** — this can take up to 48 hours. Verify:
+**Delegate `v2.percymain.org`** (site + API):
+
+| Type | Name | Value           |
+| ---- | ---- | --------------- |
+| NS   | v2   | `<route53-ns1>` |
+| NS   | v2   | `<route53-ns2>` |
+| NS   | v2   | `<route53-ns3>` |
+| NS   | v2   | `<route53-ns4>` |
+
+**Delegate `contact.percymain.org`** (SES sending domain):
+
+| Type | Name    | Value           |
+| ---- | ------- | --------------- |
+| NS   | contact | `<route53-ns1>` |
+| NS   | contact | `<route53-ns2>` |
+| NS   | contact | `<route53-ns3>` |
+| NS   | contact | `<route53-ns4>` |
+
+Replace `<route53-ns1>` etc. with the four nameservers from the output above.
+
+**Wait for propagation** (usually minutes, up to 48 hours). Verify:
 
 ```bash
-dig NS percymain.org +short
+dig NS v2.percymain.org +short
+dig NS contact.percymain.org +short
 ```
 
-### 2.3 Verify ACM certificates
+Both should return the Route 53 nameservers.
 
-ACM certificates use DNS validation via Route 53. They will auto-validate once NS delegation propagates. Check status:
+### 2.3 Add CloudFront ACM validation record at Netlify
+
+The CloudFront cert (`percymain.org` + `*.percymain.org`) needs a DNS validation CNAME at the root zone level, which is still at Netlify. Get the validation record:
 
 ```bash
-aws acm describe-certificate \
+aws --profile percy-main acm describe-certificate \
+  --certificate-arn $(terraform output -raw acm_cloudfront_certificate_arn) \
+  --region us-east-1 \
+  --query 'Certificate.DomainValidationOptions[0].ResourceRecord'
+```
+
+Add the output CNAME record at Netlify DNS manually. This is a one-time step.
+
+### 2.4 Verify ACM certificates
+
+The ALB cert (`api.v2.percymain.org`) auto-validates via Route 53 (under the delegated `v2` subdomain). The CloudFront cert validates via the CNAME you added at Netlify. Check status:
+
+```bash
+aws --profile percy-main acm describe-certificate \
   --certificate-arn $(terraform output -raw acm_alb_certificate_arn) \
   --query 'Certificate.Status'
 
-aws acm describe-certificate \
+aws --profile percy-main acm describe-certificate \
   --certificate-arn $(terraform output -raw acm_cloudfront_certificate_arn) \
   --region us-east-1 \
   --query 'Certificate.Status'
@@ -122,27 +164,27 @@ aws acm describe-certificate \
 
 Both should show `ISSUED`. Do not proceed to Phase 3 until certificates are issued.
 
-### 2.4 Verify SES
+### 2.5 Verify SES
 
-SES domain identity verification also happens via DNS. Check:
+SES DKIM and verification records auto-validate via Route 53 (under the delegated `contact` subdomain). Check:
 
 ```bash
-aws ses get-identity-verification-attributes \
-  --identities notifications.percymain.org \
+aws --profile percy-main ses get-identity-verification-attributes \
+  --identities contact.percymain.org \
   --query 'VerificationAttributes.*.VerificationStatus'
 ```
 
 If the account is in the SES sandbox, request production access:
 
 ```bash
-aws sesv2 put-account-details \
+aws --profile percy-main sesv2 put-account-details \
   --mail-type TRANSACTIONAL \
   --website-url "https://percymain.org" \
   --contact-language EN \
   --use-case-description "Transactional emails for sports club membership management"
 ```
 
-### 2.5 Configure GitHub repository
+### 2.6 Configure GitHub repository
 
 Add the following GitHub Actions variables (Settings → Environments → each environment):
 
@@ -192,14 +234,14 @@ This creates:
 Terraform creates an empty Secrets Manager secret. Populate it with application secrets:
 
 ```bash
-aws secretsmanager put-secret-value \
+aws --profile percy-main secretsmanager put-secret-value \
   --secret-id production/percy-main/app \
   --secret-string '{
     "DATABASE_URL": "postgres://percy:<RDS_PASSWORD>@<RDS_ENDPOINT>/percy_main",
     "BETTER_AUTH_SECRET": "<generate: openssl rand -hex 32>",
-    "BETTER_AUTH_RP_ID": "percymain.org",
+    "BETTER_AUTH_RP_ID": "v2.percymain.org",
     "BETTER_AUTH_RP_NAME": "Percy Main CSC",
-    "BASE_URL": "https://percymain.org",
+    "BASE_URL": "https://v2.percymain.org",
     "STRIPE_SECRET_KEY": "<from Stripe dashboard>",
     "STRIPE_WEBHOOK_SECRET": "<from Stripe webhook setup>",
     "GOOGLE_CLIENT_ID": "<from Google Cloud Console>",
@@ -207,14 +249,14 @@ aws secretsmanager put-secret-value \
     "PLAY_CRICKET_API_TOKEN": "<from Play Cricket>",
     "PLAY_CRICKET_SITE_ID": "<from Play Cricket>",
     "SLACK_WEBHOOK_URL": "<from Slack app>",
-    "SES_FROM_ADDRESS": "Percy Main CSC Support <support@notifications.percymain.org>"
+    "SES_FROM_ADDRESS": "Percy Main CSC Support <support@contact.percymain.org>"
   }'
 ```
 
 To get the RDS password (auto-generated by Terraform):
 
 ```bash
-aws secretsmanager get-secret-value \
+aws --profile percy-main secretsmanager get-secret-value \
   --secret-id percy-main-production/rds/credentials \
   --query 'SecretString' --output text | jq -r '.password'
 ```
@@ -222,7 +264,7 @@ aws secretsmanager get-secret-value \
 To get the RDS endpoint:
 
 ```bash
-aws rds describe-db-instances \
+aws --profile percy-main rds describe-db-instances \
   --db-instance-identifier percy-main-production-db \
   --query 'DBInstances[0].Endpoint.Address' --output text
 ```
@@ -245,28 +287,51 @@ The first deployment needs a manually pushed image since CI hasn't run yet:
 
 ```bash
 # Login to ECR
-aws ecr get-login-password --region eu-west-2 | \
+aws --profile percy-main ecr get-login-password --region eu-west-2 | \
   docker login --username AWS --password-stdin \
-  $(terraform -chdir=infra/environments/shared output -raw ecr_repository_url | cut -d/ -f1)
+  $(AWS_PROFILE=percy-main terraform -chdir=infra/environments/shared output -raw ecr_repository_url | cut -d/ -f1)
 
-# Build ARM64 image (tag with a unique identifier — ECR uses immutable tags)
+# Choose a unique tag (ECR uses immutable tags — each tag can only be used once)
+IMAGE_TAG="initial"
+
+# Build ARM64 image and push
+ECR_URL=$(AWS_PROFILE=percy-main terraform -chdir=infra/environments/shared output -raw ecr_repository_url)
 docker buildx build \
   --platform linux/arm64 \
   --push \
-  -t $(terraform -chdir=infra/environments/shared output -raw ecr_repository_url):initial \
+  -t $ECR_URL:$IMAGE_TAG \
   -f apps/api/Dockerfile \
   .
 ```
 
-### 4.2 Run initial migrations
+### 4.2 Register task definition with initial image
+
+Terraform creates the task definition with a placeholder image. Update it to use the image you just pushed:
 
 ```bash
-# Run migrations as one-off ECS task
-aws ecs run-task \
-  --cluster percy-main-production-cluster \
+IMAGE="$ECR_URL:$IMAGE_TAG"
+
+TASK_DEF_ARN=$(aws --profile percy-main ecs describe-task-definition \
   --task-definition production-api \
+  --query 'taskDefinition' --output json | \
+  jq --arg IMAGE "$IMAGE" \
+    '.containerDefinitions[0].image = $IMAGE |
+     del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' | \
+  aws --profile percy-main ecs register-task-definition \
+    --cli-input-json file:///dev/stdin \
+    --query 'taskDefinition.taskDefinitionArn' --output text)
+
+echo "Registered: $TASK_DEF_ARN"
+```
+
+### 4.3 Run initial migrations
+
+```bash
+aws --profile percy-main ecs run-task \
+  --cluster percy-main-production-cluster \
+  --task-definition "$TASK_DEF_ARN" \
   --launch-type FARGATE \
-  --network-configuration "$(aws ecs describe-services \
+  --network-configuration "$(aws --profile percy-main ecs describe-services \
     --cluster percy-main-production-cluster \
     --services production-api \
     --query 'services[0].networkConfiguration' \
@@ -279,36 +344,37 @@ aws ecs run-task \
   }'
 ```
 
-### 4.3 Force ECS service redeployment
+### 4.4 Deploy to ECS
 
-After secrets are populated and migrations have run:
+Update the service to use the new task definition:
 
 ```bash
-aws ecs update-service \
+aws --profile percy-main ecs update-service \
   --cluster percy-main-production-cluster \
   --service production-api \
+  --task-definition "$TASK_DEF_ARN" \
   --force-new-deployment
 ```
 
-### 4.4 Verify
+### 4.5 Verify
 
 ```bash
 # Check ECS tasks are running
-aws ecs describe-services \
+aws --profile percy-main ecs describe-services \
   --cluster percy-main-production-cluster \
   --services production-api \
   --query 'services[0].{desired: desiredCount, running: runningCount, status: status}'
 
 # Check health endpoint
-curl https://api.percymain.org/health
+curl https://api.v2.percymain.org/health
 
 # Check frontend
-curl -I https://percymain.org
+curl -I https://v2.percymain.org
 ```
 
-### 4.5 Configure Stripe webhook
+### 4.6 Configure Stripe webhook
 
-Create a webhook in Stripe dashboard pointing to `https://api.percymain.org/api/stripe/webhook` and update the `STRIPE_WEBHOOK_SECRET` in Secrets Manager.
+Create a webhook in Stripe dashboard pointing to `https://api.v2.percymain.org/api/stripe/webhook` and update the `STRIPE_WEBHOOK_SECRET` in Secrets Manager.
 
 ## Ongoing Operations
 
@@ -329,11 +395,11 @@ After initial setup, all deployments are automated:
 Migrations run automatically as part of the API deploy pipeline. For manual runs:
 
 ```bash
-aws ecs run-task \
+aws --profile percy-main ecs run-task \
   --cluster percy-main-production-cluster \
   --task-definition production-api \
   --launch-type FARGATE \
-  --network-configuration "$(aws ecs describe-services \
+  --network-configuration "$(aws --profile percy-main ecs describe-services \
     --cluster percy-main-production-cluster \
     --services production-api \
     --query 'services[0].networkConfiguration' --output json)" \
@@ -350,11 +416,11 @@ aws ecs run-task \
 Runs automatically via EventBridge Scheduler (Sun/Fri at 3am UK time). To trigger manually:
 
 ```bash
-aws ecs run-task \
+aws --profile percy-main ecs run-task \
   --cluster percy-main-production-cluster \
   --task-definition production-api \
   --launch-type FARGATE \
-  --network-configuration "$(aws ecs describe-services \
+  --network-configuration "$(aws --profile percy-main ecs describe-services \
     --cluster percy-main-production-cluster \
     --services production-api \
     --query 'services[0].networkConfiguration' --output json)" \
@@ -392,12 +458,12 @@ To roll back to a previous API version:
 
 ```bash
 # List recent task definitions
-aws ecs list-task-definitions \
+aws --profile percy-main ecs list-task-definitions \
   --family-prefix production-api \
   --sort DESC --max-items 5
 
 # Update service to previous revision
-aws ecs update-service \
+aws --profile percy-main ecs update-service \
   --cluster percy-main-production-cluster \
   --service production-api \
   --task-definition production-api:<PREVIOUS_REVISION> \
@@ -437,11 +503,14 @@ Note: The staging Terraform configuration is retained in `infra/environments/sta
 1. Manual: Create S3 state bucket + DynamoDB lock table
 2. Manual: Uncomment S3 backend blocks (shared + production)
 3. `terraform apply` — shared
-4. Manual: DNS delegation at registrar
-5. Wait: ACM certificate validation + SES verification
-6. `terraform apply` — production
-7. Manual: Populate production secrets
-8. Manual: Configure GitHub environment variables (`DEPLOY_ROLE_ARN`, `TERRAFORM_ROLE_ARN`, `TERRAFORM_PLAN_ROLE_ARN`, `FRONTEND_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`)
-9. Manual: Push initial Docker image + run migrations
-10. Manual: Configure Stripe webhooks
-11. Verify: Health checks, frontend, monitoring
+4. Manual: Subdomain delegation at Netlify (`v2` + `contact` NS records → Route 53)
+5. Manual: Add CloudFront ACM validation CNAME at Netlify
+6. Wait: ACM certificate validation + SES verification
+7. `terraform apply` — production
+8. Manual: Populate production secrets
+9. Manual: Configure GitHub environment variables (`DEPLOY_ROLE_ARN`, `TERRAFORM_ROLE_ARN`, `TERRAFORM_PLAN_ROLE_ARN`, `FRONTEND_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`)
+10. Manual: Push initial Docker image + run migrations
+11. Manual: Configure Stripe webhooks
+12. Verify: Health checks, frontend, monitoring
+
+When ready to migrate to the root domain: move full NS delegation to Route 53, change `domain_name` from `v2.percymain.org` to `percymain.org`, and apply.

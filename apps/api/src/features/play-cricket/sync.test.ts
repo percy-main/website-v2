@@ -1,14 +1,14 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PlayCricketApiClient } from "./api-client.js";
+import type { PlayCricketApiClient } from "./api-client.ts";
 import {
   didBat,
   isJuniorTeam,
   isNotOut,
   parseDismissalType,
   runSync,
-} from "./sync.js";
+} from "./sync.ts";
 
 // --- Helper tests ---
 

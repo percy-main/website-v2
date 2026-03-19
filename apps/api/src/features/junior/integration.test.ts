@@ -4,8 +4,8 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
-import { addDependents, getDependents, listMyTeams } from "./service.js";
+} from "../../test/containers.ts";
+import { addDependents, getDependents, listMyTeams } from "./service.ts";
 
 let ctx: TestContext;
 

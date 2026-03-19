@@ -5,7 +5,7 @@ import type {
   PlayerSponsorshipManual,
   SponsorshipList,
   SponsorshipUpdate,
-} from "./schemas.js";
+} from "./schemas.ts";
 
 export function getGameSponsorshipPrice() {
   return {

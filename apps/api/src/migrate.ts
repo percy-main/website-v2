@@ -7,15 +7,15 @@
  */
 
 import { createClient } from "@percy-main/db";
-import { promises as fs } from "fs";
 import { FileMigrationProvider, Migrator } from "kysely";
-import path from "path";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
 if (!DATABASE_URL) throw new Error("Missing required env var: DATABASE_URL");
 
-const { client, pool } = createClient(DATABASE_URL);
+const { client } = createClient(DATABASE_URL);
 
 const migrator = new Migrator({
   db: client,
@@ -42,18 +42,15 @@ try {
   if (error) {
     console.error("Migration failed:", error);
     await client.destroy().catch(noop);
-    await pool.end().catch(noop);
     process.exit(1);
   }
 
   console.log(`Migrations complete (${results?.length ?? 0} applied)`);
   await client.destroy();
-  await pool.end();
   process.exit(0);
 } catch (error) {
   console.error("Migration failed:", error);
   await client.destroy().catch(noop);
-  await pool.end().catch(noop);
   process.exit(1);
 }
 

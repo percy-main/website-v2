@@ -2,12 +2,12 @@ import type { FastifyInstance } from "fastify";
 import { readdir, readFile, rm } from "fs/promises";
 import { join } from "path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { buildTestApp } from "../../test/app.js";
+import { buildTestApp } from "../../test/app.ts";
 import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
+} from "../../test/containers.ts";
 
 let ctx: TestContext;
 let app: FastifyInstance;

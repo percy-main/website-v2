@@ -1,6 +1,6 @@
 import type { DB } from "@percy-main/db";
 import { type Kysely, sql } from "kysely";
-import type { CricketLeaderboardQuery } from "./schemas.js";
+import type { CricketLeaderboardQuery } from "./schemas.ts";
 
 /**
  * Get aggregated batting stats for a season, grouped by player.

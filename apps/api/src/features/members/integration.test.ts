@@ -4,12 +4,12 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
+} from "../../test/containers.ts";
 import {
   getMemberDetails,
   getMyMembership,
   updateMemberDetails,
-} from "./service.js";
+} from "./service.ts";
 
 let ctx: TestContext;
 

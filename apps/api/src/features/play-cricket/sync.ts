@@ -6,9 +6,9 @@ import {
   GetMatchDetailResponse,
   MatchDetailBat,
   type MatchSummaryMatch,
-} from "./api-schemas.js";
+} from "./api-schemas.ts";
 
-import type { PlayCricketApiClient } from "./api-client.js";
+import type { PlayCricketApiClient } from "./api-client.ts";
 
 // --- Helpers ---
 

@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
-import { getAuthSession, requireRole } from "../auth/middleware.js";
-import { createApiClient } from "../play-cricket/api-client.js";
+import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
+import { getAuthSession, requireRole } from "../auth/middleware.ts";
+import { createApiClient } from "../play-cricket/api-client.ts";
 import {
   addPlayerSchema,
   confirmTeamSchema,
@@ -15,7 +15,7 @@ import {
   searchMembersSchema,
   teamIdParamSchema,
   updateExpenseSchema,
-} from "./schemas.js";
+} from "./schemas.ts";
 import {
   addPlayer,
   confirmTeam,
@@ -31,7 +31,7 @@ import {
   removePlayer,
   searchMembers,
   updateExpense,
-} from "./service.js";
+} from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const matchdayRoutes: FastifyPluginAsync = async (app) => {

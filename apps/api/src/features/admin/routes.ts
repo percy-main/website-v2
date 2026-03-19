@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
-import { getAuthSession, requireRole } from "../auth/middleware.js";
-import { createApiClient } from "../play-cricket/api-client.js";
-import { getMatchdayReport, listGameReports } from "./game-reports-service.js";
+import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
+import { getAuthSession, requireRole } from "../auth/middleware.ts";
+import { createApiClient } from "../play-cricket/api-client.ts";
+import { getMatchdayReport, listGameReports } from "./game-reports-service.ts";
 import {
   addMatchFeeRateSchema,
   archiveMemberSchema,
@@ -34,7 +34,7 @@ import {
   unlinkSchema,
   updateUserSchema,
   userIdParamSchema,
-} from "./schemas.js";
+} from "./schemas.ts";
 import {
   addMatchFeeRate,
   archiveMember,
@@ -69,7 +69,7 @@ import {
   unlinkDependentUser,
   unlinkPlayCricketPlayer,
   updateUser,
-} from "./service.js";
+} from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const adminRoutes: FastifyPluginAsync = async (app) => {

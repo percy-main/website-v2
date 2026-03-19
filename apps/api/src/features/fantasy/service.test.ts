@@ -67,14 +67,14 @@ import {
   getCurrentGameweek,
   getCurrentSeason,
   getPreviousSeason,
-} from "./gameweek.js";
-import type { PlayerInput } from "./schemas.js";
+} from "./gameweek.ts";
+import type { PlayerInput } from "./schemas.ts";
 import {
   getEligiblePlayers,
   populatePlayers,
   saveTeam,
   toggleEligibility,
-} from "./service.js";
+} from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 

@@ -4,7 +4,7 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
+} from "../../test/containers.ts";
 import {
   addPlayer,
   confirmTeam,
@@ -16,7 +16,7 @@ import {
   recordExpense,
   removePlayer,
   searchMembers,
-} from "./service.js";
+} from "./service.ts";
 
 let ctx: TestContext;
 

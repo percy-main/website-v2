@@ -7,14 +7,13 @@ terraform {
     }
   }
 
-  # Uncomment after bootstrap: create S3 bucket and DynamoDB table manually first
-  # backend "s3" {
-  #   bucket         = "percy-main-terraform-state"
-  #   key            = "shared/terraform.tfstate"
-  #   region         = "eu-west-2"
-  #   dynamodb_table = "percy-main-terraform-locks"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket         = "percy-main-terraform-state-bucket"
+    key            = "shared/terraform.tfstate"
+    region         = "eu-west-2"
+    dynamodb_table = "percy-main-terraform-locks"
+    encrypt        = true
+  }
 }
 
 provider "aws" {
@@ -82,13 +81,13 @@ resource "aws_ses_domain_dkim" "notifications" {
 }
 
 resource "aws_route53_record" "ses_dkim" {
-  for_each = toset(aws_ses_domain_dkim.notifications.dkim_tokens)
+  count = 3 # SES DKIM always produces exactly 3 tokens
 
   zone_id = aws_route53_zone.main.zone_id
-  name    = "${each.value}._domainkey.${var.ses_subdomain}"
+  name    = "${aws_ses_domain_dkim.notifications.dkim_tokens[count.index]}._domainkey.${var.ses_subdomain}"
   type    = "CNAME"
   ttl     = 600
-  records = ["${each.value}.dkim.amazonses.com"]
+  records = ["${aws_ses_domain_dkim.notifications.dkim_tokens[count.index]}.dkim.amazonses.com"]
 }
 
 resource "aws_route53_record" "ses_verification" {
@@ -185,6 +184,25 @@ resource "aws_iam_role" "terraform_plan" {
 resource "aws_iam_role_policy_attachment" "terraform_plan_readonly" {
   role       = aws_iam_role.terraform_plan.name
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+resource "aws_iam_role_policy" "terraform_plan_state_lock" {
+  name = "terraform-state-lock"
+  role = aws_iam_role.terraform_plan.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/percy-main-terraform-locks"
+      }
+    ]
+  })
 }
 
 # -----------------------------------------------------------------------------
@@ -377,8 +395,8 @@ resource "aws_iam_role_policy" "deploy_secrets" {
 # -----------------------------------------------------------------------------
 
 resource "aws_acm_certificate" "alb" {
-  domain_name               = "api.${var.domain_name}"
-  subject_alternative_names = ["api.staging.${var.domain_name}"]
+  domain_name               = "api.v2.${var.domain_name}"
+  subject_alternative_names = []
   validation_method         = "DNS"
 
   lifecycle {

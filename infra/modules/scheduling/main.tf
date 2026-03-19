@@ -152,7 +152,6 @@ resource "aws_scheduler_schedule" "play_cricket_sync" {
     })
   }
 
-  tags = local.tags
 }
 
 # ------------------------------------------------------------------------------

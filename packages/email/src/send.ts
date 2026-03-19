@@ -1,6 +1,6 @@
-import { devSend } from "./devSend.js";
-import { createSesSend } from "./sesSend.js";
-import type { Email, EmailConfig } from "./types.js";
+import { devSend } from "./devSend.ts";
+import { createSesSend } from "./sesSend.ts";
+import type { Email, EmailConfig } from "./types.ts";
 
 export function createSend(
   config: EmailConfig,

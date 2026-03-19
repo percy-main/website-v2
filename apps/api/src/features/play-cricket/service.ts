@@ -1,7 +1,7 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import * as apiClient from "./api-client.js";
+import * as apiClient from "./api-client.ts";
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 

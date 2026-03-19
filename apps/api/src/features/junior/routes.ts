@@ -1,22 +1,22 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams } from "../../lib/validation.js";
+import { parseBody, parseParams } from "../../lib/validation.ts";
 import {
   getAuthSession,
   requireRole,
   requireVerifiedEmail,
-} from "../auth/middleware.js";
+} from "../auth/middleware.ts";
 import {
   addDependentsSchema,
   dependentIdParamSchema,
   teamIdParamSchema,
-} from "./schemas.js";
+} from "./schemas.ts";
 import {
   addDependents,
   getDependents,
   getPlayerDetail,
   listMyTeams,
   listPlayers,
-} from "./service.js";
+} from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const juniorRoutes: FastifyPluginAsync = async (app) => {

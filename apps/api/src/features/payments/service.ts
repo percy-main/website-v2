@@ -1,7 +1,7 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import type Stripe from "stripe";
-import type { PurchaseInput, SubscribeInput } from "./schemas.js";
+import type { PurchaseInput, SubscribeInput } from "./schemas.ts";
 
 /**
  * Find or create a Stripe customer by email.

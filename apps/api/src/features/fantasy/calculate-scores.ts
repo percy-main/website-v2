@@ -15,7 +15,7 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { z } from "zod";
-import { getGameweekForDate } from "./gameweek.js";
+import { getGameweekForDate } from "./gameweek.ts";
 import {
   calculateBattingPoints,
   calculateBowlingPoints,
@@ -26,7 +26,7 @@ import {
   SCORING,
   type ChaosRuleType,
   type SlotType,
-} from "./scoring.js";
+} from "./scoring.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

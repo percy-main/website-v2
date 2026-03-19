@@ -1,6 +1,6 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
-import type { ScoreInput } from "./schemas.js";
+import type { ScoreInput } from "./schemas.ts";
 
 /**
  * Submit a game score. Only saves if it is the user's new best for the game.

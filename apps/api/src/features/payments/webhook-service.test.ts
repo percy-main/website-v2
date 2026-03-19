@@ -5,7 +5,7 @@ import {
 } from "@percy-main/shared";
 import type Stripe from "stripe";
 import { describe, expect, it, vi } from "vitest";
-import { invoiceLinesToDuration, stripeDate } from "./stripe-utils.js";
+import { invoiceLinesToDuration, stripeDate } from "./stripe-utils.ts";
 
 // Mock email sending to avoid side effects in unit tests
 vi.mock("@percy-main/email", () => ({

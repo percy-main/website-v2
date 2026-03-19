@@ -1,13 +1,13 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseBody } from "../../lib/validation.js";
-import { getAuthSession, requireAuth } from "../auth/middleware.js";
-import { createStripe } from "../payments/stripe.js";
-import { confirmPaymentSchema } from "./schemas.js";
+import { parseBody } from "../../lib/validation.ts";
+import { getAuthSession, requireAuth } from "../auth/middleware.ts";
+import { createStripe } from "../payments/stripe.ts";
+import { confirmPaymentSchema } from "./schemas.ts";
 import {
   confirmPayment,
   getMyCharges,
   payOutstandingCharges,
-} from "./service.js";
+} from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const chargeRoutes: FastifyPluginAsync = async (app) => {

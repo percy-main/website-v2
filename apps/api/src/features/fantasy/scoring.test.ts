@@ -4,7 +4,7 @@ import {
   calculateBowlingPoints,
   calculateFieldingPoints,
   calculateMatchPoints,
-} from "./scoring.js";
+} from "./scoring.ts";
 
 describe("calculateBattingPoints", () => {
   it("calculates basic runs, fours, sixes", () => {

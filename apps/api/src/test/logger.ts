@@ -32,7 +32,7 @@ export interface TestLogger {
  *
  * Usage with Fastify:
  * ```ts
- * import { createTestLogger } from "../../test/logger.js";
+ * import { createTestLogger } from "../../test/logger.ts";
  *
  * const logger = createTestLogger();
  * const app = Fastify({

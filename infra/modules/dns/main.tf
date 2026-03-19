@@ -12,12 +12,11 @@ variable "zone_id" {
 
 variable "domain_name" {
   type        = string
-  description = "Apex domain name (e.g. percymain.org)"
+  description = "Domain name (e.g. v2.percymain.org)"
 }
 
 variable "alb_dns_name" {
   type        = string
-  default     = ""
   description = "ALB DNS name for the API subdomain"
 }
 
@@ -28,8 +27,7 @@ variable "alb_zone_id" {
 
 variable "cloudfront_domain_name" {
   type        = string
-  default     = ""
-  description = "CloudFront distribution domain name for the apex domain"
+  description = "CloudFront distribution domain name"
 }
 
 variable "cloudfront_hosted_zone_id" {
@@ -39,12 +37,10 @@ variable "cloudfront_hosted_zone_id" {
 }
 
 # ---------------------------------------------------------------------------
-# Apex domain -> CloudFront (A + AAAA)
+# {domain} -> CloudFront (A + AAAA)
 # ---------------------------------------------------------------------------
 
 resource "aws_route53_record" "apex_a" {
-  count = var.cloudfront_domain_name != "" ? 1 : 0
-
   zone_id = var.zone_id
   name    = var.domain_name
   type    = "A"
@@ -57,8 +53,6 @@ resource "aws_route53_record" "apex_a" {
 }
 
 resource "aws_route53_record" "apex_aaaa" {
-  count = var.cloudfront_domain_name != "" ? 1 : 0
-
   zone_id = var.zone_id
   name    = var.domain_name
   type    = "AAAA"
@@ -75,8 +69,6 @@ resource "aws_route53_record" "apex_aaaa" {
 # ---------------------------------------------------------------------------
 
 resource "aws_route53_record" "api_a" {
-  count = var.alb_dns_name != "" ? 1 : 0
-
   zone_id = var.zone_id
   name    = "api.${var.domain_name}"
   type    = "A"
@@ -89,8 +81,6 @@ resource "aws_route53_record" "api_a" {
 }
 
 resource "aws_route53_record" "api_aaaa" {
-  count = var.alb_dns_name != "" ? 1 : 0
-
   zone_id = var.zone_id
   name    = "api.${var.domain_name}"
   type    = "AAAA"

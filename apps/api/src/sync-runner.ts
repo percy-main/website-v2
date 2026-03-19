@@ -7,8 +7,8 @@
  */
 
 import { createClient } from "@percy-main/db";
-import { createApiClient } from "./features/play-cricket/api-client.js";
-import { runSync } from "./features/play-cricket/sync.js";
+import { createApiClient } from "./features/play-cricket/api-client.ts";
+import { runSync } from "./features/play-cricket/sync.ts";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const PLAY_CRICKET_API_TOKEN = process.env.PLAY_CRICKET_API_TOKEN;
