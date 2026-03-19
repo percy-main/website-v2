@@ -95,25 +95,61 @@ This creates:
   - ALB cert (eu-west-2): `api.v2.percymain.org`
   - CloudFront cert (us-east-1): `percymain.org` + `*.percymain.org` (wildcard covers `v2.percymain.org`)
 
-### 2.2 DNS delegation
+### 2.2 Subdomain delegation at Netlify
 
-After applying shared, Terraform outputs `zone_name_servers`. Update your domain registrar's NS records:
+The v1 site continues to serve `percymain.org` via Netlify DNS. Rather than moving the full zone, delegate only the subdomains AWS needs. After applying shared, get the Route 53 nameservers:
 
 ```bash
 terraform output zone_name_servers
 ```
 
-At your registrar (e.g. Namecheap, GoDaddy), set the nameservers for `percymain.org` to the four values output above.
+At **Netlify DNS** (percymain.org zone), add the following NS records:
 
-**Wait for propagation** — this can take up to 48 hours. Verify:
+**Delegate `v2.percymain.org`** (site + API):
+
+| Type | Name | Value           |
+| ---- | ---- | --------------- |
+| NS   | v2   | `<route53-ns1>` |
+| NS   | v2   | `<route53-ns2>` |
+| NS   | v2   | `<route53-ns3>` |
+| NS   | v2   | `<route53-ns4>` |
+
+**Delegate `contact.percymain.org`** (SES sending domain):
+
+| Type | Name    | Value           |
+| ---- | ------- | --------------- |
+| NS   | contact | `<route53-ns1>` |
+| NS   | contact | `<route53-ns2>` |
+| NS   | contact | `<route53-ns3>` |
+| NS   | contact | `<route53-ns4>` |
+
+Replace `<route53-ns1>` etc. with the four nameservers from the output above.
+
+**Wait for propagation** (usually minutes, up to 48 hours). Verify:
 
 ```bash
-dig NS percymain.org +short
+dig NS v2.percymain.org +short
+dig NS contact.percymain.org +short
 ```
 
-### 2.3 Verify ACM certificates
+Both should return the Route 53 nameservers.
 
-ACM certificates use DNS validation via Route 53. They will auto-validate once NS delegation propagates. Check status:
+### 2.3 Add CloudFront ACM validation record at Netlify
+
+The CloudFront cert (`percymain.org` + `*.percymain.org`) needs a DNS validation CNAME at the root zone level, which is still at Netlify. Get the validation record:
+
+```bash
+aws --profile percy-main acm describe-certificate \
+  --certificate-arn $(terraform output -raw acm_cloudfront_certificate_arn) \
+  --region us-east-1 \
+  --query 'Certificate.DomainValidationOptions[0].ResourceRecord'
+```
+
+Add the output CNAME record at Netlify DNS manually. This is a one-time step.
+
+### 2.4 Verify ACM certificates
+
+The ALB cert (`api.v2.percymain.org`) auto-validates via Route 53 (under the delegated `v2` subdomain). The CloudFront cert validates via the CNAME you added at Netlify. Check status:
 
 ```bash
 aws --profile percy-main acm describe-certificate \
@@ -128,9 +164,9 @@ aws --profile percy-main acm describe-certificate \
 
 Both should show `ISSUED`. Do not proceed to Phase 3 until certificates are issued.
 
-### 2.4 Verify SES
+### 2.5 Verify SES
 
-SES domain identity verification also happens via DNS. Check:
+SES DKIM and verification records auto-validate via Route 53 (under the delegated `contact` subdomain). Check:
 
 ```bash
 aws --profile percy-main ses get-identity-verification-attributes \
@@ -148,7 +184,7 @@ aws --profile percy-main sesv2 put-account-details \
   --use-case-description "Transactional emails for sports club membership management"
 ```
 
-### 2.5 Configure GitHub repository
+### 2.6 Configure GitHub repository
 
 Add the following GitHub Actions variables (Settings → Environments → each environment):
 
@@ -443,11 +479,14 @@ Note: The staging Terraform configuration is retained in `infra/environments/sta
 1. Manual: Create S3 state bucket + DynamoDB lock table
 2. Manual: Uncomment S3 backend blocks (shared + production)
 3. `terraform apply` — shared
-4. Manual: DNS delegation at registrar
-5. Wait: ACM certificate validation + SES verification
-6. `terraform apply` — production
-7. Manual: Populate production secrets
-8. Manual: Configure GitHub environment variables (`DEPLOY_ROLE_ARN`, `TERRAFORM_ROLE_ARN`, `TERRAFORM_PLAN_ROLE_ARN`, `FRONTEND_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`)
-9. Manual: Push initial Docker image + run migrations
-10. Manual: Configure Stripe webhooks
-11. Verify: Health checks, frontend, monitoring
+4. Manual: Subdomain delegation at Netlify (`v2` + `contact` NS records → Route 53)
+5. Manual: Add CloudFront ACM validation CNAME at Netlify
+6. Wait: ACM certificate validation + SES verification
+7. `terraform apply` — production
+8. Manual: Populate production secrets
+9. Manual: Configure GitHub environment variables (`DEPLOY_ROLE_ARN`, `TERRAFORM_ROLE_ARN`, `TERRAFORM_PLAN_ROLE_ARN`, `FRONTEND_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`)
+10. Manual: Push initial Docker image + run migrations
+11. Manual: Configure Stripe webhooks
+12. Verify: Health checks, frontend, monitoring
+
+When ready to migrate to the root domain: move full NS delegation to Route 53, change `domain_name` from `v2.percymain.org` to `percymain.org`, and apply.
