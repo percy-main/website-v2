@@ -151,7 +151,7 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [var.security_group_id]
 
   publicly_accessible     = false
-  backup_retention_period = var.environment == "production" ? 14 : 7
+  backup_retention_period = 7
   backup_window           = "02:00-03:00"
   maintenance_window      = "mon:03:00-mon:04:00"
 
