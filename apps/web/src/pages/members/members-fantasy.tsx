@@ -497,9 +497,11 @@ function TeamBuilder({
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-bold">My Fantasy Team</h1>
         <div className="flex gap-2">
-          {teamData.team && teamData.players.length === 11 && (
-            <ShareMyTeamButton />
-          )}
+          {teamData.team &&
+            initialSquad.length === 11 &&
+            JSON.stringify(squad) === JSON.stringify(initialSquad) && (
+              <ShareMyTeamButton />
+            )}
           <Link to="/fantasy">
             <Button variant="outline" size="sm">
               Fantasy Home

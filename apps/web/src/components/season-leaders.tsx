@@ -122,50 +122,50 @@ export function SeasonLeaders() {
   const season = currentCricketSeason();
   const resolveSlug = usePersonSlugMap();
 
-  const battingQuery = useQuery({
-    queryKey: ["season-leaders-batting", season],
+  // Decide the display season once, then fetch both tables for that same season.
+  // Try current season first; if batting has no data, fall back to previous for both.
+  const seasonQuery = useQuery({
+    queryKey: ["season-leaders", season],
     queryFn: async () => {
-      const primary = await api.get<LeaderboardResponse<BattingEntry>>(
-        `/cricket-leaderboard/batting?season=${season}&limit=3`,
-      );
-      if (primary.entries.length > 0) {
-        return { data: primary, season };
+      const [batting, bowling] = await Promise.all([
+        api.get<LeaderboardResponse<BattingEntry>>(
+          `/cricket-leaderboard/batting?season=${season}&limit=3`,
+        ),
+        api.get<LeaderboardResponse<BowlingEntry>>(
+          `/cricket-leaderboard/bowling?season=${season}&limit=3`,
+        ),
+      ]);
+
+      if (batting.entries.length > 0 || bowling.entries.length > 0) {
+        return { batting, bowling, effectiveSeason: season };
       }
-      const fallback = await api.get<LeaderboardResponse<BattingEntry>>(
-        `/cricket-leaderboard/batting?season=${season - 1}&limit=3`,
-      );
-      return { data: fallback, season: season - 1 };
+
+      // Fall back to previous season for both
+      const prev = season - 1;
+      const [battingFb, bowlingFb] = await Promise.all([
+        api.get<LeaderboardResponse<BattingEntry>>(
+          `/cricket-leaderboard/batting?season=${prev}&limit=3`,
+        ),
+        api.get<LeaderboardResponse<BowlingEntry>>(
+          `/cricket-leaderboard/bowling?season=${prev}&limit=3`,
+        ),
+      ]);
+
+      return {
+        batting: battingFb,
+        bowling: bowlingFb,
+        effectiveSeason: prev,
+      };
     },
     staleTime: 10 * 60 * 1000,
   });
 
-  const bowlingQuery = useQuery({
-    queryKey: ["season-leaders-bowling", season],
-    queryFn: async () => {
-      const primary = await api.get<LeaderboardResponse<BowlingEntry>>(
-        `/cricket-leaderboard/bowling?season=${season}&limit=3`,
-      );
-      if (primary.entries.length > 0) {
-        return { data: primary, season };
-      }
-      const fallback = await api.get<LeaderboardResponse<BowlingEntry>>(
-        `/cricket-leaderboard/bowling?season=${season - 1}&limit=3`,
-      );
-      return { data: fallback, season: season - 1 };
-    },
-    staleTime: 10 * 60 * 1000,
-  });
+  const isLoading = seasonQuery.isLoading;
+  if (seasonQuery.error) return null;
 
-  const isLoading = battingQuery.isLoading || bowlingQuery.isLoading;
-  const hasError = battingQuery.error ?? bowlingQuery.error;
-
-  if (hasError) return null;
-
-  const battingEntries = battingQuery.data?.data?.entries ?? [];
-  const bowlingEntries = bowlingQuery.data?.data?.entries ?? [];
-
-  const effectiveSeason =
-    battingQuery.data?.season ?? bowlingQuery.data?.season ?? season;
+  const battingEntries = seasonQuery.data?.batting?.entries ?? [];
+  const bowlingEntries = seasonQuery.data?.bowling?.entries ?? [];
+  const effectiveSeason = seasonQuery.data?.effectiveSeason ?? season;
 
   if (!isLoading && battingEntries.length === 0 && bowlingEntries.length === 0)
     return null;
