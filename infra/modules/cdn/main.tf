@@ -274,6 +274,14 @@ resource "aws_cloudfront_function" "spa_rewrite" {
     function handler(event) {
       var request = event.request;
       var host = request.headers.host && request.headers.host.value;
+      // Redirect apex to www
+      if (host === 'percymain.org') {
+        return {
+          statusCode: 301,
+          statusDescription: 'Moved Permanently',
+          headers: { location: { value: 'https://www.percymain.org' + request.uri } }
+        };
+      }
       // Redirect kit.percymain.org to kit shop
       if (host === 'kit.percymain.org') {
         return {

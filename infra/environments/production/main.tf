@@ -125,7 +125,7 @@ module "cdn" {
   environment         = "production"
   domain_name         = var.domain_name
   acm_certificate_arn = local.shared.acm_cloudfront_certificate_arn
-  extra_aliases       = ["kit.percymain.org"]
+  extra_aliases       = ["www.percymain.org", "kit.percymain.org"]
 }
 
 # ---------------------------------------------------------------------------
