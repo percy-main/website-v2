@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
-    conditions: ["types"],
+    conditions: ["source"],
   },
   test: {
     globals: true,
