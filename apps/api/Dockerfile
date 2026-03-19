@@ -41,6 +41,9 @@ COPY --from=builder /app/packages/email/package.json packages/email/
 
 RUN pnpm install --frozen-lockfile --prod
 
+# Rewrite package exports from source to compiled dist
+RUN sed -i 's|"./src/index.ts"|"./dist/index.js"|' packages/*/package.json
+
 COPY --from=builder /app/apps/api/dist apps/api/dist
 COPY --from=builder /app/packages/shared/dist packages/shared/dist
 COPY --from=builder /app/packages/db/dist packages/db/dist
