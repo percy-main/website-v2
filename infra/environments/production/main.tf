@@ -125,7 +125,6 @@ module "cdn" {
   environment         = "production"
   domain_name         = var.domain_name
   acm_certificate_arn = local.shared.acm_cloudfront_certificate_arn
-  alb_dns_name        = module.ecs.alb_dns_name
 }
 
 # ---------------------------------------------------------------------------

@@ -25,11 +25,6 @@ variable "waf_acl_arn" {
   default = ""
 }
 
-variable "alb_dns_name" {
-  type        = string
-  description = "ALB DNS name for API origin"
-}
-
 # -----------------------------------------------------------------------------
 # Locals
 # -----------------------------------------------------------------------------
@@ -39,8 +34,6 @@ locals {
   uploads_bucket_name  = "percy-main-${var.environment}-uploads"
   frontend_origin_id   = "s3-frontend"
   uploads_origin_id    = "s3-uploads"
-  alb_origin_id        = "alb-api"
-
   common_tags = {
     Environment = var.environment
     Module      = "cdn"
@@ -54,14 +47,6 @@ locals {
 
 data "aws_cloudfront_cache_policy" "caching_optimized" {
   name = "Managed-CachingOptimized"
-}
-
-data "aws_cloudfront_cache_policy" "caching_disabled" {
-  name = "Managed-CachingDisabled"
-}
-
-data "aws_cloudfront_origin_request_policy" "all_viewer" {
-  name = "Managed-AllViewer"
 }
 
 # -----------------------------------------------------------------------------
@@ -323,35 +308,9 @@ resource "aws_cloudfront_distribution" "main" {
     origin_access_control_id = aws_cloudfront_origin_access_control.s3.id
   }
 
-  # ALB for API
-  origin {
-    domain_name = var.alb_dns_name
-    origin_id   = local.alb_origin_id
-
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
-  }
-
   # --- Ordered Cache Behaviors ---
 
-  # 1. /api/* -> ALB (no caching)
-  ordered_cache_behavior {
-    path_pattern             = "/api/*"
-    target_origin_id         = local.alb_origin_id
-    viewer_protocol_policy   = "redirect-to-https"
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
-
-    allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods  = ["GET", "HEAD"]
-    compress        = true
-  }
-
-  # 2. /uploads/* -> Uploads S3 bucket (standard caching)
+  # /uploads/* -> Uploads S3 bucket (standard caching)
   ordered_cache_behavior {
     path_pattern           = "/uploads/*"
     target_origin_id       = local.uploads_origin_id

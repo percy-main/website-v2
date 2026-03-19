@@ -27,9 +27,11 @@ class ApiError extends Error {
   }
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const { headers: extraHeaders, body, ...restOptions } = options ?? {};
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
     headers: {
       ...(body != null ? { "Content-Type": "application/json" } : {}),
