@@ -41,6 +41,39 @@ export function resolveStripeCustomer(db: Kysely<DB>, stripe: Stripe) {
 }
 
 /**
+ * Fetch price info from Stripe for the purchase page UI.
+ * Returns product name, unit amount, and custom amount config if applicable.
+ */
+export function getPriceInfo(stripe: Stripe) {
+  return async (priceId: string) => {
+    const price = await stripe.prices.retrieve(priceId, {
+      expand: ["product"],
+    });
+
+    const product = price.product as import("stripe").Stripe.Product;
+
+    return {
+      productName: product.name,
+      unitAmount: price.unit_amount ?? 0,
+      formattedPrice: price.unit_amount
+        ? `£${(price.unit_amount / 100).toFixed(2)}`
+        : "",
+      customAmount: price.custom_unit_amount
+        ? {
+            min: price.custom_unit_amount.minimum ?? 0,
+            max: price.custom_unit_amount.maximum ?? undefined,
+            preset: price.custom_unit_amount.preset ?? undefined,
+          }
+        : undefined,
+      qtyAdjustable: product.metadata.adjustable !== "false",
+      maxQty: product.metadata.max_qty
+        ? Number(product.metadata.max_qty)
+        : undefined,
+    };
+  };
+}
+
+/**
  * Create a one-off purchase via Stripe PaymentIntent.
  */
 export function createPurchase(db: Kysely<DB>, stripe: Stripe) {
@@ -51,8 +84,27 @@ export function createPurchase(db: Kysely<DB>, stripe: Stripe) {
 
     const product = price.product as { name: string };
 
-    const amount =
-      data.customAmountPence ?? (price.unit_amount ?? 0) * (data.quantity ?? 1);
+    let amount: number;
+    if (price.custom_unit_amount) {
+      if (!data.customAmountPence) {
+        throw new Error("Custom amount is required for this price");
+      }
+      const min = price.custom_unit_amount.minimum ?? 0;
+      const max = price.custom_unit_amount.maximum;
+      if (
+        data.customAmountPence < min ||
+        (max && data.customAmountPence > max)
+      ) {
+        throw new Error(
+          `Amount must be between ${min} and ${max ?? "unlimited"}`,
+        );
+      }
+      amount = data.customAmountPence;
+    } else if (price.unit_amount) {
+      amount = price.unit_amount * (data.quantity ?? 1);
+    } else {
+      throw new Error("Price has no unit amount");
+    }
 
     const paymentIntentParams: import("stripe").Stripe.PaymentIntentCreateParams =
       {

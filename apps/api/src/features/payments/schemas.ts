@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const priceInfoParamsSchema = z.object({
+  priceId: z.string(),
+});
+
 export const purchaseSchema = z.object({
   priceId: z.string(),
   quantity: z.number().int().positive().optional(),

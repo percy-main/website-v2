@@ -3,13 +3,14 @@ import { api } from "@/lib/api.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
 import { getAllEvents } from "@/lib/events.js";
 import { allNews } from "@/lib/news.js";
+import { getPriceId } from "@/lib/stripe-env.js";
 import { useQuery } from "@tanstack/react-query";
 import { format, isAfter } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { useMemo } from "react";
 import { Link } from "react-router";
 
-const DONATE_URL = "/purchase/donation";
+const DONATE_URL = `/purchase/${getPriceId("donation")}`;
 
 const sports = [
   {

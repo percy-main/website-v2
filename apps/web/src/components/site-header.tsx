@@ -1,5 +1,6 @@
 import { useSession } from "@/lib/auth-client.js";
 import { getMainMenuItems } from "@/lib/content.js";
+import { getPriceId } from "@/lib/stripe-env.js";
 import {
   useCallback,
   useEffect,
@@ -17,7 +18,7 @@ interface MenuItem {
   match: "exact" | { start: string };
 }
 
-const DONATE_URL = "/purchase/donation";
+const DONATE_URL = `/purchase/${getPriceId("donation")}`;
 
 /** Fixed items that aren't content pages */
 const fixedMenuStart: MenuItem[] = [{ name: "Home", url: "/", match: "exact" }];

@@ -9,9 +9,29 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { api } from "@/lib/api";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
+
+const currencyFormatter = new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+interface PriceInfo {
+  productName: string;
+  unitAmount: number;
+  formattedPrice: string;
+  customAmount?: {
+    min: number;
+    max?: number;
+    preset?: number;
+  };
+  qtyAdjustable: boolean;
+  maxQty?: number;
+}
 
 interface PurchaseResponse {
   clientSecret: string;
@@ -38,10 +58,39 @@ export function Component() {
   const { priceId } = useParams<{ priceId: string }>();
   const [searchParams] = useSearchParams();
   const [state, setState] = useState<State>({ step: "ready" });
+  const [quantity, setQuantity] = useState(1);
+  const [customAmount, setCustomAmount] = useState<string>("");
 
   const metadata = searchParams.get("metadata");
   const email = searchParams.get("email");
   const isSubscription = searchParams.get("type") === "subscription";
+
+  const { data: priceInfo, isLoading: priceLoading } = useQuery<PriceInfo>({
+    queryKey: ["price", priceId],
+    queryFn: () => api.get(`/price/${priceId}`),
+    enabled: !!priceId,
+    staleTime: 5 * 60_000,
+  });
+
+  // Set the preset once price info loads
+  const presetApplied = useState(false);
+  if (priceInfo?.customAmount?.preset && !presetApplied[0]) {
+    setCustomAmount(String(priceInfo.customAmount.preset / 100));
+    presetApplied[1](true);
+  }
+
+  const customAmountPence = priceInfo?.customAmount
+    ? Math.round(parseFloat(customAmount || "0") * 100)
+    : undefined;
+
+  const totalAmount = priceInfo?.customAmount
+    ? (customAmountPence ?? 0)
+    : (priceInfo?.unitAmount ?? 0) * quantity;
+
+  const isValidAmount = priceInfo?.customAmount
+    ? totalAmount >= (priceInfo.customAmount.min ?? 0) &&
+      (!priceInfo.customAmount.max || totalAmount <= priceInfo.customAmount.max)
+    : totalAmount > 0;
 
   const purchaseMutation = useMutation({
     mutationFn: async () => {
@@ -70,7 +119,8 @@ export function Component() {
 
       return await api.post<PurchaseResponse>("/purchase", {
         priceId,
-        quantity: 1,
+        quantity,
+        customAmountPence,
         metadata: parsed,
         email: email ?? undefined,
       });
@@ -119,13 +169,74 @@ export function Component() {
     );
   }
 
+  if (priceLoading || !priceInfo) {
+    return (
+      <div className="container mx-auto max-w-lg px-4 py-8">
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-gray-500">
+            Loading...
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto max-w-lg px-4 py-8">
       <Card>
         <CardHeader>
-          <CardTitle>Complete Your Payment</CardTitle>
+          <CardTitle>{priceInfo.productName}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          {priceInfo.customAmount ? (
+            <div className="flex items-center justify-between">
+              <label htmlFor="customAmount">Amount</label>
+              <div className="flex items-center gap-1">
+                <span>£</span>
+                <input
+                  id="customAmount"
+                  type="number"
+                  min={priceInfo.customAmount.min / 100}
+                  max={
+                    priceInfo.customAmount.max
+                      ? priceInfo.customAmount.max / 100
+                      : undefined
+                  }
+                  step="0.01"
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(e.target.value)}
+                  className="w-24 rounded border px-2 py-1 text-right"
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span>Price</span>
+                <span>{priceInfo.formattedPrice} each</span>
+              </div>
+              {priceInfo.qtyAdjustable && (
+                <div className="flex items-center justify-between">
+                  <label htmlFor="quantity">Quantity</label>
+                  <input
+                    id="quantity"
+                    type="number"
+                    min={1}
+                    max={priceInfo.maxQty}
+                    value={quantity}
+                    onChange={(e) =>
+                      setQuantity(Math.max(1, parseInt(e.target.value) || 1))
+                    }
+                    className="w-20 rounded border px-2 py-1 text-right"
+                  />
+                </div>
+              )}
+            </>
+          )}
+          <div className="flex items-center justify-between border-t pt-4 font-semibold">
+            <span>Total</span>
+            <span>{currencyFormatter.format(totalAmount / 100)}</span>
+          </div>
           {purchaseMutation.error && (
             <Alert variant="destructive">
               <AlertDescription>
@@ -133,19 +244,16 @@ export function Component() {
               </AlertDescription>
             </Alert>
           )}
-          <p className="text-sm text-gray-600">
-            Click below to proceed to payment.
-          </p>
         </CardContent>
         <CardFooter>
           <Button
             className="w-full"
             onClick={() => purchaseMutation.mutate()}
-            disabled={purchaseMutation.isPending}
+            disabled={purchaseMutation.isPending || !isValidAmount}
           >
             {purchaseMutation.isPending
               ? "Processing..."
-              : "Proceed to Payment"}
+              : `Pay ${currencyFormatter.format(totalAmount / 100)}`}
           </Button>
         </CardFooter>
       </Card>

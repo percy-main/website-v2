@@ -9,3 +9,8 @@ export function getStripeConfig(): StripeConfig {
   if (key?.startsWith("pk_live_")) return stripeConfig.live;
   return stripeConfig.dev;
 }
+
+/** Returns the real Stripe price ID for a known price key. */
+export function getPriceId(name: keyof StripeConfig["prices"]): string {
+  return getStripeConfig().prices[name];
+}
