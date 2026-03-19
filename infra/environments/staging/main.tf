@@ -14,7 +14,7 @@ terraform {
 
   # Uncomment after bootstrap
   # backend "s3" {
-  #   bucket         = "percy-main-terraform-state"
+  #   bucket         = "percy-main-terraform-state-bucket"
   #   key            = "staging/terraform.tfstate"
   #   region         = "eu-west-2"
   #   dynamodb_table = "percy-main-terraform-locks"
@@ -33,7 +33,7 @@ provider "aws" {
 data "terraform_remote_state" "shared" {
   backend = "s3"
   config = {
-    bucket = "percy-main-terraform-state"
+    bucket = "percy-main-terraform-state-bucket"
     key    = "shared/terraform.tfstate"
     region = "eu-west-2"
   }

@@ -33,22 +33,22 @@ These steps must be done manually before any Terraform runs.
 ```bash
 # S3 bucket for state
 aws --profile percy-main s3api create-bucket \
-  --bucket percy-main-terraform-state \
+  --bucket percy-main-terraform-state-bucket \
   --region eu-west-2 \
   --create-bucket-configuration LocationConstraint=eu-west-2
 
 aws --profile percy-main s3api put-bucket-versioning \
-  --bucket percy-main-terraform-state \
+  --bucket percy-main-terraform-state-bucket \
   --versioning-configuration Status=Enabled
 
 aws --profile percy-main s3api put-bucket-encryption \
-  --bucket percy-main-terraform-state \
+  --bucket percy-main-terraform-state-bucket \
   --server-side-encryption-configuration '{
     "Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "aws:kms"}}]
   }'
 
 aws --profile percy-main s3api put-public-access-block \
-  --bucket percy-main-terraform-state \
+  --bucket percy-main-terraform-state-bucket \
   --public-access-block-configuration \
     BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 
