@@ -8,7 +8,7 @@ This document is the bootstrap runbook for deploying Percy Main v2 to AWS. It co
 - AWS CLI v2 installed and configured (profile: `percy-main`)
 - Terraform >= 1.7 installed
 - GitHub repository: `percy-main/website-v2`
-- Domain: `percymain.org` (registered with external registrar)
+- Domain: `percymain.org` (registered with GoDaddy, NS delegated to Route 53)
 - Docker installed locally (for initial image build)
 
 All `aws` CLI commands in this runbook use `--profile percy-main`. For Terraform, export the profile:
@@ -17,7 +17,7 @@ All `aws` CLI commands in this runbook use `--profile percy-main`. For Terraform
 export AWS_PROFILE=percy-main
 ```
 
-## Phase 1: AWS Account Bootstrap
+## Phase 1: AWS Account Bootstrap [DONE]
 
 These steps must be done manually before any Terraform runs.
 
@@ -70,7 +70,7 @@ After creating the state bucket, uncomment the `backend "s3"` blocks in:
 
 **Important:** The CI pipeline includes a guard that will fail if backends are still commented out.
 
-## Phase 2: Shared Infrastructure
+## Phase 2: Shared Infrastructure [DONE]
 
 ### 2.1 Apply shared environment
 
@@ -93,63 +93,22 @@ This creates:
 - SES domain identity (`contact.percymain.org`) + DKIM records
 - ACM certificates:
   - ALB cert (eu-west-2): `api.v2.percymain.org`
-  - CloudFront cert (us-east-1): `percymain.org` + `*.percymain.org` (wildcard covers `v2.percymain.org`)
+  - CloudFront cert (us-east-1): `percymain.org` + `*.percymain.org`
 
-### 2.2 Subdomain delegation at Netlify
+### 2.2 DNS setup
 
-The v1 site continues to serve `percymain.org` via Netlify DNS. Rather than moving the full zone, delegate only the subdomains AWS needs. After applying shared, get the Route 53 nameservers:
+DNS is managed via Route 53. Nameservers are delegated from GoDaddy:
 
-```bash
-terraform output zone_name_servers
+```
+ns-1598.awsdns-07.co.uk
+ns-599.awsdns-10.net
+ns-433.awsdns-54.com
+ns-1121.awsdns-12.org
 ```
 
-At **Netlify DNS** (percymain.org zone), add the following NS records:
+Route 53 hosts all DNS records including MX (Google Workspace), SPF, DKIM, DMARC, and application records.
 
-**Delegate `v2.percymain.org`** (site + API):
-
-| Type | Name | Value           |
-| ---- | ---- | --------------- |
-| NS   | v2   | `<route53-ns1>` |
-| NS   | v2   | `<route53-ns2>` |
-| NS   | v2   | `<route53-ns3>` |
-| NS   | v2   | `<route53-ns4>` |
-
-**Delegate `contact.percymain.org`** (SES sending domain):
-
-| Type | Name    | Value           |
-| ---- | ------- | --------------- |
-| NS   | contact | `<route53-ns1>` |
-| NS   | contact | `<route53-ns2>` |
-| NS   | contact | `<route53-ns3>` |
-| NS   | contact | `<route53-ns4>` |
-
-Replace `<route53-ns1>` etc. with the four nameservers from the output above.
-
-**Wait for propagation** (usually minutes, up to 48 hours). Verify:
-
-```bash
-dig NS v2.percymain.org +short
-dig NS contact.percymain.org +short
-```
-
-Both should return the Route 53 nameservers.
-
-### 2.3 Add CloudFront ACM validation record at Netlify
-
-The CloudFront cert (`percymain.org` + `*.percymain.org`) needs a DNS validation CNAME at the root zone level, which is still at Netlify. Get the validation record:
-
-```bash
-aws --profile percy-main acm describe-certificate \
-  --certificate-arn $(terraform output -raw acm_cloudfront_certificate_arn) \
-  --region us-east-1 \
-  --query 'Certificate.DomainValidationOptions[0].ResourceRecord'
-```
-
-Add the output CNAME record at Netlify DNS manually. This is a one-time step.
-
-### 2.4 Verify ACM certificates
-
-The ALB cert (`api.v2.percymain.org`) auto-validates via Route 53 (under the delegated `v2` subdomain). The CloudFront cert validates via the CNAME you added at Netlify. Check status:
+### 2.3 Verify ACM certificates
 
 ```bash
 aws --profile percy-main acm describe-certificate \
@@ -164,9 +123,7 @@ aws --profile percy-main acm describe-certificate \
 
 Both should show `ISSUED`. Do not proceed to Phase 3 until certificates are issued.
 
-### 2.5 Verify SES
-
-SES DKIM and verification records auto-validate via Route 53 (under the delegated `contact` subdomain). Check:
+### 2.4 Verify SES
 
 ```bash
 aws --profile percy-main ses get-identity-verification-attributes \
@@ -174,17 +131,7 @@ aws --profile percy-main ses get-identity-verification-attributes \
   --query 'VerificationAttributes.*.VerificationStatus'
 ```
 
-If the account is in the SES sandbox, request production access:
-
-```bash
-aws --profile percy-main sesv2 put-account-details \
-  --mail-type TRANSACTIONAL \
-  --website-url "https://percymain.org" \
-  --contact-language EN \
-  --use-case-description "Transactional emails for sports club membership management"
-```
-
-### 2.6 Configure GitHub repository
+### 2.5 Configure GitHub repository
 
 Add the following GitHub Actions variables (Settings → Environments → each environment):
 
@@ -200,7 +147,7 @@ Create GitHub environments:
 
 - `production` — require reviewers (add yourself)
 
-## Phase 3: Production Infrastructure
+## Phase 3: Production Infrastructure [DONE]
 
 ### 3.1 Apply production environment
 
@@ -222,9 +169,9 @@ This creates:
   - ALB access logs to S3
 - CloudFront distribution + S3 buckets (SSE-S3 encryption, uploads versioning enabled)
   - CloudFront access logging to S3
-  - CloudFront Function for SPA routing (frontend paths only)
+  - CloudFront Function for SPA routing + domain redirects
   - HTTPS-only origin protocol to ALB
-- Route 53 DNS records
+- Route 53 DNS records (`api.v2.percymain.org` → ALB)
 - CloudWatch monitoring: CPU, memory, 5xx errors, unhealthy hosts, p99 latency, RDS CPU/storage/connections
 - SNS alarm topic (KMS encrypted)
 - EventBridge scheduler for Play Cricket sync
@@ -238,10 +185,10 @@ aws --profile percy-main secretsmanager put-secret-value \
   --secret-id production/percy-main/app \
   --secret-string '{
     "DATABASE_URL": "postgres://percy:<RDS_PASSWORD>@<RDS_ENDPOINT>/percy_main",
-    "BETTER_AUTH_SECRET": "<generate: openssl rand -hex 32>",
-    "BETTER_AUTH_RP_ID": "v2.percymain.org",
+    "BETTER_AUTH_SECRET": "<must match v1 secret for migrated 2FA/passkeys>",
+    "BETTER_AUTH_RP_ID": "percymain.org",
     "BETTER_AUTH_RP_NAME": "Percy Main CSC",
-    "BASE_URL": "https://v2.percymain.org",
+    "BASE_URL": "https://www.percymain.org",
     "STRIPE_SECRET_KEY": "<from Stripe dashboard>",
     "STRIPE_WEBHOOK_SECRET": "<from Stripe webhook setup>",
     "GOOGLE_CLIENT_ID": "<from Google Cloud Console>",
@@ -279,7 +226,7 @@ echo "CLOUDFRONT_DISTRIBUTION_ID: $(terraform output -raw cloudfront_distributio
 
 Add these to the `production` GitHub environment.
 
-## Phase 4: First Deployment
+## Phase 4: First Deployment [DONE]
 
 ### 4.1 Build and push initial Docker image
 
@@ -369,12 +316,63 @@ aws --profile percy-main ecs describe-services \
 curl https://api.v2.percymain.org/health
 
 # Check frontend
-curl -I https://v2.percymain.org
+curl -I https://www.percymain.org
 ```
 
 ### 4.6 Configure Stripe webhook
 
 Create a webhook in Stripe dashboard pointing to `https://api.v2.percymain.org/api/stripe/webhook` and update the `STRIPE_WEBHOOK_SECRET` in Secrets Manager.
+
+## Phase 5: Data Migration [DONE]
+
+### 5.1 Turso → RDS data lift
+
+Data was migrated from v1 Turso (SQLite) to v2 RDS (PostgreSQL) using the bastion tunnel script:
+
+```bash
+./scripts/bastion-tunnel.sh --source libsql://<turso-url> --token <token>
+```
+
+The script automates the full lifecycle: creates a temporary EC2 bastion, SSH tunnels to RDS, runs `pnpm run db:lift`, then tears down all resources on exit.
+
+21,454 rows were synced across 27 tables.
+
+### 5.2 Auth secrets alignment
+
+- `BETTER_AUTH_SECRET` must match the v1 value (TOTP secrets are encrypted with it)
+- `BETTER_AUTH_RP_ID` set to `percymain.org` (matches v1, allows passkey migration)
+
+## Phase 6: Domain Cutover [DONE]
+
+### 6.1 Domain configuration
+
+- **Canonical domain**: `www.percymain.org`
+- **API**: `api.v2.percymain.org` (unchanged from initial deployment)
+- **DNS**: Route 53 (nameservers delegated from GoDaddy)
+- **CloudFront aliases**: `percymain.org`, `www.percymain.org`, `kit.percymain.org`
+
+### 6.2 CloudFront Function redirects
+
+- `percymain.org/*` → 301 → `www.percymain.org/*`
+- `kit.percymain.org` → 301 → `https://vx-3.com/collections/percy-main-cricket-club`
+
+### 6.3 DNS records in Route 53
+
+| Type | Name | Target |
+| ---- | ---- | ------ |
+| A (alias) | `percymain.org` | CloudFront |
+| AAAA (alias) | `percymain.org` | CloudFront |
+| CNAME | `www.percymain.org` | CloudFront |
+| A (alias) | `api.v2.percymain.org` | ALB |
+| AAAA (alias) | `api.v2.percymain.org` | ALB |
+| A (alias) | `kit.percymain.org` | CloudFront |
+| AAAA (alias) | `kit.percymain.org` | CloudFront |
+| MX | `percymain.org` | Google Workspace |
+| MX | `cricket.percymain.org` | Google Workspace |
+| TXT | `percymain.org` | SPF, Stripe verification, Google verification |
+| TXT | `_dmarc.percymain.org` | DMARC policy |
+| TXT | `google._domainkey.percymain.org` | DKIM |
+| + SES DKIM/verification records for `contact.percymain.org` |
 
 ## Ongoing Operations
 
@@ -431,6 +429,16 @@ aws --profile percy-main ecs run-task \
     }]
   }'
 ```
+
+### Data sync (Turso → RDS)
+
+To re-sync data from v1 Turso to v2 RDS:
+
+```bash
+./scripts/bastion-tunnel.sh --source libsql://<turso-url> --token <token>
+```
+
+Requires a fresh Turso read-only token. The script handles bastion lifecycle automatically.
 
 ### Monitoring
 
@@ -497,20 +505,3 @@ Key cost decisions:
 - PriceClass_100 for CloudFront (EU + NA only)
 
 Note: The staging Terraform configuration is retained in `infra/environments/staging/` and can be applied on demand if a dedicated staging environment is needed temporarily.
-
-## Apply Order Summary
-
-1. Manual: Create S3 state bucket + DynamoDB lock table
-2. Manual: Uncomment S3 backend blocks (shared + production)
-3. `terraform apply` — shared
-4. Manual: Subdomain delegation at Netlify (`v2` + `contact` NS records → Route 53)
-5. Manual: Add CloudFront ACM validation CNAME at Netlify
-6. Wait: ACM certificate validation + SES verification
-7. `terraform apply` — production
-8. Manual: Populate production secrets
-9. Manual: Configure GitHub environment variables (`DEPLOY_ROLE_ARN`, `TERRAFORM_ROLE_ARN`, `TERRAFORM_PLAN_ROLE_ARN`, `FRONTEND_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`)
-10. Manual: Push initial Docker image + run migrations
-11. Manual: Configure Stripe webhooks
-12. Verify: Health checks, frontend, monitoring
-
-When ready to migrate to the root domain: move full NS delegation to Route 53, change `domain_name` from `v2.percymain.org` to `percymain.org`, and apply.
