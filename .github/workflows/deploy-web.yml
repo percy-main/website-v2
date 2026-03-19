@@ -33,7 +33,7 @@ jobs:
       - name: Build frontend
         run: pnpm --filter web build
         env:
-          VITE_API_URL: https://api.v2.percymain.org
+          VITE_API_URL: https://api.v2.percymain.org/api
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
