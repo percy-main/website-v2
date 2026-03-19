@@ -12,6 +12,6 @@ variable "github_repo" {
 
 variable "ses_subdomain" {
   type        = string
-  default     = "notifications.percymain.org"
+  default     = "contact.percymain.org"
   description = "SES sending domain"
 }

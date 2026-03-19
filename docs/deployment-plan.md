@@ -85,15 +85,15 @@ This creates:
 
 - Route 53 hosted zone
 - ECR repository (immutable tags, scan on push, 25-image retention)
-- SES domain identity + DKIM records
 - GitHub Actions OIDC provider
 - IAM roles:
   - `percy-main-terraform` — apply role (main branch only)
   - `percy-main-terraform-plan` — read-only plan role (PRs)
   - `percy-main-deploy` — deploy role (main branch only, scoped ECS/ECR/S3 permissions)
+- SES domain identity (`contact.percymain.org`) + DKIM records
 - ACM certificates:
-  - ALB cert (eu-west-2): `api.percymain.org` + `api.staging.percymain.org`
-  - CloudFront cert (us-east-1): `percymain.org` + `*.percymain.org`
+  - ALB cert (eu-west-2): `api.v2.percymain.org`
+  - CloudFront cert (us-east-1): `percymain.org` + `*.percymain.org` (wildcard covers `v2.percymain.org`)
 
 ### 2.2 DNS delegation
 
@@ -134,7 +134,7 @@ SES domain identity verification also happens via DNS. Check:
 
 ```bash
 aws --profile percy-main ses get-identity-verification-attributes \
-  --identities notifications.percymain.org \
+  --identities contact.percymain.org \
   --query 'VerificationAttributes.*.VerificationStatus'
 ```
 
@@ -143,7 +143,7 @@ If the account is in the SES sandbox, request production access:
 ```bash
 aws --profile percy-main sesv2 put-account-details \
   --mail-type TRANSACTIONAL \
-  --website-url "https://percymain.org" \
+  --website-url "https://v2.percymain.org" \
   --contact-language EN \
   --use-case-description "Transactional emails for sports club membership management"
 ```
@@ -203,9 +203,9 @@ aws --profile percy-main secretsmanager put-secret-value \
   --secret-string '{
     "DATABASE_URL": "postgres://percy:<RDS_PASSWORD>@<RDS_ENDPOINT>/percy_main",
     "BETTER_AUTH_SECRET": "<generate: openssl rand -hex 32>",
-    "BETTER_AUTH_RP_ID": "percymain.org",
+    "BETTER_AUTH_RP_ID": "v2.percymain.org",
     "BETTER_AUTH_RP_NAME": "Percy Main CSC",
-    "BASE_URL": "https://percymain.org",
+    "BASE_URL": "https://v2.percymain.org",
     "STRIPE_SECRET_KEY": "<from Stripe dashboard>",
     "STRIPE_WEBHOOK_SECRET": "<from Stripe webhook setup>",
     "GOOGLE_CLIENT_ID": "<from Google Cloud Console>",
@@ -213,7 +213,7 @@ aws --profile percy-main secretsmanager put-secret-value \
     "PLAY_CRICKET_API_TOKEN": "<from Play Cricket>",
     "PLAY_CRICKET_SITE_ID": "<from Play Cricket>",
     "SLACK_WEBHOOK_URL": "<from Slack app>",
-    "SES_FROM_ADDRESS": "Percy Main CSC Support <support@notifications.percymain.org>"
+    "SES_FROM_ADDRESS": "Percy Main CSC Support <support@contact.percymain.org>"
   }'
 ```
 
@@ -306,15 +306,15 @@ aws --profile percy-main ecs describe-services \
   --query 'services[0].{desired: desiredCount, running: runningCount, status: status}'
 
 # Check health endpoint
-curl https://api.percymain.org/health
+curl https://api.v2.percymain.org/health
 
 # Check frontend
-curl -I https://percymain.org
+curl -I https://v2.percymain.org
 ```
 
 ### 4.5 Configure Stripe webhook
 
-Create a webhook in Stripe dashboard pointing to `https://api.percymain.org/api/stripe/webhook` and update the `STRIPE_WEBHOOK_SECRET` in Secrets Manager.
+Create a webhook in Stripe dashboard pointing to `https://api.v2.percymain.org/api/stripe/webhook` and update the `STRIPE_WEBHOOK_SECRET` in Secrets Manager.
 
 ## Ongoing Operations
 

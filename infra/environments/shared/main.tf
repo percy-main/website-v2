@@ -376,8 +376,8 @@ resource "aws_iam_role_policy" "deploy_secrets" {
 # -----------------------------------------------------------------------------
 
 resource "aws_acm_certificate" "alb" {
-  domain_name               = "api.${var.domain_name}"
-  subject_alternative_names = ["api.staging.${var.domain_name}"]
+  domain_name               = "api.v2.${var.domain_name}"
+  subject_alternative_names = []
   validation_method         = "DNS"
 
   lifecycle {

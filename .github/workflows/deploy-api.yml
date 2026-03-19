@@ -144,7 +144,7 @@ jobs:
       - name: Smoke test
         run: |
           for i in $(seq 1 10); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.percymain.org/health)
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.v2.percymain.org/health)
             if [ "$STATUS" = "200" ]; then
               echo "Smoke test passed"
               exit 0
