@@ -25,6 +25,12 @@ variable "waf_acl_arn" {
   default = ""
 }
 
+variable "extra_aliases" {
+  type        = list(string)
+  default     = []
+  description = "Additional domain aliases for the CloudFront distribution"
+}
+
 # -----------------------------------------------------------------------------
 # Locals
 # -----------------------------------------------------------------------------
@@ -267,6 +273,15 @@ resource "aws_cloudfront_function" "spa_rewrite" {
   code    = <<-EOF
     function handler(event) {
       var request = event.request;
+      var host = request.headers.host && request.headers.host.value;
+      // Redirect kit.percymain.org to kit shop
+      if (host === 'kit.percymain.org') {
+        return {
+          statusCode: 301,
+          statusDescription: 'Moved Permanently',
+          headers: { location: { value: 'https://vx-3.com/collections/percy-main-cricket-club' } }
+        };
+      }
       var uri = request.uri;
       // If URI has no file extension, rewrite to /index.html for SPA routing
       if (!uri.includes('.')) {
@@ -286,7 +301,7 @@ resource "aws_cloudfront_distribution" "main" {
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
   web_acl_id          = var.waf_acl_arn != "" ? var.waf_acl_arn : null
-  aliases             = var.domain_name != "" ? [var.domain_name] : []
+  aliases             = var.domain_name != "" ? concat([var.domain_name], var.extra_aliases) : var.extra_aliases
 
   tags = merge(local.common_tags, {
     Name = "${var.environment}-percy-main-cdn"

@@ -1,6 +1,6 @@
 variable "domain_name" {
   type    = string
-  default = "v2.percymain.org"
+  default = "percymain.org"
 }
 
 variable "alarm_email" {

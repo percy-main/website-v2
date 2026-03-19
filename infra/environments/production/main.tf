@@ -125,20 +125,35 @@ module "cdn" {
   environment         = "production"
   domain_name         = var.domain_name
   acm_certificate_arn = local.shared.acm_cloudfront_certificate_arn
+  extra_aliases       = ["kit.percymain.org"]
 }
 
 # ---------------------------------------------------------------------------
-# DNS (Route 53)
+# DNS (Route 53) — only api.v2 record needed; percymain.org DNS is at Netlify
 # ---------------------------------------------------------------------------
 
-module "dns" {
-  source                    = "../../modules/dns"
-  zone_id                   = local.shared.zone_id
-  domain_name               = var.domain_name
-  alb_dns_name              = module.ecs.alb_dns_name
-  alb_zone_id               = module.ecs.alb_zone_id
-  cloudfront_domain_name    = module.cdn.distribution_domain_name
-  cloudfront_hosted_zone_id = module.cdn.distribution_hosted_zone_id
+resource "aws_route53_record" "api_v2_a" {
+  zone_id = local.shared.zone_id
+  name    = "api.v2.percymain.org"
+  type    = "A"
+
+  alias {
+    name                   = module.ecs.alb_dns_name
+    zone_id                = module.ecs.alb_zone_id
+    evaluate_target_health = true
+  }
+}
+
+resource "aws_route53_record" "api_v2_aaaa" {
+  zone_id = local.shared.zone_id
+  name    = "api.v2.percymain.org"
+  type    = "AAAA"
+
+  alias {
+    name                   = module.ecs.alb_dns_name
+    zone_id                = module.ecs.alb_zone_id
+    evaluate_target_health = true
+  }
 }
 
 # ---------------------------------------------------------------------------
