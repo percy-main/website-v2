@@ -79,6 +79,10 @@ resource "random_password" "db" {
   length           = 32
   special          = true
   override_special = "!#$%&*()-_=+[]{}|:?"
+
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 # -----------------------------------------------------------------------------
