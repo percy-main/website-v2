@@ -157,8 +157,7 @@ resource "aws_db_instance" "main" {
 
   deletion_protection = var.environment == "production"
 
-  performance_insights_enabled          = true
-  performance_insights_retention_period = 7
+  performance_insights_enabled = false
 
   skip_final_snapshot       = var.environment != "production"
   final_snapshot_identifier = var.environment == "production" ? "${local.name_prefix}-db-final" : null
