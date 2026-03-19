@@ -61,7 +61,6 @@ After creating the state bucket, uncomment the `backend "s3"` blocks in:
 
 - `infra/environments/shared/main.tf`
 - `infra/environments/production/main.tf`
-- `infra/environments/staging/main.tf`
 
 **Important:** The CI pipeline includes a guard that will fail if backends are still commented out.
 
@@ -148,14 +147,13 @@ Add the following GitHub Actions variables (Settings → Environments → each e
 
 | Variable | Value | Environments |
 |----------|-------|-------------|
-| `DEPLOY_ROLE_ARN` | `terraform output -raw deploy_role_arn` | staging, production |
+| `DEPLOY_ROLE_ARN` | `terraform output -raw deploy_role_arn` | production |
 | `TERRAFORM_ROLE_ARN` | `terraform output -raw terraform_role_arn` | (repo-level) |
 | `TERRAFORM_PLAN_ROLE_ARN` | `terraform output -raw terraform_plan_role_arn` | (repo-level) |
-| `FRONTEND_BUCKET` | Set after production/staging apply | staging, production |
-| `CLOUDFRONT_DISTRIBUTION_ID` | Set after production/staging apply | staging, production |
+| `FRONTEND_BUCKET` | Set after production apply | production |
+| `CLOUDFRONT_DISTRIBUTION_ID` | Set after production apply | production |
 
 Create GitHub environments:
-- `staging` — no protection rules
 - `production` — require reviewers (add yourself)
 
 ## Phase 3: Production Infrastructure
@@ -236,69 +234,9 @@ echo "CLOUDFRONT_DISTRIBUTION_ID: $(terraform output -raw cloudfront_distributio
 
 Add these to the `production` GitHub environment.
 
-## Phase 4: Staging Infrastructure
+## Phase 4: First Deployment
 
-### 4.1 Apply staging environment
-
-```bash
-cd infra/environments/staging
-terraform init
-terraform apply
-```
-
-Staging uses the same architecture as production with smaller values:
-- VPC CIDR: 10.1.0.0/16
-- No NAT Gateway (same as production — tasks use public IPs)
-- 1 ECS task (auto-scales to 2)
-- 30-day log retention
-
-### 4.2 Populate staging secrets
-
-Same pattern as production but with staging-specific values:
-
-```bash
-aws secretsmanager put-secret-value \
-  --secret-id staging/percy-main/app \
-  --secret-string '{
-    "DATABASE_URL": "postgres://percy:<STAGING_RDS_PASSWORD>@<STAGING_RDS_ENDPOINT>/percy_main",
-    "BETTER_AUTH_SECRET": "<generate: openssl rand -hex 32>",
-    "BETTER_AUTH_RP_ID": "staging.percymain.org",
-    "BETTER_AUTH_RP_NAME": "Percy Main CSC (Staging)",
-    "BASE_URL": "https://staging.percymain.org",
-    "STRIPE_SECRET_KEY": "<Stripe TEST key>",
-    "STRIPE_WEBHOOK_SECRET": "<Stripe TEST webhook>",
-    "GOOGLE_CLIENT_ID": "<same or test>",
-    "GOOGLE_CLIENT_SECRET": "<same or test>",
-    "PLAY_CRICKET_API_TOKEN": "<from Play Cricket>",
-    "PLAY_CRICKET_SITE_ID": "<from Play Cricket>",
-    "SLACK_WEBHOOK_URL": "<staging channel or omit>",
-    "SES_FROM_ADDRESS": "Percy Main CSC Support <support@notifications.percymain.org>"
-  }'
-```
-
-To get the staging RDS credentials:
-
-```bash
-aws secretsmanager get-secret-value \
-  --secret-id percy-main-staging/rds/credentials \
-  --query 'SecretString' --output text | jq -r '.password'
-
-aws rds describe-db-instances \
-  --db-instance-identifier percy-main-staging-db \
-  --query 'DBInstances[0].Endpoint.Address' --output text
-```
-
-### 4.3 Update GitHub staging variables
-
-```bash
-cd infra/environments/staging
-echo "FRONTEND_BUCKET: $(terraform output -raw frontend_bucket_name)"
-echo "CLOUDFRONT_DISTRIBUTION_ID: $(terraform output -raw cloudfront_distribution_id)"
-```
-
-## Phase 5: First Deployment
-
-### 5.1 Build and push initial Docker image
+### 4.1 Build and push initial Docker image
 
 The first deployment needs a manually pushed image since CI hasn't run yet:
 
@@ -317,7 +255,7 @@ docker buildx build \
   .
 ```
 
-### 5.2 Run initial migrations
+### 4.2 Run initial migrations
 
 ```bash
 # Run migrations as one-off ECS task
@@ -338,7 +276,7 @@ aws ecs run-task \
   }'
 ```
 
-### 5.3 Force ECS service redeployment
+### 4.3 Force ECS service redeployment
 
 After secrets are populated and migrations have run:
 
@@ -349,7 +287,7 @@ aws ecs update-service \
   --force-new-deployment
 ```
 
-### 5.4 Verify
+### 4.4 Verify
 
 ```bash
 # Check ECS tasks are running
@@ -365,16 +303,9 @@ curl https://api.percymain.org/health
 curl -I https://percymain.org
 ```
 
-### 5.5 Configure Stripe webhook
+### 4.5 Configure Stripe webhook
 
 Create a webhook in Stripe dashboard pointing to `https://api.percymain.org/api/stripe/webhook` and update the `STRIPE_WEBHOOK_SECRET` in Secrets Manager.
-
-## Phase 6: Repeat for staging
-
-Repeat steps 5.1–5.4 for the staging environment, substituting:
-- Cluster: `percy-main-staging-cluster`
-- Service: `staging-api`
-- Endpoint: `https://api.staging.percymain.org/health`
 
 ## Ongoing Operations
 
@@ -384,10 +315,10 @@ After initial setup, all deployments are automated:
 - **API changes** → push to main triggers `.github/workflows/deploy-api.yml`
   - Builds Docker image (ARM64), tags with commit SHA (immutable tags)
   - Registers new task definition, runs migrations with new image, updates service
-  - Deploys to staging first (with smoke test), then production (requires environment approval + smoke test)
+  - Deploys directly to production (requires environment approval + smoke test)
   - ECS deployment circuit breaker auto-rolls back failed deployments
 - **Frontend changes** → push to main triggers `.github/workflows/deploy-web.yml`
-- **Infrastructure changes** → PR shows plan (read-only role), merge to main applies (chained: shared → staging → production)
+- **Infrastructure changes** → PR shows plan (read-only role), merge to main applies (chained: shared → production)
 
 ### Running migrations
 
@@ -446,8 +377,7 @@ aws ecs run-task \
 ### Auto-scaling
 
 ECS auto-scaling is configured with CPU target tracking:
-- **Production**: min 1, max 4 tasks (scales out at 70% CPU, 60s cooldown; scales in at 300s cooldown)
-- **Staging**: min 1, max 2 tasks
+- min 1, max 4 tasks (scales out at 70% CPU, 60s cooldown; scales in at 300s cooldown)
 
 Auto-scaling is independent of Terraform (`desired_count` is in `ignore_changes`).
 
@@ -473,40 +403,39 @@ Note: The ECS deployment circuit breaker will automatically roll back failed dep
 
 ## Cost Estimate (Monthly)
 
-| Resource | Production | Staging |
-|----------|-----------|---------|
-| ECS Fargate (ARM64, 1 task base) | ~$8 | ~$8 |
-| RDS db.t4g.micro | ~$13 | ~$13 |
-| ALB | ~$18 | ~$18 |
-| CloudFront | ~$1 | ~$1 |
-| Route 53 | ~$1 | — |
-| S3 (assets + logs) | ~$1 | ~$1 |
-| Secrets Manager | ~$1 | ~$1 |
-| CloudWatch (logs + alarms) | ~$2 | ~$1 |
-| **Total** | **~$45** | **~$43** |
-
-**Grand total: ~$88/month**
+| Resource | Monthly Cost |
+|----------|-------------|
+| ALB | ~$18 |
+| RDS db.t4g.micro | ~$13 |
+| ECS Fargate (ARM64, 1 task base) | ~$8 |
+| CloudWatch (logs + alarms) | ~$2 |
+| S3 (assets + logs) | ~$1 |
+| Secrets Manager | ~$1 |
+| CloudFront | ~$1 |
+| Route 53 | ~$1 |
+| **Total** | **~$45/month** |
 
 Key cost decisions:
-- No NAT Gateway in either environment (tasks use public IPs, RDS stays in private subnets)
+- No staging environment (local Docker Compose + CI tests provide pre-production coverage)
+- No NAT Gateway (tasks use public IPs, RDS stays in private subnets)
 - Container Insights disabled (standard ECS metrics suffice)
-- 30-day log retention (both environments)
-- 1 base task in production (auto-scales to 4 on demand)
+- 30-day log retention
+- 1 base task (auto-scales to 4 on demand)
 - ARM64/Graviton for ECS + RDS
 - PriceClass_100 for CloudFront (EU + NA only)
+
+Note: The staging Terraform configuration is retained in `infra/environments/staging/` and can be applied on demand if a dedicated staging environment is needed temporarily.
 
 ## Apply Order Summary
 
 1. Manual: Create S3 state bucket + DynamoDB lock table
-2. Manual: Uncomment S3 backend blocks
+2. Manual: Uncomment S3 backend blocks (shared + production)
 3. `terraform apply` — shared
 4. Manual: DNS delegation at registrar
 5. Wait: ACM certificate validation + SES verification
 6. `terraform apply` — production
 7. Manual: Populate production secrets
-8. Manual: Push initial Docker image + run migrations
-9. `terraform apply` — staging
-10. Manual: Populate staging secrets
-11. Manual: Configure GitHub environment variables (`DEPLOY_ROLE_ARN`, `TERRAFORM_ROLE_ARN`, `TERRAFORM_PLAN_ROLE_ARN`, `FRONTEND_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`)
-12. Manual: Configure Stripe webhooks
-13. Verify: Health checks, frontend, monitoring
+8. Manual: Configure GitHub environment variables (`DEPLOY_ROLE_ARN`, `TERRAFORM_ROLE_ARN`, `TERRAFORM_PLAN_ROLE_ARN`, `FRONTEND_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`)
+9. Manual: Push initial Docker image + run migrations
+10. Manual: Configure Stripe webhooks
+11. Verify: Health checks, frontend, monitoring
