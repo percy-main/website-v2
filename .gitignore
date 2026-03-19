@@ -9,3 +9,9 @@ dist/
 .DS_Store
 coverage/
 *.tsbuildinfo
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
