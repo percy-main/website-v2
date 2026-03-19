@@ -1,6 +1,6 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
-import { sql } from "kysely";
+
 import type { z } from "zod";
 import {
   GetMatchDetailResponse,
@@ -328,10 +328,10 @@ async function storeFieldingPerformances(
       .onConflict((oc) =>
         oc.columns(["match_id", "player_id"]).doUpdateSet({
           player_name: agg.playerName,
-          catches: sql`match_performance_fielding.catches + excluded.catches`,
-          run_outs: sql`match_performance_fielding.run_outs + excluded.run_outs`,
-          stumpings: sql`match_performance_fielding.stumpings + excluded.stumpings`,
-          is_wicketkeeper: sql`match_performance_fielding.is_wicketkeeper OR excluded.is_wicketkeeper`,
+          catches: agg.catches,
+          run_outs: agg.runOuts,
+          stumpings: agg.stumpings,
+          is_wicketkeeper: agg.isWicketkeeper,
         }),
       )
       .execute();
