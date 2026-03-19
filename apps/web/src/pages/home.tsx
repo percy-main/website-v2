@@ -118,10 +118,11 @@ function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
 interface GameListItem {
   id: string;
   home: boolean;
-  team: { name: string };
+  team: { id: string; name: string };
   opposition: { club: { name: string } };
   when: string | null;
   sponsorName: string | null;
+  sponsorLogoUrl: string | null;
 }
 
 interface UpcomingItem {
@@ -130,8 +131,16 @@ interface UpcomingItem {
   when: string;
   displayName: string;
   home?: boolean;
+  teamId?: string;
   sponsorName?: string | null;
+  sponsorLogoUrl?: string | null;
   href: string;
+}
+
+function getTeamPriority(teamName: string): number {
+  if (/1st/i.test(teamName)) return 2;
+  if (/2nd/i.test(teamName)) return 1;
+  return 0;
 }
 
 function UpcomingStrip() {
@@ -155,7 +164,9 @@ function UpcomingStrip() {
           when: game.when,
           displayName: `${game.team.name} vs ${game.opposition.club.name}`,
           home: game.home,
+          teamId: game.team.id,
           sponsorName: game.sponsorName,
+          sponsorLogoUrl: game.sponsorLogoUrl,
           href: `/calendar/game/${game.id}`,
         });
       }
@@ -172,9 +183,27 @@ function UpcomingStrip() {
       });
     }
 
-    upcoming.sort(
-      (a, b) => new Date(a.when).getTime() - new Date(b.when).getTime(),
-    );
+    // v1 sort: date ascending, same-day tiebreak by team priority (1st XI first),
+    // games after events on same day
+    upcoming.sort((a, b) => {
+      const dateA = new Date(a.when);
+      const dateB = new Date(b.when);
+      const sameDay = dateA.toDateString() === dateB.toDateString();
+
+      if (sameDay) {
+        // Both games: sort by team priority descending
+        if (a.type === "game" && b.type === "game") {
+          const pa = getTeamPriority(a.displayName);
+          const pb = getTeamPriority(b.displayName);
+          return pb - pa;
+        }
+        // Games after events on same day (v1 behaviour)
+        return a.type === "game" ? 1 : -1;
+      }
+
+      return dateA.getTime() - dateB.getTime();
+    });
+
     return upcoming.slice(0, 5);
   }, [games]);
 
@@ -226,22 +255,37 @@ function UpcomingStrip() {
                 <p className="text-dark line-clamp-2 text-sm font-medium">
                   {item.displayName}
                 </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  {formatInTimeZone(
-                    new Date(item.when),
-                    "Europe/London",
-                    "h:mm a",
-                  )}
-                </p>
-              </div>
-              {item.sponsorName && (
-                <div className="mt-2 border-t border-gray-100 pt-2">
-                  <p className="text-xs text-orange-600">Sponsored</p>
-                  <p className="text-xs font-medium text-gray-700">
-                    {item.sponsorName}
+                {item.when && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formatInTimeZone(
+                      new Date(item.when),
+                      "Europe/London",
+                      "h:mm a",
+                    )}
                   </p>
-                </div>
-              )}
+                )}
+              </div>
+              {item.type === "game" &&
+                (item.sponsorName ?? item.sponsorLogoUrl) && (
+                  <div className="flex flex-col items-center gap-1 border-t border-gray-100 pt-2">
+                    <span className="text-[10px] leading-tight text-gray-400">
+                      Sponsored
+                    </span>
+                    {item.sponsorLogoUrl ? (
+                      <img
+                        src={item.sponsorLogoUrl}
+                        alt={`Sponsored by ${item.sponsorName}`}
+                        width="60"
+                        height="24"
+                        className="h-6 max-w-[60px] object-contain"
+                      />
+                    ) : (
+                      <span className="h-6 text-[10px] leading-tight font-medium text-gray-500">
+                        {item.sponsorName}
+                      </span>
+                    )}
+                  </div>
+                )}
             </Link>
           ))}
         </div>
