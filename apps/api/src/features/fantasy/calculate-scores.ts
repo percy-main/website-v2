@@ -665,24 +665,20 @@ export function calculateFantasyScores(db: Kysely<DB>) {
           if (parsedThresholdConfig?.success) {
             const config = parsedThresholdConfig.data;
             // Zero all points unless batting runs >= min_runs OR bowling wickets >= min_wickets
-            const hasQualifyingBatting =
-              scores.battingPts > 0 &&
-              playerScores.some(
-                (ps) =>
-                  ps.playerId === player.play_cricket_id &&
-                  ps.gameweek === gw &&
-                  (battingByMatch.get(mkKey(ps.playerId, ps.matchId))?.runs ??
-                    0) >= config.min_runs,
-              );
-            const hasQualifyingBowling =
-              scores.bowlingPts > 0 &&
-              playerScores.some(
-                (ps) =>
-                  ps.playerId === player.play_cricket_id &&
-                  ps.gameweek === gw &&
-                  (bowlingByMatch.get(mkKey(ps.playerId, ps.matchId))
-                    ?.wickets ?? 0) >= config.min_wickets,
-              );
+            const hasQualifyingBatting = playerScores.some(
+              (ps) =>
+                ps.playerId === player.play_cricket_id &&
+                ps.gameweek === gw &&
+                (battingByMatch.get(mkKey(ps.playerId, ps.matchId))?.runs ??
+                  0) >= config.min_runs,
+            );
+            const hasQualifyingBowling = playerScores.some(
+              (ps) =>
+                ps.playerId === player.play_cricket_id &&
+                ps.gameweek === gw &&
+                (bowlingByMatch.get(mkKey(ps.playerId, ps.matchId))?.wickets ??
+                  0) >= config.min_wickets,
+            );
 
             if (!hasQualifyingBatting && !hasQualifyingBowling) {
               modifiedBase = 0;
