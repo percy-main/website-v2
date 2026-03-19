@@ -1,5 +1,4 @@
 import { createClient } from "@percy-main/db";
-import "dotenv/config";
 import { buildApp } from "./app.js";
 import { parseConfig } from "./config.js";
 
