@@ -139,10 +139,10 @@ export function Component() {
                   Join The Club
                 </Link>
                 <Link
-                  to="/calendar"
+                  to="/charity/redevelopment"
                   className="inline-block rounded-lg border-2 border-white/80 px-8 py-3.5 text-lg font-medium text-white transition-colors hover:bg-white/10"
                 >
-                  What&apos;s On
+                  See Our Redevelopment Plans
                 </Link>
               </div>
             </div>
