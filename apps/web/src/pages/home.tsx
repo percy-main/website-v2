@@ -114,29 +114,44 @@ export function Component() {
   return (
     <>
       {/* Hero */}
-      <section className="bg-primary py-16 text-white md:py-24">
-        <div className="container mx-auto px-8 text-center">
-          <h1 className="text-h1-sm md:text-h1 mb-4 text-white">
-            Percy Main Community Sports Club
-          </h1>
-          <p className="mx-auto mb-8 max-w-2xl text-lg text-white/80">
-            Supporting community sport in Percy Main and surrounding areas since
-            1884. Cricket, football, boxing, and running for all ages and
-            abilities.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link
-              to="/auth/register"
-              className="bg-cta hover:bg-cta-dark rounded-lg px-8 py-3 text-lg font-medium text-white transition"
-            >
-              Join Us
-            </Link>
-            <Link
-              to="/calendar"
-              className="rounded-lg border border-white/30 px-8 py-3 text-lg font-medium text-white transition hover:bg-white/10"
-            >
-              What&apos;s On
-            </Link>
+      <section className="relative">
+        <img
+          className="h-96 w-full object-cover md:h-[32rem]"
+          src="/images/pitch.png"
+          alt="The cricket pitch at Percy Main"
+        />
+        <div className="absolute inset-0 bg-gray-900 opacity-55" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+          <div className="mx-auto max-w-screen-xl px-4 pt-6 pb-16 lg:px-6">
+            <div className="mx-auto max-w-screen-md text-center">
+              <h2 className="text-h2 md:text-h1 mb-4 leading-tight font-extrabold tracking-tight text-white">
+                Sport For Everyone At The Main
+              </h2>
+              <p className="mb-12 text-lg text-balance text-white/90 md:text-xl">
+                Community cricket, football, boxing, and running in the heart of
+                North Shields
+              </p>
+              <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+                <Link
+                  to="/auth/register"
+                  className="bg-cta hover:bg-cta-dark inline-block rounded-lg px-8 py-3.5 text-lg font-medium text-white transition-colors"
+                >
+                  Join The Club
+                </Link>
+                <Link
+                  to="/calendar"
+                  className="inline-block rounded-lg border-2 border-white/80 px-8 py-3.5 text-lg font-medium text-white transition-colors hover:bg-white/10"
+                >
+                  What&apos;s On
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="absolute right-0 bottom-0 left-0 bg-black/40 backdrop-blur-sm">
+          <div className="container grid grid-cols-2 divide-x divide-white/20 py-3 text-center text-sm text-white/90 md:text-base">
+            <span className="font-medium">Est. 1860</span>
+            <span className="font-medium">Registered Charity</span>
           </div>
         </div>
       </section>
