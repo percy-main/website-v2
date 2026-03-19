@@ -289,24 +289,47 @@ The first deployment needs a manually pushed image since CI hasn't run yet:
 # Login to ECR
 aws --profile percy-main ecr get-login-password --region eu-west-2 | \
   docker login --username AWS --password-stdin \
-  $(terraform -chdir=infra/environments/shared output -raw ecr_repository_url | cut -d/ -f1)
+  $(AWS_PROFILE=percy-main terraform -chdir=infra/environments/shared output -raw ecr_repository_url | cut -d/ -f1)
 
-# Build ARM64 image (tag with a unique identifier — ECR uses immutable tags)
+# Choose a unique tag (ECR uses immutable tags — each tag can only be used once)
+IMAGE_TAG="initial"
+
+# Build ARM64 image and push
+ECR_URL=$(AWS_PROFILE=percy-main terraform -chdir=infra/environments/shared output -raw ecr_repository_url)
 docker buildx build \
   --platform linux/arm64 \
   --push \
-  -t $(terraform -chdir=infra/environments/shared output -raw ecr_repository_url):initial \
+  -t $ECR_URL:$IMAGE_TAG \
   -f apps/api/Dockerfile \
   .
 ```
 
-### 4.2 Run initial migrations
+### 4.2 Register task definition with initial image
+
+Terraform creates the task definition with a placeholder image. Update it to use the image you just pushed:
 
 ```bash
-# Run migrations as one-off ECS task
+IMAGE="$ECR_URL:$IMAGE_TAG"
+
+TASK_DEF_ARN=$(aws --profile percy-main ecs describe-task-definition \
+  --task-definition production-api \
+  --query 'taskDefinition' --output json | \
+  jq --arg IMAGE "$IMAGE" \
+    '.containerDefinitions[0].image = $IMAGE |
+     del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' | \
+  aws --profile percy-main ecs register-task-definition \
+    --cli-input-json file:///dev/stdin \
+    --query 'taskDefinition.taskDefinitionArn' --output text)
+
+echo "Registered: $TASK_DEF_ARN"
+```
+
+### 4.3 Run initial migrations
+
+```bash
 aws --profile percy-main ecs run-task \
   --cluster percy-main-production-cluster \
-  --task-definition production-api \
+  --task-definition "$TASK_DEF_ARN" \
   --launch-type FARGATE \
   --network-configuration "$(aws --profile percy-main ecs describe-services \
     --cluster percy-main-production-cluster \
@@ -321,18 +344,19 @@ aws --profile percy-main ecs run-task \
   }'
 ```
 
-### 4.3 Force ECS service redeployment
+### 4.4 Deploy to ECS
 
-After secrets are populated and migrations have run:
+Update the service to use the new task definition:
 
 ```bash
 aws --profile percy-main ecs update-service \
   --cluster percy-main-production-cluster \
   --service production-api \
+  --task-definition "$TASK_DEF_ARN" \
   --force-new-deployment
 ```
 
-### 4.4 Verify
+### 4.5 Verify
 
 ```bash
 # Check ECS tasks are running
@@ -348,7 +372,7 @@ curl https://api.v2.percymain.org/health
 curl -I https://v2.percymain.org
 ```
 
-### 4.5 Configure Stripe webhook
+### 4.6 Configure Stripe webhook
 
 Create a webhook in Stripe dashboard pointing to `https://api.v2.percymain.org/api/stripe/webhook` and update the `STRIPE_WEBHOOK_SECRET` in Secrets Manager.
 
