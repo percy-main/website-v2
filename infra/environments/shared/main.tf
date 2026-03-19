@@ -186,6 +186,25 @@ resource "aws_iam_role_policy_attachment" "terraform_plan_readonly" {
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
 
+resource "aws_iam_role_policy" "terraform_plan_state_lock" {
+  name = "terraform-state-lock"
+  role = aws_iam_role.terraform_plan.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/percy-main-terraform-locks"
+      }
+    ]
+  })
+}
+
 # -----------------------------------------------------------------------------
 # IAM Role: Deploy (GitHub Actions — main branch only)
 # -----------------------------------------------------------------------------
