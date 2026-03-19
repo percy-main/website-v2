@@ -23,6 +23,14 @@ RUN pnpm --filter @percy-main/shared run build && \
 # Stage 2: Production
 FROM node:22-alpine AS runner
 RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
+
+# Install AWS RDS CA bundle for SSL connections
+RUN apk add --no-cache ca-certificates wget && \
+    wget -q https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+      -O /usr/local/share/ca-certificates/rds-global-bundle.crt && \
+    update-ca-certificates && \
+    apk del wget
+
 WORKDIR /app
 
 COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
@@ -40,6 +48,7 @@ COPY --from=builder /app/packages/db/src/migrations packages/db/src/migrations
 COPY --from=builder /app/packages/email/dist packages/email/dist
 
 ENV NODE_ENV=production
+ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/rds-global-bundle.crt
 EXPOSE 3000
 
 CMD ["node", "apps/api/dist/server.js"]
