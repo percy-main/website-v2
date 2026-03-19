@@ -7,8 +7,8 @@
  */
 
 import { createClient } from "@percy-main/db";
-import { promises as fs } from "node:fs";
 import { FileMigrationProvider, Migrator } from "kysely";
+import { promises as fs } from "node:fs";
 import path from "node:path";
 
 const DATABASE_URL = process.env.DATABASE_URL;
