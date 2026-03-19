@@ -81,13 +81,13 @@ resource "aws_ses_domain_dkim" "notifications" {
 }
 
 resource "aws_route53_record" "ses_dkim" {
-  for_each = toset(aws_ses_domain_dkim.notifications.dkim_tokens)
+  count = 3 # SES DKIM always produces exactly 3 tokens
 
   zone_id = aws_route53_zone.main.zone_id
-  name    = "${each.value}._domainkey.${var.ses_subdomain}"
+  name    = "${aws_ses_domain_dkim.notifications.dkim_tokens[count.index]}._domainkey.${var.ses_subdomain}"
   type    = "CNAME"
   ttl     = 600
-  records = ["${each.value}.dkim.amazonses.com"]
+  records = ["${aws_ses_domain_dkim.notifications.dkim_tokens[count.index]}.dkim.amazonses.com"]
 }
 
 resource "aws_route53_record" "ses_verification" {
