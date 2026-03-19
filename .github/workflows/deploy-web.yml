@@ -34,6 +34,9 @@ jobs:
         run: pnpm --filter web build
         env:
           VITE_API_URL: https://api.v2.percymain.org/api
+          VITE_STRIPE_PUBLIC_KEY: ${{ vars.STRIPE_PUBLIC_KEY }}
+          VITE_MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+          VITE_MAPS_MAP_ID: ${{ vars.MAPS_MAP_ID }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
