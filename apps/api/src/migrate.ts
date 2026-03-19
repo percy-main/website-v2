@@ -51,7 +51,6 @@ try {
 } catch (error) {
   console.error("Migration failed:", error);
   await client.destroy().catch(noop);
-  await pool.end().catch(noop);
   process.exit(1);
 }
 
