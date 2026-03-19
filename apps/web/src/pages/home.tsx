@@ -1,6 +1,11 @@
+import { api } from "@/lib/api.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
+import { getAllEvents } from "@/lib/events.js";
 import { allNews } from "@/lib/news.js";
-import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { format, isAfter } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
+import { useMemo } from "react";
 import { Link } from "react-router";
 
 const DONATE_URL = "/purchase/donation";
@@ -110,6 +115,141 @@ function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
   );
 }
 
+interface GameListItem {
+  id: string;
+  home: boolean;
+  team: { name: string };
+  opposition: { club: { name: string } };
+  when: string | null;
+  sponsorName: string | null;
+}
+
+interface UpcomingItem {
+  id: string;
+  type: "game" | "event";
+  when: string;
+  displayName: string;
+  home?: boolean;
+  sponsorName?: string | null;
+  href: string;
+}
+
+function UpcomingStrip() {
+  const season = new Date().getFullYear();
+  const { data: games } = useQuery<GameListItem[]>({
+    queryKey: ["games", season],
+    queryFn: () => api.get(`/games?season=${season}`),
+    staleTime: 5 * 60_000,
+  });
+
+  const items = useMemo((): UpcomingItem[] => {
+    const now = new Date();
+    const upcoming: UpcomingItem[] = [];
+
+    if (games) {
+      for (const game of games) {
+        if (!game.when || !isAfter(new Date(game.when), now)) continue;
+        upcoming.push({
+          id: game.id,
+          type: "game",
+          when: game.when,
+          displayName: `${game.team.name} vs ${game.opposition.club.name}`,
+          home: game.home,
+          sponsorName: game.sponsorName,
+          href: `/calendar/game/${game.id}`,
+        });
+      }
+    }
+
+    for (const event of getAllEvents()) {
+      if (!isAfter(new Date(event.when), now)) continue;
+      upcoming.push({
+        id: event.slug,
+        type: "event",
+        when: event.when,
+        displayName: event.name,
+        href: `/calendar/event/${event.slug}`,
+      });
+    }
+
+    upcoming.sort(
+      (a, b) => new Date(a.when).getTime() - new Date(b.when).getTime(),
+    );
+    return upcoming.slice(0, 5);
+  }, [games]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <section className="bg-white py-10">
+      <div className="container mx-auto px-8">
+        <h3 className="text-h4 mb-6 text-center">What&apos;s Coming Up Soon</h3>
+        <div className="flex snap-x gap-4 overflow-x-auto pb-2 md:justify-center md:overflow-x-visible">
+          {items.map((item) => (
+            <Link
+              key={item.id}
+              to={item.href}
+              className="flex min-w-[220px] snap-start flex-col justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md"
+            >
+              <div className="mb-2 gap-2">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="text-primary text-sm font-semibold">
+                    {formatInTimeZone(
+                      new Date(item.when),
+                      "Europe/London",
+                      "EEE dd MMM",
+                    )}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {item.type === "game" && (
+                      <span
+                        className={
+                          item.home
+                            ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
+                            : "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                        }
+                      >
+                        {item.home ? "H" : "A"}
+                      </span>
+                    )}
+                    <span
+                      className={
+                        item.type === "game"
+                          ? "rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
+                          : "rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800"
+                      }
+                    >
+                      {item.type === "game" ? "Match" : "Event"}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-dark line-clamp-2 text-sm font-medium">
+                  {item.displayName}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {formatInTimeZone(
+                    new Date(item.when),
+                    "Europe/London",
+                    "h:mm a",
+                  )}
+                </p>
+              </div>
+              {item.sponsorName && (
+                <div className="mt-2 border-t border-gray-100 pt-2">
+                  <p className="text-xs text-orange-600">Sponsored</p>
+                  <p className="text-xs font-medium text-gray-700">
+                    {item.sponsorName}
+                  </p>
+                </div>
+              )}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function Component() {
   return (
     <>
@@ -157,6 +297,9 @@ export function Component() {
           </div>
         </div>
       </section>
+
+      {/* Upcoming Fixtures */}
+      <UpcomingStrip />
 
       {/* Latest News */}
       {top5.length > 0 && (
