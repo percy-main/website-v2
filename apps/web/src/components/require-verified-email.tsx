@@ -1,11 +1,12 @@
 import { Navigate, Outlet } from "react-router";
 import { useSession } from "../lib/auth-client.js";
+import { PageLoading } from "./page-loading.js";
 
 export function RequireVerifiedEmail() {
   const { data: session, isPending } = useSession();
 
   if (isPending) {
-    return null;
+    return <PageLoading />;
   }
 
   if (!session) {

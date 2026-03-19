@@ -1,6 +1,13 @@
 import { useSession } from "@/lib/auth-client.js";
 import { getMainMenuItems } from "@/lib/content.js";
-import { useCallback, useEffect, useRef, useState, type FC } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FC,
+  type KeyboardEvent,
+} from "react";
 import { Link, useLocation } from "react-router";
 import { Logo } from "./logo.js";
 
@@ -124,6 +131,7 @@ export const SiteHeader: FC = () => {
   const [stickyVisible, setStickyVisible] = useState(false);
   const mastheadRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   // Sticky bar via IntersectionObserver
   useEffect(() => {
@@ -156,6 +164,37 @@ export const SiteHeader: FC = () => {
 
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+
+  // Focus trap: loop Tab between first and last focusable elements, Escape closes
+  const handleDrawerKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === "Escape") {
+        closeDrawer();
+        return;
+      }
+      if (e.key !== "Tab") return;
+
+      const drawer = drawerRef.current;
+      if (!drawer) return;
+
+      const focusable = drawer.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    },
+    [closeDrawer],
+  );
 
   return (
     <>
@@ -263,11 +302,13 @@ export const SiteHeader: FC = () => {
           onClick={closeDrawer}
         >
           <div
+            ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
             className="absolute top-0 right-0 h-full w-72 bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={handleDrawerKeyDown}
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
               <span className="font-secondary text-dark text-lg font-bold">
