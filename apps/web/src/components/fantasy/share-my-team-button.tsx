@@ -1,0 +1,132 @@
+import { Button } from "@/components/ui/button.js";
+import { api } from "@/lib/api.js";
+import {
+  generateTeamImage,
+  type ShareTeamData,
+} from "@/lib/fantasy/generate-team-image.js";
+import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+
+interface ApiSharePlayer {
+  playerName: string;
+  sandwichCost: number;
+  isCaptain: boolean;
+  slotType: "batting" | "bowling" | "allrounder";
+  isWicketkeeper: boolean;
+}
+
+interface ApiShareData {
+  ownerName: string;
+  season: string;
+  totalSandwichCost: number;
+  gameweekLabel: string;
+  players: ApiSharePlayer[];
+}
+
+/**
+ * Look up a player's photo URL from the people MDX data by fuzzy name match.
+ * People MDX is loaded eagerly at build time, so we can import it synchronously.
+ */
+async function resolvePlayerPhotos(
+  players: ApiSharePlayer[],
+): Promise<Array<string | null>> {
+  // Dynamic import to avoid pulling people data into the main bundle
+  // for users who never click share
+  const { getPersonBySlug } = await import("@/lib/people.js");
+
+  // Build a name → photo lookup from all people
+  // We import the module to get all people, then try slug-based lookup
+  const peopleModule = await import("../../lib/people.js");
+
+  // Try to match each player by slugifying their name
+  return players.map((player) => {
+    const slug = player.playerName
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .trim();
+
+    const person = getPersonBySlug(slug);
+    if (person?.photo) return person.photo;
+
+    // Try without middle names / initials — just first + last
+    const parts = player.playerName.split(" ");
+    if (parts.length > 2) {
+      const simpleSlug = `${parts[0]}-${parts[parts.length - 1]}`
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "");
+      const simplePerson = peopleModule.getPersonBySlug(simpleSlug);
+      if (simplePerson?.photo) return simplePerson.photo;
+    }
+
+    return null;
+  });
+}
+
+export function ShareMyTeamButton() {
+  const [shared, setShared] = useState(false);
+
+  const shareMutation = useMutation({
+    mutationFn: async () => {
+      const data = await api.get<ApiShareData>("/fantasy/team/share");
+      const photoUrls = await resolvePlayerPhotos(data.players);
+
+      const shareData: ShareTeamData = {
+        ...data,
+        players: data.players.map((p, i) => ({
+          ...p,
+          photoUrl: photoUrls[i],
+        })),
+      };
+
+      return generateTeamImage(shareData);
+    },
+    onSuccess: async (blob: Blob) => {
+      const file = new File([blob], "my-fantasy-team.png", {
+        type: "image/png",
+      });
+
+      // Try Web Share API (mobile)
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: "My Fantasy Cricket Team",
+          });
+          setShared(true);
+          setTimeout(() => setShared(false), 2000);
+          return;
+        } catch {
+          // User cancelled or share failed — fall through to download
+        }
+      }
+
+      // Fallback: download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "my-fantasy-team.png";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    },
+  });
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => shareMutation.mutate()}
+      disabled={shareMutation.isPending}
+    >
+      {shareMutation.isPending
+        ? "Generating..."
+        : shared
+          ? "Done!"
+          : "Share My Team"}
+    </Button>
+  );
+}

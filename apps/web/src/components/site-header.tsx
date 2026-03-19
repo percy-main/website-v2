@@ -188,9 +188,9 @@ export const SiteHeader: FC = () => {
       <div ref={mastheadRef} className="bg-creamy py-6 md:py-8">
         <div className="container mx-auto flex flex-col items-center justify-center gap-3 px-8">
           <Logo size="lg" />
-          <p className="font-secondary text-h4 text-dark md:text-h3 mb-0 text-center font-bold">
+          <h1 className="text-h4 text-dark md:text-h3 mb-0 text-center font-bold">
             Percy Main Community Sports Club
-          </p>
+          </h1>
         </div>
       </div>
 

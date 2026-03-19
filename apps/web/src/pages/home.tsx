@@ -1,6 +1,12 @@
+import { SeasonLeaders } from "@/components/season-leaders.js";
+import { api } from "@/lib/api.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
+import { getAllEvents } from "@/lib/events.js";
 import { allNews } from "@/lib/news.js";
-import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { format, isAfter } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
+import { useMemo } from "react";
 import { Link } from "react-router";
 
 const DONATE_URL = "/purchase/donation";
@@ -110,34 +116,240 @@ function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
   );
 }
 
+interface GameListItem {
+  id: string;
+  home: boolean;
+  team: { id: string; name: string };
+  opposition: { club: { name: string } };
+  when: string | null;
+  sponsorName: string | null;
+  sponsorLogoUrl: string | null;
+}
+
+interface UpcomingItem {
+  id: string;
+  type: "game" | "event";
+  when: string;
+  displayName: string;
+  home?: boolean;
+  teamId?: string;
+  sponsorName?: string | null;
+  sponsorLogoUrl?: string | null;
+  href: string;
+}
+
+function getTeamPriority(teamName: string): number {
+  if (/1st/i.test(teamName)) return 2;
+  if (/2nd/i.test(teamName)) return 1;
+  return 0;
+}
+
+function UpcomingStrip() {
+  const season = new Date().getFullYear();
+  const { data: games } = useQuery<GameListItem[]>({
+    queryKey: ["games", season],
+    queryFn: () => api.get(`/games?season=${season}`),
+    staleTime: 5 * 60_000,
+  });
+
+  const items = useMemo((): UpcomingItem[] => {
+    const now = new Date();
+    const upcoming: UpcomingItem[] = [];
+
+    if (games) {
+      for (const game of games) {
+        if (!game.when || !isAfter(new Date(game.when), now)) continue;
+        upcoming.push({
+          id: game.id,
+          type: "game",
+          when: game.when,
+          displayName: `${game.team.name} vs ${game.opposition.club.name}`,
+          home: game.home,
+          teamId: game.team.id,
+          sponsorName: game.sponsorName,
+          sponsorLogoUrl: game.sponsorLogoUrl,
+          href: `/calendar/game/${game.id}`,
+        });
+      }
+    }
+
+    for (const event of getAllEvents()) {
+      if (!isAfter(new Date(event.when), now)) continue;
+      upcoming.push({
+        id: event.slug,
+        type: "event",
+        when: event.when,
+        displayName: event.name,
+        href: `/calendar/event/${event.slug}`,
+      });
+    }
+
+    // v1 sort: date ascending, same-day tiebreak by team priority (1st XI first),
+    // games after events on same day
+    upcoming.sort((a, b) => {
+      const dateA = new Date(a.when);
+      const dateB = new Date(b.when);
+      const sameDay = dateA.toDateString() === dateB.toDateString();
+
+      if (sameDay) {
+        // Both games: sort by team priority descending
+        if (a.type === "game" && b.type === "game") {
+          const pa = getTeamPriority(a.displayName);
+          const pb = getTeamPriority(b.displayName);
+          return pb - pa;
+        }
+        // Games after events on same day (v1 behaviour)
+        return a.type === "game" ? 1 : -1;
+      }
+
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    return upcoming.slice(0, 5);
+  }, [games]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <section className="bg-white py-10">
+      <div className="container mx-auto px-8">
+        <h3 className="text-h4 mb-6 text-center">What&apos;s Coming Up Soon</h3>
+        <div className="flex snap-x gap-4 overflow-x-auto pb-2 md:justify-center md:overflow-x-visible">
+          {items.map((item) => (
+            <Link
+              key={item.id}
+              to={item.href}
+              className="flex min-w-[220px] snap-start flex-col justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md"
+            >
+              <div className="mb-2 gap-2">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="text-primary text-sm font-semibold">
+                    {formatInTimeZone(
+                      new Date(item.when),
+                      "Europe/London",
+                      "EEE dd MMM",
+                    )}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {item.type === "game" && (
+                      <span
+                        className={
+                          item.home
+                            ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
+                            : "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                        }
+                      >
+                        {item.home ? "H" : "A"}
+                      </span>
+                    )}
+                    <span
+                      className={
+                        item.type === "game"
+                          ? "rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
+                          : "rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800"
+                      }
+                    >
+                      {item.type === "game" ? "Match" : "Event"}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-dark line-clamp-2 text-sm font-medium">
+                  {item.displayName}
+                </p>
+                {item.when && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formatInTimeZone(
+                      new Date(item.when),
+                      "Europe/London",
+                      "h:mm a",
+                    )}
+                  </p>
+                )}
+              </div>
+              {item.type === "game" &&
+                (item.sponsorName ?? item.sponsorLogoUrl) && (
+                  <div className="flex flex-col items-center gap-1 border-t border-gray-100 pt-2">
+                    <span className="text-[10px] leading-tight text-gray-400">
+                      Sponsored
+                    </span>
+                    {item.sponsorLogoUrl ? (
+                      <img
+                        src={item.sponsorLogoUrl}
+                        alt={`Sponsored by ${item.sponsorName}`}
+                        width="60"
+                        height="24"
+                        className="h-6 max-w-[60px] object-contain"
+                      />
+                    ) : (
+                      <span className="h-6 text-[10px] leading-tight font-medium text-gray-500">
+                        {item.sponsorName}
+                      </span>
+                    )}
+                  </div>
+                )}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function Component() {
   return (
     <>
       {/* Hero */}
-      <section className="bg-primary py-16 text-white md:py-24">
-        <div className="container mx-auto px-8 text-center">
-          <h1 className="text-h1-sm md:text-h1 mb-4 text-white">
-            Percy Main Community Sports Club
-          </h1>
-          <p className="mx-auto mb-8 max-w-2xl text-lg text-white/80">
-            Supporting community sport in Percy Main and surrounding areas since
-            1884. Cricket, football, boxing, and running for all ages and
-            abilities.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link
-              to="/auth/register"
-              className="bg-cta hover:bg-cta-dark rounded-lg px-8 py-3 text-lg font-medium text-white transition"
-            >
-              Join Us
-            </Link>
-            <Link
-              to="/calendar"
-              className="rounded-lg border border-white/30 px-8 py-3 text-lg font-medium text-white transition hover:bg-white/10"
-            >
-              What&apos;s On
-            </Link>
+      <section>
+        <div className="relative">
+          <img
+            className="h-96 w-full object-cover md:h-[32rem]"
+            src="/images/pitch.png"
+            alt="The cricket pitch at Percy Main"
+          />
+          <div className="absolute inset-0 bg-gray-900 opacity-55" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+            <div className="mx-auto max-w-screen-xl px-4 pt-6 pb-16 lg:px-6">
+              <div className="mx-auto max-w-screen-md text-center">
+                <h2 className="text-h2 md:text-h1 mb-4 leading-tight font-extrabold tracking-tight text-white">
+                  Sport For Everyone At The Main
+                </h2>
+                <p className="mb-12 text-lg text-balance text-white/90 md:text-xl">
+                  Community cricket, football, boxing, and running in the heart
+                  of North Shields
+                </p>
+                <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+                  <Link
+                    to="/auth/register"
+                    className="bg-cta hover:bg-cta-dark inline-block rounded-lg px-8 py-3.5 text-lg font-medium text-white transition-colors"
+                  >
+                    Join The Club
+                  </Link>
+                  <Link
+                    to="/charity/redevelopment"
+                    className="inline-block rounded-lg border-2 border-white/80 px-8 py-3.5 text-lg font-medium text-white transition-colors hover:bg-white/10"
+                  >
+                    See Our Redevelopment Plans
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
+          <div className="absolute right-0 bottom-0 left-0 bg-black/40 backdrop-blur-sm">
+            <div className="container grid grid-cols-2 divide-x divide-white/20 py-3 text-center text-sm text-white/90 md:text-base">
+              <span className="font-medium">Est. 1860</span>
+              <span className="font-medium">Registered Charity</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Upcoming Fixtures */}
+      <UpcomingStrip />
+
+      {/* Season Leaders */}
+      <section className="bg-primary/5 py-10">
+        <div className="container mx-auto px-8">
+          <SeasonLeaders />
         </div>
       </section>
 

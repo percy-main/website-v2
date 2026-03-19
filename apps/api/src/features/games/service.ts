@@ -36,6 +36,7 @@ export interface GameListItem extends MatchSummary {
   outcome: Outcome | null;
   scoreDescription: string | null;
   sponsorName: string | null;
+  sponsorLogoUrl: string | null;
 }
 
 export interface GameDetail extends GameListItem {
@@ -195,6 +196,7 @@ export function listGames(
         sponsorName: sponsor
           ? (sponsor.display_name ?? sponsor.sponsor_name)
           : null,
+        sponsorLogoUrl: sponsor?.sponsor_logo_url ?? null,
       };
     });
   };
@@ -304,6 +306,7 @@ export function getGame(
       sponsorName: sponsorship
         ? (sponsorship.display_name ?? sponsorship.sponsor_name)
         : null,
+      sponsorLogoUrl: sponsorship?.sponsor_logo_url ?? null,
       location,
       result,
       sponsor: sponsorship

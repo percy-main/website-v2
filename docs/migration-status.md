@@ -96,8 +96,8 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
   - [x] Cricket leaderboard
   - [x] Fantasy cricket (3 pages: home with tabs, scoring rules, team management + 20 new API endpoints). Deferred items:
     - [x] Recharts season timeline chart on history tab
-    - [ ] Chaos week admin email sending (needs `packages/email` ChaosWeekAnnouncement template wiring)
-    - [ ] Team share image generation (depends on Contentful player photos — deferred to Phase 5)
+    - Chaos week admin email sending — deferred, not in scope for migration
+    - [x] Team share image generation
     - [x] Fix flaky fantasy integration tests on CI (`startTestContainer()` exceeds 30s timeout on GitHub Actions — currently skipped, passes locally)
     - **Note:** Fantasy team builder cannot be fully tested until admin side of fantasy is completed (player population, cost calculation, eligibility toggling)
   - [x] Be the Keeper game (2 pages)
