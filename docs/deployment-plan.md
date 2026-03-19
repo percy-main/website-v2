@@ -76,6 +76,7 @@ terraform apply
 ```
 
 This creates:
+
 - Route 53 hosted zone
 - ECR repository (immutable tags, scan on push, 25-image retention)
 - SES domain identity + DKIM records
@@ -145,15 +146,16 @@ aws sesv2 put-account-details \
 
 Add the following GitHub Actions variables (Settings → Environments → each environment):
 
-| Variable | Value | Environments |
-|----------|-------|-------------|
-| `DEPLOY_ROLE_ARN` | `terraform output -raw deploy_role_arn` | production |
-| `TERRAFORM_ROLE_ARN` | `terraform output -raw terraform_role_arn` | (repo-level) |
-| `TERRAFORM_PLAN_ROLE_ARN` | `terraform output -raw terraform_plan_role_arn` | (repo-level) |
-| `FRONTEND_BUCKET` | Set after production apply | production |
-| `CLOUDFRONT_DISTRIBUTION_ID` | Set after production apply | production |
+| Variable                     | Value                                           | Environments |
+| ---------------------------- | ----------------------------------------------- | ------------ |
+| `DEPLOY_ROLE_ARN`            | `terraform output -raw deploy_role_arn`         | production   |
+| `TERRAFORM_ROLE_ARN`         | `terraform output -raw terraform_role_arn`      | (repo-level) |
+| `TERRAFORM_PLAN_ROLE_ARN`    | `terraform output -raw terraform_plan_role_arn` | (repo-level) |
+| `FRONTEND_BUCKET`            | Set after production apply                      | production   |
+| `CLOUDFRONT_DISTRIBUTION_ID` | Set after production apply                      | production   |
 
 Create GitHub environments:
+
 - `production` — require reviewers (add yourself)
 
 ## Phase 3: Production Infrastructure
@@ -167,6 +169,7 @@ terraform apply
 ```
 
 This creates:
+
 - VPC (10.0.0.0/16) with public and private subnets (no NAT Gateway), VPC Flow Logs
 - RDS PostgreSQL 16 (db.t4g.micro, single-AZ, deletion protection, Performance Insights, 14-day backups)
 - ECS Fargate cluster + service + ALB:
@@ -312,6 +315,7 @@ Create a webhook in Stripe dashboard pointing to `https://api.percymain.org/api/
 ### Deploying code changes
 
 After initial setup, all deployments are automated:
+
 - **API changes** → push to main triggers `.github/workflows/deploy-api.yml`
   - Builds Docker image (ARM64), tags with commit SHA (immutable tags)
   - Registers new task definition, runs migrations with new image, updates service
@@ -377,6 +381,7 @@ aws ecs run-task \
 ### Auto-scaling
 
 ECS auto-scaling is configured with CPU target tracking:
+
 - min 1, max 4 tasks (scales out at 70% CPU, 60s cooldown; scales in at 300s cooldown)
 
 Auto-scaling is independent of Terraform (`desired_count` is in `ignore_changes`).
@@ -403,19 +408,20 @@ Note: The ECS deployment circuit breaker will automatically roll back failed dep
 
 ## Cost Estimate (Monthly)
 
-| Resource | Monthly Cost |
-|----------|-------------|
-| ALB | ~$18 |
-| RDS db.t4g.micro | ~$13 |
-| ECS Fargate (ARM64, 1 task base) | ~$8 |
-| CloudWatch (logs + alarms) | ~$2 |
-| S3 (assets + logs) | ~$1 |
-| Secrets Manager | ~$1 |
-| CloudFront | ~$1 |
-| Route 53 | ~$1 |
-| **Total** | **~$45/month** |
+| Resource                         | Monthly Cost   |
+| -------------------------------- | -------------- |
+| ALB                              | ~$18           |
+| RDS db.t4g.micro                 | ~$13           |
+| ECS Fargate (ARM64, 1 task base) | ~$8            |
+| CloudWatch (logs + alarms)       | ~$2            |
+| S3 (assets + logs)               | ~$1            |
+| Secrets Manager                  | ~$1            |
+| CloudFront                       | ~$1            |
+| Route 53                         | ~$1            |
+| **Total**                        | **~$45/month** |
 
 Key cost decisions:
+
 - No staging environment (local Docker Compose + CI tests provide pre-production coverage)
 - No NAT Gateway (tasks use public IPs, RDS stays in private subnets)
 - Container Insights disabled (standard ECS metrics suffice)

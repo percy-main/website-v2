@@ -6,10 +6,10 @@
  * (injected by the ECS task definition).
  */
 
-import { promises as fs } from "fs";
-import path from "path";
 import { createClient } from "@percy-main/db";
+import { promises as fs } from "fs";
 import { FileMigrationProvider, Migrator } from "kysely";
+import path from "path";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 

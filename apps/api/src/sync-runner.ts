@@ -46,7 +46,7 @@ try {
   process.exit(result.errors.length > 0 ? 1 : 0);
 } catch (error) {
   console.error("Sync failed:", error);
-  await client.destroy().catch(() => {});
-  await pool.end().catch(() => {});
+  await client.destroy().catch(() => undefined);
+  await pool.end().catch(() => undefined);
   process.exit(1);
 }
