@@ -8,6 +8,7 @@ import {
   getCurrentGameweek,
   getCurrentSeason,
   getGameweekForDate,
+  getGW1StartDate,
   getPreviousSeason,
   getTransferWindowInfo,
   isGameweekLocked,
@@ -2469,5 +2470,87 @@ export function deleteChaosWeek(db: Kysely<DB>) {
   return async (id: number) => {
     await db.deleteFrom("fantasy_chaos_week").where("id", "=", id).execute();
     return { success: true };
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Team share image data
+// ---------------------------------------------------------------------------
+
+export function getTeamShareData(db: Kysely<DB>) {
+  return async (userId: string, season?: string) => {
+    const s = season ?? getCurrentSeason();
+    const gameweek = getCurrentGameweek(s);
+
+    const team = await db
+      .selectFrom("fantasy_team as ft")
+      .innerJoin("user as u", "u.id", "ft.user_id")
+      .where("ft.user_id", "=", userId)
+      .where("ft.season", "=", s)
+      .select(["ft.id", "ft.season", "u.name as ownerName"])
+      .executeTakeFirst();
+
+    if (!team) return null;
+
+    // Build gameweek label
+    let gameweekLabel: string;
+    if (gameweek === 0) {
+      gameweekLabel = "Pre-Season";
+    } else {
+      const gw1 = getGW1StartDate(s);
+      const gwStartMs =
+        gw1.getTime() + (gameweek - 1) * 7 * 24 * 60 * 60 * 1000;
+      const gwStart = new Date(gwStartMs);
+      const dateStr = gwStart.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      gameweekLabel = `Gameweek ${gameweek}: ${dateStr}`;
+    }
+
+    const players = await db
+      .selectFrom("fantasy_team_player as ftp")
+      .innerJoin(
+        "fantasy_player as fp",
+        "fp.play_cricket_id",
+        "ftp.play_cricket_id",
+      )
+      .where("ftp.fantasy_team_id", "=", team.id)
+      .where("ftp.gameweek_added", "<=", gameweek)
+      .where((eb) =>
+        eb.or([
+          eb("ftp.gameweek_removed", "is", null),
+          eb("ftp.gameweek_removed", ">", gameweek),
+        ]),
+      )
+      .select([
+        "ftp.play_cricket_id",
+        "fp.player_name",
+        "fp.sandwich_cost",
+        "ftp.is_captain",
+        "ftp.slot_type",
+        "ftp.is_wicketkeeper",
+      ])
+      .execute();
+
+    const totalSandwichCost = players.reduce(
+      (sum, p) => sum + p.sandwich_cost,
+      0,
+    );
+
+    return {
+      ownerName: team.ownerName,
+      season: team.season,
+      totalSandwichCost,
+      gameweekLabel,
+      players: players.map((p) => ({
+        playerName: p.player_name,
+        sandwichCost: p.sandwich_cost,
+        isCaptain: p.is_captain,
+        slotType: p.slot_type as SlotType,
+        isWicketkeeper: p.is_wicketkeeper,
+      })),
+    };
   };
 }

@@ -1,3 +1,4 @@
+import { ShareMyTeamButton } from "@/components/fantasy/share-my-team-button.js";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -495,11 +496,16 @@ function TeamBuilder({
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-bold">My Fantasy Team</h1>
-        <Link to="/fantasy">
-          <Button variant="outline" size="sm">
-            Fantasy Home
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          {teamData.team && teamData.players.length === 11 && (
+            <ShareMyTeamButton />
+          )}
+          <Link to="/fantasy">
+            <Button variant="outline" size="sm">
+              Fantasy Home
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {chaosWeek && (

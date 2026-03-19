@@ -45,6 +45,7 @@ import {
   getSeasonLeaderboard,
   getSeasonTimeline,
   getTeam,
+  getTeamShareData,
   getTransferWindow,
   getWeeklyLeaderboard,
   listChaosWeeks,
@@ -86,6 +87,7 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
   const chaosWeeksList = listChaosWeeks(app.db);
   const chaosWeekCreate = createChaosWeek(app.db);
   const chaosWeekDelete = deleteChaosWeek(app.db);
+  const shareData = getTeamShareData(app.db);
 
   // --- Public routes ---
 
@@ -205,6 +207,24 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
       const { user } = getAuthSession(request);
       const { chipType, season } = parseBody(request, chipSchema);
       return await chipDeactivate(user.id, chipType, season);
+    },
+  );
+
+  app.get(
+    "/fantasy/team/share",
+    { preHandler: [requireAuth] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { season } = parseQuery(request, seasonSchema);
+      const data = await shareData(user.id, season);
+      if (!data) {
+        const error = new Error("Team not found") as Error & {
+          statusCode: number;
+        };
+        error.statusCode = 404;
+        throw error;
+      }
+      return data;
     },
   );
 
