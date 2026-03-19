@@ -2,7 +2,7 @@ import { defaultCategoryForMembershipType } from "@percy-main/shared";
 import { randomUUID } from "crypto";
 import { add, type Duration } from "date-fns";
 import type { Kysely } from "kysely";
-import type { DB } from "../__generated__/db.js";
+import type { DB } from "../__generated__/db.ts";
 
 export function updateMembership(db: Kysely<DB>) {
   return async ({

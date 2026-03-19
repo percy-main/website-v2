@@ -1,7 +1,7 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely, PostgresDialect } from "kysely";
-import { buildApp } from "../app.js";
-import { parseConfig } from "../config.js";
+import { buildApp } from "../app.ts";
+import { parseConfig } from "../config.ts";
 
 /**
  * Creates a test Fastify app backed by the given database.

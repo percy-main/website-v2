@@ -1,11 +1,11 @@
 import type { FastifyPluginAsync } from "fastify";
 import type Stripe from "stripe";
-import { createStripe } from "./stripe.js";
+import { createStripe } from "./stripe.ts";
 import {
   handleCheckoutCompleted,
   handleInvoicePayment,
   handlePaymentIntentSucceeded,
-} from "./webhook-service.js";
+} from "./webhook-service.ts";
 
 /**
  * Stripe webhook route plugin.

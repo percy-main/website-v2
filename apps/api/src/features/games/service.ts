@@ -1,6 +1,6 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
-import type { PlayCricketApiClient } from "../play-cricket/api-client.js";
+import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 
 // --- In-memory cache for match summaries ---
 

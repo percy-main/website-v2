@@ -1,7 +1,7 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import type { ListGameReports } from "./schemas.js";
+import type { ListGameReports } from "./schemas.ts";
 
 const ABANDONED_THRESHOLD_HOURS = 1;
 

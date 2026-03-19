@@ -4,9 +4,9 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
-import { createTestLogger } from "../../test/logger.js";
-import { healthRoutes } from "./routes.js";
+} from "../../test/containers.ts";
+import { createTestLogger } from "../../test/logger.ts";
+import { healthRoutes } from "./routes.ts";
 
 let ctx: TestContext;
 

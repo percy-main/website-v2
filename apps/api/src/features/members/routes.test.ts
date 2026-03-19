@@ -31,7 +31,7 @@ import {
   getMyMembership,
   getMySubscriptions,
   updateMemberDetails,
-} from "./service.js";
+} from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 

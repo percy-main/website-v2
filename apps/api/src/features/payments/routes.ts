@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseBody } from "../../lib/validation.js";
-import { purchaseSchema, subscribeSchema } from "./schemas.js";
-import { createPurchase, createSubscription } from "./service.js";
-import { createStripe } from "./stripe.js";
+import { parseBody } from "../../lib/validation.ts";
+import { purchaseSchema, subscribeSchema } from "./schemas.ts";
+import { createPurchase, createSubscription } from "./service.ts";
+import { createStripe } from "./stripe.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const paymentRoutes: FastifyPluginAsync = async (app) => {

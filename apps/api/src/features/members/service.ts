@@ -1,7 +1,7 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import type Stripe from "stripe";
-import type { MemberUpdate } from "./schemas.js";
+import type { MemberUpdate } from "./schemas.ts";
 
 const MEMBERSHIP_COLUMNS = [
   "membership.id",

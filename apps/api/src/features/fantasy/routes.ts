@@ -1,12 +1,12 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
+import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
 import {
   getAuthSession,
   requireAuth,
   requireRole,
-} from "../auth/middleware.js";
-import { calculateFantasyScores } from "./calculate-scores.js";
-import { getCurrentSeason } from "./gameweek.js";
+} from "../auth/middleware.ts";
+import { calculateFantasyScores } from "./calculate-scores.ts";
+import { getCurrentSeason } from "./gameweek.ts";
 import {
   calculateCostsSchema,
   calculateScoresSchema,
@@ -24,7 +24,7 @@ import {
   teamIdSchema,
   toggleEligibilitySchema,
   weeklyLeaderboardSchema,
-} from "./schemas.js";
+} from "./schemas.ts";
 import {
   activateChip,
   calculateSandwichCosts,
@@ -54,7 +54,7 @@ import {
   populatePlayers,
   saveTeam,
   toggleEligibility,
-} from "./service.js";
+} from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const fantasyRoutes: FastifyPluginAsync = async (app) => {

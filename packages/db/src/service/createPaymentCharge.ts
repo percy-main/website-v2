@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import type { Kysely } from "kysely";
-import type { DB } from "../__generated__/db.js";
+import type { DB } from "../__generated__/db.ts";
 
 export type ChargeType =
   | "manual"

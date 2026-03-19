@@ -3,7 +3,7 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
+} from "../../test/containers.ts";
 import {
   approveGameSponsorship,
   createManualGameSponsorship,
@@ -11,7 +11,7 @@ import {
   getGameSponsorshipPrice,
   getPlayerSponsorshipPrice,
   listGameSponsorships,
-} from "./service.js";
+} from "./service.ts";
 
 let ctx: TestContext;
 

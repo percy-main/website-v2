@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseQuery } from "../../lib/validation.js";
-import { getAuthSession, requireAuth } from "../auth/middleware.js";
-import { leaderboardQuerySchema, submitScoreSchema } from "./schemas.js";
-import { getLeaderboard, submitScore } from "./service.js";
+import { parseBody, parseQuery } from "../../lib/validation.ts";
+import { getAuthSession, requireAuth } from "../auth/middleware.ts";
+import { leaderboardQuerySchema, submitScoreSchema } from "./schemas.ts";
+import { getLeaderboard, submitScore } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const leaderboardRoutes: FastifyPluginAsync = async (app) => {

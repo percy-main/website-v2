@@ -6,7 +6,7 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
+} from "../../test/containers.ts";
 import {
   chasePayment,
   createMember,
@@ -23,7 +23,7 @@ import {
   searchUsersForLinking,
   unlinkDependentUser,
   unlinkPlayCricketPlayer,
-} from "./service.js";
+} from "./service.ts";
 
 /** Seeds a dependent (junior) under a member. Returns the dependent id. */
 async function seedDependent(

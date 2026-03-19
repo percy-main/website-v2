@@ -19,7 +19,7 @@ vi.stubGlobal("crypto", {
   randomUUID: vi.fn().mockReturnValue("test-uuid-1234"),
 });
 
-import { createContactSubmission, createEventSubscriber } from "./service.js";
+import { createContactSubmission, createEventSubscriber } from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 

@@ -7,7 +7,7 @@ import {
   subDays,
 } from "date-fns";
 import type { Kysely } from "kysely";
-import type { PlayCricketApiClient } from "../play-cricket/api-client.js";
+import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type {
   AddPlayer,
   ConfirmTeam,
@@ -16,7 +16,7 @@ import type {
   RecordExpense,
   SearchMembers,
   UpdateExpense,
-} from "./schemas.js";
+} from "./schemas.ts";
 
 // ── Helpers ──
 

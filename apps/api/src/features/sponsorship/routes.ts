@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams, parseQuery } from "../../lib/validation.js";
-import { requireRole } from "../auth/middleware.js";
+import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
+import { requireRole } from "../auth/middleware.ts";
 import {
   allApprovedSchema,
   byContentfulIdSchema,
@@ -11,7 +11,7 @@ import {
   sponsorshipIdParamSchema,
   sponsorshipListSchema,
   sponsorshipUpdateSchema,
-} from "./schemas.js";
+} from "./schemas.ts";
 import {
   approveGameSponsorship,
   approvePlayerSponsorship,
@@ -29,7 +29,7 @@ import {
   rejectPlayerSponsorship,
   updateGameSponsorship,
   updatePlayerSponsorship,
-} from "./service.js";
+} from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {

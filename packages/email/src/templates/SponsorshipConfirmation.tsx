@@ -10,8 +10,8 @@ import {
   Preview,
   Text,
 } from "@react-email/components";
-import { email } from "../email.js";
-import * as styles from "../styles.js";
+import { email } from "../email.ts";
+import * as styles from "../styles.ts";
 
 interface Props {
   imageBaseUrl: string;

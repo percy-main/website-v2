@@ -4,17 +4,17 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
-import { BUDGET, getCurrentSeason } from "./gameweek.js";
-import type { PlayerInput } from "./schemas.js";
-import { SLOT_COUNTS } from "./scoring.js";
+} from "../../test/containers.ts";
+import { BUDGET, getCurrentSeason } from "./gameweek.ts";
+import type { PlayerInput } from "./schemas.ts";
+import { SLOT_COUNTS } from "./scoring.ts";
 import {
   getEligiblePlayers,
   getMyTeam,
   populatePlayers,
   saveTeam,
   toggleEligibility,
-} from "./service.js";
+} from "./service.ts";
 
 let ctx: TestContext;
 

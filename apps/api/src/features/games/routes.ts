@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseParams, parseQuery } from "../../lib/validation.js";
-import { createApiClient } from "../play-cricket/api-client.js";
-import { gameDetailParamsSchema, gamesListSchema } from "./schemas.js";
-import { getGame, listGames } from "./service.js";
+import { parseParams, parseQuery } from "../../lib/validation.ts";
+import { createApiClient } from "../play-cricket/api-client.ts";
+import { gameDetailParamsSchema, gamesListSchema } from "./schemas.ts";
+import { getGame, listGames } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const gamesRoutes: FastifyPluginAsync = async (app) => {

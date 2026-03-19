@@ -4,7 +4,7 @@ export {
   defaultCategoryForMembershipType,
   memberCategorySchema,
   type MemberCategory,
-} from "./member-categories.js";
+} from "./member-categories.ts";
 
 export {
   gameSponsoredSchema,
@@ -15,7 +15,7 @@ export {
   type GameSponsored,
   type Metadata,
   type PlayerSponsored,
-} from "./payment-metadata.js";
+} from "./payment-metadata.ts";
 
 export {
   AGE_GROUPS,
@@ -24,8 +24,8 @@ export {
   getSeasonCutoffDate,
   getTeamName,
   type AgeGroup,
-} from "./age-group.js";
+} from "./age-group.ts";
 
-export { stripeConfig, type StripeConfig } from "./stripe-config.js";
+export { stripeConfig, type StripeConfig } from "./stripe-config.ts";
 
-export { nameSimilarity, normalizeName } from "./name-similarity.js";
+export { nameSimilarity, normalizeName } from "./name-similarity.ts";

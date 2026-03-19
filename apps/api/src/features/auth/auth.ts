@@ -5,7 +5,7 @@ import { betterAuth } from "better-auth";
 import { admin, twoFactor } from "better-auth/plugins";
 import type { PostgresDialect } from "kysely";
 import { createElement } from "react";
-import type { Config } from "../../config.js";
+import type { Config } from "../../config.ts";
 
 export function createAuth(
   config: Config,

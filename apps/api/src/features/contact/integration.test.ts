@@ -3,8 +3,8 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
-import { createContactSubmission, createEventSubscriber } from "./service.js";
+} from "../../test/containers.ts";
+import { createContactSubmission, createEventSubscriber } from "./service.ts";
 
 let ctx: TestContext;
 

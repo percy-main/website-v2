@@ -1,6 +1,6 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
-import type { ContactSubmission, EventSubscriber } from "./schemas.js";
+import type { ContactSubmission, EventSubscriber } from "./schemas.ts";
 
 function createSlackNotifier(slackWebhookUrl?: string) {
   return async (data: {

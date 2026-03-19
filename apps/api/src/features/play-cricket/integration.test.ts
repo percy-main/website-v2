@@ -5,10 +5,10 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
-import type { PlayCricketApiClient } from "./api-client.js";
-import { getMatchDetail, getPlayerCareerStats, getTeams } from "./service.js";
-import { runSync } from "./sync.js";
+} from "../../test/containers.ts";
+import type { PlayCricketApiClient } from "./api-client.ts";
+import { getMatchDetail, getPlayerCareerStats, getTeams } from "./service.ts";
+import { runSync } from "./sync.ts";
 
 let ctx: TestContext;
 

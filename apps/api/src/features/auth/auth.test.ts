@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toWebHeaders } from "./middleware.js";
+import { toWebHeaders } from "./middleware.ts";
 
 describe("Auth middleware", () => {
   it("toWebHeaders converts fastify headers to Web Headers", () => {

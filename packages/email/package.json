@@ -2,9 +2,14 @@
   "name": "@percy-main/email",
   "version": "0.0.1",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
+    "build": "tsc",
     "dev": "email dev --dir src/templates --port 3100",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/"

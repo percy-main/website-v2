@@ -3,7 +3,7 @@ import {
   GetMatchSummaryResponse,
   GetPlayersResponse,
   GetTeamsResponse,
-} from "./api-schemas.js";
+} from "./api-schemas.ts";
 
 const API_BASE = "https://www.play-cricket.com/api/v2";
 

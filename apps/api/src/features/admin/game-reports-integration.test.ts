@@ -6,8 +6,8 @@ import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
-} from "../../test/containers.js";
-import { getMatchdayReport, listGameReports } from "./game-reports-service.js";
+} from "../../test/containers.ts";
+import { getMatchdayReport, listGameReports } from "./game-reports-service.ts";
 
 let ctx: TestContext;
 let defaultUserId: string;

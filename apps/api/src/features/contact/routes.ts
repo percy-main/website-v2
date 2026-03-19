@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseBody } from "../../lib/validation.js";
-import { contactSubmissionSchema, eventSubscriberSchema } from "./schemas.js";
-import { createContactSubmission, createEventSubscriber } from "./service.js";
+import { parseBody } from "../../lib/validation.ts";
+import { contactSubmissionSchema, eventSubscriberSchema } from "./schemas.ts";
+import { createContactSubmission, createEventSubscriber } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const contactRoutes: FastifyPluginAsync = async (app) => {

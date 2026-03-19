@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseQuery } from "../../lib/validation.js";
-import { requireRole } from "../auth/middleware.js";
-import { dateRangeSchema, paginatedDateRangeSchema } from "./schemas.js";
+import { parseQuery } from "../../lib/validation.ts";
+import { requireRole } from "../auth/middleware.ts";
+import { dateRangeSchema, paginatedDateRangeSchema } from "./schemas.ts";
 import {
   getExpensesWithReceipts,
   getIncomeByMonth,
@@ -9,7 +9,7 @@ import {
   getMembershipSummary,
   getOutstandingPayments,
   getSponsorshipSummary,
-} from "./service.js";
+} from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const treasurerRoutes: FastifyPluginAsync = async (app) => {

@@ -2,7 +2,7 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import { calculateSlotEffectivePoints } from "./calculate-scores.js";
+import { calculateSlotEffectivePoints } from "./calculate-scores.ts";
 import {
   BUDGET,
   getCurrentGameweek,
@@ -14,8 +14,8 @@ import {
   isGameweekLocked,
   isPreSeason,
   MAX_TRANSFERS_PER_GAMEWEEK,
-} from "./gameweek.js";
-import type { PlayerInput } from "./schemas.js";
+} from "./gameweek.ts";
+import type { PlayerInput } from "./schemas.ts";
 import {
   calculateBattingPoints,
   calculateBowlingPoints,
@@ -28,7 +28,7 @@ import {
   SLOT_COUNTS,
   type ChipType,
   type SlotType,
-} from "./scoring.js";
+} from "./scoring.ts";
 
 export function getEligiblePlayers(db: Kysely<DB>) {
   return async (season?: string) => {

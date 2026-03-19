@@ -28,7 +28,7 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
   },
 );
 
-import { getMatchdayReport, listGameReports } from "./game-reports-service.js";
+import { getMatchdayReport, listGameReports } from "./game-reports-service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 
