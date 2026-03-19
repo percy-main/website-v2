@@ -9,15 +9,96 @@ on:
     paths:
       - "infra/**"
 
-# TODO: implement Terraform pipeline
-# PR: terraform plan → post plan output as PR comment
-# Merge: terraform apply (auto for staging, manual approval for production)
-#
-# Uses OIDC for AWS authentication.
-# Path filters ensure only infra changes trigger this pipeline.
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: eu-west-2
+  TF_VERSION: "1.7"
 
 jobs:
-  placeholder:
+  plan:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [shared, staging, production]
     steps:
-      - run: echo "Terraform pipeline pending AWS account bootstrap"
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: terraform init
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+        continue-on-error: true
+
+      - name: Post plan to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infra/environments/${{ matrix.environment }}/plan.txt', 'utf8');
+            const truncated = plan.length > 60000 ? plan.substring(0, 60000) + '\n... (truncated)' : plan;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `### Terraform Plan: \`${{ matrix.environment }}\`\n\n<details>\n<summary>Show plan</summary>\n\n\`\`\`\n${truncated}\n\`\`\`\n\n</details>`
+            });
+
+      - name: Check plan status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+  apply:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1
+      matrix:
+        include:
+          - environment: shared
+            order: 1
+          - environment: staging
+            order: 2
+          - environment: production
+            order: 3
+            requires_approval: true
+    environment: ${{ matrix.requires_approval && 'production' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: terraform apply -auto-approve

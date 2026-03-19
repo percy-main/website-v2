@@ -1,5 +1,10 @@
 # ECS Fargate Service Module
-# Provisions ECS cluster, task definition, service, ALB target group, and log group.
+# Provisions ECS cluster, task definition, service, ALB, target group,
+# CloudWatch log group, and IAM roles for the Percy Main API.
+
+# ------------------------------------------------------------------------------
+# Variables
+# ------------------------------------------------------------------------------
 
 variable "environment" {
   type = string
@@ -50,24 +55,435 @@ variable "environment_variables" {
   default = {}
 }
 
-# TODO: implement ECS resources
-# - aws_ecs_cluster
-# - aws_ecs_task_definition (Fargate, ARM64)
-# - aws_ecs_service
-# - aws_lb (ALB)
-# - aws_lb_listener
-# - aws_lb_target_group (health check on /health)
-# - aws_cloudwatch_log_group
-# - aws_iam_role (task execution role, task role)
+variable "ecr_repository_url" {
+  type = string
+}
+
+variable "acm_certificate_arn" {
+  type = string
+}
+
+variable "secrets" {
+  description = "Map of secret name to Secrets Manager ARN"
+  type        = map(string)
+  default     = {}
+}
+
+variable "health_check_path" {
+  type    = string
+  default = "/health"
+}
+
+variable "log_retention_days" {
+  type    = number
+  default = 180
+}
+
+variable "assign_public_ip" {
+  type    = bool
+  default = false
+}
+
+# ------------------------------------------------------------------------------
+# Locals
+# ------------------------------------------------------------------------------
+
+locals {
+  name_prefix = "percy-main-${var.environment}"
+
+  tags = {
+    Environment = var.environment
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+    Module      = "ecs-service"
+  }
+}
+
+# ------------------------------------------------------------------------------
+# Data Sources
+# ------------------------------------------------------------------------------
+
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
+# ------------------------------------------------------------------------------
+# CloudWatch Log Group
+# ------------------------------------------------------------------------------
+
+resource "aws_cloudwatch_log_group" "api" {
+  name              = "/ecs/${var.environment}-api"
+  retention_in_days = var.log_retention_days
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
+# ECS Cluster
+# ------------------------------------------------------------------------------
+
+resource "aws_ecs_cluster" "main" {
+  name = "${local.name_prefix}-cluster"
+
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
+# IAM — Task Execution Role
+# (Used by ECS agent to pull images, read secrets, push logs)
+# ------------------------------------------------------------------------------
+
+resource "aws_iam_role" "task_execution" {
+  name = "${local.name_prefix}-task-execution"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_execution_managed" {
+  role       = aws_iam_role.task_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+resource "aws_iam_role_policy" "task_execution_secrets" {
+  name = "${local.name_prefix}-execution-secrets"
+  role = aws_iam_role.task_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = length(var.secrets) > 0 ? values(var.secrets) : ["arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${local.name_prefix}-*"]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# ------------------------------------------------------------------------------
+# IAM — Task Role
+# (Used by the running application container for AWS SDK calls)
+# ------------------------------------------------------------------------------
+
+resource "aws_iam_role" "task" {
+  name = "${local.name_prefix}-task"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy" "task_ses" {
+  name = "${local.name_prefix}-task-ses"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ses:SendEmail",
+          "ses:SendRawEmail"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "task_s3" {
+  name = "${local.name_prefix}-task-s3"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::${local.name_prefix}-uploads",
+          "arn:aws:s3:::${local.name_prefix}-uploads/*"
+        ]
+      }
+    ]
+  })
+}
+
+# ------------------------------------------------------------------------------
+# ECS Task Definition
+# ------------------------------------------------------------------------------
+
+resource "aws_ecs_task_definition" "api" {
+  family                   = "${var.environment}-api"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.cpu
+  memory                   = var.memory
+  execution_role_arn       = aws_iam_role.task_execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
+
+  container_definitions = jsonencode([
+    {
+      name      = "api"
+      image     = "${var.ecr_repository_url}:${var.image_tag}"
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 3000
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        for name, value in var.environment_variables : {
+          name  = name
+          value = value
+        }
+      ]
+
+      secrets = [
+        for name, arn in var.secrets : {
+          name      = name
+          valueFrom = arn
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.api.name
+          "awslogs-region"        = data.aws_region.current.name
+          "awslogs-stream-prefix" = "api"
+        }
+      }
+    }
+  ])
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
+# ALB
+# ------------------------------------------------------------------------------
+
+resource "aws_lb" "main" {
+  name               = "${local.name_prefix}-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [var.alb_security_group_id]
+  subnets            = var.public_subnet_ids
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
+# Target Group
+# ------------------------------------------------------------------------------
+
+resource "aws_lb_target_group" "api" {
+  name        = "${local.name_prefix}-api-tg"
+  port        = 3000
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "ip"
+
+  health_check {
+    enabled             = true
+    path                = var.health_check_path
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    matcher             = "200"
+  }
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
+# ALB Listeners
+# ------------------------------------------------------------------------------
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+
+  tags = local.tags
+}
+
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.acm_certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.api.arn
+  }
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
+# ECS Service
+# ------------------------------------------------------------------------------
+
+resource "aws_ecs_service" "api" {
+  name            = "${var.environment}-api"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.api.arn
+  desired_count   = var.task_count
+  launch_type     = "FARGATE"
+
+  health_check_grace_period_seconds = 60
+
+  network_configuration {
+    subnets          = var.private_subnet_ids
+    security_groups  = [var.ecs_security_group_id]
+    assign_public_ip = var.assign_public_ip
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.api.arn
+    container_name   = "api"
+    container_port   = 3000
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
+# Outputs
+# ------------------------------------------------------------------------------
 
 output "alb_dns_name" {
-  value = ""
+  description = "DNS name of the Application Load Balancer"
+  value       = aws_lb.main.dns_name
 }
 
 output "cluster_name" {
-  value = ""
+  description = "Name of the ECS cluster"
+  value       = aws_ecs_cluster.main.name
 }
 
 output "service_name" {
-  value = ""
+  description = "Name of the ECS service"
+  value       = aws_ecs_service.api.name
+}
+
+output "cluster_arn" {
+  description = "ARN of the ECS cluster"
+  value       = aws_ecs_cluster.main.arn
+}
+
+output "service_arn" {
+  description = "ARN of the ECS service"
+  value       = aws_ecs_service.api.id
+}
+
+output "task_execution_role_arn" {
+  description = "ARN of the ECS task execution IAM role"
+  value       = aws_iam_role.task_execution.arn
+}
+
+output "task_role_arn" {
+  description = "ARN of the ECS task IAM role"
+  value       = aws_iam_role.task.arn
+}
+
+output "alb_arn" {
+  description = "ARN of the Application Load Balancer"
+  value       = aws_lb.main.arn
+}
+
+output "alb_arn_suffix" {
+  description = "ARN suffix of the ALB (for CloudWatch metrics)"
+  value       = aws_lb.main.arn_suffix
+}
+
+output "target_group_arn_suffix" {
+  description = "ARN suffix of the target group (for CloudWatch metrics)"
+  value       = aws_lb_target_group.api.arn_suffix
+}
+
+output "alb_zone_id" {
+  description = "Route 53 zone ID of the ALB (for alias records)"
+  value       = aws_lb.main.zone_id
+}
+
+output "task_definition_arn" {
+  description = "ARN of the ECS task definition family (without revision)"
+  value       = "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.api.family}"
 }
