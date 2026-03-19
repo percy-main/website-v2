@@ -187,6 +187,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   rule {
     id     = "transition-to-ia"
     status = "Enabled"
+    filter {}
 
     transition {
       days          = 90
@@ -251,6 +252,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "cdn_logs" {
   rule {
     id     = "expire-old-logs"
     status = "Enabled"
+    filter {}
 
     expiration {
       days = 90
