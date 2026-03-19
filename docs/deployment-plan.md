@@ -358,20 +358,20 @@ The script automates the full lifecycle: creates a temporary EC2 bastion, SSH tu
 
 ### 6.3 DNS records in Route 53
 
-| Type | Name | Target |
-| ---- | ---- | ------ |
-| A (alias) | `percymain.org` | CloudFront |
-| AAAA (alias) | `percymain.org` | CloudFront |
-| CNAME | `www.percymain.org` | CloudFront |
-| A (alias) | `api.v2.percymain.org` | ALB |
-| AAAA (alias) | `api.v2.percymain.org` | ALB |
-| A (alias) | `kit.percymain.org` | CloudFront |
-| AAAA (alias) | `kit.percymain.org` | CloudFront |
-| MX | `percymain.org` | Google Workspace |
-| MX | `cricket.percymain.org` | Google Workspace |
-| TXT | `percymain.org` | SPF, Stripe verification, Google verification |
-| TXT | `_dmarc.percymain.org` | DMARC policy |
-| TXT | `google._domainkey.percymain.org` | DKIM |
+| Type                                                        | Name                              | Target                                        |
+| ----------------------------------------------------------- | --------------------------------- | --------------------------------------------- |
+| A (alias)                                                   | `percymain.org`                   | CloudFront                                    |
+| AAAA (alias)                                                | `percymain.org`                   | CloudFront                                    |
+| CNAME                                                       | `www.percymain.org`               | CloudFront                                    |
+| A (alias)                                                   | `api.v2.percymain.org`            | ALB                                           |
+| AAAA (alias)                                                | `api.v2.percymain.org`            | ALB                                           |
+| A (alias)                                                   | `kit.percymain.org`               | CloudFront                                    |
+| AAAA (alias)                                                | `kit.percymain.org`               | CloudFront                                    |
+| MX                                                          | `percymain.org`                   | Google Workspace                              |
+| MX                                                          | `cricket.percymain.org`           | Google Workspace                              |
+| TXT                                                         | `percymain.org`                   | SPF, Stripe verification, Google verification |
+| TXT                                                         | `_dmarc.percymain.org`            | DMARC policy                                  |
+| TXT                                                         | `google._domainkey.percymain.org` | DKIM                                          |
 | + SES DKIM/verification records for `contact.percymain.org` |
 
 ## Ongoing Operations
