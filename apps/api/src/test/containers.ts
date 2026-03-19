@@ -47,6 +47,10 @@ export async function startTestContainer(): Promise<TestContext> {
   const connectionString = container.getConnectionUri();
 
   const pool = new pg.Pool({ connectionString, max: 5 });
+  // Swallow errors from idle clients when the container is stopped during
+  // teardown — PostgreSQL sends FATAL 57P01 which pg emits on the pool.
+  // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentional no-op
+  pool.on("error", () => {});
   const dialect = new PostgresDialect({ pool });
   const db = new Kysely<DB>({ dialect });
 
