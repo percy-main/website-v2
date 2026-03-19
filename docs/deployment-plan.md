@@ -143,7 +143,7 @@ If the account is in the SES sandbox, request production access:
 ```bash
 aws --profile percy-main sesv2 put-account-details \
   --mail-type TRANSACTIONAL \
-  --website-url "https://v2.percymain.org" \
+  --website-url "https://percymain.org" \
   --contact-language EN \
   --use-case-description "Transactional emails for sports club membership management"
 ```
