@@ -7,14 +7,13 @@ terraform {
     }
   }
 
-  # Uncomment after bootstrap: create S3 bucket and DynamoDB table manually first
-  # backend "s3" {
-  #   bucket         = "percy-main-terraform-state-bucket"
-  #   key            = "shared/terraform.tfstate"
-  #   region         = "eu-west-2"
-  #   dynamodb_table = "percy-main-terraform-locks"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket         = "percy-main-terraform-state-bucket"
+    key            = "shared/terraform.tfstate"
+    region         = "eu-west-2"
+    dynamodb_table = "percy-main-terraform-locks"
+    encrypt        = true
+  }
 }
 
 provider "aws" {

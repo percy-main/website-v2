@@ -11,14 +11,13 @@ terraform {
     }
   }
 
-  # Uncomment after bootstrap
-  # backend "s3" {
-  #   bucket         = "percy-main-terraform-state-bucket"
-  #   key            = "production/terraform.tfstate"
-  #   region         = "eu-west-2"
-  #   dynamodb_table = "percy-main-terraform-locks"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket         = "percy-main-terraform-state-bucket"
+    key            = "production/terraform.tfstate"
+    region         = "eu-west-2"
+    dynamodb_table = "percy-main-terraform-locks"
+    encrypt        = true
+  }
 }
 
 provider "aws" {
