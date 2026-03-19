@@ -1,6 +1,9 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  resolve: {
+    conditions: ["types"],
+  },
   test: {
     globals: true,
     environment: "node",
