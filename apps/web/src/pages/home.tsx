@@ -1,3 +1,4 @@
+import { SeasonLeaders } from "@/components/season-leaders.js";
 import { api } from "@/lib/api.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
 import { getAllEvents } from "@/lib/events.js";
@@ -344,6 +345,13 @@ export function Component() {
 
       {/* Upcoming Fixtures */}
       <UpcomingStrip />
+
+      {/* Season Leaders */}
+      <section className="bg-primary/5 py-10">
+        <div className="container mx-auto px-8">
+          <SeasonLeaders />
+        </div>
+      </section>
 
       {/* Latest News */}
       {top5.length > 0 && (
