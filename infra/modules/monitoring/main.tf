@@ -15,11 +15,6 @@ variable "alarm_email" {
   default = ""
 }
 
-variable "log_retention_days" {
-  type    = number
-  default = 180
-}
-
 variable "cluster_name" {
   type        = string
   description = "ECS cluster name for metrics"
@@ -49,6 +44,8 @@ variable "rds_instance_id" {
 # Locals
 # -----------------------------------------------------------------------------
 
+data "aws_region" "current" {}
+
 locals {
   prefix = "percy-main-${var.environment}"
 
@@ -64,8 +61,9 @@ locals {
 # -----------------------------------------------------------------------------
 
 resource "aws_sns_topic" "alarms" {
-  name = "${local.prefix}-alarms"
-  tags = local.default_tags
+  name              = "${local.prefix}-alarms"
+  kms_master_key_id = "alias/aws/sns"
+  tags              = local.default_tags
 }
 
 resource "aws_sns_topic_subscription" "email" {
@@ -174,6 +172,28 @@ resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_hosts" {
   tags = local.default_tags
 }
 
+resource "aws_cloudwatch_metric_alarm" "alb_latency_high" {
+  alarm_name          = "${local.prefix}-alb-latency-high"
+  alarm_description   = "ALB p99 response time exceeds 2 seconds"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "TargetResponseTime"
+  namespace           = "AWS/ApplicationELB"
+  period              = 300
+  extended_statistic  = "p99"
+  threshold           = 2
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    LoadBalancer = var.alb_arn_suffix
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
 # -----------------------------------------------------------------------------
 # RDS CloudWatch Alarms
 # -----------------------------------------------------------------------------
@@ -224,14 +244,14 @@ resource "aws_cloudwatch_metric_alarm" "rds_free_storage_low" {
 
 resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
   alarm_name          = "${local.prefix}-rds-connections-high"
-  alarm_description   = "RDS database connections exceed 80"
+  alarm_description   = "RDS database connections exceed 60 (~70% of db.t4g.micro limit)"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
   metric_name         = "DatabaseConnections"
   namespace           = "AWS/RDS"
   period              = 300
   statistic           = "Average"
-  threshold           = 80
+  threshold           = 60
   treat_missing_data  = "notBreaching"
 
   dimensions = {
@@ -266,7 +286,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Average"
-          region = "eu-west-2"
+          region = "${data.aws_region.current.name}"
           view   = "timeSeries"
         }
       },
@@ -283,7 +303,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Average"
-          region = "eu-west-2"
+          region = "${data.aws_region.current.name}"
           view   = "timeSeries"
         }
       },
@@ -300,7 +320,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Sum"
-          region = "eu-west-2"
+          region = "${data.aws_region.current.name}"
           view   = "timeSeries"
         }
       },
@@ -317,7 +337,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Sum"
-          region = "eu-west-2"
+          region = "${data.aws_region.current.name}"
           view   = "timeSeries"
         }
       },
@@ -334,7 +354,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Average"
-          region = "eu-west-2"
+          region = "${data.aws_region.current.name}"
           view   = "timeSeries"
         }
       },
@@ -351,7 +371,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Average"
-          region = "eu-west-2"
+          region = "${data.aws_region.current.name}"
           view   = "timeSeries"
         }
       },
@@ -368,7 +388,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Average"
-          region = "eu-west-2"
+          region = "${data.aws_region.current.name}"
           view   = "timeSeries"
         }
       }

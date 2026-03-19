@@ -41,7 +41,7 @@ resource "aws_route53_zone" "main" {
 
 resource "aws_ecr_repository" "api" {
   name                 = "percy-main-api"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -55,11 +55,11 @@ resource "aws_ecr_lifecycle_policy" "api" {
     rules = [
       {
         rulePriority = 1
-        description  = "Keep last 10 images"
+        description  = "Keep last 25 images"
         selection = {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
-          countNumber = 10
+          countNumber = 25
         }
         action = {
           type = "expire"
@@ -110,7 +110,8 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
 }
 
 # -----------------------------------------------------------------------------
-# IAM Role: Terraform (GitHub Actions — all branches)
+# IAM Role: Terraform Apply (GitHub Actions — main branch only)
+# Has full permissions needed to manage infrastructure.
 # -----------------------------------------------------------------------------
 
 data "aws_iam_policy_document" "terraform_assume" {
@@ -124,9 +125,9 @@ data "aws_iam_policy_document" "terraform_assume" {
     }
 
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:*"]
+      values   = ["repo:${var.github_repo}:ref:refs/heads/main"]
     }
 
     condition {
@@ -145,6 +146,45 @@ resource "aws_iam_role" "terraform" {
 resource "aws_iam_role_policy_attachment" "terraform_admin" {
   role       = aws_iam_role.terraform.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+# -----------------------------------------------------------------------------
+# IAM Role: Terraform Plan (GitHub Actions — PRs, read-only)
+# Used during pull requests for plan-only operations.
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "terraform_plan_assume" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repo}:pull_request"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "terraform_plan" {
+  name               = "percy-main-terraform-plan"
+  assume_role_policy = data.aws_iam_policy_document.terraform_plan_assume.json
+}
+
+resource "aws_iam_role_policy_attachment" "terraform_plan_readonly" {
+  role       = aws_iam_role.terraform_plan.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
 
 # -----------------------------------------------------------------------------
@@ -222,12 +262,34 @@ data "aws_iam_policy_document" "deploy_ecs" {
     actions = [
       "ecs:UpdateService",
       "ecs:DescribeServices",
-      "ecs:DescribeTaskDefinition",
-      "ecs:RegisterTaskDefinition",
-      "ecs:RunTask",
       "ecs:DescribeTasks",
     ]
+    resources = [
+      "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/percy-main-*",
+      "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/percy-main-*/*",
+      "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task/percy-main-*/*",
+    ]
+  }
+
+  statement {
+    sid    = "ECSTaskDefinitions"
+    effect = "Allow"
+    actions = [
+      "ecs:DescribeTaskDefinition",
+      "ecs:RegisterTaskDefinition",
+    ]
     resources = ["*"]
+  }
+
+  statement {
+    sid    = "ECSRunTask"
+    effect = "Allow"
+    actions = [
+      "ecs:RunTask",
+    ]
+    resources = [
+      "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task-definition/*-api:*",
+    ]
   }
 }
 
@@ -315,8 +377,9 @@ resource "aws_iam_role_policy" "deploy_secrets" {
 # -----------------------------------------------------------------------------
 
 resource "aws_acm_certificate" "alb" {
-  domain_name       = "api.${var.domain_name}"
-  validation_method = "DNS"
+  domain_name               = "api.${var.domain_name}"
+  subject_alternative_names = ["api.staging.${var.domain_name}"]
+  validation_method         = "DNS"
 
   lifecycle {
     create_before_destroy = true

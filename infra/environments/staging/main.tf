@@ -78,6 +78,7 @@ module "ecs" {
   source                = "../../modules/ecs-service"
   environment           = "staging"
   task_count            = 1
+  max_task_count        = 2
   cpu                   = 256
   memory                = 512
   vpc_id                = module.vpc.vpc_id
@@ -89,6 +90,7 @@ module "ecs" {
   acm_certificate_arn   = local.shared.acm_alb_certificate_arn
   log_retention_days    = 30
   assign_public_ip      = true
+  ses_identity_arn      = local.shared.ses_identity_arn
 
   environment_variables = {
     NODE_ENV       = "staging"
@@ -149,7 +151,6 @@ module "dns" {
 module "monitoring" {
   source                  = "../../modules/monitoring"
   environment             = "staging"
-  log_retention_days      = 30
   alarm_email             = var.alarm_email
   cluster_name            = module.ecs.cluster_name
   service_name            = module.ecs.service_name

@@ -95,7 +95,7 @@ resource "aws_iam_role_policy" "scheduler_ecs" {
       {
         Effect   = "Allow"
         Action   = "ecs:RunTask"
-        Resource = var.task_definition_arn
+        Resource = "${var.task_definition_arn}:*"
       },
       {
         Effect = "Allow"

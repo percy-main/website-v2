@@ -35,8 +35,8 @@ variable "alb_dns_name" {
 # -----------------------------------------------------------------------------
 
 locals {
-  frontend_bucket_name = "${var.environment}-percy-main-frontend"
-  uploads_bucket_name  = "${var.environment}-percy-main-uploads"
+  frontend_bucket_name = "percy-main-${var.environment}-frontend"
+  uploads_bucket_name  = "percy-main-${var.environment}-uploads"
   frontend_origin_id   = "s3-frontend"
   uploads_origin_id    = "s3-uploads"
   alb_origin_id        = "alb-api"
@@ -74,6 +74,16 @@ resource "aws_s3_bucket" "frontend" {
   tags = merge(local.common_tags, {
     Name = local.frontend_bucket_name
   })
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "frontend" {
@@ -121,6 +131,16 @@ resource "aws_s3_bucket" "uploads" {
   })
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "uploads" {
   bucket = aws_s3_bucket.uploads.id
 
@@ -154,6 +174,31 @@ resource "aws_s3_bucket_policy" "uploads" {
   })
 }
 
+resource "aws_s3_bucket_versioning" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+
+  rule {
+    id     = "transition-to-ia"
+    status = "Enabled"
+
+    transition {
+      days          = 90
+      storage_class = "STANDARD_IA"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}
+
 resource "aws_s3_bucket_cors_configuration" "uploads" {
   bucket = aws_s3_bucket.uploads.id
 
@@ -162,6 +207,54 @@ resource "aws_s3_bucket_cors_configuration" "uploads" {
     allowed_methods = ["PUT"]
     allowed_origins = var.domain_name != "" ? ["https://${var.domain_name}"] : ["*"]
     max_age_seconds = 3600
+  }
+}
+
+# -----------------------------------------------------------------------------
+# S3 Bucket — CloudFront Access Logs
+# -----------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "cdn_logs" {
+  bucket = "percy-main-${var.environment}-cdn-logs"
+
+  tags = merge(local.common_tags, {
+    Name = "percy-main-${var.environment}-cdn-logs"
+  })
+}
+
+resource "aws_s3_bucket_public_access_block" "cdn_logs" {
+  bucket = aws_s3_bucket.cdn_logs.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_ownership_controls" "cdn_logs" {
+  bucket = aws_s3_bucket.cdn_logs.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+resource "aws_s3_bucket_acl" "cdn_logs" {
+  depends_on = [aws_s3_bucket_ownership_controls.cdn_logs]
+  bucket     = aws_s3_bucket.cdn_logs.id
+  acl        = "log-delivery-write"
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "cdn_logs" {
+  bucket = aws_s3_bucket.cdn_logs.id
+
+  rule {
+    id     = "expire-old-logs"
+    status = "Enabled"
+
+    expiration {
+      days = 90
+    }
   }
 }
 
@@ -175,6 +268,26 @@ resource "aws_cloudfront_origin_access_control" "s3" {
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
+}
+
+# -----------------------------------------------------------------------------
+# CloudFront Function — SPA Rewrite
+# -----------------------------------------------------------------------------
+
+resource "aws_cloudfront_function" "spa_rewrite" {
+  name    = "${var.environment}-percy-main-spa-rewrite"
+  runtime = "cloudfront-js-2.0"
+  code    = <<-EOF
+    function handler(event) {
+      var request = event.request;
+      var uri = request.uri;
+      // If URI has no file extension, rewrite to /index.html for SPA routing
+      if (!uri.includes('.')) {
+        request.uri = '/index.html';
+      }
+      return request;
+    }
+  EOF
 }
 
 # -----------------------------------------------------------------------------
@@ -216,7 +329,7 @@ resource "aws_cloudfront_distribution" "main" {
     custom_origin_config {
       http_port              = 80
       https_port             = 443
-      origin_protocol_policy = "http-only"
+      origin_protocol_policy = "https-only"
       origin_ssl_protocols   = ["TLSv1.2"]
     }
   }
@@ -258,22 +371,11 @@ resource "aws_cloudfront_distribution" "main" {
     allowed_methods = ["GET", "HEAD"]
     cached_methods  = ["GET", "HEAD"]
     compress        = true
-  }
 
-  # --- Custom Error Responses (SPA routing) ---
-
-  custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 10
-  }
-
-  custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 10
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_rewrite.arn
+    }
   }
 
   # --- HTTPS Certificate ---
@@ -292,6 +394,12 @@ resource "aws_cloudfront_distribution" "main" {
     content {
       cloudfront_default_certificate = true
     }
+  }
+
+  logging_config {
+    include_cookies = false
+    bucket          = aws_s3_bucket.cdn_logs.bucket_domain_name
+    prefix          = "cloudfront/"
   }
 
   restrictions {

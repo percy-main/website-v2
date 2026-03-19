@@ -54,7 +54,6 @@ jobs:
             --platform linux/arm64 \
             --push \
             -t $IMAGE \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
             -f apps/api/Dockerfile \
             .
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
@@ -73,48 +72,6 @@ jobs:
           role-to-assume: ${{ vars.DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Run migrations
-        run: |
-          TASK_DEF=$(aws ecs describe-services \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --query 'services[0].taskDefinition' \
-            --output text)
-
-          NETWORK_CONFIG=$(aws ecs describe-services \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --query 'services[0].networkConfiguration' \
-            --output json)
-
-          TASK_ARN=$(aws ecs run-task \
-            --cluster $ECS_CLUSTER \
-            --task-definition $TASK_DEF \
-            --launch-type FARGATE \
-            --network-configuration "$NETWORK_CONFIG" \
-            --overrides '{
-              "containerOverrides": [{
-                "name": "api",
-                "command": ["node", "packages/db/scripts/migrate-up.js"]
-              }]
-            }' \
-            --query 'tasks[0].taskArn' \
-            --output text)
-
-          echo "Migration task: $TASK_ARN"
-          aws ecs wait tasks-stopped --cluster $ECS_CLUSTER --tasks $TASK_ARN
-
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster $ECS_CLUSTER \
-            --tasks $TASK_ARN \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
-
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "Migration failed with exit code $EXIT_CODE"
-            exit 1
-          fi
-
       - name: Register new task definition
         id: task-def
         run: |
@@ -135,6 +92,42 @@ jobs:
 
           echo "task-definition-arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
 
+      - name: Run migrations
+        run: |
+          NETWORK_CONFIG=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE \
+            --query 'services[0].networkConfiguration' \
+            --output json)
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster $ECS_CLUSTER \
+            --task-definition ${{ steps.task-def.outputs.task-definition-arn }} \
+            --launch-type FARGATE \
+            --network-configuration "$NETWORK_CONFIG" \
+            --overrides '{
+              "containerOverrides": [{
+                "name": "api",
+                "command": ["node", "apps/api/dist/migrate.js"]
+              }]
+            }' \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          echo "Migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster $ECS_CLUSTER --tasks $TASK_ARN
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster $ECS_CLUSTER \
+            --tasks $TASK_ARN \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Migration failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+
       - name: Update ECS service
         run: |
           aws ecs update-service \
@@ -147,6 +140,20 @@ jobs:
           aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE
+
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 10); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.staging.percymain.org/health)
+            if [ "$STATUS" = "200" ]; then
+              echo "Smoke test passed"
+              exit 0
+            fi
+            echo "Attempt $i: got $STATUS, retrying..."
+            sleep 5
+          done
+          echo "Smoke test failed"
+          exit 1
 
   deploy-production:
     needs: [build-and-push, deploy-staging]
@@ -162,48 +169,6 @@ jobs:
           role-to-assume: ${{ vars.DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Run migrations
-        run: |
-          TASK_DEF=$(aws ecs describe-services \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --query 'services[0].taskDefinition' \
-            --output text)
-
-          NETWORK_CONFIG=$(aws ecs describe-services \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --query 'services[0].networkConfiguration' \
-            --output json)
-
-          TASK_ARN=$(aws ecs run-task \
-            --cluster $ECS_CLUSTER \
-            --task-definition $TASK_DEF \
-            --launch-type FARGATE \
-            --network-configuration "$NETWORK_CONFIG" \
-            --overrides '{
-              "containerOverrides": [{
-                "name": "api",
-                "command": ["node", "packages/db/scripts/migrate-up.js"]
-              }]
-            }' \
-            --query 'tasks[0].taskArn' \
-            --output text)
-
-          echo "Migration task: $TASK_ARN"
-          aws ecs wait tasks-stopped --cluster $ECS_CLUSTER --tasks $TASK_ARN
-
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster $ECS_CLUSTER \
-            --tasks $TASK_ARN \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
-
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "Migration failed with exit code $EXIT_CODE"
-            exit 1
-          fi
-
       - name: Register new task definition
         id: task-def
         run: |
@@ -224,6 +189,42 @@ jobs:
 
           echo "task-definition-arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
 
+      - name: Run migrations
+        run: |
+          NETWORK_CONFIG=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE \
+            --query 'services[0].networkConfiguration' \
+            --output json)
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster $ECS_CLUSTER \
+            --task-definition ${{ steps.task-def.outputs.task-definition-arn }} \
+            --launch-type FARGATE \
+            --network-configuration "$NETWORK_CONFIG" \
+            --overrides '{
+              "containerOverrides": [{
+                "name": "api",
+                "command": ["node", "apps/api/dist/migrate.js"]
+              }]
+            }' \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          echo "Migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster $ECS_CLUSTER --tasks $TASK_ARN
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster $ECS_CLUSTER \
+            --tasks $TASK_ARN \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Migration failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+
       - name: Update ECS service
         run: |
           aws ecs update-service \
@@ -236,3 +237,17 @@ jobs:
           aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE
+
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 10); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.percymain.org/health)
+            if [ "$STATUS" = "200" ]; then
+              echo "Smoke test passed"
+              exit 0
+            fi
+            echo "Attempt $i: got $STATUS, retrying..."
+            sleep 5
+          done
+          echo "Smoke test failed"
+          exit 1

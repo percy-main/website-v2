@@ -50,7 +50,7 @@ module "vpc" {
   source             = "../../modules/vpc"
   environment        = "production"
   cidr_block         = "10.0.0.0/16"
-  enable_nat_gateway = true
+  enable_nat_gateway = false
 }
 
 # ---------------------------------------------------------------------------
@@ -75,19 +75,21 @@ module "rds" {
 module "ecs" {
   source                = "../../modules/ecs-service"
   environment           = "production"
-  task_count            = 2
+  task_count            = 1
+  max_task_count        = 4
   cpu                   = 256
   memory                = 512
   ecr_repository_url    = local.shared.ecr_repository_url
   acm_certificate_arn   = local.shared.acm_alb_certificate_arn
   vpc_id                = module.vpc.vpc_id
-  private_subnet_ids    = module.vpc.private_subnet_ids
+  private_subnet_ids    = module.vpc.public_subnet_ids
   public_subnet_ids     = module.vpc.public_subnet_ids
   ecs_security_group_id = module.vpc.ecs_security_group_id
   alb_security_group_id = module.vpc.alb_security_group_id
   health_check_path     = "/health"
-  log_retention_days    = 180
-  assign_public_ip      = false
+  log_retention_days    = 30
+  assign_public_ip      = true
+  ses_identity_arn      = local.shared.ses_identity_arn
 
   environment_variables = {
     NODE_ENV       = "production"
@@ -149,7 +151,6 @@ module "monitoring" {
   source                  = "../../modules/monitoring"
   environment             = "production"
   alarm_email             = var.alarm_email
-  log_retention_days      = 180
   cluster_name            = module.ecs.cluster_name
   service_name            = module.ecs.service_name
   alb_arn_suffix          = module.ecs.alb_arn_suffix
@@ -166,9 +167,9 @@ module "scheduling" {
   environment             = "production"
   cluster_arn             = module.ecs.cluster_arn
   task_definition_arn     = module.ecs.task_definition_arn
-  subnet_ids              = module.vpc.private_subnet_ids
+  subnet_ids              = module.vpc.public_subnet_ids
   security_group_id       = module.vpc.ecs_security_group_id
   task_execution_role_arn = module.ecs.task_execution_role_arn
   task_role_arn           = module.ecs.task_role_arn
-  assign_public_ip        = false
+  assign_public_ip        = true
 }

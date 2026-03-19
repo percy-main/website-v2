@@ -9,5 +9,7 @@ resource "aws_secretsmanager_secret" "app_secrets" {
 
   tags = {
     Environment = "production"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
   }
 }

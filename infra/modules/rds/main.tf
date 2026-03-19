@@ -33,6 +33,12 @@ variable "allocated_storage" {
   default = 20
 }
 
+variable "max_allocated_storage" {
+  type        = number
+  default     = 50
+  description = "Maximum storage for auto-scaling (0 to disable)"
+}
+
 variable "multi_az" {
   type    = bool
   default = false
@@ -131,8 +137,9 @@ resource "aws_db_instance" "main" {
   engine_version = "16"
   instance_class = var.instance_class
 
-  allocated_storage = var.allocated_storage
-  storage_encrypted = true
+  allocated_storage     = var.allocated_storage
+  max_allocated_storage = var.max_allocated_storage > 0 ? var.max_allocated_storage : null
+  storage_encrypted     = true
 
   db_name  = "percy_main"
   username = "percy"
@@ -144,7 +151,14 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [var.security_group_id]
 
   publicly_accessible     = false
-  backup_retention_period = 7
+  backup_retention_period = var.environment == "production" ? 14 : 7
+  backup_window           = "02:00-03:00"
+  maintenance_window      = "mon:03:00-mon:04:00"
+
+  deletion_protection = var.environment == "production"
+
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7
 
   skip_final_snapshot       = var.environment != "production"
   final_snapshot_identifier = var.environment == "production" ? "${local.name_prefix}-db-final" : null

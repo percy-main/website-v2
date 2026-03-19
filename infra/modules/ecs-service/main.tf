@@ -84,6 +84,18 @@ variable "assign_public_ip" {
   default = false
 }
 
+variable "max_task_count" {
+  type        = number
+  default     = 4
+  description = "Maximum number of ECS tasks for auto-scaling"
+}
+
+variable "ses_identity_arn" {
+  type        = string
+  default     = ""
+  description = "ARN of the SES identity to restrict sending to (if empty, allows all)"
+}
+
 # ------------------------------------------------------------------------------
 # Locals
 # ------------------------------------------------------------------------------
@@ -126,7 +138,7 @@ resource "aws_ecs_cluster" "main" {
 
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = "disabled"
   }
 
   tags = local.tags
@@ -226,7 +238,7 @@ resource "aws_iam_role_policy" "task_ses" {
           "ses:SendEmail",
           "ses:SendRawEmail"
         ]
-        Resource = "*"
+        Resource = var.ses_identity_arn != "" ? [var.ses_identity_arn] : ["arn:aws:ses:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:identity/*"]
       }
     ]
   })
@@ -316,6 +328,57 @@ resource "aws_ecs_task_definition" "api" {
 }
 
 # ------------------------------------------------------------------------------
+# ALB Access Logs Bucket
+# ------------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "alb_logs" {
+  bucket = "${local.name_prefix}-alb-logs"
+  tags   = local.tags
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+
+  rule {
+    id     = "expire-old-logs"
+    status = "Enabled"
+
+    expiration {
+      days = 90
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+data "aws_elb_service_account" "main" {}
+
+resource "aws_s3_bucket_policy" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = data.aws_elb_service_account.main.arn
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs.arn}/alb/*"
+      }
+    ]
+  })
+}
+
+# ------------------------------------------------------------------------------
 # ALB
 # ------------------------------------------------------------------------------
 
@@ -326,6 +389,12 @@ resource "aws_lb" "main" {
   security_groups    = [var.alb_security_group_id]
   subnets            = var.public_subnet_ids
 
+  access_logs {
+    bucket  = aws_s3_bucket.alb_logs.id
+    prefix  = "alb"
+    enabled = true
+  }
+
   tags = local.tags
 }
 
@@ -334,11 +403,12 @@ resource "aws_lb" "main" {
 # ------------------------------------------------------------------------------
 
 resource "aws_lb_target_group" "api" {
-  name        = "${local.name_prefix}-api-tg"
-  port        = 3000
-  protocol    = "HTTP"
-  vpc_id      = var.vpc_id
-  target_type = "ip"
+  name                 = "${local.name_prefix}-api-tg"
+  port                 = 3000
+  protocol             = "HTTP"
+  vpc_id               = var.vpc_id
+  target_type          = "ip"
+  deregistration_delay = 30
 
   health_check {
     enabled             = true
@@ -411,6 +481,11 @@ resource "aws_ecs_service" "api" {
     assign_public_ip = var.assign_public_ip
   }
 
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   load_balancer {
     target_group_arn = aws_lb_target_group.api.arn
     container_name   = "api"
@@ -418,10 +493,39 @@ resource "aws_ecs_service" "api" {
   }
 
   lifecycle {
-    ignore_changes = [task_definition]
+    ignore_changes = [task_definition, desired_count]
   }
 
   tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
+# ECS Auto Scaling
+# ------------------------------------------------------------------------------
+
+resource "aws_appautoscaling_target" "ecs" {
+  max_capacity       = var.max_task_count
+  min_capacity       = var.task_count
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.api.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "ecs_cpu" {
+  name               = "${local.name_prefix}-cpu-scaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.ecs.resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value       = 70.0
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+  }
 }
 
 # ------------------------------------------------------------------------------

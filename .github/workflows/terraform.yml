@@ -31,7 +31,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: hashicorp/setup-terraform@v3
@@ -67,21 +67,9 @@ jobs:
         if: steps.plan.outcome == 'failure'
         run: exit 1
 
-  apply:
+  apply-shared:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 1
-      matrix:
-        include:
-          - environment: shared
-            order: 1
-          - environment: staging
-            order: 2
-          - environment: production
-            order: 3
-            requires_approval: true
-    environment: ${{ matrix.requires_approval && 'production' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -96,9 +84,69 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        working-directory: infra/environments/${{ matrix.environment }}
+        working-directory: infra/environments/shared
+        run: terraform init
+
+      - name: Verify remote backend is configured
+        working-directory: infra/environments/shared
+        run: |
+          if grep -q '# backend "s3"' main.tf || grep -q '#   bucket' main.tf; then
+            echo "ERROR: S3 backend is still commented out in shared/main.tf"
+            echo "Uncomment the backend block before applying."
+            exit 1
+          fi
+
+      - name: Terraform Apply
+        working-directory: infra/environments/shared
+        run: terraform apply -auto-approve
+
+  apply-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: apply-shared
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: infra/environments/staging
         run: terraform init
 
       - name: Terraform Apply
-        working-directory: infra/environments/${{ matrix.environment }}
+        working-directory: infra/environments/staging
+        run: terraform apply -auto-approve
+
+  apply-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: apply-staging
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: infra/environments/production
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: infra/environments/production
         run: terraform apply -auto-approve
