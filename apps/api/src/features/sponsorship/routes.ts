@@ -1,12 +1,14 @@
 import type { FastifyPluginAsync } from "fastify";
 import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
 import { requireRole } from "../auth/middleware.ts";
+import { createStripe } from "../payments/stripe.ts";
 import {
   allApprovedSchema,
   byGameIdSchema,
   bySlugSchema,
   gameSponsorshipManualSchema,
   playerSponsorshipManualSchema,
+  playerSponsorshipPaymentSchema,
   sponsorshipActionSchema,
   sponsorshipIdParamSchema,
   sponsorshipListSchema,
@@ -17,6 +19,7 @@ import {
   approvePlayerSponsorship,
   createManualGameSponsorship,
   createManualPlayerSponsorship,
+  createPlayerSponsorshipPayment,
   getAllApprovedPlayerSponsors,
   getGameSponsorByGameId,
   getGameSponsorshipPrice,
@@ -33,10 +36,14 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
+  const stripe = createStripe({
+    stripeSecretKey: app.config.STRIPE_SECRET_KEY,
+  });
   const gameSponsor = getGameSponsorByGameId(app.db);
   const playerSponsor = getPlayerSponsorForPlayer(app.db);
   const playerPending = hasPlayerPendingSponsor(app.db);
   const allApproved = getAllApprovedPlayerSponsors(app.db);
+  const createPayment = createPlayerSponsorshipPayment(app.db, stripe);
   const listGame = listGameSponsorships(app.db);
   const listPlayer = listPlayerSponsorships(app.db);
   const approveGame = approveGameSponsorship(app.db);
@@ -79,6 +86,11 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
   app.get("/sponsorship/player/:slug/pending", async (request) => {
     const { slug } = parseParams(request, bySlugSchema);
     return await playerPending(slug);
+  });
+
+  app.post("/sponsorship/player/create-payment", async (request) => {
+    const data = parseBody(request, playerSponsorshipPaymentSchema);
+    return await createPayment(data);
   });
 
   // --- Admin routes ---
