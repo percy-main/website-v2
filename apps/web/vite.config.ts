@@ -15,7 +15,16 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
-    imagetools(),
+    imagetools({
+      defaultDirectives: (url) => {
+        if (url.searchParams.has("optimise")) {
+          return new URLSearchParams(
+            "w=320;640;960;1280;1920&format=avif;webp;jpg&as=picture",
+          );
+        }
+        return new URLSearchParams();
+      },
+    }),
   ],
   resolve: {
     alias: {

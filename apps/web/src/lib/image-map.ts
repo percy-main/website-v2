@@ -7,16 +7,14 @@ import type { PictureSource } from "@/components/optimised-image.js";
  * with vite-imagetools processing.
  */
 
-// Optimised picture sources (AVIF + WebP + fallback, multiple widths)
+// Optimised picture sources (AVIF + WebP + fallback, multiple widths).
+// The `optimise` marker triggers defaultDirectives in vite.config.ts,
+// which injects the actual imagetools directives (w, format, as=picture).
 const pictureModules = import.meta.glob<{ default: PictureSource }>(
   "../assets/images/**/*.{jpg,jpeg,png,webp}",
   {
     eager: true,
-    query: {
-      w: "320;640;960;1280;1920",
-      format: "avif;webp;jpg",
-      as: "picture",
-    },
+    query: { optimise: true },
   },
 );
 
