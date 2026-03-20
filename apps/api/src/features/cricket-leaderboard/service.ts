@@ -13,10 +13,7 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
       .where("b.season", "=", params.season)
       .groupBy(["b.player_id", "m.slug"])
-      .select([
-        "b.player_id as playerId",
-        "m.slug",
-      ])
+      .select(["b.player_id as playerId", "m.slug"])
       .select((eb) => [
         eb.fn.max("b.player_name").as("playerName"),
         eb.fn.countAll().as("innings"),
@@ -119,10 +116,7 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
       .where("b.season", "=", params.season)
       .groupBy(["b.player_id", "m.slug"])
-      .select([
-        "b.player_id as playerId",
-        "m.slug",
-      ])
+      .select(["b.player_id as playerId", "m.slug"])
       .select((eb) => [
         eb.fn.max("b.player_name").as("playerName"),
         eb.fn.countAll().as("matches"),

@@ -74,7 +74,7 @@ interface MemberRecord {
   id: string;
   name: string | null;
   play_cricket_id: string | null;
-  contentful_entry_id: string | null;
+  slug: string | null;
 }
 
 interface DependentRecord {
@@ -93,6 +93,7 @@ interface PersonRow {
   id: string;
   name: string | null;
   playCricketId: string | null;
+  slug?: string | null;
   parentName?: string | null;
   type: "member" | "dependent";
 }
@@ -160,6 +161,26 @@ export function RecordLinkingTab() {
     },
   });
 
+  const linkSlugMutation = useMutation({
+    mutationFn: (params: { memberId: string; slug: string }) =>
+      api.post("/admin/record-linking/slug/link", params),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "recordLinking"],
+      });
+    },
+  });
+
+  const unlinkSlugMutation = useMutation({
+    mutationFn: (params: { memberId: string }) =>
+      api.post("/admin/record-linking/slug/unlink", params),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "recordLinking"],
+      });
+    },
+  });
+
   // Combine members and dependents into a single list
   const allPeople: PersonRow[] = useMemo(() => {
     if (!linkingData) return [];
@@ -167,6 +188,7 @@ export function RecordLinkingTab() {
       id: m.id,
       name: m.name,
       playCricketId: m.play_cricket_id,
+      slug: m.slug,
       type: "member" as const,
     }));
     const deps: PersonRow[] = linkingData.dependents.map((d) => ({
@@ -344,13 +366,14 @@ export function RecordLinkingTab() {
               <TableHead>Name</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-center">Play-Cricket</TableHead>
+              <TableHead className="text-center">Slug</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredPeople.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={3}
+                  colSpan={4}
                   className="py-6 text-center text-gray-500"
                 >
                   No matching people found.
@@ -388,6 +411,20 @@ export function RecordLinkingTab() {
                     </span>
                   ) : (
                     <span className="inline-block text-gray-300">&#10007;</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                  {person.slug ? (
+                    <span
+                      className="inline-block text-green-600"
+                      title={person.slug}
+                    >
+                      &#10003;
+                    </span>
+                  ) : (
+                    <span className="inline-block text-gray-300">
+                      {person.type === "member" ? "\u2717" : "\u2014"}
+                    </span>
                   )}
                 </TableCell>
               </TableRow>
@@ -432,6 +469,19 @@ export function RecordLinkingTab() {
           }
           isLinking={linkPcMutation.isPending}
           isUnlinking={unlinkPcMutation.isPending}
+          onLinkSlug={(slug) =>
+            linkSlugMutation.mutate({
+              memberId: detailModal.person.id,
+              slug,
+            })
+          }
+          onUnlinkSlug={() =>
+            unlinkSlugMutation.mutate({
+              memberId: detailModal.person.id,
+            })
+          }
+          isLinkingSlug={linkSlugMutation.isPending}
+          isUnlinkingSlug={unlinkSlugMutation.isPending}
           onClose={() => {
             setDetailModal(null);
             setLinkSearch("");
@@ -455,6 +505,10 @@ function DetailModal({
   onUnlinkPlayCricket,
   isLinking,
   isUnlinking,
+  onLinkSlug,
+  onUnlinkSlug,
+  isLinkingSlug,
+  isUnlinkingSlug,
   onClose,
 }: {
   person: PersonRow;
@@ -469,8 +523,13 @@ function DetailModal({
   onUnlinkPlayCricket: () => void;
   isLinking: boolean;
   isUnlinking: boolean;
+  onLinkSlug: (slug: string) => void;
+  onUnlinkSlug: () => void;
+  isLinkingSlug: boolean;
+  isUnlinkingSlug: boolean;
   onClose: () => void;
 }) {
+  const [slugInput, setSlugInput] = useState("");
   // Suggested PC players
   const suggestedPcPlayers = useMemo(() => {
     if (!pcPlayers || !linking) return [];
@@ -616,6 +675,58 @@ function DetailModal({
             </div>
           )}
         </div>
+
+        {/* Slug section (members only) */}
+        {person.type === "member" && (
+          <div className="rounded border border-gray-200 p-4">
+            <h3 className="mb-2 text-sm font-semibold text-gray-700">
+              Person Page Slug
+            </h3>
+            {person.slug ? (
+              <div className="flex items-center justify-between">
+                <div>
+                  <StatusPill variant="green">Linked</StatusPill>
+                  <span className="ml-2 font-mono text-xs text-gray-500">
+                    {person.slug}
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onUnlinkSlug}
+                  disabled={isUnlinkingSlug}
+                  className="border-red-300 text-red-700 hover:bg-red-50"
+                >
+                  Unlink
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  placeholder="e.g. alex-young"
+                  value={slugInput}
+                  onChange={(e) => setSlugInput(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (slugInput.trim()) {
+                      onLinkSlug(slugInput.trim());
+                      setSlugInput("");
+                    }
+                  }}
+                  disabled={!slugInput.trim() || isLinkingSlug}
+                  className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                  variant="outline"
+                >
+                  Link
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

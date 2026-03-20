@@ -340,16 +340,26 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
       .selectAll()
       .execute();
 
-    // Calculate batting averages
+    // Calculate batting aggregates
     const totalRuns = battingRows.reduce((sum, r) => sum + (r.runs ?? 0), 0);
     const innings = battingRows.length;
     const notOuts = battingRows.filter((r) => r.how_out === "not out").length;
     const dismissals = innings - notOuts;
-    const battingAverage = dismissals > 0 ? totalRuns / dismissals : null;
+    const battingAverage =
+      innings >= 3 && dismissals > 0 ? totalRuns / dismissals : null;
     const highScore =
       innings > 0 ? Math.max(...battingRows.map((r) => r.runs ?? 0)) : 0;
+    const totalBalls = battingRows.reduce((sum, r) => sum + (r.balls ?? 0), 0);
+    const battingStrikeRate =
+      totalBalls > 0 ? (totalRuns / totalBalls) * 100 : null;
+    const fours = battingRows.reduce((sum, r) => sum + (r.fours ?? 0), 0);
+    const sixes = battingRows.reduce((sum, r) => sum + (r.sixes ?? 0), 0);
+    const fifties = battingRows.filter(
+      (r) => (r.runs ?? 0) >= 50 && (r.runs ?? 0) < 100,
+    ).length;
+    const hundreds = battingRows.filter((r) => (r.runs ?? 0) >= 100).length;
 
-    // Calculate bowling stats
+    // Calculate bowling aggregates
     const totalWickets = bowlingRows.reduce(
       (sum, r) => sum + (r.wickets ?? 0),
       0,
@@ -358,14 +368,49 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
       (sum, r) => sum + (r.runs ?? 0),
       0,
     );
-    const totalOvers = bowlingRows.reduce(
-      (sum, r) => sum + (parseFloat(r.overs) || 0),
+    const totalMaidens = bowlingRows.reduce(
+      (sum, r) => sum + (r.maidens ?? 0),
       0,
     );
+
+    // Convert cricket overs to total balls for proper aggregation
+    let totalBowlingBalls = 0;
+    for (const r of bowlingRows) {
+      const parts = r.overs.split(".");
+      const completedOvers = parseInt(parts[0], 10) || 0;
+      const extraBalls = parts[1] ? parseInt(parts[1], 10) : 0;
+      totalBowlingBalls += completedOvers * 6 + extraBalls;
+    }
+
+    const totalOversDisplay = `${Math.floor(totalBowlingBalls / 6)}.${totalBowlingBalls % 6}`;
     const bowlingAverage =
-      totalWickets > 0 ? totalRunsConceded / totalWickets : null;
-    const strikeRate =
-      totalWickets > 0 ? (totalOvers * 6) / totalWickets : null;
+      totalBowlingBalls >= 60 && totalWickets > 0
+        ? totalRunsConceded / totalWickets
+        : null;
+    const economy =
+      totalBowlingBalls > 0
+        ? totalRunsConceded / (totalBowlingBalls / 6)
+        : null;
+    const bowlingStrikeRate =
+      totalBowlingBalls >= 60 && totalWickets > 0
+        ? totalBowlingBalls / totalWickets
+        : null;
+
+    // Best bowling this season
+    const bestBowl =
+      bowlingRows.length > 0
+        ? bowlingRows.reduce((best, r) => {
+            const w = r.wickets ?? 0;
+            const runs = r.runs ?? 0;
+            if (
+              w > (best.wickets ?? 0) ||
+              (w === (best.wickets ?? 0) && runs < (best.runs ?? 0))
+            ) {
+              return r;
+            }
+            return best;
+          })
+        : null;
 
     return {
       playCricketId,
@@ -376,17 +421,25 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
         notOuts,
         average: battingAverage,
         highScore,
+        strikeRate: battingStrikeRate,
+        fours,
+        sixes,
+        fifties,
+        hundreds,
       },
       bowling: {
         innings: bowlingRows.length,
-        overs: totalOvers,
+        overs: totalOversDisplay,
+        maidens: totalMaidens,
         wickets: totalWickets,
-        runsConceded: totalRunsConceded,
+        runs: totalRunsConceded,
         average: bowlingAverage,
-        strikeRate,
+        economy,
+        strikeRate: bowlingStrikeRate,
+        bestBowling: bestBowl
+          ? `${bestBowl.wickets ?? 0}/${bestBowl.runs ?? 0}`
+          : null,
       },
-      battingRows,
-      bowlingRows,
     };
   };
 }

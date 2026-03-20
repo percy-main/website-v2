@@ -26,9 +26,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   // --- player_sponsorship table: drop contentful_entry_id, add slug ---
 
   // Drop unique paid index
-  await db.schema
-    .dropIndex("idx_player_sponsorship_unique_paid")
-    .execute();
+  await db.schema.dropIndex("idx_player_sponsorship_unique_paid").execute();
 
   // Drop lookup index
   await db.schema.dropIndex("idx_player_sponsorship_lookup").execute();

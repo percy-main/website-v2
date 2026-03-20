@@ -21,6 +21,7 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
       distinct: vi.fn().mockReturnThis(),
       groupBy: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
       executeTakeFirst: mockExecuteTakeFirst,
       execute: mockExecute,
     };
@@ -205,6 +206,13 @@ describe("play-cricket service", () => {
           total_wickets: 22,
         },
       ]);
+
+      // Best bowling figures
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        wickets: 5,
+        runs: 28,
+        overs: "8",
+      });
 
       const result = await getPlayerCareerStats(db)("entry-123");
 

@@ -13,7 +13,7 @@ import { Link } from "react-router";
 interface BattingEntry {
   playerId: string;
   playerName: string;
-  contentfulEntryId: string | null;
+  slug: string | null;
   innings: number;
   runs: number;
   highScore: number | null;
@@ -23,7 +23,7 @@ interface BattingEntry {
 interface BowlingEntry {
   playerId: string;
   playerName: string;
-  contentfulEntryId: string | null;
+  slug: string | null;
   wickets: number;
   overs: string;
   average: number | null;
@@ -77,50 +77,8 @@ function MiniTable({
   );
 }
 
-/**
- * Resolve a player name to a person slug for profile linking.
- * Uses dynamic import to avoid pulling all people data into the component.
- */
-function usePersonSlugMap() {
-  // This runs once on mount
-  const { data: slugMap } = useQuery({
-    queryKey: ["person-slug-map"],
-    queryFn: async () => {
-      const { getPersonBySlug } = await import("@/lib/people.js");
-      // We need all people, but people.ts only exports getPersonBySlug.
-      // We'll build a name→slug map by trying common slug formats.
-      // This is a workaround; we return the lookup function instead.
-      return { getPersonBySlug };
-    },
-    staleTime: Infinity,
-  });
-
-  return (name: string): string | null => {
-    if (!slugMap) return null;
-    const slug = name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .trim();
-    const person = slugMap.getPersonBySlug(slug);
-    if (person) return slug;
-
-    // Try first + last name only
-    const parts = name.split(" ");
-    if (parts.length > 2) {
-      const simpleSlug = `${parts[0]}-${parts[parts.length - 1]}`
-        .toLowerCase()
-        .replace(/[^a-z0-9-]/g, "");
-      const simplePerson = slugMap.getPersonBySlug(simpleSlug);
-      if (simplePerson) return simpleSlug;
-    }
-    return null;
-  };
-}
-
 export function SeasonLeaders() {
   const season = currentCricketSeason();
-  const resolveSlug = usePersonSlugMap();
 
   // Decide the display season once, then fetch both tables for that same season.
   // Try current season first; if batting has no data, fall back to previous for both.
@@ -216,10 +174,7 @@ export function SeasonLeaders() {
                 <TableRow key={idx}>
                   <TableCell className="text-gray-400">{idx + 1}</TableCell>
                   <TableCell>
-                    <PlayerLink
-                      name={entry.playerName}
-                      slug={resolveSlug(entry.playerName)}
-                    />
+                    <PlayerLink name={entry.playerName} slug={entry.slug} />
                   </TableCell>
                   <TableCell className="text-right font-bold">
                     {entry.runs}
@@ -256,10 +211,7 @@ export function SeasonLeaders() {
                 <TableRow key={idx}>
                   <TableCell className="text-gray-400">{idx + 1}</TableCell>
                   <TableCell>
-                    <PlayerLink
-                      name={entry.playerName}
-                      slug={resolveSlug(entry.playerName)}
-                    />
+                    <PlayerLink name={entry.playerName} slug={entry.slug} />
                   </TableCell>
                   <TableCell className="text-right font-bold">
                     {entry.wickets}
