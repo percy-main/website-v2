@@ -1,8 +1,10 @@
+import { OptimisedImage } from "@/components/optimised-image.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { api } from "@/lib/api.js";
+import { getImageUrl, getPicture } from "@/lib/image-map.js";
 import { getPersonBySlug } from "@/lib/people.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -11,22 +13,32 @@ import { type ReactNode, useState } from "react";
 import { IoCalendar, IoChevronForward } from "react-icons/io5";
 import { Link, useLocation } from "react-router";
 
-const ANON_IMAGE = "/images/anon.jpg";
+const ANON_IMAGE = getImageUrl("/images/anon.jpg");
+const ANON_PICTURE = getPicture("/images/anon.jpg");
 
 function Person({ slug, role }: { slug: string; role?: string }) {
   const person = getPersonBySlug(slug);
   const name = person?.name ?? slug;
-  const photo = person?.photo;
+  const picture = person?.photoPicture ?? ANON_PICTURE;
 
   return (
     <div className="person h-full rounded-lg bg-white pb-4 text-gray-900 shadow-md">
       <div className="from-cta h-2 rounded-t-lg bg-gradient-to-r to-orange-400" />
       <div className="mx-auto mt-4 h-24 w-24 overflow-hidden rounded-full border-4 border-gray-100">
-        <img
-          className="h-24 w-24 object-cover object-center"
-          src={photo ?? ANON_IMAGE}
-          alt={name}
-        />
+        {picture ? (
+          <OptimisedImage
+            picture={picture}
+            alt={name}
+            className="h-24 w-24 object-cover object-center"
+            sizes="96px"
+          />
+        ) : (
+          <img
+            className="h-24 w-24 object-cover object-center"
+            src={person?.photo ?? ANON_IMAGE}
+            alt={name}
+          />
+        )}
       </div>
       <div className="mt-3 text-center">
         <h5 className="pb-1 font-semibold">{name}</h5>
@@ -370,9 +382,24 @@ function ContentImage({
   alt?: string;
   caption?: string;
 }) {
+  const picture = getPicture(src);
+
   return (
     <figure className="my-4 max-w-lg self-center">
-      <img src={src} alt={alt ?? ""} className="h-auto max-w-full rounded-lg" />
+      {picture ? (
+        <OptimisedImage
+          picture={picture}
+          alt={alt ?? ""}
+          className="h-auto max-w-full rounded-lg"
+          sizes="(max-width: 512px) 100vw, 512px"
+        />
+      ) : (
+        <img
+          src={src}
+          alt={alt ?? ""}
+          className="h-auto max-w-full rounded-lg"
+        />
+      )}
       {caption && (
         <figcaption className="mt-2 text-sm text-gray-600">
           {caption}
@@ -380,6 +407,32 @@ function ContentImage({
       )}
     </figure>
   );
+}
+
+/**
+ * Component map provided to MDX content.
+ * MDX files can use these as JSX tags: <Person slug="..." />, <LeagueTable divisionId="..." />, etc.
+ */
+/**
+ * Override for markdown `![alt](src)` images in MDX.
+ * Resolves image paths through the optimised image map.
+ */
+function MdxImg(props: React.ImgHTMLAttributes<HTMLImageElement>) {
+  const src = props.src ?? "";
+  const picture = getPicture(src);
+
+  if (picture) {
+    return (
+      <OptimisedImage
+        picture={picture}
+        alt={props.alt ?? ""}
+        className="h-auto max-w-full rounded-lg"
+        sizes="(max-width: 512px) 100vw, 512px"
+      />
+    );
+  }
+
+  return <img {...props} alt={props.alt ?? ""} />;
 }
 
 /**
@@ -394,4 +447,5 @@ export const mdxComponents = {
   GamePreview,
   ContactForm,
   Image: ContentImage,
+  img: MdxImg,
 };

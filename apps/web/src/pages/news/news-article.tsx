@@ -1,11 +1,14 @@
 import { mdxComponents } from "@/components/mdx-components.js";
+import { OptimisedImage } from "@/components/optimised-image.js";
+import { getImageUrl, getPicture } from "@/lib/image-map.js";
 import { newsBySlug } from "@/lib/news.js";
 import { MDXProvider } from "@mdx-js/react";
 import { format } from "date-fns";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useParams } from "react-router";
 
-const ANON_IMAGE = "/images/anon.jpg";
+const ANON_IMAGE = getImageUrl("/images/anon.jpg");
+const ANON_PICTURE = getPicture("/images/anon.jpg");
 
 export function Component() {
   const params = useParams();
@@ -43,11 +46,23 @@ export function Component() {
             to={`/person/${article.author.slug}`}
             className="flex items-center gap-4"
           >
-            <img
-              className="h-14 w-14 rounded-full object-cover"
-              src={article.author.photo ?? ANON_IMAGE}
-              alt={article.author.name}
-            />
+            {(() => {
+              const picture = article.author.photoPicture ?? ANON_PICTURE;
+              return picture ? (
+                <OptimisedImage
+                  picture={picture}
+                  alt={article.author.name}
+                  className="h-14 w-14 rounded-full object-cover"
+                  sizes="56px"
+                />
+              ) : (
+                <img
+                  className="h-14 w-14 rounded-full object-cover"
+                  src={article.author.photo ?? ANON_IMAGE}
+                  alt={article.author.name}
+                />
+              );
+            })()}
             <span className="text-dark font-medium">{article.author.name}</span>
           </Link>
         )}

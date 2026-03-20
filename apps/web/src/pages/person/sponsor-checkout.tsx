@@ -1,3 +1,4 @@
+import { OptimisedImage } from "@/components/optimised-image";
 import { PaymentForm } from "@/components/payment-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -11,13 +12,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
+import { getImageUrl, getPicture } from "@/lib/image-map";
 import { getPersonBySlug } from "@/lib/people";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useParams } from "react-router";
 
-const ANON_IMAGE = "/images/anon.jpg";
+const ANON_IMAGE = getImageUrl("/images/anon.jpg");
+const ANON_PICTURE = getPicture("/images/anon.jpg");
 const MAX_LOGO_BYTES = 150_000;
 const MAX_MESSAGE_CHARS = 100;
 
@@ -217,11 +220,23 @@ export function Component() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <img
-              src={person.photo ?? ANON_IMAGE}
-              alt={person.name}
-              className="h-10 w-10 rounded-full"
-            />
+            {(() => {
+              const picture = person.photoPicture ?? ANON_PICTURE;
+              return picture ? (
+                <OptimisedImage
+                  picture={picture}
+                  alt={person.name}
+                  className="h-10 w-10 rounded-full"
+                  sizes="40px"
+                />
+              ) : (
+                <img
+                  src={person.photo ?? ANON_IMAGE}
+                  alt={person.name}
+                  className="h-10 w-10 rounded-full"
+                />
+              );
+            })()}
             <CardTitle>Sponsor {person.name}</CardTitle>
           </div>
         </CardHeader>

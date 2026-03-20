@@ -5,6 +5,7 @@ import path from "path";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import { defineConfig } from "vite";
+import { imagetools } from "vite-imagetools";
 
 export default defineConfig({
   plugins: [
@@ -14,6 +15,16 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
+    imagetools({
+      defaultDirectives: (url) => {
+        if (url.searchParams.has("optimise")) {
+          return new URLSearchParams(
+            "w=320;640;960;1280;1920&format=avif;webp;jpg&as=picture",
+          );
+        }
+        return new URLSearchParams();
+      },
+    }),
   ],
   resolve: {
     alias: {

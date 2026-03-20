@@ -1,3 +1,4 @@
+import { OptimisedImage } from "@/components/optimised-image.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
 import { allNews, type NewsArticle } from "@/lib/news.js";
 import { format } from "date-fns";
@@ -61,7 +62,14 @@ function FeaturedArticleCard({ article }: { article: NewsArticle }) {
 
         <div className="flex items-center justify-between border-t border-black/5 pt-4">
           <div className="flex items-center gap-2.5">
-            {article.author?.photo ? (
+            {article.author?.photoPicture ? (
+              <OptimisedImage
+                picture={article.author.photoPicture}
+                alt={article.author.name}
+                className="h-8 w-8 shrink-0 rounded-full object-cover"
+                sizes="32px"
+              />
+            ) : article.author?.photo ? (
               <img
                 className="h-8 w-8 shrink-0 rounded-full object-cover"
                 src={article.author.photo}
@@ -140,7 +148,14 @@ function ArticleCard({ article }: { article: NewsArticle }) {
 
         <div className="mt-0.5 flex items-center justify-between border-t border-black/[0.04] pt-3">
           <div className="flex items-center gap-2.5">
-            {article.author?.photo ? (
+            {article.author?.photoPicture ? (
+              <OptimisedImage
+                picture={article.author.photoPicture}
+                alt={article.author.name}
+                className="h-7 w-7 shrink-0 rounded-full object-cover"
+                sizes="28px"
+              />
+            ) : article.author?.photo ? (
               <img
                 className="h-7 w-7 shrink-0 rounded-full object-cover"
                 src={article.author.photo}
