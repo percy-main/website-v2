@@ -4,6 +4,9 @@
 #
 # The secret value is managed outside Terraform (via AWS CLI or console).
 # Terraform only manages the secret resource itself.
+#
+# Keys: DATABASE_URL, BETTER_AUTH_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
+#       GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, PLAY_CRICKET_API_TOKEN, SLACK_WEBHOOK_URL
 
 resource "aws_secretsmanager_secret" "app_secrets" {
   name = "staging/percy-main/app"
@@ -12,5 +15,107 @@ resource "aws_secretsmanager_secret" "app_secrets" {
     Environment = "staging"
     Project     = "percy-main"
     ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# SSM Parameter Store — non-secret config
+# Values are set via AWS CLI after initial creation:
+#   aws ssm put-parameter --name "/staging/percy-main/<KEY>" --value "<VALUE>" --overwrite
+# ---------------------------------------------------------------------------
+
+resource "aws_ssm_parameter" "base_url" {
+  name  = "/staging/percy-main/BASE_URL"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "staging"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "api_base_url" {
+  name  = "/staging/percy-main/API_BASE_URL"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "staging"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "better_auth_rp_id" {
+  name  = "/staging/percy-main/BETTER_AUTH_RP_ID"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "staging"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "better_auth_rp_name" {
+  name  = "/staging/percy-main/BETTER_AUTH_RP_NAME"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "staging"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "play_cricket_site_id" {
+  name  = "/staging/percy-main/PLAY_CRICKET_SITE_ID"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "staging"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "ses_from_address" {
+  name  = "/staging/percy-main/SES_FROM_ADDRESS"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "staging"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
   }
 }
