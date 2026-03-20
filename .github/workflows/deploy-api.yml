@@ -8,6 +8,7 @@ on:
       - "packages/shared/**"
       - "packages/db/**"
       - "packages/email/**"
+      - ".github/workflows/deploy-api.yml"
 
 permissions:
   id-token: write
