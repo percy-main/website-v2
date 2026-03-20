@@ -109,7 +109,7 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
 
   // ── Grid & assignment routes (official) ──
 
-  const getGrid = getAvailabilityGrid(app.db);
+  const getGrid = getAvailabilityGrid(app.db, playCricketApi, siteId);
   const setForMember = setAvailabilityForMember(app.db);
   const assign = assignPlayer(app.db);
   const unassign = unassignPlayer(app.db);

@@ -242,7 +242,7 @@ describe("availability grid and assignments", () => {
     );
     await seedAvailabilityDate(requestId, teamId, "2026-12-01", userId);
 
-    const grid = await getAvailabilityGrid(ctx.db)(
+    const grid = await getAvailabilityGrid(ctx.db, noApi, noSiteId)(
       userId,
       "admin",
       requestId,

@@ -547,9 +547,14 @@ export function previewGamesInWindow(
 
 /**
  * Get the availability grid for a specific date — all senior members
- * with their availability status for all availability_date records on that date.
+ * with their availability status. Includes Play Cricket fixtures (which may
+ * not have matchday records yet) alongside existing matchday records.
  */
-export function getAvailabilityGrid(db: Kysely<DB>) {
+export function getAvailabilityGrid(
+  db: Kysely<DB>,
+  playCricketApi: PlayCricketApiClient | null,
+  siteId: string,
+) {
   return async (
     userId: string,
     role: string,
@@ -672,10 +677,25 @@ export function getAvailabilityGrid(db: Kysely<DB>) {
       };
     });
 
+    // Fetch Play Cricket fixtures for this date to show all games
+    // (including ones without matchday records)
+    let fixtures: PlayCricketFixture[] = [];
+    if (playCricketApi) {
+      fixtures = await fetchFixturesInWindow(
+        db,
+        playCricketApi,
+        siteId,
+        accessibleIds,
+        matchDate,
+        matchDate,
+      );
+    }
+
     return {
       matchDate,
       availabilityDateIds: dateIds,
       matchdays,
+      fixtures,
       grid,
     };
   };

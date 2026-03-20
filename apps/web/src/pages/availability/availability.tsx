@@ -79,6 +79,7 @@ interface GridData {
     play_cricket_team_id: string;
     team_name: string | null;
   }>;
+  fixtures: PlayCricketFixture[];
   grid: GridRow[];
 }
 
@@ -891,40 +892,55 @@ export function DateGridPage() {
 
         {/* Main layout: team slots + available players */}
         <div className="grid gap-4 lg:grid-cols-3">
-          {/* Team slots — each fixture gets a card */}
+          {/* Team slots — one card per Play Cricket fixture */}
           <div className="flex flex-col gap-4 lg:col-span-2">
-            {data.matchdays.length === 0 && (
+            {data.fixtures.length === 0 && data.matchdays.length === 0 && (
               <Card>
                 <CardContent className="py-8 text-center">
                   <p className="text-gray-400">
-                    No matchday records for this date yet. Create them from the
-                    Official Panel to enable team selection.
+                    No fixtures found for this date.
                   </p>
                 </CardContent>
               </Card>
             )}
 
-            {data.matchdays.map((md) => {
-              const assigned = assignedByMatchday.get(md.id) ?? new Set();
+            {data.fixtures.map((fixture) => {
+              // Find the matching matchday record (if it exists)
+              const md = data.matchdays.find(
+                (m) => m.play_cricket_team_id === fixture.teamId,
+              );
+              const hasMatchday = !!md;
+              const assigned = md
+                ? (assignedByMatchday.get(md.id) ?? new Set<string>())
+                : new Set<string>();
               const assignedRows = [...assigned]
                 .map((id) => rowByMemberId.get(id))
                 .filter((r): r is GridRow => r !== undefined);
 
               return (
-                <Card key={md.id}>
+                <Card key={fixture.matchId}>
                   <CardHeader>
-                    <CardTitle className="text-base">
-                      {md.team_name} vs {md.opposition}
-                      <span className="ml-2 text-sm font-normal text-gray-400">
-                        ({assigned.size} selected)
+                    <CardTitle className="flex items-center justify-between text-base">
+                      <span>
+                        {fixture.teamName} vs {fixture.opposition}
+                      </span>
+                      <span className="text-sm font-normal text-gray-400">
+                        {hasMatchday
+                          ? `${assigned.size} selected`
+                          : "No matchday yet"}
                       </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {assignedRows.length === 0 ? (
+                    {!hasMatchday ? (
                       <p className="text-sm text-gray-400">
-                        No players assigned yet. Click a player from the
-                        available list to add them.
+                        Create this matchday from the Official Panel to enable
+                        team selection.
+                      </p>
+                    ) : assignedRows.length === 0 ? (
+                      <p className="text-sm text-gray-400">
+                        No players assigned yet. Use the player list to add
+                        them.
                       </p>
                     ) : (
                       <div className="flex flex-col gap-1">
