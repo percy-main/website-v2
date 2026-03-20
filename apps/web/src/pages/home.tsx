@@ -82,7 +82,7 @@ function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
               );
             })}
           </div>
-          <span className="text-text shrink-0 text-[13px] whitespace-nowrap opacity-45 max-md:hidden">
+          <span className="shrink-0 text-[13px] whitespace-nowrap text-gray-500 max-md:hidden">
             {format(article.date, "d MMM yyyy")}
           </span>
         </div>
@@ -280,7 +280,7 @@ function UpcomingStrip() {
               {item.type === "game" &&
                 (item.sponsorName ?? item.sponsorLogoUrl) && (
                   <div className="flex flex-col items-center gap-1 border-t border-gray-100 pt-2">
-                    <span className="text-[10px] leading-tight text-gray-400">
+                    <span className="text-[10px] leading-tight text-gray-500">
                       Sponsored
                     </span>
                     {item.sponsorLogoUrl ? (
@@ -318,6 +318,7 @@ export function Component() {
               alt="The cricket pitch at Percy Main"
               className="h-96 w-full object-cover md:h-[32rem]"
               loading="eager"
+              fetchPriority="high"
               sizes="100vw"
             />
           ) : (
