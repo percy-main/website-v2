@@ -21,6 +21,7 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
       distinct: vi.fn().mockReturnThis(),
       groupBy: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
       executeTakeFirst: mockExecuteTakeFirst,
       execute: mockExecute,
     };
@@ -152,7 +153,7 @@ describe("play-cricket service", () => {
   });
 
   describe("getPlayerCareerStats", () => {
-    it("returns null when no contentful link exists", async () => {
+    it("returns null when no slug link exists", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // No member found
 
       const result = await getPlayerCareerStats(db)("entry-123");
@@ -176,35 +177,58 @@ describe("play-cricket service", () => {
         play_cricket_id: "pc-100",
       });
 
-      // Batting by season
+      // Batting by season (full columns)
       mockExecute.mockResolvedValueOnce([
         {
-          season: "2024",
-          innings: 10,
-          total_runs: 350,
-          high_score: 85,
-          not_outs: 2,
+          season: 2024,
+          innings: "10",
+          total_runs: "350",
+          high_score: "85",
+          not_outs: "2",
+          total_balls: "300",
+          total_fours: "30",
+          total_sixes: "5",
+          fifties: "3",
+          hundreds: "0",
         },
         {
-          season: "2023",
-          innings: 8,
-          total_runs: 200,
-          high_score: 62,
-          not_outs: 1,
+          season: 2023,
+          innings: "8",
+          total_runs: "200",
+          high_score: "62",
+          not_outs: "1",
+          total_balls: "200",
+          total_fours: "15",
+          total_sixes: "2",
+          fifties: "1",
+          hundreds: "0",
         },
       ]);
 
-      // Bowling by season
+      // Bowling by season (ball-based)
       mockExecute.mockResolvedValueOnce([
         {
-          season: "2024",
-          innings: 9,
-          total_overs: 80,
-          total_maidens: 15,
-          total_runs_conceded: 280,
-          total_wickets: 22,
+          season: 2024,
+          innings: "9",
+          total_maidens: "15",
+          total_runs_conceded: "280",
+          total_wickets: "22",
+          total_balls: "480",
+          best_wickets: "5",
         },
       ]);
+
+      // Best bowling per season
+      mockExecute.mockResolvedValueOnce([
+        { season: 2024, wickets: "5", runs: "28" },
+      ]);
+
+      // Best bowling figures overall
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        wickets: 5,
+        runs: 28,
+        overs: "8",
+      });
 
       const result = await getPlayerCareerStats(db)("entry-123");
 
@@ -214,6 +238,9 @@ describe("play-cricket service", () => {
       expect(result.career.batting.highScore).toBe(85);
       expect(result.career.batting.matches).toBe(18);
       expect(result.career.bowling.wickets).toBe(22);
+      expect(result.battingSeasons).toHaveLength(2);
+      expect(result.bowlingSeasons).toHaveLength(1);
+      expect(result.bowlingSeasons[0].bestBowling).toBe("5/28");
     });
   });
 });

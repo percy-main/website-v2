@@ -12,11 +12,8 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
       .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
       .where("b.season", "=", params.season)
-      .groupBy(["b.player_id", "m.contentful_entry_id"])
-      .select([
-        "b.player_id as playerId",
-        "m.contentful_entry_id as contentfulEntryId",
-      ])
+      .groupBy(["b.player_id", "m.slug"])
+      .select(["b.player_id as playerId", "m.slug"])
       .select((eb) => [
         eb.fn.max("b.player_name").as("playerName"),
         eb.fn.countAll().as("innings"),
@@ -75,7 +72,7 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
         return {
           playerId: row.playerId,
           playerName: row.playerName,
-          contentfulEntryId: row.contentfulEntryId,
+          slug: row.slug,
           innings,
           notOuts,
           runs,
@@ -118,11 +115,8 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
       .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
       .where("b.season", "=", params.season)
-      .groupBy(["b.player_id", "m.contentful_entry_id"])
-      .select([
-        "b.player_id as playerId",
-        "m.contentful_entry_id as contentfulEntryId",
-      ])
+      .groupBy(["b.player_id", "m.slug"])
+      .select(["b.player_id as playerId", "m.slug"])
       .select((eb) => [
         eb.fn.max("b.player_name").as("playerName"),
         eb.fn.countAll().as("matches"),
@@ -166,7 +160,7 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
         return {
           playerId: row.playerId,
           playerName: row.playerName,
-          contentfulEntryId: row.contentfulEntryId,
+          slug: row.slug,
           matches: Number(row.matches),
           overs: `${totalOvers}.${remainingBalls}`,
           maidens: Number(row.totalMaidens),

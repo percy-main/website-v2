@@ -808,7 +808,7 @@ describe("handlePaymentIntentSucceeded", () => {
       .insertInto("player_sponsorship")
       .values({
         id: sponsorshipId,
-        contentful_entry_id: "entry_123",
+        slug: "test-player",
         player_name: "Test Player",
         sponsor_name: "Test Sponsor",
         sponsor_email: email,
@@ -834,7 +834,7 @@ describe("handlePaymentIntentSucceeded", () => {
         amount: 20000,
         metadata: {
           type: "sponsorPlayer",
-          contentfulEntryId: "entry_123",
+          slug: "test-player",
           sponsorshipId,
           email,
         },

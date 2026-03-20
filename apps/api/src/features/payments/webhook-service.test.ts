@@ -139,7 +139,7 @@ describe("webhook metadata parsing", () => {
     it("parses valid player sponsorship metadata", () => {
       const result = playerSponsoredSchema.safeParse({
         type: "sponsorPlayer",
-        contentfulEntryId: "entry_789",
+        slug: "entry_789",
         sponsorshipId: "sp_012",
       });
       expect(result.success).toBe(true);
@@ -148,7 +148,7 @@ describe("webhook metadata parsing", () => {
     it("rejects without sponsorshipId", () => {
       const result = playerSponsoredSchema.safeParse({
         type: "sponsorPlayer",
-        contentfulEntryId: "entry_789",
+        slug: "entry_789",
       });
       expect(result.success).toBe(false);
     });

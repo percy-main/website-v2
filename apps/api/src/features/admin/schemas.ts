@@ -47,12 +47,12 @@ export const unlinkSchema = z.object({
   id: z.string(),
 });
 
-export const contentfulLinkSchema = z.object({
+export const slugLinkSchema = z.object({
   memberId: z.string(),
-  contentfulEntryId: z.string(),
+  slug: z.string(),
 });
 
-export const contentfulUnlinkSchema = z.object({
+export const slugUnlinkSchema = z.object({
   memberId: z.string(),
 });
 
@@ -96,8 +96,8 @@ export type ChargeNotification = z.infer<typeof chargeNotificationSchema>;
 export type CreateMember = z.infer<typeof createMemberSchema>;
 export type RecordLinking = z.infer<typeof recordLinkingSchema>;
 export type Unlink = z.infer<typeof unlinkSchema>;
-export type ContentfulLink = z.infer<typeof contentfulLinkSchema>;
-export type ContentfulUnlink = z.infer<typeof contentfulUnlinkSchema>;
+export type SlugLink = z.infer<typeof slugLinkSchema>;
+export type SlugUnlink = z.infer<typeof slugUnlinkSchema>;
 export type SetMemberCategory = z.infer<typeof setMemberCategorySchema>;
 export type ArchiveMember = z.infer<typeof archiveMemberSchema>;
 export type CreateCharge = z.infer<typeof createChargeSchema>;

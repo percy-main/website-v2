@@ -10,8 +10,6 @@ import {
   chargeIdParamSchema,
   chargeNotificationSchema,
   chasePaymentSchema,
-  contentfulLinkSchema,
-  contentfulUnlinkSchema,
   createChargeSchema,
   createMemberSchema,
   deleteChargeSchema,
@@ -30,6 +28,8 @@ import {
   setJuniorManagerTeamsSchema,
   setMemberCategorySchema,
   setOfficialTeamsSchema,
+  slugLinkSchema,
+  slugUnlinkSchema,
   unlinkDependentSchema,
   unlinkSchema,
   updateUserSchema,
@@ -50,9 +50,9 @@ import {
   getMergePreview,
   getRecordLinking,
   getUserDetail,
-  linkContentfulPerson,
   linkDependentToUser,
   linkPlayCricketPlayer,
+  linkSlug,
   listAllCharges,
   listContactSubmissions,
   listJuniors,
@@ -65,9 +65,9 @@ import {
   setJuniorManagerTeams,
   setMemberCategory,
   setOfficialTeams,
-  unlinkContentfulPerson,
   unlinkDependentUser,
   unlinkPlayCricketPlayer,
+  unlinkSlug,
   updateUser,
 } from "./service.ts";
 
@@ -80,8 +80,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const recordLinking = getRecordLinking(app.db);
   const linkPC = linkPlayCricketPlayer(app.db);
   const unlinkPC = unlinkPlayCricketPlayer(app.db);
-  const linkCF = linkContentfulPerson(app.db);
-  const unlinkCF = unlinkContentfulPerson(app.db);
+  const linkSl = linkSlug(app.db);
+  const unlinkSl = unlinkSlug(app.db);
   const detail = getUserDetail(app.db);
   const setCategory = setMemberCategory(app.db);
   const archive = archiveMember(app.db);
@@ -301,23 +301,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   );
 
   app.post(
-    "/admin/record-linking/contentful/link",
+    "/admin/record-linking/slug/link",
     { preHandler: [requireRole("admin")] },
     async (request) => {
-      const { memberId, contentfulEntryId } = parseBody(
-        request,
-        contentfulLinkSchema,
-      );
-      return await linkCF(memberId, contentfulEntryId);
+      const { memberId, slug } = parseBody(request, slugLinkSchema);
+      return await linkSl(memberId, slug);
     },
   );
 
   app.post(
-    "/admin/record-linking/contentful/unlink",
+    "/admin/record-linking/slug/unlink",
     { preHandler: [requireRole("admin")] },
     async (request) => {
-      const { memberId } = parseBody(request, contentfulUnlinkSchema);
-      return await unlinkCF(memberId);
+      const { memberId } = parseBody(request, slugUnlinkSchema);
+      return await unlinkSl(memberId);
     },
   );
 

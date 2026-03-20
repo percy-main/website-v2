@@ -18,7 +18,7 @@ const COMPETITION_TYPES = ["League", "Cup", "Friendly"] as const;
 interface BattingEntry {
   playerId: string;
   playerName: string;
-  contentfulEntryId: string | null;
+  slug: string | null;
   innings: number;
   notOuts: number;
   runs: number;
@@ -34,7 +34,7 @@ interface BattingEntry {
 interface BowlingEntry {
   playerId: string;
   playerName: string;
-  contentfulEntryId: string | null;
+  slug: string | null;
   matches: number;
   overs: string;
   maidens: number;
@@ -47,7 +47,7 @@ interface BowlingEntry {
 }
 
 interface SponsorEntry {
-  contentful_entry_id: string;
+  slug: string;
   display_name: string | null;
   sponsor_name: string;
   sponsor_website: string | null;
@@ -175,20 +175,29 @@ function SkeletonRows({ cols }: { cols: number }) {
 
 function PlayerName({
   name,
-  contentfulEntryId,
+  slug,
   sponsors,
 }: {
   name: string;
-  contentfulEntryId: string | null;
+  slug: string | null;
   sponsors: Map<string, SponsorEntry>;
 }) {
-  const sponsor = contentfulEntryId
-    ? sponsors.get(contentfulEntryId)
-    : undefined;
+  const sponsor = slug ? sponsors.get(slug) : undefined;
+
+  const nameElement = slug ? (
+    <Link
+      to={`/person/${slug}`}
+      className="font-medium text-green-800 underline decoration-green-800/30 underline-offset-2 hover:decoration-green-800"
+    >
+      {name}
+    </Link>
+  ) : (
+    <span className="font-medium">{name}</span>
+  );
 
   return (
     <div>
-      <span className="font-medium">{name}</span>
+      {nameElement}
       {sponsor && (
         <span className="block text-xs text-gray-500">
           {sponsor.display_name ?? sponsor.sponsor_name}
@@ -266,7 +275,7 @@ function BattingTable({
               <TableCell>
                 <PlayerName
                   name={e.playerName}
-                  contentfulEntryId={e.contentfulEntryId}
+                  slug={e.slug}
                   sponsors={sponsors}
                 />
               </TableCell>
@@ -367,7 +376,7 @@ function BowlingTable({
               <TableCell>
                 <PlayerName
                   name={e.playerName}
-                  contentfulEntryId={e.contentfulEntryId}
+                  slug={e.slug}
                   sponsors={sponsors}
                 />
               </TableCell>
@@ -438,7 +447,7 @@ export function Component() {
 
   const sponsorMap = new Map<string, SponsorEntry>();
   for (const s of sponsorsQuery.data?.sponsors ?? []) {
-    sponsorMap.set(s.contentful_entry_id, s);
+    sponsorMap.set(s.slug, s);
   }
 
   const handleCategoryChange = (junior: boolean) => {

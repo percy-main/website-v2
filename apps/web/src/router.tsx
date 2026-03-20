@@ -47,6 +47,10 @@ export const router = createBrowserRouter([
         lazy: () => import("./pages/person/person-directory.js"),
       },
       {
+        path: "person/sponsor/:slug",
+        lazy: () => import("./pages/person/sponsor-checkout.js"),
+      },
+      {
         path: "person/:slug",
         lazy: () => import("./pages/person/person-profile.js"),
       },

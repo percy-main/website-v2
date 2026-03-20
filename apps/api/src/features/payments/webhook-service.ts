@@ -581,7 +581,7 @@ export function handlePaymentIntentSucceeded({
   async function handleSponsorPlayer(
     db: Kysely<DB>,
     paymentIntent: Stripe.PaymentIntent,
-    meta: { contentfulEntryId: string; sponsorshipId: string },
+    meta: { slug: string; sponsorshipId: string },
     eventCreated: number,
     log: FastifyBaseLogger,
   ) {

@@ -12,7 +12,7 @@ export const gameSponsorshipPaymentSchema = z.object({
 
 // Player sponsorship
 export const playerSponsorshipPaymentSchema = z.object({
-  contentfulEntryId: z.string(),
+  slug: z.string(),
   playerName: z.string(),
   sponsorName: z.string().min(1),
   sponsorEmail: z.string().email(),
@@ -41,7 +41,7 @@ export const sponsorshipUpdateSchema = z.object({
 });
 
 export const playerSponsorshipManualSchema = z.object({
-  contentfulEntryId: z.string(),
+  slug: z.string(),
   playerName: z.string(),
   sponsorName: z.string().min(1),
   sponsorEmail: z.string().email(),
@@ -74,8 +74,8 @@ export const byGameIdSchema = z.object({
   gameId: z.string(),
 });
 
-export const byContentfulIdSchema = z.object({
-  contentfulEntryId: z.string(),
+export const bySlugSchema = z.object({
+  slug: z.string(),
 });
 
 export const sponsorshipIdParamSchema = z.object({

@@ -51,7 +51,7 @@ interface GameSponsorship {
 
 interface PlayerSponsorship {
   id: string;
-  contentful_entry_id: string;
+  slug: string | null;
   player_name: string;
   season: string;
   sponsor_name: string;

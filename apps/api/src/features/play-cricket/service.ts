@@ -183,11 +183,11 @@ export function getLiveScores(db: Kysely<DB>) {
 }
 
 export function getPlayerCareerStats(db: Kysely<DB>) {
-  return async (contentfulEntryId: string) => {
+  return async (slug: string) => {
     // Look up play_cricket_id via member table
     const member = await db
       .selectFrom("member")
-      .where("contentful_entry_id", "=", contentfulEntryId)
+      .where("slug", "=", slug)
       .select(["play_cricket_id"])
       .executeTakeFirst();
 
@@ -197,7 +197,18 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
 
     const playCricketId = member.play_cricket_id;
 
-    // Aggregate batting stats grouped by season
+    // Convert cricket overs string to total balls
+    const oversToBalls = sql<number>`
+      CASE
+        WHEN POSITION('.' IN overs) > 0
+        THEN CAST(SUBSTRING(overs FROM 1 FOR POSITION('.' IN overs) - 1) AS INTEGER) * 6
+             + CAST(SUBSTRING(overs FROM POSITION('.' IN overs) + 1) AS INTEGER)
+        WHEN overs IS NULL THEN 0
+        ELSE CAST(overs AS INTEGER) * 6
+      END
+    `;
+
+    // Aggregate batting stats grouped by season (full columns)
     const battingBySeasonRows = await db
       .selectFrom("match_performance_batting")
       .where("player_id", "=", playCricketId)
@@ -209,75 +220,167 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
         sql<string>`count(case when how_out = 'not out' then 1 end)`.as(
           "not_outs",
         ),
+        sql<string>`sum(balls)`.as("total_balls"),
+        sql<string>`sum(fours)`.as("total_fours"),
+        sql<string>`sum(sixes)`.as("total_sixes"),
+        sql<string>`sum(case when runs >= 50 and runs < 100 then 1 else 0 end)`.as(
+          "fifties",
+        ),
+        sql<string>`sum(case when runs >= 100 then 1 else 0 end)`.as(
+          "hundreds",
+        ),
       ])
       .groupBy("season")
       .orderBy("season", "desc")
       .execute();
 
-    // Aggregate bowling stats grouped by season
+    // Aggregate bowling stats grouped by season (with ball-based overs + best bowling)
     const bowlingBySeasonRows = await db
       .selectFrom("match_performance_bowling")
       .where("player_id", "=", playCricketId)
       .select([
         "season",
         sql<string>`count(*)`.as("innings"),
-        sql<string>`sum(cast(overs as numeric))`.as("total_overs"),
         sql<string>`sum(maidens)`.as("total_maidens"),
         sql<string>`sum(runs)`.as("total_runs_conceded"),
         sql<string>`sum(wickets)`.as("total_wickets"),
+        sql<string>`SUM(${oversToBalls})`.as("total_balls"),
+        sql<string>`max(wickets)`.as("best_wickets"),
       ])
       .groupBy("season")
       .orderBy("season", "desc")
       .execute();
 
+    // Best bowling figures per season (need a separate query for W/R)
+    const bestBowlingPerSeason = await db
+      .selectFrom("match_performance_bowling")
+      .where("player_id", "=", playCricketId)
+      .select([
+        "season",
+        sql<string>`wickets`.as("wickets"),
+        sql<string>`runs`.as("runs"),
+      ])
+      .where(
+        sql`(season, wickets, runs)`,
+        "in",
+        sql`(
+          SELECT season, wickets, MIN(runs)
+          FROM match_performance_bowling
+          WHERE player_id = ${playCricketId}
+          AND wickets = (
+            SELECT MAX(wickets) FROM match_performance_bowling b2
+            WHERE b2.player_id = ${playCricketId} AND b2.season = match_performance_bowling.season
+          )
+          GROUP BY season, wickets
+        )`,
+      )
+      .execute();
+
+    const bestBowlingMap = new Map<number, string>();
+    for (const row of bestBowlingPerSeason) {
+      bestBowlingMap.set(row.season, `${row.wickets}/${row.runs}`);
+    }
+
+    // Best bowling figures overall
+    const bestBowlingRow = await db
+      .selectFrom("match_performance_bowling")
+      .where("player_id", "=", playCricketId)
+      .select(["wickets", "runs", "overs"])
+      .orderBy("wickets", "desc")
+      .orderBy("runs", "asc")
+      .orderBy(sql`cast(overs as numeric)`, "asc")
+      .limit(1)
+      .executeTakeFirst();
+
+    // Distinct seasons with data (batting or bowling)
+    const seasons = [
+      ...new Set([
+        ...battingBySeasonRows.map((r) => r.season),
+        ...bowlingBySeasonRows.map((r) => r.season),
+      ]),
+    ].sort((a, b) => b - a);
+
+    // Build per-season batting rows for the response
+    const battingSeasons = battingBySeasonRows.map((row) => {
+      const innings = Number(row.innings);
+      const notOuts = Number(row.not_outs);
+      const runs = Number(row.total_runs);
+      const totalBalls = Number(row.total_balls);
+      const dismissals = innings - notOuts;
+      return {
+        season: row.season,
+        innings,
+        notOuts,
+        runs,
+        highScore: Number(row.high_score),
+        average:
+          innings >= 3 && dismissals > 0
+            ? Number((runs / dismissals).toFixed(2))
+            : null,
+        strikeRate:
+          totalBalls > 0
+            ? Number(((runs / totalBalls) * 100).toFixed(1))
+            : null,
+        fours: Number(row.total_fours),
+        sixes: Number(row.total_sixes),
+        fifties: Number(row.fifties),
+        hundreds: Number(row.hundreds),
+      };
+    });
+
+    // Build per-season bowling rows for the response
+    const bowlingSeasons = bowlingBySeasonRows.map((row) => {
+      const totalBalls = Number(row.total_balls);
+      const wickets = Number(row.total_wickets);
+      const runs = Number(row.total_runs_conceded);
+      const totalOvers = Math.floor(totalBalls / 6);
+      const remainingBalls = totalBalls % 6;
+      return {
+        season: row.season,
+        innings: Number(row.innings),
+        overs: `${totalOvers}.${remainingBalls}`,
+        maidens: Number(row.total_maidens),
+        runs,
+        wickets,
+        average:
+          totalBalls >= 60 && wickets > 0
+            ? Number((runs / wickets).toFixed(2))
+            : null,
+        economy:
+          totalBalls > 0 ? Number((runs / (totalBalls / 6)).toFixed(2)) : null,
+        strikeRate:
+          totalBalls >= 60 && wickets > 0
+            ? Number((totalBalls / wickets).toFixed(1))
+            : null,
+        bestBowling: bestBowlingMap.get(row.season) ?? null,
+      };
+    });
+
     // Calculate career totals
     // PostgreSQL sum()/count() return bigint (string in node-pg), so Number() each
     const careerBatting = {
-      matches: battingBySeasonRows.reduce(
-        (sum, s) => sum + Number(s.innings),
-        0,
-      ),
-      runs: battingBySeasonRows.reduce(
-        (sum, s) => sum + Number(s.total_runs),
-        0,
-      ),
-      highScore: Math.max(
-        0,
-        ...battingBySeasonRows.map((s) => Number(s.high_score)),
-      ),
-      notOuts: battingBySeasonRows.reduce(
-        (sum, s) => sum + Number(s.not_outs),
-        0,
-      ),
+      matches: battingSeasons.reduce((sum, s) => sum + s.innings, 0),
+      runs: battingSeasons.reduce((sum, s) => sum + s.runs, 0),
+      highScore: Math.max(0, ...battingSeasons.map((s) => s.highScore)),
+      notOuts: battingSeasons.reduce((sum, s) => sum + s.notOuts, 0),
     };
 
     const careerBowling = {
-      innings: bowlingBySeasonRows.reduce(
-        (sum, s) => sum + Number(s.innings),
-        0,
-      ),
-      overs: bowlingBySeasonRows.reduce(
-        (sum, s) => sum + Number(s.total_overs),
-        0,
-      ),
-      maidens: bowlingBySeasonRows.reduce(
-        (sum, s) => sum + Number(s.total_maidens),
-        0,
-      ),
-      runsConceded: bowlingBySeasonRows.reduce(
-        (sum, s) => sum + Number(s.total_runs_conceded),
-        0,
-      ),
-      wickets: bowlingBySeasonRows.reduce(
-        (sum, s) => sum + Number(s.total_wickets),
-        0,
-      ),
+      innings: bowlingSeasons.reduce((sum, s) => sum + s.innings, 0),
+      wickets: bowlingSeasons.reduce((sum, s) => sum + s.wickets, 0),
+      bestBowling: bestBowlingRow
+        ? {
+            wickets: bestBowlingRow.wickets ?? 0,
+            runs: bestBowlingRow.runs ?? 0,
+          }
+        : null,
     };
 
     return {
       playCricketId,
-      battingBySeasonRows,
-      bowlingBySeasonRows,
+      seasons,
+      battingSeasons,
+      bowlingSeasons,
       career: {
         batting: careerBatting,
         bowling: careerBowling,
@@ -287,10 +390,10 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
 }
 
 export function getPlayerSeasonStats(db: Kysely<DB>) {
-  return async (contentfulEntryId: string, season: number) => {
+  return async (slug: string, season: number) => {
     const member = await db
       .selectFrom("member")
-      .where("contentful_entry_id", "=", contentfulEntryId)
+      .where("slug", "=", slug)
       .select(["play_cricket_id"])
       .executeTakeFirst();
 
@@ -314,16 +417,26 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
       .selectAll()
       .execute();
 
-    // Calculate batting averages
+    // Calculate batting aggregates
     const totalRuns = battingRows.reduce((sum, r) => sum + (r.runs ?? 0), 0);
     const innings = battingRows.length;
     const notOuts = battingRows.filter((r) => r.how_out === "not out").length;
     const dismissals = innings - notOuts;
-    const battingAverage = dismissals > 0 ? totalRuns / dismissals : null;
+    const battingAverage =
+      innings >= 3 && dismissals > 0 ? totalRuns / dismissals : null;
     const highScore =
       innings > 0 ? Math.max(...battingRows.map((r) => r.runs ?? 0)) : 0;
+    const totalBalls = battingRows.reduce((sum, r) => sum + (r.balls ?? 0), 0);
+    const battingStrikeRate =
+      totalBalls > 0 ? (totalRuns / totalBalls) * 100 : null;
+    const fours = battingRows.reduce((sum, r) => sum + (r.fours ?? 0), 0);
+    const sixes = battingRows.reduce((sum, r) => sum + (r.sixes ?? 0), 0);
+    const fifties = battingRows.filter(
+      (r) => (r.runs ?? 0) >= 50 && (r.runs ?? 0) < 100,
+    ).length;
+    const hundreds = battingRows.filter((r) => (r.runs ?? 0) >= 100).length;
 
-    // Calculate bowling stats
+    // Calculate bowling aggregates
     const totalWickets = bowlingRows.reduce(
       (sum, r) => sum + (r.wickets ?? 0),
       0,
@@ -332,14 +445,49 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
       (sum, r) => sum + (r.runs ?? 0),
       0,
     );
-    const totalOvers = bowlingRows.reduce(
-      (sum, r) => sum + (parseFloat(r.overs) || 0),
+    const totalMaidens = bowlingRows.reduce(
+      (sum, r) => sum + (r.maidens ?? 0),
       0,
     );
+
+    // Convert cricket overs to total balls for proper aggregation
+    let totalBowlingBalls = 0;
+    for (const r of bowlingRows) {
+      const parts = (r.overs ?? "0").split(".");
+      const completedOvers = parseInt(parts[0], 10) || 0;
+      const extraBalls = parts[1] ? parseInt(parts[1], 10) : 0;
+      totalBowlingBalls += completedOvers * 6 + extraBalls;
+    }
+
+    const totalOversDisplay = `${Math.floor(totalBowlingBalls / 6)}.${totalBowlingBalls % 6}`;
     const bowlingAverage =
-      totalWickets > 0 ? totalRunsConceded / totalWickets : null;
-    const strikeRate =
-      totalWickets > 0 ? (totalOvers * 6) / totalWickets : null;
+      totalBowlingBalls >= 60 && totalWickets > 0
+        ? totalRunsConceded / totalWickets
+        : null;
+    const economy =
+      totalBowlingBalls > 0
+        ? totalRunsConceded / (totalBowlingBalls / 6)
+        : null;
+    const bowlingStrikeRate =
+      totalBowlingBalls >= 60 && totalWickets > 0
+        ? totalBowlingBalls / totalWickets
+        : null;
+
+    // Best bowling this season
+    const bestBowl =
+      bowlingRows.length > 0
+        ? bowlingRows.reduce((best, r) => {
+            const w = r.wickets ?? 0;
+            const runs = r.runs ?? 0;
+            if (
+              w > (best.wickets ?? 0) ||
+              (w === (best.wickets ?? 0) && runs < (best.runs ?? 0))
+            ) {
+              return r;
+            }
+            return best;
+          })
+        : null;
 
     return {
       playCricketId,
@@ -350,17 +498,25 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
         notOuts,
         average: battingAverage,
         highScore,
+        strikeRate: battingStrikeRate,
+        fours,
+        sixes,
+        fifties,
+        hundreds,
       },
       bowling: {
         innings: bowlingRows.length,
-        overs: totalOvers,
+        overs: totalOversDisplay,
+        maidens: totalMaidens,
         wickets: totalWickets,
-        runsConceded: totalRunsConceded,
+        runs: totalRunsConceded,
         average: bowlingAverage,
-        strikeRate,
+        economy,
+        strikeRate: bowlingStrikeRate,
+        bestBowling: bestBowl
+          ? `${bestBowl.wickets ?? 0}/${bestBowl.runs ?? 0}`
+          : null,
       },
-      battingRows,
-      bowlingRows,
     };
   };
 }

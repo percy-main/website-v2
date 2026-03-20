@@ -15,10 +15,10 @@ export const leagueTableSchema = z.object({
 });
 
 export const playerStatsSchema = z.object({
-  contentfulEntryId: z.string(),
+  slug: z.string(),
 });
 
 export const playerSeasonStatsSchema = z.object({
-  contentfulEntryId: z.string(),
+  slug: z.string(),
   season: z.coerce.number().int(),
 });

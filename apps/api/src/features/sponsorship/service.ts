@@ -1,8 +1,10 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
+import type Stripe from "stripe";
 import type {
   GameSponsorshipManual,
   PlayerSponsorshipManual,
+  PlayerSponsorshipPayment,
   SponsorshipList,
   SponsorshipUpdate,
 } from "./schemas.ts";
@@ -38,12 +40,12 @@ export function getGameSponsorByGameId(db: Kysely<DB>) {
 }
 
 export function getPlayerSponsorForPlayer(db: Kysely<DB>) {
-  return async (contentfulEntryId: string) => {
+  return async (slug: string) => {
     const currentYear = new Date().getFullYear();
 
     const sponsor = await db
       .selectFrom("player_sponsorship")
-      .where("contentful_entry_id", "=", contentfulEntryId)
+      .where("slug", "=", slug)
       .where("season", "=", currentYear)
       .where("approved", "=", true)
       .where("paid_at", "is not", null)
@@ -55,12 +57,12 @@ export function getPlayerSponsorForPlayer(db: Kysely<DB>) {
 }
 
 export function hasPlayerPendingSponsor(db: Kysely<DB>) {
-  return async (contentfulEntryId: string) => {
+  return async (slug: string) => {
     const currentYear = new Date().getFullYear();
 
     const pending = await db
       .selectFrom("player_sponsorship")
-      .where("contentful_entry_id", "=", contentfulEntryId)
+      .where("slug", "=", slug)
       .where("season", "=", currentYear)
       .where((eb) =>
         eb.or([eb("paid_at", "is", null), eb("approved", "=", false)]),
@@ -238,7 +240,7 @@ export function createManualPlayerSponsorship(db: Kysely<DB>) {
       .insertInto("player_sponsorship")
       .values({
         id,
-        contentful_entry_id: data.contentfulEntryId,
+        slug: data.slug,
         player_name: data.playerName,
         sponsor_name: data.sponsorName,
         sponsor_email: data.sponsorEmail,
@@ -304,6 +306,130 @@ export function updatePlayerSponsorship(db: Kysely<DB>) {
     }
 
     return { success: true };
+  };
+}
+
+const PENDING_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+export function createPlayerSponsorshipPayment(db: Kysely<DB>, stripe: Stripe) {
+  return async (data: PlayerSponsorshipPayment) => {
+    const currentYear = new Date().getFullYear();
+
+    // Validate logo size
+    if (data.sponsorLogoDataUrl && data.sponsorLogoDataUrl.length > 150_000) {
+      throw Object.assign(new Error("Logo must be under 150KB"), {
+        statusCode: 400,
+      });
+    }
+
+    // Check for existing paid sponsorship this season
+    const existingPaid = await db
+      .selectFrom("player_sponsorship")
+      .where("slug", "=", data.slug)
+      .where("season", "=", currentYear)
+      .where("approved", "=", true)
+      .where("paid_at", "is not", null)
+      .select("id")
+      .executeTakeFirst();
+
+    if (existingPaid) {
+      throw Object.assign(
+        new Error("This player already has a sponsor for this season"),
+        { statusCode: 400 },
+      );
+    }
+
+    // Check for recent pending payment
+    const cutoff = new Date(Date.now() - PENDING_TTL_MS).toISOString();
+    const pendingRecent = await db
+      .selectFrom("player_sponsorship")
+      .where("slug", "=", data.slug)
+      .where("season", "=", currentYear)
+      .where("paid_at", "is", null)
+      .where("created_at", ">", cutoff)
+      .select("id")
+      .executeTakeFirst();
+
+    if (pendingRecent) {
+      throw Object.assign(
+        new Error("A sponsorship payment is already in progress"),
+        { statusCode: 400 },
+      );
+    }
+
+    // Clean up stale unpaid attempts
+    const stale = await db
+      .selectFrom("player_sponsorship")
+      .where("slug", "=", data.slug)
+      .where("season", "=", currentYear)
+      .where("paid_at", "is", null)
+      .where("created_at", "<=", cutoff)
+      .select(["id", "stripe_payment_intent_id"])
+      .execute();
+
+    for (const row of stale) {
+      if (row.stripe_payment_intent_id) {
+        try {
+          await stripe.paymentIntents.cancel(row.stripe_payment_intent_id);
+        } catch {
+          // Ignore cancellation errors for already-cancelled intents
+        }
+      }
+      await db
+        .deleteFrom("player_sponsorship")
+        .where("id", "=", row.id)
+        .execute();
+    }
+
+    // Fetch price
+    const price = getPlayerSponsorshipPrice();
+    const sponsorshipId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    // Insert sponsorship record (unpaid)
+    await db
+      .insertInto("player_sponsorship")
+      .values({
+        id: sponsorshipId,
+        slug: data.slug,
+        player_name: data.playerName,
+        sponsor_name: data.sponsorName,
+        sponsor_email: data.sponsorEmail,
+        sponsor_website: data.sponsorWebsite ?? null,
+        sponsor_logo_url: data.sponsorLogoDataUrl ?? null,
+        sponsor_message: data.sponsorMessage ?? null,
+        amount_pence: price.amountPence,
+        season: currentYear,
+        approved: false,
+        paid_at: null,
+        created_at: now,
+      })
+      .execute();
+
+    // Create Stripe payment intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: price.amountPence,
+      currency: price.currency,
+      metadata: {
+        type: "sponsorPlayer",
+        slug: data.slug,
+        sponsorshipId,
+        email: data.sponsorEmail,
+      },
+    });
+
+    // Update with Stripe PI ID
+    await db
+      .updateTable("player_sponsorship")
+      .set({ stripe_payment_intent_id: paymentIntent.id })
+      .where("id", "=", sponsorshipId)
+      .execute();
+
+    return {
+      clientSecret: paymentIntent.client_secret,
+      amount: price.amountPence,
+      productName: price.productName,
+    };
   };
 }
 

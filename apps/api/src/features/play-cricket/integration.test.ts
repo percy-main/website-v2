@@ -83,7 +83,7 @@ describe("play-cricket service (integration)", () => {
   });
 
   describe("getPlayerCareerStats", () => {
-    it("returns null when no contentful link exists", async () => {
+    it("returns null when no slug link exists", async () => {
       const result = await getPlayerCareerStats(ctx.db)(
         `nonexistent-${crypto.randomUUID()}`,
       );
@@ -94,15 +94,15 @@ describe("play-cricket service (integration)", () => {
       const email = `nopc-${crypto.randomUUID()}@test.com`;
       const { memberId } = await seedTestUser(ctx.db, { email });
 
-      // Set contentful_entry_id but no play_cricket_id
-      const contentfulId = `cf-${crypto.randomUUID()}`;
+      // Set slug but no play_cricket_id
+      const slug = `slug-${crypto.randomUUID()}`;
       await ctx.db
         .updateTable("member")
-        .set({ contentful_entry_id: contentfulId, play_cricket_id: null })
+        .set({ slug, play_cricket_id: null })
         .where("id", "=", memberId ?? "")
         .execute();
 
-      const result = await getPlayerCareerStats(ctx.db)(contentfulId);
+      const result = await getPlayerCareerStats(ctx.db)(slug);
       expect(result).toBeNull();
     });
 
@@ -110,13 +110,13 @@ describe("play-cricket service (integration)", () => {
       const email = `career-${crypto.randomUUID()}@test.com`;
       const { memberId } = await seedTestUser(ctx.db, { email });
 
-      const contentfulId = `cf-${crypto.randomUUID()}`;
+      const slug = `slug-${crypto.randomUUID()}`;
       const playCricketId = `pc-${crypto.randomUUID()}`;
 
       await ctx.db
         .updateTable("member")
         .set({
-          contentful_entry_id: contentfulId,
+          slug,
           play_cricket_id: playCricketId,
         })
         .where("id", "=", memberId ?? "")
@@ -184,7 +184,7 @@ describe("play-cricket service (integration)", () => {
         ])
         .execute();
 
-      const result = await getPlayerCareerStats(ctx.db)(contentfulId);
+      const result = await getPlayerCareerStats(ctx.db)(slug);
       expect(result).not.toBeNull();
       expect(result?.playCricketId).toBe(playCricketId);
 
@@ -196,12 +196,15 @@ describe("play-cricket service (integration)", () => {
 
       // Career bowling totals
       expect(result?.career.bowling.wickets).toBe(3);
-      expect(result?.career.bowling.runsConceded).toBe(30);
       expect(result?.career.bowling.innings).toBe(1);
 
-      // Season breakdown
-      expect(result?.battingBySeasonRows).toHaveLength(2);
-      expect(result?.bowlingBySeasonRows).toHaveLength(1);
+      // Per-season batting breakdown
+      expect(result?.battingSeasons).toHaveLength(2);
+      expect(result?.bowlingSeasons).toHaveLength(1);
+
+      // Seasons list
+      expect(result?.seasons).toContain(2025);
+      expect(result?.seasons).toContain(2026);
     });
   });
 });

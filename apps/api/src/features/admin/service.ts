@@ -212,7 +212,7 @@ export function getRecordLinking(db: Kysely<DB>) {
       db
         .selectFrom("member")
         .where("deleted_at", "is", null)
-        .select(["id", "name", "play_cricket_id", "contentful_entry_id"])
+        .select(["id", "name", "play_cricket_id", "slug"])
         .orderBy("name", "asc")
         .execute(),
       db
@@ -265,11 +265,11 @@ export function unlinkPlayCricketPlayer(db: Kysely<DB>) {
   };
 }
 
-export function linkContentfulPerson(db: Kysely<DB>) {
-  return async (memberId: string, contentfulEntryId: string) => {
+export function linkSlug(db: Kysely<DB>) {
+  return async (memberId: string, slug: string) => {
     await db
       .updateTable("member")
-      .set({ contentful_entry_id: contentfulEntryId })
+      .set({ slug })
       .where("id", "=", memberId)
       .execute();
 
@@ -277,11 +277,11 @@ export function linkContentfulPerson(db: Kysely<DB>) {
   };
 }
 
-export function unlinkContentfulPerson(db: Kysely<DB>) {
+export function unlinkSlug(db: Kysely<DB>) {
   return async (memberId: string) => {
     await db
       .updateTable("member")
-      .set({ contentful_entry_id: null })
+      .set({ slug: null })
       .where("id", "=", memberId)
       .execute();
 
