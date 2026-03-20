@@ -8,7 +8,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 
 ---
 
-## Phase 1: AWS Foundation & Database
+## Phase 1: AWS Foundation & Database — COMPLETE
 
 **Goal:** AWS account setup, database migration from SQLite to PostgreSQL.
 
@@ -25,21 +25,19 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] Docker Compose for local PostgreSQL development
 - [x] DB client is a pure factory (`createClient(connectionString)`) — no singleton
 
-### AWS infrastructure (not yet started)
+### AWS infrastructure
 
-- [ ] AWS Organization setup (production + staging accounts)
-- [ ] CloudTrail enabled
-- [ ] VPC configuration (public + private subnets)
-- [ ] NAT Gateway
-- [ ] Route 53 DNS for percymain.org
-- [ ] SES domain verification (SPF/DKIM/DMARC)
-- [ ] S3 buckets (frontend assets + user uploads)
-- [ ] RDS PostgreSQL provisioning (db.t4g.micro, single-AZ)
-- [ ] Data migration tool (Turso → RDS scripted export/transform/import)
+- [x] VPC configuration (public + private subnets)
+- [x] Route 53 DNS for percymain.org (nameservers delegated from GoDaddy)
+- [x] SES domain verification (SPF/DKIM/DMARC) via `contact.percymain.org`
+- [x] S3 buckets (frontend assets + user uploads)
+- [x] RDS PostgreSQL provisioning (db.t4g.micro, single-AZ)
+- [x] Data migration tool — `scripts/bastion-tunnel.sh` + `pnpm run db:lift` (Turso → RDS)
+- [x] Data synced: 21,454 rows across 27 tables
 
 ---
 
-## Phase 2: Backend Service
+## Phase 2: Backend Service — COMPLETE
 
 **Goal:** Standalone API service on ECS Fargate replacing Astro actions.
 
@@ -59,32 +57,33 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] Port Play-Cricket background sync job
 - [x] Port fantasy score calculation pipeline
 
-### AWS infrastructure (not yet started)
+### AWS infrastructure
 
-- [ ] ECR repository
-- [ ] ECS Fargate cluster + service (2 tasks production)
-- [ ] ALB + target group + health checks
-- [ ] CloudWatch log groups
-- [ ] Initial CloudWatch alarms (error rates, health check failures)
-- [ ] EventBridge scheduled tasks (Play-Cricket sync, fantasy reminders)
+- [x] ECR repository (immutable tags, scan on push, 25-image retention)
+- [x] ECS Fargate cluster + service (1 task, auto-scales to 4)
+- [x] ALB + target group + health checks
+- [x] CloudWatch log groups (30-day retention)
+- [x] CloudWatch alarms (CPU, memory, 5xx, unhealthy hosts, latency, RDS)
+- [x] EventBridge scheduled tasks (Play-Cricket sync Sun/Fri 3am)
 
 ---
 
-## Phase 3: Data Pipelines
+## Phase 3: Data Pipelines — DEFERRED
 
 **Goal:** Decouple external data ingestion into independent ETL stages.
 
+Deferred post-migration. EventBridge → ECS run-task is sufficient for now.
+
 - [ ] Separate Play-Cricket sync into independent pipeline stages
 - [ ] Fantasy scoring pipeline (triggered after ingest)
-- [ ] Fantasy reminder scheduled job (Thursday email to inactive teams — replaces Netlify cron)
+- [ ] Fantasy reminder scheduled job (Thursday email to inactive teams)
 - [ ] Cache refresh for league tables and leaderboards
-- [ ] EventBridge scheduling
 - [ ] CloudWatch metrics per pipeline stage
 - [ ] Make each stage idempotent and resumable
 
 ---
 
-## Phase 4: Frontend Migration
+## Phase 4: Frontend Migration — COMPLETE
 
 **Goal:** Migrate from Astro to React + Vite SPA on S3 + CloudFront.
 
@@ -92,7 +91,7 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] Vite dev proxy (`/api` → localhost:3000)
 - [x] React Router route definitions
 - [x] Root providers (auth context, React Query)
-- [ ] Port non-Contentful pages (Batch 2):
+- [x] Port non-Contentful pages (Batch 2):
   - [x] Cricket leaderboard
   - [x] Fantasy cricket (3 pages: home with tabs, scoring rules, team management + 20 new API endpoints). Deferred items:
     - [x] Recharts season timeline chart on history tab
@@ -102,20 +101,14 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
     - **Note:** Fantasy team builder cannot be fully tested until admin side of fantasy is completed (player population, cost calculation, eligibility toggling)
   - [x] Be the Keeper game (2 pages)
   - [x] Static pages (privacy policy, nets redirect, payment confirmation)
-  - [x] Admin panel (5 of 11 tabs: Members, Sponsorships, Treasurer, Fantasy, Record Linking). Deferred tabs:
-    - [x] Juniors tab (admin junior listing API + frontend tab)
-    - [x] Charges tab (admin charge listing/aggregates API + frontend tab)
-    - [x] Contacts tab (admin contact submission listing API + frontend tab)
-    - [x] Duplicates tab (admin duplicate detection + merge API + frontend tab)
-    - [x] Match Fees tab (match fee rates CRUD API + frontend tab)
-    - [x] Game Reports tab (admin matchday listing + drill-down report API + frontend tab)
+  - [x] Admin panel (all 11 tabs: Members, Sponsorships, Treasurer, Fantasy, Record Linking, Juniors, Charges, Contacts, Duplicates, Match Fees, Game Reports)
   - [x] Official panel
   - [x] Junior manager panel
 - [x] Port Contentful-dependent pages (Batch 3): news, calendar, person profiles, CMS pages, game reports
 - [x] Replace Astro actions with API calls (api client + react-query pattern established)
-- [ ] CloudFront distribution + S3 origin
-- [ ] SPA routing (custom error response → index.html)
-- [ ] Deploy preview infrastructure (per-PR S3 prefixes)
+- [x] CloudFront distribution + S3 origin
+- [x] SPA routing (CloudFront Function rewrite to index.html)
+- [ ] Deploy preview infrastructure (per-PR S3 prefixes) — deferred, not needed
 
 ---
 
@@ -134,33 +127,40 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] MDX components: LeagueTable, ContactForm, EventPreview, GamePreview, Person, PersonGrid, Image
 - [x] Preserve URL slugs/routes
 - [ ] Image assets → S3 (currently using original URLs)
-- [ ] Remove Contentful dependencies from v1 at cutover
+- [x] Remove Contentful dependencies — no longer needed in v2
 
 ---
 
-## Phase 6: Cutover & Environments
+## Phase 6: Cutover & Environments — COMPLETE
 
-**Goal:** Staging environment, DNS cutover, decommission old services.
+**Goal:** DNS cutover, decommission old services.
 
-- [ ] Staging environment (VPC, ECS, ALB, RDS, S3, CloudFront, CloudWatch)
-- [ ] Deploy preview infrastructure (per-PR PostgreSQL schemas + S3 prefixes)
-- [ ] WAF configuration
-- [ ] DNS cutover (lower TTL, switch, parallel run)
-- [ ] Update Stripe webhook URLs
-- [ ] End-to-end verification
-- [ ] Decommission Netlify, Turso, Mailgun, Contentful
+- [x] DNS cutover — nameservers moved from Netlify to Route 53
+- [x] Canonical domain: `www.percymain.org` (apex 301 redirects to www)
+- [x] API: `api.v2.percymain.org`
+- [x] CloudFront Function redirects (apex → www, kit → VX-3)
+- [x] All DNS records migrated (MX, SPF, DKIM, DMARC, Google verification)
+- [x] Stripe webhook configured for v2 API
+- [x] Auth secrets aligned (BETTER_AUTH_SECRET, RP_ID match v1)
+- [x] Data synced from Turso → RDS (21,454 rows)
+- [x] Google OAuth already configured for percymain.org
+- [x] End-to-end verification (Lighthouse: 100/95/100/91)
+- [x] v1 Netlify downgraded to free plan, kept as fallback
+- [ ] Decommission Netlify (archive v1 repo)
+- [ ] Decommission Turso
+- [ ] Decommission Mailgun — verify SES emails working first
+- [ ] Decommission Contentful — no longer needed
 
 ---
 
-## Infrastructure as Code
+## Infrastructure as Code — COMPLETE
 
-- [x] Terraform module stubs (vpc, rds, ecs-service, cdn, monitoring, dns)
-- [x] Environment configs (shared, production, staging)
-- [x] GitHub Actions workflow stubs (CI, deploy-api, deploy-web, terraform)
-- [ ] Implement Terraform modules (actual resource definitions)
-- [ ] S3 backend + DynamoDB lock table for Terraform state
-- [ ] OIDC identity provider for GitHub Actions
-- [ ] CI/CD pipeline implementation
+- [x] Terraform modules (vpc, rds, ecs-service, cdn, monitoring, dns, scheduling)
+- [x] Environment configs (shared, production)
+- [x] S3 backend + DynamoDB lock table for Terraform state
+- [x] OIDC identity provider for GitHub Actions
+- [x] CI/CD pipelines (CI, deploy-api, deploy-web, terraform plan/apply)
+- [x] GitHub Actions workflows fully operational
 
 ---
 
@@ -171,12 +171,15 @@ See [implementation-plan.md](./aws/implementation-plan.md) for the full plan.
 - [x] `docs/adrs/` — 11 Architecture Decision Records
 - [x] `docs/` — admin guides, member guides, Play-Cricket API reference, AWS plan
 - [x] `packages/shared` — Zod schemas, member categories, payment metadata
-- [x] `packages/email` — 9 template stubs + SES sender + dev file writer
+- [x] `packages/email` — 9 templates + SES sender + dev file writer
 - [x] Port full email template content from v1
 - [x] ESLint + Prettier config for monorepo
 
-### API type safety (ADR 011)
+### Remaining work (non-blocking)
 
-- [ ] Shared Zod response schemas in `packages/shared/src/api/` (Phase 1 — adopt for new endpoints, backfill existing)
-- [ ] Wire up `fastify-type-provider-zod` + `@fastify/swagger` for OpenAPI generation (Phase 2)
-- [ ] Generate typed frontend client from OpenAPI spec via `openapi-typescript` + `openapi-fetch` (Phase 2)
+- [ ] Verify SES emails working in production (test password reset, email verification flows)
+- [ ] Image assets → S3 (currently using original URLs from Contentful/v1)
+- [ ] API type safety (ADR 011): shared Zod response schemas, OpenAPI generation, typed frontend client
+- [ ] Deploy preview infrastructure (per-PR S3 prefixes) — nice to have
+- [ ] WAF configuration — nice to have
+- [ ] Stripe → EventBridge (replace webhook endpoint) — future improvement
