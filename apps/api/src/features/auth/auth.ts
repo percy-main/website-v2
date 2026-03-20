@@ -13,9 +13,10 @@ export function createAuth(
   send: (email: Email) => Promise<void>,
 ) {
   const baseURL = config.BASE_URL;
+  const apiBaseURL = config.API_BASE_URL;
 
   return betterAuth({
-    baseURL,
+    baseURL: apiBaseURL,
     basePath: "/api/auth",
     appName: config.BETTER_AUTH_RP_NAME,
     trustedOrigins: [baseURL, config.DEPLOY_PRIME_URL].filter(

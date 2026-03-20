@@ -110,6 +110,7 @@ module "ecs" {
     PLAY_CRICKET_SITE_ID   = "${aws_secretsmanager_secret.app_secrets.arn}:PLAY_CRICKET_SITE_ID::"
     SLACK_WEBHOOK_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SLACK_WEBHOOK_URL::"
     BASE_URL               = "${aws_secretsmanager_secret.app_secrets.arn}:BASE_URL::"
+    API_BASE_URL           = "${aws_secretsmanager_secret.app_secrets.arn}:API_BASE_URL::"
     BETTER_AUTH_RP_ID      = "${aws_secretsmanager_secret.app_secrets.arn}:BETTER_AUTH_RP_ID::"
     BETTER_AUTH_RP_NAME    = "${aws_secretsmanager_secret.app_secrets.arn}:BETTER_AUTH_RP_NAME::"
     SES_FROM_ADDRESS       = "${aws_secretsmanager_secret.app_secrets.arn}:SES_FROM_ADDRESS::"

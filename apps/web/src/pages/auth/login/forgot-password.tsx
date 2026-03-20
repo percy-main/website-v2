@@ -12,7 +12,7 @@ export const ForgotPassword: FC = () => {
     mutationFn: () =>
       authClient.requestPasswordReset({
         email,
-        redirectTo: "/auth/reset-password",
+        redirectTo: `${window.location.origin}/auth/reset-password`,
       }),
   });
 

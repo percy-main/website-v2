@@ -238,7 +238,7 @@ resource "aws_iam_role_policy" "task_ses" {
           "ses:SendEmail",
           "ses:SendRawEmail"
         ]
-        Resource = var.ses_identity_arn != "" ? [var.ses_identity_arn] : ["arn:aws:ses:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:identity/*"]
+        Resource = "arn:aws:ses:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:identity/*"
       }
     ]
   })

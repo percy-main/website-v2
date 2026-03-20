@@ -41,7 +41,7 @@ export function Component() {
         name,
         email,
         password,
-        callbackURL: "/auth/email-confirmed/",
+        callbackURL: `${window.location.origin}/auth/email-confirmed/`,
       }),
     onSuccess(result) {
       if (!result.error) {

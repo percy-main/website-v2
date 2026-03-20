@@ -22,6 +22,7 @@ const configSchema = z.object({
   BETTER_AUTH_RP_ID: z.string().default("localhost"),
   BETTER_AUTH_RP_NAME: z.string().default("Percy Main CSC"),
   BASE_URL: z.string().url().default("http://localhost:5173"),
+  API_BASE_URL: z.string().url(),
   DEPLOY_PRIME_URL: z.string().url().optional(),
   GOOGLE_CLIENT_ID: z.string().default(""),
   GOOGLE_CLIENT_SECRET: z.string().default(""),
