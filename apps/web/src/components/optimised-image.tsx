@@ -15,6 +15,7 @@ interface Props {
   alt: string;
   className?: string;
   loading?: "lazy" | "eager";
+  fetchPriority?: "high" | "low" | "auto";
   sizes?: string;
   width?: number;
   height?: number;
@@ -29,6 +30,7 @@ export const OptimisedImage: FC<Props> = ({
   alt,
   className,
   loading = "lazy",
+  fetchPriority,
   sizes = "100vw",
   width,
   height,
@@ -59,7 +61,8 @@ export const OptimisedImage: FC<Props> = ({
         alt={alt}
         className={className}
         loading={loading}
-        decoding="async"
+        fetchPriority={fetchPriority}
+        decoding={fetchPriority === "high" ? "sync" : "async"}
       />
     </picture>
   );

@@ -318,6 +318,7 @@ export function Component() {
               alt="The cricket pitch at Percy Main"
               className="h-96 w-full object-cover md:h-[32rem]"
               loading="eager"
+              fetchPriority="high"
               sizes="100vw"
             />
           ) : (
