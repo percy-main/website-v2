@@ -1,5 +1,7 @@
 import type { DB } from "@percy-main/db";
+import { parse } from "date-fns";
 import type { Kysely } from "kysely";
+import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type {
   AssignPlayer,
   CreateRequest,
@@ -7,6 +9,18 @@ import type {
   SetAvailabilityForMember,
   UnassignPlayer,
 } from "./schemas.ts";
+
+// ── Types ──
+
+interface PlayCricketFixture {
+  matchId: string;
+  matchDate: string;
+  opposition: string;
+  teamId: string;
+  teamName: string;
+  isHome: boolean;
+  competitionType: string | null;
+}
 
 // ── Helpers ──
 
@@ -32,6 +46,73 @@ async function getAccessibleTeamIds(
   return assignments.map((a) => a.play_cricket_team_id);
 }
 
+/**
+ * Fetch Play Cricket fixtures for all senior teams in a date window.
+ */
+async function fetchFixturesInWindow(
+  db: Kysely<DB>,
+  playCricketApi: PlayCricketApiClient,
+  siteId: string,
+  accessibleTeamIds: string[],
+  startDate: string,
+  endDate: string,
+): Promise<PlayCricketFixture[]> {
+  const seniorTeams = await db
+    .selectFrom("play_cricket_team")
+    .where("id", "in", accessibleTeamIds)
+    .where("is_junior", "=", false)
+    .select(["id", "name"])
+    .execute();
+
+  const seniorTeamIds = new Set(seniorTeams.map((t) => t.id));
+  const teamNameById = new Map(seniorTeams.map((t) => [t.id, t.name]));
+
+  if (seniorTeamIds.size === 0) return [];
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const seasons =
+    now.getMonth() < 3 ? [currentYear - 1, currentYear] : [currentYear];
+  const summaries = await Promise.all(
+    seasons.map((season) => playCricketApi.getMatchesSummary(season)),
+  );
+  const allMatches = summaries.flatMap((s) => s.matches);
+
+  const startDateObj = parse(startDate, "yyyy-MM-dd", new Date());
+  const endDateObj = parse(endDate, "yyyy-MM-dd", new Date());
+
+  const fixtures: PlayCricketFixture[] = [];
+
+  for (const m of allMatches) {
+    const isHome =
+      m.home_club_id === siteId && seniorTeamIds.has(m.home_team_id);
+    const isAway =
+      m.away_club_id === siteId && seniorTeamIds.has(m.away_team_id);
+    if (!isHome && !isAway) continue;
+
+    const matchDate = parse(m.match_date, "dd/MM/yyyy", new Date());
+    if (matchDate < startDateObj || matchDate > endDateObj) continue;
+
+    const teamId = isHome ? m.home_team_id : m.away_team_id;
+    // Use date-fns format to avoid UTC timezone shift from toISOString()
+    const isoDate = `${matchDate.getFullYear()}-${String(matchDate.getMonth() + 1).padStart(2, "0")}-${String(matchDate.getDate()).padStart(2, "0")}`;
+
+    fixtures.push({
+      matchId: m.id.toString(),
+      matchDate: isoDate,
+      opposition: isHome
+        ? `${m.away_club_name} ${m.away_team_name}`
+        : `${m.home_club_name} ${m.home_team_name}`,
+      teamId,
+      teamName: teamNameById.get(teamId) ?? teamId,
+      isHome,
+      competitionType: m.competition_type ?? null,
+    });
+  }
+
+  return fixtures.sort((a, b) => a.matchDate.localeCompare(b.matchDate));
+}
+
 function throwHttpError(statusCode: number, message: string): never {
   throw Object.assign(new Error(message), { statusCode });
 }
@@ -40,12 +121,15 @@ function throwHttpError(statusCode: number, message: string): never {
 
 /**
  * Create an availability request for a date window.
- * Finds all senior matchdays in the window, creates availability_date records for
- * each unique game date, and groups them under the request.
+ * Fetches fixtures from Play Cricket for all accessible senior teams,
+ * creates availability_date records for each unique game date.
  */
-export function createRequest(db: Kysely<DB>) {
+export function createRequest(
+  db: Kysely<DB>,
+  playCricketApi: PlayCricketApiClient | null,
+  siteId: string,
+) {
   return async (userId: string, role: string, data: CreateRequest) => {
-    // Verify the user has access to at least one team
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
     if (accessibleIds.length === 0) {
       throwHttpError(403, "You do not have access to any teams");
@@ -72,32 +156,17 @@ export function createRequest(db: Kysely<DB>) {
 
     const requestId = crypto.randomUUID();
 
-    // Find matchdays in the window for accessible senior teams
-    const seniorTeams = await db
-      .selectFrom("play_cricket_team")
-      .where("id", "in", accessibleIds)
-      .where("is_junior", "=", false)
-      .select("id")
-      .execute();
-
-    const seniorTeamIds = seniorTeams.map((t) => t.id);
-
-    let matchdays: Array<{
-      id: string;
-      match_date: string;
-      play_cricket_team_id: string;
-      opposition: string;
-    }> = [];
-
-    if (seniorTeamIds.length > 0) {
-      matchdays = await db
-        .selectFrom("matchday")
-        .where("play_cricket_team_id", "in", seniorTeamIds)
-        .where("match_date", ">=", data.startDate)
-        .where("match_date", "<=", data.endDate)
-        .select(["id", "match_date", "play_cricket_team_id", "opposition"])
-        .orderBy("match_date", "asc")
-        .execute();
+    // Fetch fixtures from Play Cricket
+    let fixtures: PlayCricketFixture[] = [];
+    if (playCricketApi) {
+      fixtures = await fetchFixturesInWindow(
+        db,
+        playCricketApi,
+        siteId,
+        accessibleIds,
+        data.startDate,
+        data.endDate,
+      );
     }
 
     // Create the request
@@ -113,8 +182,8 @@ export function createRequest(db: Kysely<DB>) {
 
     // Create availability_date records for each unique (team, date) pair
     const seen = new Set<string>();
-    for (const md of matchdays) {
-      const key = `${md.play_cricket_team_id}:${md.match_date}`;
+    for (const fixture of fixtures) {
+      const key = `${fixture.teamId}:${fixture.matchDate}`;
       if (seen.has(key)) continue;
       seen.add(key);
 
@@ -123,14 +192,14 @@ export function createRequest(db: Kysely<DB>) {
         .values({
           id: crypto.randomUUID(),
           availability_request_id: requestId,
-          play_cricket_team_id: md.play_cricket_team_id,
-          match_date: md.match_date,
+          play_cricket_team_id: fixture.teamId,
+          match_date: fixture.matchDate,
           created_by: userId,
         })
         .execute();
     }
 
-    return { id: requestId, datesCreated: seen.size };
+    return { id: requestId, datesCreated: seen.size, fixtures };
   };
 }
 
@@ -251,9 +320,14 @@ export function listRequests(db: Kysely<DB>) {
 }
 
 /**
- * Get a single request with its dates, declarations, matchdays, and assignments.
+ * Get a single request with its dates, declarations, fixtures, and assignments.
+ * Uses Play Cricket API for fixture details (matchday records may not exist yet).
  */
-export function getRequest(db: Kysely<DB>) {
+export function getRequest(
+  db: Kysely<DB>,
+  playCricketApi: PlayCricketApiClient | null,
+  siteId: string,
+) {
   return async (userId: string, role: string, requestId: string) => {
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
     if (accessibleIds.length === 0) {
@@ -281,7 +355,27 @@ export function getRequest(db: Kysely<DB>) {
     }
 
     const dateIds = dates.map((d) => d.id);
-    const matchDates = [...new Set(dates.map((d) => d.match_date))];
+
+    // Fetch Play Cricket fixtures in the request window
+    let fixtures: PlayCricketFixture[] = [];
+    if (playCricketApi) {
+      fixtures = await fetchFixturesInWindow(
+        db,
+        playCricketApi,
+        siteId,
+        accessibleIds,
+        request.start_date,
+        request.end_date,
+      );
+    }
+
+    // Group fixtures by date
+    const fixturesByDate = new Map<string, PlayCricketFixture[]>();
+    for (const f of fixtures) {
+      const arr = fixturesByDate.get(f.matchDate) ?? [];
+      arr.push(f);
+      fixturesByDate.set(f.matchDate, arr);
+    }
 
     // Fetch declarations
     const declarations = await db
@@ -316,25 +410,6 @@ export function getRequest(db: Kysely<DB>) {
       ])
       .execute();
 
-    // Fetch matchdays
-    const matchdays = await db
-      .selectFrom("matchday")
-      .where("match_date", "in", matchDates)
-      .leftJoin(
-        "play_cricket_team",
-        "play_cricket_team.id",
-        "matchday.play_cricket_team_id",
-      )
-      .select([
-        "matchday.id",
-        "matchday.match_date",
-        "matchday.opposition",
-        "matchday.status",
-        "matchday.play_cricket_team_id",
-        "play_cricket_team.name as team_name",
-      ])
-      .execute();
-
     // Group
     const declarationsByDate = new Map<string, typeof declarations>();
     for (const d of declarations) {
@@ -350,14 +425,7 @@ export function getRequest(db: Kysely<DB>) {
       assignmentsByDate.set(a.availability_date_id, arr);
     }
 
-    const matchdaysByDate = new Map<string, typeof matchdays>();
-    for (const m of matchdays) {
-      const arr = matchdaysByDate.get(m.match_date) ?? [];
-      arr.push(m);
-      matchdaysByDate.set(m.match_date, arr);
-    }
-
-    // Group dates by match_date for the frontend (unique dates view)
+    // Group dates by match_date
     const datesByMatchDate = new Map<string, typeof dates>();
     for (const d of dates) {
       const arr = datesByMatchDate.get(d.match_date) ?? [];
@@ -374,7 +442,7 @@ export function getRequest(db: Kysely<DB>) {
         const allAssign = avDates.flatMap(
           (d) => assignmentsByDate.get(d.id) ?? [],
         );
-        const mds = matchdaysByDate.get(matchDate) ?? [];
+        const dateFix = fixturesByDate.get(matchDate) ?? [];
 
         const available = allDecl.filter(
           (d) => d.status === "available",
@@ -387,7 +455,7 @@ export function getRequest(db: Kysely<DB>) {
         return {
           matchDate,
           availabilityDateIds: avDates.map((d) => d.id),
-          matchdays: mds,
+          fixtures: dateFix,
           available,
           maybe,
           unavailable,
@@ -433,10 +501,13 @@ export function deleteRequest(db: Kysely<DB>) {
 }
 
 /**
- * Get games in a date window for previewing before creating a request.
- * Returns matchdays from accessible senior teams in the window.
+ * Preview fixtures in a date window from Play Cricket before creating a request.
  */
-export function previewGamesInWindow(db: Kysely<DB>) {
+export function previewGamesInWindow(
+  db: Kysely<DB>,
+  playCricketApi: PlayCricketApiClient | null,
+  siteId: string,
+) {
   return async (
     userId: string,
     role: string,
@@ -444,49 +515,17 @@ export function previewGamesInWindow(db: Kysely<DB>) {
     endDate: string,
   ) => {
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
-    if (accessibleIds.length === 0) {
-      return { matchdays: [], overlapping: false };
-    }
 
-    const seniorTeams = await db
-      .selectFrom("play_cricket_team")
-      .where("id", "in", accessibleIds)
-      .where("is_junior", "=", false)
-      .select(["id", "name"])
-      .execute();
-
-    const seniorTeamIds = seniorTeams.map((t) => t.id);
-
-    let matchdays: Array<{
-      id: string;
-      match_date: string;
-      opposition: string;
-      play_cricket_team_id: string;
-      status: string;
-      team_name: string | null;
-    }> = [];
-
-    if (seniorTeamIds.length > 0) {
-      matchdays = await db
-        .selectFrom("matchday")
-        .where("play_cricket_team_id", "in", seniorTeamIds)
-        .where("match_date", ">=", startDate)
-        .where("match_date", "<=", endDate)
-        .leftJoin(
-          "play_cricket_team",
-          "play_cricket_team.id",
-          "matchday.play_cricket_team_id",
-        )
-        .select([
-          "matchday.id",
-          "matchday.match_date",
-          "matchday.opposition",
-          "matchday.play_cricket_team_id",
-          "matchday.status",
-          "play_cricket_team.name as team_name",
-        ])
-        .orderBy("matchday.match_date", "asc")
-        .execute();
+    let fixtures: PlayCricketFixture[] = [];
+    if (playCricketApi && accessibleIds.length > 0) {
+      fixtures = await fetchFixturesInWindow(
+        db,
+        playCricketApi,
+        siteId,
+        accessibleIds,
+        startDate,
+        endDate,
+      );
     }
 
     // Check for overlap
@@ -498,7 +537,7 @@ export function previewGamesInWindow(db: Kysely<DB>) {
       .executeTakeFirst();
 
     return {
-      matchdays,
+      fixtures,
       overlapping: !!overlapping,
     };
   };

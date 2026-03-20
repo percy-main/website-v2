@@ -5,6 +5,7 @@ import {
   requireAuth,
   requireRole,
 } from "../auth/middleware.ts";
+import { createApiClient } from "../play-cricket/api-client.ts";
 import {
   assignPlayerSchema,
   createRequestSchema,
@@ -34,13 +35,23 @@ import {
 export const availabilityRoutes: FastifyPluginAsync = async (app) => {
   const officialRole = requireRole("official", "admin");
 
+  // Play Cricket API client — wired at registration time (same pattern as matchday)
+  const playCricketApi =
+    app.config.PLAY_CRICKET_API_TOKEN && app.config.PLAY_CRICKET_SITE_ID
+      ? createApiClient({
+          apiToken: app.config.PLAY_CRICKET_API_TOKEN,
+          siteId: app.config.PLAY_CRICKET_SITE_ID,
+        })
+      : null;
+  const siteId = app.config.PLAY_CRICKET_SITE_ID ?? "";
+
   // ── Request CRUD (official) ──
 
-  const create = createRequest(app.db);
+  const create = createRequest(app.db, playCricketApi, siteId);
   const list = listRequests(app.db);
-  const get = getRequest(app.db);
+  const get = getRequest(app.db, playCricketApi, siteId);
   const remove = deleteRequest(app.db);
-  const preview = previewGamesInWindow(app.db);
+  const preview = previewGamesInWindow(app.db, playCricketApi, siteId);
 
   app.post(
     "/availability/requests",

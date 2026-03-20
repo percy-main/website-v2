@@ -53,13 +53,7 @@ interface RequestDetail {
   dates: Array<{
     matchDate: string;
     availabilityDateIds: string[];
-    matchdays: Array<{
-      id: string;
-      opposition: string;
-      status: string;
-      play_cricket_team_id: string;
-      team_name: string | null;
-    }>;
+    fixtures: PlayCricketFixture[];
     available: number;
     maybe: number;
     unavailable: number;
@@ -68,15 +62,18 @@ interface RequestDetail {
   }>;
 }
 
+interface PlayCricketFixture {
+  matchId: string;
+  matchDate: string;
+  opposition: string;
+  teamId: string;
+  teamName: string;
+  isHome: boolean;
+  competitionType: string | null;
+}
+
 interface PreviewData {
-  matchdays: Array<{
-    id: string;
-    match_date: string;
-    opposition: string;
-    play_cricket_team_id: string;
-    status: string;
-    team_name: string | null;
-  }>;
+  fixtures: PlayCricketFixture[];
   overlapping: boolean;
 }
 
@@ -560,15 +557,12 @@ function CreateRequestView({
   });
 
   const preview = previewQuery.data;
-  const gamesByDate = new Map<
-    string,
-    NonNullable<typeof preview>["matchdays"]
-  >();
+  const gamesByDate = new Map<string, PlayCricketFixture[]>();
   if (preview) {
-    for (const md of preview.matchdays) {
-      const arr = gamesByDate.get(md.match_date) ?? [];
-      arr.push(md);
-      gamesByDate.set(md.match_date, arr);
+    for (const f of preview.fixtures) {
+      const arr = gamesByDate.get(f.matchDate) ?? [];
+      arr.push(f);
+      gamesByDate.set(f.matchDate, arr);
     }
   }
   const sortedDates = [...gamesByDate.keys()].sort();
@@ -629,7 +623,7 @@ function CreateRequestView({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              Games in this window ({preview.matchdays.length})
+              Games in this window ({preview.fixtures.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -648,8 +642,8 @@ function CreateRequestView({
                         {format(new Date(date), "EEEE d MMMM yyyy")}
                       </p>
                       {games.map((g) => (
-                        <p key={g.id} className="text-sm text-gray-500">
-                          {g.team_name} vs {g.opposition}
+                        <p key={g.matchId} className="text-sm text-gray-500">
+                          {g.teamName} vs {g.opposition}
                         </p>
                       ))}
                     </div>
@@ -746,9 +740,9 @@ function RequestDetailView({
                 {format(new Date(date.matchDate), "EEEE d MMMM yyyy")}
               </p>
               <div className="flex flex-wrap gap-1 text-sm">
-                {date.matchdays.map((md) => (
-                  <Badge key={md.id} variant="outline" className="text-xs">
-                    {md.team_name} vs {md.opposition}
+                {date.fixtures.map((f) => (
+                  <Badge key={f.matchId} variant="outline" className="text-xs">
+                    {f.teamName} vs {f.opposition}
                   </Badge>
                 ))}
               </div>
