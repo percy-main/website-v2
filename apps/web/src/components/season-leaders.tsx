@@ -64,7 +64,7 @@ function MiniTable({
 }) {
   return (
     <div className="min-w-0 flex-1">
-      <h4 className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase">
+      <h4 className="mb-3 text-sm font-semibold tracking-wide text-gray-600 uppercase">
         {title}
       </h4>
       <Table>

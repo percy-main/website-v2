@@ -51,7 +51,7 @@ function FeaturedArticleCard({ article }: { article: NewsArticle }) {
             </svg>
             Latest
           </span>
-          <span className="text-text text-[13px] opacity-45">
+          <span className="text-[13px] text-gray-500">
             {format(article.date, "d MMMM yyyy")}
           </span>
         </div>
@@ -137,7 +137,7 @@ function ArticleCard({ article }: { article: NewsArticle }) {
               );
             })}
           </div>
-          <span className="text-text shrink-0 text-[13px] whitespace-nowrap opacity-45 max-md:hidden">
+          <span className="shrink-0 text-[13px] whitespace-nowrap text-gray-500 max-md:hidden">
             {format(article.date, "EEEE, d MMMM yyyy")}
           </span>
         </div>
