@@ -267,27 +267,11 @@ export function unlinkPlayCricketPlayer(db: Kysely<DB>) {
 
 export function linkSlug(db: Kysely<DB>) {
   return async (memberId: string, slug: string) => {
-    // Get member name to cascade slug to player_sponsorship
-    const member = await db
-      .selectFrom("member")
-      .where("id", "=", memberId)
-      .select(["name"])
-      .executeTakeFirst();
-
     await db
       .updateTable("member")
       .set({ slug })
       .where("id", "=", memberId)
       .execute();
-
-    // Cascade: update any player_sponsorship rows matching this member's name
-    if (member?.name) {
-      await db
-        .updateTable("player_sponsorship")
-        .set({ slug })
-        .where("player_name", "=", member.name)
-        .execute();
-    }
 
     return { success: true };
   };
@@ -295,27 +279,11 @@ export function linkSlug(db: Kysely<DB>) {
 
 export function unlinkSlug(db: Kysely<DB>) {
   return async (memberId: string) => {
-    // Get current slug before clearing it
-    const member = await db
-      .selectFrom("member")
-      .where("id", "=", memberId)
-      .select(["slug"])
-      .executeTakeFirst();
-
     await db
       .updateTable("member")
       .set({ slug: null })
       .where("id", "=", memberId)
       .execute();
-
-    // Cascade: clear slug on matching player_sponsorship rows
-    if (member?.slug) {
-      await db
-        .updateTable("player_sponsorship")
-        .set({ slug: null })
-        .where("slug", "=", member.slug)
-        .execute();
-    }
 
     return { success: true };
   };
