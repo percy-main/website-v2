@@ -302,8 +302,6 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
     return {
       playCricketId,
       seasons,
-      battingBySeasonRows,
-      bowlingBySeasonRows,
       career: {
         batting: careerBatting,
         bowling: careerBowling,
@@ -376,7 +374,7 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
     // Convert cricket overs to total balls for proper aggregation
     let totalBowlingBalls = 0;
     for (const r of bowlingRows) {
-      const parts = r.overs.split(".");
+      const parts = (r.overs ?? "0").split(".");
       const completedOvers = parseInt(parts[0], 10) || 0;
       const extraBalls = parts[1] ? parseInt(parts[1], 10) : 0;
       totalBowlingBalls += completedOvers * 6 + extraBalls;

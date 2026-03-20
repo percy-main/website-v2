@@ -199,9 +199,9 @@ describe("play-cricket service (integration)", () => {
       expect(result?.career.bowling.runsConceded).toBe(30);
       expect(result?.career.bowling.innings).toBe(1);
 
-      // Season breakdown
-      expect(result?.battingBySeasonRows).toHaveLength(2);
-      expect(result?.bowlingBySeasonRows).toHaveLength(1);
+      // Seasons list
+      expect(result?.seasons).toContain(2025);
+      expect(result?.seasons).toContain(2026);
     });
   });
 });
