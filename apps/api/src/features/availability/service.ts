@@ -617,6 +617,7 @@ export function getAvailabilityGrid(
         "fixture_assignment.matchday_id",
         "fixture_assignment.availability_date_id",
         "matchday.opposition",
+        "matchday.play_cricket_team_id",
         "play_cricket_team.name as team_name",
       ])
       .execute();
@@ -673,6 +674,7 @@ export function getAvailabilityGrid(
           matchdayId: a.matchday_id,
           opposition: a.opposition,
           teamName: a.team_name,
+          teamId: a.play_cricket_team_id,
         })),
       };
     });
@@ -765,7 +767,8 @@ export function setAvailabilityForMember(db: Kysely<DB>) {
 }
 
 /**
- * Assign a player to a matchday from the grid.
+ * Assign a player to a fixture from the grid.
+ * Creates the matchday record on-the-fly if it doesn't exist yet.
  */
 export function assignPlayer(db: Kysely<DB>) {
   return async (
@@ -783,29 +786,59 @@ export function assignPlayer(db: Kysely<DB>) {
     if (!date) throwHttpError(404, "Availability date not found");
 
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
-    if (!accessibleIds.includes(date.play_cricket_team_id)) {
+    if (!accessibleIds.includes(data.teamId)) {
       throwHttpError(403, "You do not have access to this team");
     }
 
-    const matchday = await db
+    // Find or create the matchday for this team + date
+    let matchday = await db
       .selectFrom("matchday")
-      .where("id", "=", data.matchdayId)
-      .select(["id", "match_date", "play_cricket_team_id"])
+      .where("play_cricket_team_id", "=", data.teamId)
+      .where("match_date", "=", date.match_date)
+      .select("id")
       .executeTakeFirst();
 
-    if (!matchday) throwHttpError(404, "Matchday not found");
-
-    if (matchday.match_date !== date.match_date) {
-      throwHttpError(400, "Matchday is not on the same date");
+    if (!matchday) {
+      const matchdayId = crypto.randomUUID();
+      await db
+        .insertInto("matchday")
+        .values({
+          id: matchdayId,
+          play_cricket_team_id: data.teamId,
+          match_date: date.match_date,
+          opposition: data.opposition,
+          competition_type: data.competitionType ?? null,
+          play_cricket_match_id: data.playCricketMatchId ?? null,
+          status: "pending",
+          created_by: userId,
+        })
+        .execute();
+      matchday = { id: matchdayId };
     }
 
-    if (matchday.play_cricket_team_id !== date.play_cricket_team_id) {
-      throwHttpError(400, "Matchday belongs to a different team");
+    // Find the correct availability_date for this team (may differ from dateId
+    // if the request has multiple teams on the same date)
+    let targetDateId = dateId;
+    if (date.play_cricket_team_id !== data.teamId) {
+      const teamDate = await db
+        .selectFrom("availability_date")
+        .where("availability_request_id", "in", (qb) =>
+          qb
+            .selectFrom("availability_date")
+            .where("id", "=", dateId)
+            .select("availability_request_id"),
+        )
+        .where("play_cricket_team_id", "=", data.teamId)
+        .where("match_date", "=", date.match_date)
+        .select("id")
+        .executeTakeFirst();
+      if (teamDate) targetDateId = teamDate.id;
     }
 
+    // Check for duplicate assignment
     const existing = await db
       .selectFrom("fixture_assignment")
-      .where("matchday_id", "=", data.matchdayId)
+      .where("matchday_id", "=", matchday.id)
       .where("member_id", "=", data.memberId)
       .select("id")
       .executeTakeFirst();
@@ -821,20 +854,20 @@ export function assignPlayer(db: Kysely<DB>) {
       .insertInto("fixture_assignment")
       .values({
         id,
-        availability_date_id: dateId,
-        matchday_id: data.matchdayId,
+        availability_date_id: targetDateId,
+        matchday_id: matchday.id,
         member_id: data.memberId,
         assigned_by: userId,
         assigned_at: now,
       })
       .execute();
 
-    return { id };
+    return { id, matchdayId: matchday.id };
   };
 }
 
 /**
- * Unassign a player from a matchday.
+ * Unassign a player from a fixture (by team).
  */
 export function unassignPlayer(db: Kysely<DB>) {
   return async (
@@ -846,20 +879,29 @@ export function unassignPlayer(db: Kysely<DB>) {
     const date = await db
       .selectFrom("availability_date")
       .where("id", "=", dateId)
-      .select(["id", "play_cricket_team_id"])
+      .select(["id", "play_cricket_team_id", "match_date"])
       .executeTakeFirst();
 
     if (!date) throwHttpError(404, "Availability date not found");
 
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
-    if (!accessibleIds.includes(date.play_cricket_team_id)) {
+    if (!accessibleIds.includes(data.teamId)) {
       throwHttpError(403, "You do not have access to this team");
     }
 
+    // Find the matchday for this team + date
+    const matchday = await db
+      .selectFrom("matchday")
+      .where("play_cricket_team_id", "=", data.teamId)
+      .where("match_date", "=", date.match_date)
+      .select("id")
+      .executeTakeFirst();
+
+    if (!matchday) throwHttpError(404, "Matchday not found");
+
     const assignment = await db
       .selectFrom("fixture_assignment")
-      .where("availability_date_id", "=", dateId)
-      .where("matchday_id", "=", data.matchdayId)
+      .where("matchday_id", "=", matchday.id)
       .where("member_id", "=", data.memberId)
       .select("id")
       .executeTakeFirst();

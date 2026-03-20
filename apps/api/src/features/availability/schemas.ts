@@ -39,13 +39,16 @@ export const setAvailabilityForMemberSchema = z.object({
 });
 
 export const assignPlayerSchema = z.object({
-  matchdayId: z.string(),
   memberId: z.string(),
+  teamId: z.string(),
+  opposition: z.string(),
+  playCricketMatchId: z.string().optional(),
+  competitionType: z.string().optional(),
 });
 
 export const unassignPlayerSchema = z.object({
-  matchdayId: z.string(),
   memberId: z.string(),
+  teamId: z.string(),
 });
 
 // ── Query schemas ──

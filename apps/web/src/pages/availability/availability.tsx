@@ -95,6 +95,7 @@ interface GridRow {
     matchdayId: string;
     opposition: string | null;
     teamName: string | null;
+    teamId: string | null;
   }>;
 }
 
@@ -756,12 +757,18 @@ export function DateGridPage() {
   const assignMutation = useMutation({
     mutationFn: (input: {
       dateId: string;
-      matchdayId: string;
+      teamId: string;
+      opposition: string;
       memberId: string;
+      playCricketMatchId?: string;
+      competitionType?: string;
     }) =>
       api.post(`/availability/dates/${input.dateId}/assign`, {
-        matchdayId: input.matchdayId,
         memberId: input.memberId,
+        teamId: input.teamId,
+        opposition: input.opposition,
+        playCricketMatchId: input.playCricketMatchId,
+        competitionType: input.competitionType,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
@@ -771,14 +778,10 @@ export function DateGridPage() {
   });
 
   const unassignMutation = useMutation({
-    mutationFn: (input: {
-      dateId: string;
-      matchdayId: string;
-      memberId: string;
-    }) =>
+    mutationFn: (input: { dateId: string; teamId: string; memberId: string }) =>
       api.delete(`/availability/dates/${input.dateId}/assignments`, {
-        matchdayId: input.matchdayId,
         memberId: input.memberId,
+        teamId: input.teamId,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
@@ -819,33 +822,38 @@ export function DateGridPage() {
     (r) => r.availabilityStatus === null,
   );
 
-  // Build assigned member sets per matchday
-  const assignedByMatchday = new Map<string, Set<string>>();
+  // Build assigned member sets per team (using teamId from fixture assignments)
+  const assignedByTeamId = new Map<string, Set<string>>();
   const assignedMembers = new Set<string>();
   for (const row of data.grid) {
     for (const a of row.assignments) {
       assignedMembers.add(row.memberId);
-      const set = assignedByMatchday.get(a.matchdayId) ?? new Set();
+      // Group by teamName since we may not have matchday records
+      const teamId = a.teamId ?? a.matchdayId;
+      const set = assignedByTeamId.get(teamId) ?? new Set();
       set.add(row.memberId);
-      assignedByMatchday.set(a.matchdayId, set);
+      assignedByTeamId.set(teamId, set);
     }
   }
 
   // Grid row lookup
   const rowByMemberId = new Map(data.grid.map((r) => [r.memberId, r]));
 
-  const handleAssign = (matchdayId: string, memberId: string) => {
+  const handleAssign = (fixture: PlayCricketFixture, memberId: string) => {
     assignMutation.mutate({
       dateId: primaryDateId,
-      matchdayId,
+      teamId: fixture.teamId,
+      opposition: fixture.opposition,
       memberId,
+      playCricketMatchId: fixture.matchId,
+      competitionType: fixture.competitionType ?? undefined,
     });
   };
 
-  const handleUnassign = (matchdayId: string, memberId: string) => {
+  const handleUnassign = (fixture: PlayCricketFixture, memberId: string) => {
     unassignMutation.mutate({
       dateId: primaryDateId,
-      matchdayId,
+      teamId: fixture.teamId,
       memberId,
     });
   };
@@ -905,14 +913,8 @@ export function DateGridPage() {
             )}
 
             {data.fixtures.map((fixture) => {
-              // Find the matching matchday record (if it exists)
-              const md = data.matchdays.find(
-                (m) => m.play_cricket_team_id === fixture.teamId,
-              );
-              const hasMatchday = !!md;
-              const assigned = md
-                ? (assignedByMatchday.get(md.id) ?? new Set<string>())
-                : new Set<string>();
+              const assigned =
+                assignedByTeamId.get(fixture.teamId) ?? new Set<string>();
               const assignedRows = [...assigned]
                 .map((id) => rowByMemberId.get(id))
                 .filter((r): r is GridRow => r !== undefined);
@@ -925,19 +927,12 @@ export function DateGridPage() {
                         {fixture.teamName} vs {fixture.opposition}
                       </span>
                       <span className="text-sm font-normal text-gray-400">
-                        {hasMatchday
-                          ? `${assigned.size} selected`
-                          : "No matchday yet"}
+                        {assigned.size} selected
                       </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {!hasMatchday ? (
-                      <p className="text-sm text-gray-400">
-                        Create this matchday from the Official Panel to enable
-                        team selection.
-                      </p>
-                    ) : assignedRows.length === 0 ? (
+                    {assignedRows.length === 0 ? (
                       <p className="text-sm text-gray-400">
                         No players assigned yet. Use the player list to add
                         them.
@@ -970,7 +965,7 @@ export function DateGridPage() {
                               className="text-red-600 hover:text-red-800"
                               disabled={unassignMutation.isPending}
                               onClick={() =>
-                                handleUnassign(md.id, row.memberId)
+                                handleUnassign(fixture, row.memberId)
                               }
                             >
                               Remove
@@ -991,7 +986,7 @@ export function DateGridPage() {
               title="Available"
               players={availablePlayers}
               color="green"
-              matchdays={data.matchdays}
+              fixtures={data.fixtures}
               assignedMembers={assignedMembers}
               onAssign={handleAssign}
               onSetStatus={handleSetStatus}
@@ -1000,7 +995,7 @@ export function DateGridPage() {
               title="Maybe"
               players={maybePlayers}
               color="yellow"
-              matchdays={data.matchdays}
+              fixtures={data.fixtures}
               assignedMembers={assignedMembers}
               onAssign={handleAssign}
               onSetStatus={handleSetStatus}
@@ -1010,7 +1005,7 @@ export function DateGridPage() {
                 title="Unavailable"
                 players={unavailablePlayers}
                 color="red"
-                matchdays={data.matchdays}
+                fixtures={data.fixtures}
                 assignedMembers={assignedMembers}
                 onAssign={handleAssign}
                 onSetStatus={handleSetStatus}
@@ -1021,7 +1016,7 @@ export function DateGridPage() {
                 title="No Response"
                 players={noResponsePlayers}
                 color="gray"
-                matchdays={data.matchdays}
+                fixtures={data.fixtures}
                 assignedMembers={assignedMembers}
                 onAssign={handleAssign}
                 onSetStatus={handleSetStatus}
@@ -1038,7 +1033,7 @@ function PlayerPool({
   title,
   players,
   color,
-  matchdays,
+  fixtures,
   assignedMembers,
   onAssign,
   onSetStatus,
@@ -1046,9 +1041,9 @@ function PlayerPool({
   title: string;
   players: GridRow[];
   color: "green" | "yellow" | "red" | "gray";
-  matchdays: GridData["matchdays"];
+  fixtures: PlayCricketFixture[];
   assignedMembers: Set<string>;
-  onAssign: (matchdayId: string, memberId: string) => void;
+  onAssign: (fixture: PlayCricketFixture, memberId: string) => void;
   onSetStatus: (memberId: string, status: string) => void;
 }) {
   const colorMap = {
@@ -1103,19 +1098,22 @@ function PlayerPool({
                   </div>
                   <div className="ml-2 flex items-center gap-1">
                     {/* Quick assign to a fixture */}
-                    {matchdays.length > 0 && !isAssigned && (
+                    {fixtures.length > 0 && !isAssigned && (
                       <Select
-                        onValueChange={(matchdayId) =>
-                          onAssign(matchdayId, row.memberId)
-                        }
+                        onValueChange={(matchId) => {
+                          const fixture = fixtures.find(
+                            (f) => f.matchId === matchId,
+                          );
+                          if (fixture) onAssign(fixture, row.memberId);
+                        }}
                       >
                         <SelectTrigger className="h-7 w-20 text-xs">
                           <SelectValue placeholder="Add to" />
                         </SelectTrigger>
                         <SelectContent>
-                          {matchdays.map((md) => (
-                            <SelectItem key={md.id} value={md.id}>
-                              {md.team_name}
+                          {fixtures.map((f) => (
+                            <SelectItem key={f.matchId} value={f.matchId}>
+                              {f.teamName}
                             </SelectItem>
                           ))}
                         </SelectContent>

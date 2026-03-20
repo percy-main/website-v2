@@ -254,15 +254,10 @@ describe("availability grid and assignments", () => {
     expect(grid.matchdays.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("assigns a player to a matchday from the grid", async () => {
+  it("assigns a player to a fixture from the grid", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
     const teamId = await seedTeam();
     const memberId = await seedMember("Charlie", "charlie-req@test.com");
-    const matchdayId = await seedMatchday({
-      teamId,
-      createdBy: userId,
-      matchDate: "2027-01-05",
-    });
 
     const { id: requestId } = await createRequest(ctx.db, noApi, noSiteId)(
       userId,
@@ -277,22 +272,56 @@ describe("availability grid and assignments", () => {
     );
 
     const result = await assignPlayer(ctx.db)(userId, "admin", dateId, {
-      matchdayId,
       memberId,
+      teamId,
+      opposition: "Opposition CC",
     });
 
     expect(result.id).toBeDefined();
+    expect(result.matchdayId).toBeDefined();
+  });
+
+  it("creates matchday on-the-fly when assigning without one", async () => {
+    const { userId } = await seedTestUser(ctx.db, { role: "admin" });
+    const teamId = await seedTeam();
+    const memberId = await seedMember("Eve", "eve-req@test.com");
+
+    const { id: requestId } = await createRequest(ctx.db, noApi, noSiteId)(
+      userId,
+      "admin",
+      { startDate: "2027-01-08", endDate: "2027-01-09" },
+    );
+    const dateId = await seedAvailabilityDate(
+      requestId,
+      teamId,
+      "2027-01-08",
+      userId,
+    );
+
+    // No matchday seeded — should be auto-created
+    const result = await assignPlayer(ctx.db)(userId, "admin", dateId, {
+      memberId,
+      teamId,
+      opposition: "Auto CC",
+    });
+
+    expect(result.id).toBeDefined();
+    expect(result.matchdayId).toBeDefined();
+
+    // Verify matchday was created
+    const md = await ctx.db
+      .selectFrom("matchday")
+      .where("id", "=", result.matchdayId)
+      .selectAll()
+      .executeTakeFirst();
+    expect(md?.opposition).toBe("Auto CC");
+    expect(md?.match_date).toBe("2027-01-08");
   });
 
   it("unassigns a player", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
     const teamId = await seedTeam();
     const memberId = await seedMember("Dave", "dave-req@test.com");
-    const matchdayId = await seedMatchday({
-      teamId,
-      createdBy: userId,
-      matchDate: "2027-01-10",
-    });
 
     const { id: requestId } = await createRequest(ctx.db, noApi, noSiteId)(
       userId,
@@ -307,13 +336,14 @@ describe("availability grid and assignments", () => {
     );
 
     await assignPlayer(ctx.db)(userId, "admin", dateId, {
-      matchdayId,
       memberId,
+      teamId,
+      opposition: "Unassign CC",
     });
 
     const result = await unassignPlayer(ctx.db)(userId, "admin", dateId, {
-      matchdayId,
       memberId,
+      teamId,
     });
 
     expect(result.success).toBe(true);
