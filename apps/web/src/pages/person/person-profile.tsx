@@ -1,5 +1,6 @@
 import { mdxComponents } from "@/components/mdx-components.js";
-import { getImageUrl } from "@/lib/image-map.js";
+import { OptimisedImage } from "@/components/optimised-image.js";
+import { getImageUrl, getPicture } from "@/lib/image-map.js";
 import { getPersonBySlug } from "@/lib/people.js";
 import { MDXProvider } from "@mdx-js/react";
 import { IoChevronForward } from "react-icons/io5";
@@ -8,6 +9,7 @@ import { PlayerSponsor } from "./player-sponsor.js";
 import { PlayerStats } from "./player-stats.js";
 
 const ANON_IMAGE = getImageUrl("/images/anon.jpg");
+const ANON_PICTURE = getPicture("/images/anon.jpg");
 
 export function Component() {
   const params = useParams();
@@ -42,13 +44,27 @@ export function Component() {
         <div className="flex-1">
           <div className="mb-4 flex flex-col items-center justify-between gap-4 md:flex-row">
             <div className="flex flex-col items-center justify-start gap-4 md:flex-row">
-              <img
-                className="mb-0 max-h-48 rounded-full"
-                src={person.photo ?? ANON_IMAGE}
-                alt={person.name}
-                width={132}
-                height={132}
-              />
+              {(() => {
+                const picture = person.photoPicture ?? ANON_PICTURE;
+                return picture ? (
+                  <OptimisedImage
+                    picture={picture}
+                    alt={person.name}
+                    className="mb-0 max-h-48 rounded-full"
+                    sizes="132px"
+                    width={132}
+                    height={132}
+                  />
+                ) : (
+                  <img
+                    className="mb-0 max-h-48 rounded-full"
+                    src={person.photo ?? ANON_IMAGE}
+                    alt={person.name}
+                    width={132}
+                    height={132}
+                  />
+                );
+              })()}
             </div>
           </div>
 

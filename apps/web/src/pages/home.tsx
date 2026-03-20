@@ -93,7 +93,14 @@ function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
 
         <div className="mt-0.5 flex items-center justify-between border-t border-black/[0.04] pt-3">
           <div className="flex items-center gap-2.5">
-            {article.author?.photo ? (
+            {article.author?.photoPicture ? (
+              <OptimisedImage
+                picture={article.author.photoPicture}
+                alt={article.author.name}
+                className="h-7 w-7 shrink-0 rounded-full object-cover"
+                sizes="28px"
+              />
+            ) : article.author?.photo ? (
               <img
                 className="h-7 w-7 shrink-0 rounded-full object-cover"
                 src={article.author.photo}

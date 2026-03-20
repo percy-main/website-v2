@@ -1,4 +1,5 @@
-import { getImageUrl } from "@/lib/image-map.js";
+import type { PictureSource } from "@/components/optimised-image.js";
+import { getImageUrl, getPicture } from "@/lib/image-map.js";
 import type { FC } from "react";
 
 interface PeopleMdxModule {
@@ -9,7 +10,10 @@ interface PeopleMdxModule {
 export interface PersonData {
   name: string;
   slug: string;
+  /** Resolved image URL (for <img> fallback / canvas usage) */
   photo?: string;
+  /** Optimised picture source (for <picture> rendering) */
+  photoPicture?: PictureSource;
   isDBSChecked: boolean;
   hasLeftClub: boolean;
   Component: FC;
@@ -30,6 +34,7 @@ for (const mod of Object.values(modules)) {
     name: (fm.name as string) ?? slug,
     slug,
     photo: rawPhoto ? getImageUrl(rawPhoto) : undefined,
+    photoPicture: rawPhoto ? getPicture(rawPhoto) : undefined,
     isDBSChecked: (fm.isDBSChecked as boolean) ?? false,
     hasLeftClub: (fm.hasLeftClub as boolean) ?? false,
     Component: mod.default,

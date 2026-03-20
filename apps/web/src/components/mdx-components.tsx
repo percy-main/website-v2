@@ -14,21 +14,31 @@ import { IoCalendar, IoChevronForward } from "react-icons/io5";
 import { Link, useLocation } from "react-router";
 
 const ANON_IMAGE = getImageUrl("/images/anon.jpg");
+const ANON_PICTURE = getPicture("/images/anon.jpg");
 
 function Person({ slug, role }: { slug: string; role?: string }) {
   const person = getPersonBySlug(slug);
   const name = person?.name ?? slug;
-  const photo = person?.photo;
+  const picture = person?.photoPicture ?? ANON_PICTURE;
 
   return (
     <div className="person h-full rounded-lg bg-white pb-4 text-gray-900 shadow-md">
       <div className="from-cta h-2 rounded-t-lg bg-gradient-to-r to-orange-400" />
       <div className="mx-auto mt-4 h-24 w-24 overflow-hidden rounded-full border-4 border-gray-100">
-        <img
-          className="h-24 w-24 object-cover object-center"
-          src={photo ?? ANON_IMAGE}
-          alt={name}
-        />
+        {picture ? (
+          <OptimisedImage
+            picture={picture}
+            alt={name}
+            className="h-24 w-24 object-cover object-center"
+            sizes="96px"
+          />
+        ) : (
+          <img
+            className="h-24 w-24 object-cover object-center"
+            src={person?.photo ?? ANON_IMAGE}
+            alt={name}
+          />
+        )}
       </div>
       <div className="mt-3 text-center">
         <h5 className="pb-1 font-semibold">{name}</h5>
