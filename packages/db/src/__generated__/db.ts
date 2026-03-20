@@ -39,6 +39,14 @@ export interface Account {
   userId: string;
 }
 
+export interface AvailabilityDate {
+  created_at: Generated<string>;
+  created_by: string;
+  id: string;
+  match_date: string;
+  play_cricket_team_id: string;
+}
+
 export interface Charge {
   amount_pence: number;
   charge_date: string;
@@ -177,6 +185,16 @@ export interface FantasyTeamScore {
   id: Generated<number>;
   season: string;
   total_points: Generated<number>;
+}
+
+export interface FixtureAssignment {
+  assigned_at: string;
+  assigned_by: string;
+  availability_date_id: string;
+  created_at: Generated<string>;
+  id: string;
+  matchday_id: string;
+  member_id: string;
 }
 
 export interface GameScore {
@@ -402,6 +420,16 @@ export interface PlayCricketTeam {
   site_id: string;
 }
 
+export interface PlayerAvailability {
+  availability_date_id: string;
+  created_at: Generated<string>;
+  declared_at: string;
+  id: string;
+  member_id: string;
+  notes: string | null;
+  status: string;
+}
+
 export interface PlayerSponsorship {
   amount_pence: number;
   approved: Generated<boolean>;
@@ -471,6 +499,7 @@ export interface Verification {
 
 export interface DB {
   account: Account;
+  availability_date: AvailabilityDate;
   charge: Charge;
   charge_dependent: ChargeDependent;
   contact_submission: ContactSubmission;
@@ -483,6 +512,7 @@ export interface DB {
   fantasy_team: FantasyTeam;
   fantasy_team_player: FantasyTeamPlayer;
   fantasy_team_score: FantasyTeamScore;
+  fixture_assignment: FixtureAssignment;
   game_score: GameScore;
   game_sponsorship: GameSponsorship;
   junior_team: JuniorTeam;
@@ -501,6 +531,7 @@ export interface DB {
   play_cricket_match_cache: PlayCricketMatchCache;
   play_cricket_sync_log: PlayCricketSyncLog;
   play_cricket_team: PlayCricketTeam;
+  player_availability: PlayerAvailability;
   player_sponsorship: PlayerSponsorship;
   session: Session;
   team_official: TeamOfficial;

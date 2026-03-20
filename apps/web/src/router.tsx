@@ -137,6 +137,10 @@ export const router = createBrowserRouter([
                 path: "members/fantasy",
                 lazy: () => import("./pages/members/members-fantasy.js"),
               },
+              {
+                path: "availability",
+                lazy: () => import("./pages/availability/availability.js"),
+              },
             ],
           },
         ],
