@@ -21,7 +21,7 @@ const pictureModules = import.meta.glob<{ default: PictureSource }>(
 );
 
 // Plain URL imports for canvas/programmatic usage
-const urlModules = import.meta.glob<{ default: string }>(
+const urlModules = import.meta.glob<string>(
   "../assets/images/**/*.{jpg,jpeg,png,webp}",
   {
     eager: true,
@@ -47,7 +47,7 @@ for (const [key, mod] of Object.entries(pictureModules)) {
 /** Map from old public path → resolved asset URL */
 const urlMap = new Map<string, string>();
 for (const [key, url] of Object.entries(urlModules)) {
-  urlMap.set(globKeyToPublicPath(key), url as unknown as string);
+  urlMap.set(globKeyToPublicPath(key), url);
 }
 
 /**

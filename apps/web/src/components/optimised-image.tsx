@@ -2,9 +2,11 @@ import type { FC } from "react";
 
 /**
  * Shape returned by vite-imagetools `?as=picture` imports.
+ * `sources` maps format (e.g. "avif", "webp") to a pre-built srcset string.
+ * `img` is the largest fallback image metadata.
  */
 export interface PictureSource {
-  sources: Record<string, Array<{ src: string; w: number }>>;
+  sources: Record<string, string>;
   img: { src: string; w: number; h: number };
 }
 
@@ -46,7 +48,7 @@ export const OptimisedImage: FC<Props> = ({
         <source
           key={format}
           type={`image/${format}`}
-          srcSet={sources[format].map((s) => `${s.src} ${s.w}w`).join(", ")}
+          srcSet={sources[format]}
           sizes={sizes}
         />
       ))}
