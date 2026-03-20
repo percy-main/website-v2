@@ -1,11 +1,4 @@
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -15,12 +8,40 @@ import {
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link } from "react-router";
+
+interface BattingSeason {
+  season: number;
+  innings: number;
+  notOuts: number;
+  runs: number;
+  highScore: number;
+  average: number | null;
+  strikeRate: number | null;
+  fours: number;
+  sixes: number;
+  fifties: number;
+  hundreds: number;
+}
+
+interface BowlingSeason {
+  season: number;
+  innings: number;
+  overs: string;
+  maidens: number;
+  runs: number;
+  wickets: number;
+  average: number | null;
+  economy: number | null;
+  strikeRate: number | null;
+  bestBowling: string | null;
+}
 
 interface CareerStatsResponse {
   playCricketId: string;
   seasons: number[];
+  battingSeasons: BattingSeason[];
+  bowlingSeasons: BowlingSeason[];
   career: {
     batting: {
       matches: number;
@@ -30,40 +51,9 @@ interface CareerStatsResponse {
     };
     bowling: {
       innings: number;
-      overs: number;
-      maidens: number;
-      runsConceded: number;
       wickets: number;
       bestBowling: { wickets: number; runs: number } | null;
     };
-  };
-}
-
-interface SeasonStatsResponse {
-  playCricketId: string;
-  season: number;
-  batting: {
-    innings: number;
-    runs: number;
-    notOuts: number;
-    average: number | null;
-    highScore: number;
-    strikeRate: number | null;
-    fours: number;
-    sixes: number;
-    fifties: number;
-    hundreds: number;
-  };
-  bowling: {
-    innings: number;
-    overs: string;
-    maidens: number;
-    wickets: number;
-    runs: number;
-    average: number | null;
-    economy: number | null;
-    strikeRate: number | null;
-    bestBowling: string | null;
   };
 }
 
@@ -77,27 +67,12 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 export function PlayerStats({ slug }: { slug: string }) {
-  const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
-
   const careerQuery = useQuery({
     queryKey: ["player-career-stats", slug],
     queryFn: () =>
       api.get<CareerStatsResponse>(
         `/play-cricket/player-career-stats?slug=${slug}`,
       ),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const effectiveSeason =
-    selectedSeason ?? careerQuery.data?.seasons[0] ?? null;
-
-  const seasonQuery = useQuery({
-    queryKey: ["player-season-stats", slug, effectiveSeason],
-    queryFn: () =>
-      api.get<SeasonStatsResponse>(
-        `/play-cricket/player-season-stats?slug=${slug}&season=${effectiveSeason}`,
-      ),
-    enabled: effectiveSeason !== null,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -121,17 +96,15 @@ export function PlayerStats({ slug }: { slug: string }) {
     return null;
   }
 
-  const { career, seasons } = careerQuery.data;
+  const { career, battingSeasons, bowlingSeasons } = careerQuery.data;
 
-  if (seasons.length === 0) {
+  if (battingSeasons.length === 0 && bowlingSeasons.length === 0) {
     return null;
   }
 
   const bestBowling = career.bowling.bestBowling
     ? `${career.bowling.bestBowling.wickets}/${career.bowling.bestBowling.runs}`
     : null;
-
-  const season = seasonQuery.data;
 
   return (
     <div className="mt-6">
@@ -156,181 +129,143 @@ export function PlayerStats({ slug }: { slug: string }) {
         )}
       </div>
 
-      {/* Season selector */}
-      {seasons.length > 0 && (
-        <div className="mt-6 flex items-center gap-3">
-          <h3 className="text-sm font-semibold text-gray-600">Season Stats</h3>
-          <Select
-            value={String(effectiveSeason)}
-            onValueChange={(v) => setSelectedSeason(Number(v))}
+      {/* Batting by season */}
+      {battingSeasons.length > 0 && (
+        <div>
+          <p className="mb-1 text-xs font-medium text-gray-500">Batting</p>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Season</TableHead>
+                  <TableHead className="text-right">Inn</TableHead>
+                  <TableHead className="text-right">NO</TableHead>
+                  <TableHead className="text-right">Runs</TableHead>
+                  <TableHead className="text-right">HS</TableHead>
+                  <TableHead className="text-right">Avg</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">
+                    SR
+                  </TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">
+                    4s
+                  </TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">
+                    6s
+                  </TableHead>
+                  <TableHead className="hidden text-right md:table-cell">
+                    50s
+                  </TableHead>
+                  <TableHead className="hidden text-right md:table-cell">
+                    100s
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {battingSeasons.map((s) => (
+                  <TableRow key={s.season}>
+                    <TableCell className="font-medium">{s.season}</TableCell>
+                    <TableCell className="text-right">{s.innings}</TableCell>
+                    <TableCell className="text-right">{s.notOuts}</TableCell>
+                    <TableCell className="text-right font-bold">
+                      {s.runs}
+                    </TableCell>
+                    <TableCell className="text-right">{s.highScore}</TableCell>
+                    <TableCell className="text-right">
+                      {s.average ?? "-"}
+                    </TableCell>
+                    <TableCell className="hidden text-right sm:table-cell">
+                      {s.strikeRate ?? "-"}
+                    </TableCell>
+                    <TableCell className="hidden text-right sm:table-cell">
+                      {s.fours}
+                    </TableCell>
+                    <TableCell className="hidden text-right sm:table-cell">
+                      {s.sixes}
+                    </TableCell>
+                    <TableCell className="hidden text-right md:table-cell">
+                      {s.fifties}
+                    </TableCell>
+                    <TableCell className="hidden text-right md:table-cell">
+                      {s.hundreds}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* Bowling by season */}
+      {bowlingSeasons.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-1 text-xs font-medium text-gray-500">Bowling</p>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Season</TableHead>
+                  <TableHead className="text-right">O</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">
+                    M
+                  </TableHead>
+                  <TableHead className="text-right">R</TableHead>
+                  <TableHead className="text-right">W</TableHead>
+                  <TableHead className="text-right">Avg</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">
+                    Econ
+                  </TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">
+                    SR
+                  </TableHead>
+                  <TableHead className="hidden text-right md:table-cell">
+                    Best
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bowlingSeasons.map((s) => (
+                  <TableRow key={s.season}>
+                    <TableCell className="font-medium">{s.season}</TableCell>
+                    <TableCell className="text-right">{s.overs}</TableCell>
+                    <TableCell className="hidden text-right sm:table-cell">
+                      {s.maidens}
+                    </TableCell>
+                    <TableCell className="text-right">{s.runs}</TableCell>
+                    <TableCell className="text-right font-bold">
+                      {s.wickets}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {s.average ?? "-"}
+                    </TableCell>
+                    <TableCell className="hidden text-right sm:table-cell">
+                      {s.economy ?? "-"}
+                    </TableCell>
+                    <TableCell className="hidden text-right sm:table-cell">
+                      {s.strikeRate ?? "-"}
+                    </TableCell>
+                    <TableCell className="hidden text-right md:table-cell">
+                      {s.bestBowling ?? "-"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard link */}
+      {battingSeasons.length > 0 && (
+        <p className="mt-4 text-xs text-gray-400">
+          View the full{" "}
+          <Link
+            to={`/leaderboard/${battingSeasons[0].season}`}
+            className="text-green-800 underline decoration-green-800/30 underline-offset-2 hover:decoration-green-800"
           >
-            <SelectTrigger className="w-auto">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {seasons.map((s) => (
-                <SelectItem key={s} value={String(s)}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* Season stats loading */}
-      {seasonQuery.isPending && (
-        <div className="mt-4 space-y-2">
-          {[0, 1].map((i) => (
-            <div key={i} className="h-8 animate-pulse rounded bg-gray-100" />
-          ))}
-        </div>
-      )}
-
-      {/* Season stats tables */}
-      {season && (
-        <div className="mt-4 space-y-4">
-          {/* Batting summary table */}
-          {season.batting.innings > 0 && (
-            <div>
-              <p className="mb-1 text-xs font-medium text-gray-500">Batting</p>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Inn</TableHead>
-                      <TableHead className="text-right">NO</TableHead>
-                      <TableHead className="text-right">Runs</TableHead>
-                      <TableHead className="text-right">HS</TableHead>
-                      <TableHead className="text-right">Avg</TableHead>
-                      <TableHead className="hidden text-right sm:table-cell">
-                        SR
-                      </TableHead>
-                      <TableHead className="hidden text-right sm:table-cell">
-                        4s
-                      </TableHead>
-                      <TableHead className="hidden text-right sm:table-cell">
-                        6s
-                      </TableHead>
-                      <TableHead className="hidden text-right md:table-cell">
-                        50s
-                      </TableHead>
-                      <TableHead className="hidden text-right md:table-cell">
-                        100s
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>{season.batting.innings}</TableCell>
-                      <TableCell className="text-right">
-                        {season.batting.notOuts}
-                      </TableCell>
-                      <TableCell className="text-right font-bold">
-                        {season.batting.runs}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {season.batting.highScore}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {season.batting.average?.toFixed(2) ?? "-"}
-                      </TableCell>
-                      <TableCell className="hidden text-right sm:table-cell">
-                        {season.batting.strikeRate?.toFixed(1) ?? "-"}
-                      </TableCell>
-                      <TableCell className="hidden text-right sm:table-cell">
-                        {season.batting.fours}
-                      </TableCell>
-                      <TableCell className="hidden text-right sm:table-cell">
-                        {season.batting.sixes}
-                      </TableCell>
-                      <TableCell className="hidden text-right md:table-cell">
-                        {season.batting.fifties}
-                      </TableCell>
-                      <TableCell className="hidden text-right md:table-cell">
-                        {season.batting.hundreds}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-
-          {/* Bowling summary table */}
-          {season.bowling.innings > 0 && (
-            <div>
-              <p className="mb-1 text-xs font-medium text-gray-500">Bowling</p>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>O</TableHead>
-                      <TableHead className="hidden text-right sm:table-cell">
-                        M
-                      </TableHead>
-                      <TableHead className="text-right">R</TableHead>
-                      <TableHead className="text-right">W</TableHead>
-                      <TableHead className="text-right">Avg</TableHead>
-                      <TableHead className="hidden text-right sm:table-cell">
-                        Econ
-                      </TableHead>
-                      <TableHead className="hidden text-right sm:table-cell">
-                        SR
-                      </TableHead>
-                      <TableHead className="hidden text-right md:table-cell">
-                        Best
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>{season.bowling.overs}</TableCell>
-                      <TableCell className="hidden text-right sm:table-cell">
-                        {season.bowling.maidens}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {season.bowling.runs}
-                      </TableCell>
-                      <TableCell className="text-right font-bold">
-                        {season.bowling.wickets}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {season.bowling.average?.toFixed(2) ?? "-"}
-                      </TableCell>
-                      <TableCell className="hidden text-right sm:table-cell">
-                        {season.bowling.economy?.toFixed(2) ?? "-"}
-                      </TableCell>
-                      <TableCell className="hidden text-right sm:table-cell">
-                        {season.bowling.strikeRate?.toFixed(1) ?? "-"}
-                      </TableCell>
-                      <TableCell className="hidden text-right md:table-cell">
-                        {season.bowling.bestBowling ?? "-"}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-
-          {season.batting.innings === 0 && season.bowling.innings === 0 && (
-            <p className="text-sm text-gray-500">
-              No statistics available for this season.
-            </p>
-          )}
-
-          {/* Leaderboard link */}
-          <p className="text-xs text-gray-400">
-            View the full{" "}
-            <Link
-              to={`/leaderboard/${effectiveSeason}`}
-              className="text-green-800 underline decoration-green-800/30 underline-offset-2 hover:decoration-green-800"
-            >
-              {effectiveSeason} season leaderboard
-            </Link>
-          </p>
-        </div>
+            {battingSeasons[0].season} season leaderboard
+          </Link>
+        </p>
       )}
     </div>
   );

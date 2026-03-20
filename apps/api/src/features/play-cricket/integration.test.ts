@@ -196,8 +196,11 @@ describe("play-cricket service (integration)", () => {
 
       // Career bowling totals
       expect(result?.career.bowling.wickets).toBe(3);
-      expect(result?.career.bowling.runsConceded).toBe(30);
       expect(result?.career.bowling.innings).toBe(1);
+
+      // Per-season batting breakdown
+      expect(result?.battingSeasons).toHaveLength(2);
+      expect(result?.bowlingSeasons).toHaveLength(1);
 
       // Seasons list
       expect(result?.seasons).toContain(2025);
