@@ -326,7 +326,7 @@ function TeamMatchesView({
                     >
                       {createMatchdayMutation.isPending
                         ? "Creating..."
-                        : "Select Team"}
+                        : "Start Matchday"}
                     </Button>
                   )}
                 </div>

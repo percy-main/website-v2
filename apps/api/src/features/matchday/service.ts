@@ -436,9 +436,8 @@ export function getUpcomingMatches(
     );
 
     return upcoming.map((m) => {
-      const isoDate = parse(m.matchDate, "dd/MM/yyyy", new Date())
-        .toISOString()
-        .split("T")[0];
+      const [dd, mm, yyyy] = m.matchDate.split("/");
+      const isoDate = `${yyyy}-${mm}-${dd}`;
       const existingMatchday = matchdayByDate.get(isoDate);
 
       return {

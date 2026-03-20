@@ -137,6 +137,10 @@ export const router = createBrowserRouter([
                 path: "members/fantasy",
                 lazy: () => import("./pages/members/members-fantasy.js"),
               },
+              {
+                path: "members/availability",
+                lazy: () => import("./pages/members/members-availability.js"),
+              },
             ],
           },
         ],
@@ -176,6 +180,18 @@ export const router = createBrowserRouter([
                   {
                     path: "official",
                     lazy: () => import("./pages/official/official.js"),
+                  },
+                  {
+                    path: "official/availability",
+                    lazy: () => import("./pages/official/availability.js"),
+                  },
+                  {
+                    path: "official/availability/:requestId",
+                    lazy: () => import("./pages/official/availability.js"),
+                  },
+                  {
+                    path: "official/availability/:requestId/:date",
+                    lazy: () => import("./pages/official/availability.js"),
                   },
                 ],
               },
