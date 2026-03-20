@@ -7,22 +7,25 @@ import {
 } from "../auth/middleware.ts";
 import {
   assignPlayerSchema,
-  createAvailabilityDateSchema,
+  createRequestSchema,
   dateIdParamSchema,
   declareAvailabilitySchema,
-  listAvailabilityDatesSchema,
+  gridQuerySchema,
+  previewQuerySchema,
+  requestIdParamSchema,
   setAvailabilityForMemberSchema,
   unassignPlayerSchema,
 } from "./schemas.ts";
 import {
   assignPlayer,
-  createAvailabilityDate,
+  createRequest,
   declareAvailability,
-  deleteAvailabilityDate,
+  deleteRequest,
   getAvailabilityGrid,
-  getEmailRecipients,
   getMyAvailability,
-  listAvailabilityDates,
+  getRequest,
+  listRequests,
+  previewGamesInWindow,
   setAvailabilityForMember,
   unassignPlayer,
 } from "./service.ts";
@@ -31,66 +34,87 @@ import {
 export const availabilityRoutes: FastifyPluginAsync = async (app) => {
   const officialRole = requireRole("official", "admin");
 
-  // ── Official routes ──
+  // ── Request CRUD (official) ──
 
-  const createDate = createAvailabilityDate(app.db);
-  const listDates = listAvailabilityDates(app.db);
-  const deleteDate = deleteAvailabilityDate(app.db);
+  const create = createRequest(app.db);
+  const list = listRequests(app.db);
+  const get = getRequest(app.db);
+  const remove = deleteRequest(app.db);
+  const preview = previewGamesInWindow(app.db);
+
+  app.post(
+    "/availability/requests",
+    { preHandler: [officialRole] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      const data = parseBody(request, createRequestSchema);
+      return await create(user.id, role, data);
+    },
+  );
+
+  app.get(
+    "/availability/requests",
+    { preHandler: [officialRole] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await list(user.id, role);
+    },
+  );
+
+  app.get(
+    "/availability/requests/:requestId",
+    { preHandler: [officialRole] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      const { requestId } = parseParams(request, requestIdParamSchema);
+      return await get(user.id, role, requestId);
+    },
+  );
+
+  app.delete(
+    "/availability/requests/:requestId",
+    { preHandler: [officialRole] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      const { requestId } = parseParams(request, requestIdParamSchema);
+      return await remove(user.id, role, requestId);
+    },
+  );
+
+  app.get(
+    "/availability/preview",
+    { preHandler: [officialRole] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      const { startDate, endDate } = parseQuery(request, previewQuerySchema);
+      return await preview(user.id, role, startDate, endDate);
+    },
+  );
+
+  // ── Grid & assignment routes (official) ──
+
   const getGrid = getAvailabilityGrid(app.db);
   const setForMember = setAvailabilityForMember(app.db);
   const assign = assignPlayer(app.db);
   const unassign = unassignPlayer(app.db);
-  const getRecipients = getEmailRecipients(app.db);
 
-  // Create an availability date for a team
-  app.post(
-    "/availability/dates",
-    { preHandler: [officialRole] },
-    async (request) => {
-      const { user } = getAuthSession(request);
-      const role = (user as { role?: string | null }).role ?? "user";
-      const data = parseBody(request, createAvailabilityDateSchema);
-      return await createDate(user.id, role, data);
-    },
-  );
-
-  // List availability dates for a team
   app.get(
-    "/availability/dates",
+    "/availability/requests/:requestId/grid",
     { preHandler: [officialRole] },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const params = parseQuery(request, listAvailabilityDatesSchema);
-      return await listDates(user.id, role, params);
+      const { requestId } = parseParams(request, requestIdParamSchema);
+      const { matchDate } = parseQuery(request, gridQuerySchema);
+      return await getGrid(user.id, role, requestId, matchDate);
     },
   );
 
-  // Delete an availability date
-  app.delete(
-    "/availability/dates/:dateId",
-    { preHandler: [officialRole] },
-    async (request) => {
-      const { user } = getAuthSession(request);
-      const role = (user as { role?: string | null }).role ?? "user";
-      const { dateId } = parseParams(request, dateIdParamSchema);
-      return await deleteDate(user.id, role, dateId);
-    },
-  );
-
-  // Get the availability grid for a specific date
-  app.get(
-    "/availability/dates/:dateId/grid",
-    { preHandler: [officialRole] },
-    async (request) => {
-      const { user } = getAuthSession(request);
-      const role = (user as { role?: string | null }).role ?? "user";
-      const { dateId } = parseParams(request, dateIdParamSchema);
-      return await getGrid(user.id, role, dateId);
-    },
-  );
-
-  // Set availability on behalf of a member (official override)
   app.post(
     "/availability/dates/:dateId/set",
     { preHandler: [officialRole] },
@@ -103,7 +127,6 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  // Assign a player to a matchday from the grid
   app.post(
     "/availability/dates/:dateId/assign",
     { preHandler: [officialRole] },
@@ -116,7 +139,6 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  // Unassign a player from a matchday
   app.delete(
     "/availability/dates/:dateId/assignments",
     { preHandler: [officialRole] },
@@ -129,24 +151,11 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  // Get email recipients preview for an availability date
-  app.get(
-    "/availability/dates/:dateId/recipients",
-    { preHandler: [officialRole] },
-    async (request) => {
-      const { user } = getAuthSession(request);
-      const role = (user as { role?: string | null }).role ?? "user";
-      const { dateId } = parseParams(request, dateIdParamSchema);
-      return await getRecipients(user.id, role, dateId);
-    },
-  );
-
   // ── Member routes ──
 
   const myAvailability = getMyAvailability(app.db);
   const declare = declareAvailability(app.db);
 
-  // Get my availability declarations
   app.get(
     "/availability/me",
     { preHandler: [requireAuth] },
@@ -156,7 +165,6 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  // Declare availability for a date
   app.post(
     "/availability/dates/:dateId/declare",
     { preHandler: [requireAuth] },

@@ -10,26 +10,21 @@ export const availabilityStatusSchema = z.enum([
 
 // ── Route param schemas ──
 
-export const teamIdParamSchema = z.object({
-  teamId: z.string(),
+export const requestIdParamSchema = z.object({
+  requestId: z.string(),
 });
 
 export const dateIdParamSchema = z.object({
   dateId: z.string(),
 });
 
-export const availabilityIdParamSchema = z.object({
-  dateId: z.string(),
-  availabilityId: z.string(),
-});
-
 // ── Request body schemas ──
 
-export const createAvailabilityDateSchema = z.object({
-  teamId: z.string(),
-  matchDate: z
+export const createRequestSchema = z.object({
+  startDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD format"),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD format"),
 });
 
 export const declareAvailabilitySchema = z.object({
@@ -55,19 +50,25 @@ export const unassignPlayerSchema = z.object({
 
 // ── Query schemas ──
 
-export const listAvailabilityDatesSchema = z.object({
-  teamId: z.string(),
+export const previewQuerySchema = z.object({
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD format"),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD format"),
+});
+
+export const gridQuerySchema = z.object({
+  matchDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD format"),
 });
 
 // ── Types ──
 
-export type CreateAvailabilityDate = z.infer<
-  typeof createAvailabilityDateSchema
->;
+export type CreateRequest = z.infer<typeof createRequestSchema>;
 export type DeclareAvailability = z.infer<typeof declareAvailabilitySchema>;
 export type SetAvailabilityForMember = z.infer<
   typeof setAvailabilityForMemberSchema
 >;
 export type AssignPlayer = z.infer<typeof assignPlayerSchema>;
 export type UnassignPlayer = z.infer<typeof unassignPlayerSchema>;
-export type ListAvailabilityDates = z.infer<typeof listAvailabilityDatesSchema>;

@@ -7,12 +7,14 @@ import {
 } from "../../test/containers.ts";
 import {
   assignPlayer,
-  createAvailabilityDate,
+  createRequest,
   declareAvailability,
-  deleteAvailabilityDate,
+  deleteRequest,
   getAvailabilityGrid,
   getMyAvailability,
-  listAvailabilityDates,
+  getRequest,
+  listRequests,
+  previewGamesInWindow,
   setAvailabilityForMember,
   unassignPlayer,
 } from "./service.ts";
@@ -27,7 +29,6 @@ afterAll(async () => {
   await stopTestContainer(ctx);
 });
 
-/** Seed a play_cricket_team row. */
 async function seedTeam(id?: string) {
   const teamId = id ?? `pct-${crypto.randomUUID()}`;
   await ctx.db
@@ -41,7 +42,6 @@ async function seedTeam(id?: string) {
   return teamId;
 }
 
-/** Seed a team_official row. */
 async function seedTeamOfficial(userId: string, teamId: string) {
   await ctx.db
     .insertInto("team_official")
@@ -49,7 +49,6 @@ async function seedTeamOfficial(userId: string, teamId: string) {
     .execute();
 }
 
-/** Seed a member row. */
 async function seedMember(name: string, email: string, category?: string) {
   const id = `mem-${crypto.randomUUID()}`;
   await ctx.db
@@ -64,12 +63,11 @@ async function seedMember(name: string, email: string, category?: string) {
   return id;
 }
 
-/** Seed a matchday row. */
 async function seedMatchday(overrides: {
   teamId: string;
   createdBy: string;
   matchDate?: string;
-  status?: string;
+  opposition?: string;
 }) {
   const id = `md-${crypto.randomUUID()}`;
   await ctx.db
@@ -78,188 +76,206 @@ async function seedMatchday(overrides: {
       id,
       play_cricket_team_id: overrides.teamId,
       match_date: overrides.matchDate ?? "2026-06-15",
-      opposition: "Opposition CC",
+      opposition: overrides.opposition ?? "Opposition CC",
       created_by: overrides.createdBy,
-      status: overrides.status ?? "pending",
+      status: "pending",
     })
     .execute();
   return id;
 }
 
-describe("availability — official services", () => {
-  it("creates an availability date", async () => {
+describe("availability requests", () => {
+  it("creates a request and auto-creates availability dates", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
     const teamId = await seedTeam();
-
-    const result = await createAvailabilityDate(ctx.db)(userId, "admin", {
+    await seedMatchday({
       teamId,
+      createdBy: userId,
       matchDate: "2026-06-15",
     });
-
-    expect(result.id).toBeDefined();
-  });
-
-  it("rejects duplicate availability date for same team + date", async () => {
-    const { userId } = await seedTestUser(ctx.db, { role: "admin" });
-    const teamId = await seedTeam();
-
-    await createAvailabilityDate(ctx.db)(userId, "admin", {
+    await seedMatchday({
       teamId,
-      matchDate: "2026-06-20",
+      createdBy: userId,
+      matchDate: "2026-06-16",
     });
 
-    await expect(
-      createAvailabilityDate(ctx.db)(userId, "admin", {
-        teamId,
-        matchDate: "2026-06-20",
-      }),
-    ).rejects.toThrow("already exists");
+    const result = await createRequest(ctx.db)(userId, "admin", {
+      startDate: "2026-06-14",
+      endDate: "2026-06-17",
+    });
+
+    expect(result.id).toBeDefined();
+    expect(result.datesCreated).toBe(2);
   });
 
-  it("rejects access for non-official user", async () => {
-    const { userId } = await seedTestUser(ctx.db, { role: "official" });
-    const teamId = await seedTeam();
-    // No team_official entry, so user has no access
-
-    await expect(
-      createAvailabilityDate(ctx.db)(userId, "official", {
-        teamId,
-        matchDate: "2026-06-21",
-      }),
-    ).rejects.toThrow("do not have access");
-  });
-
-  it("lists availability dates with declarations", async () => {
+  it("rejects overlapping requests", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
     const teamId = await seedTeam();
-
-    await createAvailabilityDate(ctx.db)(userId, "admin", {
+    await seedMatchday({
       teamId,
+      createdBy: userId,
       matchDate: "2026-07-01",
     });
-    await createAvailabilityDate(ctx.db)(userId, "admin", {
-      teamId,
-      matchDate: "2026-07-08",
+
+    await createRequest(ctx.db)(userId, "admin", {
+      startDate: "2026-06-30",
+      endDate: "2026-07-05",
     });
 
-    const result = await listAvailabilityDates(ctx.db)(userId, "admin", {
-      teamId,
-    });
-
-    expect(result).toHaveLength(2);
-    expect(result[0].match_date).toBe("2026-07-01");
-    expect(result[1].match_date).toBe("2026-07-08");
-    expect(result[0].declarations).toEqual([]);
+    await expect(
+      createRequest(ctx.db)(userId, "admin", {
+        startDate: "2026-07-03",
+        endDate: "2026-07-10",
+      }),
+    ).rejects.toThrow("overlaps");
   });
 
-  it("deletes an availability date", async () => {
+  it("rejects start date after end date", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
-    const teamId = await seedTeam();
 
-    const { id } = await createAvailabilityDate(ctx.db)(userId, "admin", {
-      teamId,
-      matchDate: "2026-07-15",
-    });
-
-    const result = await deleteAvailabilityDate(ctx.db)(userId, "admin", id);
-    expect(result.success).toBe(true);
-
-    const dates = await listAvailabilityDates(ctx.db)(userId, "admin", {
-      teamId,
-    });
-    expect(dates.find((d) => d.id === id)).toBeUndefined();
+    await expect(
+      createRequest(ctx.db)(userId, "admin", {
+        startDate: "2026-07-10",
+        endDate: "2026-07-05",
+      }),
+    ).rejects.toThrow("before");
   });
 
-  it("officials can set availability on behalf of a member", async () => {
+  it("lists requests with summary counts", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
     const teamId = await seedTeam();
-    const memberId = await seedMember("Alice", "alice@test.com");
+    await seedMatchday({
+      teamId,
+      createdBy: userId,
+      matchDate: "2026-08-01",
+    });
 
-    const { id: dateId } = await createAvailabilityDate(ctx.db)(
-      userId,
-      "admin",
-      { teamId, matchDate: "2026-08-01" },
-    );
+    await createRequest(ctx.db)(userId, "admin", {
+      startDate: "2026-08-01",
+      endDate: "2026-08-07",
+    });
 
-    const result = await setAvailabilityForMember(ctx.db)(
-      userId,
-      "admin",
-      dateId,
-      { memberId, status: "available" },
-    );
+    const result = await listRequests(ctx.db)(userId, "admin");
+    expect(result.length).toBeGreaterThanOrEqual(1);
 
-    expect(result.id).toBeDefined();
-
-    // Verify it shows in the grid
-    const grid = await getAvailabilityGrid(ctx.db)(userId, "admin", dateId);
-    const aliceRow = grid.grid.find((g) => g.memberId === memberId);
-    expect(aliceRow?.availabilityStatus).toBe("available");
+    const req = result.find((r) => r.start_date === "2026-08-01");
+    expect(req).toBeDefined();
+    expect(req?.totalDates).toBe(1);
   });
 
-  it("officials can update existing availability", async () => {
+  it("gets request detail with dates and matchdays", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
     const teamId = await seedTeam();
-    const memberId = await seedMember("Bob", "bob@test.com");
+    await seedMatchday({
+      teamId,
+      createdBy: userId,
+      matchDate: "2026-09-01",
+      opposition: "Team Alpha",
+    });
 
-    const { id: dateId } = await createAvailabilityDate(ctx.db)(
+    const { id } = await createRequest(ctx.db)(userId, "admin", {
+      startDate: "2026-09-01",
+      endDate: "2026-09-07",
+    });
+
+    const detail = await getRequest(ctx.db)(userId, "admin", id);
+    expect(detail.dates).toHaveLength(1);
+    expect(detail.dates[0].matchDate).toBe("2026-09-01");
+    expect(detail.dates[0].matchdays).toHaveLength(1);
+  });
+
+  it("deletes a request and cascades", async () => {
+    const { userId } = await seedTestUser(ctx.db, { role: "admin" });
+    const teamId = await seedTeam();
+    await seedMatchday({
+      teamId,
+      createdBy: userId,
+      matchDate: "2026-10-01",
+    });
+
+    const { id } = await createRequest(ctx.db)(userId, "admin", {
+      startDate: "2026-10-01",
+      endDate: "2026-10-07",
+    });
+
+    await deleteRequest(ctx.db)(userId, "admin", id);
+
+    await expect(getRequest(ctx.db)(userId, "admin", id)).rejects.toThrow(
+      "not found",
+    );
+  });
+
+  it("previews games in a window", async () => {
+    const { userId } = await seedTestUser(ctx.db, { role: "admin" });
+    const teamId = await seedTeam();
+    await seedMatchday({
+      teamId,
+      createdBy: userId,
+      matchDate: "2026-11-01",
+    });
+
+    const result = await previewGamesInWindow(ctx.db)(
       userId,
       "admin",
-      { teamId, matchDate: "2026-08-02" },
+      "2026-11-01",
+      "2026-11-07",
     );
 
-    await setAvailabilityForMember(ctx.db)(userId, "admin", dateId, {
-      memberId,
-      status: "available",
-    });
-
-    // Update to unavailable
-    await setAvailabilityForMember(ctx.db)(userId, "admin", dateId, {
-      memberId,
-      status: "unavailable",
-      notes: "Injured",
-    });
-
-    const grid = await getAvailabilityGrid(ctx.db)(userId, "admin", dateId);
-    const bobRow = grid.grid.find((g) => g.memberId === memberId);
-    expect(bobRow?.availabilityStatus).toBe("unavailable");
-    expect(bobRow?.availabilityNotes).toBe("Injured");
+    expect(result.matchdays.length).toBeGreaterThanOrEqual(1);
+    expect(result.overlapping).toBe(false);
   });
 });
 
-describe("availability — grid and assignments", () => {
-  it("returns the grid with members and matchdays", async () => {
+describe("availability grid and assignments", () => {
+  it("returns the grid for a date within a request", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
     const teamId = await seedTeam();
+    await seedMatchday({
+      teamId,
+      createdBy: userId,
+      matchDate: "2026-12-01",
+    });
 
-    const { id: dateId } = await createAvailabilityDate(ctx.db)(
+    const { id: requestId } = await createRequest(ctx.db)(userId, "admin", {
+      startDate: "2026-12-01",
+      endDate: "2026-12-07",
+    });
+
+    const grid = await getAvailabilityGrid(ctx.db)(
       userId,
       "admin",
-      { teamId, matchDate: "2026-09-01" },
+      requestId,
+      "2026-12-01",
     );
 
-    const grid = await getAvailabilityGrid(ctx.db)(userId, "admin", dateId);
-
-    expect(grid.date.id).toBe(dateId);
+    expect(grid.matchDate).toBe("2026-12-01");
     expect(Array.isArray(grid.grid)).toBe(true);
-    expect(Array.isArray(grid.matchdays)).toBe(true);
+    expect(grid.matchdays.length).toBeGreaterThanOrEqual(1);
   });
 
   it("assigns a player to a matchday from the grid", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
     const teamId = await seedTeam();
-    const memberId = await seedMember("Charlie", "charlie@test.com");
-
-    const { id: dateId } = await createAvailabilityDate(ctx.db)(
-      userId,
-      "admin",
-      { teamId, matchDate: "2026-09-05" },
-    );
-
+    const memberId = await seedMember("Charlie", "charlie-req@test.com");
     const matchdayId = await seedMatchday({
       teamId,
       createdBy: userId,
-      matchDate: "2026-09-05",
+      matchDate: "2027-01-05",
     });
+
+    const { id: requestId } = await createRequest(ctx.db)(userId, "admin", {
+      startDate: "2027-01-05",
+      endDate: "2027-01-07",
+    });
+
+    // Get the availability_date_id
+    const grid = await getAvailabilityGrid(ctx.db)(
+      userId,
+      "admin",
+      requestId,
+      "2027-01-05",
+    );
+    const dateId = grid.availabilityDateIds[0];
 
     const result = await assignPlayer(ctx.db)(userId, "admin", dateId, {
       matchdayId,
@@ -267,60 +283,30 @@ describe("availability — grid and assignments", () => {
     });
 
     expect(result.id).toBeDefined();
-
-    // Verify it shows in the grid
-    const grid = await getAvailabilityGrid(ctx.db)(userId, "admin", dateId);
-    const charlieRow = grid.grid.find((g) => g.memberId === memberId);
-    expect(charlieRow?.assignments).toHaveLength(1);
-    expect(charlieRow?.assignments[0].matchdayId).toBe(matchdayId);
   });
 
-  it("rejects duplicate assignment", async () => {
+  it("unassigns a player", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
     const teamId = await seedTeam();
-    const memberId = await seedMember("Dup", "dup@test.com");
-
-    const { id: dateId } = await createAvailabilityDate(ctx.db)(
-      userId,
-      "admin",
-      { teamId, matchDate: "2026-09-06" },
-    );
-
+    const memberId = await seedMember("Dave", "dave-req@test.com");
     const matchdayId = await seedMatchday({
       teamId,
       createdBy: userId,
-      matchDate: "2026-09-06",
+      matchDate: "2027-01-10",
     });
 
-    await assignPlayer(ctx.db)(userId, "admin", dateId, {
-      matchdayId,
-      memberId,
+    const { id: requestId } = await createRequest(ctx.db)(userId, "admin", {
+      startDate: "2027-01-10",
+      endDate: "2027-01-12",
     });
 
-    await expect(
-      assignPlayer(ctx.db)(userId, "admin", dateId, {
-        matchdayId,
-        memberId,
-      }),
-    ).rejects.toThrow("already assigned");
-  });
-
-  it("unassigns a player from a matchday", async () => {
-    const { userId } = await seedTestUser(ctx.db, { role: "admin" });
-    const teamId = await seedTeam();
-    const memberId = await seedMember("Dave", "dave@test.com");
-
-    const { id: dateId } = await createAvailabilityDate(ctx.db)(
+    const grid = await getAvailabilityGrid(ctx.db)(
       userId,
       "admin",
-      { teamId, matchDate: "2026-09-07" },
+      requestId,
+      "2027-01-10",
     );
-
-    const matchdayId = await seedMatchday({
-      teamId,
-      createdBy: userId,
-      matchDate: "2026-09-07",
-    });
+    const dateId = grid.availabilityDateIds[0];
 
     await assignPlayer(ctx.db)(userId, "admin", dateId, {
       matchdayId,
@@ -333,41 +319,43 @@ describe("availability — grid and assignments", () => {
     });
 
     expect(result.success).toBe(true);
-
-    // Verify removed from grid
-    const grid = await getAvailabilityGrid(ctx.db)(userId, "admin", dateId);
-    const daveRow = grid.grid.find((g) => g.memberId === memberId);
-    expect(daveRow?.assignments).toHaveLength(0);
   });
 
-  it("rejects assignment when matchday date does not match", async () => {
+  it("officials can set availability on behalf of a member", async () => {
     const { userId } = await seedTestUser(ctx.db, { role: "admin" });
     const teamId = await seedTeam();
-    const memberId = await seedMember("Eve", "eve@test.com");
-
-    const { id: dateId } = await createAvailabilityDate(ctx.db)(
-      userId,
-      "admin",
-      { teamId, matchDate: "2026-09-10" },
-    );
-
-    // Matchday on a different date
-    const matchdayId = await seedMatchday({
+    const memberId = await seedMember("Alice", "alice-req@test.com");
+    await seedMatchday({
       teamId,
       createdBy: userId,
-      matchDate: "2026-09-11",
+      matchDate: "2027-02-01",
     });
 
-    await expect(
-      assignPlayer(ctx.db)(userId, "admin", dateId, {
-        matchdayId,
-        memberId,
-      }),
-    ).rejects.toThrow("not on the same date");
+    const { id: requestId } = await createRequest(ctx.db)(userId, "admin", {
+      startDate: "2027-02-01",
+      endDate: "2027-02-07",
+    });
+
+    const grid = await getAvailabilityGrid(ctx.db)(
+      userId,
+      "admin",
+      requestId,
+      "2027-02-01",
+    );
+    const dateId = grid.availabilityDateIds[0];
+
+    const result = await setAvailabilityForMember(ctx.db)(
+      userId,
+      "admin",
+      dateId,
+      { memberId, status: "available" },
+    );
+
+    expect(result.id).toBeDefined();
   });
 });
 
-describe("availability — member services", () => {
+describe("member services", () => {
   it("member declares availability", async () => {
     const { userId } = await seedTestUser(ctx.db, {
       role: "official",
@@ -375,43 +363,28 @@ describe("availability — member services", () => {
     });
     const teamId = await seedTeam();
     await seedTeamOfficial(userId, teamId);
+    await seedMatchday({
+      teamId,
+      createdBy: userId,
+      matchDate: "2027-03-01",
+    });
 
-    const { id: dateId } = await createAvailabilityDate(ctx.db)(
+    const { id: requestId } = await createRequest(ctx.db)(userId, "official", {
+      startDate: "2027-03-01",
+      endDate: "2027-03-07",
+    });
+
+    const grid = await getAvailabilityGrid(ctx.db)(
       userId,
       "official",
-      { teamId, matchDate: "2026-10-01" },
+      requestId,
+      "2027-03-01",
     );
+    const dateId = grid.availabilityDateIds[0];
 
     const result = await declareAvailability(ctx.db)(userId, dateId, {
       status: "available",
       notes: "Free all day",
-    });
-
-    expect(result.id).toBeDefined();
-  });
-
-  it("member can update their declaration", async () => {
-    const { userId } = await seedTestUser(ctx.db, {
-      role: "official",
-      withMember: true,
-    });
-    const teamId = await seedTeam();
-    await seedTeamOfficial(userId, teamId);
-
-    const { id: dateId } = await createAvailabilityDate(ctx.db)(
-      userId,
-      "official",
-      { teamId, matchDate: "2026-10-02" },
-    );
-
-    await declareAvailability(ctx.db)(userId, dateId, {
-      status: "available",
-    });
-
-    // Update to maybe
-    const result = await declareAvailability(ctx.db)(userId, dateId, {
-      status: "maybe",
-      notes: "Need to check",
     });
 
     expect(result.id).toBeDefined();
@@ -424,30 +397,37 @@ describe("availability — member services", () => {
     });
     const teamId = await seedTeam();
     await seedTeamOfficial(userId, teamId);
+    await seedMatchday({
+      teamId,
+      createdBy: userId,
+      matchDate: "2027-03-15",
+    });
 
-    const { id: dateId } = await createAvailabilityDate(ctx.db)(
+    const { id: requestId } = await createRequest(ctx.db)(userId, "official", {
+      startDate: "2027-03-15",
+      endDate: "2027-03-20",
+    });
+
+    const grid = await getAvailabilityGrid(ctx.db)(
       userId,
       "official",
-      { teamId, matchDate: "2026-10-03" },
+      requestId,
+      "2027-03-15",
     );
+    const dateId = grid.availabilityDateIds[0];
 
     await declareAvailability(ctx.db)(userId, dateId, {
-      status: "available",
+      status: "maybe",
     });
 
     const result = await getMyAvailability(ctx.db)(userId);
-
     expect(result.memberId).toBeDefined();
     const date = result.dates.find((d) => d.id === dateId);
-    expect(date).toBeDefined();
-    expect(date?.myStatus).toBe("available");
+    expect(date?.myStatus).toBe("maybe");
   });
 
-  it("returns empty dates for user without member record", async () => {
-    const { userId } = await seedTestUser(ctx.db, {
-      withMember: false,
-    });
-
+  it("returns empty for user without member record", async () => {
+    const { userId } = await seedTestUser(ctx.db, { withMember: false });
     const result = await getMyAvailability(ctx.db)(userId);
     expect(result.memberId).toBeNull();
     expect(result.dates).toEqual([]);

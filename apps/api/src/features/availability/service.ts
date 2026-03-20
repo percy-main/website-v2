@@ -2,9 +2,8 @@ import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import type {
   AssignPlayer,
-  CreateAvailabilityDate,
+  CreateRequest,
   DeclareAvailability,
-  ListAvailabilityDates,
   SetAvailabilityForMember,
   UnassignPlayer,
 } from "./schemas.ts";
@@ -37,76 +36,254 @@ function throwHttpError(statusCode: number, message: string): never {
   throw Object.assign(new Error(message), { statusCode });
 }
 
-// ── Official services ──
+// ── Request services (official) ──
 
 /**
- * Create an availability date for a team.
- * Officials pick specific dates to request availability for.
+ * Create an availability request for a date window.
+ * Finds all senior matchdays in the window, creates availability_date records for
+ * each unique game date, and groups them under the request.
  */
-export function createAvailabilityDate(db: Kysely<DB>) {
-  return async (userId: string, role: string, data: CreateAvailabilityDate) => {
+export function createRequest(db: Kysely<DB>) {
+  return async (userId: string, role: string, data: CreateRequest) => {
+    // Verify the user has access to at least one team
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
-    if (!accessibleIds.includes(data.teamId)) {
-      throwHttpError(403, "You do not have access to this team");
+    if (accessibleIds.length === 0) {
+      throwHttpError(403, "You do not have access to any teams");
     }
 
-    // Check for duplicate
-    const existing = await db
-      .selectFrom("availability_date")
-      .where("play_cricket_team_id", "=", data.teamId)
-      .where("match_date", "=", data.matchDate)
+    if (data.startDate > data.endDate) {
+      throwHttpError(400, "Start date must be before end date");
+    }
+
+    // Check for overlap with existing requests
+    const overlapping = await db
+      .selectFrom("availability_request")
+      .where("start_date", "<=", data.endDate)
+      .where("end_date", ">=", data.startDate)
       .select("id")
       .executeTakeFirst();
 
-    if (existing) {
+    if (overlapping) {
       throwHttpError(
         409,
-        "An availability date already exists for this team and date",
+        "This date range overlaps with an existing availability request",
       );
     }
 
-    const id = crypto.randomUUID();
+    const requestId = crypto.randomUUID();
 
+    // Find matchdays in the window for accessible senior teams
+    const seniorTeams = await db
+      .selectFrom("play_cricket_team")
+      .where("id", "in", accessibleIds)
+      .where("is_junior", "=", false)
+      .select("id")
+      .execute();
+
+    const seniorTeamIds = seniorTeams.map((t) => t.id);
+
+    let matchdays: Array<{
+      id: string;
+      match_date: string;
+      play_cricket_team_id: string;
+      opposition: string;
+    }> = [];
+
+    if (seniorTeamIds.length > 0) {
+      matchdays = await db
+        .selectFrom("matchday")
+        .where("play_cricket_team_id", "in", seniorTeamIds)
+        .where("match_date", ">=", data.startDate)
+        .where("match_date", "<=", data.endDate)
+        .select(["id", "match_date", "play_cricket_team_id", "opposition"])
+        .orderBy("match_date", "asc")
+        .execute();
+    }
+
+    // Create the request
     await db
-      .insertInto("availability_date")
+      .insertInto("availability_request")
       .values({
-        id,
-        play_cricket_team_id: data.teamId,
-        match_date: data.matchDate,
+        id: requestId,
+        start_date: data.startDate,
+        end_date: data.endDate,
         created_by: userId,
       })
       .execute();
 
-    return { id };
+    // Create availability_date records for each unique (team, date) pair
+    const seen = new Set<string>();
+    for (const md of matchdays) {
+      const key = `${md.play_cricket_team_id}:${md.match_date}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      await db
+        .insertInto("availability_date")
+        .values({
+          id: crypto.randomUUID(),
+          availability_request_id: requestId,
+          play_cricket_team_id: md.play_cricket_team_id,
+          match_date: md.match_date,
+          created_by: userId,
+        })
+        .execute();
+    }
+
+    return { id: requestId, datesCreated: seen.size };
   };
 }
 
 /**
- * List availability dates for a team with player responses and assignments.
+ * List all availability requests with summary counts.
  */
-export function listAvailabilityDates(db: Kysely<DB>) {
-  return async (
-    userId: string,
-    role: string,
-    params: ListAvailabilityDates,
-  ) => {
+export function listRequests(db: Kysely<DB>) {
+  return async (userId: string, role: string) => {
+    // Verify access
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
-    if (!accessibleIds.includes(params.teamId)) {
-      throwHttpError(403, "You do not have access to this team");
+    if (accessibleIds.length === 0) {
+      throwHttpError(403, "You do not have access to any teams");
     }
 
+    const requests = await db
+      .selectFrom("availability_request")
+      .selectAll()
+      .orderBy("start_date", "desc")
+      .execute();
+
+    if (requests.length === 0) return [];
+
+    const requestIds = requests.map((r) => r.id);
+
+    // Get availability dates grouped by request
     const dates = await db
       .selectFrom("availability_date")
-      .where("play_cricket_team_id", "=", params.teamId)
+      .where("availability_request_id", "in", requestIds)
+      .selectAll()
+      .execute();
+
+    const dateIds = dates.map((d) => d.id);
+
+    // Get declaration counts per date
+    let declarations: Array<{
+      availability_date_id: string;
+      status: string;
+    }> = [];
+    if (dateIds.length > 0) {
+      declarations = await db
+        .selectFrom("player_availability")
+        .where("availability_date_id", "in", dateIds)
+        .select(["availability_date_id", "status"])
+        .execute();
+    }
+
+    // Get matchdays for dates in these requests
+    const matchDates = [...new Set(dates.map((d) => d.match_date))];
+    let matchdays: Array<{
+      id: string;
+      match_date: string;
+      opposition: string;
+      play_cricket_team_id: string;
+    }> = [];
+    if (matchDates.length > 0) {
+      matchdays = await db
+        .selectFrom("matchday")
+        .where("match_date", "in", matchDates)
+        .select(["id", "match_date", "opposition", "play_cricket_team_id"])
+        .execute();
+    }
+
+    // Group
+    const datesByRequest = new Map<string, typeof dates>();
+    for (const d of dates) {
+      if (!d.availability_request_id) continue;
+      const arr = datesByRequest.get(d.availability_request_id) ?? [];
+      arr.push(d);
+      datesByRequest.set(d.availability_request_id, arr);
+    }
+
+    const declarationsByDateId = new Map<string, typeof declarations>();
+    for (const d of declarations) {
+      const arr = declarationsByDateId.get(d.availability_date_id) ?? [];
+      arr.push(d);
+      declarationsByDateId.set(d.availability_date_id, arr);
+    }
+
+    return requests.map((request) => {
+      const reqDates = datesByRequest.get(request.id) ?? [];
+      const uniqueMatchDates = [
+        ...new Set(reqDates.map((d) => d.match_date)),
+      ].sort();
+
+      let totalAvailable = 0;
+      let totalMaybe = 0;
+      let totalUnavailable = 0;
+      let totalResponses = 0;
+      for (const d of reqDates) {
+        const decls = declarationsByDateId.get(d.id) ?? [];
+        for (const decl of decls) {
+          totalResponses++;
+          if (decl.status === "available") totalAvailable++;
+          else if (decl.status === "maybe") totalMaybe++;
+          else if (decl.status === "unavailable") totalUnavailable++;
+        }
+      }
+
+      // Matchdays in the window
+      const windowMatchdays = matchdays.filter(
+        (m) =>
+          m.match_date >= request.start_date &&
+          m.match_date <= request.end_date,
+      );
+
+      return {
+        ...request,
+        gameDates: uniqueMatchDates,
+        totalDates: reqDates.length,
+        totalAvailable,
+        totalMaybe,
+        totalUnavailable,
+        totalResponses,
+        matchdays: windowMatchdays,
+      };
+    });
+  };
+}
+
+/**
+ * Get a single request with its dates, declarations, matchdays, and assignments.
+ */
+export function getRequest(db: Kysely<DB>) {
+  return async (userId: string, role: string, requestId: string) => {
+    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
+    if (accessibleIds.length === 0) {
+      throwHttpError(403, "You do not have access to any teams");
+    }
+
+    const request = await db
+      .selectFrom("availability_request")
+      .where("id", "=", requestId)
+      .selectAll()
+      .executeTakeFirst();
+
+    if (!request) throwHttpError(404, "Availability request not found");
+
+    // Get availability dates for this request
+    const dates = await db
+      .selectFrom("availability_date")
+      .where("availability_request_id", "=", requestId)
       .selectAll()
       .orderBy("match_date", "asc")
       .execute();
 
-    if (dates.length === 0) return [];
+    if (dates.length === 0) {
+      return { ...request, dates: [] };
+    }
 
     const dateIds = dates.map((d) => d.id);
+    const matchDates = [...new Set(dates.map((d) => d.match_date))];
 
-    // Fetch all availability declarations for these dates
+    // Fetch declarations
     const declarations = await db
       .selectFrom("player_availability")
       .where("availability_date_id", "in", dateIds)
@@ -119,13 +296,11 @@ export function listAvailabilityDates(db: Kysely<DB>) {
         "player_availability.notes",
         "player_availability.declared_at",
         "member.name as member_name",
-        "member.email as member_email",
-        "member.member_category",
       ])
       .orderBy("member.name", "asc")
       .execute();
 
-    // Fetch all fixture assignments for these dates
+    // Fetch assignments
     const assignments = await db
       .selectFrom("fixture_assignment")
       .where("availability_date_id", "in", dateIds)
@@ -136,23 +311,31 @@ export function listAvailabilityDates(db: Kysely<DB>) {
         "fixture_assignment.availability_date_id",
         "fixture_assignment.matchday_id",
         "fixture_assignment.member_id",
-        "fixture_assignment.assigned_at",
         "member.name as member_name",
         "matchday.opposition",
-        "matchday.play_cricket_team_id as matchday_team_id",
       ])
       .execute();
 
-    // Fetch matchdays on these dates for the team
-    const matchDates = dates.map((d) => d.match_date);
+    // Fetch matchdays
     const matchdays = await db
       .selectFrom("matchday")
-      .where("play_cricket_team_id", "=", params.teamId)
       .where("match_date", "in", matchDates)
-      .select(["id", "match_date", "opposition", "status"])
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
+      .select([
+        "matchday.id",
+        "matchday.match_date",
+        "matchday.opposition",
+        "matchday.status",
+        "matchday.play_cricket_team_id",
+        "play_cricket_team.name as team_name",
+      ])
       .execute();
 
-    // Group by date
+    // Group
     const declarationsByDate = new Map<string, typeof declarations>();
     for (const d of declarations) {
       const arr = declarationsByDate.get(d.availability_date_id) ?? [];
@@ -174,116 +357,256 @@ export function listAvailabilityDates(db: Kysely<DB>) {
       matchdaysByDate.set(m.match_date, arr);
     }
 
-    return dates.map((date) => ({
-      ...date,
-      declarations: declarationsByDate.get(date.id) ?? [],
-      assignments: assignmentsByDate.get(date.id) ?? [],
-      matchdays: matchdaysByDate.get(date.match_date) ?? [],
-    }));
+    // Group dates by match_date for the frontend (unique dates view)
+    const datesByMatchDate = new Map<string, typeof dates>();
+    for (const d of dates) {
+      const arr = datesByMatchDate.get(d.match_date) ?? [];
+      arr.push(d);
+      datesByMatchDate.set(d.match_date, arr);
+    }
+
+    const uniqueDates = [...datesByMatchDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([matchDate, avDates]) => {
+        const allDecl = avDates.flatMap(
+          (d) => declarationsByDate.get(d.id) ?? [],
+        );
+        const allAssign = avDates.flatMap(
+          (d) => assignmentsByDate.get(d.id) ?? [],
+        );
+        const mds = matchdaysByDate.get(matchDate) ?? [];
+
+        const available = allDecl.filter(
+          (d) => d.status === "available",
+        ).length;
+        const maybe = allDecl.filter((d) => d.status === "maybe").length;
+        const unavailable = allDecl.filter(
+          (d) => d.status === "unavailable",
+        ).length;
+
+        return {
+          matchDate,
+          availabilityDateIds: avDates.map((d) => d.id),
+          matchdays: mds,
+          available,
+          maybe,
+          unavailable,
+          totalResponses: allDecl.length,
+          assignments: allAssign.length,
+        };
+      });
+
+    return {
+      ...request,
+      dates: uniqueDates,
+    };
   };
 }
 
 /**
- * Delete an availability date (and cascade declarations/assignments).
+ * Delete an availability request (cascades to dates, declarations, assignments).
  */
-export function deleteAvailabilityDate(db: Kysely<DB>) {
-  return async (userId: string, role: string, dateId: string) => {
-    const date = await db
-      .selectFrom("availability_date")
-      .where("id", "=", dateId)
-      .select(["id", "play_cricket_team_id"])
+export function deleteRequest(db: Kysely<DB>) {
+  return async (userId: string, role: string, requestId: string) => {
+    const request = await db
+      .selectFrom("availability_request")
+      .where("id", "=", requestId)
+      .select("id")
       .executeTakeFirst();
 
-    if (!date) throwHttpError(404, "Availability date not found");
+    if (!request) throwHttpError(404, "Availability request not found");
 
-    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
-    if (!accessibleIds.includes(date.play_cricket_team_id)) {
-      throwHttpError(403, "You do not have access to this team");
-    }
+    // Delete associated availability_date records first (which cascade to
+    // player_availability and fixture_assignment)
+    await db
+      .deleteFrom("availability_date")
+      .where("availability_request_id", "=", requestId)
+      .execute();
 
-    await db.deleteFrom("availability_date").where("id", "=", dateId).execute();
+    await db
+      .deleteFrom("availability_request")
+      .where("id", "=", requestId)
+      .execute();
 
     return { success: true };
   };
 }
 
 /**
- * Get the availability grid for a specific date — all members who are eligible
- * for the team plus their availability status.
+ * Get games in a date window for previewing before creating a request.
+ * Returns matchdays from accessible senior teams in the window.
  */
-export function getAvailabilityGrid(db: Kysely<DB>) {
-  return async (userId: string, role: string, dateId: string) => {
-    const date = await db
-      .selectFrom("availability_date")
-      .where("id", "=", dateId)
-      .selectAll()
-      .executeTakeFirst();
-
-    if (!date) throwHttpError(404, "Availability date not found");
-
+export function previewGamesInWindow(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    role: string,
+    startDate: string,
+    endDate: string,
+  ) => {
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
-    if (!accessibleIds.includes(date.play_cricket_team_id)) {
-      throwHttpError(403, "You do not have access to this team");
+    if (accessibleIds.length === 0) {
+      return { matchdays: [], overlapping: false };
     }
 
-    // Check if this is a junior team
-    const team = await db
+    const seniorTeams = await db
       .selectFrom("play_cricket_team")
-      .where("id", "=", date.play_cricket_team_id)
-      .select("is_junior")
+      .where("id", "in", accessibleIds)
+      .where("is_junior", "=", false)
+      .select(["id", "name"])
+      .execute();
+
+    const seniorTeamIds = seniorTeams.map((t) => t.id);
+
+    let matchdays: Array<{
+      id: string;
+      match_date: string;
+      opposition: string;
+      play_cricket_team_id: string;
+      status: string;
+      team_name: string | null;
+    }> = [];
+
+    if (seniorTeamIds.length > 0) {
+      matchdays = await db
+        .selectFrom("matchday")
+        .where("play_cricket_team_id", "in", seniorTeamIds)
+        .where("match_date", ">=", startDate)
+        .where("match_date", "<=", endDate)
+        .leftJoin(
+          "play_cricket_team",
+          "play_cricket_team.id",
+          "matchday.play_cricket_team_id",
+        )
+        .select([
+          "matchday.id",
+          "matchday.match_date",
+          "matchday.opposition",
+          "matchday.play_cricket_team_id",
+          "matchday.status",
+          "play_cricket_team.name as team_name",
+        ])
+        .orderBy("matchday.match_date", "asc")
+        .execute();
+    }
+
+    // Check for overlap
+    const overlapping = await db
+      .selectFrom("availability_request")
+      .where("start_date", "<=", endDate)
+      .where("end_date", ">=", startDate)
+      .select("id")
       .executeTakeFirst();
 
-    // Filter members by team type: junior teams show juniors, senior teams exclude juniors
-    let membersQuery = db
+    return {
+      matchdays,
+      overlapping: !!overlapping,
+    };
+  };
+}
+
+// ── Grid & assignment services (official) ──
+
+/**
+ * Get the availability grid for a specific date — all senior members
+ * with their availability status for all availability_date records on that date.
+ */
+export function getAvailabilityGrid(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    role: string,
+    requestId: string,
+    matchDate: string,
+  ) => {
+    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
+    if (accessibleIds.length === 0) {
+      throwHttpError(403, "You do not have access to any teams");
+    }
+
+    // Get all availability_date records for this request + match_date
+    const avDates = await db
+      .selectFrom("availability_date")
+      .where("availability_request_id", "=", requestId)
+      .where("match_date", "=", matchDate)
+      .selectAll()
+      .execute();
+
+    if (avDates.length === 0) {
+      throwHttpError(404, "No availability dates found for this request/date");
+    }
+
+    const dateIds = avDates.map((d) => d.id);
+
+    // Get non-deleted senior members
+    const members = await db
       .selectFrom("member")
       .where("deleted_at", "is", null)
-      .select(["id", "name", "email", "member_category"])
-      .orderBy("name", "asc");
-
-    if (team?.is_junior) {
-      membersQuery = membersQuery.where("member_category", "=", "junior");
-    } else {
-      membersQuery = membersQuery.where((eb) =>
+      .where((eb) =>
         eb.or([
           eb("member_category", "!=", "junior"),
           eb("member_category", "is", null),
         ]),
-      );
-    }
+      )
+      .select(["id", "name", "email", "member_category"])
+      .orderBy("name", "asc")
+      .execute();
 
-    const members = await membersQuery.execute();
-
-    // Get declarations for this date
+    // Get declarations across all availability_date records for this date
     const declarations = await db
       .selectFrom("player_availability")
-      .where("availability_date_id", "=", dateId)
+      .where("availability_date_id", "in", dateIds)
       .selectAll()
       .execute();
 
-    // Get assignments for this date
+    // Get assignments
     const assignments = await db
       .selectFrom("fixture_assignment")
-      .where("availability_date_id", "=", dateId)
+      .where("availability_date_id", "in", dateIds)
       .leftJoin("matchday", "matchday.id", "fixture_assignment.matchday_id")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
       .select([
         "fixture_assignment.id",
         "fixture_assignment.member_id",
         "fixture_assignment.matchday_id",
+        "fixture_assignment.availability_date_id",
         "matchday.opposition",
+        "play_cricket_team.name as team_name",
       ])
       .execute();
 
-    // Get matchdays on this date for the team
+    // Get matchdays on this date
     const matchdays = await db
       .selectFrom("matchday")
-      .where("play_cricket_team_id", "=", date.play_cricket_team_id)
-      .where("match_date", "=", date.match_date)
-      .select(["id", "opposition", "status", "play_cricket_team_id"])
+      .where("match_date", "=", matchDate)
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
+      .select([
+        "matchday.id",
+        "matchday.opposition",
+        "matchday.status",
+        "matchday.play_cricket_team_id",
+        "play_cricket_team.name as team_name",
+      ])
       .execute();
 
-    const declarationByMember = new Map(
-      declarations.map((d) => [d.member_id, d]),
-    );
+    // Use first declaration per member (they declare per availability_date,
+    // but from the member's perspective it's per-date)
+    const declarationByMember = new Map<
+      string,
+      (typeof declarations)[number]
+    >();
+    for (const d of declarations) {
+      if (!declarationByMember.has(d.member_id)) {
+        declarationByMember.set(d.member_id, d);
+      }
+    }
+
     const assignmentsByMember = new Map<string, typeof assignments>();
     for (const a of assignments) {
       const arr = assignmentsByMember.get(a.member_id) ?? [];
@@ -297,7 +620,6 @@ export function getAvailabilityGrid(db: Kysely<DB>) {
       return {
         memberId: member.id,
         memberName: member.name,
-        memberEmail: member.email,
         memberCategory: member.member_category,
         availabilityStatus: declaration?.status ?? null,
         availabilityNotes: declaration?.notes ?? null,
@@ -306,12 +628,14 @@ export function getAvailabilityGrid(db: Kysely<DB>) {
           assignmentId: a.id,
           matchdayId: a.matchday_id,
           opposition: a.opposition,
+          teamName: a.team_name,
         })),
       };
     });
 
     return {
-      date,
+      matchDate,
+      availabilityDateIds: dateIds,
       matchdays,
       grid,
     };
@@ -319,7 +643,7 @@ export function getAvailabilityGrid(db: Kysely<DB>) {
 }
 
 /**
- * Officials can set availability on behalf of a member (or override).
+ * Officials can set availability on behalf of a member.
  */
 export function setAvailabilityForMember(db: Kysely<DB>) {
   return async (
@@ -343,7 +667,6 @@ export function setAvailabilityForMember(db: Kysely<DB>) {
 
     const now = new Date().toISOString();
 
-    // Upsert: check if declaration already exists
     const existing = await db
       .selectFrom("player_availability")
       .where("availability_date_id", "=", dateId)
@@ -383,8 +706,7 @@ export function setAvailabilityForMember(db: Kysely<DB>) {
 }
 
 /**
- * Assign a player to a matchday from the availability grid.
- * Captains can assign ANY member, regardless of availability status.
+ * Assign a player to a matchday from the grid.
  */
 export function assignPlayer(db: Kysely<DB>) {
   return async (
@@ -406,7 +728,6 @@ export function assignPlayer(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this team");
     }
 
-    // Verify the matchday exists and is on the same date
     const matchday = await db
       .selectFrom("matchday")
       .where("id", "=", data.matchdayId)
@@ -423,7 +744,6 @@ export function assignPlayer(db: Kysely<DB>) {
       throwHttpError(400, "Matchday belongs to a different team");
     }
 
-    // Check for duplicate assignment
     const existing = await db
       .selectFrom("fixture_assignment")
       .where("matchday_id", "=", data.matchdayId)
@@ -499,11 +819,10 @@ export function unassignPlayer(db: Kysely<DB>) {
 // ── Member services ──
 
 /**
- * Get availability dates visible to the current member (linked via user->member).
+ * Get availability dates visible to the current member.
  */
 export function getMyAvailability(db: Kysely<DB>) {
   return async (userId: string) => {
-    // Find the member linked to this user via email
     const user = await db
       .selectFrom("user")
       .where("id", "=", userId)
@@ -523,7 +842,7 @@ export function getMyAvailability(db: Kysely<DB>) {
       return { memberId: null, dates: [] };
     }
 
-    // Get all availability dates (all teams) ordered by date
+    // Get all availability dates ordered by date
     const dates = await db
       .selectFrom("availability_date")
       .leftJoin(
@@ -544,7 +863,6 @@ export function getMyAvailability(db: Kysely<DB>) {
 
     const dateIds = dates.map((d) => d.id);
 
-    // Get my declarations
     const myDeclarations = await db
       .selectFrom("player_availability")
       .where("availability_date_id", "in", dateIds)
@@ -556,7 +874,6 @@ export function getMyAvailability(db: Kysely<DB>) {
       myDeclarations.map((d) => [d.availability_date_id, d]),
     );
 
-    // Get my assignments
     const myAssignments = await db
       .selectFrom("fixture_assignment")
       .where("availability_date_id", "in", dateIds)
@@ -577,7 +894,6 @@ export function getMyAvailability(db: Kysely<DB>) {
       assignmentsByDate.set(a.availability_date_id, arr);
     }
 
-    // Get matchdays on these dates
     const matchDates = [...new Set(dates.map((d) => d.match_date))];
     const matchdays = await db
       .selectFrom("matchday")
@@ -610,7 +926,6 @@ export function getMyAvailability(db: Kysely<DB>) {
  */
 export function declareAvailability(db: Kysely<DB>) {
   return async (userId: string, dateId: string, data: DeclareAvailability) => {
-    // Find member for this user
     const user = await db
       .selectFrom("user")
       .where("id", "=", userId)
@@ -628,7 +943,6 @@ export function declareAvailability(db: Kysely<DB>) {
 
     if (!member) throwHttpError(403, "No member record linked to your account");
 
-    // Verify date exists
     const date = await db
       .selectFrom("availability_date")
       .where("id", "=", dateId)
@@ -639,7 +953,6 @@ export function declareAvailability(db: Kysely<DB>) {
 
     const now = new Date().toISOString();
 
-    // Upsert
     const existing = await db
       .selectFrom("player_availability")
       .where("availability_date_id", "=", dateId)
@@ -675,73 +988,5 @@ export function declareAvailability(db: Kysely<DB>) {
       .execute();
 
     return { id };
-  };
-}
-
-/**
- * Get members who would receive an availability request email for a date.
- * Returns list of members with their email addresses, so officials can
- * preview/adjust before sending.
- */
-export function getEmailRecipients(db: Kysely<DB>) {
-  return async (userId: string, role: string, dateId: string) => {
-    const date = await db
-      .selectFrom("availability_date")
-      .where("id", "=", dateId)
-      .select(["id", "play_cricket_team_id"])
-      .executeTakeFirst();
-
-    if (!date) throwHttpError(404, "Availability date not found");
-
-    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
-    if (!accessibleIds.includes(date.play_cricket_team_id)) {
-      throwHttpError(403, "You do not have access to this team");
-    }
-
-    // Check if this is a junior team
-    const team = await db
-      .selectFrom("play_cricket_team")
-      .where("id", "=", date.play_cricket_team_id)
-      .select("is_junior")
-      .executeTakeFirst();
-
-    // Get all non-deleted members with email addresses, filtered by team type
-    let membersQuery = db
-      .selectFrom("member")
-      .where("deleted_at", "is", null)
-      .where("email", "is not", null)
-      .select(["id", "name", "email", "member_category"])
-      .orderBy("name", "asc");
-
-    if (team?.is_junior) {
-      membersQuery = membersQuery.where("member_category", "=", "junior");
-    } else {
-      membersQuery = membersQuery.where((eb) =>
-        eb.or([
-          eb("member_category", "!=", "junior"),
-          eb("member_category", "is", null),
-        ]),
-      );
-    }
-
-    const members = await membersQuery.execute();
-
-    // Check who has already declared
-    const declared = await db
-      .selectFrom("player_availability")
-      .where("availability_date_id", "=", dateId)
-      .select(["member_id", "status"])
-      .execute();
-
-    const declaredMap = new Map(declared.map((d) => [d.member_id, d.status]));
-
-    return members.map((m) => ({
-      memberId: m.id,
-      name: m.name,
-      email: m.email,
-      memberCategory: m.member_category,
-      alreadyDeclared: declaredMap.has(m.id),
-      currentStatus: declaredMap.get(m.id) ?? null,
-    }));
   };
 }

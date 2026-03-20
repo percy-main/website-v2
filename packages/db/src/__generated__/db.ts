@@ -40,11 +40,20 @@ export interface Account {
 }
 
 export interface AvailabilityDate {
+  availability_request_id: string | null;
   created_at: Generated<string>;
   created_by: string;
   id: string;
   match_date: string;
   play_cricket_team_id: string;
+}
+
+export interface AvailabilityRequest {
+  created_at: Generated<string>;
+  created_by: string;
+  end_date: string;
+  id: string;
+  start_date: string;
 }
 
 export interface Charge {
@@ -500,6 +509,7 @@ export interface Verification {
 export interface DB {
   account: Account;
   availability_date: AvailabilityDate;
+  availability_request: AvailabilityRequest;
   charge: Charge;
   charge_dependent: ChargeDependent;
   contact_submission: ContactSubmission;
