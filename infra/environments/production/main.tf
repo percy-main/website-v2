@@ -100,6 +100,7 @@ module "ecs" {
   }
 
   secrets = {
+    # Secrets Manager (actual secrets)
     DATABASE_URL           = "${aws_secretsmanager_secret.app_secrets.arn}:DATABASE_URL::"
     BETTER_AUTH_SECRET     = "${aws_secretsmanager_secret.app_secrets.arn}:BETTER_AUTH_SECRET::"
     STRIPE_SECRET_KEY      = "${aws_secretsmanager_secret.app_secrets.arn}:STRIPE_SECRET_KEY::"
@@ -107,13 +108,15 @@ module "ecs" {
     GOOGLE_CLIENT_ID       = "${aws_secretsmanager_secret.app_secrets.arn}:GOOGLE_CLIENT_ID::"
     GOOGLE_CLIENT_SECRET   = "${aws_secretsmanager_secret.app_secrets.arn}:GOOGLE_CLIENT_SECRET::"
     PLAY_CRICKET_API_TOKEN = "${aws_secretsmanager_secret.app_secrets.arn}:PLAY_CRICKET_API_TOKEN::"
-    PLAY_CRICKET_SITE_ID   = "${aws_secretsmanager_secret.app_secrets.arn}:PLAY_CRICKET_SITE_ID::"
     SLACK_WEBHOOK_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SLACK_WEBHOOK_URL::"
-    BASE_URL               = "${aws_secretsmanager_secret.app_secrets.arn}:BASE_URL::"
-    API_BASE_URL           = "${aws_secretsmanager_secret.app_secrets.arn}:API_BASE_URL::"
-    BETTER_AUTH_RP_ID      = "${aws_secretsmanager_secret.app_secrets.arn}:BETTER_AUTH_RP_ID::"
-    BETTER_AUTH_RP_NAME    = "${aws_secretsmanager_secret.app_secrets.arn}:BETTER_AUTH_RP_NAME::"
-    SES_FROM_ADDRESS       = "${aws_secretsmanager_secret.app_secrets.arn}:SES_FROM_ADDRESS::"
+
+    # SSM Parameter Store (non-secret config)
+    BASE_URL             = aws_ssm_parameter.base_url.arn
+    API_BASE_URL         = aws_ssm_parameter.api_base_url.arn
+    BETTER_AUTH_RP_ID    = aws_ssm_parameter.better_auth_rp_id.arn
+    BETTER_AUTH_RP_NAME  = aws_ssm_parameter.better_auth_rp_name.arn
+    PLAY_CRICKET_SITE_ID = aws_ssm_parameter.play_cricket_site_id.arn
+    SES_FROM_ADDRESS     = aws_ssm_parameter.ses_from_address.arn
   }
 }
 

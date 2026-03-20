@@ -64,7 +64,7 @@ variable "acm_certificate_arn" {
 }
 
 variable "secrets" {
-  description = "Map of secret name to Secrets Manager ARN"
+  description = "Map of secret name to Secrets Manager or SSM Parameter ARN (resolved via valueFrom)"
   type        = map(string)
   default     = {}
 }
@@ -174,7 +174,7 @@ resource "aws_iam_role_policy_attachment" "task_execution_managed" {
 }
 
 resource "aws_iam_role_policy" "task_execution_secrets" {
-  name = "${local.name_prefix}-execution-secrets"
+  name = "${local.name_prefix}-execution-secrets-and-params"
   role = aws_iam_role.task_execution.id
 
   policy = jsonencode({
@@ -186,6 +186,14 @@ resource "aws_iam_role_policy" "task_execution_secrets" {
           "secretsmanager:GetSecretValue"
         ]
         Resource = ["arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:*percy-main*"]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters"
+        ]
+        Resource = ["arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${var.environment}/percy-main/*"]
       },
       {
         Effect = "Allow"
