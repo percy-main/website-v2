@@ -1,4 +1,5 @@
 import { mdxComponents } from "@/components/mdx-components.js";
+import { getImageUrl } from "@/lib/image-map.js";
 import { getPersonBySlug } from "@/lib/people.js";
 import { MDXProvider } from "@mdx-js/react";
 import { IoChevronForward } from "react-icons/io5";
@@ -6,7 +7,7 @@ import { Link, useParams } from "react-router";
 import { PlayerSponsor } from "./player-sponsor.js";
 import { PlayerStats } from "./player-stats.js";
 
-const ANON_IMAGE = "/images/anon.jpg";
+const ANON_IMAGE = getImageUrl("/images/anon.jpg");
 
 export function Component() {
   const params = useParams();

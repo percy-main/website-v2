@@ -1,11 +1,12 @@
 import { mdxComponents } from "@/components/mdx-components.js";
+import { getImageUrl } from "@/lib/image-map.js";
 import { newsBySlug } from "@/lib/news.js";
 import { MDXProvider } from "@mdx-js/react";
 import { format } from "date-fns";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useParams } from "react-router";
 
-const ANON_IMAGE = "/images/anon.jpg";
+const ANON_IMAGE = getImageUrl("/images/anon.jpg");
 
 export function Component() {
   const params = useParams();

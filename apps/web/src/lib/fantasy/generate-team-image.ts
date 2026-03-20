@@ -3,6 +3,8 @@
  * Returns a Blob (PNG) ready for download or sharing.
  */
 
+import { getImageUrl } from "@/lib/image-map.js";
+
 export interface SharePlayer {
   playerName: string;
   sandwichCost: number;
@@ -198,9 +200,15 @@ export async function generateTeamImage(data: ShareTeamData): Promise<Blob> {
   if (!ctx) throw new Error("Could not get canvas context");
 
   // --- Load images in parallel ---
-  const logoPromise = loadImage("/images/club_logo.png").catch(() => null);
-  const anonPromise = loadImage("/images/anon.jpg").catch(() => null);
-  const heroPromise = loadImage("/images/pitch.png").catch(() => null);
+  const logoPromise = loadImage(getImageUrl("/images/club_logo.png")).catch(
+    () => null,
+  );
+  const anonPromise = loadImage(getImageUrl("/images/anon.jpg")).catch(
+    () => null,
+  );
+  const heroPromise = loadImage(getImageUrl("/images/pitch.png")).catch(
+    () => null,
+  );
   const photoPromises = data.players.map((p) =>
     p.photoUrl
       ? loadImage(p.photoUrl).catch(() => null)

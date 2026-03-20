@@ -5,6 +5,7 @@ import path from "path";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import { defineConfig } from "vite";
+import { imagetools } from "vite-imagetools";
 
 export default defineConfig({
   plugins: [
@@ -14,6 +15,7 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
+    imagetools(),
   ],
   resolve: {
     alias: {

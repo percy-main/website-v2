@@ -11,13 +11,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
+import { getImageUrl } from "@/lib/image-map";
 import { getPersonBySlug } from "@/lib/people";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useParams } from "react-router";
 
-const ANON_IMAGE = "/images/anon.jpg";
+const ANON_IMAGE = getImageUrl("/images/anon.jpg");
 const MAX_LOGO_BYTES = 150_000;
 const MAX_MESSAGE_CHARS = 100;
 

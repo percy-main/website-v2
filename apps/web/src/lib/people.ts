@@ -1,3 +1,4 @@
+import { getImageUrl } from "@/lib/image-map.js";
 import type { FC } from "react";
 
 interface PeopleMdxModule {
@@ -24,10 +25,11 @@ const people = new Map<string, PersonData>();
 for (const mod of Object.values(modules)) {
   const fm = mod.frontmatter;
   const slug = fm.slug as string;
+  const rawPhoto = fm.photo as string | undefined;
   people.set(slug, {
     name: (fm.name as string) ?? slug,
     slug,
-    photo: fm.photo as string | undefined,
+    photo: rawPhoto ? getImageUrl(rawPhoto) : undefined,
     isDBSChecked: (fm.isDBSChecked as boolean) ?? false,
     hasLeftClub: (fm.hasLeftClub as boolean) ?? false,
     Component: mod.default,

@@ -1,7 +1,9 @@
+import { OptimisedImage } from "@/components/optimised-image.js";
 import { SeasonLeaders } from "@/components/season-leaders.js";
 import { api } from "@/lib/api.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
 import { getAllEvents } from "@/lib/events.js";
+import { getPicture } from "@/lib/image-map.js";
 import { allNews } from "@/lib/news.js";
 import { getPriceId } from "@/lib/stripe-env.js";
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +13,7 @@ import { useMemo } from "react";
 import { Link } from "react-router";
 
 const DONATE_URL = `/purchase/${getPriceId("donation")}`;
+const heroPicture = getPicture("/images/pitch.png");
 
 const sports = [
   {
@@ -302,11 +305,21 @@ export function Component() {
       {/* Hero */}
       <section>
         <div className="relative">
-          <img
-            className="h-96 w-full object-cover md:h-[32rem]"
-            src="/images/pitch.png"
-            alt="The cricket pitch at Percy Main"
-          />
+          {heroPicture ? (
+            <OptimisedImage
+              picture={heroPicture}
+              alt="The cricket pitch at Percy Main"
+              className="h-96 w-full object-cover md:h-[32rem]"
+              loading="eager"
+              sizes="100vw"
+            />
+          ) : (
+            <img
+              className="h-96 w-full object-cover md:h-[32rem]"
+              src="/images/pitch.png"
+              alt="The cricket pitch at Percy Main"
+            />
+          )}
           <div className="absolute inset-0 bg-gray-900 opacity-55" />
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
             <div className="mx-auto max-w-screen-xl px-4 pt-6 pb-16 lg:px-6">
