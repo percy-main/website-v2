@@ -3,6 +3,7 @@ import { getPersonBySlug } from "@/lib/people.js";
 import { MDXProvider } from "@mdx-js/react";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useParams } from "react-router";
+import { PlayerSponsor } from "./player-sponsor.js";
 import { PlayerStats } from "./player-stats.js";
 
 const ANON_IMAGE = "/images/anon.jpg";
@@ -58,6 +59,10 @@ export function Component() {
 
           <PlayerStats slug={person.slug} />
         </div>
+
+        <aside className="w-full shrink-0 md:w-64">
+          <PlayerSponsor slug={person.slug} />
+        </aside>
       </div>
     </div>
   );
