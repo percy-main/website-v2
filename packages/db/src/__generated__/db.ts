@@ -51,6 +51,7 @@ export interface AvailabilityAssignment {
 export interface AvailabilityFixture {
   availability_request_id: string;
   competition_name: string | null;
+  competition_type: string | null;
   id: string;
   is_home: boolean;
   match_date: string;

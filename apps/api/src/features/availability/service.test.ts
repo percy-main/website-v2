@@ -227,7 +227,7 @@ describe("availability service", () => {
       mockExecuteTakeFirst.mockResolvedValueOnce({ id: "member-1" }); // member lookup
       mockExecute.mockResolvedValueOnce([]); // requests
       const result = await getActiveRequests(db)("test@example.com");
-      expect(result).toEqual({ items: [] });
+      expect(result).toEqual({ memberId: "member-1", items: [] });
     });
   });
 
