@@ -18,9 +18,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 const TABS = ["membership", "details", "security", "payments"] as const;
 type Tab = (typeof TABS)[number];
@@ -48,6 +51,7 @@ export function Component() {
   return (
     <div className="container mx-auto px-4 py-8">
       <OnboardingModal onGoToDetails={() => onTabChange("details")} />
+      <AvailabilityNagModal />
       <div className="flex flex-col items-start justify-stretch gap-4">
         <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1>Members Area</h1>
@@ -92,6 +96,7 @@ export function Component() {
             <TabsTrigger value="payments">Payments</TabsTrigger>
           </TabsList>
           <IncompleteDetailsBanner hidden={tab === "details"} />
+          <AvailabilityBanner />
           <TabsContent value="membership">
             <div className="flex flex-col gap-4">
               <div>
@@ -185,5 +190,134 @@ function IncompleteDetailsBanner({ hidden }: { hidden: boolean }) {
       Your details are incomplete. Please go to the{" "}
       <strong>Your Details</strong> tab to fill them in.
     </div>
+  );
+}
+
+interface ActiveAvailabilityFixture {
+  match_date: string;
+  team_name: string | null;
+  opposition: string;
+}
+
+interface ActiveAvailabilityResponse {
+  match_date: string;
+}
+
+interface ActiveAvailabilityRequest {
+  id: string;
+  fixtures: ActiveAvailabilityFixture[];
+  myResponses: ActiveAvailabilityResponse[];
+}
+
+interface ActiveAvailabilityData {
+  memberId: string | null;
+  items: ActiveAvailabilityRequest[];
+}
+
+const AVAILABILITY_NAG_DISMISSED_KEY = "pmcsc_availability_nag_dismissed";
+
+function AvailabilityNagModal() {
+  const navigate = useNavigate();
+  const [dismissed, setDismissed] = useState(
+    () => !!sessionStorage.getItem(AVAILABILITY_NAG_DISMISSED_KEY),
+  );
+
+  const query = useQuery({
+    queryKey: ["availability", "active"],
+    queryFn: () => api.get<ActiveAvailabilityData>("/availability/active"),
+    enabled: !dismissed,
+  });
+
+  const dismiss = () => {
+    sessionStorage.setItem(AVAILABILITY_NAG_DISMISSED_KEY, "1");
+    setDismissed(true);
+  };
+
+  if (dismissed || !query.data?.memberId) return null;
+
+  // Find requests with unanswered dates
+  const unansweredDates: string[] = [];
+  for (const req of query.data.items) {
+    const answeredDates = new Set(req.myResponses.map((r) => r.match_date));
+    const fixtureDates = [
+      ...new Set(req.fixtures.map((f) => f.match_date)),
+    ].sort();
+    for (const d of fixtureDates) {
+      if (!answeredDates.has(d)) {
+        unansweredDates.push(d);
+      }
+    }
+  }
+
+  if (unansweredDates.length === 0) return null;
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && dismiss()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Availability needed</DialogTitle>
+          <DialogDescription>
+            Officials are waiting on your availability for{" "}
+            {unansweredDates.length === 1 ? (
+              <strong>
+                {format(new Date(unansweredDates[0]), "EEEE d MMMM")}
+              </strong>
+            ) : (
+              <>
+                <strong>{unansweredDates.length} dates</strong> including{" "}
+                <strong>
+                  {format(new Date(unansweredDates[0]), "EEEE d MMMM")}
+                </strong>
+              </>
+            )}
+            . Please let them know if you're available.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" onClick={dismiss}>
+            Later
+          </Button>
+          <Button
+            onClick={() => {
+              dismiss();
+              void navigate("/members/availability");
+            }}
+          >
+            Respond Now
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AvailabilityBanner() {
+  const query = useQuery({
+    queryKey: ["availability", "active"],
+    queryFn: () => api.get<ActiveAvailabilityData>("/availability/active"),
+  });
+
+  if (!query.data?.memberId) return null;
+
+  let unansweredCount = 0;
+  for (const req of query.data.items) {
+    const answeredDates = new Set(req.myResponses.map((r) => r.match_date));
+    const fixtureDates = new Set(req.fixtures.map((f) => f.match_date));
+    for (const d of fixtureDates) {
+      if (!answeredDates.has(d)) unansweredCount++;
+    }
+  }
+
+  if (unansweredCount === 0) return null;
+
+  return (
+    <Link
+      to="/members/availability"
+      className="block w-full rounded border border-blue-300 bg-blue-50 p-3 text-sm text-blue-800 transition-colors hover:bg-blue-100"
+    >
+      You have <strong>{unansweredCount}</strong> availability{" "}
+      {unansweredCount === 1 ? "date" : "dates"} to respond to.{" "}
+      <span className="underline">Respond now</span>
+    </Link>
   );
 }

@@ -39,6 +39,49 @@ export interface Account {
   userId: string;
 }
 
+export interface AvailabilityAssignment {
+  availability_fixture_id: string;
+  created_at: Generated<string>;
+  id: string;
+  member_id: string | null;
+  player_name: string;
+  position: number;
+}
+
+export interface AvailabilityFixture {
+  availability_request_id: string;
+  competition_name: string | null;
+  competition_type: string | null;
+  id: string;
+  is_home: boolean;
+  match_date: string;
+  match_time: string | null;
+  opposition: string;
+  play_cricket_match_id: string;
+  play_cricket_team_id: string;
+}
+
+export interface AvailabilityRequest {
+  created_at: Generated<string>;
+  created_by: string;
+  date_from: string;
+  date_to: string;
+  id: string;
+  status: Generated<string>;
+}
+
+export interface AvailabilityResponse {
+  availability_request_id: string;
+  created_at: Generated<string>;
+  id: string;
+  match_date: string;
+  member_id: string;
+  note: string | null;
+  overridden_by: string | null;
+  status: string;
+  updated_at: Generated<string>;
+}
+
 export interface Charge {
   amount_pence: number;
   charge_date: string;
@@ -471,6 +514,10 @@ export interface Verification {
 
 export interface DB {
   account: Account;
+  availability_assignment: AvailabilityAssignment;
+  availability_fixture: AvailabilityFixture;
+  availability_request: AvailabilityRequest;
+  availability_response: AvailabilityResponse;
   charge: Charge;
   charge_dependent: ChargeDependent;
   contact_submission: ContactSubmission;

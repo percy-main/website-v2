@@ -10,6 +10,7 @@ import { createAuth, type Auth } from "./features/auth/auth.ts";
 // Feature routes
 import { adminRoutes } from "./features/admin/routes.ts";
 import { authRoutes } from "./features/auth/routes.ts";
+import { availabilityRoutes } from "./features/availability/routes.ts";
 import { chargeRoutes } from "./features/charges/routes.ts";
 import { contactRoutes } from "./features/contact/routes.ts";
 import { cricketLeaderboardRoutes } from "./features/cricket-leaderboard/routes.ts";
@@ -91,6 +92,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(playCricketRoutes, { prefix: "/api" });
   await app.register(sponsorshipRoutes, { prefix: "/api" });
   await app.register(matchdayRoutes, { prefix: "/api" });
+  await app.register(availabilityRoutes, { prefix: "/api" });
   await app.register(paymentRoutes, { prefix: "/api" });
   await app.register(adminRoutes, { prefix: "/api" });
   await app.register(treasurerRoutes, { prefix: "/api" });
