@@ -14,11 +14,8 @@ RUN pnpm install --frozen-lockfile
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 
-# Build in dependency order: shared → db → email → api
-RUN pnpm --filter @percy-main/shared run build && \
-    pnpm --filter @percy-main/db run build && \
-    pnpm --filter @percy-main/email run build && \
-    pnpm --filter api run build
+# Build all packages except web (pnpm resolves dependency order automatically)
+RUN pnpm --filter '!@percy-main/web' --filter '!email-viewer' run build
 
 # Stage 2: Production
 FROM node:22-alpine AS runner
