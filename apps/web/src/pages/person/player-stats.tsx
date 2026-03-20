@@ -198,7 +198,7 @@ export function PlayerStats({ slug }: { slug: string }) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-right">Inn</TableHead>
+                      <TableHead>Inn</TableHead>
                       <TableHead className="text-right">NO</TableHead>
                       <TableHead className="text-right">Runs</TableHead>
                       <TableHead className="text-right">HS</TableHead>
@@ -222,9 +222,7 @@ export function PlayerStats({ slug }: { slug: string }) {
                   </TableHeader>
                   <TableBody>
                     <TableRow>
-                      <TableCell className="text-right">
-                        {season.batting.innings}
-                      </TableCell>
+                      <TableCell>{season.batting.innings}</TableCell>
                       <TableCell className="text-right">
                         {season.batting.notOuts}
                       </TableCell>
@@ -267,7 +265,7 @@ export function PlayerStats({ slug }: { slug: string }) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-right">O</TableHead>
+                      <TableHead>O</TableHead>
                       <TableHead className="hidden text-right sm:table-cell">
                         M
                       </TableHead>
@@ -287,9 +285,7 @@ export function PlayerStats({ slug }: { slug: string }) {
                   </TableHeader>
                   <TableBody>
                     <TableRow>
-                      <TableCell className="text-right">
-                        {season.bowling.overs}
-                      </TableCell>
+                      <TableCell>{season.bowling.overs}</TableCell>
                       <TableCell className="hidden text-right sm:table-cell">
                         {season.bowling.maidens}
                       </TableCell>
