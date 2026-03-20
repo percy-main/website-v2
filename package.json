@@ -4,11 +4,10 @@
   "type": "module",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
-    "dev": "pnpm run \"/^dev:/\"",
+    "dev": "bash scripts/dev.sh",
     "dev:api": "pnpm --filter api dev",
     "dev:web": "pnpm --filter web dev",
     "dev:email": "pnpm --filter email-viewer dev",
-    "dev:stripe": "bash scripts/dev-stripe.sh",
     "build": "pnpm -r run build",
     "build:api": "pnpm --filter api build",
     "build:web": "pnpm --filter web build",
