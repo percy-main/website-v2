@@ -10,7 +10,7 @@ export type GameSponsored = z.output<typeof gameSponsoredSchema>;
 
 export const playerSponsoredSchema = z.object({
   type: z.literal("sponsorPlayer"),
-  contentfulEntryId: z.string(),
+  slug: z.string(),
   sponsorshipId: z.string(),
 });
 export type PlayerSponsored = z.output<typeof playerSponsoredSchema>;

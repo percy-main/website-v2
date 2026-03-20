@@ -3,7 +3,7 @@ import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
 import { requireRole } from "../auth/middleware.ts";
 import {
   allApprovedSchema,
-  byContentfulIdSchema,
+  bySlugSchema,
   byGameIdSchema,
   gameSponsorshipManualSchema,
   playerSponsorshipManualSchema,
@@ -70,15 +70,15 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     return { sponsor };
   });
 
-  app.get("/sponsorship/player/:contentfulEntryId", async (request) => {
-    const { contentfulEntryId } = parseParams(request, byContentfulIdSchema);
-    const sponsor = await playerSponsor(contentfulEntryId);
+  app.get("/sponsorship/player/:slug", async (request) => {
+    const { slug } = parseParams(request, bySlugSchema);
+    const sponsor = await playerSponsor(slug);
     return { sponsor };
   });
 
-  app.get("/sponsorship/player/:contentfulEntryId/pending", async (request) => {
-    const { contentfulEntryId } = parseParams(request, byContentfulIdSchema);
-    return await playerPending(contentfulEntryId);
+  app.get("/sponsorship/player/:slug/pending", async (request) => {
+    const { slug } = parseParams(request, bySlugSchema);
+    return await playerPending(slug);
   });
 
   // --- Admin routes ---

@@ -183,11 +183,11 @@ export function getLiveScores(db: Kysely<DB>) {
 }
 
 export function getPlayerCareerStats(db: Kysely<DB>) {
-  return async (contentfulEntryId: string) => {
+  return async (slug: string) => {
     // Look up play_cricket_id via member table
     const member = await db
       .selectFrom("member")
-      .where("contentful_entry_id", "=", contentfulEntryId)
+      .where("slug", "=", slug)
       .select(["play_cricket_id"])
       .executeTakeFirst();
 
@@ -229,6 +229,25 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
       .groupBy("season")
       .orderBy("season", "desc")
       .execute();
+
+    // Best bowling figures: highest wickets, ties broken by lowest runs, then lowest overs
+    const bestBowlingRow = await db
+      .selectFrom("match_performance_bowling")
+      .where("player_id", "=", playCricketId)
+      .select(["wickets", "runs", "overs"])
+      .orderBy("wickets", "desc")
+      .orderBy("runs", "asc")
+      .orderBy(sql`cast(overs as numeric)`, "asc")
+      .limit(1)
+      .executeTakeFirst();
+
+    // Distinct seasons with data (batting or bowling)
+    const seasons = [
+      ...new Set([
+        ...battingBySeasonRows.map((r) => r.season),
+        ...bowlingBySeasonRows.map((r) => r.season),
+      ]),
+    ].sort((a, b) => b - a);
 
     // Calculate career totals
     // PostgreSQL sum()/count() return bigint (string in node-pg), so Number() each
@@ -272,10 +291,17 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
         (sum, s) => sum + Number(s.total_wickets),
         0,
       ),
+      bestBowling: bestBowlingRow
+        ? {
+            wickets: bestBowlingRow.wickets ?? 0,
+            runs: bestBowlingRow.runs ?? 0,
+          }
+        : null,
     };
 
     return {
       playCricketId,
+      seasons,
       battingBySeasonRows,
       bowlingBySeasonRows,
       career: {
@@ -287,10 +313,10 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
 }
 
 export function getPlayerSeasonStats(db: Kysely<DB>) {
-  return async (contentfulEntryId: string, season: number) => {
+  return async (slug: string, season: number) => {
     const member = await db
       .selectFrom("member")
-      .where("contentful_entry_id", "=", contentfulEntryId)
+      .where("slug", "=", slug)
       .select(["play_cricket_id"])
       .executeTakeFirst();
 

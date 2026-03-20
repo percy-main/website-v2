@@ -38,12 +38,12 @@ export function getGameSponsorByGameId(db: Kysely<DB>) {
 }
 
 export function getPlayerSponsorForPlayer(db: Kysely<DB>) {
-  return async (contentfulEntryId: string) => {
+  return async (slug: string) => {
     const currentYear = new Date().getFullYear();
 
     const sponsor = await db
       .selectFrom("player_sponsorship")
-      .where("contentful_entry_id", "=", contentfulEntryId)
+      .where("slug", "=", slug)
       .where("season", "=", currentYear)
       .where("approved", "=", true)
       .where("paid_at", "is not", null)
@@ -55,12 +55,12 @@ export function getPlayerSponsorForPlayer(db: Kysely<DB>) {
 }
 
 export function hasPlayerPendingSponsor(db: Kysely<DB>) {
-  return async (contentfulEntryId: string) => {
+  return async (slug: string) => {
     const currentYear = new Date().getFullYear();
 
     const pending = await db
       .selectFrom("player_sponsorship")
-      .where("contentful_entry_id", "=", contentfulEntryId)
+      .where("slug", "=", slug)
       .where("season", "=", currentYear)
       .where((eb) =>
         eb.or([eb("paid_at", "is", null), eb("approved", "=", false)]),
@@ -238,7 +238,7 @@ export function createManualPlayerSponsorship(db: Kysely<DB>) {
       .insertInto("player_sponsorship")
       .values({
         id,
-        contentful_entry_id: data.contentfulEntryId,
+        slug: data.slug,
         player_name: data.playerName,
         sponsor_name: data.sponsorName,
         sponsor_email: data.sponsorEmail,

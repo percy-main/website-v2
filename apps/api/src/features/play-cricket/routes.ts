@@ -53,15 +53,12 @@ export const playCricketRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/play-cricket/player-career-stats", async (request) => {
-    const { contentfulEntryId } = parseQuery(request, playerStatsSchema);
-    return await careerStats(contentfulEntryId);
+    const { slug } = parseQuery(request, playerStatsSchema);
+    return await careerStats(slug);
   });
 
   app.get("/play-cricket/player-season-stats", async (request) => {
-    const { contentfulEntryId, season } = parseQuery(
-      request,
-      playerSeasonStatsSchema,
-    );
-    return await seasonStats(contentfulEntryId, season);
+    const { slug, season } = parseQuery(request, playerSeasonStatsSchema);
+    return await seasonStats(slug, season);
   });
 };

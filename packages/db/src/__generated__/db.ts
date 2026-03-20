@@ -337,7 +337,6 @@ export interface MatchResult {
 
 export interface Member {
   address: string | null;
-  contentful_entry_id: string | null;
   deleted_at: string | null;
   deleted_by: string | null;
   deleted_reason: string | null;
@@ -350,6 +349,7 @@ export interface Member {
   name: string | null;
   play_cricket_id: string | null;
   postcode: string | null;
+  slug: string | null;
   stripe_customer_id: string | null;
   telephone: string | null;
   title: string | null;
@@ -405,7 +405,6 @@ export interface PlayCricketTeam {
 export interface PlayerSponsorship {
   amount_pence: number;
   approved: Generated<boolean>;
-  contentful_entry_id: string;
   created_at: Generated<string>;
   display_name: string | null;
   id: string;
@@ -413,6 +412,7 @@ export interface PlayerSponsorship {
   paid_at: string | null;
   player_name: string;
   season: number;
+  slug: string | null;
   sponsor_email: string;
   sponsor_logo_url: string | null;
   sponsor_message: string | null;

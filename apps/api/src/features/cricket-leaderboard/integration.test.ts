@@ -43,7 +43,7 @@ async function seedTeams() {
     .execute();
 }
 
-async function seedMember(playCricketId: string, contentfulEntryId: string) {
+async function seedMember(playCricketId: string, slug: string) {
   const id = `member-${crypto.randomUUID()}`;
   await ctx.db
     .insertInto("member")
@@ -51,7 +51,7 @@ async function seedMember(playCricketId: string, contentfulEntryId: string) {
       id,
       email: `${id}@test.com`,
       play_cricket_id: playCricketId,
-      contentful_entry_id: contentfulEntryId,
+      slug,
     })
     .execute();
 }
@@ -271,12 +271,12 @@ describe("cricket leaderboard service (integration)", () => {
       expect(entry.innings).toBe(1);
     });
 
-    it("joins with member table for contentfulEntryId", async () => {
+    it("joins with member table for slug", async () => {
       await seedTeams();
 
       const playerId = `player-${crypto.randomUUID()}`;
-      const contentfulId = `cf-${crypto.randomUUID()}`;
-      await seedMember(playerId, contentfulId);
+      const slug = `slug-${crypto.randomUUID()}`;
+      await seedMember(playerId, slug);
 
       await seedBattingPerformance({
         playerId,
@@ -292,7 +292,7 @@ describe("cricket leaderboard service (integration)", () => {
       });
 
       const entry = result.entries.find((e) => e.playerId === playerId);
-      expect(entry?.contentfulEntryId).toBe(contentfulId);
+      expect(entry?.slug).toBe(slug);
     });
   });
 

@@ -152,7 +152,7 @@ describe("play-cricket service", () => {
   });
 
   describe("getPlayerCareerStats", () => {
-    it("returns null when no contentful link exists", async () => {
+    it("returns null when no slug link exists", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // No member found
 
       const result = await getPlayerCareerStats(db)("entry-123");
