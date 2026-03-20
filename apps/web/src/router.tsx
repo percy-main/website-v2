@@ -141,6 +141,27 @@ export const router = createBrowserRouter([
                 path: "availability",
                 lazy: () => import("./pages/availability/availability.js"),
               },
+              {
+                path: "availability/requests/new",
+                lazy: () =>
+                  import("./pages/availability/availability.js").then((m) => ({
+                    Component: m.CreateRequestPage,
+                  })),
+              },
+              {
+                path: "availability/requests/:requestId",
+                lazy: () =>
+                  import("./pages/availability/availability.js").then((m) => ({
+                    Component: m.RequestDetailPage,
+                  })),
+              },
+              {
+                path: "availability/requests/:requestId/dates/:matchDate",
+                lazy: () =>
+                  import("./pages/availability/availability.js").then((m) => ({
+                    Component: m.DateGridPage,
+                  })),
+              },
             ],
           },
         ],

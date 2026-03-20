@@ -9,21 +9,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 // ── Types ──
 
@@ -46,6 +38,16 @@ interface AvailabilityRequest {
   }>;
 }
 
+interface PlayCricketFixture {
+  matchId: string;
+  matchDate: string;
+  opposition: string;
+  teamId: string;
+  teamName: string;
+  isHome: boolean;
+  competitionType: string | null;
+}
+
 interface RequestDetail {
   id: string;
   start_date: string;
@@ -60,16 +62,6 @@ interface RequestDetail {
     totalResponses: number;
     assignments: number;
   }>;
-}
-
-interface PlayCricketFixture {
-  matchId: string;
-  matchDate: string;
-  opposition: string;
-  teamId: string;
-  teamName: string;
-  isHome: boolean;
-  competitionType: string | null;
 }
 
 interface PreviewData {
@@ -119,11 +111,10 @@ const STATUS_LABELS: Record<string, string> = {
   maybe: "Maybe",
 };
 
-// ── Component ──
+// ── Root page (list or member view) ──
 
 export function Component() {
   const { data: session } = useSession();
-
   if (!session) return null;
 
   const { user } = session;
@@ -152,7 +143,7 @@ export function Component() {
           </div>
         </div>
 
-        {isOfficial ? <OfficialAvailability /> : <MemberAvailability />}
+        {isOfficial ? <RequestListView /> : <MemberAvailability />}
       </div>
     </div>
   );
@@ -169,10 +160,7 @@ interface MyAvailabilityData {
     team_name: string | null;
     myStatus: string | null;
     myNotes: string | null;
-    myAssignments: Array<{
-      matchday_id: string;
-      opposition: string | null;
-    }>;
+    myAssignments: Array<{ matchday_id: string; opposition: string | null }>;
     matchdays: Array<{
       id: string;
       opposition: string;
@@ -293,7 +281,6 @@ function MemberDateCard({
             ))}
           </div>
         )}
-
         {date.myAssignments.length > 0 && (
           <div className="mb-3">
             <p className="mb-1 text-sm font-medium text-green-700">
@@ -306,7 +293,6 @@ function MemberDateCard({
             ))}
           </div>
         )}
-
         {showNotes ? (
           <div className="mb-3">
             <Textarea
@@ -326,7 +312,6 @@ function MemberDateCard({
             Add a note...
           </button>
         )}
-
         <div className="flex gap-2">
           {(["available", "maybe", "unavailable"] as const).map((status) => (
             <Button
@@ -349,7 +334,6 @@ function MemberDateCard({
             </Button>
           ))}
         </div>
-
         {declareMutation.isError && (
           <p className="mt-2 text-sm text-red-600">
             Failed to update availability.
@@ -360,69 +344,11 @@ function MemberDateCard({
   );
 }
 
-// ── Official view ──
+// ── Request list (official landing) ──
 
-function OfficialAvailability() {
-  const [view, setView] = useState<
-    | { type: "list" }
-    | { type: "create" }
-    | { type: "request"; requestId: string }
-    | { type: "grid"; requestId: string; matchDate: string }
-  >({ type: "list" });
-
-  if (view.type === "create") {
-    return (
-      <CreateRequestView
-        onBack={() => setView({ type: "list" })}
-        onCreated={(id) => setView({ type: "request", requestId: id })}
-      />
-    );
-  }
-
-  if (view.type === "request") {
-    return (
-      <RequestDetailView
-        requestId={view.requestId}
-        onBack={() => setView({ type: "list" })}
-        onSelectDate={(matchDate) =>
-          setView({
-            type: "grid",
-            requestId: view.requestId,
-            matchDate,
-          })
-        }
-      />
-    );
-  }
-
-  if (view.type === "grid") {
-    return (
-      <DateGridView
-        requestId={view.requestId}
-        matchDate={view.matchDate}
-        onBack={() => setView({ type: "request", requestId: view.requestId })}
-      />
-    );
-  }
-
-  return (
-    <RequestListView
-      onCreateNew={() => setView({ type: "create" })}
-      onSelectRequest={(id) => setView({ type: "request", requestId: id })}
-    />
-  );
-}
-
-// ── Request list ──
-
-function RequestListView({
-  onCreateNew,
-  onSelectRequest,
-}: {
-  onCreateNew: () => void;
-  onSelectRequest: (id: string) => void;
-}) {
+function RequestListView() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const requestsQuery = useQuery({
     queryKey: ["availability", "requests"],
@@ -444,7 +370,9 @@ function RequestListView({
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Availability Requests</h2>
-        <Button onClick={onCreateNew}>New Request</Button>
+        <Button onClick={() => void navigate("/availability/requests/new")}>
+          New Request
+        </Button>
       </div>
 
       {requestsQuery.isPending && <p className="text-gray-500">Loading...</p>}
@@ -464,7 +392,7 @@ function RequestListView({
         <Card
           key={req.id}
           className="cursor-pointer transition-shadow hover:shadow-md"
-          onClick={() => onSelectRequest(req.id)}
+          onClick={() => void navigate(`/availability/requests/${req.id}`)}
         >
           <CardContent className="flex items-center justify-between p-4">
             <div>
@@ -495,25 +423,21 @@ function RequestListView({
               </div>
               <p className="text-xs text-gray-400">
                 {req.gameDates.length} game date
-                {req.gameDates.length !== 1 ? "s" : ""}, {req.matchdays.length}{" "}
-                fixture
-                {req.matchdays.length !== 1 ? "s" : ""}
+                {req.gameDates.length !== 1 ? "s" : ""}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-red-600 hover:text-red-800"
-                disabled={deleteMutation.isPending}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteMutation.mutate(req.id);
-                }}
-              >
-                Delete
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-red-600 hover:text-red-800"
+              disabled={deleteMutation.isPending}
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteMutation.mutate(req.id);
+              }}
+            >
+              Delete
+            </Button>
           </CardContent>
         </Card>
       ))}
@@ -521,15 +445,10 @@ function RequestListView({
   );
 }
 
-// ── Create request ──
+// ── Create request page (URL: /availability/requests/new) ──
 
-function CreateRequestView({
-  onBack,
-  onCreated,
-}: {
-  onBack: () => void;
-  onCreated: (id: string) => void;
-}) {
+export function CreateRequestPage() {
+  const navigate = useNavigate();
   const today = format(new Date(), "yyyy-MM-dd");
   const defaultEnd = format(addDays(new Date(), 7), "yyyy-MM-dd");
 
@@ -552,7 +471,7 @@ function CreateRequestView({
         endDate,
       }),
     onSuccess: (data) => {
-      if (data?.id) onCreated(data.id);
+      if (data?.id) void navigate(`/availability/requests/${data.id}`);
     },
   });
 
@@ -568,234 +487,251 @@ function CreateRequestView({
   const sortedDates = [...gamesByDate.keys()].sort();
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <Button variant="outline" size="sm" onClick={onBack}>
-          Back
-        </Button>
-        <h2 className="text-xl font-semibold">New Availability Request</h2>
-      </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void navigate("/availability")}
+          >
+            Back
+          </Button>
+          <h2 className="text-xl font-semibold">New Availability Request</h2>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Date Range</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium">From</label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">To</label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Overlap warning */}
-      {preview?.overlapping && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <p className="text-sm font-medium text-red-800">
-              This date range overlaps with an existing availability request.
-              Adjust the dates to avoid overlap.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Preview games */}
-      {previewQuery.isPending && (
-        <p className="text-gray-500">Loading games...</p>
-      )}
-
-      {preview && !preview.overlapping && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
-              Games in this window ({preview.fixtures.length})
-            </CardTitle>
+            <CardTitle className="text-base">Date Range</CardTitle>
           </CardHeader>
           <CardContent>
-            {sortedDates.length === 0 ? (
-              <p className="text-sm text-gray-400">
-                No games found in this date range. Availability dates will be
-                created when matchdays are added.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {sortedDates.map((date) => {
-                  const games = gamesByDate.get(date) ?? [];
-                  return (
-                    <div key={date}>
-                      <p className="text-sm font-medium">
-                        {format(new Date(date), "EEEE d MMMM yyyy")}
-                      </p>
-                      {games.map((g) => (
-                        <p key={g.matchId} className="text-sm text-gray-500">
-                          {g.teamName} vs {g.opposition}
-                        </p>
-                      ))}
-                    </div>
-                  );
-                })}
+            <div className="flex items-end gap-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium">From</label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
               </div>
-            )}
+              <div>
+                <label className="mb-1 block text-sm font-medium">To</label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Confirm */}
-      {preview && !preview.overlapping && (
-        <Button
-          disabled={createMutation.isPending}
-          onClick={() => createMutation.mutate()}
-        >
-          {createMutation.isPending
-            ? "Creating..."
-            : `Send Availability Request (${sortedDates.length} date${sortedDates.length !== 1 ? "s" : ""})`}
-        </Button>
-      )}
+        {preview?.overlapping && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <p className="text-sm font-medium text-red-800">
+                This date range overlaps with an existing availability request.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-      {createMutation.isError && (
-        <p className="text-sm text-red-600">
-          Failed to create request. It may overlap with an existing one.
-        </p>
-      )}
+        {previewQuery.isPending && (
+          <p className="text-gray-500">Loading games...</p>
+        )}
+
+        {preview && !preview.overlapping && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Games in this window ({preview.fixtures.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {sortedDates.length === 0 ? (
+                <p className="text-sm text-gray-400">
+                  No games found in this date range.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {sortedDates.map((date) => {
+                    const games = gamesByDate.get(date) ?? [];
+                    return (
+                      <div key={date}>
+                        <p className="text-sm font-medium">
+                          {format(new Date(date), "EEEE d MMMM yyyy")}
+                        </p>
+                        {games.map((g) => (
+                          <p key={g.matchId} className="text-sm text-gray-500">
+                            {g.teamName} vs {g.opposition}
+                          </p>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {preview && !preview.overlapping && (
+          <Button
+            disabled={createMutation.isPending}
+            onClick={() => createMutation.mutate()}
+          >
+            {createMutation.isPending
+              ? "Creating..."
+              : `Send Availability Request (${sortedDates.length} date${sortedDates.length !== 1 ? "s" : ""})`}
+          </Button>
+        )}
+
+        {createMutation.isError && (
+          <p className="text-sm text-red-600">
+            Failed to create request. It may overlap with an existing one.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
 
-// ── Request detail (dates list) ──
+// ── Request detail page (URL: /availability/requests/:requestId) ──
 
-function RequestDetailView({
-  requestId,
-  onBack,
-  onSelectDate,
-}: {
-  requestId: string;
-  onBack: () => void;
-  onSelectDate: (matchDate: string) => void;
-}) {
+export function RequestDetailPage() {
+  const { requestId } = useParams<{ requestId: string }>();
+  const navigate = useNavigate();
+
   const detailQuery = useQuery({
     queryKey: ["availability", "request", requestId],
     queryFn: () =>
       api.get<RequestDetail>(`/availability/requests/${requestId}`),
+    enabled: !!requestId,
   });
 
-  if (detailQuery.isPending) return <p className="text-gray-500">Loading...</p>;
+  if (detailQuery.isPending)
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    );
   if (detailQuery.isError)
-    return <p className="text-red-600">Failed to load request.</p>;
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <p className="text-red-600">Failed to load request.</p>
+      </div>
+    );
 
   const data = detailQuery.data;
   if (!data) return null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <Button variant="outline" size="sm" onClick={onBack}>
-          Back
-        </Button>
-        <div>
-          <h2 className="text-xl font-semibold">
-            {format(new Date(data.start_date), "d MMM")} —{" "}
-            {format(new Date(data.end_date), "d MMM yyyy")}
-          </h2>
-          <p className="text-sm text-gray-500">
-            {data.dates.length} game date
-            {data.dates.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-      </div>
-
-      {data.dates.length === 0 && (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-gray-400">
-              No game dates in this request window yet.
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void navigate("/availability")}
+          >
+            Back
+          </Button>
+          <div>
+            <h2 className="text-xl font-semibold">
+              {format(new Date(data.start_date), "d MMM")} —{" "}
+              {format(new Date(data.end_date), "d MMM yyyy")}
+            </h2>
+            <p className="text-sm text-gray-500">
+              {data.dates.length} game date
+              {data.dates.length !== 1 ? "s" : ""}
             </p>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </div>
 
-      {data.dates.map((date) => (
-        <Card
-          key={date.matchDate}
-          className="cursor-pointer transition-shadow hover:shadow-md"
-          onClick={() => onSelectDate(date.matchDate)}
-        >
-          <CardContent className="flex items-center justify-between p-4">
-            <div>
-              <p className="font-medium">
-                {format(new Date(date.matchDate), "EEEE d MMMM yyyy")}
+        {data.dates.length === 0 && (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-gray-400">
+                No game dates in this request window.
               </p>
-              <div className="flex flex-wrap gap-1 text-sm">
-                {date.fixtures.map((f) => (
-                  <Badge key={f.matchId} variant="outline" className="text-xs">
-                    {f.teamName} vs {f.opposition}
-                  </Badge>
-                ))}
-              </div>
-              <div className="mt-1 flex gap-2 text-sm">
-                {date.totalResponses > 0 ? (
-                  <>
-                    <span className="text-green-600">
-                      {date.available} available
+            </CardContent>
+          </Card>
+        )}
+
+        {data.dates.map((date) => (
+          <Card
+            key={date.matchDate}
+            className="cursor-pointer transition-shadow hover:shadow-md"
+            onClick={() =>
+              void navigate(
+                `/availability/requests/${requestId}/dates/${date.matchDate}`,
+              )
+            }
+          >
+            <CardContent className="flex items-center justify-between p-4">
+              <div>
+                <p className="font-medium">
+                  {format(new Date(date.matchDate), "EEEE d MMMM yyyy")}
+                </p>
+                <div className="flex flex-wrap gap-1 text-sm">
+                  {date.fixtures.map((f) => (
+                    <Badge
+                      key={f.matchId}
+                      variant="outline"
+                      className="text-xs"
+                    >
+                      {f.teamName} vs {f.opposition}
+                    </Badge>
+                  ))}
+                </div>
+                <div className="mt-1 flex gap-2 text-sm">
+                  {date.totalResponses > 0 ? (
+                    <>
+                      <span className="text-green-600">
+                        {date.available} available
+                      </span>
+                      {date.maybe > 0 && (
+                        <span className="text-yellow-600">
+                          {date.maybe} maybe
+                        </span>
+                      )}
+                      {date.unavailable > 0 && (
+                        <span className="text-red-600">
+                          {date.unavailable} unavailable
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-gray-400">No responses yet</span>
+                  )}
+                  {date.assignments > 0 && (
+                    <span className="text-blue-600">
+                      {date.assignments} assigned
                     </span>
-                    {date.maybe > 0 && (
-                      <span className="text-yellow-600">
-                        {date.maybe} maybe
-                      </span>
-                    )}
-                    {date.unavailable > 0 && (
-                      <span className="text-red-600">
-                        {date.unavailable} unavailable
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-gray-400">No responses yet</span>
-                )}
-                {date.assignments > 0 && (
-                  <span className="text-blue-600">
-                    {date.assignments} assigned
-                  </span>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-            <Button size="sm" variant="outline">
-              Select Teams
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
+              <Button size="sm" variant="outline">
+                Select Teams
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
 
-// ── Date grid (team selection) ──
+// ── Date grid page (URL: /availability/requests/:requestId/dates/:matchDate) ──
+// Team selection UI: available players on the left, fixture team slots on the right
 
-function DateGridView({
-  requestId,
-  matchDate,
-  onBack,
-}: {
-  requestId: string;
-  matchDate: string;
-  onBack: () => void;
-}) {
+export function DateGridPage() {
+  const { requestId, matchDate } = useParams<{
+    requestId: string;
+    matchDate: string;
+  }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const gridQuery = useQuery({
     queryKey: ["availability", "grid", requestId, matchDate],
@@ -803,6 +739,7 @@ function DateGridView({
       api.get<GridData>(
         `/availability/requests/${requestId}/grid?matchDate=${matchDate}`,
       ),
+    enabled: !!requestId && !!matchDate,
   });
 
   const setStatusMutation = useMutation({
@@ -850,266 +787,348 @@ function DateGridView({
   });
 
   if (gridQuery.isPending)
-    return <p className="text-gray-500">Loading grid...</p>;
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    );
   if (gridQuery.isError)
-    return <p className="text-red-600">Failed to load grid.</p>;
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <p className="text-red-600">Failed to load.</p>
+      </div>
+    );
 
   const data = gridQuery.data;
   if (!data) return null;
 
-  // Use the first availability_date_id for set/assign/unassign operations
   const primaryDateId = data.availabilityDateIds[0];
 
-  const filteredGrid =
-    statusFilter === "all"
-      ? data.grid
-      : statusFilter === "no_response"
-        ? data.grid.filter((r) => r.availabilityStatus === null)
-        : data.grid.filter((r) => r.availabilityStatus === statusFilter);
-
-  const availableCount = data.grid.filter(
+  // Split players by status
+  const availablePlayers = data.grid.filter(
     (r) => r.availabilityStatus === "available",
-  ).length;
-  const maybeCount = data.grid.filter(
+  );
+  const maybePlayers = data.grid.filter(
     (r) => r.availabilityStatus === "maybe",
-  ).length;
-  const unavailableCount = data.grid.filter(
+  );
+  const unavailablePlayers = data.grid.filter(
     (r) => r.availabilityStatus === "unavailable",
-  ).length;
-  const noResponseCount = data.grid.filter(
+  );
+  const noResponsePlayers = data.grid.filter(
     (r) => r.availabilityStatus === null,
-  ).length;
+  );
+
+  // Build assigned member sets per matchday
+  const assignedByMatchday = new Map<string, Set<string>>();
+  const assignedMembers = new Set<string>();
+  for (const row of data.grid) {
+    for (const a of row.assignments) {
+      assignedMembers.add(row.memberId);
+      const set = assignedByMatchday.get(a.matchdayId) ?? new Set();
+      set.add(row.memberId);
+      assignedByMatchday.set(a.matchdayId, set);
+    }
+  }
+
+  // Grid row lookup
+  const rowByMemberId = new Map(data.grid.map((r) => [r.memberId, r]));
+
+  const handleAssign = (matchdayId: string, memberId: string) => {
+    assignMutation.mutate({
+      dateId: primaryDateId,
+      matchdayId,
+      memberId,
+    });
+  };
+
+  const handleUnassign = (matchdayId: string, memberId: string) => {
+    unassignMutation.mutate({
+      dateId: primaryDateId,
+      matchdayId,
+      memberId,
+    });
+  };
+
+  const handleSetStatus = (memberId: string, status: string) => {
+    setStatusMutation.mutate({
+      dateId: primaryDateId,
+      memberId,
+      status,
+    });
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <Button variant="outline" size="sm" onClick={onBack}>
-          Back
-        </Button>
-        <div>
-          <h2 className="text-xl font-semibold">
-            {format(new Date(data.matchDate), "EEEE d MMMM yyyy")}
-          </h2>
-          <div className="flex gap-3 text-sm">
-            <span className="text-green-600">{availableCount} available</span>
-            <span className="text-yellow-600">{maybeCount} maybe</span>
-            <span className="text-red-600">{unavailableCount} unavailable</span>
-            <span className="text-gray-400">{noResponseCount} no response</span>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void navigate(`/availability/requests/${requestId}`)}
+          >
+            Back
+          </Button>
+          <div>
+            <h2 className="text-xl font-semibold">
+              {matchDate && format(new Date(matchDate), "EEEE d MMMM yyyy")}
+            </h2>
+            <div className="flex gap-3 text-sm">
+              <span className="text-green-600">
+                {availablePlayers.length} available
+              </span>
+              <span className="text-yellow-600">
+                {maybePlayers.length} maybe
+              </span>
+              <span className="text-red-600">
+                {unavailablePlayers.length} unavailable
+              </span>
+              <span className="text-gray-400">
+                {noResponsePlayers.length} no response
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Main layout: team slots + available players */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* Team slots — each fixture gets a card */}
+          <div className="flex flex-col gap-4 lg:col-span-2">
+            {data.matchdays.length === 0 && (
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <p className="text-gray-400">
+                    No matchday records for this date yet. Create them from the
+                    Official Panel to enable team selection.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {data.matchdays.map((md) => {
+              const assigned = assignedByMatchday.get(md.id) ?? new Set();
+              const assignedRows = [...assigned]
+                .map((id) => rowByMemberId.get(id))
+                .filter((r): r is GridRow => r !== undefined);
+
+              return (
+                <Card key={md.id}>
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      {md.team_name} vs {md.opposition}
+                      <span className="ml-2 text-sm font-normal text-gray-400">
+                        ({assigned.size} selected)
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {assignedRows.length === 0 ? (
+                      <p className="text-sm text-gray-400">
+                        No players assigned yet. Click a player from the
+                        available list to add them.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {assignedRows.map((row, idx) => (
+                          <div
+                            key={row.memberId}
+                            className="flex items-center justify-between rounded border border-gray-200 px-3 py-2"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="w-6 text-center text-sm font-medium text-gray-400">
+                                {idx + 1}
+                              </span>
+                              <div>
+                                <p className="text-sm font-medium">
+                                  {row.memberName ?? "Unknown"}
+                                </p>
+                                {row.memberCategory && (
+                                  <p className="text-xs text-gray-400 capitalize">
+                                    {row.memberCategory}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-800"
+                              disabled={unassignMutation.isPending}
+                              onClick={() =>
+                                handleUnassign(md.id, row.memberId)
+                              }
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Available players sidebar */}
+          <div className="flex flex-col gap-4">
+            <PlayerPool
+              title="Available"
+              players={availablePlayers}
+              color="green"
+              matchdays={data.matchdays}
+              assignedMembers={assignedMembers}
+              onAssign={handleAssign}
+              onSetStatus={handleSetStatus}
+            />
+            <PlayerPool
+              title="Maybe"
+              players={maybePlayers}
+              color="yellow"
+              matchdays={data.matchdays}
+              assignedMembers={assignedMembers}
+              onAssign={handleAssign}
+              onSetStatus={handleSetStatus}
+            />
+            {unavailablePlayers.length > 0 && (
+              <PlayerPool
+                title="Unavailable"
+                players={unavailablePlayers}
+                color="red"
+                matchdays={data.matchdays}
+                assignedMembers={assignedMembers}
+                onAssign={handleAssign}
+                onSetStatus={handleSetStatus}
+              />
+            )}
+            {noResponsePlayers.length > 0 && (
+              <PlayerPool
+                title="No Response"
+                players={noResponsePlayers}
+                color="gray"
+                matchdays={data.matchdays}
+                assignedMembers={assignedMembers}
+                onAssign={handleAssign}
+                onSetStatus={handleSetStatus}
+              />
+            )}
           </div>
         </div>
       </div>
-
-      {/* Fixtures on this date */}
-      {data.matchdays.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Fixtures</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {data.matchdays.map((md) => (
-                <Badge key={md.id} variant="outline">
-                  {md.team_name} vs {md.opposition}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Filter */}
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium">Filter:</label>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All ({data.grid.length})</SelectItem>
-            <SelectItem value="available">
-              Available ({availableCount})
-            </SelectItem>
-            <SelectItem value="maybe">Maybe ({maybeCount})</SelectItem>
-            <SelectItem value="unavailable">
-              Unavailable ({unavailableCount})
-            </SelectItem>
-            <SelectItem value="no_response">
-              No response ({noResponseCount})
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Grid table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Player</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Notes</TableHead>
-                {data.matchdays.length > 0 && <TableHead>Assigned</TableHead>}
-                <TableHead className="text-right">Override</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredGrid.map((row) => (
-                <GridRowView
-                  key={row.memberId}
-                  row={row}
-                  matchdays={data.matchdays}
-                  primaryDateId={primaryDateId}
-                  setStatusMutation={setStatusMutation}
-                  assignMutation={assignMutation}
-                  unassignMutation={unassignMutation}
-                />
-              ))}
-              {filteredGrid.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={data.matchdays.length > 0 ? 5 : 4}
-                    className="py-8 text-center text-gray-400"
-                  >
-                    No players match this filter.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </div>
   );
 }
 
-function GridRowView({
-  row,
+function PlayerPool({
+  title,
+  players,
+  color,
   matchdays,
-  primaryDateId,
-  setStatusMutation,
-  assignMutation,
-  unassignMutation,
+  assignedMembers,
+  onAssign,
+  onSetStatus,
 }: {
-  row: GridRow;
+  title: string;
+  players: GridRow[];
+  color: "green" | "yellow" | "red" | "gray";
   matchdays: GridData["matchdays"];
-  primaryDateId: string;
-  setStatusMutation: ReturnType<
-    typeof useMutation<
-      unknown,
-      Error,
-      { dateId: string; memberId: string; status: string }
-    >
-  >;
-  assignMutation: ReturnType<
-    typeof useMutation<
-      unknown,
-      Error,
-      { dateId: string; matchdayId: string; memberId: string }
-    >
-  >;
-  unassignMutation: ReturnType<
-    typeof useMutation<
-      unknown,
-      Error,
-      { dateId: string; matchdayId: string; memberId: string }
-    >
-  >;
+  assignedMembers: Set<string>;
+  onAssign: (matchdayId: string, memberId: string) => void;
+  onSetStatus: (memberId: string, status: string) => void;
 }) {
-  const assignedMatchdayIds = new Set(row.assignments.map((a) => a.matchdayId));
+  const colorMap = {
+    green: "border-green-200 bg-green-50",
+    yellow: "border-yellow-200 bg-yellow-50",
+    red: "border-red-200 bg-red-50",
+    gray: "border-gray-200 bg-gray-50",
+  };
+
+  const headerColor = {
+    green: "text-green-800",
+    yellow: "text-yellow-800",
+    red: "text-red-800",
+    gray: "text-gray-600",
+  };
 
   return (
-    <TableRow>
-      <TableCell>
-        <div>
-          <p className="font-medium">{row.memberName ?? "Unknown"}</p>
-          {row.memberCategory && (
-            <p className="text-xs text-gray-400 capitalize">
-              {row.memberCategory}
-            </p>
-          )}
-        </div>
-      </TableCell>
-      <TableCell>
-        {row.availabilityStatus ? (
-          <Badge
-            className={STATUS_COLORS[row.availabilityStatus] ?? ""}
-            variant="outline"
-          >
-            {STATUS_LABELS[row.availabilityStatus] ?? row.availabilityStatus}
-          </Badge>
+    <Card className={colorMap[color]}>
+      <CardHeader className="pb-2">
+        <CardTitle className={`text-sm ${headerColor[color]}`}>
+          {title} ({players.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {players.length === 0 ? (
+          <p className="text-xs text-gray-400">None</p>
         ) : (
-          <span className="text-sm text-gray-400">—</span>
-        )}
-      </TableCell>
-      <TableCell>
-        <span className="text-sm text-gray-500">
-          {row.availabilityNotes ?? "—"}
-        </span>
-      </TableCell>
-      {matchdays.length > 0 && (
-        <TableCell>
-          <div className="flex flex-wrap gap-1">
-            {matchdays.map((md) => {
-              const isAssigned = assignedMatchdayIds.has(md.id);
+          <div className="flex flex-col gap-1">
+            {players.map((row) => {
+              const isAssigned = assignedMembers.has(row.memberId);
               return (
-                <button
-                  key={md.id}
-                  type="button"
-                  className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
-                    isAssigned
-                      ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
-                      : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                <div
+                  key={row.memberId}
+                  className={`flex items-center justify-between rounded px-2 py-1.5 text-sm ${
+                    isAssigned ? "bg-blue-50 text-blue-700" : "bg-white"
                   }`}
-                  disabled={
-                    assignMutation.isPending || unassignMutation.isPending
-                  }
-                  onClick={() => {
-                    if (isAssigned) {
-                      unassignMutation.mutate({
-                        dateId: primaryDateId,
-                        matchdayId: md.id,
-                        memberId: row.memberId,
-                      });
-                    } else {
-                      assignMutation.mutate({
-                        dateId: primaryDateId,
-                        matchdayId: md.id,
-                        memberId: row.memberId,
-                      });
-                    }
-                  }}
                 >
-                  {md.team_name ? `${md.team_name} vs ` : ""}
-                  {md.opposition}
-                  {isAssigned ? " ✓" : ""}
-                </button>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">
+                      {row.memberName ?? "Unknown"}
+                      {isAssigned && (
+                        <span className="ml-1 text-xs text-blue-500">
+                          (assigned)
+                        </span>
+                      )}
+                    </p>
+                    {row.availabilityNotes && (
+                      <p className="truncate text-xs text-gray-400">
+                        {row.availabilityNotes}
+                      </p>
+                    )}
+                  </div>
+                  <div className="ml-2 flex items-center gap-1">
+                    {/* Quick assign to a fixture */}
+                    {matchdays.length > 0 && !isAssigned && (
+                      <Select
+                        onValueChange={(matchdayId) =>
+                          onAssign(matchdayId, row.memberId)
+                        }
+                      >
+                        <SelectTrigger className="h-7 w-20 text-xs">
+                          <SelectValue placeholder="Add to" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {matchdays.map((md) => (
+                            <SelectItem key={md.id} value={md.id}>
+                              {md.team_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {/* Override status */}
+                    {color === "gray" && (
+                      <Select
+                        onValueChange={(status) =>
+                          onSetStatus(row.memberId, status)
+                        }
+                      >
+                        <SelectTrigger className="h-7 w-20 text-xs">
+                          <SelectValue placeholder="Set" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="available">Avail</SelectItem>
+                          <SelectItem value="maybe">Maybe</SelectItem>
+                          <SelectItem value="unavailable">Unavail</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>
-        </TableCell>
-      )}
-      <TableCell className="text-right">
-        <Select
-          value={row.availabilityStatus ?? ""}
-          onValueChange={(status) =>
-            setStatusMutation.mutate({
-              dateId: primaryDateId,
-              memberId: row.memberId,
-              status,
-            })
-          }
-        >
-          <SelectTrigger className="w-32">
-            <SelectValue placeholder="Set status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="available">Available</SelectItem>
-            <SelectItem value="maybe">Maybe</SelectItem>
-            <SelectItem value="unavailable">Unavailable</SelectItem>
-          </SelectContent>
-        </Select>
-      </TableCell>
-    </TableRow>
+        )}
+      </CardContent>
+    </Card>
   );
 }
