@@ -658,7 +658,7 @@ function AvailabilityGridView({
 
   const unassignMutation = useMutation({
     mutationFn: (input: { matchdayId: string; memberId: string }) =>
-      api.post(`/availability/dates/${dateId}/unassign`, input),
+      api.delete(`/availability/dates/${dateId}/assignments`, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["availability", "grid", dateId],

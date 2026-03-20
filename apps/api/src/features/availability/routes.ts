@@ -117,8 +117,8 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
   );
 
   // Unassign a player from a matchday
-  app.post(
-    "/availability/dates/:dateId/unassign",
+  app.delete(
+    "/availability/dates/:dateId/assignments",
     { preHandler: [officialRole] },
     async (request) => {
       const { user } = getAuthSession(request);

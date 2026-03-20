@@ -9,7 +9,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       play_cricket_team_id TEXT NOT NULL REFERENCES play_cricket_team(id),
       match_date TEXT NOT NULL,
       created_by TEXT NOT NULL REFERENCES "user"(id),
-      created_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (play_cricket_team_id, match_date)
     )
   `.execute(db);
@@ -23,7 +23,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       status TEXT NOT NULL CHECK (status IN ('available', 'unavailable', 'maybe')),
       notes TEXT,
       declared_at TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (availability_date_id, member_id)
     )
   `.execute(db);
@@ -37,7 +37,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       member_id TEXT NOT NULL REFERENCES member(id),
       assigned_by TEXT NOT NULL REFERENCES "user"(id),
       assigned_at TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (matchday_id, member_id)
     )
   `.execute(db);

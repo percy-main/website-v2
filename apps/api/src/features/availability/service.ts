@@ -226,14 +226,32 @@ export function getAvailabilityGrid(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this team");
     }
 
-    // Get all members (non-deleted, with senior/guest categories relevant to senior teams)
-    const members = await db
+    // Check if this is a junior team
+    const team = await db
+      .selectFrom("play_cricket_team")
+      .where("id", "=", date.play_cricket_team_id)
+      .select("is_junior")
+      .executeTakeFirst();
+
+    // Filter members by team type: junior teams show juniors, senior teams exclude juniors
+    let membersQuery = db
       .selectFrom("member")
       .where("deleted_at", "is", null)
-      .where("member_category", "!=", "junior")
       .select(["id", "name", "email", "member_category"])
-      .orderBy("name", "asc")
-      .execute();
+      .orderBy("name", "asc");
+
+    if (team?.is_junior) {
+      membersQuery = membersQuery.where("member_category", "=", "junior");
+    } else {
+      membersQuery = membersQuery.where((eb) =>
+        eb.or([
+          eb("member_category", "!=", "junior"),
+          eb("member_category", "is", null),
+        ]),
+      );
+    }
+
+    const members = await membersQuery.execute();
 
     // Get declarations for this date
     const declarations = await db
@@ -399,6 +417,10 @@ export function assignPlayer(db: Kysely<DB>) {
 
     if (matchday.match_date !== date.match_date) {
       throwHttpError(400, "Matchday is not on the same date");
+    }
+
+    if (matchday.play_cricket_team_id !== date.play_cricket_team_id) {
+      throwHttpError(400, "Matchday belongs to a different team");
     }
 
     // Check for duplicate assignment
@@ -676,15 +698,33 @@ export function getEmailRecipients(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this team");
     }
 
-    // Get all non-deleted, non-junior members with email addresses
-    const members = await db
+    // Check if this is a junior team
+    const team = await db
+      .selectFrom("play_cricket_team")
+      .where("id", "=", date.play_cricket_team_id)
+      .select("is_junior")
+      .executeTakeFirst();
+
+    // Get all non-deleted members with email addresses, filtered by team type
+    let membersQuery = db
       .selectFrom("member")
       .where("deleted_at", "is", null)
-      .where("email", "!=", "")
-      .where("member_category", "!=", "junior")
+      .where("email", "is not", null)
       .select(["id", "name", "email", "member_category"])
-      .orderBy("name", "asc")
-      .execute();
+      .orderBy("name", "asc");
+
+    if (team?.is_junior) {
+      membersQuery = membersQuery.where("member_category", "=", "junior");
+    } else {
+      membersQuery = membersQuery.where((eb) =>
+        eb.or([
+          eb("member_category", "!=", "junior"),
+          eb("member_category", "is", null),
+        ]),
+      );
+    }
+
+    const members = await membersQuery.execute();
 
     // Check who has already declared
     const declared = await db
