@@ -32,6 +32,7 @@ export const Logo: FC<Props> = ({ size = "md" }) => {
           alt="Club logo"
           className={sizeClasses[size]}
           loading="eager"
+          fetchPriority="high"
           sizes={`${px}px`}
           width={px}
           height={px}
@@ -44,6 +45,7 @@ export const Logo: FC<Props> = ({ size = "md" }) => {
           alt="Club logo"
           className={sizeClasses[size]}
           loading="eager"
+          fetchPriority="high"
         />
       )}
     </Link>
