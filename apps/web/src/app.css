@@ -77,8 +77,8 @@
   --color-text: #d1d5db;
   --color-light: #4b5563;
   --color-dark: #f3f4f6;
-  --color-primary: #34d399;
-  --color-primary-light: #6ee7b7;
+  --color-primary: #1b3d2f;
+  --color-primary-light: #34d399;
   --color-cta: #f97316;
   --color-cta-dark: #ea580c;
   --color-secondary: #fbbf24;
@@ -95,7 +95,7 @@
   --color-loss-bg: #7f1d1d;
   --color-draw: #fbbf24;
   --color-draw-bg: #78350f;
-  --color-home: #34d399;
+  --color-home: #1b3d2f;
   --color-home-bg: #064e3b;
   --color-away: #a78bfa;
   --color-away-bg: #4c1d95;
@@ -136,6 +136,24 @@
 /* Override bg-white for dark mode backgrounds without affecting text-white */
 .dark .bg-white {
   background-color: var(--color-surface);
+}
+
+/* Primary is kept as dark green for bg-primary (header/footer with white text).
+   Override text/border/outline uses to a brighter green so they're visible on dark surfaces. */
+.dark .text-primary {
+  color: #34d399;
+}
+.dark .hover\:text-primary:hover {
+  color: #6ee7b7;
+}
+.dark .border-primary {
+  border-color: #34d399;
+}
+.dark .border-primary\/40 {
+  border-color: rgb(52 211 153 / 40%);
+}
+.dark .outline-primary {
+  outline-color: #34d399;
 }
 
 @layer base {
