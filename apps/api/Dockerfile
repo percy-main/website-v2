@@ -21,8 +21,9 @@ RUN pnpm --filter '!@percy-main/web' --filter '!email-viewer' run build
 FROM node:22-alpine AS runner
 RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 
-# Install AWS RDS CA bundle for SSL connections
-RUN apk add --no-cache ca-certificates wget && \
+# Install fonts for Sharp SVG rendering (OG images) and AWS RDS CA bundle
+RUN apk add --no-cache fontconfig font-noto ca-certificates wget && \
+    fc-cache -f && \
     wget -q https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
       -O /usr/local/share/ca-certificates/rds-global-bundle.crt && \
     update-ca-certificates && \
