@@ -1,5 +1,5 @@
 import { z } from "zod";
 
 export const ogImageParamsSchema = z.object({
-  matchId: z.string().min(1),
+  matchId: z.string().regex(/^\d+$/).max(20),
 });

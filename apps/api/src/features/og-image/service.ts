@@ -23,10 +23,6 @@ interface OgMatchData {
   topBowler: { name: string; wickets: number; runs: number } | null;
 }
 
-// --- In-memory cache ---
-
-const imageCache = new Map<string, Buffer>();
-
 // --- SVG Template ---
 
 function escapeXml(str: string): string {
@@ -247,9 +243,11 @@ export function generateOgImage(
   api: PlayCricketApiClient,
   siteId: string,
 ) {
+  const cache = new Map<string, Buffer>();
+
   return async (matchId: string): Promise<Buffer | null> => {
     // Check cache first
-    const cached = imageCache.get(matchId);
+    const cached = cache.get(matchId);
     if (cached) return cached;
 
     // Fetch match detail from Play Cricket API
@@ -356,7 +354,7 @@ export function generateOgImage(
       .toBuffer();
 
     // Cache the result
-    imageCache.set(matchId, pngBuffer);
+    cache.set(matchId, pngBuffer);
 
     return pngBuffer;
   };
