@@ -4,15 +4,16 @@ import { RequireRole } from "./components/require-role.js";
 import { RequireVerifiedEmail } from "./components/require-verified-email.js";
 import { AuthLayout } from "./layouts/auth-layout.js";
 import { RootLayout } from "./layouts/root-layout.js";
+import { Component as HomePage } from "./pages/home.js";
 
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
-      // Public routes
+      // Public routes — home is eagerly loaded (primary landing page)
       {
         index: true,
-        lazy: () => import("./pages/home.js"),
+        Component: HomePage,
       },
       {
         path: "news/:page",
