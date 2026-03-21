@@ -1,5 +1,6 @@
 import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { authClient } from "@/lib/auth-client.js";
 import { useMutation } from "@tanstack/react-query";
 import { useCallback, useState, type FC } from "react";
@@ -27,6 +28,7 @@ const GoogleIcon: FC = () => (
 );
 
 export function Component() {
+  useDocumentMeta("Create an Account");
   const [searchParams] = useSearchParams();
   const [name, setName] = useState(() => searchParams.get("name") ?? "");
   const [email, setEmail] = useState(() => searchParams.get("email") ?? "");

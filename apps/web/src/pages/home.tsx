@@ -1,5 +1,6 @@
 import { OptimisedImage } from "@/components/optimised-image.js";
 import { SeasonLeaders } from "@/components/season-leaders.js";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
 import { getAllEvents } from "@/lib/events.js";
@@ -307,6 +308,7 @@ function UpcomingStrip() {
 }
 
 export function Component() {
+  useDocumentMeta(null);
   return (
     <>
       {/* Hero */}

@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import {
   closestCenter,
@@ -158,6 +159,7 @@ function useChipStatus() {
 // ---------------------------------------------------------------------------
 
 export function Component() {
+  useDocumentMeta("My Fantasy Team");
   const playersQuery = useEligiblePlayers();
   const teamQuery = useMyTeam();
   const chipQuery = useChipStatus();

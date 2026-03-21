@@ -1,4 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useSession } from "@/lib/auth-client";
 import { Link, useSearchParams } from "react-router";
 import { ChargesTab } from "./charges-tab";
@@ -47,6 +48,7 @@ function isValidTab(value: string | null): value is Tab {
 }
 
 export function Component() {
+  useDocumentMeta("Admin Panel");
   const { data: session } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");

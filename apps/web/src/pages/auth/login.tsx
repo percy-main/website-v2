@@ -1,3 +1,4 @@
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useState, type FC } from "react";
 import { match } from "ts-pattern";
 import { EmailPassword } from "./login/email-password.js";
@@ -27,5 +28,6 @@ const LoginPage: FC = () => {
 };
 
 export function Component() {
+  useDocumentMeta("Login");
   return <LoginPage />;
 }

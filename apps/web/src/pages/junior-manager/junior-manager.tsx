@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
@@ -58,6 +59,7 @@ function usePlayers(teamId: string, enabled: boolean) {
 }
 
 export function Component() {
+  useDocumentMeta("Junior Teams");
   const { data: session } = useSession();
 
   if (!session) return null;

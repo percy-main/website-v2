@@ -1,5 +1,6 @@
 import { mdxComponents } from "@/components/mdx-components.js";
 import { OptimisedImage } from "@/components/optimised-image.js";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { getImageUrl, getPicture } from "@/lib/image-map.js";
 import { newsBySlug } from "@/lib/news.js";
 import { MDXProvider } from "@mdx-js/react";
@@ -13,6 +14,8 @@ const ANON_PICTURE = getPicture("/images/anon.jpg");
 export function Component() {
   const params = useParams();
   const article = newsBySlug.get(params.id ?? "");
+
+  useDocumentMeta(article?.title ?? "News Article");
 
   if (!article) {
     return (

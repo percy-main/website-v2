@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -105,6 +106,7 @@ interface DateDetail {
 // ── Main Component ──
 
 export function Component() {
+  useDocumentMeta("Availability");
   const { data: session } = useSession();
   const { requestId, date } = useParams();
   const [searchParams] = useSearchParams();

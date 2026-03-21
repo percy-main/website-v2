@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
@@ -33,6 +34,7 @@ function isValidTab(value: string | null): value is Tab {
 }
 
 export function Component() {
+  useDocumentMeta("Members Area");
   const { data: session } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");

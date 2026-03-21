@@ -1,5 +1,6 @@
 import { Map } from "@/components/map.js";
 import { mdxComponents } from "@/components/mdx-components.js";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { getEventBySlug } from "@/lib/events.js";
 import { getLocationByName } from "@/lib/locations.js";
 import { MDXProvider } from "@mdx-js/react";
@@ -39,6 +40,8 @@ function When({ start, end }: { start: string; end?: string }) {
 export function Component() {
   const { id } = useParams<{ id: string }>();
   const event = id ? getEventBySlug(id) : undefined;
+
+  useDocumentMeta(event?.name ?? "Event");
 
   if (!event) {
     return (

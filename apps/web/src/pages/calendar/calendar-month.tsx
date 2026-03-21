@@ -1,4 +1,5 @@
 import { OutcomeBadge } from "@/components/outcome-badge.js";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api.js";
 import { getAllEvents } from "@/lib/events.js";
 import { cn } from "@/lib/utils.js";
@@ -630,6 +631,8 @@ export function Component() {
 
   const monthDisplay = format(date, "MMMM");
   const yearDisplay = format(date, "yyyy");
+
+  useDocumentMeta(`Calendar — ${monthDisplay} ${yearDisplay}`);
 
   const totalFixtures = allItems.filter((i) => i.type === "game").length;
   const totalResults = allItems.filter(

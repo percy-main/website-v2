@@ -1,4 +1,5 @@
 import { OptimisedImage } from "@/components/optimised-image.js";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
 import { allNews, type NewsArticle } from "@/lib/news.js";
 import { format } from "date-fns";
@@ -380,6 +381,10 @@ function FilterPills({
 }
 
 export function Component() {
+  useDocumentMeta(
+    "News",
+    "Latest news and updates from Percy Main Community Sports Club.",
+  );
   const params = useParams();
   const [activeTag, setActiveTag] = useState<string | null>(null);
 

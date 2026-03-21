@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -45,6 +46,7 @@ interface ActiveRequestsResponse {
 // ── Component ──
 
 export function Component() {
+  useDocumentMeta("Availability");
   const query = useQuery({
     queryKey: ["availability", "active"],
     queryFn: () => api.get<ActiveRequestsResponse>("/availability/active"),

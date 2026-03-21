@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import { compressImage } from "@/lib/image-utils";
@@ -106,6 +107,7 @@ interface SearchMember {
 // ── Component ──
 
 export function Component() {
+  useDocumentMeta("Match Official");
   const { data: session } = useSession();
 
   if (!session) return null;

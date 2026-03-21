@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
@@ -1108,6 +1109,10 @@ function LoadingTable({ rows, cols }: { rows: number; cols: number }) {
 // ---------------------------------------------------------------------------
 
 export function Component() {
+  useDocumentMeta(
+    "Fantasy Cricket",
+    "Percy Main Fantasy Cricket — pick your team, track scores, and compete on the leaderboard.",
+  );
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") ?? "home";
   const { data: session } = useSession();

@@ -1,0 +1,170 @@
+# Railguard Policy Configuration
+# https://github.com/railguard-dev/railguard
+#
+# This file controls how Railguard protects your development environment.
+# Rules are evaluated in order: allowlist → blocklist → approve → default allow.
+
+version: 1
+
+# ── Blocklist ────────────────────────────────────────────────────────
+# Commands matching these patterns are blocked immediately.
+# The agent receives the message and must find an alternative approach.
+
+blocklist:
+  - name: terraform-destroy
+    tool: Bash
+    pattern: "terraform\\s+(destroy|apply\\s+.*-auto-approve)"
+    action: block
+    message: "Blocked: destructive infrastructure command"
+
+  - name: rm-rf-critical
+    tool: Bash
+    pattern: "rm\\s+(-[a-zA-Z]*f[a-zA-Z]*\\s+|--force\\s+).*(/\\s*$|/\\*|~/|\\$HOME|/home)"
+    action: block
+    message: "Blocked: recursive force delete of critical path"
+
+  - name: sql-drop
+    tool: Bash
+    pattern: "(?i)(DROP\\s+(TABLE|DATABASE|SCHEMA)|TRUNCATE\\s+TABLE)"
+    action: block
+    message: "Blocked: destructive SQL operation"
+
+  - name: git-force-push
+    tool: Bash
+    pattern: "git\\s+push\\s+.*--force"
+    action: block
+    message: "Blocked: force push can overwrite remote history"
+
+  - name: git-reset-hard
+    tool: Bash
+    pattern: "git\\s+reset\\s+--hard"
+    action: block
+    message: "Blocked: hard reset discards uncommitted work"
+
+  - name: drizzle-force
+    tool: Bash
+    pattern: "drizzle-kit\\s+push\\s+--force"
+    action: block
+    message: "Blocked: drizzle-kit push --force can destroy database schema"
+
+# ── Approve ──────────────────────────────────────────────────────────
+# Commands matching these patterns pause for human approval.
+
+approve:
+  - name: npm-publish
+    tool: Bash
+    pattern: "npm\\s+publish"
+    action: approve
+    message: "npm publish requires approval"
+
+# ── Allowlist ────────────────────────────────────────────────────────
+# Commands matching these patterns skip all checks (use sparingly).
+
+allowlist:
+  # ── Read-only git commands ──
+  - name: git-read
+    tool: Bash
+    pattern: "git\\s+(status|log|diff|show|branch|tag|remote|fetch|stash list|rev-parse|ls-files|blame|shortlog|describe|config --get)"
+
+  # ── Package management ──
+  - name: pnpm-commands
+    tool: Bash
+    pattern: "pnpm\\s+(install|run|exec|--filter|dlx|-r\\s+run|dev|build|test|lint|typecheck|format)"
+
+  - name: npm-read
+    tool: Bash
+    pattern: "npm\\s+(ls|list|outdated|info|view|pack|run|exec|ci|install)"
+
+  - name: npx-commands
+    tool: Bash
+    pattern: "npx\\s+"
+
+  # ── Build, test, lint ──
+  - name: node-run
+    tool: Bash
+    pattern: "node\\s+"
+
+  - name: tsc-check
+    tool: Bash
+    pattern: "tsc(\\s|$)"
+
+  - name: vitest
+    tool: Bash
+    pattern: "vitest(\\s|$)"
+
+  - name: eslint
+    tool: Bash
+    pattern: "eslint(\\s|$)"
+
+  - name: prettier
+    tool: Bash
+    pattern: "prettier(\\s|$)"
+
+  # ── Docker (local dev) ──
+  - name: docker-compose
+    tool: Bash
+    pattern: "docker\\s+compose\\s+"
+
+  - name: docker-read
+    tool: Bash
+    pattern: "docker\\s+(ps|images|logs|inspect|port|stats|top|volume ls|network ls)"
+
+  # ── Shell utilities ──
+  - name: ls-commands
+    tool: Bash
+    pattern: "^ls(\\s|$)"
+
+  - name: which-commands
+    tool: Bash
+    pattern: "^(which|type|command -v)\\s+"
+
+  - name: curl-fetch
+    tool: Bash
+    pattern: "^curl\\s+"
+
+  # ── GitHub CLI (read + PR) ──
+  - name: gh-commands
+    tool: Bash
+    pattern: "gh\\s+(pr|issue|run|api|repo|auth\\s+status)"
+
+  # ── Terraform (read-only) ──
+  - name: terraform-read
+    tool: Bash
+    pattern: "terraform\\s+(plan|fmt|validate|init|output|show|state\\s+(list|show))"
+
+  # ── Misc safe commands ──
+  - name: wc-sort-misc
+    tool: Bash
+    pattern: "^(wc|sort|uniq|diff|pwd|env|printenv|date|mkdir|touch|cp|mv)\\s*"
+
+  - name: railguard-commands
+    tool: Bash
+    pattern: "railguard\\s+"
+
+# ── Path Fence ───────────────────────────────────────────────────────
+# Restricts which directories the agent can read/write.
+
+fence:
+  enabled: true
+  allowed_paths: [] # Empty = allow project directory only
+  denied_paths:
+    - "~/.ssh"
+    - "~/.aws"
+    - "~/.gnupg"
+    - "~/.config/gcloud"
+    - "/etc"
+
+# ── Trace ────────────────────────────────────────────────────────────
+# Structured audit log of every tool call.
+
+trace:
+  enabled: true
+  directory: .railguard/traces
+
+# ── Snapshot ─────────────────────────────────────────────────────────
+# Per-edit file snapshots for rollback.
+
+snapshot:
+  enabled: true
+  tools: [Write, Edit]
+  directory: .railguard/snapshots

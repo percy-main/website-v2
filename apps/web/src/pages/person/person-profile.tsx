@@ -1,5 +1,6 @@
 import { mdxComponents } from "@/components/mdx-components.js";
 import { OptimisedImage } from "@/components/optimised-image.js";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { getImageUrl, getPicture } from "@/lib/image-map.js";
 import { getPersonBySlug } from "@/lib/people.js";
 import { MDXProvider } from "@mdx-js/react";
@@ -14,6 +15,8 @@ const ANON_PICTURE = getPicture("/images/anon.jpg");
 export function Component() {
   const params = useParams();
   const person = getPersonBySlug(params.slug ?? "");
+
+  useDocumentMeta(person?.name ?? "Player Profile");
 
   if (!person) {
     return (

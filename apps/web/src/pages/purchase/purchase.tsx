@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -71,6 +72,8 @@ export function Component() {
     enabled: !!priceId,
     staleTime: 5 * 60_000,
   });
+
+  useDocumentMeta(priceInfo?.productName ?? "Purchase");
 
   // Set the preset once price info loads
   const presetApplied = useState(false);
