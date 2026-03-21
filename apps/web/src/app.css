@@ -119,12 +119,12 @@
   --color-red-50: #450a0a;
   --color-red-100: #7f1d1d;
   --color-red-200: #991b1b;
-  --color-red-600: #f87171;
+  --color-red-600: #dc2626;
   --color-red-700: #f87171;
   --color-red-800: #991b1b;
   --color-green-50: #052e16;
   --color-green-100: #064e3b;
-  --color-green-600: #4ade80;
+  --color-green-600: #16a34a;
   --color-green-700: #22c55e;
   --color-green-800: #166534;
   --color-blue-50: #172554;
@@ -139,6 +139,8 @@
   --color-amber-600: #fbbf24;
   --color-amber-700: #fbbf24;
   --color-amber-800: #fcd34d;
+  --color-yellow-100: #713f12;
+  --color-yellow-800: #fde68a;
 }
 
 /* Override bg-white for dark mode backgrounds without affecting text-white */
@@ -182,6 +184,14 @@
 }
 .dark .text-gray-800 {
   color: #e2e8f0;
+}
+
+/* text-*-600 needs to be bright when used as inline status/error text on dark surfaces */
+.dark .text-green-600 {
+  color: #4ade80;
+}
+.dark .text-red-600 {
+  color: #f87171;
 }
 
 @layer base {
