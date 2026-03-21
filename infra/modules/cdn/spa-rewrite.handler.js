@@ -41,7 +41,7 @@ export function createHandler(apiBaseUrl) {
 
     // Redirect game pages to API for OG meta tags (unless returning via bypass param)
     if (apiBaseUrl) {
-      var gameMatch = uri.match(/^\/games\/(\d+)$/);
+      var gameMatch = uri.match(/^\/calendar\/game\/(\d+)$/);
       var bypass = qs && qs.og && qs.og.value === "1";
       if (gameMatch && !bypass) {
         return {

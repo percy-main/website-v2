@@ -34,7 +34,9 @@ describe("spa-rewrite CloudFront function", () => {
 
   describe("OG game page redirect", () => {
     it("redirects /games/:matchId to API OG page", () => {
-      const result = handler(makeEvent("/games/12345", "www.percymain.org"));
+      const result = handler(
+        makeEvent("/calendar/game/12345", "www.percymain.org"),
+      );
       expect(result.statusCode).toBe(302);
       expect(result.headers.location.value).toBe(
         "https://api.v2.percymain.org/api/og/game/12345/page",
@@ -43,7 +45,7 @@ describe("spa-rewrite CloudFront function", () => {
 
     it("bypasses redirect when og=1 query param is set", () => {
       const result = handler(
-        makeEvent("/games/12345", "www.percymain.org", {
+        makeEvent("/calendar/game/12345", "www.percymain.org", {
           og: { value: "1" },
         }),
       );
@@ -58,13 +60,15 @@ describe("spa-rewrite CloudFront function", () => {
     });
 
     it("does not redirect game paths with non-numeric IDs", () => {
-      const result = handler(makeEvent("/games/abc", "www.percymain.org"));
+      const result = handler(
+        makeEvent("/calendar/game/abc", "www.percymain.org"),
+      );
       expect(result.uri).toBe("/index.html");
       expect(result.statusCode).toBeUndefined();
     });
 
-    it("does not redirect /games/ without an ID", () => {
-      const result = handler(makeEvent("/games/", "www.percymain.org"));
+    it("does not redirect /calendar/game/ without an ID", () => {
+      const result = handler(makeEvent("/calendar/game/", "www.percymain.org"));
       expect(result.uri).toBe("/index.html");
       expect(result.statusCode).toBeUndefined();
     });
@@ -74,7 +78,7 @@ describe("spa-rewrite CloudFront function", () => {
     it("skips redirect when apiBaseUrl is empty", () => {
       const noApiHandler = createHandler("");
       const result = noApiHandler(
-        makeEvent("/games/12345", "www.percymain.org"),
+        makeEvent("/calendar/game/12345", "www.percymain.org"),
       );
       expect(result.uri).toBe("/index.html");
       expect(result.statusCode).toBeUndefined();

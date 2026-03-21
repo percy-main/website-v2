@@ -176,16 +176,16 @@ describe("buildOgHtmlPage", () => {
     expect(html).toContain('og:image:width" content="1200"');
     expect(html).toContain('og:image:height" content="630"');
     expect(html).toContain(
-      'og:url" content="https://percymain.org/games/12345"',
+      'og:url" content="https://percymain.org/calendar/game/12345"',
     );
     expect(html).toContain('twitter:card" content="summary_large_image"');
     expect(html).toContain('twitter:image"');
     expect(html).toContain(
-      'http-equiv="refresh" content="0;url=https://percymain.org/games/12345?og=1"',
+      'http-equiv="refresh" content="0;url=https://percymain.org/calendar/game/12345?og=1"',
     );
     // og:url should be the canonical URL without bypass param
     expect(html).not.toContain(
-      'og:url" content="https://percymain.org/games/12345?og=1"',
+      'og:url" content="https://percymain.org/calendar/game/12345?og=1"',
     );
   });
 

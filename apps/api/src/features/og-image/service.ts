@@ -369,7 +369,7 @@ export function buildOgHtmlPage(
   title: string,
 ): string {
   const imageUrl = `${apiBaseUrl}/api/og/game/${encodeURIComponent(matchId)}`;
-  const canonicalUrl = `${baseUrl}/games/${encodeURIComponent(matchId)}`;
+  const canonicalUrl = `${baseUrl}/calendar/game/${encodeURIComponent(matchId)}`;
   const redirectUrl = `${canonicalUrl}?og=1`;
 
   return `<!DOCTYPE html>
