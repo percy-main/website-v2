@@ -1,7 +1,12 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const HERO_IMAGE_PATH = join(__dirname, "..", "..", "assets", "pitch.png");
 
 // --- Types ---
 
@@ -80,132 +85,122 @@ function getOutcomeLabel(outcome: string | null): {
 function buildSvg(data: OgMatchData): string {
   const W = 1200;
   const H = 630;
-  const PRIMARY = "#1B3D2F";
-  const PRIMARY_LIGHT = "#2A5C46";
   const GOLD = "#D4A843";
   const WHITE = "#FFFFFF";
+  const FONT = "Arial, Helvetica, sans-serif";
 
   const outcome = getOutcomeLabel(data.outcome);
   const dateFormatted = formatMatchDate(data.matchDate);
 
-  // Build innings score display
-  let scoreSection = "";
+  // Layout: vertically centered content with tighter spacing
+  // Header block: competition + date (top)
+  // Middle block: teams + score + outcome (centered)
+  // Footer block: result desc + performers + branding (bottom)
+
+  const hasScore = data.innings.length > 0;
+  const hasOutcome = outcome.text !== "";
+
+  // Build score text
+  let scoreText = "";
   if (data.innings.length >= 2) {
-    const first = data.innings[0];
-    const second = data.innings[1];
-    scoreSection = `
-      <text x="${W / 2}" y="310" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="bold" fill="${WHITE}">
-        ${escapeXml(formatInningsScore(first))} – ${escapeXml(formatInningsScore(second))}
-      </text>
-    `;
+    scoreText = `${formatInningsScore(data.innings[0])}  –  ${formatInningsScore(data.innings[1])}`;
   } else if (data.innings.length === 1) {
-    scoreSection = `
-      <text x="${W / 2}" y="310" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="bold" fill="${WHITE}">
-        ${escapeXml(formatInningsScore(data.innings[0]))}
-      </text>
-    `;
+    scoreText = formatInningsScore(data.innings[0]);
   }
 
-  // Key performers section
-  let performersSection = "";
+  // Key performers
   const performers: string[] = [];
   if (data.topBatter) {
-    performers.push(
-      `${escapeXml(data.topBatter.name)} ${data.topBatter.runs}*`, // batting star
-    );
+    performers.push(`${data.topBatter.name} ${data.topBatter.runs}*`);
   }
   if (data.topBowler) {
     performers.push(
-      `${escapeXml(data.topBowler.name)} ${data.topBowler.wickets}/${data.topBowler.runs}`,
+      `${data.topBowler.name} ${data.topBowler.wickets}/${data.topBowler.runs}`,
     );
   }
-  if (performers.length > 0) {
-    performersSection = `
-      <text x="${W / 2}" y="390" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" fill="rgba(255,255,255,0.8)">
-        ${performers.join("   •   ")}
-      </text>
-    `;
-  }
 
-  // Result description (e.g. "Percy Main won by 5 wickets")
-  const resultDescSection = data.resultDescription
-    ? `
-      <text x="${W / 2}" y="350" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" fill="rgba(255,255,255,0.7)">
-        ${escapeXml(data.resultDescription)}
-      </text>
-    `
-    : "";
+  // Calculate vertical positions — center the content block
+  const headerY = 50;
+  const teamStartY = 150;
+  const vsY = teamStartY + 40;
+  const oppY = vsY + 40;
+  const outcomeY = oppY + 20;
+  const scoreY = hasOutcome ? outcomeY + 90 : oppY + 55;
+  const resultDescY = scoreY + (hasScore ? 40 : 0);
+  const performersY = resultDescY + (data.resultDescription ? 30 : 0);
+  const footerY = H - 55;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="${PRIMARY}"/>
-      <stop offset="100%" stop-color="${PRIMARY_LIGHT}"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Background -->
-  <rect width="${W}" height="${H}" fill="url(#bg)"/>
-
-  <!-- Subtle pattern overlay -->
-  <rect width="${W}" height="${H}" fill="rgba(0,0,0,0.1)" rx="0"/>
-
-  <!-- Top bar -->
+  <!-- Top accent bar -->
   <rect x="0" y="0" width="${W}" height="6" fill="${GOLD}"/>
 
-  <!-- Competition name -->
-  <text x="${W / 2}" y="55" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="bold" fill="${GOLD}" letter-spacing="2">
+  <!-- Competition + Date header -->
+  <text x="${W / 2}" y="${headerY}" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="bold" fill="${GOLD}" letter-spacing="2">
     ${escapeXml(data.competitionName.toUpperCase())}
   </text>
-
-  <!-- Date -->
-  <text x="${W / 2}" y="82" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="rgba(255,255,255,0.6)">
+  <text x="${W / 2}" y="${headerY + 25}" text-anchor="middle" font-family="${FONT}" font-size="16" fill="rgba(255,255,255,0.6)">
     ${escapeXml(dateFormatted)}
   </text>
 
   <!-- Divider -->
-  <line x1="100" y1="100" x2="${W - 100}" y2="100" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+  <line x1="200" y1="${headerY + 45}" x2="${W - 200}" y2="${headerY + 45}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
 
   <!-- Team names -->
-  <text x="${W / 2}" y="155" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="bold" fill="${WHITE}">
+  <text x="${W / 2}" y="${teamStartY}" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="bold" fill="${WHITE}">
     ${escapeXml(data.teamName)}
   </text>
-  <text x="${W / 2}" y="195" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="rgba(255,255,255,0.5)">
+  <text x="${W / 2}" y="${vsY}" text-anchor="middle" font-family="${FONT}" font-size="18" fill="rgba(255,255,255,0.4)">
     vs
   </text>
-  <text x="${W / 2}" y="235" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="bold" fill="${WHITE}">
+  <text x="${W / 2}" y="${oppY}" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="bold" fill="${WHITE}">
     ${escapeXml(data.oppositionName)}
   </text>
 
-  <!-- Outcome badge -->
   ${
-    outcome.text
-      ? `
-    <rect x="${W / 2 - 60}" y="248" width="120" height="32" rx="16" fill="${outcome.color}"/>
-    <text x="${W / 2}" y="270" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="bold" fill="${WHITE}">
-      ${outcome.text}
-    </text>
-  `
+    hasOutcome
+      ? `<!-- Outcome badge -->
+  <rect x="${W / 2 - 55}" y="${outcomeY}" width="110" height="30" rx="15" fill="${outcome.color}"/>
+  <text x="${W / 2}" y="${outcomeY + 21}" text-anchor="middle" font-family="${FONT}" font-size="15" font-weight="bold" fill="${WHITE}">
+    ${outcome.text}
+  </text>`
       : ""
   }
 
-  <!-- Score -->
-  ${scoreSection}
+  ${
+    hasScore
+      ? `<!-- Score -->
+  <text x="${W / 2}" y="${scoreY}" text-anchor="middle" font-family="${FONT}" font-size="64" font-weight="bold" fill="${WHITE}">
+    ${escapeXml(scoreText)}
+  </text>`
+      : ""
+  }
 
-  <!-- Result description -->
-  ${resultDescSection}
+  ${
+    data.resultDescription
+      ? `<!-- Result description -->
+  <text x="${W / 2}" y="${resultDescY}" text-anchor="middle" font-family="${FONT}" font-size="20" fill="rgba(255,255,255,0.6)">
+    ${escapeXml(data.resultDescription)}
+  </text>`
+      : ""
+  }
 
-  <!-- Key performers -->
-  ${performersSection}
+  ${
+    performers.length > 0
+      ? `<!-- Key performers -->
+  <text x="${W / 2}" y="${performersY}" text-anchor="middle" font-family="${FONT}" font-size="20" fill="rgba(255,255,255,0.8)">
+    ${escapeXml(performers.join("   •   "))}
+  </text>`
+      : ""
+  }
 
   <!-- Bottom divider -->
-  <line x1="100" y1="${H - 100}" x2="${W - 100}" y2="${H - 100}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+  <line x1="200" y1="${footerY - 25}" x2="${W - 200}" y2="${footerY - 25}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
 
   <!-- Footer -->
-  <text x="${W / 2}" y="${H - 60}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" fill="${WHITE}">
+  <text x="${W / 2}" y="${footerY}" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="bold" fill="${WHITE}">
     Percy Main Cricket &amp; Sports Club
   </text>
-  <text x="${W / 2}" y="${H - 35}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="rgba(255,255,255,0.5)">
+  <text x="${W / 2}" y="${footerY + 22}" text-anchor="middle" font-family="${FONT}" font-size="13" fill="rgba(255,255,255,0.4)">
     percymain.org
   </text>
 </svg>`;
@@ -348,8 +343,21 @@ export function generateOgImage(
 
     // Generate SVG and convert to PNG
     const svg = buildSvg(matchData);
-    const pngBuffer = await sharp(Buffer.from(svg))
+
+    // Build the image: hero background with dark overlay, then SVG on top
+    const heroBackground = await sharp(HERO_IMAGE_PATH)
+      .resize(1200, 630, { fit: "cover" })
+      .modulate({ brightness: 0.3 })
+      .tint({ r: 27, g: 61, b: 47 }) // #1B3D2F club green
+      .toBuffer();
+
+    const svgBuffer = await sharp(Buffer.from(svg))
       .resize(1200, 630)
+      .png()
+      .toBuffer();
+
+    const pngBuffer = await sharp(heroBackground)
+      .composite([{ input: svgBuffer, blend: "over" }])
       .png()
       .toBuffer();
 
