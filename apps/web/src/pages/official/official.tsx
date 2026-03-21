@@ -8,9 +8,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
-import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { compressImage } from "@/lib/image-utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parse } from "date-fns";

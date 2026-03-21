@@ -9,9 +9,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
-import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Fragment, useState } from "react";
