@@ -33,7 +33,7 @@
     <meta
       name="theme-color"
       media="(prefers-color-scheme: dark)"
-      content="#FAF8F3"
+      content="#0f172a"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -43,6 +43,15 @@
     />
   </head>
   <body>
+    <script>
+      (function () {
+        var t = localStorage.getItem("percy-theme");
+        var d =
+          t === "dark" ||
+          (t !== "light" && matchMedia("(prefers-color-scheme:dark)").matches);
+        if (d) document.documentElement.classList.add("dark");
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
