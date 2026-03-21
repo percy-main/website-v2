@@ -1,6 +1,6 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockExecuteTakeFirst,
@@ -134,6 +134,8 @@ describe("gameweek utilities", () => {
 
 describe("fantasy service", () => {
   beforeEach(() => {
+    // Pin to a Wednesday so weekend-lock logic never fires
+    vi.useFakeTimers({ now: new Date("2026-03-18T12:00:00Z") });
     vi.resetAllMocks();
     // Reset chain methods to return the builder
     for (const key of Object.keys(mockQueryBuilder)) {
@@ -159,6 +161,10 @@ describe("fantasy service", () => {
         }
       }
     }
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe("getEligiblePlayers", () => {
