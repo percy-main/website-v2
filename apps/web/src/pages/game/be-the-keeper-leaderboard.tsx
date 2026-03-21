@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { z } from "zod";
@@ -26,6 +27,7 @@ function useLeaderboard() {
 }
 
 export function Component() {
+  useDocumentMeta("Be The Keeper — Leaderboard", "Top scorers in Percy Main's Be The Keeper cricket game.");
   const query = useLeaderboard();
   const entries = query.data;
 

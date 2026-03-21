@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
@@ -1862,6 +1863,7 @@ function clamp(v: number, min: number, max: number) {
 }
 
 export function Component() {
+  useDocumentMeta("Be The Keeper", "Test your goalkeeping skills in Percy Main's browser-based cricket game.");
   return (
     <div className="mx-auto max-w-4xl py-4 text-center">
       <BeTheKeeper />

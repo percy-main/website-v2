@@ -7,6 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -417,6 +418,8 @@ export function Component() {
   const { year } = useParams();
   const season = Number(year);
   const seasons = getSeasonRange();
+
+  useDocumentMeta(`${season} Season Leaderboard`);
 
   const [isJunior, setIsJunior] = useState(false);
   const [teamId, setTeamId] = useState("");

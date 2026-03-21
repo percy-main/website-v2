@@ -1,7 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { Link, useSearchParams } from "react-router";
 
 export function Component() {
+  useDocumentMeta("Payment");
   const [searchParams] = useSearchParams();
   const status = searchParams.get("redirect_status");
 

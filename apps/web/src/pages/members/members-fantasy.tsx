@@ -1,4 +1,5 @@
 import { ShareMyTeamButton } from "@/components/fantasy/share-my-team-button.js";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -158,6 +159,7 @@ function useChipStatus() {
 // ---------------------------------------------------------------------------
 
 export function Component() {
+  useDocumentMeta("My Fantasy Team");
   const playersQuery = useEligiblePlayers();
   const teamQuery = useMyTeam();
   const chipQuery = useChipStatus();

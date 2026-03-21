@@ -1,4 +1,11 @@
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
+
 export function Component() {
+  useDocumentMeta(
+    "Privacy Policy",
+    "Percy Main Community Sports Club privacy policy and data protection information.",
+  );
+
   return (
     <div className="container p-4 pt-8">
       <h1>Privacy Policy</h1>

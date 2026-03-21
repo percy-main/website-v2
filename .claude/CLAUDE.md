@@ -107,6 +107,7 @@ The generator introspects the schema from the running PostgreSQL database.
 - **PostgreSQL aggregates return bigint (string in node-pg)** — use `sql<string>` (not `sql<number>`) for all aggregate expressions (`SUM`, `COUNT`, `MAX`, `COALESCE(SUM(...))`, etc.) so the type honestly reflects what node-pg returns. Then wrap in `Number()` when converting to a JS number. Using `sql<number>` lies to TypeScript and causes the lint rule `@typescript-eslint/no-unnecessary-type-conversion` to flag the `Number()` call as redundant.
 - **No `process.env` in services or routes** — use `app.config` via Fastify decoration
 - **Use `return await` in async route handlers** — preserves stack traces for error debugging
+- **Always add imports and their usage in the same edit** — lint hooks run on save and will strip unused imports. Never add an import in one edit and its usage in a separate edit.
 
 ## Feature Folder Structure
 

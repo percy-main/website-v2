@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api";
 import { getImageUrl, getPicture } from "@/lib/image-map";
 import { getPersonBySlug } from "@/lib/people";
@@ -89,6 +90,8 @@ function resizeLogo(file: File): Promise<string> {
 export function Component() {
   const { slug } = useParams();
   const person = getPersonBySlug(slug ?? "");
+
+  useDocumentMeta(person ? `Sponsor ${person.name}` : "Sponsor");
 
   const [step, setStep] = useState<Step>("details");
   const [sponsorName, setSponsorName] = useState("");

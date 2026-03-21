@@ -20,6 +20,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -33,6 +34,7 @@ function isValidTab(value: string | null): value is Tab {
 }
 
 export function Component() {
+  useDocumentMeta("Members Area");
   const { data: session } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");

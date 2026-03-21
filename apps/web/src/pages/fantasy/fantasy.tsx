@@ -12,6 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -1108,6 +1109,7 @@ function LoadingTable({ rows, cols }: { rows: number; cols: number }) {
 // ---------------------------------------------------------------------------
 
 export function Component() {
+  useDocumentMeta("Fantasy Cricket", "Percy Main Fantasy Cricket — pick your team, track scores, and compete on the leaderboard.");
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") ?? "home";
   const { data: session } = useSession();

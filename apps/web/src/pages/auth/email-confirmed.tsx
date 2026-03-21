@@ -1,6 +1,8 @@
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { Link } from "react-router";
 
 export function Component() {
+  useDocumentMeta("Email Confirmed");
   return (
     <div className="w-full rounded-lg bg-white shadow-sm sm:max-w-md">
       <div className="space-y-4 p-6 text-center sm:p-8">

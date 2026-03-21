@@ -10,6 +10,7 @@ export interface ContentPage {
   path: string;
   /** MDX frontmatter */
   title: string;
+  description?: string;
   menuOrder: number;
   isMainMenu: boolean;
   ldjson?: unknown;
@@ -51,6 +52,7 @@ function loadPages(): ContentPage[] {
     return {
       path: filePathToUrlPath(filePath),
       title: (fm.title as string) ?? "Untitled",
+      description: fm.description as string | undefined,
       menuOrder: (fm.menuOrder as number) ?? 99,
       isMainMenu: (fm.isMainMenu as boolean) ?? false,
       ldjson: fm.ldjson,

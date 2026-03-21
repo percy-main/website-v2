@@ -1,3 +1,4 @@
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useState } from "react";
 import { match } from "ts-pattern";
 import type { LoginPhase } from "./login.js";
@@ -5,6 +6,7 @@ import { ForgotPassword } from "./login/forgot-password.js";
 import { ResetPassword as ResetPasswordForm } from "./login/reset-password.js";
 
 export function Component() {
+  useDocumentMeta("Reset Password");
   const [phase, setPhase] = useState<LoginPhase>("reset");
 
   return (

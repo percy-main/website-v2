@@ -4,6 +4,7 @@ import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { Scorecard } from "@/components/scorecard.js";
 import { Badge } from "@/components/ui/badge.js";
 import { Card, CardContent } from "@/components/ui/card.js";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api.js";
 import { getGameReport } from "@/lib/game-reports.js";
 import { getLocationByName } from "@/lib/locations.js";
@@ -345,6 +346,10 @@ export function Component() {
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
   });
+
+  useDocumentMeta(
+    game ? `${game.team.name} vs ${game.opposition.club.name}` : "Game Details",
+  );
 
   if (isLoading) {
     return (

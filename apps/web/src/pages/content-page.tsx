@@ -1,4 +1,5 @@
 import { mdxComponents } from "@/components/mdx-components.js";
+import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import {
   contentPageMap,
   getBreadcrumbs,
@@ -126,6 +127,8 @@ export function Component() {
   const path = pathname === "/" ? "/" : pathname.replace(/\/$/, "");
 
   const page = contentPageMap.get(path);
+
+  useDocumentMeta(page?.title, page?.description);
 
   if (!page) {
     return (
