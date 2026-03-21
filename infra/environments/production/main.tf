@@ -130,6 +130,7 @@ module "cdn" {
   domain_name         = var.domain_name
   acm_certificate_arn = local.shared.acm_cloudfront_certificate_arn
   extra_aliases       = ["www.percymain.org", "kit.percymain.org"]
+  api_base_url        = "https://api.v2.percymain.org"
 }
 
 # ---------------------------------------------------------------------------

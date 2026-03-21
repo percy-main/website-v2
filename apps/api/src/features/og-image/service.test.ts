@@ -180,7 +180,13 @@ describe("buildOgHtmlPage", () => {
     );
     expect(html).toContain('twitter:card" content="summary_large_image"');
     expect(html).toContain('twitter:image"');
-    expect(html).toContain('http-equiv="refresh"');
+    expect(html).toContain(
+      'http-equiv="refresh" content="0;url=https://percymain.org/games/12345?og=1"',
+    );
+    // og:url should be the canonical URL without bypass param
+    expect(html).not.toContain(
+      'og:url" content="https://percymain.org/games/12345?og=1"',
+    );
   });
 
   it("escapes special characters in title", () => {

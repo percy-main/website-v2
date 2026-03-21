@@ -369,7 +369,8 @@ export function buildOgHtmlPage(
   title: string,
 ): string {
   const imageUrl = `${apiBaseUrl}/api/og/game/${encodeURIComponent(matchId)}`;
-  const pageUrl = `${baseUrl}/games/${encodeURIComponent(matchId)}`;
+  const canonicalUrl = `${baseUrl}/games/${encodeURIComponent(matchId)}`;
+  const redirectUrl = `${canonicalUrl}?og=1`;
 
   return `<!DOCTYPE html>
 <html>
@@ -381,14 +382,14 @@ export function buildOgHtmlPage(
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="${escapeXml(pageUrl)}">
+  <meta property="og:url" content="${escapeXml(canonicalUrl)}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${escapeXml(title)}">
   <meta name="twitter:image" content="${escapeXml(imageUrl)}">
-  <meta http-equiv="refresh" content="0;url=${escapeXml(pageUrl)}">
+  <meta http-equiv="refresh" content="0;url=${escapeXml(redirectUrl)}">
 </head>
 <body>
-  <p>Redirecting to <a href="${escapeXml(pageUrl)}">${escapeXml(pageUrl)}</a></p>
+  <p>Redirecting to <a href="${escapeXml(redirectUrl)}">${escapeXml(canonicalUrl)}</a></p>
 </body>
 </html>`;
 }
