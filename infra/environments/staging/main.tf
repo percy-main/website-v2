@@ -132,6 +132,7 @@ module "cdn" {
   domain_name         = "staging.${var.domain_name}"
   acm_certificate_arn = local.shared.acm_cloudfront_certificate_arn
   alb_dns_name        = module.ecs.alb_dns_name
+  api_base_url        = "https://api.staging.${var.domain_name}"
 }
 
 # -----------------------------------------------------------------------------

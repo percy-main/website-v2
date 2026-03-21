@@ -31,6 +31,12 @@ variable "extra_aliases" {
   description = "Additional domain aliases for the CloudFront distribution"
 }
 
+variable "api_base_url" {
+  type        = string
+  default     = ""
+  description = "API base URL for OG image crawler redirects (e.g. https://api.v2.percymain.org)"
+}
+
 # -----------------------------------------------------------------------------
 # Locals
 # -----------------------------------------------------------------------------
@@ -270,34 +276,9 @@ resource "aws_cloudfront_origin_access_control" "s3" {
 resource "aws_cloudfront_function" "spa_rewrite" {
   name    = "${var.environment}-percy-main-spa-rewrite"
   runtime = "cloudfront-js-2.0"
-  code    = <<-EOF
-    function handler(event) {
-      var request = event.request;
-      var host = request.headers.host && request.headers.host.value;
-      // Redirect apex to www
-      if (host === 'percymain.org') {
-        return {
-          statusCode: 301,
-          statusDescription: 'Moved Permanently',
-          headers: { location: { value: 'https://www.percymain.org' + request.uri } }
-        };
-      }
-      // Redirect kit.percymain.org to kit shop
-      if (host === 'kit.percymain.org') {
-        return {
-          statusCode: 301,
-          statusDescription: 'Moved Permanently',
-          headers: { location: { value: 'https://vx-3.com/collections/percy-main-cricket-club' } }
-        };
-      }
-      var uri = request.uri;
-      // If URI has no file extension, rewrite to /index.html for SPA routing
-      if (!uri.includes('.')) {
-        request.uri = '/index.html';
-      }
-      return request;
-    }
-  EOF
+  code    = templatefile("${path.module}/spa-rewrite.js", {
+    api_base_url = var.api_base_url
+  })
 }
 
 # -----------------------------------------------------------------------------
