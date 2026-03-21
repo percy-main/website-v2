@@ -79,8 +79,8 @@
   --color-dark: #f3f4f6;
   --color-primary: #1b3d2f;
   --color-primary-light: #34d399;
-  --color-cta: #f97316;
-  --color-cta-dark: #ea580c;
+  --color-cta: #c2410c;
+  --color-cta-dark: #9a3412;
   --color-secondary: #fbbf24;
   --color-body: #0f172a;
   --color-creamy: #0f172a;
@@ -192,6 +192,9 @@
 }
 .dark .text-red-600 {
   color: #f87171;
+}
+.dark .text-cta {
+  color: #fb923c;
 }
 
 @layer base {
