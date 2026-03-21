@@ -49,7 +49,7 @@ export function DialogContent({
       />
       <div
         className={cn(
-          "relative z-50 w-full max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-lg",
+          "border-border bg-surface relative z-50 w-full max-w-lg rounded-lg border p-6 shadow-lg",
           className,
         )}
       >
@@ -104,7 +104,7 @@ export function DialogDescription({
   className?: string;
   children: React.ReactNode;
 }) {
-  return <p className={cn("text-sm text-gray-500", className)}>{children}</p>;
+  return <p className={cn("text-muted text-sm", className)}>{children}</p>;
 }
 
 export function DialogFooter({

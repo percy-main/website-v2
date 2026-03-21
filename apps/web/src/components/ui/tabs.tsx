@@ -44,7 +44,7 @@ export function TabsList({
     <div
       role="tablist"
       className={cn(
-        "inline-flex h-auto flex-wrap items-center justify-center rounded-md bg-gray-100 p-1 text-gray-500",
+        "bg-surface-raised text-muted inline-flex h-auto flex-wrap items-center justify-center rounded-md p-1",
         className,
       )}
     >
@@ -70,8 +70,8 @@ export function TabsTrigger({
       role="tab"
       aria-selected={isActive}
       className={cn(
-        "inline-flex items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium whitespace-nowrap ring-offset-white transition-all focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
-        isActive && "bg-white text-gray-900 shadow-sm",
+        "ring-offset-surface inline-flex items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+        isActive && "bg-surface text-dark shadow-sm",
         className,
       )}
       onClick={() => onValueChange(value)}
@@ -97,7 +97,7 @@ export function TabsContent({
     <div
       role="tabpanel"
       className={cn(
-        "mt-2 ring-offset-white focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none",
+        "ring-offset-surface mt-2 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none",
         className,
       )}
     >

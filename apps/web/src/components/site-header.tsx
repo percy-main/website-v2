@@ -11,6 +11,7 @@ import {
 } from "react";
 import { Link, useLocation } from "react-router";
 import { Logo } from "./logo.js";
+import { ThemeToggle } from "./theme-toggle.js";
 
 interface MenuItem {
   name: string;
@@ -214,6 +215,7 @@ export const SiteHeader: FC = () => {
           </span>
           <div className="flex items-center gap-4 max-sm:ml-auto">
             <AuthNav variant="utility" />
+            <ThemeToggle className="p-1 text-white/80 transition hover:text-white" />
             <Link
               to={DONATE_URL}
               className="bg-cta hover:bg-cta-dark rounded-full px-4 py-1 text-sm font-medium text-white transition"
@@ -235,13 +237,13 @@ export const SiteHeader: FC = () => {
       </div>
 
       {/* Row 3: Navigation (Desktop) */}
-      <nav className="hidden border-t border-b border-gray-200 bg-white py-2 lg:block">
+      <nav className="border-border bg-surface hidden border-t border-b py-2 lg:block">
         <div className="container mx-auto px-8">
           <ul className="flex items-center justify-center">
             {menu.map((item, i) => (
               <li key={item.name} className="flex items-center">
                 {i > 0 && (
-                  <span className="h-4 w-px bg-gray-200" aria-hidden="true" />
+                  <span className="bg-border h-4 w-px" aria-hidden="true" />
                 )}
                 <span className="px-1">
                   <NavItem
@@ -257,7 +259,7 @@ export const SiteHeader: FC = () => {
 
       {/* Sticky Collapsed Bar (appears on scroll) */}
       <header
-        className={`fixed top-0 right-0 left-0 z-50 border-b border-gray-200 bg-white shadow-sm transition-transform duration-300 ${
+        className={`border-border bg-surface fixed top-0 right-0 left-0 z-50 border-b shadow-sm transition-transform duration-300 ${
           stickyVisible ? "translate-y-0" : "-translate-y-full"
         }`}
       >
@@ -276,7 +278,7 @@ export const SiteHeader: FC = () => {
             {menu.map((item, i) => (
               <li key={item.name} className="flex items-center">
                 {i > 0 && (
-                  <span className="h-4 w-px bg-gray-200" aria-hidden="true" />
+                  <span className="bg-border h-4 w-px" aria-hidden="true" />
                 )}
                 <span className="px-1">
                   <NavItem
@@ -287,12 +289,15 @@ export const SiteHeader: FC = () => {
               </li>
             ))}
           </ul>
-          <Link
-            to={DONATE_URL}
-            className="bg-cta hover:bg-cta-dark rounded-full px-4 py-1.5 text-sm font-medium text-white transition"
-          >
-            Donate
-          </Link>
+          <div className="flex items-center gap-3">
+            <ThemeToggle className="text-muted hover:text-dark p-1 transition" />
+            <Link
+              to={DONATE_URL}
+              className="bg-cta hover:bg-cta-dark rounded-full px-4 py-1.5 text-sm font-medium text-white transition"
+            >
+              Donate
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -307,11 +312,11 @@ export const SiteHeader: FC = () => {
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
-            className="absolute top-0 right-0 h-full w-72 bg-white shadow-xl"
+            className="bg-surface absolute top-0 right-0 h-full w-72 shadow-xl"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={handleDrawerKeyDown}
           >
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
+            <div className="border-border flex items-center justify-between border-b px-4 py-4">
               <span className="font-secondary text-dark text-lg font-bold">
                 Menu
               </span>
@@ -326,7 +331,7 @@ export const SiteHeader: FC = () => {
             </div>
             <ul className="flex flex-col px-4 py-4">
               {menu.map((item) => (
-                <li key={item.name} className="border-b border-gray-100">
+                <li key={item.name} className="border-border-light border-b">
                   <NavItem
                     item={item}
                     active={isActive(location.pathname, item)}
