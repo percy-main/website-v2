@@ -328,7 +328,7 @@ export function Component() {
               alt="The cricket pitch at Percy Main"
             />
           )}
-          <div className="absolute inset-0 bg-gray-900 opacity-55" />
+          <div className="absolute inset-0 bg-black opacity-55" />
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
             <div className="mx-auto max-w-screen-xl px-4 pt-6 pb-16 lg:px-6">
               <div className="mx-auto max-w-screen-md text-center">

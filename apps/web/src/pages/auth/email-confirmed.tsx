@@ -13,7 +13,7 @@ export function Component() {
         </p>
         <Link
           to="/auth/login"
-          className="inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-gray-800"
+          className="bg-dark text-body inline-block rounded-md px-4 py-2 text-sm font-medium shadow transition hover:opacity-90"
         >
           Sign in
         </Link>
