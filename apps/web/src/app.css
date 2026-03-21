@@ -164,6 +164,26 @@
   outline-color: #34d399;
 }
 
+/* text-*-800 needs to be light when used on dark *-100 backgrounds (status pills, badges) */
+.dark .text-green-800 {
+  color: #86efac;
+}
+.dark .text-red-800 {
+  color: #fca5a5;
+}
+.dark .text-blue-800 {
+  color: #93c5fd;
+}
+.dark .text-amber-800 {
+  color: #fcd34d;
+}
+.dark .text-yellow-800 {
+  color: #fde68a;
+}
+.dark .text-gray-800 {
+  color: #e2e8f0;
+}
+
 @layer base {
   html {
     font-size: 16px;
