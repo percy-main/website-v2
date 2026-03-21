@@ -42,7 +42,7 @@ RUN pnpm install --frozen-lockfile --prod
 RUN sed -i 's|"./src/index.ts"|"./dist/index.js"|' packages/*/package.json
 
 COPY --from=builder /app/apps/api/dist apps/api/dist
-COPY --from=builder /app/apps/api/src/assets apps/api/src/assets
+COPY --from=builder /app/apps/api/src/assets apps/api/dist/assets
 COPY --from=builder /app/packages/shared/dist packages/shared/dist
 COPY --from=builder /app/packages/db/dist packages/db/dist
 COPY --from=builder /app/packages/db/src/migrations packages/db/src/migrations
