@@ -38,7 +38,7 @@ export const ogImageRoutes: FastifyPluginAsync = async (app) => {
 
     return await reply
       .header("Content-Type", "image/png")
-      .header("Cache-Control", "public, max-age=86400, immutable")
+      .header("Cache-Control", "public, max-age=3600")
       .send(image);
   });
 

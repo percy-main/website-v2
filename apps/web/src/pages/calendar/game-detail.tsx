@@ -12,10 +12,23 @@ import { MDXProvider } from "@mdx-js/react";
 import { useQuery } from "@tanstack/react-query";
 import { AddToCalendarButton } from "add-to-calendar-button-react";
 import { formatInTimeZone } from "date-fns-tz";
+import { useEffect } from "react";
 import { IoCalendar, IoChevronForward } from "react-icons/io5";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 
 type Outcome = "W" | "L" | "D" | "T" | "A" | "C" | "N";
+
+// Strip the ?og=1 bypass param that CloudFront adds when redirecting
+// through the OG meta tag page, so users don't reshare the bypass URL.
+function useStripOgParam() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.has("og")) {
+      searchParams.delete("og");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+}
 
 interface GameData {
   id: string;
@@ -339,6 +352,7 @@ function GameDetailContent({ game }: { game: GameData }) {
 
 export function Component() {
   const { id } = useParams<{ id: string }>();
+  useStripOgParam();
 
   const { data: game, isLoading } = useQuery<GameData>({
     queryKey: ["game", id],

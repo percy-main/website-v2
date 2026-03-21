@@ -24,7 +24,7 @@ const baseMatchData: OgMatchData = {
       declared: false,
     },
   ],
-  topBatter: { name: "J Smith", runs: 72 },
+  topBatter: { name: "J Smith", runs: 72, notOut: true },
   topBowler: { name: "A Jones", wickets: 4, runs: 32 },
 };
 
@@ -145,6 +145,18 @@ describe("buildSvg", () => {
 
     expect(svg).toContain("J Smith 72*");
     expect(svg).not.toContain("•");
+  });
+
+  it("does not show * for dismissed batters", () => {
+    const data: OgMatchData = {
+      ...baseMatchData,
+      topBatter: { name: "J Smith", runs: 72, notOut: false },
+    };
+
+    const svg = buildSvg(data);
+
+    expect(svg).toContain("J Smith 72");
+    expect(svg).not.toContain("J Smith 72*");
   });
 
   it("handles only top bowler, no top batter", () => {

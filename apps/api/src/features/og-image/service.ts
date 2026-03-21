@@ -24,7 +24,7 @@ interface OgMatchData {
     allOut: boolean;
     declared: boolean;
   }>;
-  topBatter: { name: string; runs: number } | null;
+  topBatter: { name: string; runs: number; notOut: boolean } | null;
   topBowler: { name: string; wickets: number; runs: number } | null;
 }
 
@@ -111,7 +111,10 @@ function buildSvg(data: OgMatchData): string {
   // Key performers
   const performers: string[] = [];
   if (data.topBatter) {
-    performers.push(`${data.topBatter.name} ${data.topBatter.runs}*`);
+    const notOutStar = data.topBatter.notOut ? "*" : "";
+    performers.push(
+      `${data.topBatter.name} ${data.topBatter.runs}${notOutStar}`,
+    );
   }
   if (data.topBowler) {
     performers.push(
@@ -238,13 +241,7 @@ export function generateOgImage(
   api: PlayCricketApiClient,
   siteId: string,
 ) {
-  const cache = new Map<string, Buffer>();
-
   return async (matchId: string): Promise<Buffer | null> => {
-    // Check cache first
-    const cached = cache.get(matchId);
-    if (cached) return cached;
-
     // Fetch match detail from Play Cricket API
     const matchDetail = await api.getMatchDetail(matchId).catch(() => null);
     if (!matchDetail) return null;
@@ -296,9 +293,11 @@ export function generateOgImage(
         );
         const best = sorted[0];
         if (best && parseInt(best.runs) > 0) {
+          const howOut = (best.how_out ?? "").toLowerCase().trim();
           topBatter = {
             name: best.batsman_name,
             runs: parseInt(best.runs),
+            notOut: howOut === "not out" || howOut === "",
           };
         }
       }
@@ -360,9 +359,6 @@ export function generateOgImage(
       .composite([{ input: svgBuffer, blend: "over" }])
       .png()
       .toBuffer();
-
-    // Cache the result
-    cache.set(matchId, pngBuffer);
 
     return pngBuffer;
   };
