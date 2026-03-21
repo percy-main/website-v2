@@ -46,8 +46,8 @@
   --font-size-h1-sm: 2.40034rem;
 
   /* Font families */
-  --font-primary: "Source Sans 3", sans-serif;
-  --font-secondary: "Lora", serif;
+  --font-primary: "Source Sans 3 Variable", sans-serif;
+  --font-secondary: "Lora Variable", serif;
 
   /* Breakpoints */
   --breakpoint-sm: 540px;
