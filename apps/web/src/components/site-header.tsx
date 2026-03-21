@@ -289,12 +289,15 @@ export const SiteHeader: FC = () => {
               </li>
             ))}
           </ul>
-          <Link
-            to={DONATE_URL}
-            className="bg-cta hover:bg-cta-dark rounded-full px-4 py-1.5 text-sm font-medium text-white transition"
-          >
-            Donate
-          </Link>
+          <div className="flex items-center gap-3">
+            <ThemeToggle className="text-muted hover:text-dark p-1 transition" />
+            <Link
+              to={DONATE_URL}
+              className="bg-cta hover:bg-cta-dark rounded-full px-4 py-1.5 text-sm font-medium text-white transition"
+            >
+              Donate
+            </Link>
+          </div>
         </div>
       </header>
 
