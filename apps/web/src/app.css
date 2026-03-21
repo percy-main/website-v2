@@ -127,14 +127,18 @@
   --color-green-600: #4ade80;
   --color-green-700: #22c55e;
   --color-green-800: #166534;
+  --color-blue-50: #172554;
   --color-blue-100: #1e3a5f;
+  --color-blue-300: #1e40af;
   --color-blue-400: #93c5fd;
   --color-blue-600: #93c5fd;
   --color-blue-800: #93c5fd;
+  --color-amber-50: #451a03;
   --color-amber-100: #78350f;
+  --color-amber-300: #92400e;
   --color-amber-600: #fbbf24;
   --color-amber-700: #fbbf24;
-  --color-amber-800: #92400e;
+  --color-amber-800: #fcd34d;
 }
 
 /* Override bg-white for dark mode backgrounds without affecting text-white */
