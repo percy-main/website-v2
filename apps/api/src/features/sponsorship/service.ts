@@ -9,20 +9,32 @@ import type {
   SponsorshipUpdate,
 } from "./schemas.ts";
 
-export function getGameSponsorshipPrice() {
+async function fetchStripePriceInfo(stripe: Stripe, priceId: string) {
+  const price = await stripe.prices.retrieve(priceId, {
+    expand: ["product"],
+  });
+
+  if (price.unit_amount === null) {
+    throw new Error(`Stripe price ${priceId} has no unit_amount`);
+  }
+
+  const product = price.product as Stripe.Product;
   return {
-    amountPence: 5000,
-    currency: "gbp",
-    productName: "Game Sponsorship",
+    amountPence: price.unit_amount,
+    currency: price.currency,
+    productName: product.name,
   };
 }
 
-export function getPlayerSponsorshipPrice() {
-  return {
-    amountPence: 5000,
-    currency: "gbp",
-    productName: "Player Sponsorship",
-  };
+export async function getGameSponsorshipPrice(stripe: Stripe, priceId: string) {
+  return fetchStripePriceInfo(stripe, priceId);
+}
+
+export async function getPlayerSponsorshipPrice(
+  stripe: Stripe,
+  priceId: string,
+) {
+  return fetchStripePriceInfo(stripe, priceId);
 }
 
 export function getGameSponsorByGameId(db: Kysely<DB>) {
@@ -311,7 +323,11 @@ export function updatePlayerSponsorship(db: Kysely<DB>) {
 
 const PENDING_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-export function createPlayerSponsorshipPayment(db: Kysely<DB>, stripe: Stripe) {
+export function createPlayerSponsorshipPayment(
+  db: Kysely<DB>,
+  stripe: Stripe,
+  playerSponsorshipPriceId: string,
+) {
   return async (data: PlayerSponsorshipPayment) => {
     const currentYear = new Date().getFullYear();
 
@@ -381,8 +397,11 @@ export function createPlayerSponsorshipPayment(db: Kysely<DB>, stripe: Stripe) {
         .execute();
     }
 
-    // Fetch price
-    const price = getPlayerSponsorshipPrice();
+    // Fetch price from Stripe
+    const price = await getPlayerSponsorshipPrice(
+      stripe,
+      playerSponsorshipPriceId,
+    );
     const sponsorshipId = crypto.randomUUID();
     const now = new Date().toISOString();
 

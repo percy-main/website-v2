@@ -1,3 +1,4 @@
+import { stripeConfig } from "@percy-main/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
 import { requireRole } from "../auth/middleware.ts";
@@ -39,11 +40,19 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
   const stripe = createStripe({
     stripeSecretKey: app.config.STRIPE_SECRET_KEY,
   });
+  const prices =
+    app.config.NODE_ENV === "production"
+      ? stripeConfig.live.prices
+      : stripeConfig.dev.prices;
   const gameSponsor = getGameSponsorByGameId(app.db);
   const playerSponsor = getPlayerSponsorForPlayer(app.db);
   const playerPending = hasPlayerPendingSponsor(app.db);
   const allApproved = getAllApprovedPlayerSponsors(app.db);
-  const createPayment = createPlayerSponsorshipPayment(app.db, stripe);
+  const createPayment = createPlayerSponsorshipPayment(
+    app.db,
+    stripe,
+    prices.playerSponsorship,
+  );
   const listGame = listGameSponsorships(app.db);
   const listPlayer = listPlayerSponsorships(app.db);
   const approveGame = approveGameSponsorship(app.db);
@@ -57,12 +66,12 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
 
   // --- Public routes ---
 
-  app.get("/sponsorship/game/price", () => {
-    return getGameSponsorshipPrice();
+  app.get("/sponsorship/game/price", async () => {
+    return await getGameSponsorshipPrice(stripe, prices.sponsorship);
   });
 
-  app.get("/sponsorship/player/price", () => {
-    return getPlayerSponsorshipPrice();
+  app.get("/sponsorship/player/price", async () => {
+    return await getPlayerSponsorshipPrice(stripe, prices.playerSponsorship);
   });
 
   app.get("/sponsorship/player/approved", async (request) => {

@@ -1,5 +1,6 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
+import type Stripe from "stripe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
@@ -43,6 +44,14 @@ import {
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 
+function createMockStripe() {
+  const retrieve = vi.fn();
+  return {
+    stripe: { prices: { retrieve } } as unknown as Stripe,
+    retrieve,
+  };
+}
+
 describe("sponsorship service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -56,9 +65,19 @@ describe("sponsorship service", () => {
   });
 
   describe("getGameSponsorshipPrice", () => {
-    it("returns expected price values", () => {
-      const price = getGameSponsorshipPrice();
+    it("fetches price from Stripe", async () => {
+      const { stripe, retrieve } = createMockStripe();
+      retrieve.mockResolvedValue({
+        unit_amount: 5000,
+        currency: "gbp",
+        product: { name: "Game Sponsorship" },
+      });
 
+      const price = await getGameSponsorshipPrice(stripe, "price_game_123");
+
+      expect(retrieve).toHaveBeenCalledWith("price_game_123", {
+        expand: ["product"],
+      });
       expect(price).toEqual({
         amountPence: 5000,
         currency: "gbp",
@@ -68,11 +87,21 @@ describe("sponsorship service", () => {
   });
 
   describe("getPlayerSponsorshipPrice", () => {
-    it("returns expected price values", () => {
-      const price = getPlayerSponsorshipPrice();
+    it("fetches price from Stripe", async () => {
+      const { stripe, retrieve } = createMockStripe();
+      retrieve.mockResolvedValue({
+        unit_amount: 10000,
+        currency: "gbp",
+        product: { name: "Player Sponsorship" },
+      });
 
+      const price = await getPlayerSponsorshipPrice(stripe, "price_player_123");
+
+      expect(retrieve).toHaveBeenCalledWith("price_player_123", {
+        expand: ["product"],
+      });
       expect(price).toEqual({
-        amountPence: 5000,
+        amountPence: 10000,
         currency: "gbp",
         productName: "Player Sponsorship",
       });

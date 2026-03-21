@@ -8,8 +8,6 @@ import {
   approveGameSponsorship,
   createManualGameSponsorship,
   getGameSponsorByGameId,
-  getGameSponsorshipPrice,
-  getPlayerSponsorshipPrice,
   listGameSponsorships,
 } from "./service.ts";
 
@@ -49,24 +47,6 @@ async function seedGameSponsorship(overrides: {
 }
 
 describe("sponsorship service (integration)", () => {
-  describe("getGameSponsorshipPrice", () => {
-    it("returns static price values", () => {
-      const price = getGameSponsorshipPrice();
-      expect(price.amountPence).toBe(5000);
-      expect(price.currency).toBe("gbp");
-      expect(price.productName).toBe("Game Sponsorship");
-    });
-  });
-
-  describe("getPlayerSponsorshipPrice", () => {
-    it("returns static price values", () => {
-      const price = getPlayerSponsorshipPrice();
-      expect(price.amountPence).toBe(5000);
-      expect(price.currency).toBe("gbp");
-      expect(price.productName).toBe("Player Sponsorship");
-    });
-  });
-
   describe("getGameSponsorByGameId", () => {
     it("returns null when no sponsorship exists", async () => {
       const result = await getGameSponsorByGameId(ctx.db)(
