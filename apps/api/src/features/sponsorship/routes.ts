@@ -8,6 +8,7 @@ import {
   byGameIdSchema,
   bySlugSchema,
   gameSponsorshipManualSchema,
+  gameSponsorshipPaymentSchema,
   playerSponsorshipManualSchema,
   playerSponsorshipPaymentSchema,
   sponsorshipActionSchema,
@@ -18,6 +19,7 @@ import {
 import {
   approveGameSponsorship,
   approvePlayerSponsorship,
+  createGameSponsorshipPayment,
   createManualGameSponsorship,
   createManualPlayerSponsorship,
   createPlayerSponsorshipPayment,
@@ -26,6 +28,7 @@ import {
   getGameSponsorshipPrice,
   getPlayerSponsorForPlayer,
   getPlayerSponsorshipPrice,
+  hasGamePendingSponsor,
   hasPlayerPendingSponsor,
   listGameSponsorships,
   listPlayerSponsorships,
@@ -45,9 +48,15 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
       ? stripeConfig.live.prices
       : stripeConfig.dev.prices;
   const gameSponsor = getGameSponsorByGameId(app.db);
+  const gamePending = hasGamePendingSponsor(app.db);
   const playerSponsor = getPlayerSponsorForPlayer(app.db);
   const playerPending = hasPlayerPendingSponsor(app.db);
   const allApproved = getAllApprovedPlayerSponsors(app.db);
+  const createGamePayment = createGameSponsorshipPayment(
+    app.db,
+    stripe,
+    prices.sponsorship,
+  );
   const createPayment = createPlayerSponsorshipPayment(
     app.db,
     stripe,
@@ -84,6 +93,16 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     const { gameId } = parseParams(request, byGameIdSchema);
     const sponsor = await gameSponsor(gameId);
     return { sponsor };
+  });
+
+  app.get("/sponsorship/game/:gameId/pending", async (request) => {
+    const { gameId } = parseParams(request, byGameIdSchema);
+    return await gamePending(gameId);
+  });
+
+  app.post("/sponsorship/game/create-payment", async (request) => {
+    const data = parseBody(request, gameSponsorshipPaymentSchema);
+    return await createGamePayment(data);
   });
 
   app.get("/sponsorship/player/:slug", async (request) => {

@@ -3,6 +3,7 @@ import { mdxComponents } from "@/components/mdx-components.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { Scorecard } from "@/components/scorecard.js";
 import { Badge } from "@/components/ui/badge.js";
+import { buttonVariants } from "@/components/ui/button.js";
 import { Card, CardContent } from "@/components/ui/card.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api.js";
@@ -11,6 +12,7 @@ import { getLocationByName } from "@/lib/locations.js";
 import { MDXProvider } from "@mdx-js/react";
 import { useQuery } from "@tanstack/react-query";
 import { AddToCalendarButton } from "add-to-calendar-button-react";
+import { isAfter } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { useEffect } from "react";
 import { IoCalendar, IoChevronForward } from "react-icons/io5";
@@ -28,6 +30,28 @@ function useStripOgParam() {
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+}
+
+function SponsorThisGame({ gameId, when }: { gameId: string; when: string }) {
+  const isFuture = isAfter(new Date(when), new Date());
+
+  const pendingQuery = useQuery<{ hasPending: boolean }>({
+    queryKey: ["game-sponsor-pending", gameId],
+    queryFn: () => api.get(`/sponsorship/game/${gameId}/pending`),
+    enabled: isFuture,
+    staleTime: 30 * 1000,
+  });
+
+  if (!isFuture || pendingQuery.data?.hasPending) return null;
+
+  return (
+    <Link
+      to={`/calendar/game/${gameId}/sponsor`}
+      className={buttonVariants({ variant: "default", size: "sm" })}
+    >
+      Sponsor This Game
+    </Link>
+  );
 }
 
 interface GameData {
@@ -233,6 +257,9 @@ function GameDetailContent({ game }: { game: GameData }) {
         {/* Header row: sponsor + time + add-to-calendar */}
         <div className="flex w-full flex-row flex-wrap items-center justify-between gap-2 md:gap-4">
           {game.sponsor && <SponsorBadge sponsor={game.sponsor} />}
+          {!game.sponsor && game.when && (
+            <SponsorThisGame gameId={game.id} when={game.when} />
+          )}
           <div className="flex flex-row flex-wrap items-center gap-2 md:gap-4">
             {game.when && (
               <AddToCalendarButton
