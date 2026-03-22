@@ -46,8 +46,14 @@ export const ogImageRoutes: FastifyPluginAsync = async (app) => {
   app.get("/og/game/:matchId/page", async (request, reply) => {
     const { matchId } = parseParams(request, ogImageParamsSchema);
 
-    // Build a basic title from the match ID — crawlers just need meta tags
-    const title = `Match Result — Percy Main Cricket & Sports Club`;
+    const hasResult = await app.db
+      .selectFrom("match_result")
+      .where("match_id", "=", matchId)
+      .select("match_id")
+      .executeTakeFirst();
+
+    const label = hasResult ? "Match Result" : "Fixture Details";
+    const title = `${label} — Percy Main Cricket & Sports Club`;
 
     const html = buildOgHtmlPage(
       config.BASE_URL,
