@@ -5,6 +5,7 @@ const baseMatchData: OgMatchData = {
   teamName: "Percy Main 1st XI",
   oppositionName: "Tynemouth 1st XI",
   matchDate: "15/06/2025",
+  matchTime: "13:00",
   outcome: "W",
   resultDescription: "Percy Main won by 5 wickets",
   competitionName: "NTCL Division 1",
@@ -169,6 +170,39 @@ describe("buildSvg", () => {
 
     expect(svg).toContain("A Jones 4/32");
     expect(svg).not.toContain("•");
+  });
+
+  it("shows formatted date and time for future matches", () => {
+    const data: OgMatchData = {
+      ...baseMatchData,
+      innings: [],
+      outcome: null,
+      matchTime: "13:00",
+      matchDate: "12/06/2026",
+      topBatter: null,
+      topBowler: null,
+    };
+
+    const svg = buildSvg(data);
+
+    expect(svg).toContain("Friday 12th June 2026 - 1pm");
+  });
+
+  it("shows date without time when time is not available", () => {
+    const data: OgMatchData = {
+      ...baseMatchData,
+      innings: [],
+      outcome: null,
+      matchTime: null,
+      matchDate: "12/06/2026",
+      topBatter: null,
+      topBowler: null,
+    };
+
+    const svg = buildSvg(data);
+
+    expect(svg).toContain("Friday 12th June 2026");
+    expect(svg).not.toContain(" - ");
   });
 
   it("shows sponsor name in footer when sponsored", () => {

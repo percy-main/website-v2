@@ -14,6 +14,7 @@ interface OgMatchData {
   teamName: string;
   oppositionName: string;
   matchDate: string;
+  matchTime: string | null;
   outcome: string | null;
   resultDescription: string;
   competitionName: string;
@@ -27,6 +28,45 @@ interface OgMatchData {
   topBatter: { name: string; runs: number; notOut: boolean } | null;
   topBowler: { name: string; wickets: number; runs: number } | null;
   sponsor: { name: string; logoUrl: string | null } | null;
+}
+
+function ordinalSuffix(day: number): string {
+  if (day >= 11 && day <= 13) return "th";
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
+
+function formatMatchDateTime(dateStr: string, timeStr: string | null): string {
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) return dateStr;
+  const [dd, mm, yyyy] = dateStr.split("/");
+  const day = Number(dd);
+  const date = new Date(Number(yyyy), Number(mm) - 1, day);
+
+  const weekday = date.toLocaleDateString("en-GB", { weekday: "long" });
+  const month = date.toLocaleDateString("en-GB", { month: "long" });
+
+  let result = `${weekday} ${day}${ordinalSuffix(day)} ${month} ${yyyy}`;
+
+  if (timeStr && /^\d{2}:\d{2}$/.test(timeStr)) {
+    const [hh, mi] = timeStr.split(":");
+    const hour = Number(hh);
+    const min = Number(mi);
+    const period = hour >= 12 ? "pm" : "am";
+    const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    const timeFormatted =
+      min === 0 ? `${hour12}${period}` : `${hour12}:${mi}${period}`;
+    result += ` - ${timeFormatted}`;
+  }
+
+  return result;
 }
 
 // --- SVG Template ---
@@ -139,7 +179,10 @@ function buildSvg(data: OgMatchData): string {
   <text x="${W / 2}" y="${hasOutcome ? 370 : 320}" text-anchor="middle" font-family="${FONT}" font-size="96" font-weight="bold" fill="${WHITE}">
     ${escapeXml(scoreText)}
   </text>`
-      : ""
+      : `<!-- Date/time for future matches -->
+  <text x="${W / 2}" y="340" text-anchor="middle" font-family="${FONT}" font-size="44" font-weight="bold" fill="${GOLD}">
+    ${escapeXml(formatMatchDateTime(data.matchDate, data.matchTime))}
+  </text>`
   }
 
   ${
@@ -190,6 +233,22 @@ function resolveOutcome(
     return resultAppliedTo === ourTeamId ? "W" : "L";
   }
 
+  return null;
+}
+
+async function getMatchTime(
+  api: PlayCricketApiClient,
+  siteId: string,
+  matchId: string,
+): Promise<string | null> {
+  const currentYear = new Date().getFullYear();
+  for (const season of [currentYear, currentYear - 1]) {
+    const response = await api.getMatchesSummary(season).catch(() => null);
+    if (!response) continue;
+    const match = response.matches.find((m) => m.id.toString() === matchId);
+    if (match?.match_time) return match.match_time;
+    if (match) return null;
+  }
   return null;
 }
 
@@ -310,6 +369,7 @@ export function generateOgImage(
       teamName,
       oppositionName,
       matchDate: detail.match_date || "",
+      matchTime: await getMatchTime(api, siteId, matchId),
       outcome,
       resultDescription: detail.result_description,
       competitionName,
@@ -350,9 +410,12 @@ export function generateOgImage(
         const resizedLogo = await sharp(logoBuffer)
           .resize({ height: 50, fit: "inside" })
           .toBuffer();
+        const logoMeta = await sharp(resizedLogo).metadata();
+        const logoWidth = logoMeta.width ?? 50;
         layers.push({
           input: resizedLogo,
-          gravity: "southeast",
+          top: 630 - 65,
+          left: 1200 - logoWidth - 20,
           blend: "over",
         });
       }
