@@ -42,7 +42,6 @@ describe("buildSvg", () => {
     expect(svg).toContain("186/5");
     expect(svg).toContain("J Smith 72*");
     expect(svg).toContain("A Jones 4/32");
-    expect(svg).toContain("NTCL DIVISION 1");
   });
 
   it("handles match with no innings", () => {

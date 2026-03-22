@@ -39,19 +39,6 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
-function formatMatchDate(dateStr: string): string {
-  // dateStr is DD/MM/YYYY
-  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) return dateStr;
-  const [dd, mm, yyyy] = dateStr.split("/");
-  const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
-  return date.toLocaleDateString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
 function formatInningsScore(innings: OgMatchData["innings"][number]): string {
   const wicketStr = innings.allOut ? "" : `/${innings.wickets}`;
   const declStr = innings.declared ? "d" : "";
@@ -90,13 +77,6 @@ function buildSvg(data: OgMatchData): string {
   const FONT = "Arial, Helvetica, sans-serif";
 
   const outcome = getOutcomeLabel(data.outcome);
-  const dateFormatted = formatMatchDate(data.matchDate);
-
-  // Layout: vertically centered content with tighter spacing
-  // Header block: competition + date (top)
-  // Middle block: teams + score + outcome (centered)
-  // Footer block: result desc + performers + branding (bottom)
-
   const hasScore = data.innings.length > 0;
   const hasOutcome = outcome.text !== "";
 
@@ -108,7 +88,7 @@ function buildSvg(data: OgMatchData): string {
     scoreText = formatInningsScore(data.innings[0]);
   }
 
-  // Key performers
+  // Key performers — single line
   const performers: string[] = [];
   if (data.topBatter) {
     const notOutStar = data.topBatter.notOut ? "*" : "";
@@ -122,48 +102,31 @@ function buildSvg(data: OgMatchData): string {
     );
   }
 
-  // Calculate vertical positions — center the content block
-  const headerY = 50;
-  const teamStartY = 150;
-  const vsY = teamStartY + 40;
-  const oppY = vsY + 40;
-  const outcomeY = oppY + 20;
-  const scoreY = hasOutcome ? outcomeY + 90 : oppY + 55;
-  const resultDescY = scoreY + (hasScore ? 40 : 0);
-  const performersY = resultDescY + (data.resultDescription ? 30 : 0);
-  const footerY = H - 55;
+  // Layout: 3 layers max, score is the focal point
+  // Layer 1: Teams (top) — 64px
+  // Layer 2: Score (centre, hero) — 84px
+  // Layer 3: Result + performers (bottom) — 36px
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <!-- Top accent bar -->
-  <rect x="0" y="0" width="${W}" height="6" fill="${GOLD}"/>
+  <rect x="0" y="0" width="${W}" height="8" fill="${GOLD}"/>
 
-  <!-- Competition + Date header -->
-  <text x="${W / 2}" y="${headerY}" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="bold" fill="${GOLD}" letter-spacing="2">
-    ${escapeXml(data.competitionName.toUpperCase())}
-  </text>
-  <text x="${W / 2}" y="${headerY + 25}" text-anchor="middle" font-family="${FONT}" font-size="16" fill="rgba(255,255,255,0.6)">
-    ${escapeXml(dateFormatted)}
-  </text>
-
-  <!-- Divider -->
-  <line x1="200" y1="${headerY + 45}" x2="${W - 200}" y2="${headerY + 45}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-
-  <!-- Team names -->
-  <text x="${W / 2}" y="${teamStartY}" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="bold" fill="${WHITE}">
+  <!-- Team names — Layer 1 -->
+  <text x="${W / 2}" y="100" text-anchor="middle" font-family="${FONT}" font-size="52" font-weight="bold" fill="${WHITE}">
     ${escapeXml(data.teamName)}
   </text>
-  <text x="${W / 2}" y="${vsY}" text-anchor="middle" font-family="${FONT}" font-size="18" fill="rgba(255,255,255,0.4)">
+  <text x="${W / 2}" y="148" text-anchor="middle" font-family="${FONT}" font-size="28" fill="rgba(255,255,255,0.5)">
     vs
   </text>
-  <text x="${W / 2}" y="${oppY}" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="bold" fill="${WHITE}">
+  <text x="${W / 2}" y="200" text-anchor="middle" font-family="${FONT}" font-size="52" font-weight="bold" fill="${WHITE}">
     ${escapeXml(data.oppositionName)}
   </text>
 
   ${
     hasOutcome
       ? `<!-- Outcome badge -->
-  <rect x="${W / 2 - 55}" y="${outcomeY}" width="110" height="30" rx="15" fill="${outcome.color}"/>
-  <text x="${W / 2}" y="${outcomeY + 21}" text-anchor="middle" font-family="${FONT}" font-size="15" font-weight="bold" fill="${WHITE}">
+  <rect x="${W / 2 - 70}" y="230" width="140" height="44" rx="22" fill="${outcome.color}"/>
+  <text x="${W / 2}" y="260" text-anchor="middle" font-family="${FONT}" font-size="28" font-weight="bold" fill="${WHITE}">
     ${outcome.text}
   </text>`
       : ""
@@ -171,18 +134,9 @@ function buildSvg(data: OgMatchData): string {
 
   ${
     hasScore
-      ? `<!-- Score -->
-  <text x="${W / 2}" y="${scoreY}" text-anchor="middle" font-family="${FONT}" font-size="64" font-weight="bold" fill="${WHITE}">
+      ? `<!-- Score — Layer 2 (focal point) -->
+  <text x="${W / 2}" y="${hasOutcome ? 370 : 320}" text-anchor="middle" font-family="${FONT}" font-size="96" font-weight="bold" fill="${WHITE}">
     ${escapeXml(scoreText)}
-  </text>`
-      : ""
-  }
-
-  ${
-    data.resultDescription
-      ? `<!-- Result description -->
-  <text x="${W / 2}" y="${resultDescY}" text-anchor="middle" font-family="${FONT}" font-size="20" fill="rgba(255,255,255,0.6)">
-    ${escapeXml(data.resultDescription)}
   </text>`
       : ""
   }
@@ -190,21 +144,16 @@ function buildSvg(data: OgMatchData): string {
   ${
     performers.length > 0
       ? `<!-- Key performers -->
-  <text x="${W / 2}" y="${performersY}" text-anchor="middle" font-family="${FONT}" font-size="20" fill="rgba(255,255,255,0.8)">
+  <text x="${W / 2}" y="${hasOutcome ? 475 : 450}" text-anchor="middle" font-family="${FONT}" font-size="36" fill="#F0D078">
     ${escapeXml(performers.join("   •   "))}
   </text>`
       : ""
   }
 
-  <!-- Bottom divider -->
-  <line x1="200" y1="${footerY - 25}" x2="${W - 200}" y2="${footerY - 25}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-
-  <!-- Footer -->
-  <text x="${W / 2}" y="${footerY}" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="bold" fill="${WHITE}">
+  <!-- Club branding — bottom bar -->
+  <rect x="0" y="${H - 50}" width="${W}" height="50" fill="rgba(0,0,0,0.3)"/>
+  <text x="${W / 2}" y="${H - 18}" text-anchor="middle" font-family="${FONT}" font-size="28" font-weight="bold" fill="${WHITE}">
     Percy Main Cricket &amp; Sports Club
-  </text>
-  <text x="${W / 2}" y="${footerY + 22}" text-anchor="middle" font-family="${FONT}" font-size="13" fill="rgba(255,255,255,0.4)">
-    percymain.org
   </text>
 </svg>`;
 }
