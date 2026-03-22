@@ -26,6 +26,7 @@ interface OgMatchData {
   }>;
   topBatter: { name: string; runs: number; notOut: boolean } | null;
   topBowler: { name: string; wickets: number; runs: number } | null;
+  sponsor: { name: string; logoUrl: string | null } | null;
 }
 
 // --- SVG Template ---
@@ -150,11 +151,20 @@ function buildSvg(data: OgMatchData): string {
       : ""
   }
 
-  <!-- Club branding — bottom bar -->
-  <rect x="0" y="${H - 50}" width="${W}" height="50" fill="rgba(0,0,0,0.3)"/>
-  <text x="${W / 2}" y="${H - 18}" text-anchor="middle" font-family="${FONT}" font-size="28" font-weight="bold" fill="${WHITE}">
-    Percy Main Cricket &amp; Sports Club
+  <!-- Footer bar -->
+  <rect x="0" y="${H - 80}" width="${W}" height="80" fill="rgba(0,0,0,0.35)"/>
+  ${
+    data.sponsor
+      ? `<text x="${W / 2}" y="${H - 45}" text-anchor="middle" font-family="${FONT}" font-size="24" fill="rgba(255,255,255,0.6)">
+    Sponsored by
   </text>
+  <text x="${W / 2}" y="${H - 15}" text-anchor="middle" font-family="${FONT}" font-size="32" font-weight="bold" fill="${WHITE}">
+    ${escapeXml(data.sponsor.name)}
+  </text>`
+      : `<text x="${W / 2}" y="${H - 28}" text-anchor="middle" font-family="${FONT}" font-size="32" font-weight="bold" fill="${WHITE}">
+    Percy Main Cricket &amp; Sports Club
+  </text>`
+  }
 </svg>`;
 }
 
@@ -183,6 +193,16 @@ function resolveOutcome(
   return null;
 }
 
+async function fetchImage(url: string): Promise<Buffer | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 // --- Service factory ---
 
 export function generateOgImage(
@@ -208,12 +228,21 @@ export function generateOgImage(
       ? `${detail.away_club_name} ${detail.away_team_name}`
       : `${detail.home_club_name} ${detail.home_team_name}`;
 
-    // Get result from DB
-    const dbResult = await db
-      .selectFrom("match_result")
-      .where("match_id", "=", matchId)
-      .selectAll()
-      .executeTakeFirst();
+    // Get result and sponsorship from DB in parallel
+    const [dbResult, sponsorship] = await Promise.all([
+      db
+        .selectFrom("match_result")
+        .where("match_id", "=", matchId)
+        .selectAll()
+        .executeTakeFirst(),
+      db
+        .selectFrom("game_sponsorship")
+        .where("game_id", "=", matchId)
+        .where("approved", "=", true)
+        .where("paid_at", "is not", null)
+        .select(["display_name", "sponsor_name", "sponsor_logo_url"])
+        .executeTakeFirst(),
+    ]);
 
     const outcome = dbResult
       ? resolveOutcome(
@@ -287,6 +316,12 @@ export function generateOgImage(
       innings,
       topBatter,
       topBowler,
+      sponsor: sponsorship
+        ? {
+            name: sponsorship.display_name ?? sponsorship.sponsor_name,
+            logoUrl: sponsorship.sponsor_logo_url,
+          }
+        : null,
     };
 
     // Generate SVG and convert to PNG
@@ -304,8 +339,27 @@ export function generateOgImage(
       .png()
       .toBuffer();
 
+    const layers: sharp.OverlayOptions[] = [
+      { input: svgBuffer, blend: "over" },
+    ];
+
+    // Composite sponsor logo into the footer if available
+    if (matchData.sponsor?.logoUrl) {
+      const logoBuffer = await fetchImage(matchData.sponsor.logoUrl);
+      if (logoBuffer) {
+        const resizedLogo = await sharp(logoBuffer)
+          .resize({ height: 50, fit: "inside" })
+          .toBuffer();
+        layers.push({
+          input: resizedLogo,
+          gravity: "southeast",
+          blend: "over",
+        });
+      }
+    }
+
     const pngBuffer = await sharp(heroBackground)
-      .composite([{ input: svgBuffer, blend: "over" }])
+      .composite(layers)
       .png()
       .toBuffer();
 

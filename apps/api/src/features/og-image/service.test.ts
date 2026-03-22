@@ -26,6 +26,7 @@ const baseMatchData: OgMatchData = {
   ],
   topBatter: { name: "J Smith", runs: 72, notOut: true },
   topBowler: { name: "A Jones", wickets: 4, runs: 32 },
+  sponsor: null,
 };
 
 describe("buildSvg", () => {
@@ -168,6 +169,26 @@ describe("buildSvg", () => {
 
     expect(svg).toContain("A Jones 4/32");
     expect(svg).not.toContain("•");
+  });
+
+  it("shows sponsor name in footer when sponsored", () => {
+    const data: OgMatchData = {
+      ...baseMatchData,
+      sponsor: { name: "Acme Corp", logoUrl: null },
+    };
+
+    const svg = buildSvg(data);
+
+    expect(svg).toContain("Sponsored by");
+    expect(svg).toContain("Acme Corp");
+    expect(svg).not.toContain("Percy Main Cricket");
+  });
+
+  it("shows club name in footer when not sponsored", () => {
+    const svg = buildSvg(baseMatchData);
+
+    expect(svg).toContain("Percy Main Cricket");
+    expect(svg).not.toContain("Sponsored by");
   });
 });
 
