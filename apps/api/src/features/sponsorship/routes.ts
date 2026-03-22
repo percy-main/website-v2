@@ -3,6 +3,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
 import { requireRole } from "../auth/middleware.ts";
 import { createStripe } from "../payments/stripe.ts";
+import { createApiClient } from "../play-cricket/api-client.ts";
 import {
   allApprovedSchema,
   byGameIdSchema,
@@ -38,6 +39,20 @@ import {
   updatePlayerSponsorship,
 } from "./service.ts";
 
+/** Parse dd/MM/yyyy + optional HH:mm into a Date, return null if invalid. */
+function parseMatchDateTime(
+  matchDate: string,
+  matchTime: string | null,
+): Date | null {
+  if (!matchDate || !/^\d{2}\/\d{2}\/\d{4}$/.test(matchDate)) return null;
+  const [dd, mm, yyyy] = matchDate.split("/");
+  const iso = matchTime
+    ? `${yyyy}-${mm}-${dd}T${matchTime}:00`
+    : `${yyyy}-${mm}-${dd}T00:00:00`;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
   const stripe = createStripe({
@@ -47,6 +62,16 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
     app.config.NODE_ENV === "production"
       ? stripeConfig.live.prices
       : stripeConfig.dev.prices;
+
+  // Play Cricket API client for game validation
+  const playCricketApi =
+    app.config.PLAY_CRICKET_API_TOKEN && app.config.PLAY_CRICKET_SITE_ID
+      ? createApiClient({
+          apiToken: app.config.PLAY_CRICKET_API_TOKEN,
+          siteId: app.config.PLAY_CRICKET_SITE_ID,
+        })
+      : null;
+
   const gameSponsor = getGameSponsorByGameId(app.db);
   const gamePending = hasGamePendingSponsor(app.db);
   const playerSponsor = getPlayerSponsorForPlayer(app.db);
@@ -102,6 +127,37 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/sponsorship/game/create-payment", async (request) => {
     const data = parseBody(request, gameSponsorshipPaymentSchema);
+
+    // Validate the game exists and is in the future
+    if (playCricketApi) {
+      const currentYear = new Date().getFullYear();
+      const seasons = [currentYear, currentYear + 1];
+      let found = false;
+
+      for (const season of seasons) {
+        const { matches } = await playCricketApi.getMatchesSummary(season);
+        const match = matches.find((m) => String(m.id) === data.gameId);
+        if (match) {
+          const when = parseMatchDateTime(
+            match.match_date,
+            match.match_time ?? null,
+          );
+          if (!when || when <= new Date()) {
+            throw Object.assign(
+              new Error("This game is not available for sponsorship"),
+              { statusCode: 400 },
+            );
+          }
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        throw Object.assign(new Error("Game not found"), { statusCode: 404 });
+      }
+    }
+
     return await createGamePayment(data);
   });
 

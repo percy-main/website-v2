@@ -324,11 +324,18 @@ export function updatePlayerSponsorship(db: Kysely<DB>) {
 
 export function hasGamePendingSponsor(db: Kysely<DB>) {
   return async (gameId: string) => {
+    const cutoff = new Date(Date.now() - PENDING_TTL_MS).toISOString();
+
     const pending = await db
       .selectFrom("game_sponsorship")
       .where("game_id", "=", gameId)
       .where((eb) =>
-        eb.or([eb("paid_at", "is", null), eb("approved", "=", false)]),
+        eb.or([
+          // Paid but awaiting admin approval
+          eb.and([eb("paid_at", "is not", null), eb("approved", "=", false)]),
+          // Unpaid but still within the 24h TTL window
+          eb.and([eb("paid_at", "is", null), eb("created_at", ">", cutoff)]),
+        ]),
       )
       .select("id")
       .executeTakeFirst();
@@ -352,11 +359,10 @@ export function createGameSponsorshipPayment(
       });
     }
 
-    // Check for existing paid + approved sponsorship for this game
+    // Check for existing paid sponsorship (approved or awaiting approval)
     const existingPaid = await db
       .selectFrom("game_sponsorship")
       .where("game_id", "=", data.gameId)
-      .where("approved", "=", true)
       .where("paid_at", "is not", null)
       .select("id")
       .executeTakeFirst();

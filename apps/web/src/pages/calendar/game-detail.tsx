@@ -176,7 +176,7 @@ function SponsorBadge({
   sponsor: NonNullable<GameData["sponsor"]>;
 }) {
   const content = (
-    <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
+    <div className="flex flex-col items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
       {sponsor.logoUrl && (
         <img
           src={sponsor.logoUrl}
@@ -184,14 +184,12 @@ function SponsorBadge({
           className="h-12 max-w-[120px] rounded object-contain"
         />
       )}
-      <div>
-        <p className="text-xs font-medium text-orange-700">
-          Sponsored by {sponsor.name}
-        </p>
-        {sponsor.message && (
-          <p className="text-xs text-orange-600">{sponsor.message}</p>
-        )}
-      </div>
+      <p className="text-sm font-medium text-orange-700">
+        Sponsored by {sponsor.name}
+      </p>
+      {sponsor.message && (
+        <p className="text-sm text-orange-600">{sponsor.message}</p>
+      )}
     </div>
   );
 
