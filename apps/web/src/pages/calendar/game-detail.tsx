@@ -9,6 +9,7 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api } from "@/lib/api.js";
 import { getGameReport } from "@/lib/game-reports.js";
 import { getLocationByName } from "@/lib/locations.js";
+import { cn } from "@/lib/utils.js";
 import { MDXProvider } from "@mdx-js/react";
 import { useQuery } from "@tanstack/react-query";
 import { AddToCalendarButton } from "add-to-calendar-button-react";
@@ -45,12 +46,15 @@ function SponsorThisGame({ gameId, when }: { gameId: string; when: string }) {
   if (!isFuture || pendingQuery.data?.hasPending) return null;
 
   return (
-    <Link
-      to={`/calendar/game/${gameId}/sponsor`}
-      className={buttonVariants({ variant: "default", size: "sm" })}
-    >
-      Sponsor This Game
-    </Link>
+    <div className="flex w-full flex-col items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+      <p className="text-sm text-orange-600">No match sponsor... yet</p>
+      <Link
+        to={`/calendar/game/${gameId}/sponsor`}
+        className={buttonVariants({ variant: "default", size: "sm" })}
+      >
+        Sponsor This Game
+      </Link>
+    </div>
   );
 }
 
@@ -115,7 +119,7 @@ function formatInningsScore(inn: {
 
 function When({ start, end }: { start: string; end?: string }) {
   return (
-    <div className="flex flex-row items-center justify-between gap-4 rounded-xl bg-white p-4">
+    <div className="flex w-full flex-row items-center justify-between gap-4 rounded-lg border border-orange-200 bg-orange-50 p-4 md:w-auto">
       <IoCalendar fontSize={32} />
       <div className="flex flex-col gap-4">
         <p>
@@ -176,7 +180,7 @@ function SponsorBadge({
   sponsor: NonNullable<GameData["sponsor"]>;
 }) {
   const content = (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+    <div className="flex w-full flex-col items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
       {sponsor.logoUrl && (
         <img
           src={sponsor.logoUrl}
@@ -184,9 +188,17 @@ function SponsorBadge({
           className="h-12 max-w-[120px] rounded object-contain"
         />
       )}
-      <p className="text-sm font-medium text-orange-700">
-        Sponsored by {sponsor.name}
-      </p>
+      <div className="text-center">
+        <p className="text-xs text-orange-600">Match sponsored by</p>
+        <p
+          className={cn(
+            "text-lg font-semibold text-orange-800",
+            sponsor.website && "underline decoration-dotted underline-offset-2",
+          )}
+        >
+          {sponsor.name}
+        </p>
+      </div>
       {sponsor.message && (
         <p className="text-sm text-orange-600">{sponsor.message}</p>
       )}
@@ -252,13 +264,25 @@ function GameDetailContent({ game }: { game: GameData }) {
       </div>
 
       <div className="flex flex-col items-start gap-6">
-        {/* Header row: sponsor + time + add-to-calendar */}
-        <div className="flex w-full flex-row flex-wrap items-center justify-between gap-2 md:gap-4">
-          {game.sponsor && <SponsorBadge sponsor={game.sponsor} />}
-          {!game.sponsor && game.when && (
-            <SponsorThisGame gameId={game.id} when={game.when} />
+        {/* Header row: sponsor left, time + calendar right */}
+        <div className="flex w-full flex-row flex-wrap items-stretch justify-between gap-2 md:gap-4">
+          {game.sponsor && (
+            <div className="flex-1">
+              <SponsorBadge sponsor={game.sponsor} />
+            </div>
           )}
-          <div className="flex flex-row flex-wrap items-center gap-2 md:gap-4">
+          {!game.sponsor && game.when && (
+            <div className="flex-1">
+              <SponsorThisGame gameId={game.id} when={game.when} />
+            </div>
+          )}
+          {game.when && <When start={game.when} end={finish} />}
+        </div>
+
+        {/* Match details */}
+        <div className="flex w-full flex-col gap-4">
+          <div className="flex w-full items-center justify-between">
+            <h4 className="text-lg font-semibold md:text-xl">Match Details</h4>
             {game.when && (
               <AddToCalendarButton
                 hideBranding
@@ -305,13 +329,7 @@ function GameDetailContent({ game }: { game: GameData }) {
                 hideRichData
               />
             )}
-            {game.when && <When start={game.when} end={finish} />}
           </div>
-        </div>
-
-        {/* Match details */}
-        <div className="flex flex-col gap-4">
-          <h4 className="text-lg font-semibold md:text-xl">Match Details</h4>
           <ul className="flex flex-col gap-2">
             <li>
               <strong>Team:</strong> {game.team.name}
