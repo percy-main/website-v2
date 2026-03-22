@@ -181,7 +181,7 @@ function SponsorBadge({
         <img
           src={sponsor.logoUrl}
           alt={sponsor.name}
-          className="h-6 w-6 rounded object-contain"
+          className="h-12 max-w-[120px] rounded object-contain"
         />
       )}
       <div>
