@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import type Stripe from "stripe";
 import type {
   GameSponsorshipManual,
+  GameSponsorshipPayment,
   PlayerSponsorshipManual,
   PlayerSponsorshipPayment,
   SponsorshipList,
@@ -321,7 +322,146 @@ export function updatePlayerSponsorship(db: Kysely<DB>) {
   };
 }
 
+export function hasGamePendingSponsor(db: Kysely<DB>) {
+  return async (gameId: string) => {
+    const cutoff = new Date(Date.now() - PENDING_TTL_MS).toISOString();
+
+    const pending = await db
+      .selectFrom("game_sponsorship")
+      .where("game_id", "=", gameId)
+      .where((eb) =>
+        eb.or([
+          // Paid but awaiting admin approval
+          eb.and([eb("paid_at", "is not", null), eb("approved", "=", false)]),
+          // Unpaid but still within the 24h TTL window
+          eb.and([eb("paid_at", "is", null), eb("created_at", ">", cutoff)]),
+        ]),
+      )
+      .select("id")
+      .executeTakeFirst();
+
+    return { hasPending: !!pending };
+  };
+}
+
 const PENDING_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+export function createGameSponsorshipPayment(
+  db: Kysely<DB>,
+  stripe: Stripe,
+  gameSponsorshipPriceId: string,
+) {
+  return async (data: GameSponsorshipPayment) => {
+    // Validate logo size
+    if (data.sponsorLogoDataUrl && data.sponsorLogoDataUrl.length > 150_000) {
+      throw Object.assign(new Error("Logo must be under 150KB"), {
+        statusCode: 400,
+      });
+    }
+
+    // Check for existing paid sponsorship (approved or awaiting approval)
+    const existingPaid = await db
+      .selectFrom("game_sponsorship")
+      .where("game_id", "=", data.gameId)
+      .where("paid_at", "is not", null)
+      .select("id")
+      .executeTakeFirst();
+
+    if (existingPaid) {
+      throw Object.assign(new Error("This game already has a sponsor"), {
+        statusCode: 400,
+      });
+    }
+
+    // Check for recent pending payment
+    const cutoff = new Date(Date.now() - PENDING_TTL_MS).toISOString();
+    const pendingRecent = await db
+      .selectFrom("game_sponsorship")
+      .where("game_id", "=", data.gameId)
+      .where("paid_at", "is", null)
+      .where("created_at", ">", cutoff)
+      .select("id")
+      .executeTakeFirst();
+
+    if (pendingRecent) {
+      throw Object.assign(
+        new Error("A sponsorship payment is already in progress"),
+        { statusCode: 400 },
+      );
+    }
+
+    // Clean up stale unpaid attempts
+    const stale = await db
+      .selectFrom("game_sponsorship")
+      .where("game_id", "=", data.gameId)
+      .where("paid_at", "is", null)
+      .where("created_at", "<=", cutoff)
+      .select(["id", "stripe_payment_intent_id"])
+      .execute();
+
+    for (const row of stale) {
+      if (row.stripe_payment_intent_id) {
+        try {
+          await stripe.paymentIntents.cancel(row.stripe_payment_intent_id);
+        } catch {
+          // Ignore cancellation errors for already-cancelled intents
+        }
+      }
+      await db
+        .deleteFrom("game_sponsorship")
+        .where("id", "=", row.id)
+        .execute();
+    }
+
+    // Fetch price from Stripe
+    const price = await getGameSponsorshipPrice(stripe, gameSponsorshipPriceId);
+    const sponsorshipId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    // Insert sponsorship record (unpaid)
+    await db
+      .insertInto("game_sponsorship")
+      .values({
+        id: sponsorshipId,
+        game_id: data.gameId,
+        sponsor_name: data.sponsorName,
+        sponsor_email: data.sponsorEmail,
+        sponsor_website: data.sponsorWebsite ?? null,
+        sponsor_logo_url: data.sponsorLogoDataUrl ?? null,
+        sponsor_message: data.sponsorMessage ?? null,
+        amount_pence: price.amountPence,
+        approved: false,
+        paid_at: null,
+        created_at: now,
+      })
+      .execute();
+
+    // Create Stripe payment intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: price.amountPence,
+      currency: price.currency,
+      metadata: {
+        type: "sponsorGame",
+        gameId: data.gameId,
+        sponsorshipId,
+        email: data.sponsorEmail,
+      },
+    });
+
+    // Update with Stripe PI ID
+    await db
+      .updateTable("game_sponsorship")
+      .set({ stripe_payment_intent_id: paymentIntent.id })
+      .where("id", "=", sponsorshipId)
+      .execute();
+
+    return {
+      clientSecret: paymentIntent.client_secret,
+      amount: price.amountPence,
+      productName: price.productName,
+    };
+  };
+}
 
 export function createPlayerSponsorshipPayment(
   db: Kysely<DB>,
