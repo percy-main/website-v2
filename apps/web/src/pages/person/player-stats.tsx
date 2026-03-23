@@ -260,7 +260,7 @@ export function PlayerStats({ slug }: { slug: string }) {
         <p className="mt-4 text-xs text-gray-400">
           View the full{" "}
           <Link
-            to={`/leaderboard/${battingSeasons[0].season}`}
+            to={`/cricket/records/leaderboards?season=${battingSeasons[0].season}`}
             className="text-green-800 underline decoration-green-800/30 underline-offset-2 hover:decoration-green-800"
           >
             {battingSeasons[0].season} season leaderboard

@@ -1,3 +1,4 @@
+import { LeaderboardContent } from "@/components/leaderboard-content.js";
 import { OptimisedImage } from "@/components/optimised-image.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { Button } from "@/components/ui/button.js";
@@ -15,6 +16,10 @@ import { Link, useLocation } from "react-router";
 
 const ANON_IMAGE = getImageUrl("/images/anon.jpg");
 const ANON_PICTURE = getPicture("/images/anon.jpg");
+
+function Leaderboard() {
+  return <LeaderboardContent />;
+}
 
 function Person({ slug, role }: { slug: string; role?: string }) {
   const person = getPersonBySlug(slug);
@@ -443,6 +448,7 @@ export const mdxComponents = {
   Person,
   PersonGrid,
   LeagueTable,
+  Leaderboard,
   EventPreview,
   GamePreview,
   ContactForm,

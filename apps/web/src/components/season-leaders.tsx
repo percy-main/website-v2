@@ -231,7 +231,7 @@ export function SeasonLeaders() {
 
       <div className="mt-4 text-center">
         <Link
-          to={`/leaderboard/${effectiveSeason}`}
+          to={`/cricket/records/leaderboards?season=${effectiveSeason}`}
           className="text-primary hover:text-primary-light text-sm font-medium transition"
         >
           View full {effectiveSeason} leaderboard &rarr;
