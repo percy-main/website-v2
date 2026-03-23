@@ -226,7 +226,7 @@ describe("matchday service", () => {
       // Insert
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await recordExpense(db)("user-1", "admin", {
+      const result = await recordExpense(db, null)("user-1", "admin", {
         matchId: "m-1",
         type: "umpire_fee",
         amountPence: 5000,

@@ -220,7 +220,7 @@ export function getMatchdayExpensesSummary(db: Kysely<DB>) {
   return async (dateFrom?: string, dateTo?: string) => {
     let query = db
       .selectFrom("matchday_expense")
-      .where("status", "not in", ["draft", "reimbursed"]);
+      .where("status", "!=", "draft");
 
     if (dateFrom) {
       query = query.where("created_at", ">=", dateFrom);

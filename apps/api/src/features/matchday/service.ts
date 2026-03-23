@@ -55,6 +55,38 @@ function throwHttpError(statusCode: number, message: string): never {
 }
 
 /**
+ * Parse a base64 data URL, upload to S3, and return the URL.
+ * Returns null if no image provided. Throws if S3 is not configured
+ * but a receipt image is provided.
+ */
+async function uploadReceiptImage(
+  receiptImage: string | undefined,
+  expenseId: string,
+  s3: S3Uploader | null,
+): Promise<string | null> {
+  if (!receiptImage) return null;
+
+  if (!s3) {
+    throwHttpError(
+      500,
+      "Receipt uploads require S3 to be configured (S3_BUCKET)",
+    );
+  }
+
+  const match = /^data:(image\/(?:jpeg|png|webp|heic));base64,(.+)$/.exec(
+    receiptImage,
+  );
+  if (!match) throwHttpError(400, "Invalid receipt image format");
+
+  const imageBytes = Buffer.from(match[2], "base64");
+  return s3.uploadReceipt({
+    imageBytes,
+    contentType: match[1],
+    expenseId,
+  });
+}
+
+/**
  * Find the best matching fee rate. Priority:
  * 1. team + competition + category
  * 2. team + any competition + category
@@ -205,7 +237,7 @@ export function getMatch(db: Kysely<DB>) {
   };
 }
 
-export function recordExpense(db: Kysely<DB>) {
+export function recordExpense(db: Kysely<DB>, s3: S3Uploader | null) {
   return async (
     userId: string,
     role: string,
@@ -233,26 +265,10 @@ export function recordExpense(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this matchday");
     }
 
-    let receiptImageUrl: string | null = null;
-    if (data.receiptImage) {
-      const match = /^data:(image\/(?:jpeg|png|webp|heic));base64,(.+)$/.exec(
-        data.receiptImage,
-      );
-      if (!match) throwHttpError(400, "Invalid receipt image format");
-
-      const imageBytes = Buffer.from(match[2], "base64");
-      if (imageBytes.byteLength > 500_000) {
-        throwHttpError(
-          400,
-          "Receipt image is too large. Maximum size is 500KB",
-        );
-      }
-
-      receiptImageUrl = data.receiptImage;
-    }
-
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+
+    const receiptImageUrl = await uploadReceiptImage(data.receiptImage, id, s3);
 
     await db
       .insertInto("matchday_expense")
@@ -1011,32 +1027,7 @@ export function submitExpenseClaim(db: Kysely<DB>, s3: S3Uploader | null) {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    let receiptImageUrl: string | null = null;
-    if (data.receiptImage) {
-      const match = /^data:(image\/(?:jpeg|png|webp|heic));base64,(.+)$/.exec(
-        data.receiptImage,
-      );
-      if (!match) throwHttpError(400, "Invalid receipt image format");
-
-      const imageBytes = Buffer.from(match[2], "base64");
-      const contentType = match[1];
-
-      if (s3) {
-        receiptImageUrl = await s3.uploadReceipt({
-          imageBytes,
-          contentType,
-          expenseId: id,
-        });
-      } else {
-        if (imageBytes.byteLength > 500_000) {
-          throwHttpError(
-            400,
-            "Receipt image is too large. Maximum size is 500KB",
-          );
-        }
-        receiptImageUrl = data.receiptImage;
-      }
-    }
+    const receiptImageUrl = await uploadReceiptImage(data.receiptImage, id, s3);
 
     await db
       .insertInto("matchday_expense")

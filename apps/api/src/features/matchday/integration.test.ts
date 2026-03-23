@@ -466,8 +466,8 @@ describe("matchday service (integration)", () => {
         status: "confirmed",
       });
 
-      // Record expense
-      const { expenseId } = await recordExpense(ctx.db)(userId, "admin", {
+      // Record expense (no S3 in integration tests)
+      const { expenseId } = await recordExpense(ctx.db, null)(userId, "admin", {
         matchId,
         type: "umpire_fee",
         description: "Umpire payment",
@@ -618,12 +618,16 @@ describe("matchday service (integration)", () => {
         status: "confirmed",
       });
 
-      // Create a draft expense via old recordExpense
-      const { expenseId } = await recordExpense(ctx.db)(adminId, "admin", {
-        matchId,
-        type: "match_ball",
-        amountPence: 2000,
-      });
+      // Create a draft expense via recordExpense (no receipt, no S3 needed)
+      const { expenseId } = await recordExpense(ctx.db, null)(
+        adminId,
+        "admin",
+        {
+          matchId,
+          type: "match_ball",
+          amountPence: 2000,
+        },
+      );
 
       await expect(approveExpense(ctx.db)(adminId, expenseId)).rejects.toThrow(
         "Only submitted expenses can be approved",

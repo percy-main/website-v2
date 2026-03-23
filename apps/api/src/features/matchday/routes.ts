@@ -50,7 +50,7 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
 
   const list = listMatches(app.db);
   const get = getMatch(app.db);
-  const record = recordExpense(app.db);
+  const record = recordExpense(app.db, app.s3);
   const update = updateExpense(app.db);
   const remove = deleteExpense(app.db);
 
