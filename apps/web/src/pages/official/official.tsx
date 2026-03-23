@@ -161,10 +161,7 @@ function TeamsDashboard() {
     return <p className="text-red-600">Failed to load teams.</p>;
   }
 
-  const SENIOR_TEAM_PATTERN = /1st|2nd|midweek/i;
-  const teams = (teamsQuery.data ?? []).filter((t) =>
-    SENIOR_TEAM_PATTERN.test(t.name),
-  );
+  const teams = (teamsQuery.data ?? []).filter((t) => !t.is_junior);
 
   if (teams.length === 0) {
     return (
