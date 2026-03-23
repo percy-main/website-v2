@@ -281,6 +281,8 @@ export interface Matchday {
 
 export interface MatchdayExpense {
   amount_pence: number;
+  approved_at: string | null;
+  approved_by: string | null;
   created_at: Generated<string>;
   created_by: string;
   description: string | null;
@@ -288,6 +290,11 @@ export interface MatchdayExpense {
   id: string;
   matchday_id: string;
   receipt_image_url: string | null;
+  reimbursed_at: string | null;
+  reimbursed_by: string | null;
+  rejected_reason: string | null;
+  status: Generated<string>;
+  submitted_at: string | null;
 }
 
 export interface MatchdayPlayer {
