@@ -237,7 +237,7 @@ export function recordExpense(db: Kysely<DB>) {
     // For now, store the data URL directly in the DB column.
     let receiptImageUrl: string | null = null;
     if (data.receiptImage) {
-      const match = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(
+      const match = /^data:(image\/(?:jpeg|png|webp|heic));base64,(.+)$/.exec(
         data.receiptImage,
       );
       if (!match) throwHttpError(400, "Invalid receipt image format");
@@ -250,9 +250,6 @@ export function recordExpense(db: Kysely<DB>) {
         );
       }
 
-      // TODO: Replace with S3 upload once infra is live:
-      //   const s3Url = await uploadReceiptToS3(imageBytes, match[1]);
-      //   receiptImageUrl = s3Url;
       receiptImageUrl = data.receiptImage;
     }
 
@@ -1107,8 +1104,6 @@ export function rejectExpense(db: Kysely<DB>) {
       .updateTable("matchday_expense")
       .set({
         status: "rejected",
-        approved_by: adminUserId,
-        approved_at: new Date().toISOString(),
         rejected_reason: data.reason,
       })
       .where("id", "=", expenseId)

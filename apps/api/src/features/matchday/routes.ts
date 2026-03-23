@@ -115,6 +115,16 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
   const reimburse = markExpenseReimbursed(app.db);
   const pending = listPendingExpenses(app.db);
 
+  // Static route must be registered before parameterised :expenseId routes
+  app.get(
+    "/matchday/expenses/pending",
+    { preHandler: [adminRole] },
+    async (request) => {
+      const params = parseQuery(request, listPendingExpensesSchema);
+      return await pending(params);
+    },
+  );
+
   app.post(
     "/matchday/:matchId/expenses/submit",
     { preHandler: [officialRole] },
@@ -155,15 +165,6 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
       const { user } = getAuthSession(request);
       const { expenseId } = parseParams(request, expenseIdParamSchema);
       return await reimburse(user.id, expenseId);
-    },
-  );
-
-  app.get(
-    "/matchday/expenses/pending",
-    { preHandler: [adminRole] },
-    async (request) => {
-      const params = parseQuery(request, listPendingExpensesSchema);
-      return await pending(params);
     },
   );
 
