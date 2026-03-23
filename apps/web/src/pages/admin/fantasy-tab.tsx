@@ -45,7 +45,7 @@ const DEFAULT_CONFIGS: Record<string, string> = {
 };
 
 interface Player {
-  name: string;
+  player_name: string;
   play_cricket_id: string;
   sandwich_cost: number;
   eligible: boolean;
@@ -231,7 +231,9 @@ function PlayerManagementSection() {
               <TableBody>
                 {players.map((player) => (
                   <TableRow key={player.play_cricket_id}>
-                    <TableCell className="font-medium">{player.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {player.player_name}
+                    </TableCell>
                     <TableCell className="text-gray-500">
                       {player.play_cricket_id}
                     </TableCell>
