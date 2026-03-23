@@ -33,6 +33,18 @@ const EXPENSE_TYPE_LABELS: Record<string, string> = {
   miscellaneous: "Miscellaneous",
 };
 
+const RESULT_TYPE_LABELS: Record<string, string> = {
+  W: "Won",
+  L: "Lost",
+  D: "Draw",
+  T: "Tied",
+  A: "Abandoned",
+  C: "Cancelled",
+  N: "No Result",
+};
+
+const RESULT_TYPE_OPTIONS = ["W", "L", "D", "T", "A", "C", "N"] as const;
+
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
   currency: "GBP",
@@ -91,6 +103,9 @@ interface MatchdayData {
     confirmed_by: string | null;
     finished_at: string | null;
     finished_by: string | null;
+    result_type: string | null;
+    result_confirmed_at: string | null;
+    result_source: string | null;
   };
   team: { id: string; name: string } | null;
   players: MatchdayPlayer[];
@@ -361,6 +376,7 @@ function MatchdayView({
     Record<string, "playing" | "dropped_out" | "no_show">
   >({});
   const [payingPlayerId, setPayingPlayerId] = useState<string | null>(null);
+  const [selectedResultType, setSelectedResultType] = useState<string>("");
 
   const matchdayQuery = useQuery({
     queryKey: ["official", "matchday", matchdayId],
@@ -431,7 +447,8 @@ function MatchdayView({
   });
 
   const finishMatchMutation = useMutation({
-    mutationFn: () => api.post(`/matchday/${matchdayId}/finish`),
+    mutationFn: (resultType: string) =>
+      api.post(`/matchday/${matchdayId}/finish`, { resultType }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["official", "matchday", matchdayId],
@@ -853,22 +870,39 @@ function MatchdayView({
             />
           )}
 
-          {/* Finish Match button for confirmed matchdays */}
+          {/* Finish Match with result confirmation */}
           {data.matchday.status === "confirmed" && (
             <Card>
               <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Finish Match</p>
-                    <p className="text-sm text-gray-500">
-                      Unpaid match fees will remain as charges and notification
-                      emails will be sent.
-                    </p>
-                  </div>
+                <p className="font-medium">Finish Match</p>
+                <p className="mb-3 text-sm text-gray-500">
+                  Select the match result and finish. Unpaid match fees will
+                  remain as charges and notification emails will be sent.
+                </p>
+                <div className="flex items-center gap-3">
+                  <Select
+                    value={selectedResultType}
+                    onValueChange={setSelectedResultType}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Select result" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RESULT_TYPE_OPTIONS.map((code) => (
+                        <SelectItem key={code} value={code}>
+                          {RESULT_TYPE_LABELS[code]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button
                     variant="destructive"
-                    disabled={finishMatchMutation.isPending}
-                    onClick={() => finishMatchMutation.mutate()}
+                    disabled={
+                      !selectedResultType || finishMatchMutation.isPending
+                    }
+                    onClick={() =>
+                      finishMatchMutation.mutate(selectedResultType)
+                    }
                   >
                     {finishMatchMutation.isPending
                       ? "Finishing..."
@@ -889,15 +923,21 @@ function MatchdayView({
             </Card>
           )}
 
-          {/* Finished status message */}
+          {/* Finished status message with result */}
           {data.matchday.status === "finished" && (
             <Card>
               <CardContent className="p-4">
-                <p className="text-sm text-gray-500">
-                  This match has been finished.
-                  {data.matchday.finished_at &&
-                    ` Completed on ${format(new Date(data.matchday.finished_at), "dd/MM/yyyy HH:mm")}.`}
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">
+                      This match has been finished.
+                      {data.matchday.result_type &&
+                        ` Result: ${RESULT_TYPE_LABELS[data.matchday.result_type] ?? data.matchday.result_type}.`}
+                      {data.matchday.finished_at &&
+                        ` Completed on ${format(new Date(data.matchday.finished_at), "dd/MM/yyyy HH:mm")}.`}
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
