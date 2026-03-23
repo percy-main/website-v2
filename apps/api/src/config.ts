@@ -38,6 +38,11 @@ const configSchema = z.object({
     .string()
     .default("Percy Main CSC Support <support@notifications.percymain.org>"),
 
+  // S3 (receipt uploads)
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().default("eu-west-2"),
+  S3_RECEIPT_PREFIX: z.string().default("receipts"),
+
   // External services
   SLACK_WEBHOOK_URL: z.string().url().optional(),
   PLAY_CRICKET_API_TOKEN: z.string().optional(),

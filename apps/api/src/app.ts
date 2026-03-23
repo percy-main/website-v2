@@ -6,6 +6,7 @@ import Fastify from "fastify";
 import type { Kysely, PostgresDialect } from "kysely";
 import type { Config } from "./config.ts";
 import { createAuth, type Auth } from "./features/auth/auth.ts";
+import { createS3Uploader, type S3Uploader } from "./lib/s3-upload.ts";
 
 // Feature routes
 import { adminRoutes } from "./features/admin/routes.ts";
@@ -35,6 +36,7 @@ declare module "fastify" {
     config: Config;
     auth: Auth;
     send: (email: Email) => Promise<void>;
+    s3: S3Uploader | null;
   }
 }
 
@@ -74,6 +76,10 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   // Create and decorate the auth instance
   const auth = createAuth(config, dialect, send);
   app.decorate("auth", auth);
+
+  // Create and decorate the S3 uploader (null if S3 not configured)
+  const s3 = createS3Uploader(config);
+  app.decorate("s3", s3);
 
   // Plugins
   await app.register(cors, {
