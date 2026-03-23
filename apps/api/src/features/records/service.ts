@@ -7,8 +7,6 @@ interface RecordEntry {
   slug: string | null;
   value: string;
   season: number;
-  matchDate: string;
-  opposition: string | null;
 }
 
 interface HonourEntry {
@@ -17,7 +15,6 @@ interface HonourEntry {
   value: string;
   season: number;
   matchDate: string;
-  opposition: string | null;
 }
 
 /**
@@ -46,17 +43,15 @@ export function getRecords(db: Kysely<DB>) {
     ]);
 
     return {
-      batting: {
-        highestScore,
-        mostRunsSeason,
-        mostCareerRuns,
-        mostCareerMatches,
-      },
-      bowling: {
-        bestBowling,
-        mostWicketsSeason,
-        mostCareerWickets,
-      },
+      records: [
+        { title: "Highest Individual Score", ...highestScore },
+        { title: "Most Runs in a Season", ...mostRunsSeason },
+        { title: "Most Career Runs", ...mostCareerRuns },
+        { title: "Most Matches", ...mostCareerMatches },
+        { title: "Best Bowling Figures", ...bestBowling },
+        { title: "Most Wickets in a Season", ...mostWicketsSeason },
+        { title: "Most Career Wickets", ...mostCareerWickets },
+      ].filter((r) => r.playerName !== undefined),
     };
   };
 }
@@ -87,7 +82,6 @@ async function getHighestScore(
     .selectFrom("match_performance_batting as b")
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
-    .leftJoin("match_result as mr", "mr.match_id", "b.match_id")
     .where("t.is_junior", "=", isJunior)
     .select([
       "b.player_name as playerName",
@@ -95,13 +89,7 @@ async function getHighestScore(
       "b.runs",
       "b.not_out as notOut",
       "b.season",
-      "b.match_date as matchDate",
     ])
-    .select(
-      sql<string>`CASE WHEN mr.home_team_id = b.team_id THEN mr.away_team_name ELSE mr.home_team_name END`.as(
-        "opposition",
-      ),
-    )
     .orderBy("b.runs", "desc")
     .orderBy(sql`CASE WHEN b.not_out THEN 0 ELSE 1 END`, "asc")
     .limit(1)
@@ -114,8 +102,6 @@ async function getHighestScore(
     slug: row.slug,
     value: `${row.runs}${row.notOut ? "*" : ""}`,
     season: row.season,
-    matchDate: row.matchDate,
-    opposition: row.opposition,
   };
 }
 
@@ -127,7 +113,6 @@ async function getBestBowling(
     .selectFrom("match_performance_bowling as b")
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
-    .leftJoin("match_result as mr", "mr.match_id", "b.match_id")
     .where("t.is_junior", "=", isJunior)
     .select([
       "b.player_name as playerName",
@@ -135,13 +120,7 @@ async function getBestBowling(
       "b.wickets",
       "b.runs",
       "b.season",
-      "b.match_date as matchDate",
     ])
-    .select(
-      sql<string>`CASE WHEN mr.home_team_id = b.team_id THEN mr.away_team_name ELSE mr.home_team_name END`.as(
-        "opposition",
-      ),
-    )
     .orderBy("b.wickets", "desc")
     .orderBy("b.runs", "asc")
     .limit(1)
@@ -154,8 +133,6 @@ async function getBestBowling(
     slug: row.slug,
     value: `${row.wickets}/${row.runs}`,
     season: row.season,
-    matchDate: row.matchDate,
-    opposition: row.opposition,
   };
 }
 
@@ -186,8 +163,6 @@ async function getMostRunsSeason(
     slug: row.slug,
     value: String(Number(row.totalRuns)),
     season: row.season,
-    matchDate: "",
-    opposition: null,
   };
 }
 
@@ -218,8 +193,6 @@ async function getMostWicketsSeason(
     slug: row.slug,
     value: String(Number(row.totalWickets)),
     season: row.season,
-    matchDate: "",
-    opposition: null,
   };
 }
 
@@ -249,8 +222,6 @@ async function getMostCareerRuns(
     slug: row.slug,
     value: String(Number(row.totalRuns)),
     season: 0,
-    matchDate: "",
-    opposition: null,
   };
 }
 
@@ -280,8 +251,6 @@ async function getMostCareerWickets(
     slug: row.slug,
     value: String(Number(row.totalWickets)),
     season: 0,
-    matchDate: "",
-    opposition: null,
   };
 }
 
@@ -311,8 +280,6 @@ async function getMostCareerMatches(
     slug: row.slug,
     value: String(Number(row.totalMatches)),
     season: 0,
-    matchDate: "",
-    opposition: null,
   };
 }
 
@@ -326,7 +293,6 @@ async function getCenturies(
     .selectFrom("match_performance_batting as b")
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
-    .leftJoin("match_result as mr", "mr.match_id", "b.match_id")
     .where("t.is_junior", "=", isJunior)
     .where("b.runs", ">=", 100)
     .select([
@@ -337,11 +303,6 @@ async function getCenturies(
       "b.season",
       "b.match_date as matchDate",
     ])
-    .select(
-      sql<string>`CASE WHEN mr.home_team_id = b.team_id THEN mr.away_team_name ELSE mr.home_team_name END`.as(
-        "opposition",
-      ),
-    )
     .orderBy("b.runs", "desc")
     .orderBy("b.match_date", "desc")
     .execute();
@@ -352,7 +313,6 @@ async function getCenturies(
     value: `${row.runs}${row.notOut ? "*" : ""}`,
     season: row.season,
     matchDate: row.matchDate,
-    opposition: row.opposition,
   }));
 }
 
@@ -364,7 +324,6 @@ async function getFiveWicketHauls(
     .selectFrom("match_performance_bowling as b")
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
-    .leftJoin("match_result as mr", "mr.match_id", "b.match_id")
     .where("t.is_junior", "=", isJunior)
     .where("b.wickets", ">=", 5)
     .select([
@@ -375,11 +334,6 @@ async function getFiveWicketHauls(
       "b.season",
       "b.match_date as matchDate",
     ])
-    .select(
-      sql<string>`CASE WHEN mr.home_team_id = b.team_id THEN mr.away_team_name ELSE mr.home_team_name END`.as(
-        "opposition",
-      ),
-    )
     .orderBy("b.wickets", "desc")
     .orderBy("b.runs", "asc")
     .orderBy("b.match_date", "desc")
@@ -391,6 +345,5 @@ async function getFiveWicketHauls(
     value: `${row.wickets}/${row.runs}`,
     season: row.season,
     matchDate: row.matchDate,
-    opposition: row.opposition,
   }));
 }

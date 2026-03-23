@@ -23,27 +23,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 
-interface RecordEntry {
+interface RecordItem {
+  title: string;
   playerName: string;
   slug: string | null;
   value: string;
   season: number;
-  matchDate: string;
-  opposition: string | null;
 }
 
 interface RecordsResponse {
-  batting: {
-    highestScore: RecordEntry | null;
-    mostRunsSeason: RecordEntry | null;
-    mostCareerRuns: RecordEntry | null;
-    mostCareerMatches: RecordEntry | null;
-  };
-  bowling: {
-    bestBowling: RecordEntry | null;
-    mostWicketsSeason: RecordEntry | null;
-    mostCareerWickets: RecordEntry | null;
-  };
+  records: RecordItem[];
 }
 
 interface HonourEntry {
@@ -52,7 +41,6 @@ interface HonourEntry {
   value: string;
   season: number;
   matchDate: string;
-  opposition: string | null;
 }
 
 interface HonoursResponse {
@@ -90,46 +78,21 @@ function PlayerLink({ name, slug }: { name: string; slug: string | null }) {
   return <span className="font-medium">{name}</span>;
 }
 
-function formatDetail(record: RecordEntry): string {
-  const parts: string[] = [];
-  if (record.opposition) {
-    parts.push(`vs ${record.opposition}`);
-  }
-  if (record.season > 0) {
-    parts.push(String(record.season));
-  }
-  return parts.join(", ");
-}
-
-function RecordCard({
-  title,
-  record,
-}: {
-  title: string;
-  record: RecordEntry | null;
-}) {
+function RecordCard({ record }: { record: RecordItem }) {
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-gray-500">
-          {title}
+          {record.title}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {record ? (
-          <div>
-            <div className="text-3xl font-bold text-green-800">
-              {record.value}
-            </div>
-            <div className="mt-1">
-              <PlayerLink name={record.playerName} slug={record.slug} />
-            </div>
-            <div className="mt-0.5 text-sm text-gray-500">
-              {formatDetail(record)}
-            </div>
-          </div>
-        ) : (
-          <div className="text-sm text-gray-400">No data yet</div>
+        <div className="text-3xl font-bold text-green-800">{record.value}</div>
+        <div className="mt-1">
+          <PlayerLink name={record.playerName} slug={record.slug} />
+        </div>
+        {record.season > 0 && (
+          <div className="mt-0.5 text-sm text-gray-500">{record.season}</div>
         )}
       </CardContent>
     </Card>
@@ -138,7 +101,7 @@ function RecordCard({
 
 function RecordsSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: 7 }).map((_, i) => (
         <Card key={i}>
           <CardHeader className="pb-2">
@@ -179,7 +142,6 @@ function HonoursTable({
           <TableHead className="text-right">
             {type === "batting" ? "Score" : "Figures"}
           </TableHead>
-          <TableHead className="hidden sm:table-cell">Opposition</TableHead>
           <TableHead className="text-right">Season</TableHead>
         </TableRow>
       </TableHeader>
@@ -191,9 +153,6 @@ function HonoursTable({
             </TableCell>
             <TableCell className="text-right font-bold">
               {entry.value}
-            </TableCell>
-            <TableCell className="hidden text-gray-600 sm:table-cell">
-              {entry.opposition ? `vs ${entry.opposition}` : "-"}
             </TableCell>
             <TableCell className="text-right">{entry.season}</TableCell>
           </TableRow>
@@ -225,46 +184,11 @@ export function RecordsWall() {
         {recordsQuery.isPending ? (
           <RecordsSkeleton />
         ) : records ? (
-          <>
-            <h3 className="mb-3 text-lg font-semibold text-gray-700">
-              Batting
-            </h3>
-            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <RecordCard
-                title="Highest Individual Score"
-                record={records.batting.highestScore}
-              />
-              <RecordCard
-                title="Most Runs in a Season"
-                record={records.batting.mostRunsSeason}
-              />
-              <RecordCard
-                title="Most Career Runs"
-                record={records.batting.mostCareerRuns}
-              />
-              <RecordCard
-                title="Most Matches"
-                record={records.batting.mostCareerMatches}
-              />
-            </div>
-            <h3 className="mb-3 text-lg font-semibold text-gray-700">
-              Bowling
-            </h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <RecordCard
-                title="Best Bowling Figures"
-                record={records.bowling.bestBowling}
-              />
-              <RecordCard
-                title="Most Wickets in a Season"
-                record={records.bowling.mostWicketsSeason}
-              />
-              <RecordCard
-                title="Most Career Wickets"
-                record={records.bowling.mostCareerWickets}
-              />
-            </div>
-          </>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {records.records.map((record) => (
+              <RecordCard key={record.title} record={record} />
+            ))}
+          </div>
         ) : null}
       </section>
 

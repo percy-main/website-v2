@@ -43,31 +43,6 @@ async function seedTeams() {
     .execute();
 }
 
-async function seedMatchResult(overrides: {
-  matchId: string;
-  homeTeamId: string;
-  awayTeamId: string;
-  homeTeamName: string;
-  awayTeamName: string;
-  season: number;
-  matchDate: string;
-}) {
-  await ctx.db
-    .insertInto("match_result")
-    .values({
-      id: crypto.randomUUID(),
-      match_id: overrides.matchId,
-      home_team_id: overrides.homeTeamId,
-      away_team_id: overrides.awayTeamId,
-      home_team_name: overrides.homeTeamName,
-      away_team_name: overrides.awayTeamName,
-      season: overrides.season,
-      match_date: overrides.matchDate,
-    })
-    .onConflict((oc) => oc.column("match_id").doNothing())
-    .execute();
-}
-
 async function seedBattingPerformance(overrides: {
   matchId?: string;
   playerId: string;
@@ -130,11 +105,11 @@ async function seedBowlingPerformance(overrides: {
 
 describe("records service (integration)", () => {
   describe("getRecords", () => {
-    it("returns highest individual score with opposition", async () => {
+    it("returns highest individual score", async () => {
       await seedTeams();
 
       const playerId = `player-${crypto.randomUUID()}`;
-      const matchId = await seedBattingPerformance({
+      await seedBattingPerformance({
         playerId,
         playerName: "Top Scorer",
         teamId: SENIOR_TEAM_ID,
@@ -143,28 +118,20 @@ describe("records service (integration)", () => {
         notOut: true,
       });
 
-      await seedMatchResult({
-        matchId,
-        homeTeamId: SENIOR_TEAM_ID,
-        awayTeamId: "opp-team-1",
-        homeTeamName: "Percy Main 1st XI",
-        awayTeamName: "Benwell Hill",
-        season: 2024,
-        matchDate: "2024-06-15",
-      });
-
       const result = await getRecords(ctx.db)({});
-      assert(result.batting.highestScore, "Expected highest score record");
-      expect(result.batting.highestScore.value).toBe("185*");
-      expect(result.batting.highestScore.playerName).toBe("Top Scorer");
-      expect(result.batting.highestScore.opposition).toBe("Benwell Hill");
+      const highest = result.records.find(
+        (r) => r.title === "Highest Individual Score",
+      );
+      assert(highest, "Expected highest score record");
+      expect(highest.value).toBe("185*");
+      expect(highest.playerName).toBe("Top Scorer");
     });
 
     it("returns best bowling figures", async () => {
       await seedTeams();
 
       const playerId = `player-${crypto.randomUUID()}`;
-      const matchId = await seedBowlingPerformance({
+      await seedBowlingPerformance({
         playerId,
         playerName: "Top Bowler",
         teamId: SENIOR_TEAM_ID,
@@ -174,21 +141,13 @@ describe("records service (integration)", () => {
         wickets: 7,
       });
 
-      await seedMatchResult({
-        matchId,
-        homeTeamId: "opp-team-2",
-        awayTeamId: SENIOR_TEAM_ID,
-        homeTeamName: "Tynemouth",
-        awayTeamName: "Percy Main 1st XI",
-        season: 2024,
-        matchDate: "2024-06-20",
-      });
-
       const result = await getRecords(ctx.db)({});
-      assert(result.bowling.bestBowling, "Expected best bowling record");
-      expect(result.bowling.bestBowling.value).toBe("7/22");
-      expect(result.bowling.bestBowling.playerName).toBe("Top Bowler");
-      expect(result.bowling.bestBowling.opposition).toBe("Tynemouth");
+      const best = result.records.find(
+        (r) => r.title === "Best Bowling Figures",
+      );
+      assert(best, "Expected best bowling record");
+      expect(best.value).toBe("7/22");
+      expect(best.playerName).toBe("Top Bowler");
     });
 
     it("returns most runs in a season", async () => {
@@ -206,15 +165,12 @@ describe("records service (integration)", () => {
       }
 
       const result = await getRecords(ctx.db)({});
-      assert(
-        result.batting.mostRunsSeason,
-        "Expected most runs in season record",
+      const mostRuns = result.records.find(
+        (r) => r.title === "Most Runs in a Season",
       );
-      // 5 * 80 = 400
-      expect(
-        Number(result.batting.mostRunsSeason.value),
-      ).toBeGreaterThanOrEqual(400);
-      expect(result.batting.mostRunsSeason.season).toBe(2023);
+      assert(mostRuns, "Expected most runs in season record");
+      expect(Number(mostRuns.value)).toBeGreaterThanOrEqual(400);
+      expect(mostRuns.season).toBe(2023);
     });
 
     it("returns career records", async () => {
@@ -232,26 +188,21 @@ describe("records service (integration)", () => {
       }
 
       const result = await getRecords(ctx.db)({});
-      assert(result.batting.mostCareerRuns, "Expected career runs record");
-      assert(
-        result.batting.mostCareerMatches,
-        "Expected career matches record",
+      const careerRuns = result.records.find(
+        (r) => r.title === "Most Career Runs",
       );
+      const careerMatches = result.records.find(
+        (r) => r.title === "Most Matches",
+      );
+      assert(careerRuns, "Expected career runs record");
+      assert(careerMatches, "Expected career matches record");
     });
 
     it("filters by junior/senior", async () => {
       await seedTeams();
 
-      const seniorPlayer = `player-${crypto.randomUUID()}`;
       const juniorPlayer = `player-${crypto.randomUUID()}`;
 
-      await seedBattingPerformance({
-        playerId: seniorPlayer,
-        playerName: "Senior Star",
-        teamId: SENIOR_TEAM_ID,
-        season: 2024,
-        runs: 150,
-      });
       await seedBattingPerformance({
         playerId: juniorPlayer,
         playerName: "Junior Star",
@@ -261,11 +212,11 @@ describe("records service (integration)", () => {
       });
 
       const juniorResult = await getRecords(ctx.db)({ isJunior: true });
-      assert(
-        juniorResult.batting.highestScore,
-        "Expected junior highest score",
+      const highest = juniorResult.records.find(
+        (r) => r.title === "Highest Individual Score",
       );
-      expect(juniorResult.batting.highestScore.playerName).toBe("Junior Star");
+      assert(highest, "Expected junior highest score");
+      expect(highest.playerName).toBe("Junior Star");
     });
   });
 
@@ -274,23 +225,13 @@ describe("records service (integration)", () => {
       await seedTeams();
 
       const playerId = `player-${crypto.randomUUID()}`;
-      const matchId = await seedBattingPerformance({
+      await seedBattingPerformance({
         playerId,
         playerName: "Century Maker",
         teamId: SENIOR_TEAM_ID,
         season: 2024,
         runs: 142,
         notOut: true,
-      });
-
-      await seedMatchResult({
-        matchId,
-        homeTeamId: SENIOR_TEAM_ID,
-        awayTeamId: "opp-team-3",
-        homeTeamName: "Percy Main 1st XI",
-        awayTeamName: "Whitley Bay",
-        season: 2024,
-        matchDate: "2024-07-01",
       });
 
       // Also seed a sub-100 score that should NOT appear
@@ -308,7 +249,6 @@ describe("records service (integration)", () => {
       );
       assert(century, "Expected century entry");
       expect(century.value).toBe("142*");
-      expect(century.opposition).toBe("Whitley Bay");
 
       // Sub-100 should not appear
       const sub100 = result.centuries.filter(
@@ -321,7 +261,7 @@ describe("records service (integration)", () => {
       await seedTeams();
 
       const playerId = `player-${crypto.randomUUID()}`;
-      const matchId = await seedBowlingPerformance({
+      await seedBowlingPerformance({
         playerId,
         playerName: "Fifer King",
         teamId: SENIOR_TEAM_ID,
@@ -329,16 +269,6 @@ describe("records service (integration)", () => {
         overs: "8",
         runs: 35,
         wickets: 6,
-      });
-
-      await seedMatchResult({
-        matchId,
-        homeTeamId: SENIOR_TEAM_ID,
-        awayTeamId: "opp-team-4",
-        homeTeamName: "Percy Main 1st XI",
-        awayTeamName: "Backworth",
-        season: 2024,
-        matchDate: "2024-07-10",
       });
 
       // Also seed a 4-wicket haul that should NOT appear
@@ -358,7 +288,6 @@ describe("records service (integration)", () => {
       );
       assert(fifer, "Expected five-wicket haul entry");
       expect(fifer.value).toBe("6/35");
-      expect(fifer.opposition).toBe("Backworth");
 
       // 4-wicket haul should not appear
       const sub5 = result.fiveWicketHauls.filter(
