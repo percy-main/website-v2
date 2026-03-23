@@ -56,22 +56,14 @@ function throwHttpError(statusCode: number, message: string): never {
 
 /**
  * Parse a base64 data URL, upload to S3, and return the URL.
- * Returns null if no image provided. Throws if S3 is not configured
- * but a receipt image is provided.
+ * Returns null if no image provided.
  */
 async function uploadReceiptImage(
   receiptImage: string | undefined,
   expenseId: string,
-  s3: S3Uploader | null,
+  s3: S3Uploader,
 ): Promise<string | null> {
   if (!receiptImage) return null;
-
-  if (!s3) {
-    throwHttpError(
-      500,
-      "Receipt uploads require S3 to be configured (S3_BUCKET)",
-    );
-  }
 
   const match = /^data:(image\/(?:jpeg|png|webp|heic));base64,(.+)$/.exec(
     receiptImage,
@@ -237,7 +229,7 @@ export function getMatch(db: Kysely<DB>) {
   };
 }
 
-export function recordExpense(db: Kysely<DB>, s3: S3Uploader | null) {
+export function recordExpense(db: Kysely<DB>, s3: S3Uploader) {
   return async (
     userId: string,
     role: string,
@@ -996,7 +988,7 @@ export function finishMatch(
 
 // ── Expense approval workflow services ──
 
-export function submitExpenseClaim(db: Kysely<DB>, s3: S3Uploader | null) {
+export function submitExpenseClaim(db: Kysely<DB>, s3: S3Uploader) {
   return async (
     userId: string,
     role: string,

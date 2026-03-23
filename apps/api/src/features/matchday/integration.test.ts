@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { noopS3Uploader } from "../../lib/s3-upload.ts";
 import {
   seedTestUser,
   startTestContainer,
@@ -22,6 +23,8 @@ import {
   searchMembers,
   submitExpenseClaim,
 } from "./service.ts";
+
+const s3 = noopS3Uploader;
 
 let ctx: TestContext;
 
@@ -467,7 +470,7 @@ describe("matchday service (integration)", () => {
       });
 
       // Record expense (no S3 in integration tests)
-      const { expenseId } = await recordExpense(ctx.db, null)(userId, "admin", {
+      const { expenseId } = await recordExpense(ctx.db, s3)(userId, "admin", {
         matchId,
         type: "umpire_fee",
         description: "Umpire payment",
@@ -521,7 +524,7 @@ describe("matchday service (integration)", () => {
       });
 
       // 1. Submit expense claim
-      const { expenseId } = await submitExpenseClaim(ctx.db, null)(
+      const { expenseId } = await submitExpenseClaim(ctx.db, s3)(
         officialId,
         "official",
         {
@@ -583,7 +586,7 @@ describe("matchday service (integration)", () => {
         status: "confirmed",
       });
 
-      const { expenseId } = await submitExpenseClaim(ctx.db, null)(
+      const { expenseId } = await submitExpenseClaim(ctx.db, s3)(
         officialId,
         "official",
         {
@@ -619,15 +622,11 @@ describe("matchday service (integration)", () => {
       });
 
       // Create a draft expense via recordExpense (no receipt, no S3 needed)
-      const { expenseId } = await recordExpense(ctx.db, null)(
-        adminId,
-        "admin",
-        {
-          matchId,
-          type: "match_ball",
-          amountPence: 2000,
-        },
-      );
+      const { expenseId } = await recordExpense(ctx.db, s3)(adminId, "admin", {
+        matchId,
+        type: "match_ball",
+        amountPence: 2000,
+      });
 
       await expect(approveExpense(ctx.db)(adminId, expenseId)).rejects.toThrow(
         "Only submitted expenses can be approved",
@@ -651,7 +650,7 @@ describe("matchday service (integration)", () => {
         status: "confirmed",
       });
 
-      const { expenseId } = await submitExpenseClaim(ctx.db, null)(
+      const { expenseId } = await submitExpenseClaim(ctx.db, s3)(
         officialId,
         "official",
         {
@@ -685,12 +684,12 @@ describe("matchday service (integration)", () => {
       });
 
       // Submit two expenses
-      const { expenseId: exp1 } = await submitExpenseClaim(ctx.db, null)(
+      const { expenseId: exp1 } = await submitExpenseClaim(ctx.db, s3)(
         officialId,
         "official",
         { matchId, type: "umpire_fee", amountPence: 5000 },
       );
-      await submitExpenseClaim(ctx.db, null)(officialId, "official", {
+      await submitExpenseClaim(ctx.db, s3)(officialId, "official", {
         matchId,
         type: "teas",
         amountPence: 3000,

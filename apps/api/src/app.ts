@@ -36,7 +36,7 @@ declare module "fastify" {
     config: Config;
     auth: Auth;
     send: (email: Email) => Promise<void>;
-    s3: S3Uploader | null;
+    s3: S3Uploader;
   }
 }
 

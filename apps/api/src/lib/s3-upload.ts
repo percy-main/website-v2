@@ -24,9 +24,7 @@ export interface S3Uploader {
  * Creates an S3 uploader for receipt images.
  * Returns null if S3 is not configured (e.g. local dev without S3).
  */
-export function createS3Uploader(config: Config): S3Uploader | null {
-  if (!config.S3_BUCKET) return null;
-
+export function createS3Uploader(config: Config): S3Uploader {
   const clientOptions: ConstructorParameters<typeof S3Client>[0] = {
     region: config.S3_REGION,
   };
@@ -79,3 +77,14 @@ export function createS3Uploader(config: Config): S3Uploader | null {
     },
   };
 }
+
+/**
+ * No-op S3 uploader for tests where no receipts are uploaded.
+ * Throws if actually called — tests that exercise receipt upload
+ * should use a real or mocked S3 uploader.
+ */
+export const noopS3Uploader: S3Uploader = {
+  uploadReceipt() {
+    throw new Error("S3 uploader not configured in test");
+  },
+};

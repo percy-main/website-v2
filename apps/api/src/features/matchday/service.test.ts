@@ -36,6 +36,7 @@ const { mockExecute, mockExecuteTakeFirst, mockQueryBuilder } = vi.hoisted(
   },
 );
 
+import { noopS3Uploader } from "../../lib/s3-upload.ts";
 import {
   addPlayer,
   approveExpense,
@@ -52,6 +53,7 @@ import {
 } from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
+const s3 = noopS3Uploader;
 
 describe("matchday service", () => {
   beforeEach(() => {
@@ -226,7 +228,7 @@ describe("matchday service", () => {
       // Insert
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await recordExpense(db, null)("user-1", "admin", {
+      const result = await recordExpense(db, s3)("user-1", "admin", {
         matchId: "m-1",
         type: "umpire_fee",
         amountPence: 5000,
@@ -288,7 +290,7 @@ describe("expense approval workflow", () => {
       // Insert
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await submitExpenseClaim(db, null)("user-1", "admin", {
+      const result = await submitExpenseClaim(db, s3)("user-1", "admin", {
         matchId: "m-1",
         type: "umpire_fee",
         amountPence: 5000,
