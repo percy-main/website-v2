@@ -13,6 +13,7 @@ import type {
   AddPlayer,
   ConfirmTeam,
   CreateMatchday,
+  FinishMatch,
   ListMatches,
   ListPendingExpenses,
   RecordExpense,
@@ -815,7 +816,12 @@ export function finishMatch(
   }) => Promise<void>,
   config: { BASE_URL: string },
 ) {
-  return async (userId: string, role: string, matchdayId: string) => {
+  return async (
+    userId: string,
+    role: string,
+    matchdayId: string,
+    data: FinishMatch,
+  ) => {
     const matchday = await db
       .selectFrom("matchday")
       .where("id", "=", matchdayId)
@@ -824,165 +830,179 @@ export function finishMatch(
 
     if (!matchday) throwHttpError(404, "Matchday not found");
 
-    if (matchday.status !== "confirmed") {
-      throwHttpError(400, "Can only finish a confirmed matchday");
-    }
-
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
     if (!accessibleIds.includes(matchday.play_cricket_team_id)) {
       throwHttpError(403, "You do not have access to this matchday");
     }
 
-    // Set matchday to finished
+    // Allow finishing a confirmed match, or re-submitting result on an already-finished match (idempotent)
+    if (matchday.status !== "confirmed" && matchday.status !== "finished") {
+      throwHttpError(400, "Can only finish a confirmed matchday");
+    }
+
+    // Set matchday to finished with result
     const finishedAt = new Date().toISOString();
     await db
       .updateTable("matchday")
       .set({
         status: "finished",
-        finished_at: finishedAt,
-        finished_by: userId,
+        finished_at: matchday.finished_at ?? finishedAt,
+        finished_by: matchday.finished_by ?? userId,
+        result_type: data.resultType,
+        result_confirmed_at: finishedAt,
+        result_confirmed_by: userId,
+        result_source: "manual",
       })
       .where("id", "=", matchdayId)
       .execute();
 
-    // Submit all draft expenses for treasurer review
-    await db
-      .updateTable("matchday_expense")
-      .set({
-        status: "submitted",
-        submitted_at: finishedAt,
-      })
-      .where("matchday_id", "=", matchdayId)
-      .where("status", "=", "draft")
-      .execute();
+    // Only run charges/expenses/emails on the first finish, not on result resubmission
+    const isFirstFinish = matchday.status === "confirmed";
 
-    // Create charges for any playing players who don't have one yet
-    const uncharged = await db
-      .selectFrom("matchday_player")
-      .leftJoin("member", "member.id", "matchday_player.member_id")
-      .where("matchday_player.matchday_id", "=", matchdayId)
-      .where("matchday_player.status", "=", "playing")
-      .where("matchday_player.charge_id", "is", null)
-      .select([
-        "matchday_player.id as matchdayPlayerId",
-        "matchday_player.member_id",
-        "matchday_player.player_name",
-        "member.member_category",
-      ])
-      .execute();
-
-    if (uncharged.length > 0) {
-      const feeRates = await db
-        .selectFrom("match_fee_rate")
-        .where((eb) =>
-          eb.or([
-            eb("play_cricket_team_id", "=", matchday.play_cricket_team_id),
-            eb("play_cricket_team_id", "is", null),
-          ]),
-        )
-        .selectAll()
+    if (isFirstFinish) {
+      // Submit all draft expenses for treasurer review
+      await db
+        .updateTable("matchday_expense")
+        .set({
+          status: "submitted",
+          submitted_at: finishedAt,
+        })
+        .where("matchday_id", "=", matchdayId)
+        .where("status", "=", "draft")
         .execute();
 
-      for (const player of uncharged) {
-        if (!player.member_id) continue;
-        const category = player.member_category ?? "guest";
-        if (category === "bursary") continue;
+      // Create charges for any playing players who don't have one yet
+      const uncharged = await db
+        .selectFrom("matchday_player")
+        .leftJoin("member", "member.id", "matchday_player.member_id")
+        .where("matchday_player.matchday_id", "=", matchdayId)
+        .where("matchday_player.status", "=", "playing")
+        .where("matchday_player.charge_id", "is", null)
+        .select([
+          "matchday_player.id as matchdayPlayerId",
+          "matchday_player.member_id",
+          "matchday_player.player_name",
+          "member.member_category",
+        ])
+        .execute();
 
-        const rate = findFeeRate(
-          feeRates,
-          matchday.play_cricket_team_id,
-          matchday.competition_type,
-          category,
-        );
-
-        if (!rate || rate.amount_pence === 0) continue;
-
-        const chargeId = crypto.randomUUID();
-        await db
-          .insertInto("charge")
-          .values({
-            id: chargeId,
-            member_id: player.member_id,
-            description: `Match fee - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
-            amount_pence: rate.amount_pence,
-            charge_date: matchday.match_date,
-            created_by: userId,
-            type: "match_fee",
-            source: "matchday",
-          })
+      if (uncharged.length > 0) {
+        const feeRates = await db
+          .selectFrom("match_fee_rate")
+          .where((eb) =>
+            eb.or([
+              eb("play_cricket_team_id", "=", matchday.play_cricket_team_id),
+              eb("play_cricket_team_id", "is", null),
+            ]),
+          )
+          .selectAll()
           .execute();
 
-        await db
-          .updateTable("matchday_player")
-          .set({ charge_id: chargeId })
-          .where("id", "=", player.matchdayPlayerId)
-          .execute();
+        for (const player of uncharged) {
+          if (!player.member_id) continue;
+          const category = player.member_category ?? "guest";
+          if (category === "bursary") continue;
+
+          const rate = findFeeRate(
+            feeRates,
+            matchday.play_cricket_team_id,
+            matchday.competition_type,
+            category,
+          );
+
+          if (!rate || rate.amount_pence === 0) continue;
+
+          const chargeId = crypto.randomUUID();
+          await db
+            .insertInto("charge")
+            .values({
+              id: chargeId,
+              member_id: player.member_id,
+              description: `Match fee - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
+              amount_pence: rate.amount_pence,
+              charge_date: matchday.match_date,
+              created_by: userId,
+              type: "match_fee",
+              source: "matchday",
+            })
+            .execute();
+
+          await db
+            .updateTable("matchday_player")
+            .set({ charge_id: chargeId })
+            .where("id", "=", player.matchdayPlayerId)
+            .execute();
+        }
       }
+
+      // Send notification emails for unpaid charges
+      const unpaidPlayers = await db
+        .selectFrom("matchday_player")
+        .innerJoin("charge", "charge.id", "matchday_player.charge_id")
+        .innerJoin("member", "member.id", "matchday_player.member_id")
+        .where("matchday_player.matchday_id", "=", matchdayId)
+        .where("charge.paid_at", "is", null)
+        .where("charge.deleted_at", "is", null)
+        .select([
+          "member.name as member_name",
+          "member.email as member_email",
+          "charge.description as charge_description",
+          "charge.amount_pence",
+          "charge.charge_date",
+        ])
+        .execute();
+
+      const currencyFormatter = new Intl.NumberFormat("en-GB", {
+        style: "currency",
+        currency: "GBP",
+      });
+
+      const { render } = await import("@react-email/render");
+      const { ChargeNotification } = await import("@percy-main/email");
+
+      let emailsSent = 0;
+      const emailErrors: string[] = [];
+      for (const player of unpaidPlayers) {
+        if (!player.member_email) continue;
+
+        try {
+          const amountFormatted = currencyFormatter.format(
+            player.amount_pence / 100,
+          );
+
+          const element = ChargeNotification.component({
+            imageBaseUrl: `${config.BASE_URL}/images`,
+            name: player.member_name ?? "Member",
+            description: player.charge_description,
+            amount: amountFormatted,
+            chargeDate: formatDate(new Date(player.charge_date), "dd/MM/yyyy"),
+            loginUrl: `${config.BASE_URL}/auth/login`,
+          });
+
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+          const html = await render(element as any);
+          await sendEmail({
+            to: player.member_email,
+            subject: ChargeNotification.subject,
+            html,
+          });
+          emailsSent++;
+        } catch (err) {
+          const msg =
+            err instanceof Error ? err.message : "Unknown email error";
+          emailErrors.push(`${player.member_email}: ${msg}`);
+          console.error(
+            `Failed to send charge notification to ${player.member_email}:`,
+            err,
+          );
+        }
+      }
+
+      return { success: true, emailsSent, emailErrors };
     }
 
-    // Send notification emails for unpaid charges
-    const unpaidPlayers = await db
-      .selectFrom("matchday_player")
-      .innerJoin("charge", "charge.id", "matchday_player.charge_id")
-      .innerJoin("member", "member.id", "matchday_player.member_id")
-      .where("matchday_player.matchday_id", "=", matchdayId)
-      .where("charge.paid_at", "is", null)
-      .where("charge.deleted_at", "is", null)
-      .select([
-        "member.name as member_name",
-        "member.email as member_email",
-        "charge.description as charge_description",
-        "charge.amount_pence",
-        "charge.charge_date",
-      ])
-      .execute();
-
-    const currencyFormatter = new Intl.NumberFormat("en-GB", {
-      style: "currency",
-      currency: "GBP",
-    });
-
-    const { render } = await import("@react-email/render");
-    const { ChargeNotification } = await import("@percy-main/email");
-
-    let emailsSent = 0;
-    const emailErrors: string[] = [];
-    for (const player of unpaidPlayers) {
-      if (!player.member_email) continue;
-
-      try {
-        const amountFormatted = currencyFormatter.format(
-          player.amount_pence / 100,
-        );
-
-        const element = ChargeNotification.component({
-          imageBaseUrl: `${config.BASE_URL}/images`,
-          name: player.member_name ?? "Member",
-          description: player.charge_description,
-          amount: amountFormatted,
-          chargeDate: formatDate(new Date(player.charge_date), "dd/MM/yyyy"),
-          loginUrl: `${config.BASE_URL}/auth/login`,
-        });
-
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-        const html = await render(element as any);
-        await sendEmail({
-          to: player.member_email,
-          subject: ChargeNotification.subject,
-          html,
-        });
-        emailsSent++;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Unknown email error";
-        emailErrors.push(`${player.member_email}: ${msg}`);
-        console.error(
-          `Failed to send charge notification to ${player.member_email}:`,
-          err,
-        );
-      }
-    }
-
-    return { success: true, emailsSent, emailErrors };
+    // Result resubmission — just update the result, no charges/emails
+    return { success: true, emailsSent: 0, emailErrors: [] };
   };
 }
 

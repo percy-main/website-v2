@@ -142,8 +142,8 @@ export function listGames(
 
     const matchIds = matches.map((m) => m.id);
 
-    // Fetch results + sponsorships from DB in parallel
-    const [results, sponsorships] = await Promise.all([
+    // Fetch results, sponsorships, and manual results from DB in parallel
+    const [results, sponsorships, manualResults] = await Promise.all([
       db
         .selectFrom("match_result")
         .where("match_id", "in", matchIds)
@@ -163,10 +163,19 @@ export function listGames(
           "sponsor_website",
         ])
         .execute(),
+      db
+        .selectFrom("matchday")
+        .where("play_cricket_match_id", "in", matchIds)
+        .where("result_type", "is not", null)
+        .select(["play_cricket_match_id", "result_type"])
+        .execute(),
     ]);
 
     const resultsByMatchId = new Map(results.map((r) => [r.match_id, r]));
     const sponsorsByMatchId = new Map(sponsorships.map((s) => [s.game_id, s]));
+    const manualByMatchId = new Map(
+      manualResults.map((m) => [m.play_cricket_match_id, m]),
+    );
 
     return matches.map((match) => {
       const result = resultsByMatchId.get(match.id);
@@ -176,6 +185,7 @@ export function listGames(
       let scoreDescription: string | null = null;
 
       if (result) {
+        // Play Cricket is the primary source of truth
         outcome = resolveOutcome(
           result.result,
           result.result_applied_to,
@@ -183,9 +193,15 @@ export function listGames(
           match.team.id,
         );
 
-        // For score description, we need innings data which isn't in match_result.
-        // The calendar view shows a simplified score from the result_description.
         scoreDescription = result.result_description || null;
+      }
+
+      // No Play Cricket result — use manual official result if available
+      if (!outcome) {
+        const manual = manualByMatchId.get(match.id);
+        if (manual?.result_type) {
+          outcome = manual.result_type as Outcome;
+        }
       }
 
       return {
@@ -221,28 +237,35 @@ export function getGame(
 
     if (!matchSummary) return null;
 
-    // Fetch result, sponsorship, and match detail in parallel
-    const [dbResult, sponsorship, matchDetail] = await Promise.all([
-      db
-        .selectFrom("match_result")
-        .where("match_id", "=", matchId)
-        .selectAll()
-        .executeTakeFirst(),
-      db
-        .selectFrom("game_sponsorship")
-        .where("game_id", "=", matchId)
-        .where("approved", "=", true)
-        .where("paid_at", "is not", null)
-        .select([
-          "sponsor_name",
-          "display_name",
-          "sponsor_logo_url",
-          "sponsor_message",
-          "sponsor_website",
-        ])
-        .executeTakeFirst(),
-      api.getMatchDetail(matchId).catch(() => null),
-    ]);
+    // Fetch result, sponsorship, match detail, and manual result in parallel
+    const [dbResult, sponsorship, matchDetail, manualResult] =
+      await Promise.all([
+        db
+          .selectFrom("match_result")
+          .where("match_id", "=", matchId)
+          .selectAll()
+          .executeTakeFirst(),
+        db
+          .selectFrom("game_sponsorship")
+          .where("game_id", "=", matchId)
+          .where("approved", "=", true)
+          .where("paid_at", "is not", null)
+          .select([
+            "sponsor_name",
+            "display_name",
+            "sponsor_logo_url",
+            "sponsor_message",
+            "sponsor_website",
+          ])
+          .executeTakeFirst(),
+        api.getMatchDetail(matchId).catch(() => null),
+        db
+          .selectFrom("matchday")
+          .where("play_cricket_match_id", "=", matchId)
+          .where("result_type", "is not", null)
+          .select(["result_type", "result_source"])
+          .executeTakeFirst(),
+      ]);
 
     let outcome: Outcome | null = null;
     let result: GameDetail["result"] = null;
@@ -254,6 +277,11 @@ export function getGame(
         dbResult.result_description,
         matchSummary.team.id,
       );
+    }
+
+    // Fall back to manual result from matchday if Play Cricket has no outcome
+    if (!outcome && manualResult?.result_type) {
+      outcome = manualResult.result_type as Outcome;
     }
 
     const detail = matchDetail?.match_details[0];

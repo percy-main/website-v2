@@ -42,6 +42,7 @@ import {
   approveExpense,
   createMatchday,
   deleteExpense,
+  finishMatch,
   listMatches,
   listTeams,
   markExpenseReimbursed,
@@ -375,6 +376,115 @@ describe("expense approval workflow", () => {
       await expect(
         markExpenseReimbursed(db)("admin-1", "exp-1"),
       ).rejects.toThrow("Only approved expenses can be reimbursed");
+    });
+  });
+
+  describe("finishMatch", () => {
+    const mockSendEmail = vi.fn().mockResolvedValue(undefined);
+    const mockConfig = { BASE_URL: "https://example.com" };
+    const finish = finishMatch(db, mockSendEmail, mockConfig);
+
+    it("rejects if matchday not found", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+
+      await expect(
+        finish("user-1", "admin", "match-1", { resultType: "W" }),
+      ).rejects.toThrow("Matchday not found");
+    });
+
+    it("rejects if matchday is pending", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "match-1",
+        status: "pending",
+        play_cricket_team_id: "team-1",
+      });
+      // getAccessibleTeamIds
+      mockExecute.mockResolvedValueOnce([{ id: "team-1" }]);
+
+      await expect(
+        finish("user-1", "admin", "match-1", { resultType: "W" }),
+      ).rejects.toThrow("Can only finish a confirmed matchday");
+    });
+
+    it("rejects if user has no access to the matchday team", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "match-1",
+        status: "confirmed",
+        play_cricket_team_id: "team-1",
+      });
+      // getAccessibleTeamIds returns empty (no access)
+      mockExecute.mockResolvedValueOnce([]);
+
+      await expect(
+        finish("user-1", "admin", "match-1", { resultType: "W" }),
+      ).rejects.toThrow("You do not have access to this matchday");
+    });
+
+    it("persists result when finishing a confirmed matchday", async () => {
+      // getMatch - matchday lookup
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "match-1",
+        status: "confirmed",
+        play_cricket_team_id: "team-1",
+        opposition: "Test CC",
+        match_date: "2026-03-20",
+        finished_at: null,
+        finished_by: null,
+      });
+      // getAccessibleTeamIds - admin gets all teams
+      mockExecute.mockResolvedValueOnce([{ id: "team-1" }]);
+      // update matchday
+      mockExecute.mockResolvedValueOnce([]);
+      // submit draft expenses
+      mockExecute.mockResolvedValueOnce([]);
+      // uncharged players query
+      mockExecute.mockResolvedValueOnce([]);
+      // unpaid players query
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await finish("user-1", "admin", "match-1", {
+        resultType: "W",
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockQueryBuilder.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "finished",
+          result_type: "W",
+          result_source: "manual",
+        }),
+      );
+    });
+
+    it("allows re-submitting result on already-finished matchday", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "match-1",
+        status: "finished",
+        play_cricket_team_id: "team-1",
+        opposition: "Test CC",
+        match_date: "2026-03-20",
+        finished_at: "2026-03-20T18:00:00.000Z",
+        finished_by: "user-1",
+      });
+      // getAccessibleTeamIds
+      mockExecute.mockResolvedValueOnce([{ id: "team-1" }]);
+      // update matchday
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await finish("user-1", "admin", "match-1", {
+        resultType: "L",
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.emailsSent).toBe(0);
+      // Should preserve original finished_at/finished_by
+      expect(mockQueryBuilder.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          finished_at: "2026-03-20T18:00:00.000Z",
+          finished_by: "user-1",
+          result_type: "L",
+        }),
+      );
     });
   });
 });
