@@ -96,6 +96,14 @@ export const searchMembersSchema = z.object({
   query: z.string().min(1),
 });
 
+// ── Result confirmation schemas ──
+
+export const resultTypeSchema = z.enum(["W", "L", "D", "T", "A", "C", "N"]);
+
+export const finishMatchSchema = z.object({
+  resultType: resultTypeSchema,
+});
+
 // ── Expense approval workflow schemas ──
 
 export const expenseStatusSchema = z.enum([
@@ -139,3 +147,4 @@ export type SearchMembers = z.infer<typeof searchMembersSchema>;
 export type SubmitExpense = z.infer<typeof submitExpenseSchema>;
 export type RejectExpense = z.infer<typeof rejectExpenseSchema>;
 export type ListPendingExpenses = z.infer<typeof listPendingExpensesSchema>;
+export type FinishMatch = z.infer<typeof finishMatchSchema>;

@@ -7,6 +7,7 @@ import {
   confirmTeamSchema,
   createMatchdaySchema,
   expenseIdParamSchema,
+  finishMatchSchema,
   listMatchesSchema,
   listPendingExpensesSchema,
   markPaidSchema,
@@ -285,7 +286,8 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
       const { matchId } = parseParams(request, matchIdParamSchema);
-      return await finish(user.id, role, matchId);
+      const data = parseBody(request, finishMatchSchema);
+      return await finish(user.id, role, matchId, data);
     },
   );
 };
