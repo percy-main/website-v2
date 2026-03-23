@@ -13,6 +13,7 @@ import type {
   AddPlayer,
   ConfirmTeam,
   CreateMatchday,
+  FinishMatch,
   ListMatches,
   ListPendingExpenses,
   RecordExpense,
