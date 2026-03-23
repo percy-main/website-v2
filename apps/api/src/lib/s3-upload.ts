@@ -27,9 +27,20 @@ export interface S3Uploader {
 export function createS3Uploader(config: Config): S3Uploader | null {
   if (!config.S3_BUCKET) return null;
 
-  const client = new S3Client({ region: config.S3_REGION });
+  const clientOptions: ConstructorParameters<typeof S3Client>[0] = {
+    region: config.S3_REGION,
+  };
+
+  // LocalStack or other S3-compatible endpoints
+  if (config.S3_ENDPOINT) {
+    clientOptions.endpoint = config.S3_ENDPOINT;
+    clientOptions.forcePathStyle = true;
+  }
+
+  const client = new S3Client(clientOptions);
   const bucket = config.S3_BUCKET;
   const prefix = config.S3_RECEIPT_PREFIX;
+  const endpoint = config.S3_ENDPOINT;
 
   return {
     async uploadReceipt({ imageBytes, contentType, expenseId }) {
@@ -61,6 +72,9 @@ export function createS3Uploader(config: Config): S3Uploader | null {
         }),
       );
 
+      if (endpoint) {
+        return `${endpoint}/${bucket}/${key}`;
+      }
       return `https://${bucket}.s3.${config.S3_REGION}.amazonaws.com/${key}`;
     },
   };
