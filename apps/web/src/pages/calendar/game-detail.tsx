@@ -353,8 +353,21 @@ function GameDetailContent({ game }: { game: GameData }) {
           </ul>
         </div>
 
-        {/* Result summary */}
-        {game.result && <ResultSummary result={game.result} />}
+        {/* Result summary — full card if Play Cricket has data, badge-only for manual result */}
+        {game.result ? (
+          <ResultSummary result={game.result} />
+        ) : (
+          game.outcome && (
+            <Card>
+              <CardContent className="flex items-center gap-2 p-4">
+                <OutcomeBadge outcome={game.outcome} />
+                <span className="text-sm text-gray-600">
+                  Full scorecard pending
+                </span>
+              </CardContent>
+            </Card>
+          )
+        )}
 
         {/* MDX game report */}
         {report && (
