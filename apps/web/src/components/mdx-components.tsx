@@ -1,6 +1,7 @@
 import { LeaderboardContent } from "@/components/leaderboard-content.js";
 import { OptimisedImage } from "@/components/optimised-image.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
+import { RecordsWall as RecordsWallComponent } from "@/components/records-wall.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/components/ui/textarea.js";
@@ -19,6 +20,10 @@ const ANON_PICTURE = getPicture("/images/anon.jpg");
 
 function Leaderboard() {
   return <LeaderboardContent />;
+}
+
+function RecordsWall() {
+  return <RecordsWallComponent />;
 }
 
 function Person({ slug, role }: { slug: string; role?: string }) {
@@ -449,6 +454,7 @@ export const mdxComponents = {
   PersonGrid,
   LeagueTable,
   Leaderboard,
+  RecordsWall,
   EventPreview,
   GamePreview,
   ContactForm,

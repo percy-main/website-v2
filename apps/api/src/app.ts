@@ -26,6 +26,7 @@ import { ogImageRoutes } from "./features/og-image/routes.ts";
 import { paymentRoutes } from "./features/payments/routes.ts";
 import { webhookRoutes } from "./features/payments/webhook.ts";
 import { playCricketRoutes } from "./features/play-cricket/routes.ts";
+import { recordsRoutes } from "./features/records/routes.ts";
 import { sponsorshipRoutes } from "./features/sponsorship/routes.ts";
 import { treasurerRoutes } from "./features/treasurer/routes.ts";
 
@@ -105,6 +106,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(treasurerRoutes, { prefix: "/api" });
   await app.register(leaderboardRoutes, { prefix: "/api" });
   await app.register(cricketLeaderboardRoutes, { prefix: "/api" });
+  await app.register(recordsRoutes, { prefix: "/api" });
   await app.register(contactRoutes, { prefix: "/api" });
   await app.register(webhookRoutes, { prefix: "/api" });
   await app.register(ogImageRoutes, { prefix: "/api" });
