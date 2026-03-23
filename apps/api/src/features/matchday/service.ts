@@ -7,14 +7,18 @@ import {
   subDays,
 } from "date-fns";
 import type { Kysely } from "kysely";
+import type { S3Uploader } from "../../lib/s3-upload.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type {
   AddPlayer,
   ConfirmTeam,
   CreateMatchday,
   ListMatches,
+  ListPendingExpenses,
   RecordExpense,
+  RejectExpense,
   SearchMembers,
+  SubmitExpense,
   UpdateExpense,
 } from "./schemas.ts";
 
@@ -964,5 +968,230 @@ export function finishMatch(
     }
 
     return { success: true, emailsSent, emailErrors };
+  };
+}
+
+// ── Expense approval workflow services ──
+
+export function submitExpenseClaim(db: Kysely<DB>, s3: S3Uploader | null) {
+  return async (
+    userId: string,
+    role: string,
+    data: SubmitExpense & { matchId: string },
+  ) => {
+    const matchday = await db
+      .selectFrom("matchday")
+      .where("id", "=", data.matchId)
+      .select(["id", "play_cricket_team_id", "status"])
+      .executeTakeFirst();
+
+    if (!matchday) throwHttpError(404, "Matchday not found");
+
+    if (matchday.status !== "confirmed") {
+      throwHttpError(
+        400,
+        matchday.status === "pending"
+          ? "Cannot submit expenses for a pending matchday. Confirm the team first."
+          : "Cannot submit expenses for a finished matchday.",
+      );
+    }
+
+    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
+    if (!accessibleIds.includes(matchday.play_cricket_team_id)) {
+      throwHttpError(403, "You do not have access to this matchday");
+    }
+
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    let receiptImageUrl: string | null = null;
+    if (data.receiptImage) {
+      const match = /^data:(image\/(?:jpeg|png|webp|heic));base64,(.+)$/.exec(
+        data.receiptImage,
+      );
+      if (!match) throwHttpError(400, "Invalid receipt image format");
+
+      const imageBytes = Buffer.from(match[2], "base64");
+      const contentType = match[1];
+
+      if (s3) {
+        receiptImageUrl = await s3.uploadReceipt({
+          imageBytes,
+          contentType,
+          expenseId: id,
+        });
+      } else {
+        if (imageBytes.byteLength > 500_000) {
+          throwHttpError(
+            400,
+            "Receipt image is too large. Maximum size is 500KB",
+          );
+        }
+        receiptImageUrl = data.receiptImage;
+      }
+    }
+
+    await db
+      .insertInto("matchday_expense")
+      .values({
+        id,
+        matchday_id: data.matchId,
+        expense_type: data.type,
+        description: data.description ?? null,
+        amount_pence: data.amountPence,
+        created_by: userId,
+        created_at: now,
+        receipt_image_url: receiptImageUrl,
+        status: "submitted",
+        submitted_at: now,
+      })
+      .execute();
+
+    return { expenseId: id };
+  };
+}
+
+export function approveExpense(db: Kysely<DB>) {
+  return async (adminUserId: string, expenseId: string) => {
+    const expense = await db
+      .selectFrom("matchday_expense")
+      .where("id", "=", expenseId)
+      .select(["id", "status"])
+      .executeTakeFirst();
+
+    if (!expense) throwHttpError(404, "Expense not found");
+
+    if (expense.status !== "submitted") {
+      throwHttpError(
+        400,
+        `Cannot approve an expense with status '${expense.status}'. Only submitted expenses can be approved.`,
+      );
+    }
+
+    await db
+      .updateTable("matchday_expense")
+      .set({
+        status: "approved",
+        approved_by: adminUserId,
+        approved_at: new Date().toISOString(),
+      })
+      .where("id", "=", expenseId)
+      .execute();
+
+    return { success: true };
+  };
+}
+
+export function rejectExpense(db: Kysely<DB>) {
+  return async (
+    adminUserId: string,
+    expenseId: string,
+    data: RejectExpense,
+  ) => {
+    const expense = await db
+      .selectFrom("matchday_expense")
+      .where("id", "=", expenseId)
+      .select(["id", "status"])
+      .executeTakeFirst();
+
+    if (!expense) throwHttpError(404, "Expense not found");
+
+    if (expense.status !== "submitted") {
+      throwHttpError(
+        400,
+        `Cannot reject an expense with status '${expense.status}'. Only submitted expenses can be rejected.`,
+      );
+    }
+
+    await db
+      .updateTable("matchday_expense")
+      .set({
+        status: "rejected",
+        approved_by: adminUserId,
+        approved_at: new Date().toISOString(),
+        rejected_reason: data.reason,
+      })
+      .where("id", "=", expenseId)
+      .execute();
+
+    return { success: true };
+  };
+}
+
+export function markExpenseReimbursed(db: Kysely<DB>) {
+  return async (adminUserId: string, expenseId: string) => {
+    const expense = await db
+      .selectFrom("matchday_expense")
+      .where("id", "=", expenseId)
+      .select(["id", "status"])
+      .executeTakeFirst();
+
+    if (!expense) throwHttpError(404, "Expense not found");
+
+    if (expense.status !== "approved") {
+      throwHttpError(
+        400,
+        `Cannot reimburse an expense with status '${expense.status}'. Only approved expenses can be reimbursed.`,
+      );
+    }
+
+    await db
+      .updateTable("matchday_expense")
+      .set({
+        status: "reimbursed",
+        reimbursed_by: adminUserId,
+        reimbursed_at: new Date().toISOString(),
+      })
+      .where("id", "=", expenseId)
+      .execute();
+
+    return { success: true };
+  };
+}
+
+export function listPendingExpenses(db: Kysely<DB>) {
+  return async (params: ListPendingExpenses) => {
+    let query = db
+      .selectFrom("matchday_expense")
+      .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
+      .innerJoin("user", "user.id", "matchday_expense.created_by")
+      .select([
+        "matchday_expense.id",
+        "matchday_expense.matchday_id",
+        "matchday_expense.expense_type",
+        "matchday_expense.description",
+        "matchday_expense.amount_pence",
+        "matchday_expense.receipt_image_url",
+        "matchday_expense.status",
+        "matchday_expense.created_at",
+        "matchday_expense.submitted_at",
+        "matchday_expense.approved_at",
+        "matchday_expense.rejected_reason",
+        "matchday.opposition",
+        "matchday.match_date",
+        "matchday.play_cricket_team_id",
+        "user.name as created_by_name",
+      ]);
+
+    if (params.status) {
+      query = query.where("matchday_expense.status", "=", params.status);
+    } else {
+      query = query.where("matchday_expense.status", "in", [
+        "submitted",
+        "approved",
+      ]);
+    }
+
+    if (params.teamId) {
+      query = query.where("matchday.play_cricket_team_id", "=", params.teamId);
+    }
+
+    const items = await query
+      .orderBy("matchday_expense.submitted_at", "asc")
+      .limit(params.limit)
+      .offset(params.offset)
+      .execute();
+
+    return { items };
   };
 }
