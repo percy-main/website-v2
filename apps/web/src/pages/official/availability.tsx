@@ -15,7 +15,7 @@ import { useSession } from "@/lib/auth-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 // ── Types ──
 
@@ -217,6 +217,7 @@ function RequestListView() {
 // ── Create Request ──
 
 function CreateRequestView() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const today = format(new Date(), "yyyy-MM-dd");
   const weekFromNow = format(addDays(new Date(), 7), "yyyy-MM-dd");
@@ -240,7 +241,7 @@ function CreateRequestView() {
       void queryClient.invalidateQueries({
         queryKey: ["availability", "requests"],
       });
-      window.location.href = `/matchday/availability/${data.id}`;
+      void navigate(`/matchday/availability/${data.id}`);
     },
   });
 
