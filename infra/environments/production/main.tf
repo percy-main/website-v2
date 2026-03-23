@@ -88,7 +88,8 @@ module "ecs" {
   health_check_path     = "/health"
   log_retention_days    = 30
   assign_public_ip      = true
-  ses_identity_arn      = local.shared.ses_identity_arn
+  ses_identity_arn        = local.shared.ses_identity_arn
+  newrelic_license_key_arn = "${aws_secretsmanager_secret.app_secrets.arn}:NEW_RELIC_LICENSE_KEY::"
 
   environment_variables = {
     NODE_ENV          = "production"

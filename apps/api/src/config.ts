@@ -44,6 +44,14 @@ const configSchema = z.object({
   S3_RECEIPT_PREFIX: z.string().default("receipts"),
   S3_ENDPOINT: z.string().url().optional(),
 
+  // Observability (New Relic via OpenTelemetry)
+  NEW_RELIC_LICENSE_KEY: z.string().optional(),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z
+    .string()
+    .url()
+    .default("https://otlp.eu01.nr-data.net"),
+  OTEL_SERVICE_NAME: z.string().default("percy-main-api"),
+
   // External services
   SLACK_WEBHOOK_URL: z.string().url().optional(),
   PLAY_CRICKET_API_TOKEN: z.string().optional(),

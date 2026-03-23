@@ -37,6 +37,9 @@ jobs:
           VITE_STRIPE_PUBLIC_KEY: ${{ vars.STRIPE_PUBLIC_KEY }}
           VITE_MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
           VITE_MAPS_MAP_ID: ${{ vars.MAPS_MAP_ID }}
+          VITE_NEW_RELIC_LICENSE_KEY: ${{ vars.NEW_RELIC_BROWSER_LICENSE_KEY }}
+          VITE_NEW_RELIC_APP_ID: ${{ vars.NEW_RELIC_BROWSER_APP_ID }}
+          VITE_NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
