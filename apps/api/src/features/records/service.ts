@@ -298,9 +298,9 @@ async function getMostCareerMatches(
     .select([
       sql<string>`MAX(b.player_name)`.as("playerName"),
       "m.slug",
-      sql<string>`COUNT(*)`.as("totalMatches"),
+      sql<string>`COUNT(DISTINCT b.match_id)`.as("totalMatches"),
     ])
-    .orderBy(sql`COUNT(*)`, "desc")
+    .orderBy(sql`COUNT(DISTINCT b.match_id)`, "desc")
     .limit(1)
     .executeTakeFirst();
 

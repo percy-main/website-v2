@@ -211,7 +211,7 @@ export function RecordsWall() {
   const records = recordsQuery.data;
   const honours = honoursQuery.data;
 
-  if (recordsQuery.error) {
+  if (recordsQuery.error || honoursQuery.error) {
     return (
       <p className="py-4 text-center text-red-600">Failed to load records.</p>
     );
