@@ -86,6 +86,13 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(cors, {
     origin: config.BASE_URL,
     credentials: true,
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "traceparent",
+      "tracestate",
+      "newrelic",
+    ],
   });
   await app.register(cookie);
 

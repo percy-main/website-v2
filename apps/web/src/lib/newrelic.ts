@@ -24,7 +24,12 @@ const accountID = import.meta.env.VITE_NEW_RELIC_ACCOUNT_ID as
 if (licenseKey && applicationID && accountID) {
   new BrowserAgent({
     init: {
-      distributed_tracing: { enabled: true },
+      distributed_tracing: {
+        enabled: true,
+        cors_use_tracecontext_headers: true,
+        cors_use_newrelic_header: true,
+        allowed_origins: ["https://api.v2.percymain.org"],
+      },
       privacy: { cookies_enabled: true },
       ajax: { deny_list: ["bam.eu01.nr-data.net"] },
       session_replay: {
