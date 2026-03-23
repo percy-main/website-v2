@@ -336,7 +336,7 @@ describe("cricket leaderboard service (integration)", () => {
       expect(entry.maidens).toBe(3);
       expect(entry.runs).toBe(55);
       expect(entry.wickets).toBe(5);
-      expect(entry.bestWickets).toBe(3);
+      expect(entry.bestBowling).toBe("3/30");
       // Average: 55/5 = 11.00
       expect(entry.average).toBe(11);
       // Economy: 55/(75/6) = 4.40

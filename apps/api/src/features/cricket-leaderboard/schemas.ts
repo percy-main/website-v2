@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const cricketLeaderboardQuerySchema = z.object({
-  season: z.coerce.number().int().min(2000).max(2100),
+  season: z.coerce.number().int().min(2000).max(2100).optional(),
   isJunior: z
     .enum(["true", "false"])
     .transform((v) => v === "true")

@@ -11,7 +11,6 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
       .selectFrom("match_performance_batting as b")
       .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
-      .where("b.season", "=", params.season)
       .groupBy(["b.player_id", "m.slug"])
       .select(["b.player_id as playerId", "m.slug"])
       .select((eb) => [
@@ -40,6 +39,10 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
       ])
       .orderBy(sql`SUM(b.runs)`, "desc")
       .limit(params.limit);
+
+    if (params.season !== undefined) {
+      query = query.where("b.season", "=", params.season);
+    }
 
     if (params.isJunior !== undefined) {
       query = query.where("t.is_junior", "=", params.isJunior);
@@ -103,6 +106,7 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
     // Convert cricket overs (e.g. "5.3") to total balls using PostgreSQL string functions
     const oversToBalls = sql<number>`
       CASE
+        WHEN b.overs IS NULL OR b.overs = '' THEN 0
         WHEN POSITION('.' IN b.overs) > 0
         THEN CAST(SUBSTRING(b.overs FROM 1 FOR POSITION('.' IN b.overs) - 1) AS INTEGER) * 6
              + CAST(SUBSTRING(b.overs FROM POSITION('.' IN b.overs) + 1) AS INTEGER)
@@ -114,7 +118,6 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
       .selectFrom("match_performance_bowling as b")
       .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
-      .where("b.season", "=", params.season)
       .groupBy(["b.player_id", "m.slug"])
       .select(["b.player_id as playerId", "m.slug"])
       .select((eb) => [
@@ -123,11 +126,16 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
         eb.fn.sum<string>("b.wickets").as("totalWickets"),
         eb.fn.sum<string>("b.runs").as("totalRuns"),
         eb.fn.sum<string>("b.maidens").as("totalMaidens"),
-        eb.fn.max("b.wickets").as("bestWickets"),
+        // Encode best bowling as composite: most wickets wins, fewest runs breaks ties
+        sql<string>`MAX(b.wickets * 10000 - b.runs)`.as("bestBowlingScore"),
         sql<string>`SUM(${oversToBalls})`.as("totalBalls"),
       ])
       .orderBy(sql`SUM(b.wickets)`, "desc")
       .limit(params.limit);
+
+    if (params.season !== undefined) {
+      query = query.where("b.season", "=", params.season);
+    }
 
     if (params.isJunior !== undefined) {
       query = query.where("t.is_junior", "=", params.isJunior);
@@ -178,7 +186,12 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
             totalBalls >= 60 && wickets > 0
               ? Number((totalBalls / wickets).toFixed(1))
               : null,
-          bestWickets: row.bestWickets,
+          bestBowling: (() => {
+            const score = Number(row.bestBowlingScore);
+            const bestW = Math.floor((score + 9999) / 10000);
+            const bestR = bestW * 10000 - score;
+            return `${bestW}/${bestR}`;
+          })(),
         };
       }),
     };
