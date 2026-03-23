@@ -64,7 +64,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "leaderboard",
-        lazy: () => import("./pages/leaderboard/leaderboard.js"),
+        lazy: () => import("./pages/leaderboard/leaderboard-year.js"),
       },
       {
         path: "leaderboard/:year",

@@ -44,7 +44,7 @@ interface BowlingEntry {
   average: number | null;
   economy: number | null;
   strikeRate: number | null;
-  bestWickets: number;
+  bestBowling: string;
 }
 
 interface SponsorEntry {
@@ -76,25 +76,26 @@ function useTeams() {
   });
 }
 
-function useSponsors(season: number) {
+function useSponsors(season: number | null) {
+  const qs = season !== null ? `?season=${season}` : "";
   return useQuery({
     queryKey: ["player-sponsors", season],
     queryFn: () =>
       api.get<{ sponsors: SponsorEntry[] }>(
-        `/sponsorship/player/approved?season=${season}`,
+        `/sponsorship/player/approved${qs}`,
       ),
     staleTime: 10 * 60 * 1000,
   });
 }
 
 function useBattingLeaderboard(
-  season: number,
+  season: number | null,
   isJunior: boolean,
   teamId: string,
   competitionTypes: string[],
 ) {
   const qs = buildQueryString({
-    season: String(season),
+    season: season !== null ? String(season) : undefined,
     isJunior: String(isJunior),
     teamId: teamId || undefined,
     competitionTypes:
@@ -118,13 +119,13 @@ function useBattingLeaderboard(
 }
 
 function useBowlingLeaderboard(
-  season: number,
+  season: number | null,
   isJunior: boolean,
   teamId: string,
   competitionTypes: string[],
 ) {
   const qs = buildQueryString({
-    season: String(season),
+    season: season !== null ? String(season) : undefined,
     isJunior: String(isJunior),
     teamId: teamId || undefined,
     competitionTypes:
@@ -399,7 +400,7 @@ function BowlingTable({
                 {e.strikeRate?.toFixed(1) ?? "-"}
               </TableCell>
               <TableCell className="hidden text-right lg:table-cell">
-                {e.bestWickets}
+                {e.bestBowling}
               </TableCell>
             </TableRow>
           ))}
@@ -416,10 +417,12 @@ function BowlingTable({
 
 export function Component() {
   const { year } = useParams();
-  const season = Number(year);
+  const season: number | null = year ? Number(year) : null;
   const seasons = getSeasonRange();
 
-  useDocumentMeta(`${season} Season Leaderboard`);
+  useDocumentMeta(
+    season !== null ? `${season} Season Leaderboard` : "All Time Leaderboard",
+  );
 
   const [isJunior, setIsJunior] = useState(false);
   const [teamId, setTeamId] = useState("");
@@ -467,14 +470,20 @@ export function Component() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold">{season} Season Leaderboard</h1>
+        <h1 className="text-2xl font-bold">
+          {season !== null ? `${season} Season` : "All Time"} Leaderboard
+        </h1>
         <select
-          value={season}
+          value={season !== null ? String(season) : "all"}
           onChange={(e) => {
-            void navigate(`/leaderboard/${e.target.value}`);
+            const val = e.target.value;
+            void navigate(
+              val === "all" ? "/leaderboard" : `/leaderboard/${val}`,
+            );
           }}
           className="rounded border border-gray-300 px-3 py-1.5 text-sm"
         >
+          <option value="all">All Time</option>
           {seasons.map((y) => (
             <option key={y} value={y}>
               {y}
@@ -565,7 +574,7 @@ export function Component() {
 
       {/* Season navigation */}
       <div className="mt-8 flex justify-center gap-2">
-        {season > FIRST_SEASON && (
+        {season !== null && season > FIRST_SEASON && (
           <Link
             to={`/leaderboard/${season - 1}`}
             className="rounded border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
@@ -573,12 +582,20 @@ export function Component() {
             {season - 1}
           </Link>
         )}
-        {season < seasons[0] && (
+        {season !== null && season < seasons[0] && (
           <Link
             to={`/leaderboard/${season + 1}`}
             className="rounded border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
           >
             {season + 1}
+          </Link>
+        )}
+        {season !== null && (
+          <Link
+            to="/leaderboard"
+            className="rounded border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
+          >
+            All Time
           </Link>
         )}
       </div>
