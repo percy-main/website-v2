@@ -31,7 +31,7 @@ export const recordExpenseSchema = z.object({
   type: expenseTypeSchema,
   description: z.string().optional(),
   amountPence: z.number().int().positive(),
-  receiptImage: z.string().max(700_000).optional(),
+  receiptImage: z.string().optional(),
 });
 
 export const updateExpenseSchema = z.object({
@@ -96,6 +96,34 @@ export const searchMembersSchema = z.object({
   query: z.string().min(1),
 });
 
+// ── Expense approval workflow schemas ──
+
+export const expenseStatusSchema = z.enum([
+  "draft",
+  "submitted",
+  "approved",
+  "rejected",
+  "reimbursed",
+]);
+
+export const submitExpenseSchema = z.object({
+  type: expenseTypeSchema,
+  description: z.string().optional(),
+  amountPence: z.number().int().positive(),
+  receiptImage: z.string().optional(),
+});
+
+export const rejectExpenseSchema = z.object({
+  reason: z.string().min(1),
+});
+
+export const listPendingExpensesSchema = z.object({
+  status: z.enum(["submitted", "approved"]).optional(),
+  teamId: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 // ── Types ──
 
 export type ListMatches = z.infer<typeof listMatchesSchema>;
@@ -108,3 +136,6 @@ export type AddPlayer = z.infer<typeof addPlayerSchema>;
 export type ConfirmTeam = z.infer<typeof confirmTeamSchema>;
 export type MarkPaid = z.infer<typeof markPaidSchema>;
 export type SearchMembers = z.infer<typeof searchMembersSchema>;
+export type SubmitExpense = z.infer<typeof submitExpenseSchema>;
+export type RejectExpense = z.infer<typeof rejectExpenseSchema>;
+export type ListPendingExpenses = z.infer<typeof listPendingExpensesSchema>;

@@ -218,7 +218,9 @@ export function getSponsorshipSummary(db: Kysely<DB>) {
 
 export function getMatchdayExpensesSummary(db: Kysely<DB>) {
   return async (dateFrom?: string, dateTo?: string) => {
-    let query = db.selectFrom("matchday_expense");
+    let query = db
+      .selectFrom("matchday_expense")
+      .where("status", "!=", "draft");
 
     if (dateFrom) {
       query = query.where("created_at", ">=", dateFrom);
@@ -252,18 +254,35 @@ export function getExpensesWithReceipts(db: Kysely<DB>) {
   return async (dateFrom?: string, dateTo?: string) => {
     let query = db
       .selectFrom("matchday_expense")
-      .where("receipt_image_url", "is not", null);
+      .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
+      .innerJoin("user", "user.id", "matchday_expense.created_by")
+      .where("matchday_expense.status", "not in", ["draft", "reimbursed"]);
 
     if (dateFrom) {
-      query = query.where("created_at", ">=", dateFrom);
+      query = query.where("matchday_expense.created_at", ">=", dateFrom);
     }
     if (dateTo) {
-      query = query.where("created_at", "<=", dateTo);
+      query = query.where("matchday_expense.created_at", "<=", dateTo);
     }
 
     const expenses = await query
-      .selectAll()
-      .orderBy("created_at", "desc")
+      .select([
+        "matchday_expense.id",
+        "matchday_expense.expense_type",
+        "matchday_expense.description",
+        "matchday_expense.amount_pence",
+        "matchday_expense.receipt_image_url",
+        "matchday_expense.created_at",
+        "matchday_expense.status",
+        "matchday_expense.submitted_at",
+        "matchday_expense.approved_at",
+        "matchday_expense.rejected_reason",
+        "matchday_expense.reimbursed_at",
+        "matchday.match_date",
+        "matchday.opposition",
+        "user.name as submitted_by_name",
+      ])
+      .orderBy("matchday_expense.created_at", "desc")
       .execute();
 
     return { expenses };

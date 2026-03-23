@@ -7,6 +7,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -17,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
   Bar,
@@ -92,12 +98,19 @@ interface MatchdayExpensesSummaryResponse {
 
 interface Expense {
   id: string;
-  date: string;
-  match_description: string;
   expense_type: string;
-  description: string;
+  description: string | null;
   amount_pence: number;
   receipt_image_url: string | null;
+  created_at: string;
+  status: string;
+  submitted_at: string | null;
+  approved_at: string | null;
+  rejected_reason: string | null;
+  reimbursed_at: string | null;
+  match_date: string;
+  opposition: string;
+  submitted_by_name: string;
 }
 
 interface ExpensesWithReceiptsResponse {
@@ -135,6 +148,20 @@ const EXPENSE_TYPE_LABELS: Record<string, string> = {
   miscellaneous: "Miscellaneous",
 };
 
+const STATUS_CONFIG: Record<
+  string,
+  {
+    label: string;
+    variant: "default" | "secondary" | "success" | "warning" | "destructive";
+  }
+> = {
+  draft: { label: "Draft", variant: "secondary" },
+  submitted: { label: "Submitted", variant: "default" },
+  approved: { label: "Approved", variant: "success" },
+  rejected: { label: "Rejected", variant: "destructive" },
+  reimbursed: { label: "Reimbursed", variant: "secondary" },
+};
+
 function daysOverdue(chargeDate: string): number {
   const charge = new Date(chargeDate);
   const now = new Date();
@@ -149,12 +176,13 @@ export function TreasurerTab() {
   const [dateFrom, setDateFrom] = useState(defaults.dateFrom);
   const [dateTo, setDateTo] = useState(defaults.dateTo);
   const [outstandingPage, setOutstandingPage] = useState(1);
-  const [expensesView, setExpensesView] = useState<"summary" | "detail">(
-    "summary",
-  );
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [chasingId, setChasingId] = useState<string | null>(null);
 
+  const queryClient = useQueryClient();
   const dateParams = `dateFrom=${dateFrom}&dateTo=${dateTo}`;
 
   // --- Queries ---
@@ -203,7 +231,6 @@ export function TreasurerTab() {
       api.get<ExpensesWithReceiptsResponse>(
         `/treasurer/expenses-with-receipts?${dateParams}`,
       ),
-    enabled: expensesView === "detail",
   });
 
   const chaseMutation = useMutation({
@@ -211,6 +238,49 @@ export function TreasurerTab() {
       api.post("/admin/charge-notification", { userId }),
     onSuccess: () => {
       setChasingId(null);
+    },
+  });
+
+  const invalidateExpenses = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["treasurer", "expenses-with-receipts"],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["treasurer", "matchday-expenses-summary"],
+    });
+  };
+
+  const approveMutation = useMutation({
+    mutationFn: (expenseId: string) =>
+      api.post(`/matchday/expenses/${expenseId}/approve`, {}),
+    onSuccess: () => {
+      setSelectedExpense(null);
+      invalidateExpenses();
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({
+      expenseId,
+      reason,
+    }: {
+      expenseId: string;
+      reason: string;
+    }) => api.post(`/matchday/expenses/${expenseId}/reject`, { reason }),
+    onSuccess: () => {
+      setSelectedExpense(null);
+      setRejectingId(null);
+      setRejectReason("");
+      invalidateExpenses();
+    },
+  });
+
+  const reimburseMutation = useMutation({
+    mutationFn: (expenseId: string) =>
+      api.post(`/matchday/expenses/${expenseId}/reimburse`, {}),
+    onSuccess: () => {
+      setSelectedExpense(null);
+      invalidateExpenses();
     },
   });
 
@@ -328,6 +398,11 @@ export function TreasurerTab() {
     setDateFrom(d.dateFrom);
     setDateTo(d.dateTo);
   };
+
+  const anyActionPending =
+    approveMutation.isPending ||
+    rejectMutation.isPending ||
+    reimburseMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -566,35 +641,229 @@ export function TreasurerTab() {
 
       {/* Matchday Expenses */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle className="text-lg">
             Matchday Expenses
             {expensesSummaryQuery.data
               ? ` (${formatPence(expensesSummaryQuery.data.grandTotal)} total)`
               : ""}
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setExpensesView((v) => (v === "summary" ? "detail" : "summary"))
-            }
-          >
-            {expensesView === "summary" ? "Detail" : "Summary"}
-          </Button>
         </CardHeader>
         <CardContent>
-          {expensesView === "summary" ? (
-            <ExpensesSummaryTable data={expensesSummaryQuery.data} />
+          {expensesDetailQuery.isLoading ? (
+            <p className="py-8 text-center text-gray-500">Loading...</p>
+          ) : !expensesDetailQuery.data ||
+            expensesDetailQuery.data.expenses.length === 0 ? (
+            <p className="py-8 text-center text-gray-500">
+              No expenses for this period.
+            </p>
           ) : (
-            <ExpensesDetailTable
-              data={expensesDetailQuery.data}
-              isLoading={expensesDetailQuery.isLoading}
-              onViewReceipt={setLightboxUrl}
-            />
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Match Date</TableHead>
+                  <TableHead>Opposition</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {expensesDetailQuery.data.expenses.map((expense) => {
+                  const sc = STATUS_CONFIG[expense.status] ?? {
+                    label: expense.status,
+                    variant: "secondary" as const,
+                  };
+                  return (
+                    <TableRow key={expense.id}>
+                      <TableCell>{formatDate(expense.match_date)}</TableCell>
+                      <TableCell>{expense.opposition}</TableCell>
+                      <TableCell>
+                        {EXPENSE_TYPE_LABELS[expense.expense_type] ??
+                          expense.expense_type}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatPence(expense.amount_pence)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={sc.variant}>{sc.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedExpense(expense)}
+                        >
+                          Detail
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
+
+      {/* Expense Detail Modal */}
+      <Dialog
+        open={selectedExpense !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedExpense(null);
+            setRejectingId(null);
+            setRejectReason("");
+          }
+        }}
+      >
+        {selectedExpense && (
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Expense Detail</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <dt className="font-medium text-gray-500">Match</dt>
+                <dd>
+                  {selectedExpense.opposition} (
+                  {formatDate(selectedExpense.match_date)})
+                </dd>
+                <dt className="font-medium text-gray-500">Type</dt>
+                <dd>
+                  {EXPENSE_TYPE_LABELS[selectedExpense.expense_type] ??
+                    selectedExpense.expense_type}
+                </dd>
+                <dt className="font-medium text-gray-500">Description</dt>
+                <dd>{selectedExpense.description ?? "-"}</dd>
+                <dt className="font-medium text-gray-500">Amount</dt>
+                <dd className="font-semibold">
+                  {formatPence(selectedExpense.amount_pence)}
+                </dd>
+                <dt className="font-medium text-gray-500">Submitted by</dt>
+                <dd>{selectedExpense.submitted_by_name}</dd>
+                <dt className="font-medium text-gray-500">Status</dt>
+                <dd>
+                  <Badge
+                    variant={
+                      (
+                        STATUS_CONFIG[selectedExpense.status] ?? {
+                          variant: "secondary",
+                        }
+                      ).variant
+                    }
+                  >
+                    {
+                      (
+                        STATUS_CONFIG[selectedExpense.status] ?? {
+                          label: selectedExpense.status,
+                        }
+                      ).label
+                    }
+                  </Badge>
+                </dd>
+                {selectedExpense.rejected_reason && (
+                  <>
+                    <dt className="font-medium text-gray-500">
+                      Rejection reason
+                    </dt>
+                    <dd className="text-red-600">
+                      {selectedExpense.rejected_reason}
+                    </dd>
+                  </>
+                )}
+              </dl>
+
+              {selectedExpense.receipt_image_url && (
+                <div>
+                  <p className="mb-1 text-sm font-medium text-gray-500">
+                    Receipt
+                  </p>
+                  <img
+                    src={selectedExpense.receipt_image_url}
+                    alt="Receipt"
+                    className="max-h-48 cursor-pointer rounded border"
+                    onClick={() => {
+                      if (selectedExpense.receipt_image_url) {
+                        setLightboxUrl(selectedExpense.receipt_image_url);
+                      }
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Actions based on status */}
+              <div className="flex gap-2 border-t pt-4">
+                {selectedExpense.status === "submitted" && (
+                  <>
+                    <Button
+                      size="sm"
+                      disabled={anyActionPending}
+                      onClick={() => approveMutation.mutate(selectedExpense.id)}
+                    >
+                      Approve
+                    </Button>
+                    {rejectingId === selectedExpense.id ? (
+                      <div className="flex flex-1 gap-2">
+                        <Input
+                          placeholder="Reason for rejection"
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={
+                            anyActionPending || rejectReason.trim() === ""
+                          }
+                          onClick={() =>
+                            rejectMutation.mutate({
+                              expenseId: selectedExpense.id,
+                              reason: rejectReason.trim(),
+                            })
+                          }
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setRejectingId(null);
+                            setRejectReason("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={anyActionPending}
+                        onClick={() => setRejectingId(selectedExpense.id)}
+                      >
+                        Reject
+                      </Button>
+                    )}
+                  </>
+                )}
+                {selectedExpense.status === "approved" && (
+                  <Button
+                    size="sm"
+                    disabled={anyActionPending}
+                    onClick={() => reimburseMutation.mutate(selectedExpense.id)}
+                  >
+                    Mark Reimbursed
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
 
       {/* Outstanding Payments */}
       <Card>
@@ -809,119 +1078,6 @@ function SponsorshipTable({ data }: { data: SponsorshipSummaryResponse }) {
             </Badge>
           </TableCell>
         </TableRow>
-      </TableBody>
-    </Table>
-  );
-}
-
-function ExpensesSummaryTable({
-  data,
-}: {
-  data: MatchdayExpensesSummaryResponse | undefined;
-}) {
-  if (!data) {
-    return <p className="py-8 text-center text-gray-500">Loading...</p>;
-  }
-
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Expense Type</TableHead>
-          <TableHead className="text-right">Total</TableHead>
-          <TableHead className="text-right">Count</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {data.breakdown.map((row) => (
-          <TableRow key={row.expense_type}>
-            <TableCell>
-              {EXPENSE_TYPE_LABELS[row.expense_type] ?? row.expense_type}
-            </TableCell>
-            <TableCell className="text-right">
-              {formatPence(row.total_pence)}
-            </TableCell>
-            <TableCell className="text-right">{row.count}</TableCell>
-          </TableRow>
-        ))}
-        {data.breakdown.length === 0 && (
-          <TableRow>
-            <TableCell colSpan={3} className="py-8 text-center text-gray-500">
-              No expenses for this period.
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
-  );
-}
-
-function ExpensesDetailTable({
-  data,
-  isLoading,
-  onViewReceipt,
-}: {
-  data: ExpensesWithReceiptsResponse | undefined;
-  isLoading: boolean;
-  onViewReceipt: (url: string) => void;
-}) {
-  if (isLoading) {
-    return <p className="py-8 text-center text-gray-500">Loading...</p>;
-  }
-
-  if (!data || data.expenses.length === 0) {
-    return (
-      <p className="py-8 text-center text-gray-500">
-        No expenses for this period.
-      </p>
-    );
-  }
-
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Date</TableHead>
-          <TableHead>Match</TableHead>
-          <TableHead>Type</TableHead>
-          <TableHead>Description</TableHead>
-          <TableHead className="text-right">Amount</TableHead>
-          <TableHead>Receipt</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {data.expenses.map((expense) => (
-          <TableRow key={expense.id}>
-            <TableCell>{formatDate(expense.date)}</TableCell>
-            <TableCell>{expense.match_description}</TableCell>
-            <TableCell>
-              {EXPENSE_TYPE_LABELS[expense.expense_type] ??
-                expense.expense_type}
-            </TableCell>
-            <TableCell>{expense.description}</TableCell>
-            <TableCell className="text-right">
-              {formatPence(expense.amount_pence)}
-            </TableCell>
-            <TableCell>
-              {expense.receipt_image_url ? (
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="text-blue-600"
-                  onClick={() => {
-                    if (expense.receipt_image_url) {
-                      onViewReceipt(expense.receipt_image_url);
-                    }
-                  }}
-                >
-                  View
-                </Button>
-              ) : (
-                <span className="text-gray-400">-</span>
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
       </TableBody>
     </Table>
   );

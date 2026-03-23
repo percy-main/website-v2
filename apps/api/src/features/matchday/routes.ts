@@ -8,16 +8,20 @@ import {
   createMatchdaySchema,
   expenseIdParamSchema,
   listMatchesSchema,
+  listPendingExpensesSchema,
   markPaidSchema,
   matchIdParamSchema,
   playerIdParamSchema,
   recordExpenseSchema,
+  rejectExpenseSchema,
   searchMembersSchema,
+  submitExpenseSchema,
   teamIdParamSchema,
   updateExpenseSchema,
 } from "./schemas.ts";
 import {
   addPlayer,
+  approveExpense,
   confirmTeam,
   createMatchday,
   deleteExpense,
@@ -25,23 +29,28 @@ import {
   getMatch,
   getUpcomingMatches,
   listMatches,
+  listPendingExpenses,
   listTeams,
+  markExpenseReimbursed,
   markFeePaid,
   recordExpense,
+  rejectExpense,
   removePlayer,
   searchMembers,
+  submitExpenseClaim,
   updateExpense,
 } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const matchdayRoutes: FastifyPluginAsync = async (app) => {
   const officialRole = requireRole("official", "admin");
+  const adminRole = requireRole("admin");
 
   // ── Existing routes ──
 
   const list = listMatches(app.db);
   const get = getMatch(app.db);
-  const record = recordExpense(app.db);
+  const record = recordExpense(app.db, app.s3);
   const update = updateExpense(app.db);
   const remove = deleteExpense(app.db);
 
@@ -95,6 +104,67 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
       const role = (user as { role?: string | null }).role ?? "user";
       const { expenseId } = parseParams(request, expenseIdParamSchema);
       return await remove(user.id, role, expenseId);
+    },
+  );
+
+  // ── Expense approval workflow routes ──
+
+  const submit = submitExpenseClaim(app.db, app.s3);
+  const approve = approveExpense(app.db);
+  const reject = rejectExpense(app.db);
+  const reimburse = markExpenseReimbursed(app.db);
+  const pending = listPendingExpenses(app.db);
+
+  // Static route must be registered before parameterised :expenseId routes
+  app.get(
+    "/matchday/expenses/pending",
+    { preHandler: [adminRole] },
+    async (request) => {
+      const params = parseQuery(request, listPendingExpensesSchema);
+      return await pending(params);
+    },
+  );
+
+  app.post(
+    "/matchday/:matchId/expenses/submit",
+    { preHandler: [officialRole] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      const { matchId } = parseParams(request, matchIdParamSchema);
+      const data = parseBody(request, submitExpenseSchema);
+      return await submit(user.id, role, { ...data, matchId });
+    },
+  );
+
+  app.post(
+    "/matchday/expenses/:expenseId/approve",
+    { preHandler: [adminRole] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { expenseId } = parseParams(request, expenseIdParamSchema);
+      return await approve(user.id, expenseId);
+    },
+  );
+
+  app.post(
+    "/matchday/expenses/:expenseId/reject",
+    { preHandler: [adminRole] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { expenseId } = parseParams(request, expenseIdParamSchema);
+      const data = parseBody(request, rejectExpenseSchema);
+      return await reject(user.id, expenseId, data);
+    },
+  );
+
+  app.post(
+    "/matchday/expenses/:expenseId/reimburse",
+    { preHandler: [adminRole] },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { expenseId } = parseParams(request, expenseIdParamSchema);
+      return await reimburse(user.id, expenseId);
     },
   );
 

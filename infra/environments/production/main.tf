@@ -91,12 +91,15 @@ module "ecs" {
   ses_identity_arn      = local.shared.ses_identity_arn
 
   environment_variables = {
-    NODE_ENV       = "production"
-    PORT           = "3000"
-    HOST           = "0.0.0.0"
-    LOG_LEVEL      = "info"
-    EMAIL_PROVIDER = "ses"
-    SES_REGION     = "eu-west-2"
+    NODE_ENV          = "production"
+    PORT              = "3000"
+    HOST              = "0.0.0.0"
+    LOG_LEVEL         = "info"
+    EMAIL_PROVIDER    = "ses"
+    SES_REGION        = "eu-west-2"
+    S3_BUCKET         = "percy-main-production-uploads"
+    S3_REGION         = "eu-west-2"
+    S3_RECEIPT_PREFIX = "receipts"
   }
 
   secrets = {

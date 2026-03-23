@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { noopS3Uploader } from "../../lib/s3-upload.ts";
 import {
   seedTestUser,
   startTestContainer,
@@ -7,22 +8,29 @@ import {
 } from "../../test/containers.ts";
 import {
   addPlayer,
+  approveExpense,
   confirmTeam,
   createMatchday,
   deleteExpense,
   getMatch,
   listMatches,
+  listPendingExpenses,
   listTeams,
+  markExpenseReimbursed,
   recordExpense,
+  rejectExpense,
   removePlayer,
   searchMembers,
+  submitExpenseClaim,
 } from "./service.ts";
+
+const s3 = noopS3Uploader;
 
 let ctx: TestContext;
 
 beforeAll(async () => {
   ctx = await startTestContainer();
-});
+}, 30_000);
 
 afterAll(async () => {
   await stopTestContainer(ctx);
@@ -461,8 +469,8 @@ describe("matchday service (integration)", () => {
         status: "confirmed",
       });
 
-      // Record expense
-      const { expenseId } = await recordExpense(ctx.db)(userId, "admin", {
+      // Record expense (no S3 in integration tests)
+      const { expenseId } = await recordExpense(ctx.db, s3)(userId, "admin", {
         matchId,
         type: "umpire_fee",
         description: "Umpire payment",
@@ -494,6 +502,221 @@ describe("matchday service (integration)", () => {
         .selectAll()
         .executeTakeFirst();
       expect(deleted).toBeUndefined();
+    });
+  });
+
+  describe("expense approval workflow", () => {
+    it("full lifecycle: submit → approve → reimburse", async () => {
+      const { userId: officialId } = await seedTestUser(ctx.db, {
+        email: `official-expense-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `admin-expense-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      await seedTeamOfficial(officialId, teamId);
+      const matchId = await seedMatchday({
+        teamId,
+        createdBy: officialId,
+        status: "confirmed",
+      });
+
+      // 1. Submit expense claim
+      const { expenseId } = await submitExpenseClaim(ctx.db, s3)(
+        officialId,
+        "official",
+        {
+          matchId,
+          type: "umpire_fee",
+          description: "Umpire fee for match",
+          amountPence: 5000,
+        },
+      );
+
+      // Verify submitted status
+      let expense = await ctx.db
+        .selectFrom("matchday_expense")
+        .where("id", "=", expenseId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(expense?.status).toBe("submitted");
+      expect(expense?.submitted_at).toBeTruthy();
+
+      // 2. Approve
+      await approveExpense(ctx.db)(adminId, expenseId);
+
+      expense = await ctx.db
+        .selectFrom("matchday_expense")
+        .where("id", "=", expenseId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(expense?.status).toBe("approved");
+      expect(expense?.approved_by).toBe(adminId);
+      expect(expense?.approved_at).toBeTruthy();
+
+      // 3. Reimburse
+      await markExpenseReimbursed(ctx.db)(adminId, expenseId);
+
+      expense = await ctx.db
+        .selectFrom("matchday_expense")
+        .where("id", "=", expenseId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(expense?.status).toBe("reimbursed");
+      expect(expense?.reimbursed_by).toBe(adminId);
+      expect(expense?.reimbursed_at).toBeTruthy();
+    });
+
+    it("submit → reject with reason", async () => {
+      const { userId: officialId } = await seedTestUser(ctx.db, {
+        email: `off-reject-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `adm-reject-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      await seedTeamOfficial(officialId, teamId);
+      const matchId = await seedMatchday({
+        teamId,
+        createdBy: officialId,
+        status: "confirmed",
+      });
+
+      const { expenseId } = await submitExpenseClaim(ctx.db, s3)(
+        officialId,
+        "official",
+        {
+          matchId,
+          type: "teas",
+          amountPence: 3000,
+        },
+      );
+
+      await rejectExpense(ctx.db)(adminId, expenseId, {
+        reason: "No receipt attached",
+      });
+
+      const expense = await ctx.db
+        .selectFrom("matchday_expense")
+        .where("id", "=", expenseId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(expense?.status).toBe("rejected");
+      expect(expense?.rejected_reason).toBe("No receipt attached");
+    });
+
+    it("cannot approve a non-submitted expense", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `adm-invalid-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchId = await seedMatchday({
+        teamId,
+        createdBy: adminId,
+        status: "confirmed",
+      });
+
+      // Create a draft expense via recordExpense (no receipt, no S3 needed)
+      const { expenseId } = await recordExpense(ctx.db, s3)(adminId, "admin", {
+        matchId,
+        type: "match_ball",
+        amountPence: 2000,
+      });
+
+      await expect(approveExpense(ctx.db)(adminId, expenseId)).rejects.toThrow(
+        "Only submitted expenses can be approved",
+      );
+    });
+
+    it("cannot reimburse a non-approved expense", async () => {
+      const { userId: officialId } = await seedTestUser(ctx.db, {
+        email: `off-noreimb-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `adm-noreimb-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      await seedTeamOfficial(officialId, teamId);
+      const matchId = await seedMatchday({
+        teamId,
+        createdBy: officialId,
+        status: "confirmed",
+      });
+
+      const { expenseId } = await submitExpenseClaim(ctx.db, s3)(
+        officialId,
+        "official",
+        {
+          matchId,
+          type: "scorer_fee",
+          amountPence: 2500,
+        },
+      );
+
+      // Try to reimburse without approval
+      await expect(
+        markExpenseReimbursed(ctx.db)(adminId, expenseId),
+      ).rejects.toThrow("Only approved expenses can be reimbursed");
+    });
+
+    it("listPendingExpenses returns submitted and approved expenses", async () => {
+      const { userId: officialId } = await seedTestUser(ctx.db, {
+        email: `off-pending-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `adm-pending-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      await seedTeamOfficial(officialId, teamId);
+      const matchId = await seedMatchday({
+        teamId,
+        createdBy: officialId,
+        status: "confirmed",
+      });
+
+      // Submit two expenses
+      const { expenseId: exp1 } = await submitExpenseClaim(ctx.db, s3)(
+        officialId,
+        "official",
+        { matchId, type: "umpire_fee", amountPence: 5000 },
+      );
+      await submitExpenseClaim(ctx.db, s3)(officialId, "official", {
+        matchId,
+        type: "teas",
+        amountPence: 3000,
+      });
+
+      // Approve the first one
+      await approveExpense(ctx.db)(adminId, exp1);
+
+      // List all pending (submitted + approved)
+      const result = await listPendingExpenses(ctx.db)({
+        limit: 50,
+        offset: 0,
+      });
+
+      const expenseIds = result.items.map((e) => e.id);
+      expect(expenseIds).toContain(exp1);
+      expect(result.items.length).toBeGreaterThanOrEqual(2);
+
+      // Filter by submitted only
+      const submitted = await listPendingExpenses(ctx.db)({
+        status: "submitted",
+        limit: 50,
+        offset: 0,
+      });
+      for (const item of submitted.items) {
+        expect(item.status).toBe("submitted");
+      }
     });
   });
 });
