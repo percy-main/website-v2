@@ -145,6 +145,11 @@ export const router = createBrowserRouter([
                 path: "members/availability",
                 lazy: () => import("./pages/members/members-availability.js"),
               },
+              // Matchday hub — all members see availability, officials see more
+              {
+                path: "matchday",
+                lazy: () => import("./pages/matchday/matchday-hub.js"),
+              },
             ],
           },
         ],
@@ -171,7 +176,7 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // Official routes
+      // Official routes (matchday management + availability management)
       {
         element: <RequireAuth />,
         children: [
@@ -182,19 +187,19 @@ export const router = createBrowserRouter([
                 element: <RequireRole roles={["official", "admin"]} />,
                 children: [
                   {
-                    path: "official",
+                    path: "matchday/teams",
                     lazy: () => import("./pages/official/official.js"),
                   },
                   {
-                    path: "official/availability",
+                    path: "matchday/availability",
                     lazy: () => import("./pages/official/availability.js"),
                   },
                   {
-                    path: "official/availability/:requestId",
+                    path: "matchday/availability/:requestId",
                     lazy: () => import("./pages/official/availability.js"),
                   },
                   {
-                    path: "official/availability/:requestId/:date",
+                    path: "matchday/availability/:requestId/:date",
                     lazy: () => import("./pages/official/availability.js"),
                   },
                 ],

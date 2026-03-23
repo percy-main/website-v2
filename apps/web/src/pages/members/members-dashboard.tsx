@@ -78,6 +78,12 @@ export function Component() {
 
             <Link
               className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
+              to="/matchday"
+            >
+              Matchday
+            </Link>
+            <Link
+              className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
               to="/members/fantasy"
             >
               Fantasy Cricket
@@ -282,7 +288,7 @@ function AvailabilityNagModal() {
           <Button
             onClick={() => {
               dismiss();
-              void navigate("/members/availability");
+              void navigate("/matchday");
             }}
           >
             Respond Now
@@ -314,7 +320,7 @@ function AvailabilityBanner() {
 
   return (
     <Link
-      to="/members/availability"
+      to="/matchday"
       className="block w-full rounded border border-blue-300 bg-blue-50 p-3 text-sm text-blue-800 transition-colors hover:bg-blue-100"
     >
       You have <strong>{unansweredCount}</strong> availability{" "}
