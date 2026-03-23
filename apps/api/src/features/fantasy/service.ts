@@ -2,6 +2,7 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
+import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import { calculateSlotEffectivePoints } from "./calculate-scores.ts";
 import {
   BUDGET,
@@ -534,7 +535,10 @@ export function toggleEligibility(db: Kysely<DB>) {
   };
 }
 
-export function populatePlayers(db: Kysely<DB>) {
+export function populatePlayers(
+  db: Kysely<DB>,
+  apiClient?: PlayCricketApiClient,
+) {
   return async () => {
     // Get distinct players from match performance tables
     const battingPlayers = await db
@@ -564,6 +568,17 @@ export function populatePlayers(db: Kysely<DB>) {
     ]) {
       if (p.player_id && p.player_name) {
         playerMap.set(p.player_id, p.player_name);
+      }
+    }
+
+    // Also fetch all registered players from Play Cricket API
+    if (apiClient) {
+      const { players: apiPlayers } = await apiClient.getPlayers();
+      for (const p of apiPlayers) {
+        const id = String(p.member_id);
+        if (!playerMap.has(id)) {
+          playerMap.set(id, p.name);
+        }
       }
     }
 

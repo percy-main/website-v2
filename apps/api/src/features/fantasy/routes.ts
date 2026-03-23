@@ -5,6 +5,7 @@ import {
   requireAuth,
   requireRole,
 } from "../auth/middleware.ts";
+import { createApiClient } from "../play-cricket/api-client.ts";
 import { calculateFantasyScores } from "./calculate-scores.ts";
 import { getCurrentSeason } from "./gameweek.ts";
 import {
@@ -58,13 +59,21 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const fantasyRoutes: FastifyPluginAsync = async (app) => {
+  const playCricketApi =
+    app.config.PLAY_CRICKET_API_TOKEN && app.config.PLAY_CRICKET_SITE_ID
+      ? createApiClient({
+          apiToken: app.config.PLAY_CRICKET_API_TOKEN,
+          siteId: app.config.PLAY_CRICKET_SITE_ID,
+        })
+      : undefined;
+
   // Wire up service factories
   const eligible = getEligiblePlayers(app.db);
   const myTeam = getMyTeam(app.db);
   const save = saveTeam(app.db);
   const list = listPlayers(app.db);
   const toggle = toggleEligibility(app.db);
-  const populate = populatePlayers(app.db);
+  const populate = populatePlayers(app.db, playCricketApi);
   const calcCosts = calculateSandwichCosts(app.db);
   const calcScores = calculateFantasyScores(app.db);
   const transferWindow = getTransferWindow();
