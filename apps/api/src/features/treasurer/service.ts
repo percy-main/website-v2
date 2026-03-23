@@ -218,7 +218,9 @@ export function getSponsorshipSummary(db: Kysely<DB>) {
 
 export function getMatchdayExpensesSummary(db: Kysely<DB>) {
   return async (dateFrom?: string, dateTo?: string) => {
-    let query = db.selectFrom("matchday_expense");
+    let query = db
+      .selectFrom("matchday_expense")
+      .where("status", "!=", "draft");
 
     if (dateFrom) {
       query = query.where("created_at", ">=", dateFrom);
@@ -253,7 +255,8 @@ export function getExpensesWithReceipts(db: Kysely<DB>) {
     let query = db
       .selectFrom("matchday_expense")
       .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
-      .innerJoin("user", "user.id", "matchday_expense.created_by");
+      .innerJoin("user", "user.id", "matchday_expense.created_by")
+      .where("matchday_expense.status", "!=", "draft");
 
     if (dateFrom) {
       query = query.where("matchday_expense.created_at", ">=", dateFrom);

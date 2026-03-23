@@ -233,8 +233,6 @@ export function recordExpense(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this matchday");
     }
 
-    // TODO: Upload receipt image to S3 when infrastructure is live.
-    // For now, store the data URL directly in the DB column.
     let receiptImageUrl: string | null = null;
     if (data.receiptImage) {
       const match = /^data:(image\/(?:jpeg|png|webp|heic));base64,(.+)$/.exec(
@@ -828,14 +826,26 @@ export function finishMatch(
     }
 
     // Set matchday to finished
+    const finishedAt = new Date().toISOString();
     await db
       .updateTable("matchday")
       .set({
         status: "finished",
-        finished_at: new Date().toISOString(),
+        finished_at: finishedAt,
         finished_by: userId,
       })
       .where("id", "=", matchdayId)
+      .execute();
+
+    // Submit all draft expenses for treasurer review
+    await db
+      .updateTable("matchday_expense")
+      .set({
+        status: "submitted",
+        submitted_at: finishedAt,
+      })
+      .where("matchday_id", "=", matchdayId)
+      .where("status", "=", "draft")
       .execute();
 
     // Create charges for any playing players who don't have one yet
