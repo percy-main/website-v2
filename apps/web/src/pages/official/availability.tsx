@@ -154,13 +154,13 @@ function RequestListView() {
           )}
           <Link
             className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
-            to="/official"
+            to="/matchday"
           >
             Matchday
           </Link>
           <Link
             className="bg-dark text-body rounded px-4 py-2 text-sm hover:opacity-90"
-            to="/official/availability?view=new"
+            to="/matchday/availability?view=new"
           >
             New Request
           </Link>
@@ -183,7 +183,7 @@ function RequestListView() {
       {(query.data?.items.length ?? 0) > 0 && query.data && (
         <div className="mt-4 flex flex-col gap-3">
           {query.data.items.map((req) => (
-            <Link key={req.id} to={`/official/availability/${req.id}`}>
+            <Link key={req.id} to={`/matchday/availability/${req.id}`}>
               <Card className="transition-colors hover:bg-gray-50">
                 <CardContent className="flex items-center justify-between py-4">
                   <div>
@@ -240,7 +240,7 @@ function CreateRequestView() {
       void queryClient.invalidateQueries({
         queryKey: ["availability", "requests"],
       });
-      window.location.href = `/official/availability/${data.id}`;
+      window.location.href = `/matchday/availability/${data.id}`;
     },
   });
 
@@ -256,7 +256,7 @@ function CreateRequestView() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-4 flex items-center gap-2">
         <Link
-          to="/official/availability"
+          to="/matchday/availability"
           className="text-sm text-gray-500 hover:text-gray-900"
         >
           &larr; Back
@@ -401,7 +401,7 @@ function RequestDetailView({ requestId }: { requestId: string }) {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-4 flex items-center gap-2">
         <Link
-          to="/official/availability"
+          to="/matchday/availability"
           className="text-sm text-gray-500 hover:text-gray-900"
         >
           &larr; Back
@@ -448,7 +448,7 @@ function RequestDetailView({ requestId }: { requestId: string }) {
         {dates.map((d) => (
           <Link
             key={d.date}
-            to={`/official/availability/${requestId}/${d.date}`}
+            to={`/matchday/availability/${requestId}/${d.date}`}
           >
             <Card className="transition-colors hover:bg-gray-50">
               <CardContent className="py-4">
@@ -592,7 +592,7 @@ function TeamSelectionView({
     <div className="container mx-auto px-4 py-8">
       <div className="mb-4 flex items-center gap-2">
         <Link
-          to={`/official/availability/${requestId}`}
+          to={`/matchday/availability/${requestId}`}
           className="text-sm text-gray-500 hover:text-gray-900"
         >
           &larr; Back
@@ -676,8 +676,8 @@ function TeamSelectionView({
           {confirmMutation.isSuccess && (
             <p className="text-sm text-green-600">
               Matchday records created. View them in the{" "}
-              <Link to="/official" className="underline">
-                Matchday panel
+              <Link to="/matchday/teams" className="underline">
+                Team Management
               </Link>
               .
             </p>

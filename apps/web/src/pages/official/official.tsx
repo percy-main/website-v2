@@ -118,7 +118,7 @@ export function Component() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h1>Match Official</h1>
+          <h1>Team Management</h1>
           <div className="flex gap-2">
             {user.role === "admin" && (
               <Link
@@ -130,9 +130,9 @@ export function Component() {
             )}
             <Link
               className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
-              to="/members"
+              to="/matchday"
             >
-              Members Area
+              Matchday
             </Link>
           </div>
         </div>
@@ -161,7 +161,10 @@ function TeamsDashboard() {
     return <p className="text-red-600">Failed to load teams.</p>;
   }
 
-  const teams = teamsQuery.data ?? [];
+  const SENIOR_TEAM_PATTERN = /1st|2nd|midweek/i;
+  const teams = (teamsQuery.data ?? []).filter((t) =>
+    SENIOR_TEAM_PATTERN.test(t.name),
+  );
 
   if (teams.length === 0) {
     return (
