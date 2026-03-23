@@ -158,10 +158,16 @@ jobs:
             exit 0
           fi
           TIMESTAMP=$(date -u +%s)000
-          curl -s -X POST "https://api.eu.newrelic.com/graphql" \
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
             -H "Content-Type: application/json" \
             -H "API-Key: $NEW_RELIC_API_KEY" \
             -d "{
               \"query\": \"mutation { changeTrackingCreateDeployment(deployment: { version: \\\"${{ github.sha }}\\\", entityGuid: \\\"$NEW_RELIC_ENTITY_GUID\\\", description: \\\"Deployed from GitHub Actions\\\", commit: \\\"${{ github.sha }}\\\", deploymentType: ROLLING, timestamp: $TIMESTAMP }) { deploymentId } }\"
-            }"
-          echo "Deployment recorded in New Relic"
+            }")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          if [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
+            echo "::warning::New Relic deployment tracking failed (HTTP $HTTP_CODE): $BODY"
+          else
+            echo "Deployment recorded in New Relic"
+          fi

@@ -60,22 +60,6 @@
       media="(prefers-color-scheme: dark)"
       content="#0f172a"
     />
-    <script>
-      (function () {
-        var k = "%VITE_NEW_RELIC_LICENSE_KEY%";
-        if (!k || k.indexOf("VITE_") === 0) return;
-        var s = document.createElement("script");
-        s.src =
-          "https://js-agent.eu01.nr-data.net/nr-loader-spa-current.min.js";
-        s.setAttribute("data-license-key", k);
-        s.setAttribute("data-application-id", "%VITE_NEW_RELIC_APP_ID%");
-        s.setAttribute("data-account-id", "%VITE_NEW_RELIC_ACCOUNT_ID%");
-        s.setAttribute("data-agent-type", "spa");
-        s.setAttribute("data-beacon", "bam.eu01.nr-data.net");
-        s.async = true;
-        document.head.appendChild(s);
-      })();
-    </script>
   </head>
   <body>
     <script>

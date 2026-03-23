@@ -354,6 +354,8 @@ resource "aws_ecs_task_definition" "api" {
         name      = "newrelic-infra"
         image     = "newrelic/nri-ecs:1.11.15"
         essential = false
+        cpu       = 64
+        memory    = 128
 
         environment = [
           { name = "NRIA_OVERRIDE_HOST_ROOT", value = "" },

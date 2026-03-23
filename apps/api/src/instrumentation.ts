@@ -73,7 +73,10 @@ if (licenseKey) {
 
   sdk.start();
 
-  // Graceful shutdown — flush pending telemetry on SIGTERM
-  process.on("SIGTERM", () => void sdk.shutdown());
-  process.on("SIGINT", () => void sdk.shutdown());
+  // Graceful shutdown — flush pending telemetry before process exits
+  const shutdown = async () => {
+    await sdk.shutdown();
+  };
+  process.on("SIGTERM", () => void shutdown());
+  process.on("SIGINT", () => void shutdown());
 }
