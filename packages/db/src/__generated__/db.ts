@@ -276,6 +276,10 @@ export interface Matchday {
   opposition: string;
   play_cricket_match_id: string | null;
   play_cricket_team_id: string;
+  result_confirmed_at: string | null;
+  result_confirmed_by: string | null;
+  result_source: string | null;
+  result_type: string | null;
   status: Generated<string>;
 }
 
