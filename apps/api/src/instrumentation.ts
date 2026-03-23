@@ -29,6 +29,8 @@ if (licenseKey) {
   const { resourceFromAttributes } = await import("@opentelemetry/resources");
   const { ATTR_SERVICE_NAME } =
     await import("@opentelemetry/semantic-conventions");
+  const { FastifyInstrumentation } =
+    await import("@opentelemetry/instrumentation-fastify");
 
   const endpoint =
     process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "https://otlp.eu01.nr-data.net";
@@ -68,6 +70,9 @@ if (licenseKey) {
           requireParentSpan: true,
         },
       }),
+      // Fastify-specific instrumentation for route-level spans and middleware timing
+      // (not included in the auto-instrumentations meta-package)
+      new FastifyInstrumentation(),
     ],
   });
 
