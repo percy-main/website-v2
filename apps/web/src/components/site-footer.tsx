@@ -59,7 +59,7 @@ export const SiteFooter: FC = () => {
               </li>
               <li>
                 <Link
-                  to="/leaderboard"
+                  to="/cricket"
                   className="text-white/80 transition hover:text-white"
                 >
                   Cricket
