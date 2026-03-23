@@ -398,10 +398,26 @@ describe("expense approval workflow", () => {
         status: "pending",
         play_cricket_team_id: "team-1",
       });
+      // getAccessibleTeamIds
+      mockExecute.mockResolvedValueOnce([{ id: "team-1" }]);
 
       await expect(
         finish("user-1", "admin", "match-1", { resultType: "W" }),
       ).rejects.toThrow("Can only finish a confirmed matchday");
+    });
+
+    it("rejects if user has no access to the matchday team", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "match-1",
+        status: "confirmed",
+        play_cricket_team_id: "team-1",
+      });
+      // getAccessibleTeamIds returns empty (no access)
+      mockExecute.mockResolvedValueOnce([]);
+
+      await expect(
+        finish("user-1", "admin", "match-1", { resultType: "W" }),
+      ).rejects.toThrow("You do not have access to this matchday");
     });
 
     it("persists result when finishing a confirmed matchday", async () => {

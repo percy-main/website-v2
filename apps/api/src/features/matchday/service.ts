@@ -830,14 +830,14 @@ export function finishMatch(
 
     if (!matchday) throwHttpError(404, "Matchday not found");
 
-    // Allow finishing a confirmed match, or re-submitting result on an already-finished match (idempotent)
-    if (matchday.status !== "confirmed" && matchday.status !== "finished") {
-      throwHttpError(400, "Can only finish a confirmed matchday");
-    }
-
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
     if (!accessibleIds.includes(matchday.play_cricket_team_id)) {
       throwHttpError(403, "You do not have access to this matchday");
+    }
+
+    // Allow finishing a confirmed match, or re-submitting result on an already-finished match (idempotent)
+    if (matchday.status !== "confirmed" && matchday.status !== "finished") {
+      throwHttpError(400, "Can only finish a confirmed matchday");
     }
 
     // Set matchday to finished with result
