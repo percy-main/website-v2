@@ -231,7 +231,9 @@ function PlayerManagementSection() {
               <TableBody>
                 {players.map((player) => (
                   <TableRow key={player.play_cricket_id}>
-                    <TableCell className="font-medium">{player.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {player.player_name}
+                    </TableCell>
                     <TableCell className="text-gray-500">
                       {player.play_cricket_id}
                     </TableCell>
