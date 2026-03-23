@@ -96,6 +96,12 @@ variable "ses_identity_arn" {
   description = "ARN of the SES identity to restrict sending to (if empty, allows all)"
 }
 
+variable "newrelic_license_key_arn" {
+  type        = string
+  default     = ""
+  description = "ARN of the Secrets Manager value for the New Relic license key. When set, enables the New Relic Infrastructure sidecar and OTel export."
+}
+
 # ------------------------------------------------------------------------------
 # Locals
 # ------------------------------------------------------------------------------
@@ -294,43 +300,83 @@ resource "aws_ecs_task_definition" "api" {
     cpu_architecture        = "ARM64"
   }
 
-  container_definitions = jsonencode([
-    {
-      name      = "api"
-      image     = "${var.ecr_repository_url}:${var.image_tag}"
-      essential = true
+  container_definitions = jsonencode(concat(
+    [
+      {
+        name      = "api"
+        image     = "${var.ecr_repository_url}:${var.image_tag}"
+        essential = true
 
-      portMappings = [
-        {
-          containerPort = 3000
-          protocol      = "tcp"
-        }
-      ]
+        portMappings = [
+          {
+            containerPort = 3000
+            protocol      = "tcp"
+          }
+        ]
 
-      environment = [
-        for name, value in var.environment_variables : {
-          name  = name
-          value = value
-        }
-      ]
+        environment = concat(
+          [
+            for name, value in var.environment_variables : {
+              name  = name
+              value = value
+            }
+          ],
+          var.newrelic_license_key_arn != "" ? [
+            { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "https://otlp.eu01.nr-data.net" },
+            { name = "OTEL_SERVICE_NAME", value = "${local.name_prefix}-api" },
+          ] : []
+        )
 
-      secrets = [
-        for name, arn in var.secrets : {
-          name      = name
-          valueFrom = arn
-        }
-      ]
+        secrets = concat(
+          [
+            for name, arn in var.secrets : {
+              name      = name
+              valueFrom = arn
+            }
+          ],
+          var.newrelic_license_key_arn != "" ? [
+            { name = "NEW_RELIC_LICENSE_KEY", valueFrom = var.newrelic_license_key_arn },
+          ] : []
+        )
 
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.api.name
-          "awslogs-region"        = data.aws_region.current.name
-          "awslogs-stream-prefix" = "api"
+        logConfiguration = {
+          logDriver = "awslogs"
+          options = {
+            "awslogs-group"         = aws_cloudwatch_log_group.api.name
+            "awslogs-region"        = data.aws_region.current.name
+            "awslogs-stream-prefix" = "api"
+          }
         }
       }
-    }
-  ])
+    ],
+    var.newrelic_license_key_arn != "" ? [
+      {
+        name      = "newrelic-infra"
+        image     = "newrelic/nri-ecs:1.11.15"
+        essential = false
+
+        environment = [
+          { name = "NRIA_OVERRIDE_HOST_ROOT", value = "" },
+          { name = "NRIA_IS_FORWARD_ONLY", value = "true" },
+          { name = "NRIA_PASSTHROUGH_ENVIRONMENT", value = "ECS_CONTAINER_METADATA_URI,ECS_CONTAINER_METADATA_URI_V4,FARGATE" },
+          { name = "FARGATE", value = "true" },
+        ]
+
+        secrets = [
+          { name = "NRIA_LICENSE_KEY", valueFrom = var.newrelic_license_key_arn },
+        ]
+
+        logConfiguration = {
+          logDriver = "awslogs"
+          options = {
+            "awslogs-group"         = aws_cloudwatch_log_group.api.name
+            "awslogs-region"        = data.aws_region.current.name
+            "awslogs-stream-prefix" = "newrelic-infra"
+          }
+        }
+      }
+    ] : []
+  ))
 
   tags = local.tags
 }

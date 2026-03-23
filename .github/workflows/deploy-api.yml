@@ -146,3 +146,22 @@ jobs:
           done
           echo "Smoke test failed"
           exit 1
+
+      - name: Record deployment in New Relic
+        if: success()
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_ENTITY_GUID: ${{ vars.NEW_RELIC_ENTITY_GUID }}
+        run: |
+          if [ -z "$NEW_RELIC_API_KEY" ] || [ -z "$NEW_RELIC_ENTITY_GUID" ]; then
+            echo "New Relic API key or entity GUID not configured, skipping"
+            exit 0
+          fi
+          TIMESTAMP=$(date -u +%s)000
+          curl -s -X POST "https://api.eu.newrelic.com/graphql" \
+            -H "Content-Type: application/json" \
+            -H "API-Key: $NEW_RELIC_API_KEY" \
+            -d "{
+              \"query\": \"mutation { changeTrackingCreateDeployment(deployment: { version: \\\"${{ github.sha }}\\\", entityGuid: \\\"$NEW_RELIC_ENTITY_GUID\\\", description: \\\"Deployed from GitHub Actions\\\", commit: \\\"${{ github.sha }}\\\", deploymentType: ROLLING, timestamp: $TIMESTAMP }) { deploymentId } }\"
+            }"
+          echo "Deployment recorded in New Relic"

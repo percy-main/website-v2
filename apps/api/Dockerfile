@@ -53,4 +53,4 @@ ENV NODE_ENV=production
 ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/rds-global-bundle.crt
 EXPOSE 3000
 
-CMD ["node", "apps/api/dist/server.js"]
+CMD ["node", "--import", "./apps/api/dist/instrumentation.js", "apps/api/dist/server.js"]
