@@ -38,13 +38,17 @@ const { mockExecute, mockExecuteTakeFirst, mockQueryBuilder } = vi.hoisted(
 
 import {
   addPlayer,
+  approveExpense,
   createMatchday,
   deleteExpense,
   listMatches,
   listTeams,
+  markExpenseReimbursed,
   recordExpense,
+  rejectExpense,
   removePlayer,
   searchMembers,
+  submitExpenseClaim,
 } from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
@@ -256,6 +260,119 @@ describe("matchday service", () => {
         "matchday_expense",
       );
       expect(mockQueryBuilder.where).toHaveBeenCalledWith("id", "=", "exp-1");
+    });
+  });
+});
+
+describe("expense approval workflow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    for (const key of Object.keys(mockQueryBuilder)) {
+      const val = (mockQueryBuilder as Record<string, unknown>)[key];
+      if (typeof val === "function" && "mockReturnValue" in (val as object)) {
+        (val as ReturnType<typeof vi.fn>).mockReturnValue(mockQueryBuilder);
+      }
+    }
+  });
+
+  describe("submitExpenseClaim", () => {
+    it("creates a submitted expense", async () => {
+      // Matchday lookup
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "m-1",
+        play_cricket_team_id: "t1",
+        status: "confirmed",
+      });
+      // getAccessibleTeamIds
+      mockExecute.mockResolvedValueOnce([{ id: "t1" }]);
+      // Insert
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await submitExpenseClaim(db, null)("user-1", "admin", {
+        matchId: "m-1",
+        type: "umpire_fee",
+        amountPence: 5000,
+      });
+
+      expect(result.expenseId).toBeDefined();
+      expect(mockQueryBuilder.insertInto).toHaveBeenCalledWith(
+        "matchday_expense",
+      );
+    });
+  });
+
+  describe("approveExpense", () => {
+    it("approves a submitted expense", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "exp-1",
+        status: "submitted",
+      });
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await approveExpense(db)("admin-1", "exp-1");
+      expect(result).toEqual({ success: true });
+      expect(mockQueryBuilder.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "approved" }),
+      );
+    });
+
+    it("rejects approval of non-submitted expense", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "exp-1",
+        status: "draft",
+      });
+
+      await expect(approveExpense(db)("admin-1", "exp-1")).rejects.toThrow(
+        "Only submitted expenses can be approved",
+      );
+    });
+  });
+
+  describe("rejectExpense", () => {
+    it("rejects a submitted expense with reason", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "exp-1",
+        status: "submitted",
+      });
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await rejectExpense(db)("admin-1", "exp-1", {
+        reason: "Missing details",
+      });
+      expect(result).toEqual({ success: true });
+      expect(mockQueryBuilder.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "rejected",
+          rejected_reason: "Missing details",
+        }),
+      );
+    });
+  });
+
+  describe("markExpenseReimbursed", () => {
+    it("marks an approved expense as reimbursed", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "exp-1",
+        status: "approved",
+      });
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await markExpenseReimbursed(db)("admin-1", "exp-1");
+      expect(result).toEqual({ success: true });
+      expect(mockQueryBuilder.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "reimbursed" }),
+      );
+    });
+
+    it("rejects reimbursement of non-approved expense", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "exp-1",
+        status: "submitted",
+      });
+
+      await expect(
+        markExpenseReimbursed(db)("admin-1", "exp-1"),
+      ).rejects.toThrow("Only approved expenses can be reimbursed");
     });
   });
 });
