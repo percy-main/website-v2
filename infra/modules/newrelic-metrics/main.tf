@@ -197,15 +197,15 @@ resource "aws_kinesis_firehose_delivery_stream" "newrelic" {
     access_key             = local.license_key
     buffering_size         = 1
     buffering_interval     = 60
-    role_arn               = aws_iam_role.firehose.arn
-    s3_error_output_prefix = "errors/"
+    role_arn = aws_iam_role.firehose.arn
 
     s3_configuration {
-      role_arn           = aws_iam_role.firehose.arn
-      bucket_arn         = aws_s3_bucket.firehose_errors.arn
-      buffering_size     = 5
-      buffering_interval = 300
-      compression_format = "GZIP"
+      role_arn            = aws_iam_role.firehose.arn
+      bucket_arn          = aws_s3_bucket.firehose_errors.arn
+      buffering_size      = 5
+      buffering_interval  = 300
+      compression_format  = "GZIP"
+      error_output_prefix = "errors/"
     }
 
     request_configuration {
