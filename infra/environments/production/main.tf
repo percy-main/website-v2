@@ -72,23 +72,23 @@ module "rds" {
 # ---------------------------------------------------------------------------
 
 module "ecs" {
-  source                   = "../../modules/ecs-service"
-  environment              = "production"
-  task_count               = 1
-  max_task_count           = 4
-  cpu                      = 256
-  memory                   = 512
-  ecr_repository_url       = local.shared.ecr_repository_url
-  acm_certificate_arn      = local.shared.acm_alb_certificate_arn
-  vpc_id                   = module.vpc.vpc_id
-  private_subnet_ids       = module.vpc.public_subnet_ids
-  public_subnet_ids        = module.vpc.public_subnet_ids
-  ecs_security_group_id    = module.vpc.ecs_security_group_id
-  alb_security_group_id    = module.vpc.alb_security_group_id
-  health_check_path        = "/health"
-  log_retention_days       = 30
-  assign_public_ip         = true
-  ses_identity_arn         = local.shared.ses_identity_arn
+  source                = "../../modules/ecs-service"
+  environment           = "production"
+  task_count            = 1
+  max_task_count        = 4
+  cpu                   = 256
+  memory                = 512
+  ecr_repository_url    = local.shared.ecr_repository_url
+  acm_certificate_arn   = local.shared.acm_alb_certificate_arn
+  vpc_id                = module.vpc.vpc_id
+  private_subnet_ids    = module.vpc.public_subnet_ids
+  public_subnet_ids     = module.vpc.public_subnet_ids
+  ecs_security_group_id = module.vpc.ecs_security_group_id
+  alb_security_group_id = module.vpc.alb_security_group_id
+  health_check_path     = "/health"
+  log_retention_days    = 30
+  assign_public_ip      = true
+  ses_identity_arn        = local.shared.ses_identity_arn
   newrelic_license_key_arn = "${aws_secretsmanager_secret.app_secrets.arn}:NEW_RELIC_LICENSE_KEY::"
 
   environment_variables = {
@@ -178,17 +178,6 @@ module "monitoring" {
   alb_arn_suffix          = module.ecs.alb_arn_suffix
   target_group_arn_suffix = module.ecs.target_group_arn_suffix
   rds_instance_id         = module.rds.instance_id
-}
-
-# ---------------------------------------------------------------------------
-# New Relic CloudWatch Metric Streams
-# ---------------------------------------------------------------------------
-
-module "newrelic_metrics" {
-  source                   = "../../modules/newrelic-metrics"
-  environment              = "production"
-  newrelic_license_key_arn = "${aws_secretsmanager_secret.app_secrets.arn}:NEW_RELIC_LICENSE_KEY::"
-  newrelic_account_id      = "7860388"
 }
 
 # ---------------------------------------------------------------------------
