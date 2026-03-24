@@ -14,3 +14,18 @@ export const leaderboardQuerySchema = z.object({
 });
 
 export type ScoreInput = z.infer<typeof submitScoreSchema>;
+
+export const leaderboardResponseSchema = z.array(
+  z.object({
+    name: z.string().nullable(),
+    score: z.number(),
+    level: z.number(),
+    catches: z.number(),
+    bestStreak: z.number(),
+  }),
+);
+
+export const submitScoreResponseSchema = z.object({
+  saved: z.boolean(),
+  isNewBest: z.boolean(),
+});

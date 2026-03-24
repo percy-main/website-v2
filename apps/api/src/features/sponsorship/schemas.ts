@@ -4,8 +4,8 @@ import { z } from "zod";
 export const gameSponsorshipPaymentSchema = z.object({
   gameId: z.string(),
   sponsorName: z.string().min(1),
-  sponsorEmail: z.string().email(),
-  sponsorWebsite: z.string().url().optional(),
+  sponsorEmail: z.email(),
+  sponsorWebsite: z.url().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
 });
@@ -15,8 +15,8 @@ export const playerSponsorshipPaymentSchema = z.object({
   slug: z.string(),
   playerName: z.string(),
   sponsorName: z.string().min(1),
-  sponsorEmail: z.string().email(),
-  sponsorWebsite: z.string().url().optional(),
+  sponsorEmail: z.email(),
+  sponsorWebsite: z.url().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
 });
@@ -44,8 +44,8 @@ export const playerSponsorshipManualSchema = z.object({
   slug: z.string(),
   playerName: z.string(),
   sponsorName: z.string().min(1),
-  sponsorEmail: z.string().email(),
-  sponsorWebsite: z.string().url().optional(),
+  sponsorEmail: z.email(),
+  sponsorWebsite: z.url().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
   amountPence: z.number().int().positive(),
@@ -56,8 +56,8 @@ export const playerSponsorshipManualSchema = z.object({
 export const gameSponsorshipManualSchema = z.object({
   gameId: z.string(),
   sponsorName: z.string().min(1),
-  sponsorEmail: z.string().email(),
-  sponsorWebsite: z.string().url().optional(),
+  sponsorEmail: z.email(),
+  sponsorWebsite: z.url().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
   amountPence: z.number().int().positive(),

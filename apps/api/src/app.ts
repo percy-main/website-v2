@@ -1,8 +1,15 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
+import swagger from "@fastify/swagger";
+import swaggerUi from "@fastify/swagger-ui";
 import type { DB } from "@percy-main/db";
 import { createSend, type Email } from "@percy-main/email";
 import Fastify from "fastify";
+import {
+  jsonSchemaTransform,
+  serializerCompiler,
+  validatorCompiler,
+} from "fastify-type-provider-zod";
 import type { Kysely, PostgresDialect } from "kysely";
 import type { Config } from "./config.ts";
 import { createAuth, type Auth } from "./features/auth/auth.ts";
@@ -62,6 +69,10 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
     },
   });
 
+  // Set up Zod type provider for schema-driven validation + serialization
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
+
   // Decorate the instance so routes can access deps via `app.db` / `this.db`
   app.decorate("db", db);
   app.decorate("config", config);
@@ -83,6 +94,22 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   app.decorate("s3", s3);
 
   // Plugins
+  await app.register(swagger, {
+    openapi: {
+      info: {
+        title: "Percy Main API",
+        version: "1.0.0",
+      },
+    },
+    transform: jsonSchemaTransform,
+  });
+
+  if (config.NODE_ENV !== "production") {
+    await app.register(swaggerUi, {
+      routePrefix: "/api/docs",
+    });
+  }
+
   await app.register(cors, {
     origin: config.BASE_URL,
     credentials: true,

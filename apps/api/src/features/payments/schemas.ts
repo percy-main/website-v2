@@ -8,8 +8,8 @@ export const purchaseSchema = z.object({
   priceId: z.string(),
   quantity: z.number().int().positive().optional(),
   customAmountPence: z.number().int().positive().optional(),
-  metadata: z.record(z.string()).optional(),
-  email: z.string().email().optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
+  email: z.email().optional(),
 });
 
 export const subscribeSchema = z.object({
@@ -20,7 +20,7 @@ export const subscribeSchema = z.object({
     "senior_women_player",
     "concessionary",
   ]),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 export type PurchaseInput = z.infer<typeof purchaseSchema>;

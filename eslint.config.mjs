@@ -43,6 +43,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/__generated__/**",
       "**/*.config.*",
+      "**/*.gen.d.ts",
     ],
   },
 );

@@ -16,7 +16,7 @@ export const listUsersSchema = z.object({
 export const updateUserSchema = z.object({
   userId: z.string(),
   name: z.string().optional(),
-  email: z.string().email().optional(),
+  email: z.email().optional(),
   role: z
     .enum(["user", "admin", "junior_manager", "official"])
     .nullable()
@@ -30,7 +30,7 @@ export const chargeNotificationSchema = z.object({
 });
 
 export const createMemberSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().optional(),
   title: z.string().optional(),
   memberCategory: z.string().optional(),
