@@ -781,6 +781,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/membership/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            senior_player: {
+                                name: string;
+                                monthly: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                                annually: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                            };
+                            social: {
+                                name: string;
+                                monthly: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                                annually: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                            };
+                            concessionary: {
+                                name: string;
+                                monthly: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                                annually: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                            };
+                            senior_women_player: {
+                                name: string;
+                                monthly: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                                annually: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/fantasy/transfer-window": {
         parameters: {
             query?: never;

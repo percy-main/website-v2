@@ -1,4 +1,13 @@
+import { PaymentForm } from "@/components/payment-form";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -8,8 +17,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "date-fns";
+import { useState } from "react";
 
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -19,9 +29,34 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
 });
 
 export function Charges() {
+  const queryClient = useQueryClient();
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentData, setPaymentData] = useState<{
+    clientSecret: string;
+    totalAmountPence: number;
+    paymentIntentId: string;
+  } | null>(null);
+
   const query = useQuery({
     queryKey: ["myCharges"],
     queryFn: () => callApi(api.GET("/api/charges")),
+  });
+
+  const payMutation = useMutation({
+    mutationFn: () => callApi(api.POST("/api/charges/pay-outstanding")),
+    onSuccess: (data) => {
+      if (data.clientSecret) {
+        const piId = data.clientSecret.split("_secret_")[0];
+        setPaymentData({
+          clientSecret: data.clientSecret,
+          totalAmountPence: data.totalAmountPence,
+          paymentIntentId: piId,
+        });
+      }
+    },
+    onError: () => {
+      setPaymentError("Failed to create payment. Please try again.");
+    },
   });
 
   const charges = query.data?.charges;
@@ -47,9 +82,70 @@ export function Charges() {
     0,
   );
 
+  if (paymentData) {
+    return (
+      <PaymentForm
+        clientSecret={paymentData.clientSecret}
+        amount={paymentData.totalAmountPence}
+        title="Pay Outstanding Balance"
+        onSuccess={() => {
+          callApi(
+            api.POST("/api/charges/confirm-payment", {
+              body: { paymentIntentId: paymentData.paymentIntentId },
+            }),
+          )
+            .catch(() => {
+              // Payment succeeded at Stripe; webhook will reconcile if confirm fails.
+            })
+            .finally(() => {
+              setPaymentData(null);
+              void queryClient.invalidateQueries({ queryKey: ["myCharges"] });
+            });
+        }}
+        onCancel={() => setPaymentData(null)}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-h4 mb-0">Payments</h2>
+
+      {unpaidCharges.length > 0 && (
+        <Card>
+          <CardContent className="flex items-center justify-between pt-6">
+            <div>
+              <CardTitle className="text-base">
+                Outstanding balance:{" "}
+                {currencyFormatter.format(totalOutstandingPence / 100)}
+              </CardTitle>
+              <CardDescription>
+                {unpaidCharges.length} unpaid{" "}
+                {unpaidCharges.length === 1 ? "payment" : "payments"}
+              </CardDescription>
+            </div>
+            <Button
+              onClick={() => {
+                setPaymentError(null);
+                payMutation.mutate();
+              }}
+              disabled={payMutation.isPending}
+            >
+              {payMutation.isPending
+                ? "Processing..."
+                : "Pay Outstanding Balance"}
+            </Button>
+          </CardContent>
+          {paymentError && (
+            <CardContent className="pt-0">
+              <Alert variant="destructive">
+                <AlertDescription>{paymentError}</AlertDescription>
+              </Alert>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -82,23 +178,6 @@ export function Charges() {
           ))}
         </TableBody>
       </Table>
-
-      {unpaidCharges.length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-base font-semibold">
-                Outstanding balance:{" "}
-                {currencyFormatter.format(totalOutstandingPence / 100)}
-              </p>
-              <p className="text-sm text-gray-500">
-                {unpaidCharges.length} unpaid{" "}
-                {unpaidCharges.length === 1 ? "payment" : "payments"}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
