@@ -52,6 +52,9 @@ const configSchema = z.object({
     .default("https://otlp.eu01.nr-data.net"),
   OTEL_SERVICE_NAME: z.string().default("percy-main-api"),
 
+  // Better Auth Dash (infra plugin — optional, only enabled when API key is set)
+  BETTER_AUTH_API_KEY: z.string().optional(),
+
   // External services
   SLACK_WEBHOOK_URL: z.string().url().optional(),
   PLAY_CRICKET_API_TOKEN: z.string().optional(),

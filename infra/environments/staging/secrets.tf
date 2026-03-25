@@ -5,8 +5,9 @@
 # The secret value is managed outside Terraform (via AWS CLI or console).
 # Terraform only manages the secret resource itself.
 #
-# Keys: DATABASE_URL, BETTER_AUTH_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
-#       GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, PLAY_CRICKET_API_TOKEN, SLACK_WEBHOOK_URL
+# Keys: DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_API_KEY, STRIPE_SECRET_KEY,
+#       STRIPE_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+#       PLAY_CRICKET_API_TOKEN, SLACK_WEBHOOK_URL
 
 resource "aws_secretsmanager_secret" "app_secrets" {
   name = "staging/percy-main/app"

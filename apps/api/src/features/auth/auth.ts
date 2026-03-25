@@ -1,3 +1,4 @@
+import { dash } from "@better-auth/infra";
 import { passkey } from "@better-auth/passkey";
 import { ResetPassword, VerifyEmail, type Email } from "@percy-main/email";
 import { render } from "@react-email/render";
@@ -39,6 +40,7 @@ export function createAuth(
       }),
       twoFactor(),
       admin(),
+      ...(config.BETTER_AUTH_API_KEY ? [dash()] : []),
     ],
     emailAndPassword: {
       enabled: true,

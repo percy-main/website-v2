@@ -1,8 +1,8 @@
 # Application secrets — stored as a single JSON object in Secrets Manager.
 # Populated manually before first deploy with the following keys:
-#   DATABASE_URL, BETTER_AUTH_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
-#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, PLAY_CRICKET_API_TOKEN, SLACK_WEBHOOK_URL,
-#   NEW_RELIC_LICENSE_KEY
+#   DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_API_KEY, STRIPE_SECRET_KEY,
+#   STRIPE_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+#   PLAY_CRICKET_API_TOKEN, SLACK_WEBHOOK_URL, NEW_RELIC_LICENSE_KEY
 
 resource "aws_secretsmanager_secret" "app_secrets" {
   name = "production/percy-main/app"
