@@ -112,7 +112,8 @@ export function createPurchase(db: Kysely<DB>, stripe: Stripe) {
         currency: "gbp",
         metadata: {
           ...data.metadata,
-          price_id: data.priceId,
+          priceId: data.priceId,
+          ...(data.email ? { email: data.email } : {}),
         },
       };
 

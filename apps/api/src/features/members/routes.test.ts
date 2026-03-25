@@ -37,9 +37,11 @@ const db = mockQueryBuilder as unknown as Kysely<DB>;
 
 const mockCustomersList = vi.fn();
 const mockSubscriptionsList = vi.fn();
+const mockProductsRetrieve = vi.fn();
 const mockStripe = {
   customers: { list: mockCustomersList },
   subscriptions: { list: mockSubscriptionsList },
+  products: { retrieve: mockProductsRetrieve },
 } as unknown as Stripe;
 
 describe("members service", () => {
@@ -254,13 +256,18 @@ describe("members service", () => {
                 {
                   price: {
                     nickname: "Monthly Social",
-                    product: { id: "prod_1", name: "Social Membership" },
+                    product: "prod_1",
                   },
                 },
               ],
             },
           },
         ],
+      } as never);
+
+      mockProductsRetrieve.mockResolvedValue({
+        id: "prod_1",
+        name: "Social Membership",
       } as never);
 
       const result = await getMySubscriptions(mockStripe)("user@example.com");
@@ -273,8 +280,8 @@ describe("members service", () => {
       expect(mockSubscriptionsList).toHaveBeenCalledWith({
         customer: "cus_123",
         status: "active",
-        expand: ["data.items.data.price.product"],
       });
+      expect(mockProductsRetrieve).toHaveBeenCalledWith("prod_1");
     });
 
     it("uses product name as fallback when price nickname is null", async () => {
@@ -294,13 +301,18 @@ describe("members service", () => {
                 {
                   price: {
                     nickname: null,
-                    product: { id: "prod_2", name: "Playing Membership" },
+                    product: "prod_2",
                   },
                 },
               ],
             },
           },
         ],
+      } as never);
+
+      mockProductsRetrieve.mockResolvedValue({
+        id: "prod_2",
+        name: "Playing Membership",
       } as never);
 
       const result = await getMySubscriptions(mockStripe)("user@example.com");

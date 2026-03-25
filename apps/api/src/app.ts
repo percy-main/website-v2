@@ -29,6 +29,7 @@ import { juniorRoutes } from "./features/junior/routes.ts";
 import { leaderboardRoutes } from "./features/leaderboard/routes.ts";
 import { matchdayRoutes } from "./features/matchday/routes.ts";
 import { memberRoutes } from "./features/members/routes.ts";
+import { membershipRoutes } from "./features/membership/routes.ts";
 import { ogImageRoutes } from "./features/og-image/routes.ts";
 import { paymentRoutes } from "./features/payments/routes.ts";
 import { webhookRoutes } from "./features/payments/webhook.ts";
@@ -129,6 +130,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(memberRoutes, { prefix: "/api" });
   await app.register(chargeRoutes, { prefix: "/api" });
   await app.register(juniorRoutes, { prefix: "/api" });
+  await app.register(membershipRoutes, { prefix: "/api" });
   await app.register(fantasyRoutes, { prefix: "/api" });
   await app.register(gamesRoutes, { prefix: "/api" });
   await app.register(playCricketRoutes, { prefix: "/api" });

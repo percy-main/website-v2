@@ -649,7 +649,8 @@
                           "type": "string",
                           "enum": [
                             "male",
-                            "female"
+                            "female",
+                            "prefer_not_to_say"
                           ]
                         },
                         "dob": {
@@ -1150,6 +1151,311 @@
                     "parent_email",
                     "parent_address",
                     "parent_postcode"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/membership/prices": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "senior_player": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "monthly": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "unitAmount": {
+                              "type": "number"
+                            },
+                            "formattedPrice": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "subscription",
+                                "payment"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "unitAmount",
+                            "formattedPrice",
+                            "mode"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "annually": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "unitAmount": {
+                              "type": "number"
+                            },
+                            "formattedPrice": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "subscription",
+                                "payment"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "unitAmount",
+                            "formattedPrice",
+                            "mode"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "monthly",
+                        "annually"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "social": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "monthly": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "unitAmount": {
+                              "type": "number"
+                            },
+                            "formattedPrice": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "subscription",
+                                "payment"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "unitAmount",
+                            "formattedPrice",
+                            "mode"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "annually": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "unitAmount": {
+                              "type": "number"
+                            },
+                            "formattedPrice": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "subscription",
+                                "payment"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "unitAmount",
+                            "formattedPrice",
+                            "mode"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "monthly",
+                        "annually"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "concessionary": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "monthly": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "unitAmount": {
+                              "type": "number"
+                            },
+                            "formattedPrice": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "subscription",
+                                "payment"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "unitAmount",
+                            "formattedPrice",
+                            "mode"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "annually": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "unitAmount": {
+                              "type": "number"
+                            },
+                            "formattedPrice": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "subscription",
+                                "payment"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "unitAmount",
+                            "formattedPrice",
+                            "mode"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "monthly",
+                        "annually"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "senior_women_player": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "monthly": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "unitAmount": {
+                              "type": "number"
+                            },
+                            "formattedPrice": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "subscription",
+                                "payment"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "unitAmount",
+                            "formattedPrice",
+                            "mode"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "annually": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "unitAmount": {
+                              "type": "number"
+                            },
+                            "formattedPrice": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "subscription",
+                                "payment"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "unitAmount",
+                            "formattedPrice",
+                            "mode"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "monthly",
+                        "annually"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "senior_player",
+                    "social",
+                    "concessionary",
+                    "senior_women_player"
                   ],
                   "additionalProperties": false
                 }

@@ -50,7 +50,6 @@ export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
         .where("member_id", "=", member.id)
         .where("deleted_at", "is", null)
         .where("paid_at", "is", null)
-        .where("stripe_payment_intent_id", "is", null)
         .where("payment_confirmed_at", "is", null)
         .select(["id", "amount_pence"])
         .forUpdate()

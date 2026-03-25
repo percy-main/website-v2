@@ -145,6 +145,19 @@ export const router = createBrowserRouter([
                 path: "members/availability",
                 lazy: () => import("./pages/members/members-availability.js"),
               },
+              // Membership flows
+              {
+                path: "membership/join",
+                lazy: () => import("./pages/membership/membership-join.js"),
+              },
+              {
+                path: "membership/pay",
+                lazy: () => import("./pages/membership/membership-pay.js"),
+              },
+              {
+                path: "membership/junior",
+                lazy: () => import("./pages/membership/membership-junior.js"),
+              },
               // Matchday hub — all members see availability, officials see more
               {
                 path: "matchday",

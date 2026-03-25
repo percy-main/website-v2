@@ -580,7 +580,7 @@ export interface paths {
                         dependents: {
                             name: string;
                             /** @enum {string} */
-                            sex: "male" | "female";
+                            sex: "male" | "female" | "prefer_not_to_say";
                             dob: string;
                             school_year?: string;
                             played_before?: boolean;
@@ -768,6 +768,110 @@ export interface paths {
                             parent_email: string;
                             parent_address: string | null;
                             parent_postcode: string | null;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/membership/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            senior_player: {
+                                name: string;
+                                monthly: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                                annually: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                            };
+                            social: {
+                                name: string;
+                                monthly: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                                annually: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                            };
+                            concessionary: {
+                                name: string;
+                                monthly: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                                annually: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                            };
+                            senior_women_player: {
+                                name: string;
+                                monthly: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                                annually: {
+                                    id: string;
+                                    unitAmount: number;
+                                    formattedPrice: string;
+                                    /** @enum {string} */
+                                    mode: "subscription" | "payment";
+                                };
+                            };
                         };
                     };
                 };

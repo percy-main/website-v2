@@ -49,17 +49,35 @@ export function getMySubscriptions(stripe: Stripe) {
     const subscriptions = await stripe.subscriptions.list({
       customer: customer.id,
       status: "active",
-      expand: ["data.items.data.price.product"],
     });
+
+    // Collect unique product IDs from subscription items, then batch-fetch
+    const productIds = new Set<string>();
+    for (const sub of subscriptions.data) {
+      for (const item of sub.items.data) {
+        const pid = item.price?.product;
+        if (typeof pid === "string") productIds.add(pid);
+      }
+    }
+
+    const products = new Map<string, { id: string; name: string }>();
+    await Promise.all(
+      [...productIds].map(async (id) => {
+        const product = await stripe.products.retrieve(id);
+        products.set(id, { id: product.id, name: product.name });
+      }),
+    );
 
     return subscriptions.data.map((sub) => {
       const item = sub.items.data[0];
-      const product = item?.price?.product as { id: string; name: string };
+      const productId =
+        typeof item?.price?.product === "string" ? item.price.product : "";
+      const product = products.get(productId) ?? { id: "", name: "" };
 
       return {
         id: sub.id,
         name: item?.price?.nickname ?? null,
-        product: { id: product?.id ?? "", name: product?.name ?? "" },
+        product,
         created: new Date(sub.created * 1000).toISOString(),
         status: sub.status,
         paidUntil: new Date(sub.current_period_end * 1000).toISOString(),
