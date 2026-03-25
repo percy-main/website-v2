@@ -1,6 +1,230 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
+import type { ExpenseHistoryQuery } from "./schemas.ts";
+
+export function getExpenseHistory(db: Kysely<DB>) {
+  return async (params: ExpenseHistoryQuery) => {
+    const {
+      dateFrom,
+      dateTo,
+      status,
+      expenseType,
+      search,
+      teamId,
+      page,
+      pageSize,
+    } = params;
+    const offset = (page - 1) * pageSize;
+
+    let baseQuery = db
+      .selectFrom("matchday_expense")
+      .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
+      .innerJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
+      .innerJoin(
+        "user as submitter",
+        "submitter.id",
+        "matchday_expense.created_by",
+      )
+      .leftJoin(
+        "user as approver",
+        "approver.id",
+        "matchday_expense.approved_by",
+      )
+      .leftJoin(
+        "user as reimburser",
+        "reimburser.id",
+        "matchday_expense.reimbursed_by",
+      );
+
+    if (dateFrom) {
+      baseQuery = baseQuery.where("matchday.match_date", ">=", dateFrom);
+    }
+    if (dateTo) {
+      baseQuery = baseQuery.where("matchday.match_date", "<=", dateTo);
+    }
+    if (status) {
+      const statuses = status.split(",");
+      baseQuery = baseQuery.where("matchday_expense.status", "in", statuses);
+    }
+    if (expenseType) {
+      baseQuery = baseQuery.where(
+        "matchday_expense.expense_type",
+        "=",
+        expenseType,
+      );
+    }
+    if (teamId) {
+      baseQuery = baseQuery.where("matchday.play_cricket_team_id", "=", teamId);
+    }
+    if (search) {
+      baseQuery = baseQuery.where((eb) =>
+        eb.or([
+          eb("matchday_expense.description", "ilike", `%${search}%`),
+          eb("matchday.opposition", "ilike", `%${search}%`),
+        ]),
+      );
+    }
+
+    const [items, countResult] = await Promise.all([
+      baseQuery
+        .select([
+          "matchday_expense.id",
+          "matchday_expense.expense_type",
+          "matchday_expense.description",
+          "matchday_expense.amount_pence",
+          "matchday_expense.receipt_image_url",
+          "matchday_expense.created_at",
+          "matchday_expense.status",
+          "matchday_expense.submitted_at",
+          "matchday_expense.approved_at",
+          "approver.name as approved_by_name",
+          "matchday_expense.rejected_reason",
+          "matchday_expense.reimbursed_at",
+          "reimburser.name as reimbursed_by_name",
+          "matchday.match_date",
+          "matchday.opposition",
+          "play_cricket_team.name as team_name",
+          "submitter.name as submitted_by_name",
+        ])
+        .orderBy("matchday.match_date", "desc")
+        .orderBy("matchday_expense.created_at", "desc")
+        .limit(pageSize)
+        .offset(offset)
+        .execute(),
+      baseQuery.select(db.fn.countAll().as("total")).executeTakeFirst(),
+    ]);
+
+    return {
+      items,
+      total: Number(countResult?.total ?? 0),
+      page,
+      pageSize,
+    };
+  };
+}
+
+export function exportExpensesCsv(db: Kysely<DB>) {
+  return async (params: Omit<ExpenseHistoryQuery, "page" | "pageSize">) => {
+    const { dateFrom, dateTo, status, expenseType, search, teamId } = params;
+
+    let query = db
+      .selectFrom("matchday_expense")
+      .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
+      .innerJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
+      .innerJoin(
+        "user as submitter",
+        "submitter.id",
+        "matchday_expense.created_by",
+      )
+      .leftJoin(
+        "user as approver",
+        "approver.id",
+        "matchday_expense.approved_by",
+      )
+      .leftJoin(
+        "user as reimburser",
+        "reimburser.id",
+        "matchday_expense.reimbursed_by",
+      );
+
+    if (dateFrom) {
+      query = query.where("matchday.match_date", ">=", dateFrom);
+    }
+    if (dateTo) {
+      query = query.where("matchday.match_date", "<=", dateTo);
+    }
+    if (status) {
+      const statuses = status.split(",");
+      query = query.where("matchday_expense.status", "in", statuses);
+    }
+    if (expenseType) {
+      query = query.where("matchday_expense.expense_type", "=", expenseType);
+    }
+    if (teamId) {
+      query = query.where("matchday.play_cricket_team_id", "=", teamId);
+    }
+    if (search) {
+      query = query.where((eb) =>
+        eb.or([
+          eb("matchday_expense.description", "ilike", `%${search}%`),
+          eb("matchday.opposition", "ilike", `%${search}%`),
+        ]),
+      );
+    }
+
+    const rows = await query
+      .select([
+        "matchday.match_date",
+        "matchday.opposition",
+        "play_cricket_team.name as team_name",
+        "matchday_expense.expense_type",
+        "matchday_expense.description",
+        "matchday_expense.amount_pence",
+        "matchday_expense.status",
+        "submitter.name as submitted_by",
+        "matchday_expense.submitted_at",
+        "approver.name as approved_by",
+        "matchday_expense.approved_at",
+        "reimburser.name as reimbursed_by",
+        "matchday_expense.reimbursed_at",
+        "matchday_expense.rejected_reason",
+      ])
+      .orderBy("matchday.match_date", "desc")
+      .execute();
+
+    const headers = [
+      "Match Date",
+      "Opposition",
+      "Team",
+      "Type",
+      "Description",
+      "Amount",
+      "Status",
+      "Submitted By",
+      "Submitted At",
+      "Approved By",
+      "Approved At",
+      "Reimbursed By",
+      "Reimbursed At",
+      "Rejected Reason",
+    ];
+
+    const csvRows = rows.map((r) => [
+      r.match_date,
+      escapeCsvField(r.opposition),
+      escapeCsvField(r.team_name),
+      r.expense_type,
+      escapeCsvField(r.description ?? ""),
+      (r.amount_pence / 100).toFixed(2),
+      r.status,
+      escapeCsvField(r.submitted_by),
+      r.submitted_at ?? "",
+      escapeCsvField(r.approved_by ?? ""),
+      r.approved_at ?? "",
+      escapeCsvField(r.reimbursed_by ?? ""),
+      r.reimbursed_at ?? "",
+      escapeCsvField(r.rejected_reason ?? ""),
+    ]);
+
+    return [headers, ...csvRows].map((row) => row.join(",")).join("\n");
+  };
+}
+
+function escapeCsvField(value: string): string {
+  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
 
 export function getIncomeByMonth(db: Kysely<DB>) {
   return async (dateFrom?: string, dateTo?: string) => {

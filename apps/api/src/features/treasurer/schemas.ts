@@ -113,3 +113,45 @@ export const expensesWithReceiptsResponseSchema = z.object({
     }),
   ),
 });
+
+// --- Expense History (issue #78) ---
+
+export const expenseHistoryQuerySchema = z.object({
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  status: z.string().optional(),
+  expenseType: z.string().optional(),
+  search: z.string().optional(),
+  teamId: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type ExpenseHistoryQuery = z.infer<typeof expenseHistoryQuerySchema>;
+
+const expenseHistoryItemSchema = z.object({
+  id: z.string(),
+  expense_type: z.string(),
+  description: z.string().nullable(),
+  amount_pence: z.number(),
+  receipt_image_url: z.string().nullable(),
+  created_at: z.string(),
+  status: z.string(),
+  submitted_at: z.string().nullable(),
+  approved_at: z.string().nullable(),
+  approved_by_name: z.string().nullable(),
+  rejected_reason: z.string().nullable(),
+  reimbursed_at: z.string().nullable(),
+  reimbursed_by_name: z.string().nullable(),
+  match_date: z.string(),
+  opposition: z.string(),
+  team_name: z.string(),
+  submitted_by_name: z.string(),
+});
+
+export const expenseHistoryResponseSchema = z.object({
+  items: z.array(expenseHistoryItemSchema),
+  total: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
