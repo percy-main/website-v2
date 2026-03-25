@@ -7514,8 +7514,6 @@ export interface paths {
                     expenseType?: string;
                     search?: string;
                     teamId?: string;
-                    page?: number;
-                    pageSize?: number;
                 };
                 header?: never;
                 path?: never;

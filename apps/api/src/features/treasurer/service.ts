@@ -167,10 +167,15 @@ export function exportExpensesCsv(db: Kysely<DB>) {
 }
 
 function escapeCsvField(value: string): string {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-    return `"${value.replace(/"/g, '""')}"`;
+  // Prevent spreadsheet formula injection: prefix dangerous leading chars with a single quote
+  let safe = value;
+  if (/^[=+\-@\t\r]/.test(safe)) {
+    safe = `'${safe}`;
   }
-  return value;
+  if (safe.includes(",") || safe.includes('"') || safe.includes("\n")) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+  return safe;
 }
 
 export function getIncomeByMonth(db: Kysely<DB>) {

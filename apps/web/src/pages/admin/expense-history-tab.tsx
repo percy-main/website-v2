@@ -295,7 +295,7 @@ export function ExpenseHistoryTab() {
               <TableHead>Type</TableHead>
               <TableHead className="text-right">Amount</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Submitted By</TableHead>
+              <TableHead>Created By</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -438,7 +438,11 @@ export function ExpenseHistoryTab() {
                 <h4 className="mb-2 text-sm font-medium">Audit Trail</h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Submitted by</span>
+                    <span className="text-gray-500">
+                      {selectedExpense.submitted_at
+                        ? "Submitted by"
+                        : "Created by"}
+                    </span>
                     <span>
                       {selectedExpense.submitted_by_name}
                       {selectedExpense.submitted_at &&

@@ -140,7 +140,7 @@ const expenseStatusCsvSchema = z
   )
   .optional();
 
-const expenseHistoryFiltersSchema = z.object({
+export const expenseHistoryFiltersSchema = z.object({
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   status: expenseStatusCsvSchema,
