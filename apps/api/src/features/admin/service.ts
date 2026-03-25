@@ -120,19 +120,8 @@ export function listUsers(db: Kysely<DB>) {
 
 export function updateUser(db: Kysely<DB>) {
   return async (userId: string, data: Omit<UpdateUser, "userId">) => {
-    const fieldsToUpdate: Record<string, unknown> = {};
-    if (data.name !== undefined) fieldsToUpdate.name = data.name;
-    if (data.email !== undefined) fieldsToUpdate.email = data.email;
-    if (data.role !== undefined) fieldsToUpdate.role = data.role;
-    if (data.banned !== undefined) fieldsToUpdate.banned = data.banned;
-    if (data.banReason !== undefined) fieldsToUpdate.banReason = data.banReason;
-
-    if (Object.keys(fieldsToUpdate).length > 0) {
-      await db
-        .updateTable("user")
-        .set(fieldsToUpdate)
-        .where("id", "=", userId)
-        .execute();
+    if (Object.values(data).filter((v) => v !== undefined).length > 0) {
+      await db.updateTable("user").set(data).where("id", "=", userId).execute();
     }
 
     return { success: true };

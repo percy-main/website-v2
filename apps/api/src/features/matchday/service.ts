@@ -305,20 +305,15 @@ export function updateExpense(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this matchday");
     }
 
-    const fieldsToUpdate: Record<string, unknown> = {};
-    if (data.type !== undefined) fieldsToUpdate.expense_type = data.type;
-    if (data.description !== undefined)
-      fieldsToUpdate.description = data.description;
-    if (data.amountPence !== undefined)
-      fieldsToUpdate.amount_pence = data.amountPence;
-
-    if (Object.keys(fieldsToUpdate).length > 0) {
-      await db
-        .updateTable("matchday_expense")
-        .set(fieldsToUpdate)
-        .where("id", "=", data.expenseId)
-        .execute();
-    }
+    await db
+      .updateTable("matchday_expense")
+      .set({
+        expense_type: data.type,
+        description: data.description,
+        amount_pence: data.amountPence,
+      })
+      .where("id", "=", data.expenseId)
+      .execute();
 
     return { success: true };
   };

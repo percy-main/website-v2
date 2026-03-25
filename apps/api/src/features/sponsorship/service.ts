@@ -279,20 +279,15 @@ export function updateGameSponsorship(db: Kysely<DB>) {
     sponsorshipId: string,
     data: Omit<SponsorshipUpdate, "sponsorshipId">,
   ) => {
-    const fieldsToUpdate: Record<string, unknown> = {};
-    if (data.displayName !== undefined)
-      fieldsToUpdate.display_name = data.displayName;
-    if (data.notes !== undefined) fieldsToUpdate.notes = data.notes;
-    if (data.sponsorLogoDataUrl !== undefined)
-      fieldsToUpdate.sponsor_logo_url = data.sponsorLogoDataUrl;
-
-    if (Object.keys(fieldsToUpdate).length > 0) {
-      await db
-        .updateTable("game_sponsorship")
-        .set(fieldsToUpdate)
-        .where("id", "=", sponsorshipId)
-        .execute();
-    }
+    await db
+      .updateTable("game_sponsorship")
+      .set({
+        display_name: data.displayName,
+        notes: data.notes,
+        sponsor_logo_url: data.sponsorLogoDataUrl,
+      })
+      .where("id", "=", sponsorshipId)
+      .execute();
 
     return { success: true };
   };
@@ -303,20 +298,15 @@ export function updatePlayerSponsorship(db: Kysely<DB>) {
     sponsorshipId: string,
     data: Omit<SponsorshipUpdate, "sponsorshipId">,
   ) => {
-    const fieldsToUpdate: Record<string, unknown> = {};
-    if (data.displayName !== undefined)
-      fieldsToUpdate.display_name = data.displayName;
-    if (data.notes !== undefined) fieldsToUpdate.notes = data.notes;
-    if (data.sponsorLogoDataUrl !== undefined)
-      fieldsToUpdate.sponsor_logo_url = data.sponsorLogoDataUrl;
-
-    if (Object.keys(fieldsToUpdate).length > 0) {
-      await db
-        .updateTable("player_sponsorship")
-        .set(fieldsToUpdate)
-        .where("id", "=", sponsorshipId)
-        .execute();
-    }
+    await db
+      .updateTable("player_sponsorship")
+      .set({
+        display_name: data.displayName,
+        notes: data.notes,
+        sponsor_logo_url: data.sponsorLogoDataUrl,
+      })
+      .where("id", "=", sponsorshipId)
+      .execute();
 
     return { success: true };
   };
