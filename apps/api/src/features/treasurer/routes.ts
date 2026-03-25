@@ -1,7 +1,11 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { requireRole } from "../auth/middleware.ts";
 import {
+  csvExportResponseSchema,
   dateRangeSchema,
+  expenseHistoryFiltersSchema,
+  expenseHistoryQuerySchema,
+  expenseHistoryResponseSchema,
   expensesWithReceiptsResponseSchema,
   incomeByMonthResponseSchema,
   matchdayExpensesSummaryResponseSchema,
@@ -11,6 +15,8 @@ import {
   sponsorshipSummaryResponseSchema,
 } from "./schemas.ts";
 import {
+  exportExpensesCsv,
+  getExpenseHistory,
   getExpensesWithReceipts,
   getIncomeByMonth,
   getMatchdayExpensesSummary,
@@ -27,6 +33,8 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
   const sponsorship = getSponsorshipSummary(app.db);
   const matchdayExpenses = getMatchdayExpensesSummary(app.db);
   const receipts = getExpensesWithReceipts(app.db);
+  const expenseHistory = getExpenseHistory(app.db);
+  const csvExport = exportExpensesCsv(app.db);
 
   app.get(
     "/treasurer/income-by-month",
@@ -113,6 +121,41 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { dateFrom, dateTo } = request.query;
       return await receipts(dateFrom, dateTo);
+    },
+  );
+
+  app.get(
+    "/treasurer/expenses",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: expenseHistoryQuerySchema,
+        response: { 200: expenseHistoryResponseSchema },
+      },
+    },
+    async (request) => {
+      return await expenseHistory(request.query);
+    },
+  );
+
+  app.get(
+    "/treasurer/expenses/export",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: expenseHistoryFiltersSchema,
+        response: { 200: csvExportResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const csv = await csvExport(request.query);
+      return await reply
+        .header("Content-Type", "text/csv")
+        .header(
+          "Content-Disposition",
+          'attachment; filename="expenses-export.csv"',
+        )
+        .send(csv);
     },
   );
 };
