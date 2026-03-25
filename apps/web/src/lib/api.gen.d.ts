@@ -27,7 +27,9 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
+                            /** @enum {string} */
                             status: "ok" | "degraded";
+                            /** @enum {string} */
                             database: "connected" | "disconnected";
                         };
                     };
@@ -7418,6 +7420,115 @@ export interface paths {
                             }[];
                         };
                     };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/treasurer/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    dateFrom?: string;
+                    dateTo?: string;
+                    status?: string;
+                    expenseType?: string;
+                    search?: string;
+                    teamId?: string;
+                    page?: number;
+                    pageSize?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                expense_type: string;
+                                description: string | null;
+                                amount_pence: number;
+                                receipt_image_url: string | null;
+                                created_at: string;
+                                status: string;
+                                submitted_at: string | null;
+                                approved_at: string | null;
+                                approved_by_name: string | null;
+                                rejected_reason: string | null;
+                                reimbursed_at: string | null;
+                                reimbursed_by_name: string | null;
+                                match_date: string;
+                                opposition: string;
+                                team_name: string;
+                                submitted_by_name: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/treasurer/expenses/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    dateFrom?: string;
+                    dateTo?: string;
+                    status?: string;
+                    expenseType?: string;
+                    search?: string;
+                    teamId?: string;
+                    page?: number;
+                    pageSize?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };

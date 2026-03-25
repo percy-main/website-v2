@@ -19,35 +19,17 @@
                   "type": "object",
                   "properties": {
                     "status": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "enum": [
-                            "ok"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "degraded"
-                          ]
-                        }
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "degraded"
                       ]
                     },
                     "database": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "enum": [
-                            "connected"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "disconnected"
-                          ]
-                        }
+                      "type": "string",
+                      "enum": [
+                        "connected",
+                        "disconnected"
                       ]
                     }
                   },
@@ -12967,6 +12949,280 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/treasurer/expenses": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "dateFrom",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "dateTo",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "expenseType",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "search",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "teamId",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "page",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "pageSize",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "expense_type": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "amount_pence": {
+                            "type": "number"
+                          },
+                          "receipt_image_url": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "submitted_at": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "approved_at": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "approved_by_name": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "rejected_reason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "reimbursed_at": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "reimbursed_by_name": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "match_date": {
+                            "type": "string"
+                          },
+                          "opposition": {
+                            "type": "string"
+                          },
+                          "team_name": {
+                            "type": "string"
+                          },
+                          "submitted_by_name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "expense_type",
+                          "description",
+                          "amount_pence",
+                          "receipt_image_url",
+                          "created_at",
+                          "status",
+                          "submitted_at",
+                          "approved_at",
+                          "approved_by_name",
+                          "rejected_reason",
+                          "reimbursed_at",
+                          "reimbursed_by_name",
+                          "match_date",
+                          "opposition",
+                          "team_name",
+                          "submitted_by_name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/treasurer/expenses/export": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "dateFrom",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "dateTo",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "expenseType",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "search",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "teamId",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "page",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "pageSize",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
           }
         }
       }

@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router";
 import { ChargesTab } from "./charges-tab";
 import { ContactsTab } from "./contacts-tab";
 import { DuplicatesTab } from "./duplicates-tab";
+import { ExpenseHistoryTab } from "./expense-history-tab";
 import { FantasyTab } from "./fantasy-tab";
 import { GameReportsTab } from "./game-reports-tab";
 import { JuniorsTab } from "./juniors-tab";
@@ -25,6 +26,7 @@ const TABS = [
   "record-linking",
   "game-reports",
   "treasurer",
+  "expense-history",
   "fantasy",
 ] as const;
 type Tab = (typeof TABS)[number];
@@ -40,6 +42,7 @@ const ACTIVE_TABS: Tab[] = [
   "record-linking",
   "game-reports",
   "treasurer",
+  "expense-history",
   "fantasy",
 ];
 
@@ -88,6 +91,7 @@ export function Component() {
             <TabsTrigger value="record-linking">Record Linking</TabsTrigger>
             <TabsTrigger value="game-reports">Game Reports</TabsTrigger>
             <TabsTrigger value="treasurer">Treasurer</TabsTrigger>
+            <TabsTrigger value="expense-history">Expense History</TabsTrigger>
             <TabsTrigger value="fantasy">Fantasy</TabsTrigger>
           </TabsList>
 
@@ -114,6 +118,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="treasurer">
             <TreasurerTab />
+          </TabsContent>
+          <TabsContent value="expense-history">
+            <ExpenseHistoryTab />
           </TabsContent>
           <TabsContent value="fantasy">
             <FantasyTab />
