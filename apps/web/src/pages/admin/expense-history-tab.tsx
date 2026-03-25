@@ -157,6 +157,10 @@ export function ExpenseHistoryTab() {
         ).toString()}`,
         { credentials: "include" },
       );
+      if (!response.ok) {
+        alert("Failed to export expenses. Please try again.");
+        return;
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

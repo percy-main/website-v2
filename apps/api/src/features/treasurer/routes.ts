@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { requireRole } from "../auth/middleware.ts";
 import {
+  csvExportResponseSchema,
   dateRangeSchema,
   expenseHistoryQuerySchema,
   expenseHistoryResponseSchema,
@@ -142,6 +143,7 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
       preHandler: [requireRole("admin")],
       schema: {
         querystring: expenseHistoryQuerySchema,
+        response: { 200: csvExportResponseSchema },
       },
     },
     async (request, reply) => {

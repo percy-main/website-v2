@@ -116,13 +116,42 @@ export const expensesWithReceiptsResponseSchema = z.object({
 
 // --- Expense History (issue #78) ---
 
-export const expenseHistoryQuerySchema = z.object({
+const EXPENSE_STATUSES = [
+  "draft",
+  "submitted",
+  "approved",
+  "rejected",
+  "reimbursed",
+] as const;
+
+const expenseStatusCsvSchema = z
+  .string()
+  .refine(
+    (val) =>
+      val
+        .split(",")
+        .every((s) =>
+          EXPENSE_STATUSES.includes(s as (typeof EXPENSE_STATUSES)[number]),
+        ),
+    {
+      message:
+        "Invalid status value. Allowed: draft, submitted, approved, rejected, reimbursed",
+    },
+  )
+  .optional();
+
+const expenseHistoryFiltersSchema = z.object({
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
-  status: z.string().optional(),
+  status: expenseStatusCsvSchema,
   expenseType: z.string().optional(),
   search: z.string().optional(),
   teamId: z.string().optional(),
+});
+
+export type ExpenseHistoryFilters = z.infer<typeof expenseHistoryFiltersSchema>;
+
+export const expenseHistoryQuerySchema = expenseHistoryFiltersSchema.extend({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -155,3 +184,5 @@ export const expenseHistoryResponseSchema = z.object({
   page: z.number(),
   pageSize: z.number(),
 });
+
+export const csvExportResponseSchema = z.string().describe("CSV file content");

@@ -1,74 +1,70 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import type { ExpenseHistoryQuery } from "./schemas.ts";
+import type { ExpenseHistoryFilters } from "./schemas.ts";
+
+function buildExpenseBaseQuery(db: Kysely<DB>, filters: ExpenseHistoryFilters) {
+  let query = db
+    .selectFrom("matchday_expense")
+    .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
+    .innerJoin(
+      "play_cricket_team",
+      "play_cricket_team.id",
+      "matchday.play_cricket_team_id",
+    )
+    .innerJoin(
+      "user as submitter",
+      "submitter.id",
+      "matchday_expense.created_by",
+    )
+    .leftJoin("user as approver", "approver.id", "matchday_expense.approved_by")
+    .leftJoin(
+      "user as reimburser",
+      "reimburser.id",
+      "matchday_expense.reimbursed_by",
+    );
+
+  if (filters.dateFrom) {
+    query = query.where("matchday.match_date", ">=", filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    query = query.where("matchday.match_date", "<=", filters.dateTo);
+  }
+  if (filters.status) {
+    const statuses = filters.status.split(",");
+    query = query.where("matchday_expense.status", "in", statuses);
+  }
+  if (filters.expenseType) {
+    query = query.where(
+      "matchday_expense.expense_type",
+      "=",
+      filters.expenseType,
+    );
+  }
+  if (filters.teamId) {
+    query = query.where("matchday.play_cricket_team_id", "=", filters.teamId);
+  }
+  if (filters.search) {
+    const pattern = `%${filters.search}%`;
+    query = query.where((eb) =>
+      eb.or([
+        eb("matchday_expense.description", "ilike", pattern),
+        eb("matchday.opposition", "ilike", pattern),
+      ]),
+    );
+  }
+
+  return query;
+}
 
 export function getExpenseHistory(db: Kysely<DB>) {
-  return async (params: ExpenseHistoryQuery) => {
-    const {
-      dateFrom,
-      dateTo,
-      status,
-      expenseType,
-      search,
-      teamId,
-      page,
-      pageSize,
-    } = params;
+  return async (
+    params: ExpenseHistoryFilters & { page: number; pageSize: number },
+  ) => {
+    const { page, pageSize } = params;
     const offset = (page - 1) * pageSize;
 
-    let baseQuery = db
-      .selectFrom("matchday_expense")
-      .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
-      .innerJoin(
-        "play_cricket_team",
-        "play_cricket_team.id",
-        "matchday.play_cricket_team_id",
-      )
-      .innerJoin(
-        "user as submitter",
-        "submitter.id",
-        "matchday_expense.created_by",
-      )
-      .leftJoin(
-        "user as approver",
-        "approver.id",
-        "matchday_expense.approved_by",
-      )
-      .leftJoin(
-        "user as reimburser",
-        "reimburser.id",
-        "matchday_expense.reimbursed_by",
-      );
-
-    if (dateFrom) {
-      baseQuery = baseQuery.where("matchday.match_date", ">=", dateFrom);
-    }
-    if (dateTo) {
-      baseQuery = baseQuery.where("matchday.match_date", "<=", dateTo);
-    }
-    if (status) {
-      const statuses = status.split(",");
-      baseQuery = baseQuery.where("matchday_expense.status", "in", statuses);
-    }
-    if (expenseType) {
-      baseQuery = baseQuery.where(
-        "matchday_expense.expense_type",
-        "=",
-        expenseType,
-      );
-    }
-    if (teamId) {
-      baseQuery = baseQuery.where("matchday.play_cricket_team_id", "=", teamId);
-    }
-    if (search) {
-      baseQuery = baseQuery.where((eb) =>
-        eb.or([
-          eb("matchday_expense.description", "ilike", `%${search}%`),
-          eb("matchday.opposition", "ilike", `%${search}%`),
-        ]),
-      );
-    }
+    const baseQuery = buildExpenseBaseQuery(db, params);
 
     const [items, countResult] = await Promise.all([
       baseQuery
@@ -96,7 +92,7 @@ export function getExpenseHistory(db: Kysely<DB>) {
         .limit(pageSize)
         .offset(offset)
         .execute(),
-      baseQuery.select(db.fn.countAll().as("total")).executeTakeFirst(),
+      baseQuery.select(sql<string>`COUNT(*)`.as("total")).executeTakeFirst(),
     ]);
 
     return {
@@ -109,57 +105,8 @@ export function getExpenseHistory(db: Kysely<DB>) {
 }
 
 export function exportExpensesCsv(db: Kysely<DB>) {
-  return async (params: Omit<ExpenseHistoryQuery, "page" | "pageSize">) => {
-    const { dateFrom, dateTo, status, expenseType, search, teamId } = params;
-
-    let query = db
-      .selectFrom("matchday_expense")
-      .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
-      .innerJoin(
-        "play_cricket_team",
-        "play_cricket_team.id",
-        "matchday.play_cricket_team_id",
-      )
-      .innerJoin(
-        "user as submitter",
-        "submitter.id",
-        "matchday_expense.created_by",
-      )
-      .leftJoin(
-        "user as approver",
-        "approver.id",
-        "matchday_expense.approved_by",
-      )
-      .leftJoin(
-        "user as reimburser",
-        "reimburser.id",
-        "matchday_expense.reimbursed_by",
-      );
-
-    if (dateFrom) {
-      query = query.where("matchday.match_date", ">=", dateFrom);
-    }
-    if (dateTo) {
-      query = query.where("matchday.match_date", "<=", dateTo);
-    }
-    if (status) {
-      const statuses = status.split(",");
-      query = query.where("matchday_expense.status", "in", statuses);
-    }
-    if (expenseType) {
-      query = query.where("matchday_expense.expense_type", "=", expenseType);
-    }
-    if (teamId) {
-      query = query.where("matchday.play_cricket_team_id", "=", teamId);
-    }
-    if (search) {
-      query = query.where((eb) =>
-        eb.or([
-          eb("matchday_expense.description", "ilike", `%${search}%`),
-          eb("matchday.opposition", "ilike", `%${search}%`),
-        ]),
-      );
-    }
+  return async (params: ExpenseHistoryFilters) => {
+    const query = buildExpenseBaseQuery(db, params);
 
     const rows = await query
       .select([
