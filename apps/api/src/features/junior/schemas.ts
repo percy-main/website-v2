@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const dependentSchema = z.object({
   name: z.string().min(1),
-  sex: z.enum(["male", "female", "prefer_not_to_say"]),
+  sex: z.enum(["male", "female"]),
   dob: z.string(), // ISO date
   school_year: z.string().optional(),
   played_before: z.boolean().optional(),

@@ -369,7 +369,7 @@ function JuniorRegistrationInner() {
           body: {
             dependents: deps.map((d) => ({
               ...d,
-              sex: d.sex as "male" | "female" | "prefer_not_to_say",
+              sex: d.sex as "male" | "female",
               played_before: d.played_before ?? false,
               whatsapp_consent: d.whatsapp_consent ?? false,
               alt_contact_whatsapp_consent:
@@ -522,7 +522,6 @@ function JuniorRegistrationInner() {
                 options={[
                   { title: "Male", value: "male" },
                   { title: "Female", value: "female" },
-                  { title: "Prefer not to say", value: "prefer_not_to_say" },
                 ]}
               />
               <TextInput
@@ -1017,11 +1016,7 @@ function JuniorRegistrationInner() {
                 <dt className="font-medium text-gray-500">Date of Birth</dt>
                 <dd>{format(new Date(dep.dob), "dd/MM/yyyy")}</dd>
                 <dt className="font-medium text-gray-500">Gender</dt>
-                <dd className="capitalize">
-                  {dep.sex === "prefer_not_to_say"
-                    ? "Prefer not to say"
-                    : dep.sex}
-                </dd>
+                <dd className="capitalize">{dep.sex}</dd>
                 <dt className="font-medium text-gray-500">School Year</dt>
                 <dd>{dep.school_year}</dd>
                 <dt className="font-medium text-gray-500">Played Before</dt>

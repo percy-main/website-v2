@@ -580,7 +580,7 @@ export interface paths {
                         dependents: {
                             name: string;
                             /** @enum {string} */
-                            sex: "male" | "female" | "prefer_not_to_say";
+                            sex: "male" | "female";
                             dob: string;
                             school_year?: string;
                             played_before?: boolean;

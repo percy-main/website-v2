@@ -649,8 +649,7 @@
                           "type": "string",
                           "enum": [
                             "male",
-                            "female",
-                            "prefer_not_to_say"
+                            "female"
                           ]
                         },
                         "dob": {
