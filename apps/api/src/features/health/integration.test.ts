@@ -1,4 +1,8 @@
 import Fastify from "fastify";
+import {
+  serializerCompiler,
+  validatorCompiler,
+} from "fastify-type-provider-zod";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   startTestContainer,
@@ -22,6 +26,8 @@ describe("health routes (integration)", () => {
   it("returns ok with a connected database", async () => {
     const logger = createTestLogger();
     const app = Fastify({ logger: { level: "info", stream: logger.stream } });
+    app.setValidatorCompiler(validatorCompiler);
+    app.setSerializerCompiler(serializerCompiler);
     // Decorate with the test container's db so healthRoutes can use app.db
     app.decorate("db", ctx.db);
     await app.register(healthRoutes);
