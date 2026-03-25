@@ -1,6 +1,7 @@
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api.js";
+import { api, callApi } from "@/lib/api-client.js";
+import type { paths } from "@/lib/api.gen.js";
 import { getAllEvents } from "@/lib/events.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
@@ -20,7 +21,10 @@ import { Link, useParams } from "react-router";
 
 // --- Types ---
 
-type Outcome = "W" | "L" | "D" | "T" | "A" | "C" | "N";
+type GameListItem =
+  paths["/api/games"]["get"]["responses"]["200"]["content"]["application/json"][number];
+
+type Outcome = NonNullable<GameListItem["outcome"]>;
 
 type CalendarItem =
   | {
@@ -47,24 +51,6 @@ type CalendarItem =
     };
 
 type Filter = "all" | "1xi" | "2xi" | "mid" | "jun" | "event";
-
-interface GameListItem {
-  id: string;
-  matchDate: string;
-  matchTime: string | null;
-  home: boolean;
-  team: { id: string; name: string };
-  opposition: {
-    club: { id: string; name: string };
-    team: { id: string; name: string };
-  };
-  league: { id: string; name: string };
-  competition: { id: string; name: string; type: string };
-  when: string | null;
-  outcome: Outcome | null;
-  scoreDescription: string | null;
-  sponsorName: string | null;
-}
 
 // --- Constants ---
 
@@ -471,9 +457,10 @@ export function Component() {
   );
   const season = parsed?.year ?? new Date().getFullYear();
 
-  const { data: games } = useQuery<GameListItem[]>({
+  const { data: games } = useQuery({
     queryKey: ["games", season],
-    queryFn: () => api.get(`/games?season=${season}`),
+    queryFn: () =>
+      callApi(api.GET("/api/games", { params: { query: { season } } })),
     staleTime: 5 * 60 * 1000,
   });
 

@@ -1,21 +1,12 @@
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "date-fns";
 import { Link } from "react-router";
 import { match } from "ts-pattern";
 
-interface MembershipData {
-  type: string | null;
-  created_at: string;
-  paid_until: string;
-}
-
-interface Dependent {
-  id: string;
-  name: string;
-  dob: string;
-  school_year: string | null;
-  paid_until: string | null;
+// TODO: photo_consent and hasOwnAccount are returned at runtime but missing
+// from the OpenAPI spec. Remove this extension once the spec is updated.
+interface DependentExtension {
   photo_consent: boolean | null;
   hasOwnAccount: boolean;
 }
@@ -23,13 +14,12 @@ interface Dependent {
 export function Membership() {
   const query = useQuery({
     queryKey: ["membership"],
-    queryFn: () =>
-      api.get<{ membership: MembershipData | null }>("/members/me/membership"),
+    queryFn: () => callApi(api.GET("/api/members/me/membership")),
   });
 
   const dependentsQuery = useQuery({
     queryKey: ["dependents"],
-    queryFn: () => api.get<{ dependents: Dependent[] }>("/junior/dependents"),
+    queryFn: () => callApi(api.GET("/api/junior/dependents")),
   });
 
   if (query.isLoading) return null;
@@ -47,7 +37,12 @@ export function Membership() {
   }
 
   const { membership } = query.data;
-  const deps = dependentsQuery.data?.dependents ?? [];
+  type Dependent = NonNullable<
+    typeof dependentsQuery.data
+  >["dependents"][number];
+  const deps = (dependentsQuery.data?.dependents ?? []) as Array<
+    Dependent & DependentExtension
+  >;
 
   return (
     <section>

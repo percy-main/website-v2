@@ -6,56 +6,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-
-interface BattingSeason {
-  season: number;
-  innings: number;
-  notOuts: number;
-  runs: number;
-  highScore: number;
-  average: number | null;
-  strikeRate: number | null;
-  fours: number;
-  sixes: number;
-  fifties: number;
-  hundreds: number;
-}
-
-interface BowlingSeason {
-  season: number;
-  innings: number;
-  overs: string;
-  maidens: number;
-  runs: number;
-  wickets: number;
-  average: number | null;
-  economy: number | null;
-  strikeRate: number | null;
-  bestBowling: string | null;
-}
-
-interface CareerStatsResponse {
-  playCricketId: string;
-  seasons: number[];
-  battingSeasons: BattingSeason[];
-  bowlingSeasons: BowlingSeason[];
-  career: {
-    batting: {
-      matches: number;
-      runs: number;
-      highScore: number;
-      notOuts: number;
-    };
-    bowling: {
-      innings: number;
-      wickets: number;
-      bestBowling: { wickets: number; runs: number } | null;
-    };
-  };
-}
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -70,8 +23,10 @@ export function PlayerStats({ slug }: { slug: string }) {
   const careerQuery = useQuery({
     queryKey: ["player-career-stats", slug],
     queryFn: () =>
-      api.get<CareerStatsResponse>(
-        `/play-cricket/player-career-stats?slug=${slug}`,
+      callApi(
+        api.GET("/api/play-cricket/player-career-stats", {
+          params: { query: { slug } },
+        }),
       ),
     staleTime: 5 * 60 * 1000,
   });

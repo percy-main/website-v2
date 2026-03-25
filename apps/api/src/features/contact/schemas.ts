@@ -14,3 +14,11 @@ export const eventSubscriberSchema = z.object({
 
 export type ContactSubmission = z.infer<typeof contactSubmissionSchema>;
 export type EventSubscriber = z.infer<typeof eventSubscriberSchema>;
+
+export const contactResponseSchema = z.object({
+  id: z.string(),
+});
+
+export const eventSubscriberResponseSchema = z.object({
+  id: z.string(),
+});

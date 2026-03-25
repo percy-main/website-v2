@@ -1,28 +1,27 @@
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-
-interface SponsorData {
-  id: string;
-  sponsor_name: string;
-  sponsor_website: string | null;
-  sponsor_logo_url: string | null;
-  sponsor_message: string | null;
-  display_name: string | null;
-}
 
 export function PlayerSponsor({ slug }: { slug: string }) {
   const sponsorQuery = useQuery({
     queryKey: ["player-sponsor", slug],
     queryFn: () =>
-      api.get<{ sponsor: SponsorData | null }>(`/sponsorship/player/${slug}`),
+      callApi(
+        api.GET("/api/sponsorship/player/{slug}", {
+          params: { path: { slug } },
+        }),
+      ),
     staleTime: 5 * 60 * 1000,
   });
 
   const pendingQuery = useQuery({
     queryKey: ["player-sponsor-pending", slug],
     queryFn: () =>
-      api.get<{ hasPending: boolean }>(`/sponsorship/player/${slug}/pending`),
+      callApi(
+        api.GET("/api/sponsorship/player/{slug}/pending", {
+          params: { path: { slug } },
+        }),
+      ),
     staleTime: 5 * 60 * 1000,
   });
 

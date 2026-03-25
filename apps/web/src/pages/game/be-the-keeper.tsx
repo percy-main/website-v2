@@ -1,5 +1,5 @@
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
@@ -1505,7 +1505,11 @@ function BeTheKeeper() {
     // Fetch leaderboard (always)
     try {
       const result = leaderboardSchema.parse(
-        await api.get("/leaderboard?game=be-the-keeper&limit=5"),
+        await callApi(
+          api.GET("/api/leaderboard", {
+            params: { query: { game: "be-the-keeper", limit: 5 } },
+          }),
+        ),
       );
       if (isStillOver()) s.leaderboard = result;
     } catch {
@@ -1516,19 +1520,27 @@ function BeTheKeeper() {
     if (isLoggedInRef.current && s.score > 0) {
       try {
         const result = scoreResponseSchema.parse(
-          await api.post("/game-score", {
-            game: "be-the-keeper",
-            score: s.score,
-            level: s.level,
-            catches: s.catches,
-            bestStreak: s.bestStreak,
-          }),
+          await callApi(
+            api.POST("/api/game-score", {
+              body: {
+                game: "be-the-keeper",
+                score: s.score,
+                level: s.level,
+                catches: s.catches,
+                bestStreak: s.bestStreak,
+              },
+            }),
+          ),
         );
         if (result.saved && isStillOver()) {
           s.scoreSaved = true;
           // Re-fetch leaderboard to reflect new score
           const lb = leaderboardSchema.parse(
-            await api.get("/leaderboard?game=be-the-keeper&limit=5"),
+            await callApi(
+              api.GET("/api/leaderboard", {
+                params: { query: { game: "be-the-keeper", limit: 5 } },
+              }),
+            ),
           );
           if (isStillOver()) s.leaderboard = lb;
         }

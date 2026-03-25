@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -201,27 +201,6 @@ function IncompleteDetailsBanner({ hidden }: { hidden: boolean }) {
   );
 }
 
-interface ActiveAvailabilityFixture {
-  match_date: string;
-  team_name: string | null;
-  opposition: string;
-}
-
-interface ActiveAvailabilityResponse {
-  match_date: string;
-}
-
-interface ActiveAvailabilityRequest {
-  id: string;
-  fixtures: ActiveAvailabilityFixture[];
-  myResponses: ActiveAvailabilityResponse[];
-}
-
-interface ActiveAvailabilityData {
-  memberId: string | null;
-  items: ActiveAvailabilityRequest[];
-}
-
 const AVAILABILITY_NAG_DISMISSED_KEY = "pmcsc_availability_nag_dismissed";
 
 function AvailabilityNagModal() {
@@ -232,7 +211,7 @@ function AvailabilityNagModal() {
 
   const query = useQuery({
     queryKey: ["availability", "active"],
-    queryFn: () => api.get<ActiveAvailabilityData>("/availability/active"),
+    queryFn: () => callApi(api.GET("/api/availability/active")),
     enabled: !dismissed,
   });
 
@@ -302,7 +281,7 @@ function AvailabilityNagModal() {
 function AvailabilityBanner() {
   const query = useQuery({
     queryKey: ["availability", "active"],
-    queryFn: () => api.get<ActiveAvailabilityData>("/availability/active"),
+    queryFn: () => callApi(api.GET("/api/availability/active")),
   });
 
   if (!query.data?.memberId) return null;

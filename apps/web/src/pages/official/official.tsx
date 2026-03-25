@@ -9,7 +9,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
 import { compressImage } from "@/lib/image-utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -50,74 +51,11 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
   currency: "GBP",
 });
 
-// ── Types ──
+// ── Derived API types ──
 
-interface Team {
-  id: string;
-  name: string;
-  is_junior: boolean | null;
-}
-
-interface UpcomingMatch {
-  matchId: string;
-  matchDate: string;
-  matchTime: string | null;
-  opposition: string;
-  isHome: boolean;
-  competitionName: string | null;
-  competitionType: string | null;
-  matchdayId: string | null;
-  matchdayStatus: string | null;
-}
-
-interface MatchdayPlayer {
-  id: string | null;
-  member_id: string | null;
-  player_name: string;
-  status: string;
-  replaced_by_matchday_player_id: string | null;
-  charge_id: string | null;
-  created_at: string;
-  member_category: string | null;
-  chargePaidAt: string | null;
-}
-
-interface MatchdayExpense {
-  id: string | null;
-  expense_type: string;
-  description: string | null;
-  amount_pence: number;
-  created_at: string;
-  receipt_image_url: string | null;
-}
-
-interface MatchdayData {
-  matchday: {
-    id: string;
-    play_cricket_team_id: string;
-    match_date: string;
-    opposition: string;
-    competition_type: string | null;
-    status: string;
-    confirmed_at: string | null;
-    confirmed_by: string | null;
-    finished_at: string | null;
-    finished_by: string | null;
-    result_type: string | null;
-    result_confirmed_at: string | null;
-    result_source: string | null;
-  };
-  team: { id: string; name: string } | null;
-  players: MatchdayPlayer[];
-  expenses: MatchdayExpense[];
-}
-
-interface SearchMember {
-  id: string;
-  name: string;
-  email: string;
-  member_category: string | null;
-}
+type MatchdayData =
+  paths["/api/matchday/{matchId}"]["get"]["responses"][200]["content"]["application/json"];
+type MatchdayExpense = MatchdayData["expenses"][number];
 
 // ── Component ──
 
@@ -165,7 +103,7 @@ function TeamsDashboard() {
 
   const teamsQuery = useQuery({
     queryKey: ["official", "myTeams"],
-    queryFn: () => api.get<Team[]>("/matchday/teams"),
+    queryFn: () => callApi(api.GET("/api/matchday/teams")),
   });
 
   if (teamsQuery.isPending) {
@@ -244,7 +182,11 @@ function TeamMatchesView({
   const matchesQuery = useQuery({
     queryKey: ["official", "upcomingMatches", teamId],
     queryFn: () =>
-      api.get<UpcomingMatch[]>(`/matchday/teams/${teamId}/upcoming`),
+      callApi(
+        api.GET("/api/matchday/teams/{teamId}/upcoming", {
+          params: { path: { teamId } },
+        }),
+      ),
   });
 
   const createMatchdayMutation = useMutation({
@@ -254,7 +196,12 @@ function TeamMatchesView({
       opposition: string;
       competitionType?: string;
       playCricketMatchId?: string;
-    }) => api.post<{ id: string }>("/matchday", input),
+    }) =>
+      callApi(
+        api.POST("/api/matchday", {
+          body: input,
+        }),
+      ),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({
         queryKey: ["official", "upcomingMatches", teamId],
@@ -376,25 +323,40 @@ function MatchdayView({
     Record<string, "playing" | "dropped_out" | "no_show">
   >({});
   const [payingPlayerId, setPayingPlayerId] = useState<string | null>(null);
-  const [selectedResultType, setSelectedResultType] = useState<string>("");
+  type ResultType = "W" | "L" | "D" | "T" | "A" | "C" | "N";
+  const [selectedResultType, setSelectedResultType] = useState<ResultType | "">(
+    "",
+  );
 
   const matchdayQuery = useQuery({
     queryKey: ["official", "matchday", matchdayId],
-    queryFn: () => api.get<MatchdayData>(`/matchday/${matchdayId}`),
+    queryFn: () =>
+      callApi(
+        api.GET("/api/matchday/{matchId}", {
+          params: { path: { matchId: matchdayId } },
+        }),
+      ),
   });
 
   const searchMembersQuery = useQuery({
     queryKey: ["official", "searchMembers", searchQuery],
     queryFn: () =>
-      api.get<SearchMember[]>(
-        `/matchday/members/search?query=${encodeURIComponent(searchQuery)}`,
+      callApi(
+        api.GET("/api/matchday/members/search", {
+          params: { query: { query: searchQuery } },
+        }),
       ),
     enabled: searchQuery.length >= 2,
   });
 
   const addPlayerMutation = useMutation({
     mutationFn: (input: { memberId?: string; playerName: string }) =>
-      api.post<{ id: string }>(`/matchday/${matchdayId}/players`, input),
+      callApi(
+        api.POST("/api/matchday/{matchId}/players", {
+          params: { path: { matchId: matchdayId } },
+          body: input,
+        }),
+      ),
     onSuccess: () => {
       setSearchQuery("");
       setAdHocName("");
@@ -406,7 +368,11 @@ function MatchdayView({
 
   const removePlayerMutation = useMutation({
     mutationFn: (playerId: string) =>
-      api.delete(`/matchday/${matchdayId}/players/${playerId}`),
+      callApi(
+        api.DELETE("/api/matchday/{matchId}/players/{playerId}", {
+          params: { path: { matchId: matchdayId, playerId } },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["official", "matchday", matchdayId],
@@ -420,7 +386,13 @@ function MatchdayView({
         matchdayPlayerId: string;
         status: "playing" | "dropped_out" | "no_show";
       }>;
-    }) => api.post(`/matchday/${matchdayId}/confirm`, input),
+    }) =>
+      callApi(
+        api.POST("/api/matchday/{matchId}/confirm", {
+          params: { path: { matchId: matchdayId } },
+          body: input,
+        }),
+      ),
     onSuccess: () => {
       setConfirmingTeam(false);
       setPlayerStatuses({});
@@ -435,9 +407,14 @@ function MatchdayView({
       playerId: string;
       paymentMethod: "cash" | "bank_transfer" | "card";
     }) =>
-      api.post(`/matchday/${matchdayId}/players/${input.playerId}/mark-paid`, {
-        paymentMethod: input.paymentMethod,
-      }),
+      callApi(
+        api.POST("/api/matchday/{matchId}/players/{playerId}/mark-paid", {
+          params: {
+            path: { matchId: matchdayId, playerId: input.playerId },
+          },
+          body: { paymentMethod: input.paymentMethod },
+        }),
+      ),
     onSuccess: () => {
       setPayingPlayerId(null);
       void queryClient.invalidateQueries({
@@ -447,8 +424,13 @@ function MatchdayView({
   });
 
   const finishMatchMutation = useMutation({
-    mutationFn: (resultType: string) =>
-      api.post(`/matchday/${matchdayId}/finish`, { resultType }),
+    mutationFn: (resultType: "W" | "L" | "D" | "T" | "A" | "C" | "N") =>
+      callApi(
+        api.POST("/api/matchday/{matchId}/finish", {
+          params: { path: { matchId: matchdayId } },
+          body: { resultType },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["official", "matchday", matchdayId],
@@ -458,11 +440,22 @@ function MatchdayView({
 
   const addExpenseMutation = useMutation({
     mutationFn: (input: {
-      type: string;
+      type:
+        | "umpire_fee"
+        | "scorer_fee"
+        | "match_ball"
+        | "teas"
+        | "miscellaneous";
       description?: string;
       amountPence: number;
       receiptImage?: string;
-    }) => api.post(`/matchday/${matchdayId}/expenses`, input),
+    }) =>
+      callApi(
+        api.POST("/api/matchday/{matchId}/expenses", {
+          params: { path: { matchId: matchdayId } },
+          body: input,
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["official", "matchday", matchdayId],
@@ -472,7 +465,11 @@ function MatchdayView({
 
   const deleteExpenseMutation = useMutation({
     mutationFn: (expenseId: string) =>
-      api.delete(`/matchday/expenses/${expenseId}`),
+      callApi(
+        api.DELETE("/api/matchday/expenses/{expenseId}", {
+          params: { path: { expenseId } },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["official", "matchday", matchdayId],
@@ -882,7 +879,9 @@ function MatchdayView({
                 <div className="flex items-center gap-3">
                   <Select
                     value={selectedResultType}
-                    onValueChange={setSelectedResultType}
+                    onValueChange={(v) =>
+                      setSelectedResultType(v as ResultType)
+                    }
                   >
                     <SelectTrigger className="w-48">
                       <SelectValue placeholder="Select result" />
@@ -901,6 +900,7 @@ function MatchdayView({
                       !selectedResultType || finishMatchMutation.isPending
                     }
                     onClick={() =>
+                      selectedResultType &&
                       finishMatchMutation.mutate(selectedResultType)
                     }
                   >
@@ -968,7 +968,7 @@ function ExpensesSection({
       unknown,
       Error,
       {
-        type: string;
+        type: ExpenseType;
         description?: string;
         amountPence: number;
         receiptImage?: string;

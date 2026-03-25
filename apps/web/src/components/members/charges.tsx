@@ -7,18 +7,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "date-fns";
-
-interface Charge {
-  id: string;
-  charge_date: string;
-  description: string;
-  amount_pence: number;
-  paid_at: string | null;
-  payment_confirmed_at: string | null;
-}
 
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -30,7 +21,7 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
 export function Charges() {
   const query = useQuery({
     queryKey: ["myCharges"],
-    queryFn: () => api.get<{ charges: Charge[] }>("/charges"),
+    queryFn: () => callApi(api.GET("/api/charges")),
   });
 
   const charges = query.data?.charges;

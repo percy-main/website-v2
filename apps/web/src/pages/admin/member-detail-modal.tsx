@@ -21,7 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
@@ -33,80 +34,12 @@ import {
   getMembershipTypeDisplay,
 } from "./status-pill";
 
+type UserDetail =
+  paths["/api/admin/users/{userId}"]["get"]["responses"]["200"]["content"]["application/json"];
+
 interface MemberDetailModalProps {
   userId: string;
   onClose: () => void;
-}
-
-interface UserDetail {
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    emailVerified: boolean;
-    createdAt: string;
-  };
-  member: {
-    id: string;
-    title: string | null;
-    name: string | null;
-    address: string | null;
-    postcode: string | null;
-    dob: string | null;
-    telephone: string | null;
-    emergency_contact_name: string | null;
-    emergency_contact_telephone: string | null;
-    member_category: string | null;
-    deleted_at: string | null;
-    deleted_reason: string | null;
-  } | null;
-  membership: {
-    id: string;
-    type: string | null;
-    paid_until: string | null;
-    created_at: string;
-  } | null;
-  dependents: Array<{
-    id: string;
-    name: string;
-    dob: string | null;
-    sex: string | null;
-    school_year: string | null;
-    photo_consent: boolean | null;
-    gp_surgery: string | null;
-    gp_phone: string | null;
-    alt_contact_name: string | null;
-    alt_contact_phone: string | null;
-    emergency_medical_consent: boolean | null;
-    has_disability: boolean | null;
-    disability_type: string | null;
-    medical_info: string | null;
-    membershipPaidUntil: string | null;
-  }>;
-  charges: Array<{
-    id: string;
-    description: string;
-    amount_pence: number;
-    charge_date: string;
-    source: string;
-    paid_at: string | null;
-    payment_confirmed_at: string | null;
-  }>;
-  juniorManagerTeams: Array<{ id: string }>;
-  officialTeams: Array<{ id: string }>;
-}
-
-interface JuniorTeam {
-  id: string;
-  name: string;
-  age_group: string;
-  sex: string;
-}
-
-interface PlayCricketTeam {
-  id: string;
-  name: string;
 }
 
 const CATEGORY_OPTIONS = [
@@ -130,7 +63,12 @@ export function MemberDetailModal({ userId, onClose }: MemberDetailModalProps) {
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "userDetail", userId],
-    queryFn: () => api.get<UserDetail>(`/admin/users/${userId}`),
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/users/{userId}", {
+          params: { path: { userId } },
+        }),
+      ),
   });
 
   return (
@@ -216,7 +154,7 @@ function MemberDetailContent({
       <JuniorManagerTeamsSection
         key={`jm-${data.juniorManagerTeams.map((t) => t.id).join(",")}`}
         userId={userId}
-        userRole={user.role}
+        userRole={user.role ?? "user"}
         selectedTeamIds={data.juniorManagerTeams.map((t) => t.id)}
         invalidateAll={invalidateAll}
       />
@@ -227,7 +165,7 @@ function MemberDetailContent({
       <OfficialTeamsSection
         key={`off-${data.officialTeams.map((t) => t.id).join(",")}`}
         userId={userId}
-        userRole={user.role}
+        userRole={user.role ?? "user"}
         selectedTeamIds={data.officialTeams.map((t) => t.id)}
         invalidateAll={invalidateAll}
       />
@@ -270,7 +208,20 @@ function AccountSection({
 
   const roleMutation = useMutation({
     mutationFn: (newRole: string) =>
-      api.put(`/admin/users/${userId}`, { role: newRole }),
+      callApi(
+        api.PUT("/api/admin/users/{userId}", {
+          params: { path: { userId } },
+          body: {
+            userId,
+            role: newRole as
+              | "user"
+              | "admin"
+              | "junior_manager"
+              | "official"
+              | null,
+          },
+        }),
+      ),
     onSuccess: () => {
       invalidateAll();
       setConfirmingRole(false);
@@ -295,7 +246,7 @@ function AccountSection({
         <div>
           <span className="text-gray-500">Role</span>
           <p>
-            <RolePill role={user.role} />
+            <RolePill role={user.role ?? "user"} />
           </p>
         </div>
         <div>
@@ -427,7 +378,12 @@ function MemberCategorySection({
 
   const mutation = useMutation({
     mutationFn: (memberCategory: string | null) =>
-      api.put(`/admin/users/${userId}/category`, { memberCategory }),
+      callApi(
+        api.PUT("/api/admin/users/{userId}/category", {
+          params: { path: { userId } },
+          body: { userId, memberCategory },
+        }),
+      ),
     onSuccess: invalidateAll,
   });
 
@@ -656,12 +612,17 @@ function JuniorManagerTeamsSection({
 
   const { data: teams } = useQuery({
     queryKey: ["admin", "juniorTeams"],
-    queryFn: () => api.get<JuniorTeam[]>("/admin/junior-teams"),
+    queryFn: () => callApi(api.GET("/api/admin/junior-teams")),
   });
 
   const mutation = useMutation({
     mutationFn: (teamIds: string[]) =>
-      api.put(`/admin/users/${userId}/junior-manager-teams`, { teamIds }),
+      callApi(
+        api.PUT("/api/admin/users/{userId}/junior-manager-teams", {
+          params: { path: { userId } },
+          body: { userId, teamIds },
+        }),
+      ),
     onSuccess: () => {
       invalidateAll();
       setHasChanges(false);
@@ -767,12 +728,17 @@ function OfficialTeamsSection({
 
   const { data: teams } = useQuery({
     queryKey: ["admin", "playCricketTeams"],
-    queryFn: () => api.get<PlayCricketTeam[]>("/admin/play-cricket-teams"),
+    queryFn: () => callApi(api.GET("/api/admin/play-cricket-teams")),
   });
 
   const mutation = useMutation({
     mutationFn: (teamIds: string[]) =>
-      api.put(`/admin/users/${userId}/official-teams`, { teamIds }),
+      callApi(
+        api.PUT("/api/admin/users/{userId}/official-teams", {
+          params: { path: { userId } },
+          body: { userId, teamIds },
+        }),
+      ),
     onSuccess: () => {
       invalidateAll();
       setHasChanges(false);
@@ -883,7 +849,13 @@ function PaymentsSection({
       description: string;
       amountPence: number;
       chargeDate: string;
-    }) => api.post(`/admin/users/${userId}/charges`, body),
+    }) =>
+      callApi(
+        api.POST("/api/admin/users/{userId}/charges", {
+          params: { path: { userId } },
+          body,
+        }),
+      ),
     onSuccess: () => {
       invalidateAll();
       setDescription("");
@@ -1003,7 +975,12 @@ function ChargeRow({
 
   const deleteMutation = useMutation({
     mutationFn: () =>
-      api.delete(`/admin/charges/${charge.id}`, { reason: deleteReason }),
+      callApi(
+        api.DELETE("/api/admin/charges/{chargeId}", {
+          params: { path: { chargeId: charge.id } },
+          body: { chargeId: charge.id, reason: deleteReason },
+        }),
+      ),
     onSuccess: () => {
       invalidateAll();
       setShowDelete(false);
@@ -1093,7 +1070,12 @@ function ArchiveSection({
 
   const archiveMutation = useMutation({
     mutationFn: () =>
-      api.post(`/admin/users/${userId}/archive`, { reason: archiveReason }),
+      callApi(
+        api.POST("/api/admin/users/{userId}/archive", {
+          params: { path: { userId } },
+          body: { userId, reason: archiveReason },
+        }),
+      ),
     onSuccess: () => {
       invalidateAll();
       setShowArchiveForm(false);
@@ -1102,7 +1084,12 @@ function ArchiveSection({
   });
 
   const restoreMutation = useMutation({
-    mutationFn: () => api.post(`/admin/users/${userId}/restore`),
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/admin/users/{userId}/restore", {
+          params: { path: { userId } },
+        }),
+      ),
     onSuccess: invalidateAll,
   });
 

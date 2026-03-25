@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -28,149 +28,13 @@ import {
 import { ScoringRulesContent } from "./fantasy-rules.js";
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface TransferWindow {
-  locked: boolean;
-  gameweek: number;
-  isPreSeason: boolean;
-  daysUntilLock: number;
-}
-
-interface PreSeasonStats {
-  teamCount: number;
-  totalSandwiches: number;
-}
-
-interface SeasonEntry {
-  rank: number;
-  teamId: number;
-  ownerName: string;
-  totalPoints: number;
-  gameweeksPlayed: number;
-}
-
-interface WeeklyEntry {
-  rank: number;
-  teamId: number;
-  ownerName: string;
-  weeklyPoints: number;
-}
-
-interface PlayerEntry {
-  rank: number;
-  playCricketId: string;
-  playerName: string;
-  battingPoints: number;
-  bowlingPoints: number;
-  fieldingPoints: number;
-  teamPoints: number;
-  totalPoints: number;
-  matchesPlayed: number;
-}
-
-interface TeamListItem {
-  id: number;
-  season: string;
-  ownerName: string;
-  ownerId: string;
-  createdAt: string;
-}
-
-interface TeamDetail {
-  team: { id: number; season: string; ownerName: string; ownerId: string };
-  players: Array<{
-    playCricketId: string;
-    playerName: string;
-    sandwichCost: number;
-    isCaptain: boolean;
-    slotType: string;
-    isWicketkeeper: boolean;
-    ownershipPct: number;
-  }>;
-}
-
-interface Highlights {
-  topScorer: {
-    playerName: string;
-    totalPoints: number;
-  } | null;
-  bestSpell: {
-    playerName: string;
-    bowlingPoints: number;
-  } | null;
-  fantasyShock: {
-    playerName: string;
-    totalPoints: number;
-    ownershipPct: number;
-  } | null;
-  topTeam: {
-    teamId: number;
-    ownerName: string;
-    totalPoints: number;
-  } | null;
-  biggestMover: {
-    ownerName: string;
-    rankChange: number;
-    currentRank: number;
-  } | null;
-  mostCaptained: {
-    playerName: string;
-    captainPct: number;
-  } | null;
-  differentialPick: {
-    playerName: string;
-    totalPoints: number;
-    ownershipPct: number;
-  } | null;
-  teamCount: number;
-}
-
-interface OwnershipOverview {
-  mostOwned: Array<{
-    playCricketId: string;
-    playerName: string;
-    ownershipPct: number;
-  }>;
-  mostCaptained: Array<{
-    playCricketId: string;
-    playerName: string;
-    captainPct: number;
-  }>;
-  differentials: Array<{
-    playCricketId: string;
-    playerName: string;
-    points: number;
-    ownershipPct: number;
-    sandwichCost: number;
-  }>;
-  teamCount: number;
-}
-
-interface SandwichEffEntry {
-  rank: number;
-  playCricketId: string;
-  playerName: string;
-  sandwichCost: number;
-  totalPoints: number;
-  pointsPerSandwich: number;
-}
-
-interface TimelineEntry {
-  gameweek: number;
-  weeklyPoints: number;
-  cumulativePoints: number;
-}
-
-// ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
 
 function useTransferWindow() {
   return useQuery({
     queryKey: ["fantasy", "transfer-window"],
-    queryFn: () => api.get<TransferWindow>("/fantasy/transfer-window"),
+    queryFn: () => callApi(api.GET("/api/fantasy/transfer-window")),
     staleTime: 60_000,
   });
 }
@@ -178,7 +42,7 @@ function useTransferWindow() {
 function usePreSeasonStats() {
   return useQuery({
     queryKey: ["fantasy", "pre-season-stats"],
-    queryFn: () => api.get<PreSeasonStats>("/fantasy/stats/pre-season"),
+    queryFn: () => callApi(api.GET("/api/fantasy/stats/pre-season")),
     staleTime: 60_000,
   });
 }
@@ -186,24 +50,20 @@ function usePreSeasonStats() {
 function useSeasonLeaderboard() {
   return useQuery({
     queryKey: ["fantasy", "leaderboard", "season"],
-    queryFn: () =>
-      api.get<{ entries: SeasonEntry[]; season: string }>(
-        "/fantasy/leaderboard/season",
-      ),
+    queryFn: () => callApi(api.GET("/api/fantasy/leaderboard/season")),
     staleTime: 5 * 60_000,
   });
 }
 
 function useWeeklyLeaderboard(gameweek?: number) {
-  const params = gameweek !== undefined ? `?gameweek=${gameweek}` : "";
   return useQuery({
     queryKey: ["fantasy", "leaderboard", "weekly", gameweek],
     queryFn: () =>
-      api.get<{
-        entries: WeeklyEntry[];
-        gameweek: number;
-        availableGameweeks: number[];
-      }>(`/fantasy/leaderboard/weekly${params}`),
+      callApi(
+        api.GET("/api/fantasy/leaderboard/weekly", {
+          params: { query: { gameweek } },
+        }),
+      ),
     staleTime: 5 * 60_000,
   });
 }
@@ -211,8 +71,7 @@ function useWeeklyLeaderboard(gameweek?: number) {
 function usePlayerLeaderboard() {
   return useQuery({
     queryKey: ["fantasy", "leaderboard", "players"],
-    queryFn: () =>
-      api.get<{ entries: PlayerEntry[] }>("/fantasy/leaderboard/players"),
+    queryFn: () => callApi(api.GET("/api/fantasy/leaderboard/players")),
     staleTime: 5 * 60_000,
   });
 }
@@ -220,10 +79,7 @@ function usePlayerLeaderboard() {
 function useHighlights() {
   return useQuery({
     queryKey: ["fantasy", "highlights"],
-    queryFn: () =>
-      api.get<{ highlights: Highlights | null; gameweek: number }>(
-        "/fantasy/highlights",
-      ),
+    queryFn: () => callApi(api.GET("/api/fantasy/highlights")),
     staleTime: 5 * 60_000,
   });
 }
@@ -231,7 +87,7 @@ function useHighlights() {
 function useOwnership() {
   return useQuery({
     queryKey: ["fantasy", "ownership"],
-    queryFn: () => api.get<OwnershipOverview>("/fantasy/stats/ownership"),
+    queryFn: () => callApi(api.GET("/api/fantasy/stats/ownership")),
     staleTime: 5 * 60_000,
   });
 }
@@ -239,12 +95,7 @@ function useOwnership() {
 function useSandwichEfficiency() {
   return useQuery({
     queryKey: ["fantasy", "sandwich-efficiency"],
-    queryFn: () =>
-      api.get<{
-        entries: SandwichEffEntry[];
-        season: string;
-        isFromPreviousSeason: boolean;
-      }>("/fantasy/stats/sandwich-efficiency"),
+    queryFn: () => callApi(api.GET("/api/fantasy/stats/sandwich-efficiency")),
     staleTime: 5 * 60_000,
   });
 }
@@ -252,7 +103,7 @@ function useSandwichEfficiency() {
 function useTeams() {
   return useQuery({
     queryKey: ["fantasy", "teams"],
-    queryFn: () => api.get<{ teams: TeamListItem[] }>("/fantasy/teams"),
+    queryFn: () => callApi(api.GET("/api/fantasy/teams")),
     staleTime: 5 * 60_000,
   });
 }
@@ -260,7 +111,14 @@ function useTeams() {
 function useTeamDetail(teamId: number | null) {
   return useQuery({
     queryKey: ["fantasy", "team", teamId],
-    queryFn: () => api.get<TeamDetail>(`/fantasy/teams/${teamId}`),
+    queryFn: () => {
+      if (teamId === null) throw new Error("teamId is required");
+      return callApi(
+        api.GET("/api/fantasy/teams/{teamId}", {
+          params: { path: { teamId } },
+        }),
+      );
+    },
     enabled: teamId !== null,
     staleTime: 5 * 60_000,
   });
@@ -269,10 +127,14 @@ function useTeamDetail(teamId: number | null) {
 function useTimeline(teamId: number | null) {
   return useQuery({
     queryKey: ["fantasy", "timeline", teamId],
-    queryFn: () =>
-      api.get<{ timeline: TimelineEntry[] }>(
-        `/fantasy/teams/${teamId}/timeline`,
-      ),
+    queryFn: () => {
+      if (teamId === null) throw new Error("teamId is required");
+      return callApi(
+        api.GET("/api/fantasy/teams/{teamId}/timeline", {
+          params: { path: { teamId } },
+        }),
+      );
+    },
     enabled: teamId !== null,
     staleTime: 5 * 60_000,
   });
@@ -916,9 +778,7 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
 
   const slotOrder = { batting: 0, bowling: 1, allrounder: 2 };
   const sorted = [...data.players].sort(
-    (a, b) =>
-      (slotOrder[a.slotType as keyof typeof slotOrder] ?? 3) -
-      (slotOrder[b.slotType as keyof typeof slotOrder] ?? 3),
+    (a, b) => (slotOrder[a.slotType] ?? 3) - (slotOrder[b.slotType] ?? 3),
   );
 
   return (

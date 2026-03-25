@@ -12,11 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.js";
-import { api } from "@/lib/api.js";
+import { api, callApi } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
 import { isPast } from "date-fns";
 
 // --- Types ---
+// The /api/play-cricket/match/{matchId} endpoint returns `unknown` in the
+// generated spec (raw Play Cricket API proxy), so we keep local types for the
+// transformed scorecard data.
 
 interface BattingEntry {
   position: string;
@@ -86,6 +89,14 @@ interface MatchDetailData {
   resultDescription: string;
   resultAppliedTo: string;
   innings: ScorecardInnings[];
+}
+
+function fetchMatchDetail(matchId: string) {
+  return callApi(
+    api.GET("/api/play-cricket/match/{matchId}", {
+      params: { path: { matchId } },
+    }),
+  );
 }
 
 // --- Helpers ---
@@ -461,8 +472,7 @@ export function Scorecard({
 
   const { data, isLoading } = useQuery({
     queryKey: ["getMatchDetail", matchId],
-    queryFn: () =>
-      api.get<Record<string, unknown>>(`/play-cricket/match/${matchId}`),
+    queryFn: () => fetchMatchDetail(matchId),
     enabled: gameInPast,
     staleTime: 30 * 60 * 1000,
   });
@@ -472,7 +482,7 @@ export function Scorecard({
 
   if (!data) return null;
 
-  const matchDetail = transformMatchDetail(data);
+  const matchDetail = transformMatchDetail(data as Record<string, unknown>);
   if (!matchDetail || matchDetail.innings.length === 0) return null;
 
   return <ScorecardDisplay data={matchDetail} />;

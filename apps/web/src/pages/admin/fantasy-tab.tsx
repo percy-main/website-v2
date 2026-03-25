@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -44,45 +44,6 @@ const DEFAULT_CONFIGS: Record<string, string> = {
   scoring_threshold: JSON.stringify({ min_runs: 30, min_wickets: 3 }, null, 2),
 };
 
-interface Player {
-  player_name: string;
-  play_cricket_id: string;
-  sandwich_cost: number;
-  eligible: boolean;
-}
-
-interface PlayersResponse {
-  players: Player[];
-}
-
-interface ChaosWeek {
-  id: string;
-  gameweek_id: number;
-  name: string;
-  description: string;
-  rule_type: string;
-  send_email: boolean;
-  email_sent: boolean;
-}
-
-interface ChaosWeeksResponse {
-  weeks: ChaosWeek[];
-}
-
-interface PopulateResponse {
-  total: number;
-  inserted: number;
-}
-
-interface CalculateCostsResponse {
-  season: number;
-  totalPlayers: number;
-  scoredPlayers: number;
-  unscoredPlayers: number;
-  budget: number;
-  distribution: string;
-}
-
 function PlayerManagementSection() {
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
@@ -97,20 +58,22 @@ function PlayerManagementSection() {
     return () => clearTimeout(timeout);
   }, [searchInput]);
 
-  const queryParams = new URLSearchParams();
-  if (debouncedSearch) queryParams.set("search", debouncedSearch);
-
   const { data } = useQuery({
     queryKey: ["admin", "fantasyPlayers", debouncedSearch],
     queryFn: () =>
-      api.get<PlayersResponse>(
-        `/fantasy/admin/players?${queryParams.toString()}`,
+      callApi(
+        api.GET("/api/fantasy/admin/players", {
+          params: {
+            query: {
+              ...(debouncedSearch ? { search: debouncedSearch } : {}),
+            },
+          },
+        }),
       ),
   });
 
   const populateMutation = useMutation({
-    mutationFn: () =>
-      api.post<PopulateResponse>("/fantasy/admin/populate-players"),
+    mutationFn: () => callApi(api.POST("/api/fantasy/admin/populate-players")),
     onSuccess: (result) => {
       setPopulateResult(
         `Found ${result.total} players, ${result.inserted} updated.`,
@@ -123,12 +86,14 @@ function PlayerManagementSection() {
 
   const calculateCostsMutation = useMutation({
     mutationFn: () =>
-      api.post<CalculateCostsResponse>("/fantasy/admin/calculate-costs", {
-        season: CURRENT_SEASON,
-      }),
+      callApi(
+        api.POST("/api/fantasy/admin/calculate-costs", {
+          body: { season: String(CURRENT_SEASON) },
+        }),
+      ),
     onSuccess: (result) => {
       setCostsResult(
-        `Sandwich costs calculated from ${result.season} season data. ${result.totalPlayers} players (${result.scoredPlayers} scored, ${result.unscoredPlayers} unscored). Budget: ${result.budget} sandwiches.\n${result.distribution}`,
+        `Sandwich costs calculated from ${result.previousSeason} season data. ${result.updated} players updated for ${result.season} season.`,
       );
     },
   });
@@ -141,10 +106,11 @@ function PlayerManagementSection() {
       playCricketId: string;
       eligible: boolean;
     }) =>
-      api.post("/fantasy/admin/toggle-eligibility", {
-        playCricketId,
-        eligible,
-      }),
+      callApi(
+        api.POST("/api/fantasy/admin/toggle-eligibility", {
+          body: { playCricketId, eligible },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "fantasyPlayers"],
@@ -282,20 +248,29 @@ function ChaosWeeksSection() {
   const [ruleConfig, setRuleConfig] = useState("");
   const [sendEmail, setSendEmail] = useState(false);
 
-  const queryParams = new URLSearchParams();
-  queryParams.set("season", String(CURRENT_SEASON));
-
   const { data } = useQuery({
     queryKey: ["admin", "chaosWeeks", CURRENT_SEASON],
     queryFn: () =>
-      api.get<ChaosWeeksResponse>(
-        `/fantasy/admin/chaos-weeks?${queryParams.toString()}`,
+      callApi(
+        api.GET("/api/fantasy/admin/chaos-weeks", {
+          params: { query: { season: String(CURRENT_SEASON) } },
+        }),
       ),
   });
 
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api.post("/fantasy/admin/chaos-weeks", body),
+    mutationFn: (body: {
+      gameweekId: number;
+      name: string;
+      description: string;
+      ruleType:
+        | "no_transfers"
+        | "no_captain_change"
+        | "no_captain_multiplier"
+        | "scoring_modifier"
+        | "scoring_threshold";
+      ruleConfig?: string;
+    }) => callApi(api.POST("/api/fantasy/admin/chaos-weeks", { body })),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "chaosWeeks"] });
       resetForm();
@@ -303,16 +278,19 @@ function ChaosWeeksSection() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) =>
-      api.delete("/fantasy/admin/chaos-weeks", { id }),
+    mutationFn: (id: number) =>
+      callApi(api.DELETE("/api/fantasy/admin/chaos-weeks", { body: { id } })),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "chaosWeeks"] });
     },
   });
 
+  // Note: send-email endpoint does not exist in the OpenAPI spec.
+  // Keeping the mutation structure for future implementation.
   const sendEmailMutation = useMutation({
-    mutationFn: (id: string) =>
-      api.post("/fantasy/admin/chaos-weeks/send-email", { id }),
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    mutationFn: (_id: number) =>
+      Promise.reject(new Error("send-email endpoint not yet implemented")),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "chaosWeeks"] });
     },
@@ -339,15 +317,18 @@ function ChaosWeeksSection() {
 
   function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
-    const body: Record<string, unknown> = {
+    createMutation.mutate({
       gameweekId: Number(gameweekId),
       name,
       description,
-      ruleType,
-      ruleConfig: ruleConfig.trim() ? JSON.parse(ruleConfig) : {},
-      sendEmail,
-    };
-    createMutation.mutate(body);
+      ruleType: ruleType as
+        | "no_transfers"
+        | "no_captain_change"
+        | "no_captain_multiplier"
+        | "scoring_modifier"
+        | "scoring_threshold",
+      ruleConfig: ruleConfig.trim() ? ruleConfig.trim() : undefined,
+    });
   }
 
   const weeks = data?.weeks ?? [];

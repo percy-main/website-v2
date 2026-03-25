@@ -1,20 +1,11 @@
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "date-fns";
-
-interface Subscription {
-  name: string | null;
-  product: { name: string };
-  created: string;
-  status: string;
-  paidUntil: string;
-}
 
 export function Subscriptions() {
   const query = useQuery({
     queryKey: ["subscriptions"],
-    queryFn: () =>
-      api.get<{ subscriptions: Subscription[] }>("/members/me/subscriptions"),
+    queryFn: () => callApi(api.GET("/api/members/me/subscriptions")),
   });
 
   if (!query.data) {

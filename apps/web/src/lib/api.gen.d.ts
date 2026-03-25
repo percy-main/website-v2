@@ -25,7 +25,12 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            status: "ok" | "degraded";
+                            database: "connected" | "disconnected";
+                        };
+                    };
                 };
             };
         };
@@ -226,7 +231,21 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            member: {
+                                title: string | null;
+                                name: string | null;
+                                address: string | null;
+                                postcode: string | null;
+                                dob: string | null;
+                                telephone: string | null;
+                                email: string;
+                                emergency_contact_name: string | null;
+                                emergency_contact_telephone: string | null;
+                            } | null;
+                        };
+                    };
                 };
             };
         };
@@ -237,14 +256,32 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        title?: string;
+                        name?: string;
+                        address?: string;
+                        postcode?: string;
+                        dob?: string;
+                        telephone?: string;
+                        emergency_contact_name?: string;
+                        emergency_contact_telephone?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
                 };
             };
         };
@@ -276,7 +313,16 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            membership: {
+                                id: string;
+                                type: string | null;
+                                created_at: string;
+                                paid_until: string;
+                            } | null;
+                        };
+                    };
                 };
             };
         };
@@ -309,7 +355,21 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            subscriptions: {
+                                id: string;
+                                name: string | null;
+                                product: {
+                                    id: string;
+                                    name: string;
+                                };
+                                created: string;
+                                status: string;
+                                paidUntil: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -342,7 +402,28 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            charges: {
+                                id: string;
+                                member_id: string;
+                                description: string;
+                                amount_pence: number;
+                                charge_date: string;
+                                type: string;
+                                source: string;
+                                paid_at: string | null;
+                                payment_confirmed_at: string | null;
+                                payment_method: string | null;
+                                stripe_payment_intent_id: string | null;
+                                deleted_at: string | null;
+                                deleted_by: string | null;
+                                deleted_reason: string | null;
+                                created_at: string;
+                                created_by: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -377,7 +458,13 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            clientSecret: string | null;
+                            totalAmountPence: number;
+                            chargeIds: string[];
+                        };
+                    };
                 };
             };
         };
@@ -403,14 +490,25 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        paymentIntentId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
                 };
             };
         };
@@ -441,7 +539,28 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            dependents: {
+                                id: string;
+                                name: string;
+                                sex: string;
+                                dob: string;
+                                school_year: string | null;
+                                played_before: boolean | null;
+                                previous_cricket: string | null;
+                                whatsapp_consent: boolean | null;
+                                created_at: string;
+                                paid_until: string | null;
+                                parent: {
+                                    name: string | null;
+                                    telephone: string | null;
+                                    email: string;
+                                };
+                            }[];
+                            currentYearCount: number;
+                        };
+                    };
                 };
             };
         };
@@ -453,14 +572,47 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        dependents: {
+                            name: string;
+                            /** @enum {string} */
+                            sex: "male" | "female";
+                            dob: string;
+                            school_year?: string;
+                            played_before?: boolean;
+                            previous_cricket?: string;
+                            whatsapp_consent: boolean;
+                            alt_contact_name?: string;
+                            alt_contact_phone?: string;
+                            alt_contact_whatsapp_consent?: boolean;
+                            gp_surgery?: string;
+                            gp_phone?: string;
+                            has_disability?: boolean;
+                            disability_type?: string;
+                            medical_info?: string;
+                            emergency_medical_consent: boolean;
+                            medical_fitness_declaration: boolean;
+                            data_protection_consent: boolean;
+                            photo_consent: boolean;
+                        }[];
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            dependentIds: string[];
+                            memberId: string;
+                            chargeId: string;
+                        };
+                    };
                 };
             };
         };
@@ -491,7 +643,15 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            age_group: string;
+                            sex: string;
+                            created_at: string;
+                        }[];
+                    };
                 };
             };
         };
@@ -526,7 +686,25 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            sex: string;
+                            dob: string;
+                            created_at: string;
+                            school_year: string | null;
+                            played_before: boolean | null;
+                            medical_info: string | null;
+                            parent_name: string | null;
+                            parent_telephone: string | null;
+                            parent_email: string;
+                            parent_address: string | null;
+                            parent_postcode: string | null;
+                            emergency_contact_name: string | null;
+                            emergency_contact_telephone: string | null;
+                        }[];
+                    };
                 };
             };
         };
@@ -561,7 +739,35 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            sex: string;
+                            dob: string;
+                            school_year: string | null;
+                            played_before: boolean | null;
+                            previous_cricket: string | null;
+                            whatsapp_consent: boolean | null;
+                            alt_contact_name: string | null;
+                            alt_contact_phone: string | null;
+                            alt_contact_whatsapp_consent: boolean | null;
+                            gp_surgery: string | null;
+                            gp_phone: string | null;
+                            has_disability: boolean | null;
+                            disability_type: string | null;
+                            medical_info: string | null;
+                            emergency_medical_consent: boolean | null;
+                            medical_fitness_declaration: boolean | null;
+                            data_protection_consent: boolean | null;
+                            photo_consent: boolean | null;
+                            parent_name: string | null;
+                            parent_telephone: string | null;
+                            parent_email: string;
+                            parent_address: string | null;
+                            parent_postcode: string | null;
+                        };
+                    };
                 };
             };
         };
@@ -582,7 +788,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -594,7 +802,14 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            locked: boolean;
+                            gameweek: number;
+                            isPreSeason: boolean;
+                            daysUntilLock: number;
+                        };
+                    };
                 };
             };
         };
@@ -615,7 +830,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                    gameweek?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -627,7 +845,20 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: number;
+                            season: string;
+                            gameweek_id: number;
+                            name: string;
+                            description: string;
+                            rule_type: string;
+                            rule_config: string;
+                            send_email: boolean;
+                            email_sent: boolean;
+                            created_at: string;
+                        } | null;
+                    };
                 };
             };
         };
@@ -648,7 +879,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -660,7 +893,12 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            teamCount: number;
+                            totalSandwiches: number;
+                        };
+                    };
                 };
             };
         };
@@ -681,7 +919,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -693,7 +933,29 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            mostOwned: {
+                                playCricketId: string;
+                                playerName: string;
+                                ownershipPct: number;
+                            }[];
+                            mostCaptained: {
+                                playCricketId: string;
+                                playerName: string;
+                                captainPct: number;
+                            }[];
+                            differentials: {
+                                playCricketId: string;
+                                playerName: string;
+                                points: number;
+                                ownershipPct: number;
+                                sandwichCost: number;
+                            }[];
+                            teamCount: number;
+                            gameweek: number;
+                        };
+                    };
                 };
             };
         };
@@ -714,7 +976,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                    limit?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -726,7 +991,21 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            season: string;
+                            isFromPreviousSeason: boolean;
+                            entries: {
+                                playCricketId: string;
+                                playerName: string;
+                                sandwichCost: number;
+                                totalPoints: number;
+                                matchesPlayed: number;
+                                pointsPerSandwich: number;
+                                rank: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -747,7 +1026,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                    gameweek?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -759,7 +1041,55 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            highlights: {
+                                topScorer: {
+                                    playerName: string;
+                                    playCricketId: string;
+                                    totalPoints: number;
+                                } | null;
+                                bestSpell: {
+                                    playerName: string;
+                                    playCricketId: string;
+                                    bowlingPoints: number;
+                                    totalPoints: number;
+                                } | null;
+                                fantasyShock: {
+                                    playerName: string;
+                                    playCricketId: string;
+                                    totalPoints: number;
+                                    ownershipPct: number;
+                                } | null;
+                                topTeam: {
+                                    teamId: number;
+                                    ownerName: string;
+                                    totalPoints: number;
+                                } | null;
+                                biggestMover: {
+                                    ownerName: string;
+                                    teamId: number;
+                                    rankChange: number;
+                                    currentRank: number;
+                                    previousRank: number;
+                                } | null;
+                                mostCaptained: {
+                                    playerName: string;
+                                    playCricketId: string;
+                                    captainPct: number;
+                                } | null;
+                                differentialPick: {
+                                    playerName: string;
+                                    playCricketId: string;
+                                    totalPoints: number;
+                                    ownershipPct: number;
+                                } | null;
+                                teamCount: number;
+                            } | null;
+                            gameweek: number;
+                            season: string;
+                        };
+                    };
                 };
             };
         };
@@ -780,7 +1110,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -792,7 +1124,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            entries: {
+                                teamId: number;
+                                ownerName: string;
+                                totalPoints: number;
+                                gameweeksPlayed: number;
+                                rank: number;
+                            }[];
+                            season: string;
+                        };
+                    };
                 };
             };
         };
@@ -813,7 +1156,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                    gameweek?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -825,7 +1171,19 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            entries: {
+                                teamId: number;
+                                ownerName: string;
+                                weeklyPoints: number;
+                                rank: number;
+                            }[];
+                            gameweek: number;
+                            season: string;
+                            availableGameweeks: number[];
+                        };
+                    };
                 };
             };
         };
@@ -846,7 +1204,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -858,7 +1218,22 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            entries: {
+                                playCricketId: string;
+                                playerName: string;
+                                battingPoints: number;
+                                bowlingPoints: number;
+                                fieldingPoints: number;
+                                teamPoints: number;
+                                totalPoints: number;
+                                matchesPlayed: number;
+                                rank: number;
+                            }[];
+                            season: string;
+                        };
+                    };
                 };
             };
         };
@@ -879,7 +1254,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -891,7 +1268,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            teams: {
+                                id: number;
+                                season: string;
+                                ownerName: string;
+                                ownerId: string;
+                                createdAt: string;
+                            }[];
+                            season: string;
+                        };
+                    };
                 };
             };
         };
@@ -915,7 +1303,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    teamId: string;
+                    teamId: number;
                 };
                 cookie?: never;
             };
@@ -926,7 +1314,26 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            team: {
+                                id: number;
+                                season: string;
+                                ownerName: string;
+                                ownerId: string;
+                            };
+                            players: {
+                                playCricketId: string;
+                                playerName: string;
+                                sandwichCost: number;
+                                isCaptain: boolean;
+                                /** @enum {string} */
+                                slotType: "batting" | "bowling" | "allrounder";
+                                isWicketkeeper: boolean;
+                                ownershipPct: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -947,10 +1354,12 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path: {
-                    teamId: string;
+                    teamId: number;
                 };
                 cookie?: never;
             };
@@ -961,7 +1370,17 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            timeline: {
+                                gameweek: number;
+                                weeklyPoints: number;
+                                cumulativePoints: number;
+                            }[];
+                            season: string;
+                            teamId: number;
+                        };
+                    };
                 };
             };
         };
@@ -982,11 +1401,13 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path: {
-                    teamId: string;
-                    gameweek: string;
+                    teamId: number;
+                    gameweek: number;
                 };
                 cookie?: never;
             };
@@ -997,7 +1418,34 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            team: {
+                                id: number;
+                                ownerName: string;
+                                totalPoints: number;
+                            };
+                            gameweek: number;
+                            season: string;
+                            activeChips: string[];
+                            players: {
+                                playCricketId: string;
+                                playerName: string;
+                                isCaptain: boolean;
+                                /** @enum {string} */
+                                slotType: "batting" | "bowling" | "allrounder";
+                                isWicketkeeper: boolean;
+                                battingPoints: number;
+                                bowlingPoints: number;
+                                fieldingPoints: number;
+                                teamPoints: number;
+                                basePoints: number;
+                                effectivePoints: number;
+                                captainMultiplier: number;
+                                matchCount: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -1018,7 +1466,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path: {
                     playCricketId: string;
@@ -1032,7 +1482,22 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            playerName: string;
+                            playCricketId: string;
+                            season: string;
+                            gameweeks: {
+                                gameweek: number;
+                                battingPoints: number;
+                                bowlingPoints: number;
+                                fieldingPoints: number;
+                                teamPoints: number;
+                                totalPoints: number;
+                                matchCount: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -1053,7 +1518,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1065,7 +1532,22 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            players: {
+                                play_cricket_id: string;
+                                player_name: string;
+                                sandwich_cost: number;
+                                eligible: boolean;
+                                created_at: string;
+                                previousSeasonPoints: number;
+                                ownershipPercent: number;
+                            }[];
+                            season: string;
+                            previousSeason: string;
+                            budget: number;
+                        };
+                    };
                 };
             };
         };
@@ -1086,7 +1568,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1098,7 +1582,34 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            team: {
+                                id: number;
+                                user_id: string;
+                                season: string;
+                                created_at: string;
+                            } | null;
+                            players: {
+                                [key: string]: unknown;
+                            }[];
+                            gameweek: number;
+                            transfersUsed: number;
+                            maxTransfers: number | null;
+                            chaosWeek: {
+                                id: number;
+                                season: string;
+                                gameweek_id: number;
+                                name: string;
+                                description: string;
+                                rule_type: string;
+                                rule_config: string;
+                                send_email: boolean;
+                                email_sent: boolean;
+                                created_at: string;
+                            } | null;
+                        };
+                    };
                 };
             };
         };
@@ -1110,14 +1621,32 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        season?: string;
+                        players: {
+                            playCricketId: string;
+                            isCaptain: boolean;
+                            /** @enum {string} */
+                            slotType: "batting" | "bowling" | "allrounder";
+                            isWicketkeeper: boolean;
+                        }[];
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            teamId: number;
+                            isNew: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -1136,7 +1665,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1148,7 +1679,17 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            chips: {
+                                chipType: string;
+                                usedThisSeason: number;
+                                maxPerSeason: number;
+                                activeThisGameweek: boolean;
+                            }[];
+                            gameweek: number;
+                        };
+                    };
                 };
             };
         };
@@ -1160,14 +1701,26 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        chipType: "triple_captain";
+                        season?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -1193,14 +1746,26 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        chipType: "triple_captain";
+                        season?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -1219,7 +1784,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1231,7 +1798,22 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            ownerName: string;
+                            season: string;
+                            totalSandwichCost: number;
+                            gameweekLabel: string;
+                            players: {
+                                playerName: string;
+                                sandwichCost: number;
+                                isCaptain: boolean;
+                                /** @enum {string} */
+                                slotType: "batting" | "bowling" | "allrounder";
+                                isWicketkeeper: boolean;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -1252,7 +1834,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    search?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1264,7 +1848,17 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            players: {
+                                play_cricket_id: string;
+                                player_name: string;
+                                sandwich_cost: number;
+                                eligible: boolean;
+                                created_at: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -1292,14 +1886,26 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        playCricketId: string;
+                        eligible: boolean;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            playCricketId: string;
+                            eligible: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -1332,7 +1938,12 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            total: number;
+                            inserted: number;
+                        };
+                    };
                 };
             };
         };
@@ -1358,14 +1969,26 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        season?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            updated: number;
+                            season: string;
+                            previousSeason: string;
+                        };
+                    };
                 };
             };
         };
@@ -1391,14 +2014,25 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        season?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            playerScoresUpserted: number;
+                            teamScoresUpserted: number;
+                        };
+                    };
                 };
             };
         };
@@ -1417,7 +2051,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1429,7 +2065,23 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            weeks: {
+                                id: number;
+                                season: string;
+                                gameweek_id: number;
+                                name: string;
+                                description: string;
+                                rule_type: string;
+                                rule_config: string;
+                                send_email: boolean;
+                                email_sent: boolean;
+                                created_at: string;
+                            }[];
+                            season: string;
+                        };
+                    };
                 };
             };
         };
@@ -1441,20 +2093,80 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        season?: string;
+                        gameweekId: number;
+                        name: string;
+                        description: string;
+                        /** @enum {string} */
+                        ruleType: "no_transfers" | "no_captain_change" | "no_captain_multiplier" | "scoring_modifier" | "scoring_threshold";
+                        ruleConfig?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: number;
+                            season: string;
+                            gameweekId: number;
+                        };
+                    };
                 };
             };
         };
         delete: {
             parameters: {
                 query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        id: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    season?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1466,10 +2178,151 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            matchDate: string;
+                            matchTime: string | null;
+                            home: boolean;
+                            team: {
+                                id: string;
+                                name: string;
+                            };
+                            opposition: {
+                                club: {
+                                    id: string;
+                                    name: string;
+                                };
+                                team: {
+                                    id: string;
+                                    name: string;
+                                };
+                            };
+                            league: {
+                                id: string;
+                                name: string;
+                            };
+                            competition: {
+                                id: string;
+                                name: string;
+                                type: string;
+                            };
+                            groundName: string | null;
+                            when: string | null;
+                            /** @enum {string|null} */
+                            outcome: "W" | "L" | "D" | "T" | "A" | "C" | "N" | null;
+                            scoreDescription: string | null;
+                            sponsorName: string | null;
+                            sponsorLogoUrl: string | null;
+                        }[];
+                    };
                 };
             };
         };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/games/{matchId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            matchDate: string;
+                            matchTime: string | null;
+                            home: boolean;
+                            team: {
+                                id: string;
+                                name: string;
+                            };
+                            opposition: {
+                                club: {
+                                    id: string;
+                                    name: string;
+                                };
+                                team: {
+                                    id: string;
+                                    name: string;
+                                };
+                            };
+                            league: {
+                                id: string;
+                                name: string;
+                            };
+                            competition: {
+                                id: string;
+                                name: string;
+                                type: string;
+                            };
+                            groundName: string | null;
+                            when: string | null;
+                            /** @enum {string|null} */
+                            outcome: "W" | "L" | "D" | "T" | "A" | "C" | "N" | null;
+                            scoreDescription: string | null;
+                            sponsorName: string | null;
+                            sponsorLogoUrl: string | null;
+                            location: {
+                                name: string;
+                                street?: string;
+                                city?: string;
+                                postcode?: string;
+                                county?: string;
+                                country?: string;
+                            } | null;
+                            result: {
+                                /** @enum {string|null} */
+                                outcome: "W" | "L" | "D" | "T" | "A" | "C" | "N" | null;
+                                description: string;
+                                toss: string;
+                                innings: {
+                                    teamBattingId: string;
+                                    teamName: string;
+                                    runs: number;
+                                    wickets: number;
+                                    overs: string;
+                                    declared: boolean;
+                                    allOut: boolean;
+                                }[];
+                            } | null;
+                            sponsor: {
+                                name: string;
+                                logoUrl: string | null;
+                                message: string | null;
+                                website: string | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1498,7 +2351,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": unknown;
+                    };
                 };
             };
         };
@@ -1519,7 +2374,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query: {
+                    matchId: string;
+                    season: number;
+                    ourTeamId: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1531,7 +2390,16 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            matchId: string;
+                            season: number;
+                            ourTeamId: string;
+                            outcome: string;
+                            description: string;
+                            resultAppliedTo: string;
+                        } | null;
+                    };
                 };
             };
         };
@@ -1552,7 +2420,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query: {
+                    divisionId: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1564,7 +2434,21 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            columns: string[];
+                            rows: {
+                                [key: string]: string;
+                            }[];
+                        } | {
+                            id: number;
+                            name: string;
+                            columns: string[];
+                            rows: {
+                                [key: string]: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -1597,7 +2481,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            teams: {
+                                id: string;
+                                name: string;
+                                site_id: string;
+                                is_junior: boolean;
+                                last_updated: string | null;
+                                created_at: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -1630,7 +2525,49 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            matches: {
+                                matchId: string;
+                                matchDate: string;
+                                batting: {
+                                    id: string;
+                                    match_id: string;
+                                    match_date: string;
+                                    season: number;
+                                    player_id: string;
+                                    player_name: string;
+                                    team_id: string;
+                                    competition_type: string;
+                                    runs: number;
+                                    balls: number;
+                                    fours: number;
+                                    sixes: number;
+                                    how_out: string;
+                                    not_out: boolean;
+                                    created_at: string;
+                                }[];
+                                bowling: {
+                                    id: string;
+                                    match_id: string;
+                                    match_date: string;
+                                    season: number;
+                                    player_id: string;
+                                    player_name: string;
+                                    team_id: string;
+                                    competition_type: string;
+                                    overs: string;
+                                    maidens: number;
+                                    runs: number;
+                                    wickets: number;
+                                    wides: number;
+                                    no_balls: number;
+                                    created_at: string;
+                                }[];
+                                status: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -1651,7 +2588,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query: {
+                    slug: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1663,7 +2602,53 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            playCricketId: string;
+                            seasons: number[];
+                            battingSeasons: {
+                                season: number;
+                                innings: number;
+                                notOuts: number;
+                                runs: number;
+                                highScore: number;
+                                average: number | null;
+                                strikeRate: number | null;
+                                fours: number;
+                                sixes: number;
+                                fifties: number;
+                                hundreds: number;
+                            }[];
+                            bowlingSeasons: {
+                                season: number;
+                                innings: number;
+                                overs: string;
+                                maidens: number;
+                                runs: number;
+                                wickets: number;
+                                average: number | null;
+                                economy: number | null;
+                                strikeRate: number | null;
+                                bestBowling: string | null;
+                            }[];
+                            career: {
+                                batting: {
+                                    matches: number;
+                                    runs: number;
+                                    highScore: number;
+                                    notOuts: number;
+                                };
+                                bowling: {
+                                    innings: number;
+                                    wickets: number;
+                                    bestBowling: {
+                                        wickets: number;
+                                        runs: number;
+                                    } | null;
+                                };
+                            };
+                        } | null;
+                    };
                 };
             };
         };
@@ -1684,7 +2669,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query: {
+                    slug: string;
+                    season: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1696,7 +2684,35 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            playCricketId: string;
+                            season: number;
+                            batting: {
+                                innings: number;
+                                runs: number;
+                                notOuts: number;
+                                average: number | null;
+                                highScore: number;
+                                strikeRate: number | null;
+                                fours: number;
+                                sixes: number;
+                                fifties: number;
+                                hundreds: number;
+                            };
+                            bowling: {
+                                innings: number;
+                                overs: string;
+                                maidens: number;
+                                wickets: number;
+                                runs: number;
+                                average: number | null;
+                                economy: number | null;
+                                strikeRate: number | null;
+                                bestBowling: string | null;
+                            };
+                        } | null;
+                    };
                 };
             };
         };
@@ -1729,7 +2745,13 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            amountPence: number;
+                            currency: string;
+                            productName: string;
+                        };
+                    };
                 };
             };
         };
@@ -1762,7 +2784,13 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            amountPence: number;
+                            currency: string;
+                            productName: string;
+                        };
+                    };
                 };
             };
         };
@@ -1783,7 +2811,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1795,7 +2825,28 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            sponsors: {
+                                id: string;
+                                slug: string | null;
+                                player_name: string;
+                                sponsor_name: string;
+                                sponsor_email: string;
+                                sponsor_website: string | null;
+                                sponsor_logo_url: string | null;
+                                sponsor_message: string | null;
+                                amount_pence: number;
+                                season: number;
+                                approved: boolean;
+                                paid_at: string | null;
+                                created_at: string;
+                                display_name: string | null;
+                                notes: string | null;
+                                stripe_payment_intent_id: string | null;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -1830,7 +2881,26 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            sponsor: {
+                                id: string;
+                                game_id: string;
+                                sponsor_name: string;
+                                sponsor_email: string;
+                                sponsor_website: string | null;
+                                sponsor_logo_url: string | null;
+                                sponsor_message: string | null;
+                                amount_pence: number;
+                                approved: boolean;
+                                paid_at: string | null;
+                                created_at: string;
+                                display_name: string | null;
+                                notes: string | null;
+                                stripe_payment_intent_id: string | null;
+                            } | null;
+                        };
+                    };
                 };
             };
         };
@@ -1865,7 +2935,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            hasPending: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -1893,14 +2967,33 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        gameId: string;
+                        sponsorName: string;
+                        /** Format: email */
+                        sponsorEmail: string;
+                        /** Format: uri */
+                        sponsorWebsite?: string;
+                        sponsorLogoDataUrl?: string;
+                        sponsorMessage?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            clientSecret: string | null;
+                            amount: number;
+                            productName: string;
+                        };
+                    };
                 };
             };
         };
@@ -1933,7 +3026,28 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            sponsor: {
+                                id: string;
+                                slug: string | null;
+                                player_name: string;
+                                sponsor_name: string;
+                                sponsor_email: string;
+                                sponsor_website: string | null;
+                                sponsor_logo_url: string | null;
+                                sponsor_message: string | null;
+                                amount_pence: number;
+                                season: number;
+                                approved: boolean;
+                                paid_at: string | null;
+                                created_at: string;
+                                display_name: string | null;
+                                notes: string | null;
+                                stripe_payment_intent_id: string | null;
+                            } | null;
+                        };
+                    };
                 };
             };
         };
@@ -1968,7 +3082,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            hasPending: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -1996,14 +3114,34 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        slug: string;
+                        playerName: string;
+                        sponsorName: string;
+                        /** Format: email */
+                        sponsorEmail: string;
+                        /** Format: uri */
+                        sponsorWebsite?: string;
+                        sponsorLogoDataUrl?: string;
+                        sponsorMessage?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            clientSecret: string | null;
+                            amount: number;
+                            productName: string;
+                        };
+                    };
                 };
             };
         };
@@ -2022,7 +3160,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    filter?: "all" | "pending_payment" | "pending_approval" | "approved";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2034,7 +3176,29 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                game_id: string;
+                                sponsor_name: string;
+                                sponsor_email: string;
+                                sponsor_website: string | null;
+                                sponsor_logo_url: string | null;
+                                sponsor_message: string | null;
+                                amount_pence: number;
+                                approved: boolean;
+                                paid_at: string | null;
+                                created_at: string;
+                                display_name: string | null;
+                                notes: string | null;
+                                stripe_payment_intent_id: string | null;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
                 };
             };
         };
@@ -2055,7 +3219,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    filter?: "all" | "pending_payment" | "pending_approval" | "approved";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2067,7 +3235,31 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                slug: string | null;
+                                player_name: string;
+                                sponsor_name: string;
+                                sponsor_email: string;
+                                sponsor_website: string | null;
+                                sponsor_logo_url: string | null;
+                                sponsor_message: string | null;
+                                amount_pence: number;
+                                season: number;
+                                approved: boolean;
+                                paid_at: string | null;
+                                created_at: string;
+                                display_name: string | null;
+                                notes: string | null;
+                                stripe_payment_intent_id: string | null;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
                 };
             };
         };
@@ -2095,14 +3287,24 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        sponsorshipId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2128,14 +3330,24 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        sponsorshipId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2161,14 +3373,24 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        sponsorshipId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2194,14 +3416,24 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        sponsorshipId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2227,14 +3459,34 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        gameId: string;
+                        sponsorName: string;
+                        /** Format: email */
+                        sponsorEmail: string;
+                        /** Format: uri */
+                        sponsorWebsite?: string;
+                        sponsorLogoDataUrl?: string;
+                        sponsorMessage?: string;
+                        amountPence: number;
+                        displayName?: string;
+                        notes?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
                 };
             };
         };
@@ -2260,14 +3512,35 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        slug: string;
+                        playerName: string;
+                        sponsorName: string;
+                        /** Format: email */
+                        sponsorEmail: string;
+                        /** Format: uri */
+                        sponsorWebsite?: string;
+                        sponsorLogoDataUrl?: string;
+                        sponsorMessage?: string;
+                        amountPence: number;
+                        displayName?: string;
+                        notes?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
                 };
             };
         };
@@ -2294,14 +3567,27 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        sponsorshipId: string;
+                        displayName?: string;
+                        notes?: string;
+                        sponsorLogoDataUrl?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2329,14 +3615,27 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        sponsorshipId: string;
+                        displayName?: string;
+                        notes?: string;
+                        sponsorLogoDataUrl?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2356,7 +3655,12 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    teamId?: string;
+                    limit?: number;
+                    offset?: number;
+                    statusFilter?: "all" | "pending" | "confirmed" | "finished";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2368,7 +3672,29 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                play_cricket_team_id: string;
+                                match_date: string;
+                                opposition: string;
+                                competition_type: string | null;
+                                play_cricket_match_id: string | null;
+                                status: string;
+                                created_by: string;
+                                created_at: string;
+                                confirmed_at: string | null;
+                                confirmed_by: string | null;
+                                finished_at: string | null;
+                                finished_by: string | null;
+                                result_type: string | null;
+                                result_confirmed_at: string | null;
+                                result_confirmed_by: string | null;
+                                result_source: string | null;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -2380,14 +3706,28 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        teamId: string;
+                        matchDate: string;
+                        opposition: string;
+                        competitionType?: string;
+                        playCricketMatchId?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
                 };
             };
         };
@@ -2420,7 +3760,61 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            matchday: {
+                                id: string;
+                                play_cricket_team_id: string;
+                                match_date: string;
+                                opposition: string;
+                                competition_type: string | null;
+                                play_cricket_match_id: string | null;
+                                status: string;
+                                created_by: string;
+                                created_at: string;
+                                confirmed_at: string | null;
+                                confirmed_by: string | null;
+                                finished_at: string | null;
+                                finished_by: string | null;
+                                result_type: string | null;
+                                result_confirmed_at: string | null;
+                                result_confirmed_by: string | null;
+                                result_source: string | null;
+                            };
+                            team: {
+                                id: string;
+                                name: string | null;
+                            } | null;
+                            players: {
+                                id: string;
+                                member_id: string | null;
+                                player_name: string;
+                                status: string;
+                                replaced_by_matchday_player_id: string | null;
+                                charge_id: string | null;
+                                created_at: string;
+                                member_category: string | null;
+                                chargePaidAt: string | null;
+                            }[];
+                            expenses: {
+                                id: string;
+                                matchday_id: string;
+                                expense_type: string;
+                                description: string | null;
+                                amount_pence: number;
+                                created_by: string;
+                                created_at: string;
+                                receipt_image_url: string | null;
+                                status: string;
+                                submitted_at: string | null;
+                                approved_at: string | null;
+                                approved_by: string | null;
+                                reimbursed_at: string | null;
+                                reimbursed_by: string | null;
+                                rejected_reason: string | null;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -2450,14 +3844,28 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        type: "umpire_fee" | "scorer_fee" | "match_ball" | "teas" | "miscellaneous";
+                        description?: string;
+                        amountPence: number;
+                        receiptImage?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            expenseId: string;
+                        };
+                    };
                 };
             };
         };
@@ -2484,14 +3892,28 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        expenseId: string;
+                        /** @enum {string} */
+                        type?: "umpire_fee" | "scorer_fee" | "match_ball" | "teas" | "miscellaneous";
+                        description?: string;
+                        amountPence?: number;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2512,7 +3934,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2530,7 +3956,12 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    status?: "submitted" | "approved";
+                    teamId?: string;
+                    limit?: number;
+                    offset?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2542,7 +3973,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                matchday_id: string;
+                                expense_type: string;
+                                description: string | null;
+                                amount_pence: number;
+                                receipt_image_url: string | null;
+                                status: string;
+                                created_at: string;
+                                submitted_at: string | null;
+                                approved_at: string | null;
+                                rejected_reason: string | null;
+                                opposition: string;
+                                match_date: string;
+                                play_cricket_team_id: string;
+                                created_by_name: string | null;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -2572,14 +4023,28 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        type: "umpire_fee" | "scorer_fee" | "match_ball" | "teas" | "miscellaneous";
+                        description?: string;
+                        amountPence: number;
+                        receiptImage?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            expenseId: string;
+                        };
+                    };
                 };
             };
         };
@@ -2614,7 +4079,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2642,14 +4111,24 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2684,7 +4163,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2715,7 +4198,13 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string | null;
+                            is_junior: boolean;
+                        }[];
+                    };
                 };
             };
         };
@@ -2750,7 +4239,19 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            matchId: string;
+                            matchDate: string;
+                            matchTime: string | null;
+                            opposition: string;
+                            isHome: boolean;
+                            competitionName: string | null;
+                            competitionType: string | null;
+                            matchdayId: string | null;
+                            matchdayStatus: string | null;
+                        }[];
+                    };
                 };
             };
         };
@@ -2771,7 +4272,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query: {
+                    query: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2783,7 +4286,14 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string | null;
+                            email: string | null;
+                            member_category: string | null;
+                        }[];
+                    };
                 };
             };
         };
@@ -2813,14 +4323,25 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        memberId?: string;
+                        playerName: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
                 };
             };
         };
@@ -2857,7 +4378,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2884,14 +4409,28 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        playerStatuses: {
+                            matchdayPlayerId: string;
+                            /** @enum {string} */
+                            status: "playing" | "dropped_out" | "no_show";
+                        }[];
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2920,14 +4459,25 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        paymentMethod: "cash" | "bank_transfer" | "card";
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -2955,14 +4505,27 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        resultType: "W" | "L" | "D" | "T" | "A" | "C" | "N";
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                            emailsSent: number;
+                            emailErrors: string[];
+                        };
+                    };
                 };
             };
         };
@@ -2981,7 +4544,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    limit?: number;
+                    offset?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2993,7 +4559,21 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                date_from: string;
+                                date_to: string;
+                                status: string;
+                                created_at: string;
+                                created_by: string;
+                                created_by_name: string | null;
+                                fixtureCount: number;
+                                respondentCount: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -3005,14 +4585,26 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        dateFrom: string;
+                        dateTo: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            fixtureCount: number;
+                        };
+                    };
                 };
             };
         };
@@ -3045,7 +4637,36 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            request: {
+                                id: string;
+                                date_from: string;
+                                date_to: string;
+                                status: string;
+                                created_at: string;
+                                created_by: string;
+                                created_by_name: string | null;
+                            };
+                            dates: {
+                                date: string;
+                                fixtures: {
+                                    id: string;
+                                    availability_request_id: string;
+                                    match_date: string;
+                                    play_cricket_match_id: string;
+                                    play_cricket_team_id: string;
+                                    opposition: string;
+                                    is_home: boolean;
+                                    competition_name: string | null;
+                                    competition_type: string | null;
+                                    match_time: string | null;
+                                }[];
+                                responseCount: number;
+                                assignmentCount: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -3063,14 +4684,25 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "open" | "closed";
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3100,7 +4732,54 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            requestStatus: string;
+                            fixtures: {
+                                id: string;
+                                match_date: string;
+                                play_cricket_match_id: string;
+                                play_cricket_team_id: string;
+                                opposition: string;
+                                is_home: boolean;
+                                competition_name: string | null;
+                                match_time: string | null;
+                                team_name: string | null;
+                                assignments: {
+                                    id: string;
+                                    availability_fixture_id: string;
+                                    member_id: string | null;
+                                    player_name: string;
+                                    position: number;
+                                    created_at: string;
+                                }[];
+                            }[];
+                            pools: {
+                                available: {
+                                    id: string;
+                                    member_id: string;
+                                    status: string;
+                                    note: string | null;
+                                    overridden_by: string | null;
+                                    member_name: string | null;
+                                }[];
+                                unavailable: {
+                                    id: string;
+                                    member_id: string;
+                                    status: string;
+                                    note: string | null;
+                                    overridden_by: string | null;
+                                    member_name: string | null;
+                                }[];
+                                noResponse: {
+                                    id: string;
+                                    name: string | null;
+                                    member_category: string | null;
+                                }[];
+                            };
+                            assignedMemberIds: string[];
+                        };
+                    };
                 };
             };
         };
@@ -3131,14 +4810,27 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        fixtureId: string;
+                        memberId?: string;
+                        playerName: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            position: number;
+                        };
+                    };
                 };
             };
         };
@@ -3174,7 +4866,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3200,14 +4896,25 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "available" | "unavailable";
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3244,7 +4951,14 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            matchdays: {
+                                fixtureId: string;
+                                matchdayId: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -3263,7 +4977,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query: {
+                    dateFrom: string;
+                    dateTo: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -3275,7 +4992,19 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            fixtures: {
+                                matchDate: string;
+                                playCricketMatchId: string;
+                                teamName: string;
+                                opposition: string;
+                                isHome: boolean;
+                                competitionName: string | null;
+                                matchTime: string | null;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -3308,7 +5037,38 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            memberId: string | null;
+                            items: {
+                                id: string;
+                                created_by: string;
+                                date_from: string;
+                                date_to: string;
+                                status: string;
+                                created_at: string;
+                                fixtures: {
+                                    id: string;
+                                    availability_request_id: string;
+                                    match_date: string;
+                                    play_cricket_team_id: string;
+                                    play_cricket_match_id: string;
+                                    opposition: string;
+                                    is_home: boolean;
+                                    competition_name: string | null;
+                                    match_time: string | null;
+                                    team_name: string | null;
+                                }[];
+                                myResponses: {
+                                    id: string;
+                                    availability_request_id: string;
+                                    match_date: string;
+                                    status: string;
+                                    note: string | null;
+                                }[];
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -3338,14 +5098,29 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        responses: {
+                            matchDate: string;
+                            /** @enum {string} */
+                            status: "available" | "unavailable";
+                            note?: string;
+                        }[];
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3378,7 +5153,20 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            productName: string;
+                            unitAmount: number;
+                            formattedPrice: string;
+                            customAmount?: {
+                                min: number;
+                                max?: number;
+                                preset?: number;
+                            };
+                            qtyAdjustable: boolean;
+                            maxQty?: number;
+                        };
+                    };
                 };
             };
         };
@@ -3406,14 +5194,33 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        priceId: string;
+                        quantity?: number;
+                        customAmountPence?: number;
+                        metadata?: {
+                            [key: string]: string;
+                        };
+                        /** Format: email */
+                        email?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            clientSecret: string | null;
+                            amount: number;
+                            productName: string;
+                        };
+                    };
                 };
             };
         };
@@ -3439,14 +5246,29 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        priceId: string;
+                        /** @enum {string} */
+                        membership: "social" | "senior_player" | "senior_women_player" | "concessionary";
+                        /** Format: email */
+                        email: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            clientSecret: string;
+                            subscriptionId: string;
+                        };
+                    };
                 };
             };
         };
@@ -3465,7 +5287,17 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    search?: string;
+                    includeArchived?: boolean;
+                    isMember?: boolean;
+                    membershipStatus?: "active" | "lapsed" | "none";
+                    membershipType?: string;
+                    memberCategory?: string;
+                    role?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -3477,7 +5309,29 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                name: string;
+                                email: string;
+                                role: string | null;
+                                banned: boolean | null;
+                                emailVerified: boolean;
+                                /** Format: date-time */
+                                createdAt: string;
+                                memberId: string | null;
+                                member_category: string | null;
+                                memberDeletedAt: string | null;
+                                memberDeletedReason: string | null;
+                                membershipType: string | null;
+                                membershipPaidUntil: string | null;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
                 };
             };
         };
@@ -3512,7 +5366,92 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            user: {
+                                id: string;
+                                name: string;
+                                email: string;
+                                role: string | null;
+                                banned: boolean | null;
+                                emailVerified: boolean;
+                                /** Format: date-time */
+                                createdAt: string;
+                            };
+                            member: {
+                                id: string;
+                                email: string;
+                                name: string | null;
+                                title: string | null;
+                                address: string | null;
+                                postcode: string | null;
+                                dob: string | null;
+                                telephone: string | null;
+                                member_category: string | null;
+                                play_cricket_id: string | null;
+                                slug: string | null;
+                                stripe_customer_id: string | null;
+                                deleted_at: string | null;
+                                deleted_by: string | null;
+                                deleted_reason: string | null;
+                                emergency_contact_name: string | null;
+                                emergency_contact_telephone: string | null;
+                            } | null;
+                            membership: {
+                                id: string;
+                                member_id: string;
+                                type: string | null;
+                                paid_until: string;
+                                dependent_id: string | null;
+                                created_at: string;
+                            } | null;
+                            dependents: {
+                                id: string;
+                                name: string;
+                                dob: string;
+                                sex: string;
+                                school_year: string | null;
+                                photo_consent: boolean | null;
+                                gp_surgery: string | null;
+                                gp_phone: string | null;
+                                alt_contact_name: string | null;
+                                alt_contact_phone: string | null;
+                                emergency_medical_consent: boolean | null;
+                                has_disability: boolean | null;
+                                disability_type: string | null;
+                                medical_info: string | null;
+                                membershipPaidUntil: string | null;
+                            }[];
+                            charges: {
+                                id: string;
+                                member_id: string;
+                                description: string;
+                                amount_pence: number;
+                                charge_date: string;
+                                created_at: string;
+                                created_by: string;
+                                paid_at: string | null;
+                                payment_confirmed_at: string | null;
+                                payment_method: string | null;
+                                stripe_payment_intent_id: string | null;
+                                type: string;
+                                source: string;
+                                deleted_at: string | null;
+                                deleted_by: string | null;
+                                deleted_reason: string | null;
+                            }[];
+                            juniorManagerTeams: {
+                                id: string;
+                                name: string;
+                                age_group: string;
+                                sex: string;
+                            }[];
+                            officialTeams: {
+                                id: string;
+                                name: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -3525,14 +5464,31 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        userId: string;
+                        name?: string;
+                        /** Format: email */
+                        email?: string;
+                        /** @enum {string|null} */
+                        role?: "user" | "admin" | "junior_manager" | "official" | null;
+                        banned?: boolean;
+                        banReason?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3560,14 +5516,24 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        memberCategory: string | null;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3596,14 +5562,24 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3638,7 +5614,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3666,14 +5646,26 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        description: string;
+                        amountPence: number;
+                        chargeDate: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
                 };
             };
         };
@@ -3702,14 +5694,24 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3735,14 +5737,24 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        teamIds: string[];
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3770,14 +5782,24 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        teamIds: string[];
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -3809,7 +5831,15 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            age_group: string;
+                            sex: string;
+                            created_at: string;
+                        }[];
+                    };
                 };
             };
         };
@@ -3842,7 +5872,16 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            site_id: string;
+                            is_junior: boolean;
+                            last_updated: string | null;
+                            created_at: string;
+                        }[];
+                    };
                 };
             };
         };
@@ -3875,7 +5914,14 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            players: {
+                                memberId: number;
+                                name: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -3903,14 +5949,28 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: email */
+                        email: string;
+                        name?: string;
+                        title?: string;
+                        memberCategory?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
                 };
             };
         };
@@ -3936,14 +5996,26 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        userId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            sent: boolean;
+                            reason?: string;
+                            chargeCount?: number;
+                        };
+                    };
                 };
             };
         };
@@ -3974,7 +6046,22 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            members: {
+                                id: string;
+                                name: string | null;
+                                play_cricket_id: string | null;
+                                slug: string | null;
+                            }[];
+                            dependents: {
+                                id: string;
+                                name: string;
+                                play_cricket_id: string | null;
+                                parentName: string | null;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -4002,14 +6089,27 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        type: "member" | "dependent";
+                        id: string;
+                        playCricketId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -4035,14 +6135,26 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        type: "member" | "dependent";
+                        id: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -4068,14 +6180,25 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        memberId: string;
+                        slug: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -4101,14 +6224,24 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        memberId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -4127,7 +6260,15 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    status?: "all" | "unpaid" | "pending" | "paid" | "abandoned";
+                    showDeleted?: boolean;
+                    dateFrom?: string;
+                    dateTo?: string;
+                    search?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4139,7 +6280,32 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            charges: {
+                                id: string;
+                                memberId: string;
+                                description: string;
+                                amountPence: number;
+                                chargeDate: string;
+                                createdAt: string;
+                                paidAt: string | null;
+                                paymentConfirmedAt: string | null;
+                                stripePaymentIntentId: string | null;
+                                type: string;
+                                source: string;
+                                deletedAt: string | null;
+                                deletedReason: string | null;
+                                memberName: string | null;
+                                memberEmail: string;
+                                /** @enum {string} */
+                                status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted";
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
                 };
             };
         };
@@ -4160,7 +6326,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    dateFrom?: string;
+                    dateTo?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4172,7 +6341,20 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            totalCharged: number;
+                            totalPaid: number;
+                            totalOutstanding: number;
+                            totalAbandoned: number;
+                            totalDeleted: number;
+                            countPaid: number;
+                            countUnpaid: number;
+                            countPending: number;
+                            countAbandoned: number;
+                            countDeleted: number;
+                        };
+                    };
                 };
             };
         };
@@ -4200,14 +6382,24 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        chargeId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -4226,7 +6418,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    search?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4238,7 +6434,21 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            submissions: {
+                                id: string;
+                                name: string;
+                                email: string;
+                                message: string;
+                                page: string | null;
+                                createdAt: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
                 };
             };
         };
@@ -4259,7 +6469,14 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    search?: string;
+                    sex?: "all" | "male" | "female";
+                    ageGroup?: "all" | "U11" | "U13" | "U15" | "U19";
+                    membershipStatus?: "all" | "paid" | "unpaid";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4271,7 +6488,28 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            juniors: {
+                                id: string;
+                                name: string;
+                                sex: string;
+                                dob: string;
+                                registeredAt: string;
+                                parentName: string | null;
+                                parentEmail: string;
+                                parentTelephone: string | null;
+                                paidUntil: string | null;
+                                ageGroup: string | null;
+                                teamName: string | null;
+                                hasOwnAccount: boolean;
+                                linkedUserEmail: string | null;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
                 };
             };
         };
@@ -4292,7 +6530,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query: {
+                    dependentId: string;
+                    search?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4304,7 +6545,17 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            dependentName: string;
+                            users: {
+                                id: string;
+                                name: string;
+                                email: string;
+                                score: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -4332,14 +6583,25 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        dependentId: string;
+                        userId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -4365,14 +6627,24 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        dependentId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -4403,7 +6675,25 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            groups: {
+                                /** @enum {string} */
+                                matchType: "email" | "name";
+                                matchKey: string;
+                                members: {
+                                    id: string;
+                                    name: string | null;
+                                    email: string;
+                                    title: string | null;
+                                    stripeCustomerId: string | null;
+                                    membershipCount: number;
+                                    dependentCount: number;
+                                    chargeCount: number;
+                                }[];
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -4424,7 +6714,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query: {
+                    keepMemberId: string;
+                    removeMemberId: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4436,7 +6729,69 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            isCrossEmailMerge: boolean;
+                            keep: {
+                                member: {
+                                    id: string;
+                                    name: string | null;
+                                    title: string | null;
+                                    email: string;
+                                    address: string | null;
+                                    postcode: string | null;
+                                    dob: string | null;
+                                    telephone: string | null;
+                                    stripe_customer_id: string | null;
+                                };
+                                memberships: {
+                                    id: string;
+                                    type: string | null;
+                                    paid_until: string;
+                                }[];
+                                dependents: {
+                                    id: string;
+                                    name: string;
+                                    dob: string;
+                                }[];
+                                charges: {
+                                    id: string;
+                                    description: string;
+                                    amount_pence: number;
+                                    paid_at: string | null;
+                                }[];
+                            };
+                            remove: {
+                                member: {
+                                    id: string;
+                                    name: string | null;
+                                    title: string | null;
+                                    email: string;
+                                    address: string | null;
+                                    postcode: string | null;
+                                    dob: string | null;
+                                    telephone: string | null;
+                                    stripe_customer_id: string | null;
+                                };
+                                memberships: {
+                                    id: string;
+                                    type: string | null;
+                                    paid_until: string;
+                                }[];
+                                dependents: {
+                                    id: string;
+                                    name: string;
+                                    dob: string;
+                                }[];
+                                charges: {
+                                    id: string;
+                                    description: string;
+                                    amount_pence: number;
+                                    paid_at: string | null;
+                                }[];
+                            };
+                        };
+                    };
                 };
             };
         };
@@ -4464,14 +6819,25 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        keepMemberId: string;
+                        removeMemberId: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -4502,7 +6868,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            rates: {
+                                id: string;
+                                play_cricket_team_id: string | null;
+                                competition_type: string | null;
+                                member_category: string;
+                                amount_pence: number;
+                                team_name: string | null;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -4514,14 +6891,27 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        playCricketTeamId?: string;
+                        competitionType?: string;
+                        memberCategory: string;
+                        amountPence: number;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
                 };
             };
         };
@@ -4557,7 +6947,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -4575,7 +6969,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    teamId?: string;
+                    limit?: number;
+                    offset?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4587,7 +6985,20 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            matchdays: {
+                                id: string;
+                                match_date: string;
+                                opposition: string;
+                                status: string;
+                                play_cricket_team_id: string;
+                                competition_type: string | null;
+                                team_name: string | null;
+                            }[];
+                            total: number;
+                        };
+                    };
                 };
             };
         };
@@ -4622,7 +7033,91 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            matchday: {
+                                id: string;
+                                match_date: string;
+                                opposition: string;
+                                status: string;
+                                play_cricket_team_id: string;
+                                play_cricket_match_id: string | null;
+                                competition_type: string | null;
+                                created_at: string;
+                                created_by: string;
+                                confirmed_at: string | null;
+                                confirmed_by: string | null;
+                                finished_at: string | null;
+                                finished_by: string | null;
+                                result_type: string | null;
+                                result_source: string | null;
+                                result_confirmed_at: string | null;
+                                result_confirmed_by: string | null;
+                            };
+                            team: {
+                                id: string;
+                                name: string;
+                            } | null;
+                            players: {
+                                id: string;
+                                player_name: string;
+                                status: string;
+                                member_id: string | null;
+                                member_category: string | null;
+                                charge_amount_pence: number | null;
+                                charge_paid_at: string | null;
+                                charge_payment_method: string | null;
+                                charge_deleted_at: string | null;
+                                charge_payment_confirmed_at: string | null;
+                                charge_stripe_payment_intent_id: string | null;
+                                charge_created_at: string | null;
+                                /** @enum {string|null} */
+                                charge_status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | null;
+                            }[];
+                            expenses: {
+                                id: string;
+                                matchday_id: string;
+                                expense_type: string;
+                                amount_pence: number;
+                                description: string | null;
+                                receipt_image_url: string | null;
+                                status: string;
+                                created_at: string;
+                                created_by: string;
+                                submitted_at: string | null;
+                                approved_at: string | null;
+                                approved_by: string | null;
+                                rejected_reason: string | null;
+                                reimbursed_at: string | null;
+                                reimbursed_by: string | null;
+                            }[];
+                            sponsorship: {
+                                id: string;
+                                game_id: string;
+                                sponsor_name: string;
+                                sponsor_email: string;
+                                sponsor_website: string | null;
+                                sponsor_logo_url: string | null;
+                                sponsor_message: string | null;
+                                display_name: string | null;
+                                amount_pence: number;
+                                approved: boolean;
+                                paid_at: string | null;
+                                stripe_payment_intent_id: string | null;
+                                notes: string | null;
+                                created_at: string;
+                            } | null;
+                            summary: {
+                                totalIncoming: number;
+                                totalPaid: number;
+                                totalPending: number;
+                                totalOutstanding: number;
+                                totalExpenses: number;
+                                sponsorshipIncome: number;
+                                profitLoss: number;
+                            };
+                        };
+                    };
                 };
             };
         };
@@ -4643,7 +7138,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    dateFrom?: string;
+                    dateTo?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4655,7 +7153,23 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            charges: {
+                                month: string;
+                                type: string;
+                                total_pence: number;
+                            }[];
+                            gameSponsorIncome: {
+                                month: string;
+                                total_pence: number;
+                            }[];
+                            playerSponsorIncome: {
+                                month: string;
+                                total_pence: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -4688,7 +7202,16 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            memberships: {
+                                type: string | null;
+                                total: number;
+                                active: number;
+                                lapsed: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -4709,7 +7232,12 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    dateFrom?: string;
+                    dateTo?: string;
+                    page?: number;
+                    pageSize?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4721,7 +7249,22 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                type: string;
+                                amount_pence: number;
+                                charge_date: string;
+                                description: string;
+                                member_name: string | null;
+                                member_email: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
                 };
             };
         };
@@ -4742,7 +7285,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    dateFrom?: string;
+                    dateTo?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4754,7 +7300,24 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            gameSponsorship: {
+                                total: number;
+                                approved_paid: number;
+                                pending_payment: number;
+                                pending_approval: number;
+                                total_amount_pence: number;
+                            };
+                            playerSponsorship: {
+                                total: number;
+                                approved_paid: number;
+                                pending_payment: number;
+                                pending_approval: number;
+                                total_amount_pence: number;
+                            };
+                        };
+                    };
                 };
             };
         };
@@ -4775,7 +7338,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    dateFrom?: string;
+                    dateTo?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4787,7 +7353,16 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            breakdown: {
+                                expense_type: string;
+                                count: number;
+                                total_pence: number;
+                            }[];
+                            grandTotal: number;
+                        };
+                    };
                 };
             };
         };
@@ -4808,7 +7383,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    dateFrom?: string;
+                    dateTo?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4820,7 +7398,26 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            expenses: {
+                                id: string;
+                                expense_type: string;
+                                description: string | null;
+                                amount_pence: number;
+                                receipt_image_url: string | null;
+                                created_at: string;
+                                status: string;
+                                submitted_at: string | null;
+                                approved_at: string | null;
+                                rejected_reason: string | null;
+                                reimbursed_at: string | null;
+                                match_date: string;
+                                opposition: string;
+                                submitted_by_name: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -4934,7 +7531,13 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: number;
+                    isJunior?: "true" | "false";
+                    teamId?: string;
+                    competitionTypes?: string;
+                    limit?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4946,7 +7549,25 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            entries: {
+                                playerId: string;
+                                playerName: string | null;
+                                slug: string | null;
+                                innings: number;
+                                notOuts: number;
+                                runs: number;
+                                highScore: number | null;
+                                average: number | null;
+                                strikeRate: number | null;
+                                fours: number;
+                                sixes: number;
+                                fifties: number;
+                                hundreds: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -4967,7 +7588,13 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    season?: number;
+                    isJunior?: "true" | "false";
+                    teamId?: string;
+                    competitionTypes?: string;
+                    limit?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4979,7 +7606,24 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            entries: {
+                                playerId: string;
+                                playerName: string | null;
+                                slug: string | null;
+                                matches: number;
+                                overs: string;
+                                maidens: number;
+                                runs: number;
+                                wickets: number;
+                                average: number | null;
+                                economy: number | null;
+                                strikeRate: number | null;
+                                bestBowling: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -5000,7 +7644,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    isJunior?: "true" | "false";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -5012,7 +7658,17 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            records: {
+                                title: string;
+                                playerName: string;
+                                slug: string | null;
+                                value: string;
+                                season: number;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -5033,7 +7689,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    isJunior?: "true" | "false";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -5045,7 +7703,24 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            centuries: {
+                                playerName: string;
+                                slug: string | null;
+                                value: string;
+                                season: number;
+                                matchDate: string;
+                            }[];
+                            fiveWicketHauls: {
+                                playerName: string;
+                                slug: string | null;
+                                value: string;
+                                season: number;
+                                matchDate: string;
+                            }[];
+                        };
+                    };
                 };
             };
         };
@@ -5073,14 +7748,28 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        /** Format: email */
+                        email: string;
+                        message: string;
+                        page: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
                 };
             };
         };
@@ -5106,14 +7795,28 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: email */
+                        email: string;
+                        meta: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
                 };
             };
         };
@@ -5150,6 +7853,76 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/og/game/{matchId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/og/game/{matchId}/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;

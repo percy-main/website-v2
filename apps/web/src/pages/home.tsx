@@ -1,7 +1,7 @@
 import { OptimisedImage } from "@/components/optimised-image.js";
 import { SeasonLeaders } from "@/components/season-leaders.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api.js";
+import { api, callApi } from "@/lib/api-client.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
 import { getAllEvents } from "@/lib/events.js";
 import { getPicture } from "@/lib/image-map.js";
@@ -128,16 +128,6 @@ function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
   );
 }
 
-interface GameListItem {
-  id: string;
-  home: boolean;
-  team: { id: string; name: string };
-  opposition: { club: { name: string } };
-  when: string | null;
-  sponsorName: string | null;
-  sponsorLogoUrl: string | null;
-}
-
 interface UpcomingItem {
   id: string;
   type: "game" | "event";
@@ -158,9 +148,10 @@ function getTeamPriority(teamName: string): number {
 
 function UpcomingStrip() {
   const season = new Date().getFullYear();
-  const { data: games } = useQuery<GameListItem[]>({
+  const { data: games } = useQuery({
     queryKey: ["games", season],
-    queryFn: () => api.get(`/games?season=${season}`),
+    queryFn: () =>
+      callApi(api.GET("/api/games", { params: { query: { season } } })),
     staleTime: 5 * 60_000,
   });
 

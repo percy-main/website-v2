@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button.js";
-import { api } from "@/lib/api.js";
+import { api, callApi } from "@/lib/api-client.js";
 import {
   generateTeamImage,
   type ShareTeamData,
@@ -7,20 +7,11 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
-interface ApiSharePlayer {
-  playerName: string;
-  sandwichCost: number;
-  isCaptain: boolean;
-  slotType: "batting" | "bowling" | "allrounder";
-  isWicketkeeper: boolean;
-}
+type ApiShareData = Awaited<ReturnType<typeof fetchShareData>>;
+type ApiSharePlayer = ApiShareData["players"][number];
 
-interface ApiShareData {
-  ownerName: string;
-  season: string;
-  totalSandwichCost: number;
-  gameweekLabel: string;
-  players: ApiSharePlayer[];
+function fetchShareData() {
+  return callApi(api.GET("/api/fantasy/team/share"));
 }
 
 /**
@@ -68,7 +59,7 @@ export function ShareMyTeamButton() {
 
   const shareMutation = useMutation({
     mutationFn: async () => {
-      const data = await api.get<ApiShareData>("/fantasy/team/share");
+      const data = await fetchShareData();
       const photoUrls = await resolvePlayerPhotos(data.players);
 
       const shareData: ShareTeamData = {

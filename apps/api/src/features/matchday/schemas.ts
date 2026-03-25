@@ -132,6 +132,153 @@ export const listPendingExpensesSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+// ── Response schemas ──
+
+const matchdayItemSchema = z.object({
+  id: z.string(),
+  play_cricket_team_id: z.string(),
+  match_date: z.string(),
+  opposition: z.string(),
+  competition_type: z.string().nullable(),
+  play_cricket_match_id: z.string().nullable(),
+  status: z.string(),
+  created_by: z.string(),
+  created_at: z.string(),
+  confirmed_at: z.string().nullable(),
+  confirmed_by: z.string().nullable(),
+  finished_at: z.string().nullable(),
+  finished_by: z.string().nullable(),
+  result_type: z.string().nullable(),
+  result_confirmed_at: z.string().nullable(),
+  result_confirmed_by: z.string().nullable(),
+  result_source: z.string().nullable(),
+});
+
+export const listMatchesResponseSchema = z.object({
+  items: z.array(matchdayItemSchema),
+});
+
+const matchdayPlayerSchema = z.object({
+  id: z.string(),
+  member_id: z.string().nullable(),
+  player_name: z.string(),
+  status: z.string(),
+  replaced_by_matchday_player_id: z.string().nullable(),
+  charge_id: z.string().nullable(),
+  created_at: z.string(),
+  member_category: z.string().nullable(),
+  chargePaidAt: z.string().nullable(),
+});
+
+const matchdayExpenseSchema = z.object({
+  id: z.string(),
+  matchday_id: z.string(),
+  expense_type: z.string(),
+  description: z.string().nullable(),
+  amount_pence: z.number(),
+  created_by: z.string(),
+  created_at: z.string(),
+  receipt_image_url: z.string().nullable(),
+  status: z.string(),
+  submitted_at: z.string().nullable(),
+  approved_at: z.string().nullable(),
+  approved_by: z.string().nullable(),
+  reimbursed_at: z.string().nullable(),
+  reimbursed_by: z.string().nullable(),
+  rejected_reason: z.string().nullable(),
+});
+
+export const getMatchResponseSchema = z.object({
+  matchday: matchdayItemSchema,
+  team: z
+    .object({
+      id: z.string(),
+      name: z.string().nullable(),
+    })
+    .nullable(),
+  players: z.array(matchdayPlayerSchema),
+  expenses: z.array(matchdayExpenseSchema),
+});
+
+export const recordExpenseResponseSchema = z.object({
+  expenseId: z.string(),
+});
+
+export const successResponseSchema = z.object({
+  success: z.boolean(),
+});
+
+export const listPendingExpensesResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      matchday_id: z.string(),
+      expense_type: z.string(),
+      description: z.string().nullable(),
+      amount_pence: z.number(),
+      receipt_image_url: z.string().nullable(),
+      status: z.string(),
+      created_at: z.string(),
+      submitted_at: z.string().nullable(),
+      approved_at: z.string().nullable(),
+      rejected_reason: z.string().nullable(),
+      opposition: z.string(),
+      match_date: z.string(),
+      play_cricket_team_id: z.string(),
+      created_by_name: z.string().nullable(),
+    }),
+  ),
+});
+
+export const submitExpenseResponseSchema = z.object({
+  expenseId: z.string(),
+});
+
+const teamSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  is_junior: z.boolean(),
+});
+
+export const listTeamsResponseSchema = z.array(teamSchema);
+
+const upcomingMatchSchema = z.object({
+  matchId: z.string(),
+  matchDate: z.string(),
+  matchTime: z.string().nullable(),
+  opposition: z.string(),
+  isHome: z.boolean(),
+  competitionName: z.string().nullable(),
+  competitionType: z.string().nullable(),
+  matchdayId: z.string().nullable(),
+  matchdayStatus: z.string().nullable(),
+});
+
+export const upcomingMatchesResponseSchema = z.array(upcomingMatchSchema);
+
+export const createMatchdayResponseSchema = z.object({
+  id: z.string(),
+});
+
+const searchMemberItemSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  email: z.string().nullable(),
+  member_category: z.string().nullable(),
+});
+
+export const searchMembersResponseSchema = z.array(searchMemberItemSchema);
+
+export const addPlayerResponseSchema = z.object({
+  id: z.string(),
+});
+
+export const finishMatchResponseSchema = z.object({
+  success: z.boolean(),
+  emailsSent: z.number(),
+  emailErrors: z.array(z.string()),
+});
+
 // ── Types ──
 
 export type ListMatches = z.infer<typeof listMatchesSchema>;

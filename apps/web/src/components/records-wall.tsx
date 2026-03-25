@@ -18,40 +18,15 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs.js";
-import { api } from "@/lib/api.js";
+import { api, callApi } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 
-interface RecordItem {
-  title: string;
-  playerName: string;
-  slug: string | null;
-  value: string;
-  season: number;
-}
-
-interface RecordsResponse {
-  records: RecordItem[];
-}
-
-interface HonourEntry {
-  playerName: string;
-  slug: string | null;
-  value: string;
-  season: number;
-  matchDate: string;
-}
-
-interface HonoursResponse {
-  centuries: HonourEntry[];
-  fiveWicketHauls: HonourEntry[];
-}
-
 function useRecords() {
   return useQuery({
     queryKey: ["records"],
-    queryFn: () => api.get<RecordsResponse>("/records"),
+    queryFn: () => callApi(api.GET("/api/records")),
     staleTime: 10 * 60 * 1000,
   });
 }
@@ -59,7 +34,7 @@ function useRecords() {
 function useHonoursBoard() {
   return useQuery({
     queryKey: ["records-honours"],
-    queryFn: () => api.get<HonoursResponse>("/records/honours"),
+    queryFn: () => callApi(api.GET("/api/records/honours")),
     staleTime: 10 * 60 * 1000,
   });
 }
@@ -77,6 +52,12 @@ function PlayerLink({ name, slug }: { name: string; slug: string | null }) {
   }
   return <span className="font-medium">{name}</span>;
 }
+
+type RecordsData = Awaited<ReturnType<typeof useRecords>>["data"];
+type RecordItem = NonNullable<RecordsData>["records"][number];
+
+type HonoursData = Awaited<ReturnType<typeof useHonoursBoard>>["data"];
+type HonourEntry = NonNullable<HonoursData>["centuries"][number];
 
 function RecordCard({ record }: { record: RecordItem }) {
   return (

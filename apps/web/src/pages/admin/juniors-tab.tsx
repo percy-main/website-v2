@@ -23,7 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen";
 import { AGE_GROUPS, type AgeGroup } from "@percy-main/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -32,40 +33,9 @@ import { formatDate } from "./status-pill";
 type MembershipFilter = "all" | "paid" | "unpaid";
 type SexFilter = "all" | "male" | "female";
 
-interface Junior {
-  id: string;
-  name: string;
-  sex: string;
-  dob: string;
-  registeredAt: string;
-  parentName: string | null;
-  parentEmail: string;
-  parentTelephone: string | null;
-  paidUntil: string | null;
-  ageGroup: AgeGroup | null;
-  teamName: string | null;
-  hasOwnAccount: boolean;
-  linkedUserEmail: string | null;
-}
-
-interface ListJuniorsResponse {
-  juniors: Junior[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-interface ScoredUser {
-  id: string;
-  name: string;
-  email: string;
-  score: number;
-}
-
-interface SearchUsersResponse {
-  dependentName: string;
-  users: ScoredUser[];
-}
+type JuniorsResponse =
+  paths["/api/admin/juniors"]["get"]["responses"]["200"]["content"]["application/json"];
+type Junior = JuniorsResponse["juniors"][number];
 
 function isMembershipActive(paidUntil: string | null): boolean {
   if (!paidUntil) return false;
@@ -107,15 +77,6 @@ export function JuniorsTab() {
     };
   }, [search]);
 
-  const queryParams = new URLSearchParams();
-  queryParams.set("page", String(page));
-  queryParams.set("pageSize", String(PAGE_SIZE));
-  if (debouncedSearch) queryParams.set("search", debouncedSearch);
-  if (sexFilter !== "all") queryParams.set("sex", sexFilter);
-  if (ageGroupFilter !== "all") queryParams.set("ageGroup", ageGroupFilter);
-  if (membershipFilter !== "all")
-    queryParams.set("membershipStatus", membershipFilter);
-
   const { data, isLoading, error } = useQuery({
     queryKey: [
       "admin",
@@ -128,7 +89,22 @@ export function JuniorsTab() {
       membershipFilter,
     ],
     queryFn: () =>
-      api.get<ListJuniorsResponse>(`/admin/juniors?${queryParams.toString()}`),
+      callApi(
+        api.GET("/api/admin/juniors", {
+          params: {
+            query: {
+              page,
+              pageSize: PAGE_SIZE,
+              ...(debouncedSearch ? { search: debouncedSearch } : {}),
+              ...(sexFilter !== "all" ? { sex: sexFilter } : {}),
+              ...(ageGroupFilter !== "all" ? { ageGroup: ageGroupFilter } : {}),
+              ...(membershipFilter !== "all"
+                ? { membershipStatus: membershipFilter }
+                : {}),
+            },
+          },
+        }),
+      ),
   });
 
   const juniors = useMemo<Junior[]>(() => data?.juniors ?? [], [data]);
@@ -419,24 +395,28 @@ function LinkingDialog({
     };
   }, [userSearch]);
 
-  const queryParams = new URLSearchParams();
-  queryParams.set("dependentId", junior.id);
-  if (debouncedSearch) queryParams.set("search", debouncedSearch);
-
   const suggestedUsersQuery = useQuery({
     queryKey: ["admin", "searchUsersForLinking", junior.id, debouncedSearch],
     queryFn: () =>
-      api.get<SearchUsersResponse>(
-        `/admin/juniors/search-users?${queryParams.toString()}`,
+      callApi(
+        api.GET("/api/admin/juniors/search-users", {
+          params: {
+            query: {
+              dependentId: junior.id,
+              ...(debouncedSearch ? { search: debouncedSearch } : {}),
+            },
+          },
+        }),
       ),
   });
 
   const linkMutation = useMutation({
     mutationFn: (userId: string) =>
-      api.post("/admin/juniors/link", {
-        dependentId: junior.id,
-        userId,
-      }),
+      callApi(
+        api.POST("/api/admin/juniors/link", {
+          body: { dependentId: junior.id, userId },
+        }),
+      ),
     onSuccess: () => {
       onLinked();
       onClose();
@@ -445,9 +425,11 @@ function LinkingDialog({
 
   const unlinkMutation = useMutation({
     mutationFn: () =>
-      api.post("/admin/juniors/unlink", {
-        dependentId: junior.id,
-      }),
+      callApi(
+        api.POST("/api/admin/juniors/unlink", {
+          body: { dependentId: junior.id },
+        }),
+      ),
     onSuccess: () => {
       onLinked();
       onClose();

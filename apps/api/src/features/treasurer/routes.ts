@@ -1,7 +1,15 @@
-import type { FastifyPluginAsync } from "fastify";
-import { parseQuery } from "../../lib/validation.ts";
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { requireRole } from "../auth/middleware.ts";
-import { dateRangeSchema, paginatedDateRangeSchema } from "./schemas.ts";
+import {
+  dateRangeSchema,
+  expensesWithReceiptsResponseSchema,
+  incomeByMonthResponseSchema,
+  matchdayExpensesSummaryResponseSchema,
+  membershipSummaryResponseSchema,
+  outstandingPaymentsResponseSchema,
+  paginatedDateRangeSchema,
+  sponsorshipSummaryResponseSchema,
+} from "./schemas.ts";
 import {
   getExpensesWithReceipts,
   getIncomeByMonth,
@@ -12,7 +20,7 @@ import {
 } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
-export const treasurerRoutes: FastifyPluginAsync = async (app) => {
+export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
   const income = getIncomeByMonth(app.db);
   const membership = getMembershipSummary(app.db);
   const outstanding = getOutstandingPayments(app.db);
@@ -22,16 +30,27 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/treasurer/income-by-month",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: dateRangeSchema,
+        response: { 200: incomeByMonthResponseSchema },
+      },
+    },
     async (request) => {
-      const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
+      const { dateFrom, dateTo } = request.query;
       return await income(dateFrom, dateTo);
     },
   );
 
   app.get(
     "/treasurer/membership-summary",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        response: { 200: membershipSummaryResponseSchema },
+      },
+    },
     async () => {
       return await membership();
     },
@@ -39,36 +58,60 @@ export const treasurerRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/treasurer/outstanding-payments",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: paginatedDateRangeSchema,
+        response: { 200: outstandingPaymentsResponseSchema },
+      },
+    },
     async (request) => {
-      const { page, pageSize } = parseQuery(request, paginatedDateRangeSchema);
+      const { page, pageSize } = request.query;
       return await outstanding(page, pageSize);
     },
   );
 
   app.get(
     "/treasurer/sponsorship-summary",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: dateRangeSchema,
+        response: { 200: sponsorshipSummaryResponseSchema },
+      },
+    },
     async (request) => {
-      const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
+      const { dateFrom, dateTo } = request.query;
       return await sponsorship(dateFrom, dateTo);
     },
   );
 
   app.get(
     "/treasurer/matchday-expenses-summary",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: dateRangeSchema,
+        response: { 200: matchdayExpensesSummaryResponseSchema },
+      },
+    },
     async (request) => {
-      const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
+      const { dateFrom, dateTo } = request.query;
       return await matchdayExpenses(dateFrom, dateTo);
     },
   );
 
   app.get(
     "/treasurer/expenses-with-receipts",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: dateRangeSchema,
+        response: { 200: expensesWithReceiptsResponseSchema },
+      },
+    },
     async (request) => {
-      const { dateFrom, dateTo } = parseQuery(request, dateRangeSchema);
+      const { dateFrom, dateTo } = request.query;
       return await receipts(dateFrom, dateTo);
     },
   );

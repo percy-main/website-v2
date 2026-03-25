@@ -1,40 +1,34 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-interface MemberData {
-  title: string | null;
-  name: string | null;
-  address: string | null;
-  postcode: string | null;
-  dob: string | null;
-  telephone: string | null;
-  emergency_contact_name: string | null;
-  emergency_contact_telephone: string | null;
+export function useMemberDetails() {
+  return useQuery({
+    queryKey: ["memberDetails"],
+    queryFn: () => callApi(api.GET("/api/members/me")),
+  });
 }
 
-const emptyMember: MemberData = {
+type MemberData = NonNullable<
+  Awaited<ReturnType<typeof useMemberDetails>>["data"]
+>["member"];
+
+const emptyMember: NonNullable<MemberData> = {
   title: null,
   name: null,
   address: null,
   postcode: null,
   dob: null,
   telephone: null,
+  email: "",
   emergency_contact_name: null,
   emergency_contact_telephone: null,
 };
 
-export function useMemberDetails() {
-  return useQuery({
-    queryKey: ["memberDetails"],
-    queryFn: () => api.get<{ member: MemberData | null }>("/members/me"),
-  });
-}
-
-const fields: Array<{ key: keyof MemberData; label: string }> = [
+const fields: Array<{ key: keyof NonNullable<MemberData>; label: string }> = [
   { key: "title", label: "Title" },
   { key: "name", label: "Name" },
   { key: "address", label: "Address" },
@@ -49,7 +43,7 @@ function DisplayView({
   member,
   onEdit,
 }: {
-  member: MemberData;
+  member: NonNullable<MemberData>;
   onEdit: () => void;
 }) {
   return (
@@ -78,31 +72,36 @@ function EditView({
   onCancel,
   onSaved,
 }: {
-  member: MemberData | null;
+  member: NonNullable<MemberData> | null;
   defaultName?: string | null;
   onCancel: () => void;
   onSaved: () => void;
 }) {
   const queryClient = useQueryClient();
   const initial = member ?? { ...emptyMember, name: defaultName ?? null };
-  const [form, setForm] = useState<MemberData>(initial);
+  const [form, setForm] = useState<NonNullable<MemberData>>(initial);
 
-  const update = (field: keyof MemberData, value: string) => {
+  const update = (field: keyof NonNullable<MemberData>, value: string) => {
     setForm({ ...form, [field]: value || null });
   };
 
   const mutation = useMutation({
-    mutationFn: async (data: MemberData) => {
-      const payload: Record<string, string> = {};
-      const entries = Object.entries(data) as Array<
-        [keyof MemberData, string | null]
-      >;
-      for (const [key, value] of entries) {
-        if (value !== null) {
-          payload[key] = value;
-        }
-      }
-      return await api.put("/members/me", payload);
+    mutationFn: async (data: NonNullable<MemberData>) => {
+      return await callApi(
+        api.PUT("/api/members/me", {
+          body: {
+            title: data.title ?? undefined,
+            name: data.name ?? undefined,
+            address: data.address ?? undefined,
+            postcode: data.postcode ?? undefined,
+            dob: data.dob ?? undefined,
+            telephone: data.telephone ?? undefined,
+            emergency_contact_name: data.emergency_contact_name ?? undefined,
+            emergency_contact_telephone:
+              data.emergency_contact_telephone ?? undefined,
+          },
+        }),
+      );
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["memberDetails"] });

@@ -10,50 +10,33 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Fragment, useState } from "react";
 import { Link } from "react-router";
 
-interface Team {
-  id: string;
-  name: string;
-  age_group: string;
-  sex: string;
-  created_at: string;
-}
-
-interface Player {
-  id: string;
-  name: string;
-  sex: string;
-  dob: string;
-  created_at: string;
-  school_year: string | null;
-  played_before: string | null;
-  medical_info: string | null;
-  parent_name: string | null;
-  parent_telephone: string | null;
-  parent_email: string;
-  parent_address: string | null;
-  parent_postcode: string | null;
-  emergency_contact_name: string | null;
-  emergency_contact_telephone: string | null;
-}
+type Player =
+  paths["/api/junior/teams/{teamId}/players"]["get"]["responses"]["200"]["content"]["application/json"][number];
 
 function useTeams() {
   return useQuery({
     queryKey: ["juniorManager", "myTeams"],
-    queryFn: () => api.get<Team[]>("/junior/teams"),
+    queryFn: () => callApi(api.GET("/api/junior/teams")),
   });
 }
 
 function usePlayers(teamId: string, enabled: boolean) {
   return useQuery({
     queryKey: ["juniorManager", "players", teamId],
-    queryFn: () => api.get<Player[]>(`/junior/teams/${teamId}/players`),
+    queryFn: () =>
+      callApi(
+        api.GET("/api/junior/teams/{teamId}/players", {
+          params: { path: { teamId } },
+        }),
+      ),
     enabled,
   });
 }

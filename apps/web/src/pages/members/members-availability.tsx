@@ -2,46 +2,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "react-router";
-
-// ── Types ──
-
-interface AvailabilityFixture {
-  id: string;
-  availability_request_id: string;
-  match_date: string;
-  opposition: string;
-  is_home: boolean;
-  competition_name: string | null;
-  match_time: string | null;
-  team_name: string | null;
-}
-
-interface MyResponse {
-  id: string;
-  availability_request_id: string;
-  match_date: string;
-  status: string;
-  note: string | null;
-}
-
-interface ActiveRequest {
-  id: string;
-  date_from: string;
-  date_to: string;
-  status: string;
-  fixtures: AvailabilityFixture[];
-  myResponses: MyResponse[];
-}
-
-interface ActiveRequestsResponse {
-  memberId: string | null;
-  items: ActiveRequest[];
-}
 
 // ── Component ──
 
@@ -49,7 +15,7 @@ export function Component() {
   useDocumentMeta("Availability");
   const query = useQuery({
     queryKey: ["availability", "active"],
-    queryFn: () => api.get<ActiveRequestsResponse>("/availability/active"),
+    queryFn: () => callApi(api.GET("/api/availability/active")),
   });
 
   return (
@@ -95,6 +61,12 @@ export function Component() {
 }
 
 // ── Request Card ──
+
+type ActiveData =
+  paths["/api/availability/active"]["get"]["responses"][200]["content"]["application/json"];
+type ActiveRequest = ActiveData["items"][number];
+type AvailabilityFixture = ActiveRequest["fixtures"][number];
+type MyResponse = ActiveRequest["myResponses"][number];
 
 function RequestCard({ request }: { request: ActiveRequest }) {
   // Group fixtures by date
@@ -145,15 +117,20 @@ function DateCard({
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.post(`/availability/requests/${requestId}/respond`, {
-        responses: [
-          {
-            matchDate: date,
-            status: status as "available" | "unavailable",
-            note: note || undefined,
+      callApi(
+        api.POST("/api/availability/requests/{requestId}/respond", {
+          params: { path: { requestId } },
+          body: {
+            responses: [
+              {
+                matchDate: date,
+                status: status as "available" | "unavailable",
+                note: note || undefined,
+              },
+            ],
           },
-        ],
-      }),
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["availability", "active"],

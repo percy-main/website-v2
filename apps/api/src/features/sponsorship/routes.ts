@@ -1,21 +1,30 @@
 import { stripeConfig } from "@percy-main/shared";
-import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { requireRole } from "../auth/middleware.ts";
 import { createStripe } from "../payments/stripe.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import {
   allApprovedSchema,
+  approvedPlayerSponsorsResponseSchema,
   byGameIdSchema,
   bySlugSchema,
+  gameSponsorResponseSchema,
+  gameSponsorshipListResponseSchema,
   gameSponsorshipManualSchema,
   gameSponsorshipPaymentSchema,
+  hasPendingResponseSchema,
+  idResponseSchema,
+  paymentResponseSchema,
+  playerSponsorResponseSchema,
+  playerSponsorshipListResponseSchema,
   playerSponsorshipManualSchema,
   playerSponsorshipPaymentSchema,
+  priceResponseSchema,
   sponsorshipActionSchema,
   sponsorshipIdParamSchema,
   sponsorshipListSchema,
   sponsorshipUpdateSchema,
+  successResponseSchema,
 } from "./schemas.ts";
 import {
   approveGameSponsorship,
@@ -54,7 +63,7 @@ function parseMatchDateTime(
 }
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
-export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
+export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   const stripe = createStripe({
     stripeSecretKey: app.config.STRIPE_SECRET_KEY,
   });
@@ -100,180 +109,300 @@ export const sponsorshipRoutes: FastifyPluginAsync = async (app) => {
 
   // --- Public routes ---
 
-  app.get("/sponsorship/game/price", async () => {
-    return await getGameSponsorshipPrice(stripe, prices.sponsorship);
-  });
+  app.get(
+    "/sponsorship/game/price",
+    {
+      schema: {
+        response: { 200: priceResponseSchema },
+      },
+    },
+    async () => {
+      return await getGameSponsorshipPrice(stripe, prices.sponsorship);
+    },
+  );
 
-  app.get("/sponsorship/player/price", async () => {
-    return await getPlayerSponsorshipPrice(stripe, prices.playerSponsorship);
-  });
+  app.get(
+    "/sponsorship/player/price",
+    {
+      schema: {
+        response: { 200: priceResponseSchema },
+      },
+    },
+    async () => {
+      return await getPlayerSponsorshipPrice(stripe, prices.playerSponsorship);
+    },
+  );
 
-  app.get("/sponsorship/player/approved", async (request) => {
-    const { season } = parseQuery(request, allApprovedSchema);
-    const sponsors = await allApproved(season);
-    return { sponsors };
-  });
+  app.get(
+    "/sponsorship/player/approved",
+    {
+      schema: {
+        querystring: allApprovedSchema,
+        response: { 200: approvedPlayerSponsorsResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season } = request.query;
+      const sponsors = await allApproved(season);
+      return { sponsors };
+    },
+  );
 
-  app.get("/sponsorship/game/:gameId", async (request) => {
-    const { gameId } = parseParams(request, byGameIdSchema);
-    const sponsor = await gameSponsor(gameId);
-    return { sponsor };
-  });
+  app.get(
+    "/sponsorship/game/:gameId",
+    {
+      schema: {
+        params: byGameIdSchema,
+        response: { 200: gameSponsorResponseSchema },
+      },
+    },
+    async (request) => {
+      const sponsor = await gameSponsor(request.params.gameId);
+      return { sponsor };
+    },
+  );
 
-  app.get("/sponsorship/game/:gameId/pending", async (request) => {
-    const { gameId } = parseParams(request, byGameIdSchema);
-    return await gamePending(gameId);
-  });
+  app.get(
+    "/sponsorship/game/:gameId/pending",
+    {
+      schema: {
+        params: byGameIdSchema,
+        response: { 200: hasPendingResponseSchema },
+      },
+    },
+    async (request) => {
+      return await gamePending(request.params.gameId);
+    },
+  );
 
-  app.post("/sponsorship/game/create-payment", async (request) => {
-    const data = parseBody(request, gameSponsorshipPaymentSchema);
+  app.post(
+    "/sponsorship/game/create-payment",
+    {
+      schema: {
+        body: gameSponsorshipPaymentSchema,
+        response: { 200: paymentResponseSchema },
+      },
+    },
+    async (request) => {
+      const data = request.body;
 
-    // Validate the game exists and is in the future
-    if (playCricketApi) {
-      const currentYear = new Date().getFullYear();
-      const seasons = [currentYear, currentYear + 1];
-      let found = false;
+      // Validate the game exists and is in the future
+      if (playCricketApi) {
+        const currentYear = new Date().getFullYear();
+        const seasons = [currentYear, currentYear + 1];
+        let found = false;
 
-      for (const season of seasons) {
-        const { matches } = await playCricketApi.getMatchesSummary(season);
-        const match = matches.find((m) => String(m.id) === data.gameId);
-        if (match) {
-          const when = parseMatchDateTime(
-            match.match_date,
-            match.match_time ?? null,
-          );
-          if (!when || when <= new Date()) {
-            throw Object.assign(
-              new Error("This game is not available for sponsorship"),
-              { statusCode: 400 },
+        for (const season of seasons) {
+          const { matches } = await playCricketApi.getMatchesSummary(season);
+          const match = matches.find((m) => String(m.id) === data.gameId);
+          if (match) {
+            const when = parseMatchDateTime(
+              match.match_date,
+              match.match_time ?? null,
             );
+            if (!when || when <= new Date()) {
+              throw Object.assign(
+                new Error("This game is not available for sponsorship"),
+                { statusCode: 400 },
+              );
+            }
+            found = true;
+            break;
           }
-          found = true;
-          break;
+        }
+
+        if (!found) {
+          throw Object.assign(new Error("Game not found"), { statusCode: 404 });
         }
       }
 
-      if (!found) {
-        throw Object.assign(new Error("Game not found"), { statusCode: 404 });
-      }
-    }
+      return await createGamePayment(data);
+    },
+  );
 
-    return await createGamePayment(data);
-  });
+  app.get(
+    "/sponsorship/player/:slug",
+    {
+      schema: {
+        params: bySlugSchema,
+        response: { 200: playerSponsorResponseSchema },
+      },
+    },
+    async (request) => {
+      const sponsor = await playerSponsor(request.params.slug);
+      return { sponsor };
+    },
+  );
 
-  app.get("/sponsorship/player/:slug", async (request) => {
-    const { slug } = parseParams(request, bySlugSchema);
-    const sponsor = await playerSponsor(slug);
-    return { sponsor };
-  });
+  app.get(
+    "/sponsorship/player/:slug/pending",
+    {
+      schema: {
+        params: bySlugSchema,
+        response: { 200: hasPendingResponseSchema },
+      },
+    },
+    async (request) => {
+      return await playerPending(request.params.slug);
+    },
+  );
 
-  app.get("/sponsorship/player/:slug/pending", async (request) => {
-    const { slug } = parseParams(request, bySlugSchema);
-    return await playerPending(slug);
-  });
-
-  app.post("/sponsorship/player/create-payment", async (request) => {
-    const data = parseBody(request, playerSponsorshipPaymentSchema);
-    return await createPayment(data);
-  });
+  app.post(
+    "/sponsorship/player/create-payment",
+    {
+      schema: {
+        body: playerSponsorshipPaymentSchema,
+        response: { 200: paymentResponseSchema },
+      },
+    },
+    async (request) => {
+      return await createPayment(request.body);
+    },
+  );
 
   // --- Admin routes ---
 
   app.get(
     "/sponsorship/admin/game",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: sponsorshipListSchema,
+        response: { 200: gameSponsorshipListResponseSchema },
+      },
+    },
     async (request) => {
-      const { page, pageSize, filter } = parseQuery(
-        request,
-        sponsorshipListSchema,
-      );
-      return listGame(page, pageSize, filter);
+      const { page, pageSize, filter } = request.query;
+      return await listGame(page, pageSize, filter);
     },
   );
 
   app.get(
     "/sponsorship/admin/player",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: sponsorshipListSchema,
+        response: { 200: playerSponsorshipListResponseSchema },
+      },
+    },
     async (request) => {
-      const { page, pageSize, filter } = parseQuery(
-        request,
-        sponsorshipListSchema,
-      );
-      return listPlayer(page, pageSize, filter);
+      const { page, pageSize, filter } = request.query;
+      return await listPlayer(page, pageSize, filter);
     },
   );
 
   app.post(
     "/sponsorship/admin/game/approve",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: sponsorshipActionSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
-      const { sponsorshipId } = parseBody(request, sponsorshipActionSchema);
-      return approveGame(sponsorshipId);
+      return await approveGame(request.body.sponsorshipId);
     },
   );
 
   app.post(
     "/sponsorship/admin/game/reject",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: sponsorshipActionSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
-      const { sponsorshipId } = parseBody(request, sponsorshipActionSchema);
-      return rejectGame(sponsorshipId);
+      return await rejectGame(request.body.sponsorshipId);
     },
   );
 
   app.post(
     "/sponsorship/admin/player/approve",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: sponsorshipActionSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
-      const { sponsorshipId } = parseBody(request, sponsorshipActionSchema);
-      return approvePlayer(sponsorshipId);
+      return await approvePlayer(request.body.sponsorshipId);
     },
   );
 
   app.post(
     "/sponsorship/admin/player/reject",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: sponsorshipActionSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
-      const { sponsorshipId } = parseBody(request, sponsorshipActionSchema);
-      return rejectPlayer(sponsorshipId);
+      return await rejectPlayer(request.body.sponsorshipId);
     },
   );
 
   app.post(
     "/sponsorship/admin/game/manual",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: gameSponsorshipManualSchema,
+        response: { 200: idResponseSchema },
+      },
+    },
     async (request) => {
-      const data = parseBody(request, gameSponsorshipManualSchema);
-      return manualGame(data);
+      return await manualGame(request.body);
     },
   );
 
   app.post(
     "/sponsorship/admin/player/manual",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: playerSponsorshipManualSchema,
+        response: { 200: idResponseSchema },
+      },
+    },
     async (request) => {
-      const data = parseBody(request, playerSponsorshipManualSchema);
-      return manualPlayer(data);
+      return await manualPlayer(request.body);
     },
   );
 
   app.put(
     "/sponsorship/admin/game/:sponsorshipId",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: sponsorshipIdParamSchema,
+        body: sponsorshipUpdateSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
-      const { sponsorshipId } = parseParams(request, sponsorshipIdParamSchema);
-      const data = parseBody(request, sponsorshipUpdateSchema);
-      return updateGame(sponsorshipId, data);
+      return await updateGame(request.params.sponsorshipId, request.body);
     },
   );
 
   app.put(
     "/sponsorship/admin/player/:sponsorshipId",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: sponsorshipIdParamSchema,
+        body: sponsorshipUpdateSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
-      const { sponsorshipId } = parseParams(request, sponsorshipIdParamSchema);
-      const data = parseBody(request, sponsorshipUpdateSchema);
-      return updatePlayer(sponsorshipId, data);
+      return await updatePlayer(request.params.sponsorshipId, request.body);
     },
   );
 };

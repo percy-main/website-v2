@@ -86,6 +86,94 @@ export const allApprovedSchema = z.object({
   season: z.coerce.number().optional(),
 });
 
+// ── Response schemas ──
+
+export const priceResponseSchema = z.object({
+  amountPence: z.number(),
+  currency: z.string(),
+  productName: z.string(),
+});
+
+const gameSponsorshipRowSchema = z.object({
+  id: z.string(),
+  game_id: z.string(),
+  sponsor_name: z.string(),
+  sponsor_email: z.string(),
+  sponsor_website: z.string().nullable(),
+  sponsor_logo_url: z.string().nullable(),
+  sponsor_message: z.string().nullable(),
+  amount_pence: z.number(),
+  approved: z.boolean(),
+  paid_at: z.string().nullable(),
+  created_at: z.string(),
+  display_name: z.string().nullable(),
+  notes: z.string().nullable(),
+  stripe_payment_intent_id: z.string().nullable(),
+});
+
+const playerSponsorshipRowSchema = z.object({
+  id: z.string(),
+  slug: z.string().nullable(),
+  player_name: z.string(),
+  sponsor_name: z.string(),
+  sponsor_email: z.string(),
+  sponsor_website: z.string().nullable(),
+  sponsor_logo_url: z.string().nullable(),
+  sponsor_message: z.string().nullable(),
+  amount_pence: z.number(),
+  season: z.number(),
+  approved: z.boolean(),
+  paid_at: z.string().nullable(),
+  created_at: z.string(),
+  display_name: z.string().nullable(),
+  notes: z.string().nullable(),
+  stripe_payment_intent_id: z.string().nullable(),
+});
+
+export const approvedPlayerSponsorsResponseSchema = z.object({
+  sponsors: z.array(playerSponsorshipRowSchema),
+});
+
+export const gameSponsorResponseSchema = z.object({
+  sponsor: gameSponsorshipRowSchema.nullable(),
+});
+
+export const playerSponsorResponseSchema = z.object({
+  sponsor: playerSponsorshipRowSchema.nullable(),
+});
+
+export const hasPendingResponseSchema = z.object({
+  hasPending: z.boolean(),
+});
+
+export const paymentResponseSchema = z.object({
+  clientSecret: z.string().nullable(),
+  amount: z.number(),
+  productName: z.string(),
+});
+
+export const gameSponsorshipListResponseSchema = z.object({
+  items: z.array(gameSponsorshipRowSchema),
+  total: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+
+export const playerSponsorshipListResponseSchema = z.object({
+  items: z.array(playerSponsorshipRowSchema),
+  total: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+
+export const successResponseSchema = z.object({
+  success: z.boolean(),
+});
+
+export const idResponseSchema = z.object({
+  id: z.string(),
+});
+
 export type GameSponsorshipPayment = z.infer<
   typeof gameSponsorshipPaymentSchema
 >;

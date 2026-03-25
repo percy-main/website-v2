@@ -25,3 +25,31 @@ export const subscribeSchema = z.object({
 
 export type PurchaseInput = z.infer<typeof purchaseSchema>;
 export type SubscribeInput = z.infer<typeof subscribeSchema>;
+
+// Response schemas
+
+export const priceInfoResponseSchema = z.object({
+  productName: z.string(),
+  unitAmount: z.number(),
+  formattedPrice: z.string(),
+  customAmount: z
+    .object({
+      min: z.number(),
+      max: z.number().optional(),
+      preset: z.number().optional(),
+    })
+    .optional(),
+  qtyAdjustable: z.boolean(),
+  maxQty: z.number().optional(),
+});
+
+export const purchaseResponseSchema = z.object({
+  clientSecret: z.string().nullable(),
+  amount: z.number(),
+  productName: z.string(),
+});
+
+export const subscribeResponseSchema = z.object({
+  clientSecret: z.string(),
+  subscriptionId: z.string(),
+});

@@ -16,6 +16,8 @@ const config = parseConfig({
   S3_BUCKET: "placeholder",
   NODE_ENV: "development",
   LOG_LEVEL: "error",
+  PLAY_CRICKET_API_TOKEN: "placeholder",
+  PLAY_CRICKET_SITE_ID: "0",
 });
 
 const { client: db, dialect } = createClient(config.DATABASE_URL);

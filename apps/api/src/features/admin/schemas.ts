@@ -1,6 +1,22 @@
 import { AGE_GROUPS } from "@percy-main/shared";
 import { z } from "zod";
 
+// --- Shared response helpers ---
+
+const successResponseSchema = z.object({ success: z.boolean() });
+
+const idResponseSchema = z.object({ id: z.string() });
+
+const chargeStatusSchema = z.enum([
+  "paid",
+  "pending",
+  "unpaid",
+  "abandoned",
+  "deleted",
+]);
+
+// --- Request schemas ---
+
 export const listUsersSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -207,3 +223,484 @@ export const matchdayIdParamSchema = z.object({
 
 export type ListGameReports = z.infer<typeof listGameReportsSchema>;
 export type MatchdayIdParam = z.infer<typeof matchdayIdParamSchema>;
+
+// --- Response schemas ---
+
+export const listUsersResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      email: z.string(),
+      role: z.string().nullable(),
+      banned: z.boolean().nullable(),
+      emailVerified: z.boolean(),
+      createdAt: z.date(),
+      memberId: z.string().nullable(),
+      member_category: z.string().nullable(),
+      memberDeletedAt: z.string().nullable(),
+      memberDeletedReason: z.string().nullable(),
+      membershipType: z.string().nullable(),
+      membershipPaidUntil: z.string().nullable(),
+    }),
+  ),
+  total: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+
+export const updateUserResponseSchema = successResponseSchema;
+
+export const getUserDetailResponseSchema = z.object({
+  user: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+    role: z.string().nullable(),
+    banned: z.boolean().nullable(),
+    emailVerified: z.boolean(),
+    createdAt: z.date(),
+  }),
+  member: z
+    .object({
+      id: z.string(),
+      email: z.string(),
+      name: z.string().nullable(),
+      title: z.string().nullable(),
+      address: z.string().nullable(),
+      postcode: z.string().nullable(),
+      dob: z.string().nullable(),
+      telephone: z.string().nullable(),
+      member_category: z.string().nullable(),
+      play_cricket_id: z.string().nullable(),
+      slug: z.string().nullable(),
+      stripe_customer_id: z.string().nullable(),
+      deleted_at: z.string().nullable(),
+      deleted_by: z.string().nullable(),
+      deleted_reason: z.string().nullable(),
+      emergency_contact_name: z.string().nullable(),
+      emergency_contact_telephone: z.string().nullable(),
+    })
+    .nullable(),
+  membership: z
+    .object({
+      id: z.string(),
+      member_id: z.string(),
+      type: z.string().nullable(),
+      paid_until: z.string(),
+      dependent_id: z.string().nullable(),
+      created_at: z.string(),
+    })
+    .nullable(),
+  dependents: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      dob: z.string(),
+      sex: z.string(),
+      school_year: z.string().nullable(),
+      photo_consent: z.boolean().nullable(),
+      gp_surgery: z.string().nullable(),
+      gp_phone: z.string().nullable(),
+      alt_contact_name: z.string().nullable(),
+      alt_contact_phone: z.string().nullable(),
+      emergency_medical_consent: z.boolean().nullable(),
+      has_disability: z.boolean().nullable(),
+      disability_type: z.string().nullable(),
+      medical_info: z.string().nullable(),
+      membershipPaidUntil: z.string().nullable(),
+    }),
+  ),
+  charges: z.array(
+    z.object({
+      id: z.string(),
+      member_id: z.string(),
+      description: z.string(),
+      amount_pence: z.number(),
+      charge_date: z.string(),
+      created_at: z.string(),
+      created_by: z.string(),
+      paid_at: z.string().nullable(),
+      payment_confirmed_at: z.string().nullable(),
+      payment_method: z.string().nullable(),
+      stripe_payment_intent_id: z.string().nullable(),
+      type: z.string(),
+      source: z.string(),
+      deleted_at: z.string().nullable(),
+      deleted_by: z.string().nullable(),
+      deleted_reason: z.string().nullable(),
+    }),
+  ),
+  juniorManagerTeams: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      age_group: z.string(),
+      sex: z.string(),
+    }),
+  ),
+  officialTeams: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+    }),
+  ),
+});
+
+export const setMemberCategoryResponseSchema = successResponseSchema;
+export const archiveMemberResponseSchema = successResponseSchema;
+export const restoreMemberResponseSchema = successResponseSchema;
+
+export const createChargeResponseSchema = idResponseSchema;
+export const deleteChargeResponseSchema = successResponseSchema;
+
+export const setJuniorManagerTeamsResponseSchema = successResponseSchema;
+export const setOfficialTeamsResponseSchema = successResponseSchema;
+
+export const juniorTeamsResponseSchema = z.array(
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    age_group: z.string(),
+    sex: z.string(),
+    created_at: z.string(),
+  }),
+);
+
+export const playCricketTeamsResponseSchema = z.array(
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    site_id: z.string(),
+    is_junior: z.boolean(),
+    last_updated: z.string().nullable(),
+    created_at: z.string(),
+  }),
+);
+
+export const playCricketPlayersResponseSchema = z.object({
+  players: z.array(
+    z.object({
+      memberId: z.number(),
+      name: z.string(),
+    }),
+  ),
+});
+
+export const createMemberResponseSchema = idResponseSchema;
+
+export const chargeNotificationResponseSchema = z.object({
+  sent: z.boolean(),
+  reason: z.string().optional(),
+  chargeCount: z.number().optional(),
+});
+
+export const recordLinkingResponseSchema = z.object({
+  members: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string().nullable(),
+      play_cricket_id: z.string().nullable(),
+      slug: z.string().nullable(),
+    }),
+  ),
+  dependents: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      play_cricket_id: z.string().nullable(),
+      parentName: z.string().nullable(),
+    }),
+  ),
+});
+
+export const linkPlayCricketResponseSchema = successResponseSchema;
+export const unlinkPlayCricketResponseSchema = successResponseSchema;
+export const linkSlugResponseSchema = successResponseSchema;
+export const unlinkSlugResponseSchema = successResponseSchema;
+
+export const listChargesResponseSchema = z.object({
+  charges: z.array(
+    z.object({
+      id: z.string(),
+      memberId: z.string(),
+      description: z.string(),
+      amountPence: z.number(),
+      chargeDate: z.string(),
+      createdAt: z.string(),
+      paidAt: z.string().nullable(),
+      paymentConfirmedAt: z.string().nullable(),
+      stripePaymentIntentId: z.string().nullable(),
+      type: z.string(),
+      source: z.string(),
+      deletedAt: z.string().nullable(),
+      deletedReason: z.string().nullable(),
+      memberName: z.string().nullable(),
+      memberEmail: z.string(),
+      status: chargeStatusSchema,
+    }),
+  ),
+  total: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+
+export const chargeAggregatesResponseSchema = z.object({
+  totalCharged: z.number(),
+  totalPaid: z.number(),
+  totalOutstanding: z.number(),
+  totalAbandoned: z.number(),
+  totalDeleted: z.number(),
+  countPaid: z.number(),
+  countUnpaid: z.number(),
+  countPending: z.number(),
+  countAbandoned: z.number(),
+  countDeleted: z.number(),
+});
+
+export const chasePaymentResponseSchema = successResponseSchema;
+
+export const listContactSubmissionsResponseSchema = z.object({
+  submissions: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      email: z.string(),
+      message: z.string(),
+      page: z.string().nullable(),
+      createdAt: z.string(),
+    }),
+  ),
+  total: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+
+export const listJuniorsResponseSchema = z.object({
+  juniors: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      sex: z.string(),
+      dob: z.string(),
+      registeredAt: z.string(),
+      parentName: z.string().nullable(),
+      parentEmail: z.string(),
+      parentTelephone: z.string().nullable(),
+      paidUntil: z.string().nullable(),
+      ageGroup: z.string().nullable(),
+      teamName: z.string().nullable(),
+      hasOwnAccount: z.boolean(),
+      linkedUserEmail: z.string().nullable(),
+    }),
+  ),
+  total: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+
+export const searchUsersForLinkingResponseSchema = z.object({
+  dependentName: z.string(),
+  users: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      email: z.string(),
+      score: z.number(),
+    }),
+  ),
+});
+
+export const linkDependentResponseSchema = successResponseSchema;
+export const unlinkDependentResponseSchema = successResponseSchema;
+
+const duplicateGroupMemberSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  email: z.string(),
+  title: z.string().nullable(),
+  stripeCustomerId: z.string().nullable(),
+  membershipCount: z.number(),
+  dependentCount: z.number(),
+  chargeCount: z.number(),
+});
+
+export const findDuplicatesResponseSchema = z.object({
+  groups: z.array(
+    z.object({
+      matchType: z.enum(["email", "name"]),
+      matchKey: z.string(),
+      members: z.array(duplicateGroupMemberSchema),
+    }),
+  ),
+});
+
+const mergePreviewMemberSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  title: z.string().nullable(),
+  email: z.string(),
+  address: z.string().nullable(),
+  postcode: z.string().nullable(),
+  dob: z.string().nullable(),
+  telephone: z.string().nullable(),
+  stripe_customer_id: z.string().nullable(),
+});
+
+const mergePreviewSideSchema = z.object({
+  member: mergePreviewMemberSchema,
+  memberships: z.array(
+    z.object({
+      id: z.string(),
+      type: z.string().nullable(),
+      paid_until: z.string(),
+    }),
+  ),
+  dependents: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      dob: z.string(),
+    }),
+  ),
+  charges: z.array(
+    z.object({
+      id: z.string(),
+      description: z.string(),
+      amount_pence: z.number(),
+      paid_at: z.string().nullable(),
+    }),
+  ),
+});
+
+export const mergePreviewResponseSchema = z.object({
+  isCrossEmailMerge: z.boolean(),
+  keep: mergePreviewSideSchema,
+  remove: mergePreviewSideSchema,
+});
+
+export const mergeMembersResponseSchema = successResponseSchema;
+
+export const matchFeeRatesResponseSchema = z.object({
+  rates: z.array(
+    z.object({
+      id: z.string(),
+      play_cricket_team_id: z.string().nullable(),
+      competition_type: z.string().nullable(),
+      member_category: z.string(),
+      amount_pence: z.number(),
+      team_name: z.string().nullable(),
+    }),
+  ),
+});
+
+export const addMatchFeeRateResponseSchema = idResponseSchema;
+export const deleteMatchFeeRateResponseSchema = successResponseSchema;
+
+// --- Game Reports response schemas ---
+
+export const listGameReportsResponseSchema = z.object({
+  matchdays: z.array(
+    z.object({
+      id: z.string(),
+      match_date: z.string(),
+      opposition: z.string(),
+      status: z.string(),
+      play_cricket_team_id: z.string(),
+      competition_type: z.string().nullable(),
+      team_name: z.string().nullable(),
+    }),
+  ),
+  total: z.number(),
+});
+
+export const matchdayReportResponseSchema = z.object({
+  matchday: z.object({
+    id: z.string(),
+    match_date: z.string(),
+    opposition: z.string(),
+    status: z.string(),
+    play_cricket_team_id: z.string(),
+    play_cricket_match_id: z.string().nullable(),
+    competition_type: z.string().nullable(),
+    created_at: z.string(),
+    created_by: z.string(),
+    confirmed_at: z.string().nullable(),
+    confirmed_by: z.string().nullable(),
+    finished_at: z.string().nullable(),
+    finished_by: z.string().nullable(),
+    result_type: z.string().nullable(),
+    result_source: z.string().nullable(),
+    result_confirmed_at: z.string().nullable(),
+    result_confirmed_by: z.string().nullable(),
+  }),
+  team: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+    })
+    .nullable(),
+  players: z.array(
+    z.object({
+      id: z.string(),
+      player_name: z.string(),
+      status: z.string(),
+      member_id: z.string().nullable(),
+      member_category: z.string().nullable(),
+      charge_amount_pence: z.number().nullable(),
+      charge_paid_at: z.string().nullable(),
+      charge_payment_method: z.string().nullable(),
+      charge_deleted_at: z.string().nullable(),
+      charge_payment_confirmed_at: z.string().nullable(),
+      charge_stripe_payment_intent_id: z.string().nullable(),
+      charge_created_at: z.string().nullable(),
+      charge_status: chargeStatusSchema.nullable(),
+    }),
+  ),
+  expenses: z.array(
+    z.object({
+      id: z.string(),
+      matchday_id: z.string(),
+      expense_type: z.string(),
+      amount_pence: z.number(),
+      description: z.string().nullable(),
+      receipt_image_url: z.string().nullable(),
+      status: z.string(),
+      created_at: z.string(),
+      created_by: z.string(),
+      submitted_at: z.string().nullable(),
+      approved_at: z.string().nullable(),
+      approved_by: z.string().nullable(),
+      rejected_reason: z.string().nullable(),
+      reimbursed_at: z.string().nullable(),
+      reimbursed_by: z.string().nullable(),
+    }),
+  ),
+  sponsorship: z
+    .object({
+      id: z.string(),
+      game_id: z.string(),
+      sponsor_name: z.string(),
+      sponsor_email: z.string(),
+      sponsor_website: z.string().nullable(),
+      sponsor_logo_url: z.string().nullable(),
+      sponsor_message: z.string().nullable(),
+      display_name: z.string().nullable(),
+      amount_pence: z.number(),
+      approved: z.boolean(),
+      paid_at: z.string().nullable(),
+      stripe_payment_intent_id: z.string().nullable(),
+      notes: z.string().nullable(),
+      created_at: z.string(),
+    })
+    .nullable(),
+  summary: z.object({
+    totalIncoming: z.number(),
+    totalPaid: z.number(),
+    totalPending: z.number(),
+    totalOutstanding: z.number(),
+    totalExpenses: z.number(),
+    sponsorshipIncome: z.number(),
+    profitLoss: z.number(),
+  }),
+});
