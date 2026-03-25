@@ -45,12 +45,26 @@ export function listUsers(db: Kysely<DB>) {
 }
 ```
 
-**Routes** wire up services at registration time:
+**Routes** use `FastifyPluginAsyncZod` with Fastify schema declarations:
 
 ```typescript
-export const adminRoutes: FastifyPluginAsync = async (app) => {
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+
+export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const list = listUsers(app.db);
-  app.get("/admin/users", async (req) => list(parseQuery(req, schema)));
+
+  app.get(
+    "/admin/users",
+    {
+      schema: {
+        querystring: listUsersSchema,
+        response: { 200: listUsersResponseSchema },
+      },
+    },
+    async (request) => {
+      return await list(request.query);
+    },
+  );
 };
 ```
 
@@ -81,9 +95,11 @@ The Fastify instance owns all shared dependencies:
 
 ## Generated Files — DO NOT EDIT MANUALLY
 
-| Files                                 | Generator                  | Command             |
-| ------------------------------------- | -------------------------- | ------------------- |
-| `packages/db/src/__generated__/db.ts` | kysely-codegen (DB schema) | `pnpm run db:types` |
+| Files                                 | Generator                         | Command                     |
+| ------------------------------------- | --------------------------------- | --------------------------- |
+| `packages/db/src/__generated__/db.ts` | kysely-codegen (DB schema)        | `pnpm run db:types`         |
+| `apps/web/src/lib/api.gen.json`       | @fastify/swagger (OpenAPI spec)   | `pnpm run openapi:generate` |
+| `apps/web/src/lib/api.gen.d.ts`       | openapi-typescript (typed client) | `pnpm run openapi:generate` |
 
 After creating a new migration, run:
 
@@ -95,10 +111,17 @@ pnpm run db:types                      # regenerate types
 
 The generator introspects the schema from the running PostgreSQL database.
 
+After adding or changing a route's schema, regenerate the OpenAPI spec and typed client:
+
+```sh
+pnpm run openapi:generate              # regenerate spec + frontend types
+```
+
 ## Coding Standards
 
-- **All incoming data is Zod-validated** — body (`parseBody`), query (`parseQuery`), and route params (`parseParams`). Never use Fastify's inline generics (`app.get<{ Params: { id: string } }>`) to type request data — this is a type assertion, not validation. Untrusted input must always pass through a Zod schema.
-- **Never type-assert API responses** — validate with zod schemas (`schema.parse(...)`) not `as SomeType`
+- **All incoming data is Zod-validated via Fastify schema declarations** — declare `schema: { querystring, body, params, response }` on routes using Zod schemas. Fastify validates automatically via `fastify-type-provider-zod`. Do not use `parseBody`/`parseQuery`/`parseParams` — use `request.body`, `request.query`, `request.params` directly (typed by the schema declaration). Never use Fastify's inline generics (`app.get<{ Params: { id: string } }>`) — this is a type assertion, not validation.
+- **Every route must have a response schema** — declared in `schemas.ts` and referenced in the route's `schema.response`. This drives the OpenAPI spec and the generated typed frontend client. After adding/changing response schemas, run `pnpm run openapi:generate`.
+- **Frontend API calls use the typed client** — import `{ api, callApi }` from `@/lib/api-client`. Use `callApi(api.GET("/api/path", { params: { query: {...} } }))`. Never use raw `fetch` or define local response type interfaces — types are generated from the OpenAPI spec.
 - **Use `getAuthSession(request)` for authenticated routes** — imported from `auth/middleware.js`. Returns typed session or throws 401. Never use `request.authSession!` or inline null checks.
 - **Use react-query for data fetching in React components** — no raw `fetch` in `useEffect`
 - **Use shadcn/ui components where possible** — compose smaller components into larger ones
@@ -115,9 +138,9 @@ Each API feature is self-contained:
 
 ```
 apps/api/src/features/<feature>/
-├── routes.ts              # Fastify route handlers (thin — parse, delegate, respond)
+├── routes.ts              # Fastify route handlers (thin — schema, delegate, respond)
 ├── service.ts             # Business logic (curried factories, testable without HTTP)
-├── schemas.ts             # Zod validation schemas
+├── schemas.ts             # Zod request + response schemas (drives OpenAPI spec)
 ├── service.test.ts        # Unit tests (mock DB)
 └── integration.test.ts    # Integration tests (testcontainers)
 ```
@@ -179,6 +202,10 @@ pnpm --filter api test:integration  # integration tests (needs Docker)
 pnpm --filter api test:all          # both
 ```
 
+## AWS CLI
+
+All AWS CLI commands must use the `percy-main` profile: `aws --profile percy-main ...`
+
 ## Local Development
 
 ```sh
@@ -193,11 +220,11 @@ Each app/package has its own `.env.example` documenting required environment var
 
 ## Development Workflow
 
-When beginning work on a ticket:
+Work on one feature at a time directly in the main repo (no worktrees).
 
 1. **Read the ticket** — GitHub issues are the source of truth. Read body + comments.
 
-2. **Create a feature branch and worktree** — branch from `main`, include ticket number (e.g. `18-add-user-profile`). Use `@.worktrees/` for worktree location.
+2. **Create a feature branch** — branch from `main`, include ticket number (e.g. `18-add-user-profile`).
 
 3. **Analyse current behaviour** — understand existing code before changing it.
 
@@ -217,26 +244,103 @@ When beginning work on a ticket:
 
 11. **Finalise** — ensure all CI checks pass and review comments are addressed.
 
-12. **Clean up** — stop local processes, delete worktree.
-
-13. **Report** — notify user with summary and PR link.
+12. **Report** — notify user with summary and PR link.
 
 ## Key Scripts
 
-| Command                              | Description                    |
-| ------------------------------------ | ------------------------------ |
-| `pnpm run dev`                       | Start all services in parallel |
-| `pnpm run dev:api`                   | Start API only                 |
-| `pnpm run dev:web`                   | Start frontend only            |
-| `pnpm run build`                     | Build all packages             |
-| `pnpm run typecheck`                 | Type-check all packages        |
-| `pnpm run lint`                      | Lint all packages              |
-| `pnpm --filter api test`             | Run API unit tests             |
-| `pnpm --filter api test:integration` | Run API integration tests      |
-| `pnpm run db:up`                     | Run database migrations        |
-| `pnpm run db:types`                  | Regenerate DB types            |
-| `pnpm run db:migration`              | Create new migration file      |
-| `docker compose up -d`               | Start local PostgreSQL         |
+| Command                              | Description                     |
+| ------------------------------------ | ------------------------------- |
+| `pnpm run dev`                       | Start all services in parallel  |
+| `pnpm run dev:api`                   | Start API only                  |
+| `pnpm run dev:web`                   | Start frontend only             |
+| `pnpm run build`                     | Build all packages              |
+| `pnpm run typecheck`                 | Type-check all packages         |
+| `pnpm run lint`                      | Lint all packages               |
+| `pnpm --filter api test`             | Run API unit tests              |
+| `pnpm --filter api test:integration` | Run API integration tests       |
+| `pnpm run db:up`                     | Run database migrations         |
+| `pnpm run db:types`                  | Regenerate DB types             |
+| `pnpm run db:migration`              | Create new migration file       |
+| `pnpm run openapi:generate`          | Regenerate OpenAPI spec + types |
+| `docker compose up -d`               | Start local PostgreSQL          |
+
+## OpenAPI Type Safety (ADR #11)
+
+End-to-end type safety from database to frontend via OpenAPI spec generation.
+
+### How it works
+
+1. **Backend routes declare Zod schemas** for querystring, body, params, and response
+2. `@fastify/swagger` + `fastify-type-provider-zod` generates an OpenAPI spec from those schemas
+3. `openapi-typescript` generates TypeScript types from the spec
+4. `openapi-fetch` provides a typed HTTP client that uses those types
+5. `callApi()` wraps the client to throw on errors and return typed data
+
+### Adding a new endpoint
+
+1. Add request + response schemas to `schemas.ts`
+2. Declare the route with `schema: { querystring, body, params, response: { 200: schema } }`
+3. Run `pnpm run openapi:generate` to regenerate types
+4. Use `callApi(api.GET("/api/path"))` on the frontend — types are inferred
+
+### Backend route pattern
+
+```typescript
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { myQuerySchema, myResponseSchema } from "./schemas.ts";
+
+export const myRoutes: FastifyPluginAsyncZod = async (app) => {
+  app.get(
+    "/my-route",
+    {
+      schema: {
+        querystring: myQuerySchema,
+        response: { 200: myResponseSchema },
+      },
+    },
+    async (request) => {
+      const { page, limit } = request.query; // fully typed
+      return await myService(request.query);
+    },
+  );
+};
+```
+
+### Frontend usage pattern
+
+```typescript
+import { api, callApi } from "@/lib/api-client";
+
+// In react-query hooks:
+const { data } = useQuery({
+  queryKey: ["my-data"],
+  queryFn: () =>
+    callApi(
+      api.GET("/api/my-route", {
+        params: { query: { page: 1, limit: 10 } },
+      }),
+    ),
+});
+// data is fully typed from the OpenAPI spec
+
+// With path params:
+callApi(
+  api.GET("/api/games/{matchId}", {
+    params: { path: { matchId } },
+  }),
+);
+
+// POST with body:
+callApi(
+  api.POST("/api/contact", {
+    body: { name, email, message, page },
+  }),
+);
+```
+
+### Swagger UI
+
+Available at `/api/docs` in non-production environments.
 
 ## Migration Context (from v1)
 
