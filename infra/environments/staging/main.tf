@@ -108,6 +108,7 @@ module "ecs" {
     # Secrets Manager (actual secrets)
     DATABASE_URL           = "${aws_secretsmanager_secret.app_secrets.arn}:DATABASE_URL::"
     BETTER_AUTH_SECRET     = "${aws_secretsmanager_secret.app_secrets.arn}:BETTER_AUTH_SECRET::"
+    BETTER_AUTH_API_KEY    = "${aws_secretsmanager_secret.app_secrets.arn}:BETTER_AUTH_API_KEY::"
     STRIPE_SECRET_KEY      = "${aws_secretsmanager_secret.app_secrets.arn}:STRIPE_SECRET_KEY::"
     STRIPE_WEBHOOK_SECRET  = "${aws_secretsmanager_secret.app_secrets.arn}:STRIPE_WEBHOOK_SECRET::"
     GOOGLE_CLIENT_ID       = "${aws_secretsmanager_secret.app_secrets.arn}:GOOGLE_CLIENT_ID::"
