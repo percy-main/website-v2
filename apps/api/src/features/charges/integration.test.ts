@@ -13,8 +13,12 @@ import {
 } from "./service.ts";
 
 const mockPaymentIntentsCreate = vi.fn();
+const mockPaymentIntentsRetrieve = vi.fn();
 const mockStripe = {
-  paymentIntents: { create: mockPaymentIntentsCreate },
+  paymentIntents: {
+    create: mockPaymentIntentsCreate,
+    retrieve: mockPaymentIntentsRetrieve,
+  },
 } as unknown as Stripe;
 
 let ctx: TestContext;
@@ -235,6 +239,12 @@ describe("charges service (integration)", () => {
           },
         ])
         .execute();
+
+      // The linked charge's PI is still active — should stay excluded
+      mockPaymentIntentsRetrieve.mockResolvedValue({
+        id: "pi_existing",
+        status: "requires_confirmation",
+      } as never);
 
       mockPaymentIntentsCreate.mockResolvedValue({
         id: "pi_new_456",

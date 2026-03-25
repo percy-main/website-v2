@@ -50,9 +50,8 @@ export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
         .where("member_id", "=", member.id)
         .where("deleted_at", "is", null)
         .where("paid_at", "is", null)
-        .where("stripe_payment_intent_id", "is", null)
         .where("payment_confirmed_at", "is", null)
-        .select(["id", "amount_pence"])
+        .select(["id", "amount_pence", "stripe_payment_intent_id"])
         .forUpdate()
         .execute();
 
@@ -64,12 +63,46 @@ export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
         throw error;
       }
 
-      const totalAmountPence = unpaidCharges.reduce(
+      // Charges with an existing PI might be retryable if the PI was
+      // abandoned/expired. Check Stripe and clear stale ones so they
+      // can be bundled into a new PI.
+      for (const charge of unpaidCharges) {
+        if (!charge.stripe_payment_intent_id) continue;
+        const pi = await stripe.paymentIntents.retrieve(
+          charge.stripe_payment_intent_id,
+        );
+        if (
+          pi.status === "requires_payment_method" ||
+          pi.status === "canceled"
+        ) {
+          await trx
+            .updateTable("charge")
+            .set({ stripe_payment_intent_id: null })
+            .where("id", "=", charge.id)
+            .execute();
+          charge.stripe_payment_intent_id = null;
+        }
+      }
+
+      // Only include charges that are now unlinked
+      const payableCharges = unpaidCharges.filter(
+        (c) => !c.stripe_payment_intent_id,
+      );
+
+      if (payableCharges.length === 0) {
+        const error = new Error("No unpaid charges found") as Error & {
+          statusCode: number;
+        };
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const totalAmountPence = payableCharges.reduce(
         (sum, c) => sum + c.amount_pence,
         0,
       );
 
-      const chargeIds = unpaidCharges.map((c) => c.id);
+      const chargeIds = payableCharges.map((c) => c.id);
 
       const paymentIntent = await stripe.paymentIntents.create({
         amount: totalAmountPence,
