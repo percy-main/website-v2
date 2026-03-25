@@ -14,69 +14,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { StatusPill } from "./status-pill";
 
-interface GroupMember {
-  id: string;
-  name: string | null;
-  email: string;
-  title: string | null;
-  stripeCustomerId: string | null;
-  membershipCount: number;
-  dependentCount: number;
-  chargeCount: number;
-}
+type DuplicatesResponse =
+  paths["/api/admin/duplicates"]["get"]["responses"]["200"]["content"]["application/json"];
+type DuplicateGroup = DuplicatesResponse["groups"][number];
 
-interface DuplicateGroup {
-  matchType: "email" | "name";
-  matchKey: string;
-  members: GroupMember[];
-}
-
-interface DuplicatesResponse {
-  groups: DuplicateGroup[];
-}
-
-interface MemberRecord {
-  id: string;
-  name: string | null;
-  title: string | null;
-  email: string;
-  address: string | null;
-  postcode: string | null;
-  dob: string | null;
-  telephone: string | null;
-  stripe_customer_id: string | null;
-}
-
-interface MergePreviewResponse {
-  isCrossEmailMerge: boolean;
-  keep: {
-    member: MemberRecord;
-    memberships: Array<{ id: string; type: string | null; paid_until: string }>;
-    dependents: Array<{ id: string; name: string; dob: string }>;
-    charges: Array<{
-      id: string;
-      description: string;
-      amount_pence: number;
-      paid_at: string | null;
-    }>;
-  };
-  remove: {
-    member: MemberRecord;
-    memberships: Array<{ id: string; type: string | null; paid_until: string }>;
-    dependents: Array<{ id: string; name: string; dob: string }>;
-    charges: Array<{
-      id: string;
-      description: string;
-      amount_pence: number;
-      paid_at: string | null;
-    }>;
-  };
-}
+type MergePreviewResponse =
+  paths["/api/admin/merge-preview"]["get"]["responses"]["200"]["content"]["application/json"];
+type MemberRecord = MergePreviewResponse["keep"]["member"];
 
 export function DuplicatesTab() {
   const queryClient = useQueryClient();
@@ -87,7 +37,7 @@ export function DuplicatesTab() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin", "duplicateMembers"],
-    queryFn: () => api.get<DuplicatesResponse>("/admin/duplicates"),
+    queryFn: () => callApi(api.GET("/api/admin/duplicates")),
   });
 
   const groups = data?.groups;
@@ -249,18 +199,23 @@ function MergePreviewModal({
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin", "mergePreview", keepMemberId, removeMemberId],
-    queryFn: () => {
-      const params = new URLSearchParams({ keepMemberId, removeMemberId });
-      return api.get<MergePreviewResponse>(`/admin/merge-preview?${params}`);
-    },
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/merge-preview", {
+          params: {
+            query: { keepMemberId, removeMemberId },
+          },
+        }),
+      ),
   });
 
   const mergeMutation = useMutation({
     mutationFn: () =>
-      api.post<{ success: boolean }>("/admin/merge-members", {
-        keepMemberId,
-        removeMemberId,
-      }),
+      callApi(
+        api.POST("/api/admin/merge-members", {
+          body: { keepMemberId, removeMemberId },
+        }),
+      ),
     onSuccess: () => onMerged(),
   });
 

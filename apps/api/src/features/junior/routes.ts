@@ -1,14 +1,18 @@
-import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams } from "../../lib/validation.ts";
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import {
   getAuthSession,
   requireRole,
   requireVerifiedEmail,
 } from "../auth/middleware.ts";
 import {
+  addDependentsResponseSchema,
   addDependentsSchema,
   dependentIdParamSchema,
+  getDependentsResponseSchema,
+  playerDetailResponseSchema,
+  playersResponseSchema,
   teamIdParamSchema,
+  teamResponseSchema,
 } from "./schemas.ts";
 import {
   addDependents,
@@ -19,7 +23,7 @@ import {
 } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
-export const juniorRoutes: FastifyPluginAsync = async (app) => {
+export const juniorRoutes: FastifyPluginAsyncZod = async (app) => {
   const add = addDependents(app.db);
   const get = getDependents(app.db);
   const teams = listMyTeams(app.db);
@@ -28,10 +32,16 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/junior/dependents",
-    { preHandler: [requireVerifiedEmail] },
+    {
+      preHandler: [requireVerifiedEmail],
+      schema: {
+        body: addDependentsSchema,
+        response: { 200: addDependentsResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
-      const { dependents } = parseBody(request, addDependentsSchema);
+      const { dependents } = request.body;
       const result = await add(user.email, dependents);
       return result;
     },
@@ -39,7 +49,12 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/junior/dependents",
-    { preHandler: [requireVerifiedEmail] },
+    {
+      preHandler: [requireVerifiedEmail],
+      schema: {
+        response: { 200: getDependentsResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       return await get(user.email);
@@ -48,7 +63,12 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/junior/teams",
-    { preHandler: [requireRole("junior_manager", "admin")] },
+    {
+      preHandler: [requireRole("junior_manager", "admin")],
+      schema: {
+        response: { 200: teamResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
@@ -58,22 +78,34 @@ export const juniorRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/junior/teams/:teamId/players",
-    { preHandler: [requireRole("junior_manager", "admin")] },
+    {
+      preHandler: [requireRole("junior_manager", "admin")],
+      schema: {
+        params: teamIdParamSchema,
+        response: { 200: playersResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { teamId } = parseParams(request, teamIdParamSchema);
+      const { teamId } = request.params;
       return await players(user.id, role, teamId);
     },
   );
 
   app.get(
     "/junior/players/:dependentId",
-    { preHandler: [requireRole("junior_manager", "admin")] },
+    {
+      preHandler: [requireRole("junior_manager", "admin")],
+      schema: {
+        params: dependentIdParamSchema,
+        response: { 200: playerDetailResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { dependentId } = parseParams(request, dependentIdParamSchema);
+      const { dependentId } = request.params;
       return await playerDetail(user.id, role, dependentId);
     },
   );

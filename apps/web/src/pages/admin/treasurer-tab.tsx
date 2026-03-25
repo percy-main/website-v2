@@ -22,7 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
@@ -39,83 +40,12 @@ import { formatDate, formatPence } from "./status-pill";
 
 // --- Types ---
 
-interface IncomeByMonthResponse {
-  charges: Array<{ month: string; type: string; total_pence: number }>;
-  gameSponsorIncome: Array<{ month: string; total_pence: number }>;
-  playerSponsorIncome: Array<{ month: string; total_pence: number }>;
-}
+type SponsorshipSummaryResponse =
+  paths["/api/treasurer/sponsorship-summary"]["get"]["responses"]["200"]["content"]["application/json"];
 
-interface MembershipSummaryResponse {
-  memberships: Array<{
-    type: string;
-    total: number;
-    active: number;
-    lapsed: number;
-  }>;
-}
-
-interface OutstandingPaymentsResponse {
-  items: Array<{
-    id: string;
-    type: string;
-    amount_pence: number;
-    charge_date: string;
-    description: string;
-    member_name: string;
-    member_email: string;
-    user_id?: string;
-  }>;
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-interface SponsorshipSummaryResponse {
-  gameSponsorship: {
-    total: number;
-    approved_paid: number;
-    pending_payment: number;
-    pending_approval: number;
-    total_amount_pence: number;
-  };
-  playerSponsorship: {
-    total: number;
-    approved_paid: number;
-    pending_payment: number;
-    pending_approval: number;
-    total_amount_pence: number;
-  };
-}
-
-interface MatchdayExpensesSummaryResponse {
-  breakdown: Array<{
-    expense_type: string;
-    count: number;
-    total_pence: number;
-  }>;
-  grandTotal: number;
-}
-
-interface Expense {
-  id: string;
-  expense_type: string;
-  description: string | null;
-  amount_pence: number;
-  receipt_image_url: string | null;
-  created_at: string;
-  status: string;
-  submitted_at: string | null;
-  approved_at: string | null;
-  rejected_reason: string | null;
-  reimbursed_at: string | null;
-  match_date: string;
-  opposition: string;
-  submitted_by_name: string;
-}
-
-interface ExpensesWithReceiptsResponse {
-  expenses: Expense[];
-}
+type ExpensesWithReceiptsResponse =
+  paths["/api/treasurer/expenses-with-receipts"]["get"]["responses"]["200"]["content"]["application/json"];
+type Expense = ExpensesWithReceiptsResponse["expenses"][number];
 
 // --- Helpers ---
 
@@ -183,59 +113,76 @@ export function TreasurerTab() {
   const [chasingId, setChasingId] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
-  const dateParams = `dateFrom=${dateFrom}&dateTo=${dateTo}`;
 
   // --- Queries ---
 
   const incomeQuery = useQuery({
     queryKey: ["treasurer", "income-by-month", dateFrom, dateTo],
     queryFn: () =>
-      api.get<IncomeByMonthResponse>(
-        `/treasurer/income-by-month?${dateParams}`,
+      callApi(
+        api.GET("/api/treasurer/income-by-month", {
+          params: { query: { dateFrom, dateTo } },
+        }),
       ),
   });
 
   const membershipQuery = useQuery({
     queryKey: ["treasurer", "membership-summary"],
-    queryFn: () =>
-      api.get<MembershipSummaryResponse>(`/treasurer/membership-summary`),
+    queryFn: () => callApi(api.GET("/api/treasurer/membership-summary")),
   });
 
   const outstandingQuery = useQuery({
     queryKey: ["treasurer", "outstanding-payments", outstandingPage],
     queryFn: () =>
-      api.get<OutstandingPaymentsResponse>(
-        `/treasurer/outstanding-payments?page=${outstandingPage}&pageSize=${PAGE_SIZE}`,
+      callApi(
+        api.GET("/api/treasurer/outstanding-payments", {
+          params: {
+            query: {
+              page: outstandingPage,
+              pageSize: PAGE_SIZE,
+            },
+          },
+        }),
       ),
   });
 
   const sponsorshipQuery = useQuery({
     queryKey: ["treasurer", "sponsorship-summary", dateFrom, dateTo],
     queryFn: () =>
-      api.get<SponsorshipSummaryResponse>(
-        `/treasurer/sponsorship-summary?${dateParams}`,
+      callApi(
+        api.GET("/api/treasurer/sponsorship-summary", {
+          params: { query: { dateFrom, dateTo } },
+        }),
       ),
   });
 
   const expensesSummaryQuery = useQuery({
     queryKey: ["treasurer", "matchday-expenses-summary", dateFrom, dateTo],
     queryFn: () =>
-      api.get<MatchdayExpensesSummaryResponse>(
-        `/treasurer/matchday-expenses-summary?${dateParams}`,
+      callApi(
+        api.GET("/api/treasurer/matchday-expenses-summary", {
+          params: { query: { dateFrom, dateTo } },
+        }),
       ),
   });
 
   const expensesDetailQuery = useQuery({
     queryKey: ["treasurer", "expenses-with-receipts", dateFrom, dateTo],
     queryFn: () =>
-      api.get<ExpensesWithReceiptsResponse>(
-        `/treasurer/expenses-with-receipts?${dateParams}`,
+      callApi(
+        api.GET("/api/treasurer/expenses-with-receipts", {
+          params: { query: { dateFrom, dateTo } },
+        }),
       ),
   });
 
   const chaseMutation = useMutation({
     mutationFn: (userId: string) =>
-      api.post("/admin/charge-notification", { userId }),
+      callApi(
+        api.POST("/api/admin/charge-notification", {
+          body: { userId },
+        }),
+      ),
     onSuccess: () => {
       setChasingId(null);
     },
@@ -252,7 +199,11 @@ export function TreasurerTab() {
 
   const approveMutation = useMutation({
     mutationFn: (expenseId: string) =>
-      api.post(`/matchday/expenses/${expenseId}/approve`, {}),
+      callApi(
+        api.POST("/api/matchday/expenses/{expenseId}/approve", {
+          params: { path: { expenseId } },
+        }),
+      ),
     onSuccess: () => {
       setSelectedExpense(null);
       invalidateExpenses();
@@ -266,7 +217,13 @@ export function TreasurerTab() {
     }: {
       expenseId: string;
       reason: string;
-    }) => api.post(`/matchday/expenses/${expenseId}/reject`, { reason }),
+    }) =>
+      callApi(
+        api.POST("/api/matchday/expenses/{expenseId}/reject", {
+          params: { path: { expenseId } },
+          body: { reason },
+        }),
+      ),
     onSuccess: () => {
       setSelectedExpense(null);
       setRejectingId(null);
@@ -277,7 +234,11 @@ export function TreasurerTab() {
 
   const reimburseMutation = useMutation({
     mutationFn: (expenseId: string) =>
-      api.post(`/matchday/expenses/${expenseId}/reimburse`, {}),
+      callApi(
+        api.POST("/api/matchday/expenses/{expenseId}/reimburse", {
+          params: { path: { expenseId } },
+        }),
+      ),
     onSuccess: () => {
       setSelectedExpense(null);
       invalidateExpenses();
@@ -574,9 +535,9 @@ export function TreasurerTab() {
                 </TableHeader>
                 <TableBody>
                   {membershipQuery.data?.memberships.map((m) => (
-                    <TableRow key={m.type}>
+                    <TableRow key={m.type ?? "unknown"}>
                       <TableCell>
-                        {MEMBERSHIP_TYPE_LABELS[m.type] ?? m.type}
+                        {MEMBERSHIP_TYPE_LABELS[m.type ?? "unknown"] ?? m.type}
                       </TableCell>
                       <TableCell className="text-right">
                         <Badge variant="success">{m.active}</Badge>
@@ -916,11 +877,12 @@ export function TreasurerTab() {
                               variant="default"
                               size="sm"
                               disabled={
-                                chaseMutation.isPending || !item.user_id
+                                chaseMutation.isPending || !("user_id" in item)
                               }
                               onClick={() => {
-                                if (item.user_id)
-                                  chaseMutation.mutate(item.user_id);
+                                const userId = (item as { user_id?: string })
+                                  .user_id;
+                                if (userId) chaseMutation.mutate(userId);
                               }}
                             >
                               Send

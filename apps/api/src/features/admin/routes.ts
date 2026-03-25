@@ -1,37 +1,72 @@
-import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { getAuthSession, requireRole } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import { getMatchdayReport, listGameReports } from "./game-reports-service.ts";
 import {
+  addMatchFeeRateResponseSchema,
   addMatchFeeRateSchema,
+  archiveMemberResponseSchema,
   archiveMemberSchema,
+  chargeAggregatesResponseSchema,
   chargeAggregatesSchema,
   chargeIdParamSchema,
+  chargeNotificationResponseSchema,
   chargeNotificationSchema,
+  chasePaymentResponseSchema,
   chasePaymentSchema,
+  createChargeResponseSchema,
   createChargeSchema,
+  createMemberResponseSchema,
   createMemberSchema,
+  deleteChargeResponseSchema,
   deleteChargeSchema,
+  deleteMatchFeeRateResponseSchema,
+  findDuplicatesResponseSchema,
+  getUserDetailResponseSchema,
+  juniorTeamsResponseSchema,
+  linkDependentResponseSchema,
   linkDependentSchema,
+  linkPlayCricketResponseSchema,
+  linkSlugResponseSchema,
+  listChargesResponseSchema,
   listChargesSchema,
+  listContactSubmissionsResponseSchema,
   listContactSubmissionsSchema,
+  listGameReportsResponseSchema,
   listGameReportsSchema,
+  listJuniorsResponseSchema,
   listJuniorsSchema,
+  listUsersResponseSchema,
   listUsersSchema,
+  matchFeeRatesResponseSchema,
   matchdayIdParamSchema,
+  matchdayReportResponseSchema,
+  mergeMembersResponseSchema,
   mergeMembersSchema,
+  mergePreviewResponseSchema,
   mergePreviewSchema,
+  playCricketPlayersResponseSchema,
+  playCricketTeamsResponseSchema,
   rateIdParamSchema,
+  recordLinkingResponseSchema,
   recordLinkingSchema,
+  restoreMemberResponseSchema,
+  searchUsersForLinkingResponseSchema,
   searchUsersForLinkingSchema,
+  setJuniorManagerTeamsResponseSchema,
   setJuniorManagerTeamsSchema,
+  setMemberCategoryResponseSchema,
   setMemberCategorySchema,
+  setOfficialTeamsResponseSchema,
   setOfficialTeamsSchema,
   slugLinkSchema,
   slugUnlinkSchema,
+  unlinkDependentResponseSchema,
   unlinkDependentSchema,
+  unlinkPlayCricketResponseSchema,
   unlinkSchema,
+  unlinkSlugResponseSchema,
+  updateUserResponseSchema,
   updateUserSchema,
   userIdParamSchema,
 } from "./schemas.ts";
@@ -72,7 +107,7 @@ import {
 } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
-export const adminRoutes: FastifyPluginAsync = async (app) => {
+export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const list = listUsers(app.db);
   const update = updateUser(app.db);
   const create = createMember(app.db);
@@ -111,106 +146,168 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/admin/users",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: listUsersSchema,
+        response: { 200: listUsersResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, listUsersSchema);
-      return await list(params);
+      return await list(request.query);
     },
   );
 
   app.get(
     "/admin/users/:userId",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: userIdParamSchema,
+        response: { 200: getUserDetailResponseSchema },
+      },
+    },
     async (request) => {
-      const { userId } = parseParams(request, userIdParamSchema);
-      return await detail(userId);
+      return await detail(request.params.userId);
     },
   );
 
   app.put(
     "/admin/users/:userId",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: userIdParamSchema,
+        body: updateUserSchema,
+        response: { 200: updateUserResponseSchema },
+      },
+    },
     async (request) => {
-      const { userId } = parseParams(request, userIdParamSchema);
-      const data = parseBody(request, updateUserSchema);
-      return await update(userId, data);
+      return await update(request.params.userId, request.body);
     },
   );
 
   app.put(
     "/admin/users/:userId/category",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: userIdParamSchema,
+        body: setMemberCategorySchema,
+        response: { 200: setMemberCategoryResponseSchema },
+      },
+    },
     async (request) => {
-      const { userId } = parseParams(request, userIdParamSchema);
-      const { memberCategory } = parseBody(request, setMemberCategorySchema);
-      return await setCategory(userId, memberCategory);
+      return await setCategory(
+        request.params.userId,
+        request.body.memberCategory,
+      );
     },
   );
 
   app.post(
     "/admin/users/:userId/archive",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: userIdParamSchema,
+        body: archiveMemberSchema,
+        response: { 200: archiveMemberResponseSchema },
+      },
+    },
     async (request) => {
-      const { userId } = parseParams(request, userIdParamSchema);
-      const { reason } = parseBody(request, archiveMemberSchema);
-      return await archive(userId, reason);
+      return await archive(request.params.userId, request.body.reason);
     },
   );
 
   app.post(
     "/admin/users/:userId/restore",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: userIdParamSchema,
+        response: { 200: restoreMemberResponseSchema },
+      },
+    },
     async (request) => {
-      const { userId } = parseParams(request, userIdParamSchema);
-      return await restore(userId);
+      return await restore(request.params.userId);
     },
   );
 
   app.post(
     "/admin/users/:userId/charges",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: userIdParamSchema,
+        body: createChargeSchema,
+        response: { 200: createChargeResponseSchema },
+      },
+    },
     async (request) => {
-      const { userId } = parseParams(request, userIdParamSchema);
       const { user } = getAuthSession(request);
-      const data = parseBody(request, createChargeSchema);
-      return await addCharge(userId, user.id, data);
+      return await addCharge(request.params.userId, user.id, request.body);
     },
   );
 
   app.delete(
     "/admin/charges/:chargeId",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: chargeIdParamSchema,
+        body: deleteChargeSchema,
+        response: { 200: deleteChargeResponseSchema },
+      },
+    },
     async (request) => {
-      const { chargeId } = parseParams(request, chargeIdParamSchema);
       const { user } = getAuthSession(request);
-      const { reason } = parseBody(request, deleteChargeSchema);
-      return await removeCharge(chargeId, user.id, reason);
+      return await removeCharge(
+        request.params.chargeId,
+        user.id,
+        request.body.reason,
+      );
     },
   );
 
   app.put(
     "/admin/users/:userId/junior-manager-teams",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: userIdParamSchema,
+        body: setJuniorManagerTeamsSchema,
+        response: { 200: setJuniorManagerTeamsResponseSchema },
+      },
+    },
     async (request) => {
-      const { userId } = parseParams(request, userIdParamSchema);
-      const { teamIds } = parseBody(request, setJuniorManagerTeamsSchema);
-      return await setJrTeams(userId, teamIds);
+      return await setJrTeams(request.params.userId, request.body.teamIds);
     },
   );
 
   app.put(
     "/admin/users/:userId/official-teams",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: userIdParamSchema,
+        body: setOfficialTeamsSchema,
+        response: { 200: setOfficialTeamsResponseSchema },
+      },
+    },
     async (request) => {
-      const { userId } = parseParams(request, userIdParamSchema);
-      const { teamIds } = parseBody(request, setOfficialTeamsSchema);
-      return await setOffTeams(userId, teamIds);
+      return await setOffTeams(request.params.userId, request.body.teamIds);
     },
   );
 
   app.get(
     "/admin/junior-teams",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        response: { 200: juniorTeamsResponseSchema },
+      },
+    },
     async () => {
       return await juniorTeams();
     },
@@ -218,7 +315,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/admin/play-cricket-teams",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        response: { 200: playCricketTeamsResponseSchema },
+      },
+    },
     async () => {
       return await pcTeams();
     },
@@ -227,7 +329,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Fetch players from the Play-Cricket external API (mirrors v1 refreshPlayCricketPlayers action)
   app.get(
     "/admin/play-cricket-players",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        response: { 200: playCricketPlayersResponseSchema },
+      },
+    },
     async () => {
       if (
         !app.config.PLAY_CRICKET_API_TOKEN ||
@@ -255,25 +362,40 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/admin/members",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: createMemberSchema,
+        response: { 200: createMemberResponseSchema },
+      },
+    },
     async (request) => {
-      const data = parseBody(request, createMemberSchema);
-      return await create(data);
+      return await create(request.body);
     },
   );
 
   app.post(
     "/admin/charge-notification",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: chargeNotificationSchema,
+        response: { 200: chargeNotificationResponseSchema },
+      },
+    },
     async (request) => {
-      const { userId } = parseBody(request, chargeNotificationSchema);
-      return await notify(userId);
+      return await notify(request.body.userId);
     },
   );
 
   app.get(
     "/admin/record-linking",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        response: { 200: recordLinkingResponseSchema },
+      },
+    },
     async () => {
       return await recordLinking();
     },
@@ -281,40 +403,59 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/admin/record-linking/play-cricket/link",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: recordLinkingSchema,
+        response: { 200: linkPlayCricketResponseSchema },
+      },
+    },
     async (request) => {
-      const { type, id, playCricketId } = parseBody(
-        request,
-        recordLinkingSchema,
-      );
+      const { type, id, playCricketId } = request.body;
       return await linkPC(type, id, playCricketId);
     },
   );
 
   app.post(
     "/admin/record-linking/play-cricket/unlink",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: unlinkSchema,
+        response: { 200: unlinkPlayCricketResponseSchema },
+      },
+    },
     async (request) => {
-      const { type, id } = parseBody(request, unlinkSchema);
+      const { type, id } = request.body;
       return await unlinkPC(type, id);
     },
   );
 
   app.post(
     "/admin/record-linking/slug/link",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: slugLinkSchema,
+        response: { 200: linkSlugResponseSchema },
+      },
+    },
     async (request) => {
-      const { memberId, slug } = parseBody(request, slugLinkSchema);
-      return await linkSl(memberId, slug);
+      return await linkSl(request.body.memberId, request.body.slug);
     },
   );
 
   app.post(
     "/admin/record-linking/slug/unlink",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: slugUnlinkSchema,
+        response: { 200: unlinkSlugResponseSchema },
+      },
+    },
     async (request) => {
-      const { memberId } = parseBody(request, slugUnlinkSchema);
-      return await unlinkSl(memberId);
+      return await unlinkSl(request.body.memberId);
     },
   );
 
@@ -322,28 +463,43 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/admin/charges",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: listChargesSchema,
+        response: { 200: listChargesResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, listChargesSchema);
-      return await listCharges(params);
+      return await listCharges(request.query);
     },
   );
 
   app.get(
     "/admin/charge-aggregates",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: chargeAggregatesSchema,
+        response: { 200: chargeAggregatesResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, chargeAggregatesSchema);
-      return await chargeAggregates(params);
+      return await chargeAggregates(request.query);
     },
   );
 
   app.post(
     "/admin/chase-payment",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: chasePaymentSchema,
+        response: { 200: chasePaymentResponseSchema },
+      },
+    },
     async (request) => {
-      const { chargeId } = parseBody(request, chasePaymentSchema);
-      return await chase(chargeId);
+      return await chase(request.body.chargeId);
     },
   );
 
@@ -351,10 +507,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/admin/contact-submissions",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: listContactSubmissionsSchema,
+        response: { 200: listContactSubmissionsResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, listContactSubmissionsSchema);
-      return await listContacts(params);
+      return await listContacts(request.query);
     },
   );
 
@@ -362,37 +523,57 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/admin/juniors",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: listJuniorsSchema,
+        response: { 200: listJuniorsResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, listJuniorsSchema);
-      return await listJr(params);
+      return await listJr(request.query);
     },
   );
 
   app.get(
     "/admin/juniors/search-users",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: searchUsersForLinkingSchema,
+        response: { 200: searchUsersForLinkingResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, searchUsersForLinkingSchema);
-      return await searchForLinking(params);
+      return await searchForLinking(request.query);
     },
   );
 
   app.post(
     "/admin/juniors/link",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: linkDependentSchema,
+        response: { 200: linkDependentResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseBody(request, linkDependentSchema);
-      return await linkDep(params);
+      return await linkDep(request.body);
     },
   );
 
   app.post(
     "/admin/juniors/unlink",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: unlinkDependentSchema,
+        response: { 200: unlinkDependentResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseBody(request, unlinkDependentSchema);
-      return await unlinkDep(params);
+      return await unlinkDep(request.body);
     },
   );
 
@@ -400,7 +581,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/admin/duplicates",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        response: { 200: findDuplicatesResponseSchema },
+      },
+    },
     async () => {
       return await findDuplicates();
     },
@@ -408,19 +594,29 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/admin/merge-preview",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: mergePreviewSchema,
+        response: { 200: mergePreviewResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, mergePreviewSchema);
-      return await previewMerge(params);
+      return await previewMerge(request.query);
     },
   );
 
   app.post(
     "/admin/merge-members",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: mergeMembersSchema,
+        response: { 200: mergeMembersResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseBody(request, mergeMembersSchema);
-      return await merge(params);
+      return await merge(request.body);
     },
   );
 
@@ -428,7 +624,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/admin/match-fee-rates",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        response: { 200: matchFeeRatesResponseSchema },
+      },
+    },
     async () => {
       return await listFeeRates();
     },
@@ -436,19 +637,29 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/admin/match-fee-rates",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: addMatchFeeRateSchema,
+        response: { 200: addMatchFeeRateResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseBody(request, addMatchFeeRateSchema);
-      return await addFeeRate(params);
+      return await addFeeRate(request.body);
     },
   );
 
   app.delete(
     "/admin/match-fee-rates/:rateId",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: rateIdParamSchema,
+        response: { 200: deleteMatchFeeRateResponseSchema },
+      },
+    },
     async (request) => {
-      const { rateId } = parseParams(request, rateIdParamSchema);
-      return await deleteFeeRate(rateId);
+      return await deleteFeeRate(request.params.rateId);
     },
   );
 
@@ -456,19 +667,29 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/admin/game-reports",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: listGameReportsSchema,
+        response: { 200: listGameReportsResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, listGameReportsSchema);
-      return await listReports(params);
+      return await listReports(request.query);
     },
   );
 
   app.get(
     "/admin/game-reports/:matchdayId",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: matchdayIdParamSchema,
+        response: { 200: matchdayReportResponseSchema },
+      },
+    },
     async (request) => {
-      const { matchdayId } = parseParams(request, matchdayIdParamSchema);
-      return await getReport(matchdayId);
+      return await getReport(request.params.matchdayId);
     },
   );
 };

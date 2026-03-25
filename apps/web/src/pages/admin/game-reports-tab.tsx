@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatDate, formatPence } from "./status-pill";
@@ -28,70 +28,7 @@ const EXPENSE_TYPE_LABELS: Record<string, string> = {
   miscellaneous: "Miscellaneous",
 };
 
-interface PlayCricketTeam {
-  id: string;
-  name: string;
-}
-
-interface MatchdayListItem {
-  id: string;
-  match_date: string;
-  opposition: string;
-  status: string;
-  play_cricket_team_id: string;
-  competition_type: string | null;
-  team_name: string | null;
-}
-
-interface MatchdayListResponse {
-  matchdays: MatchdayListItem[];
-  total: number;
-}
-
 type ChargeStatus = "paid" | "pending" | "unpaid" | "abandoned" | "deleted";
-
-interface MatchdayReportPlayer {
-  id: string | null;
-  player_name: string;
-  status: string;
-  member_id: string | null;
-  member_category: string | null;
-  charge_amount_pence: number | null;
-  charge_paid_at: string | null;
-  charge_payment_method: string | null;
-  charge_status: ChargeStatus | null;
-}
-
-interface MatchdayReportExpense {
-  id: string;
-  expense_type: string;
-  description: string | null;
-  amount_pence: number;
-}
-
-interface MatchdayReportResponse {
-  matchday: {
-    id: string;
-    match_date: string;
-    opposition: string;
-    status: string;
-    competition_type: string | null;
-    play_cricket_team_id: string;
-  };
-  team: { id: string; name: string } | null;
-  players: MatchdayReportPlayer[];
-  expenses: MatchdayReportExpense[];
-  sponsorship: { sponsor_name: string; amount_pence: number } | null;
-  summary: {
-    totalIncoming: number;
-    totalPaid: number;
-    totalPending: number;
-    totalOutstanding: number;
-    totalExpenses: number;
-    sponsorshipIncome: number;
-    profitLoss: number;
-  };
-}
 
 function formatMatchDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -112,20 +49,22 @@ export function GameReportsTab() {
 
   const teamsQuery = useQuery({
     queryKey: ["admin", "playCricketTeams"],
-    queryFn: () => api.get<PlayCricketTeam[]>("/admin/play-cricket-teams"),
+    queryFn: () => callApi(api.GET("/api/admin/play-cricket-teams")),
   });
 
   const matchdaysQuery = useQuery({
     queryKey: ["admin", "gameReports", teamFilter],
-    queryFn: () => {
-      const params = new URLSearchParams();
-      if (teamFilter !== "all") params.set("teamId", teamFilter);
-      params.set("limit", "50");
-      const qs = params.toString();
-      return api.get<MatchdayListResponse>(
-        `/admin/game-reports${qs ? `?${qs}` : ""}`,
-      );
-    },
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/game-reports", {
+          params: {
+            query: {
+              limit: 50,
+              ...(teamFilter !== "all" ? { teamId: teamFilter } : {}),
+            },
+          },
+        }),
+      ),
   });
 
   const teams = teamsQuery.data ?? [];
@@ -268,7 +207,11 @@ function MatchdayReport({
   const reportQuery = useQuery({
     queryKey: ["admin", "matchdayReport", matchdayId],
     queryFn: () =>
-      api.get<MatchdayReportResponse>(`/admin/game-reports/${matchdayId}`),
+      callApi(
+        api.GET("/api/admin/game-reports/{matchdayId}", {
+          params: { path: { matchdayId } },
+        }),
+      ),
   });
 
   const data = reportQuery.data;

@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
@@ -20,30 +20,6 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-
-interface PriceInfo {
-  productName: string;
-  unitAmount: number;
-  formattedPrice: string;
-  customAmount?: {
-    min: number;
-    max?: number;
-    preset?: number;
-  };
-  qtyAdjustable: boolean;
-  maxQty?: number;
-}
-
-interface PurchaseResponse {
-  clientSecret: string;
-  amount: number;
-  productName: string;
-}
-
-interface SubscribeResponse {
-  clientSecret: string;
-  subscriptionId: string;
-}
 
 type State =
   | { step: "ready" }
@@ -66,9 +42,14 @@ export function Component() {
   const email = searchParams.get("email");
   const isSubscription = searchParams.get("type") === "subscription";
 
-  const { data: priceInfo, isLoading: priceLoading } = useQuery<PriceInfo>({
+  const { data: priceInfo, isLoading: priceLoading } = useQuery({
     queryKey: ["price", priceId],
-    queryFn: () => api.get(`/price/${priceId}`),
+    queryFn: () =>
+      callApi(
+        api.GET("/api/price/{priceId}", {
+          params: { path: { priceId: priceId ?? "" } },
+        }),
+      ),
     enabled: !!priceId,
     staleTime: 5 * 60_000,
   });
@@ -108,11 +89,20 @@ export function Component() {
 
       if (isSubscription) {
         if (!email) throw new Error("Email is required for subscriptions");
-        const result = await api.post<SubscribeResponse>("/subscribe", {
-          priceId,
-          email,
-          metadata: parsed,
-        });
+        const membership = parsed?.membership as
+          | "social"
+          | "senior_player"
+          | "senior_women_player"
+          | "concessionary";
+        const result = await callApi(
+          api.POST("/api/subscribe", {
+            body: {
+              priceId: priceId ?? "",
+              email,
+              membership,
+            },
+          }),
+        );
         return {
           clientSecret: result.clientSecret,
           amount: 0,
@@ -120,15 +110,20 @@ export function Component() {
         };
       }
 
-      return await api.post<PurchaseResponse>("/purchase", {
-        priceId,
-        quantity,
-        customAmountPence,
-        metadata: parsed,
-        email: email ?? undefined,
-      });
+      return await callApi(
+        api.POST("/api/purchase", {
+          body: {
+            priceId: priceId ?? "",
+            quantity,
+            customAmountPence,
+            metadata: parsed as Record<string, string> | undefined,
+            email: email ?? undefined,
+          },
+        }),
+      );
     },
     onSuccess: (data) => {
+      if (!data.clientSecret) return;
       setState({
         step: "paying",
         clientSecret: data.clientSecret,

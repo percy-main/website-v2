@@ -1,27 +1,18 @@
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { z } from "zod";
 
 const medals = ["\ud83e\udd47", "\ud83e\udd48", "\ud83e\udd49"];
-
-const leaderboardSchema = z.array(
-  z.object({
-    name: z.string().nullable(),
-    score: z.number(),
-    level: z.number(),
-    catches: z.number(),
-    bestStreak: z.number(),
-  }),
-);
 
 function useLeaderboard() {
   return useQuery({
     queryKey: ["leaderboard", "be-the-keeper"],
-    queryFn: async () =>
-      leaderboardSchema.parse(
-        await api.get("/leaderboard?game=be-the-keeper&limit=25"),
+    queryFn: () =>
+      callApi(
+        api.GET("/api/leaderboard", {
+          params: { query: { game: "be-the-keeper", limit: 25 } },
+        }),
       ),
   });
 }

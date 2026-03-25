@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { getImageUrl, getPicture } from "@/lib/image-map";
 import { getPersonBySlug } from "@/lib/people";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -30,18 +30,6 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
   currency: "GBP",
   minimumFractionDigits: 2,
 });
-
-interface PriceInfo {
-  amountPence: number;
-  currency: string;
-  productName: string;
-}
-
-interface PaymentResult {
-  clientSecret: string;
-  amount: number;
-  productName: string;
-}
 
 type Step = "details" | "paying" | "success";
 
@@ -103,21 +91,25 @@ export function Component() {
 
   const priceQuery = useQuery({
     queryKey: ["player-sponsorship-price"],
-    queryFn: () => api.get<PriceInfo>("/sponsorship/player/price"),
+    queryFn: () => callApi(api.GET("/api/sponsorship/player/price")),
     staleTime: 5 * 60 * 1000,
   });
 
   const paymentMutation = useMutation({
     mutationFn: () =>
-      api.post<PaymentResult>("/sponsorship/player/create-payment", {
-        slug,
-        playerName: person?.name ?? "",
-        sponsorName,
-        sponsorEmail,
-        sponsorWebsite: sponsorWebsite || undefined,
-        sponsorLogoDataUrl: logoDataUrl ?? undefined,
-        sponsorMessage: sponsorMessage || undefined,
-      }),
+      callApi(
+        api.POST("/api/sponsorship/player/create-payment", {
+          body: {
+            slug: slug ?? "",
+            playerName: person?.name ?? "",
+            sponsorName,
+            sponsorEmail,
+            sponsorWebsite: sponsorWebsite || undefined,
+            sponsorLogoDataUrl: logoDataUrl ?? undefined,
+            sponsorMessage: sponsorMessage || undefined,
+          },
+        }),
+      ),
     onSuccess: () => setStep("paying"),
   });
 
@@ -188,7 +180,7 @@ export function Component() {
     );
   }
 
-  if (step === "paying" && paymentMutation.data) {
+  if (step === "paying" && paymentMutation.data?.clientSecret) {
     return (
       <div className="container mx-auto max-w-md px-4 py-12">
         <PaymentForm

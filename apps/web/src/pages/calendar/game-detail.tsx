@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge.js";
 import { buttonVariants } from "@/components/ui/button.js";
 import { Card, CardContent } from "@/components/ui/card.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api.js";
+import { api, callApi } from "@/lib/api-client.js";
+import type { paths } from "@/lib/api.gen.js";
 import { getGameReport } from "@/lib/game-reports.js";
 import { getLocationByName } from "@/lib/locations.js";
 import { cn } from "@/lib/utils.js";
@@ -19,7 +20,8 @@ import { useEffect } from "react";
 import { IoCalendar, IoChevronForward } from "react-icons/io5";
 import { Link, useParams, useSearchParams } from "react-router";
 
-type Outcome = "W" | "L" | "D" | "T" | "A" | "C" | "N";
+type GameData =
+  paths["/api/games/{matchId}"]["get"]["responses"]["200"]["content"]["application/json"];
 
 // Strip the ?og=1 bypass param that CloudFront adds when redirecting
 // through the OG meta tag page, so users don't reshare the bypass URL.
@@ -36,9 +38,14 @@ function useStripOgParam() {
 function SponsorThisGame({ gameId, when }: { gameId: string; when: string }) {
   const isFuture = isAfter(new Date(when), new Date());
 
-  const pendingQuery = useQuery<{ hasPending: boolean }>({
+  const pendingQuery = useQuery({
     queryKey: ["game-sponsor-pending", gameId],
-    queryFn: () => api.get(`/sponsorship/game/${gameId}/pending`),
+    queryFn: () =>
+      callApi(
+        api.GET("/api/sponsorship/game/{gameId}/pending", {
+          params: { path: { gameId } },
+        }),
+      ),
     enabled: isFuture,
     staleTime: 30 * 1000,
   });
@@ -56,52 +63,6 @@ function SponsorThisGame({ gameId, when }: { gameId: string; when: string }) {
       </Link>
     </div>
   );
-}
-
-interface GameData {
-  id: string;
-  matchDate: string;
-  matchTime: string | null;
-  home: boolean;
-  team: { id: string; name: string };
-  opposition: {
-    club: { id: string; name: string };
-    team: { id: string; name: string };
-  };
-  league: { id: string; name: string };
-  competition: { id: string; name: string; type: string };
-  when: string | null;
-  outcome: Outcome | null;
-  scoreDescription: string | null;
-  sponsorName: string | null;
-  location: {
-    name: string;
-    street?: string;
-    city?: string;
-    postcode?: string;
-    county?: string;
-    country?: string;
-  } | null;
-  result: {
-    outcome: Outcome | null;
-    description: string;
-    toss: string;
-    innings: Array<{
-      teamBattingId: string;
-      teamName: string;
-      runs: number;
-      wickets: number;
-      overs: string;
-      declared: boolean;
-      allOut: boolean;
-    }>;
-  } | null;
-  sponsor: {
-    name: string;
-    logoUrl: string | null;
-    message: string | null;
-    website: string | null;
-  } | null;
 }
 
 function formatInningsScore(inn: {
@@ -410,9 +371,14 @@ export function Component() {
   const { id } = useParams<{ id: string }>();
   useStripOgParam();
 
-  const { data: game, isLoading } = useQuery<GameData>({
+  const { data: game, isLoading } = useQuery({
     queryKey: ["game", id],
-    queryFn: () => api.get(`/games/${id}`),
+    queryFn: () =>
+      callApi(
+        api.GET("/api/games/{matchId}", {
+          params: { path: { matchId: id ?? "" } },
+        }),
+      ),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
   });

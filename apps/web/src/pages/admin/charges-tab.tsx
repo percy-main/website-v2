@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { formatDate, formatPence } from "./status-pill";
@@ -27,45 +27,6 @@ import { formatDate, formatPence } from "./status-pill";
 const PAGE_SIZE = 20;
 
 type ChargeStatus = "all" | "unpaid" | "pending" | "paid" | "abandoned";
-
-interface Charge {
-  id: string;
-  memberId: string;
-  description: string;
-  amountPence: number;
-  chargeDate: string;
-  createdAt: string;
-  paidAt: string | null;
-  paymentConfirmedAt: string | null;
-  stripePaymentIntentId: string | null;
-  type: string;
-  source: string;
-  deletedAt: string | null;
-  deletedReason: string | null;
-  memberName: string | null;
-  memberEmail: string;
-  status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted";
-}
-
-interface ChargesResponse {
-  charges: Charge[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-interface AggregatesResponse {
-  totalCharged: number;
-  totalPaid: number;
-  totalOutstanding: number;
-  totalAbandoned: number;
-  totalDeleted: number;
-  countPaid: number;
-  countUnpaid: number;
-  countPending: number;
-  countAbandoned: number;
-  countDeleted: number;
-}
 
 const statusBadgeMap: Record<
   string,
@@ -126,36 +87,46 @@ export function ChargesTab() {
       dateTo,
       debouncedSearch,
     ],
-    queryFn: () => {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(PAGE_SIZE),
-        status,
-        showDeleted: String(showDeleted),
-      });
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      return api.get<ChargesResponse>(`/admin/charges?${params}`);
-    },
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/charges", {
+          params: {
+            query: {
+              page,
+              pageSize: PAGE_SIZE,
+              status,
+              showDeleted,
+              ...(dateFrom ? { dateFrom } : {}),
+              ...(dateTo ? { dateTo } : {}),
+              ...(debouncedSearch ? { search: debouncedSearch } : {}),
+            },
+          },
+        }),
+      ),
   });
 
   const aggregatesQuery = useQuery({
     queryKey: ["admin", "chargeAggregates", dateFrom, dateTo],
-    queryFn: () => {
-      const params = new URLSearchParams();
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
-      const qs = params.toString();
-      return api.get<AggregatesResponse>(
-        `/admin/charge-aggregates${qs ? `?${qs}` : ""}`,
-      );
-    },
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/charge-aggregates", {
+          params: {
+            query: {
+              ...(dateFrom ? { dateFrom } : {}),
+              ...(dateTo ? { dateTo } : {}),
+            },
+          },
+        }),
+      ),
   });
 
   const chaseMutation = useMutation({
     mutationFn: (chargeId: string) =>
-      api.post("/admin/chase-payment", { chargeId }),
+      callApi(
+        api.POST("/api/admin/chase-payment", {
+          body: { chargeId },
+        }),
+      ),
     onSuccess: () => {
       setChasingChargeId(null);
       void queryClient.invalidateQueries({ queryKey: ["admin", "charges"] });

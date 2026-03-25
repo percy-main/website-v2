@@ -1,23 +1,34 @@
-import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { getAuthSession, requireRole } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import {
+  addPlayerResponseSchema,
   addPlayerSchema,
   confirmTeamSchema,
+  createMatchdayResponseSchema,
   createMatchdaySchema,
   expenseIdParamSchema,
+  finishMatchResponseSchema,
   finishMatchSchema,
+  getMatchResponseSchema,
+  listMatchesResponseSchema,
   listMatchesSchema,
+  listPendingExpensesResponseSchema,
   listPendingExpensesSchema,
+  listTeamsResponseSchema,
   markPaidSchema,
   matchIdParamSchema,
   playerIdParamSchema,
+  recordExpenseResponseSchema,
   recordExpenseSchema,
   rejectExpenseSchema,
+  searchMembersResponseSchema,
   searchMembersSchema,
+  submitExpenseResponseSchema,
   submitExpenseSchema,
+  successResponseSchema,
   teamIdParamSchema,
+  upcomingMatchesResponseSchema,
   updateExpenseSchema,
 } from "./schemas.ts";
 import {
@@ -43,7 +54,7 @@ import {
 } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
-export const matchdayRoutes: FastifyPluginAsync = async (app) => {
+export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const officialRole = requireRole("official", "admin");
   const adminRole = requireRole("admin");
 
@@ -55,56 +66,91 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
   const update = updateExpense(app.db);
   const remove = deleteExpense(app.db);
 
-  app.get("/matchday", { preHandler: [officialRole] }, async (request) => {
-    const { user } = getAuthSession(request);
-    const role = (user as { role?: string | null }).role ?? "user";
-    const params = parseQuery(request, listMatchesSchema);
-    return await list(user.id, role, params);
-  });
-
   app.get(
-    "/matchday/:matchId",
-    { preHandler: [officialRole] },
+    "/matchday",
+    {
+      preHandler: [officialRole],
+      schema: {
+        querystring: listMatchesSchema,
+        response: { 200: listMatchesResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { matchId } = parseParams(request, matchIdParamSchema);
-      return await get(user.id, role, matchId);
+      return await list(user.id, role, request.query);
+    },
+  );
+
+  app.get(
+    "/matchday/:matchId",
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: matchIdParamSchema,
+        response: { 200: getMatchResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await get(user.id, role, request.params.matchId);
     },
   );
 
   app.post(
     "/matchday/:matchId/expenses",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: matchIdParamSchema,
+        body: recordExpenseSchema,
+        response: { 200: recordExpenseResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { matchId } = parseParams(request, matchIdParamSchema);
-      const data = parseBody(request, recordExpenseSchema);
-      return await record(user.id, role, { ...data, matchId });
+      return await record(user.id, role, {
+        ...request.body,
+        matchId: request.params.matchId,
+      });
     },
   );
 
   app.put(
     "/matchday/expenses/:expenseId",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: expenseIdParamSchema,
+        body: updateExpenseSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { expenseId } = parseParams(request, expenseIdParamSchema);
-      const data = parseBody(request, updateExpenseSchema);
-      return await update(user.id, role, { ...data, expenseId });
+      return await update(user.id, role, {
+        ...request.body,
+        expenseId: request.params.expenseId,
+      });
     },
   );
 
   app.delete(
     "/matchday/expenses/:expenseId",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: expenseIdParamSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { expenseId } = parseParams(request, expenseIdParamSchema);
-      return await remove(user.id, role, expenseId);
+      return await remove(user.id, role, request.params.expenseId);
     },
   );
 
@@ -119,53 +165,81 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
   // Static route must be registered before parameterised :expenseId routes
   app.get(
     "/matchday/expenses/pending",
-    { preHandler: [adminRole] },
+    {
+      preHandler: [adminRole],
+      schema: {
+        querystring: listPendingExpensesSchema,
+        response: { 200: listPendingExpensesResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, listPendingExpensesSchema);
-      return await pending(params);
+      return await pending(request.query);
     },
   );
 
   app.post(
     "/matchday/:matchId/expenses/submit",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: matchIdParamSchema,
+        body: submitExpenseSchema,
+        response: { 200: submitExpenseResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { matchId } = parseParams(request, matchIdParamSchema);
-      const data = parseBody(request, submitExpenseSchema);
-      return await submit(user.id, role, { ...data, matchId });
+      return await submit(user.id, role, {
+        ...request.body,
+        matchId: request.params.matchId,
+      });
     },
   );
 
   app.post(
     "/matchday/expenses/:expenseId/approve",
-    { preHandler: [adminRole] },
+    {
+      preHandler: [adminRole],
+      schema: {
+        params: expenseIdParamSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
-      const { expenseId } = parseParams(request, expenseIdParamSchema);
-      return await approve(user.id, expenseId);
+      return await approve(user.id, request.params.expenseId);
     },
   );
 
   app.post(
     "/matchday/expenses/:expenseId/reject",
-    { preHandler: [adminRole] },
+    {
+      preHandler: [adminRole],
+      schema: {
+        params: expenseIdParamSchema,
+        body: rejectExpenseSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
-      const { expenseId } = parseParams(request, expenseIdParamSchema);
-      const data = parseBody(request, rejectExpenseSchema);
-      return await reject(user.id, expenseId, data);
+      return await reject(user.id, request.params.expenseId, request.body);
     },
   );
 
   app.post(
     "/matchday/expenses/:expenseId/reimburse",
-    { preHandler: [adminRole] },
+    {
+      preHandler: [adminRole],
+      schema: {
+        params: expenseIdParamSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
-      const { expenseId } = parseParams(request, expenseIdParamSchema);
-      return await reimburse(user.id, expenseId);
+      return await reimburse(user.id, request.params.expenseId);
     },
   );
 
@@ -195,7 +269,12 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/matchday/teams",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        response: { 200: listTeamsResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
@@ -205,89 +284,144 @@ export const matchdayRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/matchday/teams/:teamId/upcoming",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: teamIdParamSchema,
+        response: { 200: upcomingMatchesResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { teamId } = parseParams(request, teamIdParamSchema);
 
       if (!upcoming) return [];
-      return await upcoming(user.id, role, teamId);
+      return await upcoming(user.id, role, request.params.teamId);
     },
   );
 
-  app.post("/matchday", { preHandler: [officialRole] }, async (request) => {
-    const { user } = getAuthSession(request);
-    const role = (user as { role?: string | null }).role ?? "user";
-    const data = parseBody(request, createMatchdaySchema);
-    return await create(user.id, role, data);
-  });
+  app.post(
+    "/matchday",
+    {
+      preHandler: [officialRole],
+      schema: {
+        body: createMatchdaySchema,
+        response: { 200: createMatchdayResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await create(user.id, role, request.body);
+    },
+  );
 
   app.get(
     "/matchday/members/search",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        querystring: searchMembersSchema,
+        response: { 200: searchMembersResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, searchMembersSchema);
-      return await search(params);
+      return await search(request.query);
     },
   );
 
   app.post(
     "/matchday/:matchId/players",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: matchIdParamSchema,
+        body: addPlayerSchema,
+        response: { 200: addPlayerResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { matchId } = parseParams(request, matchIdParamSchema);
-      const data = parseBody(request, addPlayerSchema);
-      return await add(user.id, role, matchId, data);
+      return await add(user.id, role, request.params.matchId, request.body);
     },
   );
 
   app.delete(
     "/matchday/:matchId/players/:playerId",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: playerIdParamSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { matchId, playerId } = parseParams(request, playerIdParamSchema);
-      return await removeP(user.id, role, matchId, playerId);
+      return await removeP(
+        user.id,
+        role,
+        request.params.matchId,
+        request.params.playerId,
+      );
     },
   );
 
   app.post(
     "/matchday/:matchId/confirm",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: matchIdParamSchema,
+        body: confirmTeamSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { matchId } = parseParams(request, matchIdParamSchema);
-      const data = parseBody(request, confirmTeamSchema);
-      return await confirm(user.id, role, matchId, data);
+      return await confirm(user.id, role, request.params.matchId, request.body);
     },
   );
 
   app.post(
     "/matchday/:matchId/players/:playerId/mark-paid",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: playerIdParamSchema,
+        body: markPaidSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { matchId, playerId } = parseParams(request, playerIdParamSchema);
-      const data = parseBody(request, markPaidSchema);
-      return await paid(user.id, role, matchId, playerId, data);
+      return await paid(
+        user.id,
+        role,
+        request.params.matchId,
+        request.params.playerId,
+        request.body,
+      );
     },
   );
 
   app.post(
     "/matchday/:matchId/finish",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: matchIdParamSchema,
+        body: finishMatchSchema,
+        response: { 200: finishMatchResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const { matchId } = parseParams(request, matchIdParamSchema);
-      const data = parseBody(request, finishMatchSchema);
-      return await finish(user.id, role, matchId, data);
+      return await finish(user.id, role, request.params.matchId, request.body);
     },
   );
 };

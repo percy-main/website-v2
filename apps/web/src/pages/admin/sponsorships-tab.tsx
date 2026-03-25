@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatDate, formatPence } from "./status-pill";
@@ -32,47 +32,6 @@ const PAGE_SIZE = 20;
 
 type SubTab = "game" | "player";
 type FilterValue = "all" | "pending_payment" | "pending_approval" | "approved";
-
-interface GameSponsorship {
-  id: string;
-  game_id: string;
-  sponsor_name: string;
-  sponsor_email: string;
-  sponsor_website: string | null;
-  sponsor_logo_url: string | null;
-  sponsor_message: string | null;
-  amount_pence: number;
-  approved: boolean;
-  paid_at: string | null;
-  display_name: string | null;
-  notes: string | null;
-  created_at: string;
-}
-
-interface PlayerSponsorship {
-  id: string;
-  slug: string | null;
-  player_name: string;
-  season: string;
-  sponsor_name: string;
-  sponsor_email: string;
-  sponsor_website: string | null;
-  sponsor_logo_url: string | null;
-  sponsor_message: string | null;
-  amount_pence: number;
-  approved: boolean;
-  paid_at: string | null;
-  display_name: string | null;
-  notes: string | null;
-  created_at: string;
-}
-
-interface SponsorshipListResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
 
 function SponsorshipStatus({
   paid_at,
@@ -225,7 +184,20 @@ function CreateGameSponsorshipDialog({
 
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      api.post("/sponsorship/admin/game/manual", body),
+      callApi(
+        api.POST("/api/sponsorship/admin/game/manual", {
+          body: body as {
+            gameId: string;
+            sponsorName: string;
+            sponsorEmail: string;
+            amountPence: number;
+            sponsorWebsite?: string;
+            sponsorMessage?: string;
+            displayName?: string;
+            notes?: string;
+          },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "gameSponsorships"],
@@ -372,22 +344,29 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
-  const queryParams = new URLSearchParams();
-  queryParams.set("page", String(page));
-  queryParams.set("pageSize", String(PAGE_SIZE));
-  if (filter !== "all") queryParams.set("filter", filter);
-
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "gameSponsorships", page, filter],
     queryFn: () =>
-      api.get<SponsorshipListResponse<GameSponsorship>>(
-        `/sponsorship/admin/game?${queryParams.toString()}`,
+      callApi(
+        api.GET("/api/sponsorship/admin/game", {
+          params: {
+            query: {
+              page,
+              pageSize: PAGE_SIZE,
+              ...(filter !== "all" ? { filter } : {}),
+            },
+          },
+        }),
       ),
   });
 
   const approveMutation = useMutation({
     mutationFn: (sponsorshipId: string) =>
-      api.post("/sponsorship/admin/game/approve", { sponsorshipId }),
+      callApi(
+        api.POST("/api/sponsorship/admin/game/approve", {
+          body: { sponsorshipId },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "gameSponsorships"],
@@ -397,7 +376,11 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
 
   const rejectMutation = useMutation({
     mutationFn: (sponsorshipId: string) =>
-      api.post("/sponsorship/admin/game/reject", { sponsorshipId }),
+      callApi(
+        api.POST("/api/sponsorship/admin/game/reject", {
+          body: { sponsorshipId },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "gameSponsorships"],
@@ -411,13 +394,15 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
       ...body
     }: {
       sponsorshipId: string;
-      displayName?: string | null;
-      notes?: string | null;
+      displayName?: string | undefined;
+      notes?: string | undefined;
     }) =>
-      api.put(`/sponsorship/admin/game/${sponsorshipId}`, {
-        sponsorshipId,
-        ...body,
-      }),
+      callApi(
+        api.PUT("/api/sponsorship/admin/game/{sponsorshipId}", {
+          params: { path: { sponsorshipId } },
+          body: { sponsorshipId, ...body },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "gameSponsorships"],
@@ -478,7 +463,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
                     onSave={(v) =>
                       updateMutation.mutate({
                         sponsorshipId: s.id,
-                        displayName: v,
+                        displayName: v ?? undefined,
                       })
                     }
                   />
@@ -488,7 +473,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
                     onSave={(v) =>
                       updateMutation.mutate({
                         sponsorshipId: s.id,
-                        notes: v,
+                        notes: v ?? undefined,
                       })
                     }
                   />
@@ -567,22 +552,29 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
-  const queryParams = new URLSearchParams();
-  queryParams.set("page", String(page));
-  queryParams.set("pageSize", String(PAGE_SIZE));
-  if (filter !== "all") queryParams.set("filter", filter);
-
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "playerSponsorships", page, filter],
     queryFn: () =>
-      api.get<SponsorshipListResponse<PlayerSponsorship>>(
-        `/sponsorship/admin/player?${queryParams.toString()}`,
+      callApi(
+        api.GET("/api/sponsorship/admin/player", {
+          params: {
+            query: {
+              page,
+              pageSize: PAGE_SIZE,
+              ...(filter !== "all" ? { filter } : {}),
+            },
+          },
+        }),
       ),
   });
 
   const approveMutation = useMutation({
     mutationFn: (sponsorshipId: string) =>
-      api.post("/sponsorship/admin/player/approve", { sponsorshipId }),
+      callApi(
+        api.POST("/api/sponsorship/admin/player/approve", {
+          body: { sponsorshipId },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "playerSponsorships"],
@@ -592,7 +584,11 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
 
   const rejectMutation = useMutation({
     mutationFn: (sponsorshipId: string) =>
-      api.post("/sponsorship/admin/player/reject", { sponsorshipId }),
+      callApi(
+        api.POST("/api/sponsorship/admin/player/reject", {
+          body: { sponsorshipId },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "playerSponsorships"],
@@ -606,13 +602,15 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
       ...body
     }: {
       sponsorshipId: string;
-      displayName?: string | null;
-      notes?: string | null;
+      displayName?: string | undefined;
+      notes?: string | undefined;
     }) =>
-      api.put(`/sponsorship/admin/player/${sponsorshipId}`, {
-        sponsorshipId,
-        ...body,
-      }),
+      callApi(
+        api.PUT("/api/sponsorship/admin/player/{sponsorshipId}", {
+          params: { path: { sponsorshipId } },
+          body: { sponsorshipId, ...body },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "playerSponsorships"],
@@ -678,7 +676,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
                     onSave={(v) =>
                       updateMutation.mutate({
                         sponsorshipId: s.id,
-                        displayName: v,
+                        displayName: v ?? undefined,
                       })
                     }
                   />
@@ -688,7 +686,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
                     onSave={(v) =>
                       updateMutation.mutate({
                         sponsorshipId: s.id,
-                        notes: v,
+                        notes: v ?? undefined,
                       })
                     }
                   />

@@ -8,28 +8,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { formatDate } from "./status-pill";
 
 const PAGE_SIZE = 20;
-
-interface ContactSubmission {
-  id: string;
-  name: string;
-  email: string;
-  message: string;
-  page: string;
-  createdAt: string;
-}
-
-interface ContactSubmissionsResponse {
-  submissions: ContactSubmission[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
 
 function truncateMessage(message: string, maxLength = 100): string {
   if (message.length <= maxLength) return message;
@@ -60,16 +44,18 @@ export function ContactsTab() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin", "contactSubmissions", page, PAGE_SIZE, debouncedSearch],
-    queryFn: () => {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(PAGE_SIZE),
-      });
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      return api.get<ContactSubmissionsResponse>(
-        `/admin/contact-submissions?${params}`,
-      );
-    },
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/contact-submissions", {
+          params: {
+            query: {
+              page,
+              pageSize: PAGE_SIZE,
+              ...(debouncedSearch ? { search: debouncedSearch } : {}),
+            },
+          },
+        }),
+      ),
   });
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;

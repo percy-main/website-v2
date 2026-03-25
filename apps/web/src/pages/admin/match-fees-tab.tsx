@@ -16,31 +16,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatPence } from "./status-pill";
 
 const MEMBER_CATEGORIES = ["senior", "junior", "student", "guest"] as const;
 const COMPETITION_TYPES = ["League", "Cup", "Friendly"] as const;
-
-interface MatchFeeRate {
-  id: string;
-  play_cricket_team_id: string | null;
-  competition_type: string | null;
-  member_category: string;
-  amount_pence: number;
-  team_name: string | null;
-}
-
-interface MatchFeeRatesResponse {
-  rates: MatchFeeRate[];
-}
-
-interface PlayCricketTeam {
-  id: string;
-  name: string;
-}
 
 export function MatchFeesTab() {
   const queryClient = useQueryClient();
@@ -51,12 +33,12 @@ export function MatchFeesTab() {
 
   const ratesQuery = useQuery({
     queryKey: ["admin", "matchFeeRates"],
-    queryFn: () => api.get<MatchFeeRatesResponse>("/admin/match-fee-rates"),
+    queryFn: () => callApi(api.GET("/api/admin/match-fee-rates")),
   });
 
   const teamsQuery = useQuery({
     queryKey: ["admin", "playCricketTeams"],
-    queryFn: () => api.get<PlayCricketTeam[]>("/admin/play-cricket-teams"),
+    queryFn: () => callApi(api.GET("/api/admin/play-cricket-teams")),
   });
 
   const addRateMutation = useMutation({
@@ -65,7 +47,7 @@ export function MatchFeesTab() {
       competitionType?: string;
       memberCategory: string;
       amountPence: number;
-    }) => api.post("/admin/match-fee-rates", input),
+    }) => callApi(api.POST("/api/admin/match-fee-rates", { body: input })),
     onSuccess: () => {
       setNewCategory("");
       setNewAmount("");
@@ -82,7 +64,11 @@ export function MatchFeesTab() {
   const deleteRateMutation = useMutation({
     mutationFn: (rateId: string) => {
       setDeletingIds((prev) => new Set(prev).add(rateId));
-      return api.delete(`/admin/match-fee-rates/${rateId}`);
+      return callApi(
+        api.DELETE("/api/admin/match-fee-rates/{rateId}", {
+          params: { path: { rateId } },
+        }),
+      );
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({

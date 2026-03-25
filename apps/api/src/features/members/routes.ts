@@ -1,8 +1,13 @@
-import type { FastifyPluginAsync } from "fastify";
-import { parseBody } from "../../lib/validation.ts";
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { getAuthSession, requireVerifiedEmail } from "../auth/middleware.ts";
 import { createStripe } from "../payments/stripe.ts";
-import { updateMemberSchema } from "./schemas.ts";
+import {
+  memberDetailsResponseSchema,
+  membershipResponseSchema,
+  subscriptionsResponseSchema,
+  updateMemberResponseSchema,
+  updateMemberSchema,
+} from "./schemas.ts";
 import {
   getMemberDetails,
   getMyMembership,
@@ -11,7 +16,7 @@ import {
 } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
-export const memberRoutes: FastifyPluginAsync = async (app) => {
+export const memberRoutes: FastifyPluginAsyncZod = async (app) => {
   const stripe = createStripe({
     stripeSecretKey: app.config.STRIPE_SECRET_KEY,
   });
@@ -22,7 +27,12 @@ export const memberRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/members/me",
-    { preHandler: [requireVerifiedEmail] },
+    {
+      preHandler: [requireVerifiedEmail],
+      schema: {
+        response: { 200: memberDetailsResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const member = await getDetails(user.email);
@@ -32,7 +42,12 @@ export const memberRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/members/me/membership",
-    { preHandler: [requireVerifiedEmail] },
+    {
+      preHandler: [requireVerifiedEmail],
+      schema: {
+        response: { 200: membershipResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const membership = await getMembership(user.email);
@@ -42,7 +57,12 @@ export const memberRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/members/me/subscriptions",
-    { preHandler: [requireVerifiedEmail] },
+    {
+      preHandler: [requireVerifiedEmail],
+      schema: {
+        response: { 200: subscriptionsResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       const subscriptions = await getSubscriptions(user.email);
@@ -52,12 +72,17 @@ export const memberRoutes: FastifyPluginAsync = async (app) => {
 
   app.put(
     "/members/me",
-    { preHandler: [requireVerifiedEmail] },
+    {
+      preHandler: [requireVerifiedEmail],
+      schema: {
+        body: updateMemberSchema,
+        response: { 200: updateMemberResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
-      const data = parseBody(request, updateMemberSchema);
-      await updateDetails(user.email, data);
-      return { success: true };
+      await updateDetails(user.email, request.body);
+      return { success: true as const };
     },
   );
 };

@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { StatusPill } from "./status-pill";
@@ -70,25 +70,6 @@ interface PlayCricketPlayer {
   name: string;
 }
 
-interface MemberRecord {
-  id: string;
-  name: string | null;
-  play_cricket_id: string | null;
-  slug: string | null;
-}
-
-interface DependentRecord {
-  id: string;
-  name: string | null;
-  play_cricket_id: string | null;
-  parentName: string | null;
-}
-
-interface RecordLinkingResponse {
-  members: MemberRecord[];
-  dependents: DependentRecord[];
-}
-
 interface PersonRow {
   id: string;
   name: string | null;
@@ -125,14 +106,13 @@ export function RecordLinkingTab() {
 
   const { data: linkingData, isLoading } = useQuery({
     queryKey: ["admin", "recordLinking"],
-    queryFn: () => api.get<RecordLinkingResponse>("/admin/record-linking"),
+    queryFn: () => callApi(api.GET("/api/admin/record-linking")),
   });
 
   const refreshMutation = useMutation({
-    mutationFn: () =>
-      api.get<{ players: PlayCricketPlayer[] }>("/admin/play-cricket-players"),
+    mutationFn: () => callApi(api.GET("/api/admin/play-cricket-players")),
     onSuccess: (result) => {
-      setPcPlayers(result.players);
+      setPcPlayers(result.players as PlayCricketPlayer[]);
     },
   });
 
@@ -141,7 +121,12 @@ export function RecordLinkingTab() {
       type: "member" | "dependent";
       id: string;
       playCricketId: string;
-    }) => api.post("/admin/record-linking/play-cricket/link", params),
+    }) =>
+      callApi(
+        api.POST("/api/admin/record-linking/play-cricket/link", {
+          body: params,
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "recordLinking"],
@@ -153,7 +138,11 @@ export function RecordLinkingTab() {
 
   const unlinkPcMutation = useMutation({
     mutationFn: (params: { type: "member" | "dependent"; id: string }) =>
-      api.post("/admin/record-linking/play-cricket/unlink", params),
+      callApi(
+        api.POST("/api/admin/record-linking/play-cricket/unlink", {
+          body: params,
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "recordLinking"],
@@ -163,7 +152,9 @@ export function RecordLinkingTab() {
 
   const linkSlugMutation = useMutation({
     mutationFn: (params: { memberId: string; slug: string }) =>
-      api.post("/admin/record-linking/slug/link", params),
+      callApi(
+        api.POST("/api/admin/record-linking/slug/link", { body: params }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "recordLinking"],
@@ -173,7 +164,9 @@ export function RecordLinkingTab() {
 
   const unlinkSlugMutation = useMutation({
     mutationFn: (params: { memberId: string }) =>
-      api.post("/admin/record-linking/slug/unlink", params),
+      callApi(
+        api.POST("/api/admin/record-linking/slug/unlink", { body: params }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "recordLinking"],

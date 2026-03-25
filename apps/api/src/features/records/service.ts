@@ -44,14 +44,18 @@ export function getRecords(db: Kysely<DB>) {
 
     return {
       records: [
-        { title: "Highest Individual Score", ...highestScore },
-        { title: "Most Runs in a Season", ...mostRunsSeason },
-        { title: "Most Career Runs", ...mostCareerRuns },
-        { title: "Most Matches", ...mostCareerMatches },
-        { title: "Best Bowling Figures", ...bestBowling },
-        { title: "Most Wickets in a Season", ...mostWicketsSeason },
-        { title: "Most Career Wickets", ...mostCareerWickets },
-      ].filter((r) => r.playerName !== undefined),
+        { title: "Highest Individual Score", entry: highestScore },
+        { title: "Most Runs in a Season", entry: mostRunsSeason },
+        { title: "Most Career Runs", entry: mostCareerRuns },
+        { title: "Most Matches", entry: mostCareerMatches },
+        { title: "Best Bowling Figures", entry: bestBowling },
+        { title: "Most Wickets in a Season", entry: mostWicketsSeason },
+        { title: "Most Career Wickets", entry: mostCareerWickets },
+      ]
+        .filter(
+          (r): r is { title: string; entry: RecordEntry } => r.entry !== null,
+        )
+        .map((r) => ({ title: r.title, ...r.entry })),
     };
   };
 }

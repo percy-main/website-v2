@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
@@ -25,25 +25,6 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
   currency: "GBP",
   minimumFractionDigits: 2,
 });
-
-interface PriceInfo {
-  amountPence: number;
-  currency: string;
-  productName: string;
-}
-
-interface PaymentResult {
-  clientSecret: string;
-  amount: number;
-  productName: string;
-}
-
-interface GameData {
-  id: string;
-  team: { name: string };
-  opposition: { club: { name: string }; team: { name: string } };
-  home: boolean;
-}
 
 type Step = "details" | "paying" | "success";
 
@@ -91,9 +72,14 @@ function resizeLogo(file: File): Promise<string> {
 export function Component() {
   const { id } = useParams<{ id: string }>();
 
-  const gameQuery = useQuery<GameData>({
+  const gameQuery = useQuery({
     queryKey: ["game", id],
-    queryFn: () => api.get(`/games/${id}`),
+    queryFn: () =>
+      callApi(
+        api.GET("/api/games/{matchId}", {
+          params: { path: { matchId: id ?? "" } },
+        }),
+      ),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
   });
@@ -115,20 +101,24 @@ export function Component() {
 
   const priceQuery = useQuery({
     queryKey: ["game-sponsorship-price"],
-    queryFn: () => api.get<PriceInfo>("/sponsorship/game/price"),
+    queryFn: () => callApi(api.GET("/api/sponsorship/game/price")),
     staleTime: 5 * 60 * 1000,
   });
 
   const paymentMutation = useMutation({
     mutationFn: () =>
-      api.post<PaymentResult>("/sponsorship/game/create-payment", {
-        gameId: id,
-        sponsorName,
-        sponsorEmail,
-        sponsorWebsite: sponsorWebsite || undefined,
-        sponsorLogoDataUrl: logoDataUrl ?? undefined,
-        sponsorMessage: sponsorMessage || undefined,
-      }),
+      callApi(
+        api.POST("/api/sponsorship/game/create-payment", {
+          body: {
+            gameId: id ?? "",
+            sponsorName,
+            sponsorEmail,
+            sponsorWebsite: sponsorWebsite || undefined,
+            sponsorLogoDataUrl: logoDataUrl ?? undefined,
+            sponsorMessage: sponsorMessage || undefined,
+          },
+        }),
+      ),
     onSuccess: () => setStep("paying"),
   });
 
@@ -207,7 +197,7 @@ export function Component() {
     );
   }
 
-  if (step === "paying" && paymentMutation.data) {
+  if (step === "paying" && paymentMutation.data?.clientSecret) {
     return (
       <div className="container mx-auto max-w-md px-4 py-12">
         <PaymentForm

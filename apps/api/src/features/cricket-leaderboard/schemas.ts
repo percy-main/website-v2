@@ -14,3 +14,42 @@ export const cricketLeaderboardQuerySchema = z.object({
 export type CricketLeaderboardQuery = z.infer<
   typeof cricketLeaderboardQuerySchema
 >;
+
+const battingEntrySchema = z.object({
+  playerId: z.string(),
+  playerName: z.string().nullable(),
+  slug: z.string().nullable(),
+  innings: z.number(),
+  notOuts: z.number(),
+  runs: z.number(),
+  highScore: z.number().nullable(),
+  average: z.number().nullable(),
+  strikeRate: z.number().nullable(),
+  fours: z.number(),
+  sixes: z.number(),
+  fifties: z.number(),
+  hundreds: z.number(),
+});
+
+export const battingLeaderboardResponseSchema = z.object({
+  entries: z.array(battingEntrySchema),
+});
+
+const bowlingEntrySchema = z.object({
+  playerId: z.string(),
+  playerName: z.string().nullable(),
+  slug: z.string().nullable(),
+  matches: z.number(),
+  overs: z.string(),
+  maidens: z.number(),
+  runs: z.number(),
+  wickets: z.number(),
+  average: z.number().nullable(),
+  economy: z.number().nullable(),
+  strikeRate: z.number().nullable(),
+  bestBowling: z.string(),
+});
+
+export const bowlingLeaderboardResponseSchema = z.object({
+  entries: z.array(bowlingEntrySchema),
+});

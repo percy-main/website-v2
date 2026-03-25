@@ -12,7 +12,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs.js";
-import { api } from "@/lib/api.js";
+import { api, callApi } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -20,73 +20,22 @@ import { Link, useSearchParams } from "react-router";
 const FIRST_SEASON = 2012;
 const COMPETITION_TYPES = ["League", "Cup", "Friendly"] as const;
 
-interface BattingEntry {
-  playerId: string;
-  playerName: string;
-  slug: string | null;
-  innings: number;
-  notOuts: number;
-  runs: number;
-  highScore: number;
-  average: number | null;
-  strikeRate: number | null;
-  fours: number;
-  sixes: number;
-  fifties: number;
-  hundreds: number;
-}
-
-interface BowlingEntry {
-  playerId: string;
-  playerName: string;
-  slug: string | null;
-  matches: number;
-  overs: string;
-  maidens: number;
-  runs: number;
-  wickets: number;
-  average: number | null;
-  economy: number | null;
-  strikeRate: number | null;
-  bestBowling: string;
-}
-
-interface SponsorEntry {
-  slug: string;
-  display_name: string | null;
-  sponsor_name: string;
-  sponsor_website: string | null;
-}
-
-interface Team {
-  id: string;
-  name: string;
-  is_junior: boolean;
-}
-
-function buildQueryString(params: Record<string, string | undefined>) {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== "") qs.set(k, v);
-  }
-  return qs.toString();
-}
-
 function useTeams() {
   return useQuery({
     queryKey: ["play-cricket-teams"],
-    queryFn: () => api.get<{ teams: Team[] }>("/play-cricket/teams"),
+    queryFn: () => callApi(api.GET("/api/play-cricket/teams")),
     staleTime: 30 * 60 * 1000,
   });
 }
 
 function useSponsors(season: number | null) {
-  const qs = season !== null ? `?season=${season}` : "";
   return useQuery({
     queryKey: ["player-sponsors", season],
     queryFn: () =>
-      api.get<{ sponsors: SponsorEntry[] }>(
-        `/sponsorship/player/approved${qs}`,
+      callApi(
+        api.GET("/api/sponsorship/player/approved", {
+          params: { query: season !== null ? { season } : {} },
+        }),
       ),
     staleTime: 10 * 60 * 1000,
   });
@@ -98,14 +47,6 @@ function useBattingLeaderboard(
   teamId: string,
   competitionTypes: string[],
 ) {
-  const qs = buildQueryString({
-    season: season !== null ? String(season) : undefined,
-    isJunior: String(isJunior),
-    teamId: teamId || undefined,
-    competitionTypes:
-      competitionTypes.length > 0 ? competitionTypes.join(",") : undefined,
-  });
-
   return useQuery({
     queryKey: [
       "batting-leaderboard",
@@ -115,8 +56,20 @@ function useBattingLeaderboard(
       competitionTypes,
     ],
     queryFn: () =>
-      api.get<{ entries: BattingEntry[] }>(
-        `/cricket-leaderboard/batting?${qs}`,
+      callApi(
+        api.GET("/api/cricket-leaderboard/batting", {
+          params: {
+            query: {
+              season: season ?? undefined,
+              isJunior: String(isJunior) as "true" | "false",
+              teamId: teamId || undefined,
+              competitionTypes:
+                competitionTypes.length > 0
+                  ? competitionTypes.join(",")
+                  : undefined,
+            },
+          },
+        }),
       ),
     staleTime: 5 * 60 * 1000,
   });
@@ -128,14 +81,6 @@ function useBowlingLeaderboard(
   teamId: string,
   competitionTypes: string[],
 ) {
-  const qs = buildQueryString({
-    season: season !== null ? String(season) : undefined,
-    isJunior: String(isJunior),
-    teamId: teamId || undefined,
-    competitionTypes:
-      competitionTypes.length > 0 ? competitionTypes.join(",") : undefined,
-  });
-
   return useQuery({
     queryKey: [
       "bowling-leaderboard",
@@ -145,12 +90,36 @@ function useBowlingLeaderboard(
       competitionTypes,
     ],
     queryFn: () =>
-      api.get<{ entries: BowlingEntry[] }>(
-        `/cricket-leaderboard/bowling?${qs}`,
+      callApi(
+        api.GET("/api/cricket-leaderboard/bowling", {
+          params: {
+            query: {
+              season: season ?? undefined,
+              isJunior: String(isJunior) as "true" | "false",
+              teamId: teamId || undefined,
+              competitionTypes:
+                competitionTypes.length > 0
+                  ? competitionTypes.join(",")
+                  : undefined,
+            },
+          },
+        }),
       ),
     staleTime: 5 * 60 * 1000,
   });
 }
+
+type BattingEntry = NonNullable<
+  Awaited<ReturnType<typeof useBattingLeaderboard>>["data"]
+>["entries"][number];
+
+type BowlingEntry = NonNullable<
+  Awaited<ReturnType<typeof useBowlingLeaderboard>>["data"]
+>["entries"][number];
+
+type SponsorEntry = NonNullable<
+  Awaited<ReturnType<typeof useSponsors>>["data"]
+>["sponsors"][number];
 
 function getSeasonRange(): number[] {
   const now = new Date();
@@ -184,7 +153,7 @@ function PlayerName({
   slug,
   sponsors,
 }: {
-  name: string;
+  name: string | null;
   slug: string | null;
   sponsors: Map<string, SponsorEntry>;
 }) {
@@ -459,7 +428,7 @@ export function LeaderboardContent() {
 
   const sponsorMap = new Map<string, SponsorEntry>();
   for (const s of sponsorsQuery.data?.sponsors ?? []) {
-    sponsorMap.set(s.slug, s);
+    if (s.slug) sponsorMap.set(s.slug, s);
   }
 
   const handleCategoryChange = (junior: boolean) => {

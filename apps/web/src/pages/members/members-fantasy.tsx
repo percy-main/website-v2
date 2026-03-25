@@ -12,7 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen.js";
 import {
   closestCenter,
   DndContext,
@@ -49,44 +50,6 @@ interface SelectedPlayer {
   isCaptain: boolean;
   slotType: SlotType;
   isWicketkeeper: boolean;
-}
-
-interface EligiblePlayer {
-  play_cricket_id: string;
-  player_name: string;
-  sandwich_cost: number;
-  previousSeasonPoints: number;
-  ownershipPercent: number;
-}
-
-interface MyTeamResponse {
-  team: { id: number; season: string } | null;
-  players: Array<{
-    play_cricket_id: string;
-    player_name: string;
-    sandwich_cost: number;
-    is_captain: boolean;
-    slot_type: string;
-    is_wicketkeeper: boolean;
-  }>;
-  gameweek: number;
-  transfersUsed: number;
-  maxTransfers: number | null;
-  chaosWeek: {
-    name: string;
-    description: string;
-    rule_type: string;
-  } | null;
-}
-
-interface ChipStatus {
-  chips: Array<{
-    chipType: string;
-    usedThisSeason: number;
-    maxPerSeason: number;
-    activeThisGameweek: boolean;
-  }>;
-  gameweek: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,13 +90,7 @@ function parseEmptySlotId(id: string): SlotType | null {
 function useEligiblePlayers() {
   return useQuery({
     queryKey: ["fantasy", "eligible-players"],
-    queryFn: () =>
-      api.get<{
-        players: EligiblePlayer[];
-        season: string;
-        previousSeason: string;
-        budget: number;
-      }>("/fantasy/players"),
+    queryFn: () => callApi(api.GET("/api/fantasy/players")),
     staleTime: 5 * 60_000,
   });
 }
@@ -141,7 +98,10 @@ function useEligiblePlayers() {
 function useMyTeam() {
   return useQuery({
     queryKey: ["fantasy", "my-team"],
-    queryFn: () => api.get<MyTeamResponse>("/fantasy/team"),
+    queryFn: async () => {
+      const data = await callApi(api.GET("/api/fantasy/team"));
+      return data as unknown as MyTeamResponse;
+    },
     staleTime: 30_000,
   });
 }
@@ -149,9 +109,37 @@ function useMyTeam() {
 function useChipStatus() {
   return useQuery({
     queryKey: ["fantasy", "chip-status"],
-    queryFn: () => api.get<ChipStatus>("/fantasy/chip"),
+    queryFn: () => callApi(api.GET("/api/fantasy/chip")),
     staleTime: 30_000,
   });
+}
+
+type EligiblePlayer =
+  paths["/api/fantasy/players"]["get"]["responses"][200]["content"]["application/json"]["players"][number];
+type ChipStatus =
+  paths["/api/fantasy/chip"]["get"]["responses"][200]["content"]["application/json"];
+
+// The generated spec types `/api/fantasy/team` players as `{ [key: string]: unknown }[]`
+// because Fastify serialises the response without a strict schema for the array items.
+// We define the shape explicitly here until the OpenAPI spec is tightened.
+interface MyTeamResponse {
+  team: { id: number; season: string } | null;
+  players: Array<{
+    play_cricket_id: string;
+    player_name: string;
+    sandwich_cost: number;
+    is_captain: boolean;
+    slot_type: string;
+    is_wicketkeeper: boolean;
+  }>;
+  gameweek: number;
+  transfersUsed: number;
+  maxTransfers: number | null;
+  chaosWeek: {
+    name: string;
+    description: string;
+    rule_type: string;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -235,14 +223,18 @@ function TeamBuilder({
 
   const saveMutation = useMutation({
     mutationFn: (players: SelectedPlayer[]) =>
-      api.post("/fantasy/team", {
-        players: players.map((p) => ({
-          playCricketId: p.playCricketId,
-          isCaptain: p.isCaptain,
-          slotType: p.slotType,
-          isWicketkeeper: p.isWicketkeeper,
-        })),
-      }),
+      callApi(
+        api.POST("/api/fantasy/team", {
+          body: {
+            players: players.map((p) => ({
+              playCricketId: p.playCricketId,
+              isCaptain: p.isCaptain,
+              slotType: p.slotType,
+              isWicketkeeper: p.isWicketkeeper,
+            })),
+          },
+        }),
+      ),
     onSuccess: () => {
       setSaveError(null);
       setSaveSuccess(true);
@@ -258,10 +250,16 @@ function TeamBuilder({
   const chipMutation = useMutation({
     mutationFn: (params: { action: "activate" | "deactivate" }) =>
       params.action === "activate"
-        ? api.post("/fantasy/chip", { chipType: "triple_captain" })
-        : api.post("/fantasy/chip/deactivate", {
-            chipType: "triple_captain",
-          }),
+        ? callApi(
+            api.POST("/api/fantasy/chip", {
+              body: { chipType: "triple_captain" },
+            }),
+          )
+        : callApi(
+            api.POST("/api/fantasy/chip/deactivate", {
+              body: { chipType: "triple_captain" },
+            }),
+          ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["fantasy", "chip-status"],

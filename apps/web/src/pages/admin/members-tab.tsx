@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { MemberDetailModal } from "./member-detail-modal";
@@ -27,29 +27,6 @@ import {
 } from "./status-pill";
 
 const PAGE_SIZE = 20;
-
-interface UserItem {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  banned: boolean;
-  emailVerified: boolean;
-  createdAt: string;
-  memberId: string | null;
-  member_category: string | null;
-  memberDeletedAt: string | null;
-  memberDeletedReason: string | null;
-  membershipType: string | null;
-  membershipPaidUntil: string | null;
-}
-
-interface ListUsersResponse {
-  items: UserItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
 
 export function MembersTab() {
   const [page, setPage] = useState(1);
@@ -72,17 +49,6 @@ export function MembersTab() {
     return () => clearTimeout(timeout);
   }, [searchInput]);
 
-  const queryParams = new URLSearchParams();
-  queryParams.set("page", String(page));
-  queryParams.set("pageSize", String(PAGE_SIZE));
-  if (debouncedSearch) queryParams.set("search", debouncedSearch);
-  if (includeArchived) queryParams.set("includeArchived", "true");
-  if (isMember) queryParams.set("isMember", isMember);
-  if (membershipStatus) queryParams.set("membershipStatus", membershipStatus);
-  if (membershipType) queryParams.set("membershipType", membershipType);
-  if (memberCategory) queryParams.set("memberCategory", memberCategory);
-  if (role) queryParams.set("role", role);
-
   const { data, isLoading } = useQuery({
     queryKey: [
       "admin",
@@ -97,7 +63,30 @@ export function MembersTab() {
       role,
     ],
     queryFn: () =>
-      api.get<ListUsersResponse>(`/admin/users?${queryParams.toString()}`),
+      callApi(
+        api.GET("/api/admin/users", {
+          params: {
+            query: {
+              page,
+              pageSize: PAGE_SIZE,
+              ...(debouncedSearch ? { search: debouncedSearch } : {}),
+              ...(includeArchived ? { includeArchived: true } : {}),
+              ...(isMember ? { isMember: isMember === "true" } : {}),
+              ...(membershipStatus
+                ? {
+                    membershipStatus: membershipStatus as
+                      | "active"
+                      | "lapsed"
+                      | "none",
+                  }
+                : {}),
+              ...(membershipType ? { membershipType } : {}),
+              ...(memberCategory ? { memberCategory } : {}),
+              ...(role ? { role } : {}),
+            },
+          },
+        }),
+      ),
   });
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
@@ -316,7 +305,7 @@ export function MembersTab() {
                     </StatusPill>
                   </TableCell>
                   <TableCell>
-                    <RolePills role={user.role} />
+                    <RolePills role={user.role ?? "user"} />
                   </TableCell>
                 </TableRow>
               );

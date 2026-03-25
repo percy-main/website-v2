@@ -6,40 +6,39 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.js";
-import { api } from "@/lib/api.js";
+import { api, callApi } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
-interface BattingEntry {
-  playerId: string;
-  playerName: string;
-  slug: string | null;
-  innings: number;
-  runs: number;
-  highScore: number | null;
-  average: number | null;
-}
-
-interface BowlingEntry {
-  playerId: string;
-  playerName: string;
-  slug: string | null;
-  wickets: number;
-  overs: string;
-  average: number | null;
-}
-
-interface LeaderboardResponse<T> {
-  entries: T[];
-}
-
 function currentCricketSeason(): number {
   const now = new Date();
-  // Cricket season runs April–September; Jan–Mar use previous year
+  // Cricket season runs April-September; Jan-Mar use previous year
   return now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
 }
 
-function PlayerLink({ name, slug }: { name: string; slug: string | null }) {
+function fetchBatting(season: number, limit: number) {
+  return callApi(
+    api.GET("/api/cricket-leaderboard/batting", {
+      params: { query: { season, limit } },
+    }),
+  );
+}
+
+function fetchBowling(season: number, limit: number) {
+  return callApi(
+    api.GET("/api/cricket-leaderboard/bowling", {
+      params: { query: { season, limit } },
+    }),
+  );
+}
+
+function PlayerLink({
+  name,
+  slug,
+}: {
+  name: string | null;
+  slug: string | null;
+}) {
   if (slug) {
     return (
       <Link
@@ -86,12 +85,8 @@ export function SeasonLeaders() {
     queryKey: ["season-leaders", season],
     queryFn: async () => {
       const [batting, bowling] = await Promise.all([
-        api.get<LeaderboardResponse<BattingEntry>>(
-          `/cricket-leaderboard/batting?season=${season}&limit=3`,
-        ),
-        api.get<LeaderboardResponse<BowlingEntry>>(
-          `/cricket-leaderboard/bowling?season=${season}&limit=3`,
-        ),
+        fetchBatting(season, 3),
+        fetchBowling(season, 3),
       ]);
 
       if (batting.entries.length > 0 || bowling.entries.length > 0) {
@@ -101,12 +96,8 @@ export function SeasonLeaders() {
       // Fall back to previous season for both
       const prev = season - 1;
       const [battingFb, bowlingFb] = await Promise.all([
-        api.get<LeaderboardResponse<BattingEntry>>(
-          `/cricket-leaderboard/batting?season=${prev}&limit=3`,
-        ),
-        api.get<LeaderboardResponse<BowlingEntry>>(
-          `/cricket-leaderboard/bowling?season=${prev}&limit=3`,
-        ),
+        fetchBatting(prev, 3),
+        fetchBowling(prev, 3),
       ]);
 
       return {

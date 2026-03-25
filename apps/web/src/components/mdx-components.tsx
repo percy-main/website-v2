@@ -5,7 +5,7 @@ import { RecordsWall as RecordsWallComponent } from "@/components/records-wall.j
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/components/ui/textarea.js";
-import { api } from "@/lib/api.js";
+import { api, callApi } from "@/lib/api-client.js";
 import { getImageUrl, getPicture } from "@/lib/image-map.js";
 import { getPersonBySlug } from "@/lib/people.js";
 import { cn } from "@/lib/utils.js";
@@ -87,11 +87,6 @@ function PersonGrid({
   );
 }
 
-interface LeagueTableResponse {
-  columns: string[];
-  rows: Array<{ position: string; team_id: string } & Record<string, string>>;
-}
-
 function LeagueTable({
   divisionId,
   name,
@@ -99,10 +94,14 @@ function LeagueTable({
   divisionId: string;
   name?: string;
 }) {
-  const query = useQuery<LeagueTableResponse>({
+  const query = useQuery({
     queryKey: ["getLeagueTable", divisionId],
     queryFn: () =>
-      api.get(`/play-cricket/league-table?divisionId=${divisionId}`),
+      callApi(
+        api.GET("/api/play-cricket/league-table", {
+          params: { query: { divisionId } },
+        }),
+      ),
   });
 
   if (!query.data) {
@@ -193,6 +192,8 @@ function EventPreview({
   );
 }
 
+// /api/games/{matchId} is not yet in the generated OpenAPI spec, so we keep
+// local types and use a direct fetch until the spec is regenerated.
 type Outcome = "W" | "L" | "D" | "T" | "A" | "C" | "N";
 
 interface GameListItem {
@@ -211,10 +212,16 @@ interface GameListItem {
   sponsorName: string | null;
 }
 
+async function fetchGame(matchId: string): Promise<GameListItem> {
+  const res = await fetch(`/api/games/${matchId}`, { credentials: "include" });
+  if (!res.ok) throw new Error(res.statusText);
+  return res.json() as Promise<GameListItem>;
+}
+
 function GamePreview({ playCricketId }: { playCricketId: string }) {
-  const { data: game, isLoading } = useQuery<GameListItem>({
+  const { data: game, isLoading } = useQuery({
     queryKey: ["game", playCricketId],
-    queryFn: () => api.get(`/games/${playCricketId}`),
+    queryFn: () => fetchGame(playCricketId),
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
@@ -301,7 +308,7 @@ function ContactForm({
       email: string;
       message: string;
       page: string;
-    }) => api.post("/contact", input),
+    }) => callApi(api.POST("/api/contact", { body: input })),
   });
 
   return (

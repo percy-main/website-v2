@@ -91,21 +91,11 @@ export function updateMemberDetails(db: Kysely<DB>) {
       .executeTakeFirst();
 
     if (existing) {
-      // Only update fields that are present in data
-      const fieldsToUpdate: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(data)) {
-        if (value !== undefined) {
-          fieldsToUpdate[key] = value;
-        }
-      }
-
-      if (Object.keys(fieldsToUpdate).length > 0) {
-        await db
-          .updateTable("member")
-          .set(fieldsToUpdate)
-          .where("id", "=", existing.id)
-          .execute();
-      }
+      await db
+        .updateTable("member")
+        .set(data)
+        .where("id", "=", existing.id)
+        .execute();
     } else {
       await db
         .insertInto("member")

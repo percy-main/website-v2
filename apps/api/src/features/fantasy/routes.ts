@@ -1,5 +1,4 @@
-import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import {
   getAuthSession,
   requireAuth,
@@ -9,21 +8,48 @@ import { createApiClient } from "../play-cricket/api-client.ts";
 import { calculateFantasyScores } from "./calculate-scores.ts";
 import { getCurrentSeason } from "./gameweek.ts";
 import {
+  adminListPlayersResponseSchema,
+  calculateCostsResponseSchema,
   calculateCostsSchema,
+  calculateScoresResponseSchema,
   calculateScoresSchema,
+  chaosWeekPublicResponseSchema,
   chaosWeekPublicSchema,
   chipSchema,
+  chipStatusResponseSchema,
+  createChaosWeekResponseSchema,
   createChaosWeekSchema,
   deleteChaosWeekSchema,
+  eligiblePlayersResponseSchema,
+  gameweekDetailResponseSchema,
   gameweekDetailSchema,
+  highlightsResponseSchema,
   highlightsSchema,
+  listChaosWeeksResponseSchema,
   listPlayersSchema,
+  listTeamsResponseSchema,
+  myTeamResponseSchema,
+  ownershipOverviewResponseSchema,
+  playerHistoryResponseSchema,
   playerHistorySchema,
+  playerLeaderboardResponseSchema,
+  populatePlayersResponseSchema,
+  preSeasonStatsResponseSchema,
+  sandwichEfficiencyResponseSchema,
   sandwichEfficiencySchema,
+  saveTeamResponseSchema,
   saveTeamSchema,
+  seasonLeaderboardResponseSchema,
   seasonSchema,
+  seasonTimelineResponseSchema,
+  successResponseSchema,
+  teamDetailResponseSchema,
   teamIdSchema,
+  teamShareDataResponseSchema,
+  toggleEligibilityResponseSchema,
   toggleEligibilitySchema,
+  transferWindowResponseSchema,
+  weeklyLeaderboardResponseSchema,
   weeklyLeaderboardSchema,
 } from "./schemas.ts";
 import {
@@ -58,7 +84,7 @@ import {
 } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
-export const fantasyRoutes: FastifyPluginAsync = async (app) => {
+export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   const playCricketApi =
     app.config.PLAY_CRICKET_API_TOKEN && app.config.PLAY_CRICKET_SITE_ID
       ? createApiClient({
@@ -100,131 +126,318 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
 
   // --- Public routes ---
 
-  app.get("/fantasy/transfer-window", async (request) => {
-    const { season } = parseQuery(request, seasonSchema);
-    // transferWindow is sync; wrap to satisfy return await pattern
-    return await Promise.resolve(transferWindow(season));
-  });
+  app.get(
+    "/fantasy/transfer-window",
+    {
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: transferWindowResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season } = request.query;
+      // transferWindow is sync; wrap to satisfy return await pattern
+      return await Promise.resolve(transferWindow(season));
+    },
+  );
 
-  app.get("/fantasy/chaos-week", async (request) => {
-    const { season, gameweek } = parseQuery(request, chaosWeekPublicSchema);
-    return await chaosWeekPub(season, gameweek);
-  });
+  app.get(
+    "/fantasy/chaos-week",
+    {
+      schema: {
+        querystring: chaosWeekPublicSchema,
+        response: { 200: chaosWeekPublicResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season, gameweek } = request.query;
+      return await chaosWeekPub(season, gameweek);
+    },
+  );
 
-  app.get("/fantasy/stats/pre-season", async (request) => {
-    const { season } = parseQuery(request, seasonSchema);
-    return await preSeasonStats(season);
-  });
+  app.get(
+    "/fantasy/stats/pre-season",
+    {
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: preSeasonStatsResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season } = request.query;
+      return await preSeasonStats(season);
+    },
+  );
 
-  app.get("/fantasy/stats/ownership", async (request) => {
-    const { season } = parseQuery(request, seasonSchema);
-    return await ownershipOverview(season);
-  });
+  app.get(
+    "/fantasy/stats/ownership",
+    {
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: ownershipOverviewResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season } = request.query;
+      return await ownershipOverview(season);
+    },
+  );
 
-  app.get("/fantasy/stats/sandwich-efficiency", async (request) => {
-    const { season, limit } = parseQuery(request, sandwichEfficiencySchema);
-    return await sandwichEff(season, limit);
-  });
+  app.get(
+    "/fantasy/stats/sandwich-efficiency",
+    {
+      schema: {
+        querystring: sandwichEfficiencySchema,
+        response: { 200: sandwichEfficiencyResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season, limit } = request.query;
+      return await sandwichEff(season, limit);
+    },
+  );
 
-  app.get("/fantasy/highlights", async (request) => {
-    const { season, gameweek } = parseQuery(request, highlightsSchema);
-    return await highlights(season, gameweek);
-  });
+  app.get(
+    "/fantasy/highlights",
+    {
+      schema: {
+        querystring: highlightsSchema,
+        response: { 200: highlightsResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season, gameweek } = request.query;
+      return await highlights(season, gameweek);
+    },
+  );
 
-  app.get("/fantasy/leaderboard/season", async (request) => {
-    const { season } = parseQuery(request, seasonSchema);
-    return await seasonBoard(season);
-  });
+  app.get(
+    "/fantasy/leaderboard/season",
+    {
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: seasonLeaderboardResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season } = request.query;
+      return await seasonBoard(season);
+    },
+  );
 
-  app.get("/fantasy/leaderboard/weekly", async (request) => {
-    const { season, gameweek } = parseQuery(request, weeklyLeaderboardSchema);
-    return await weeklyBoard(season, gameweek);
-  });
+  app.get(
+    "/fantasy/leaderboard/weekly",
+    {
+      schema: {
+        querystring: weeklyLeaderboardSchema,
+        response: { 200: weeklyLeaderboardResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season, gameweek } = request.query;
+      return await weeklyBoard(season, gameweek);
+    },
+  );
 
-  app.get("/fantasy/leaderboard/players", async (request) => {
-    const { season } = parseQuery(request, seasonSchema);
-    return await playerBoard(season);
-  });
+  app.get(
+    "/fantasy/leaderboard/players",
+    {
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: playerLeaderboardResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season } = request.query;
+      return await playerBoard(season);
+    },
+  );
 
-  app.get("/fantasy/teams", async (request) => {
-    const { season } = parseQuery(request, seasonSchema);
-    return await teams(season);
-  });
+  app.get(
+    "/fantasy/teams",
+    {
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: listTeamsResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season } = request.query;
+      return await teams(season);
+    },
+  );
 
-  app.get("/fantasy/teams/:teamId", async (request) => {
-    const { teamId } = parseParams(request, teamIdSchema);
-    return await teamDetail(teamId);
-  });
+  app.get(
+    "/fantasy/teams/:teamId",
+    {
+      schema: {
+        params: teamIdSchema,
+        response: { 200: teamDetailResponseSchema },
+      },
+    },
+    async (request) => {
+      const { teamId } = request.params;
+      return await teamDetail(teamId);
+    },
+  );
 
-  app.get("/fantasy/teams/:teamId/timeline", async (request) => {
-    const { teamId } = parseParams(request, teamIdSchema);
-    const { season } = parseQuery(request, seasonSchema);
-    return await timeline(teamId, season);
-  });
+  app.get(
+    "/fantasy/teams/:teamId/timeline",
+    {
+      schema: {
+        params: teamIdSchema,
+        querystring: seasonSchema,
+        response: { 200: seasonTimelineResponseSchema },
+      },
+    },
+    async (request) => {
+      const { teamId } = request.params;
+      const { season } = request.query;
+      return await timeline(teamId, season);
+    },
+  );
 
-  app.get("/fantasy/teams/:teamId/gameweek/:gameweek", async (request) => {
-    const { teamId, gameweek } = parseParams(request, gameweekDetailSchema);
-    const { season } = parseQuery(request, seasonSchema);
-    return await gwDetail(teamId, gameweek, season);
-  });
+  app.get(
+    "/fantasy/teams/:teamId/gameweek/:gameweek",
+    {
+      schema: {
+        params: gameweekDetailSchema,
+        querystring: seasonSchema,
+        response: { 200: gameweekDetailResponseSchema },
+      },
+    },
+    async (request) => {
+      const { teamId, gameweek } = request.params;
+      const { season } = request.query;
+      return await gwDetail(teamId, gameweek, season);
+    },
+  );
 
-  app.get("/fantasy/players/:playCricketId/history", async (request) => {
-    const { playCricketId } = parseParams(request, playerHistorySchema);
-    const { season } = parseQuery(request, seasonSchema);
-    return await playerHist(playCricketId, season);
-  });
+  app.get(
+    "/fantasy/players/:playCricketId/history",
+    {
+      schema: {
+        params: playerHistorySchema,
+        querystring: seasonSchema,
+        response: { 200: playerHistoryResponseSchema },
+      },
+    },
+    async (request) => {
+      const { playCricketId } = request.params;
+      const { season } = request.query;
+      return await playerHist(playCricketId, season);
+    },
+  );
 
   // --- Authenticated routes ---
 
   app.get(
     "/fantasy/players",
-    { preHandler: [requireAuth] },
+    {
+      preHandler: [requireAuth],
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: eligiblePlayersResponseSchema },
+      },
+    },
     async (request) => {
-      const { season } = parseQuery(request, seasonSchema);
+      const { season } = request.query;
       return await eligible(season);
     },
   );
 
-  app.get("/fantasy/team", { preHandler: [requireAuth] }, async (request) => {
-    const { user } = getAuthSession(request);
-    const { season } = parseQuery(request, seasonSchema);
-    return await myTeam(user.id, season);
-  });
+  app.get(
+    "/fantasy/team",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: myTeamResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { season } = request.query;
+      return await myTeam(user.id, season);
+    },
+  );
 
-  app.post("/fantasy/team", { preHandler: [requireAuth] }, async (request) => {
-    const { user } = getAuthSession(request);
-    const { season, players } = parseBody(request, saveTeamSchema);
-    return await save(user.id, players, season);
-  });
+  app.post(
+    "/fantasy/team",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        body: saveTeamSchema,
+        response: { 200: saveTeamResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { season, players } = request.body;
+      return await save(user.id, players, season);
+    },
+  );
 
-  app.get("/fantasy/chip", { preHandler: [requireAuth] }, async (request) => {
-    const { user } = getAuthSession(request);
-    const { season } = parseQuery(request, seasonSchema);
-    return await chipStatus(user.id, season);
-  });
+  app.get(
+    "/fantasy/chip",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: chipStatusResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { season } = request.query;
+      return await chipStatus(user.id, season);
+    },
+  );
 
-  app.post("/fantasy/chip", { preHandler: [requireAuth] }, async (request) => {
-    const { user } = getAuthSession(request);
-    const { chipType, season } = parseBody(request, chipSchema);
-    return await chipActivate(user.id, chipType, season);
-  });
+  app.post(
+    "/fantasy/chip",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        body: chipSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { chipType, season } = request.body;
+      return await chipActivate(user.id, chipType, season);
+    },
+  );
 
   app.post(
     "/fantasy/chip/deactivate",
-    { preHandler: [requireAuth] },
+    {
+      preHandler: [requireAuth],
+      schema: {
+        body: chipSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
-      const { chipType, season } = parseBody(request, chipSchema);
+      const { chipType, season } = request.body;
       return await chipDeactivate(user.id, chipType, season);
     },
   );
 
   app.get(
     "/fantasy/team/share",
-    { preHandler: [requireAuth] },
+    {
+      preHandler: [requireAuth],
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: teamShareDataResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
-      const { season } = parseQuery(request, seasonSchema);
+      const { season } = request.query;
       const data = await shareData(user.id, season);
       if (!data) {
         const error = new Error("Team not found") as Error & {
@@ -241,28 +454,42 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/fantasy/admin/players",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: listPlayersSchema,
+        response: { 200: adminListPlayersResponseSchema },
+      },
+    },
     async (request) => {
-      const { search } = parseQuery(request, listPlayersSchema);
+      const { search } = request.query;
       return await list(search);
     },
   );
 
   app.post(
     "/fantasy/admin/toggle-eligibility",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: toggleEligibilitySchema,
+        response: { 200: toggleEligibilityResponseSchema },
+      },
+    },
     async (request) => {
-      const { playCricketId, eligible: isEligible } = parseBody(
-        request,
-        toggleEligibilitySchema,
-      );
+      const { playCricketId, eligible: isEligible } = request.body;
       return await toggle(playCricketId, isEligible);
     },
   );
 
   app.post(
     "/fantasy/admin/populate-players",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        response: { 200: populatePlayersResponseSchema },
+      },
+    },
     async () => {
       return await populate();
     },
@@ -270,45 +497,74 @@ export const fantasyRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/fantasy/admin/calculate-costs",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: calculateCostsSchema,
+        response: { 200: calculateCostsResponseSchema },
+      },
+    },
     async (request) => {
-      const { season } = parseBody(request, calculateCostsSchema);
+      const { season } = request.body;
       return await calcCosts(season);
     },
   );
 
   app.post(
     "/fantasy/admin/calculate-scores",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: calculateScoresSchema,
+        response: { 200: calculateScoresResponseSchema },
+      },
+    },
     async (request) => {
-      const { season } = parseBody(request, calculateScoresSchema);
+      const { season } = request.body;
       return await calcScores(season ?? getCurrentSeason());
     },
   );
 
   app.get(
     "/fantasy/admin/chaos-weeks",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: seasonSchema,
+        response: { 200: listChaosWeeksResponseSchema },
+      },
+    },
     async (request) => {
-      const { season } = parseQuery(request, seasonSchema);
+      const { season } = request.query;
       return await chaosWeeksList(season);
     },
   );
 
   app.post(
     "/fantasy/admin/chaos-weeks",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: createChaosWeekSchema,
+        response: { 200: createChaosWeekResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseBody(request, createChaosWeekSchema);
-      return await chaosWeekCreate(params);
+      return await chaosWeekCreate(request.body);
     },
   );
 
   app.delete(
     "/fantasy/admin/chaos-weeks",
-    { preHandler: [requireRole("admin")] },
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: deleteChaosWeekSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
-      const { id } = parseBody(request, deleteChaosWeekSchema);
+      const { id } = request.body;
       return await chaosWeekDelete(id);
     },
   );

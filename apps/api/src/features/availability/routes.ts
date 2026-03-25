@@ -1,5 +1,4 @@
-import type { FastifyPluginAsync } from "fastify";
-import { parseBody, parseParams, parseQuery } from "../../lib/validation.ts";
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import {
   getAuthSession,
   requireAuth,
@@ -7,15 +6,24 @@ import {
 } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import {
+  assignPlayerResponseSchema,
   assignPlayerSchema,
   assignmentIdParamSchema,
+  confirmDateResponseSchema,
+  createRequestResponseSchema,
   createRequestSchema,
+  getActiveRequestsResponseSchema,
+  getDateDetailResponseSchema,
+  getRequestResponseSchema,
+  listRequestsResponseSchema,
   listRequestsSchema,
   overrideResponseSchema,
+  previewFixturesResponseSchema,
   requestDateParamSchema,
   requestIdParamSchema,
   respondSchema,
   responseIdParamSchema,
+  successResponseSchema,
   updateRequestStatusSchema,
 } from "./schemas.ts";
 import {
@@ -34,7 +42,7 @@ import {
 } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
-export const availabilityRoutes: FastifyPluginAsync = async (app) => {
+export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   const officialRole = requireRole("official", "admin");
 
   // Build Play Cricket API client (if configured)
@@ -55,7 +63,13 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/availability/requests",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        body: createRequestSchema,
+        response: { 200: createRequestResponseSchema },
+      },
+    },
     async (request) => {
       if (!create) {
         throw Object.assign(new Error("Play Cricket API not configured"), {
@@ -63,93 +77,140 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
         });
       }
       const { user } = getAuthSession(request);
-      const data = parseBody(request, createRequestSchema);
-      return await create(user.id, data);
+      return await create(user.id, request.body);
     },
   );
 
   const list = listRequests(app.db);
   app.get(
     "/availability/requests",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        querystring: listRequestsSchema,
+        response: { 200: listRequestsResponseSchema },
+      },
+    },
     async (request) => {
-      const params = parseQuery(request, listRequestsSchema);
-      return await list(params);
+      return await list(request.query);
     },
   );
 
   const get = getRequest(app.db);
   app.get(
     "/availability/requests/:requestId",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: requestIdParamSchema,
+        response: { 200: getRequestResponseSchema },
+      },
+    },
     async (request) => {
-      const { requestId } = parseParams(request, requestIdParamSchema);
-      return await get(requestId);
+      return await get(request.params.requestId);
     },
   );
 
   const getDate = getDateDetail(app.db);
   app.get(
     "/availability/requests/:requestId/dates/:date",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: requestDateParamSchema,
+        response: { 200: getDateDetailResponseSchema },
+      },
+    },
     async (request) => {
-      const { requestId, date } = parseParams(request, requestDateParamSchema);
-      return await getDate(requestId, date);
+      return await getDate(request.params.requestId, request.params.date);
     },
   );
 
   const assign = assignPlayer(app.db);
   app.post(
     "/availability/requests/:requestId/dates/:date/assign",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: requestDateParamSchema,
+        body: assignPlayerSchema,
+        response: { 200: assignPlayerResponseSchema },
+      },
+    },
     async (request) => {
-      const { requestId, date } = parseParams(request, requestDateParamSchema);
-      const data = parseBody(request, assignPlayerSchema);
-      return await assign(requestId, date, data);
+      return await assign(
+        request.params.requestId,
+        request.params.date,
+        request.body,
+      );
     },
   );
 
   const removeAssign = removeAssignment(app.db);
   app.delete(
     "/availability/assignments/:assignmentId",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: assignmentIdParamSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
-      const { assignmentId } = parseParams(request, assignmentIdParamSchema);
-      return await removeAssign(assignmentId);
+      return await removeAssign(request.params.assignmentId);
     },
   );
 
   const override = overrideResponse(app.db);
   app.put(
     "/availability/responses/:responseId/override",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: responseIdParamSchema,
+        body: overrideResponseSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
-      const { responseId } = parseParams(request, responseIdParamSchema);
-      const data = parseBody(request, overrideResponseSchema);
-      return await override(user.id, responseId, data);
+      return await override(user.id, request.params.responseId, request.body);
     },
   );
 
   const confirm = confirmDate(app.db);
   app.post(
     "/availability/requests/:requestId/dates/:date/confirm",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: requestDateParamSchema,
+        response: { 200: confirmDateResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
-      const { requestId, date } = parseParams(request, requestDateParamSchema);
-      return await confirm(user.id, requestId, date);
+      return await confirm(
+        user.id,
+        request.params.requestId,
+        request.params.date,
+      );
     },
   );
 
   const updateStatus = updateRequestStatus(app.db);
   app.patch(
     "/availability/requests/:requestId",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: requestIdParamSchema,
+        body: updateRequestStatusSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
-      const { requestId } = parseParams(request, requestIdParamSchema);
-      const data = parseBody(request, updateRequestStatusSchema);
-      return await updateStatus(requestId, data);
+      return await updateStatus(request.params.requestId, request.body);
     },
   );
 
@@ -159,15 +220,20 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/availability/preview",
-    { preHandler: [officialRole] },
+    {
+      preHandler: [officialRole],
+      schema: {
+        querystring: createRequestSchema,
+        response: { 200: previewFixturesResponseSchema },
+      },
+    },
     async (request) => {
       if (!preview) {
         throw Object.assign(new Error("Play Cricket API not configured"), {
           statusCode: 503,
         });
       }
-      const params = parseQuery(request, createRequestSchema);
-      return await preview(params.dateFrom, params.dateTo);
+      return await preview(request.query.dateFrom, request.query.dateTo);
     },
   );
 
@@ -176,7 +242,12 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
   const getActive = getActiveRequests(app.db);
   app.get(
     "/availability/active",
-    { preHandler: [requireAuth] },
+    {
+      preHandler: [requireAuth],
+      schema: {
+        response: { 200: getActiveRequestsResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
       return await getActive(user.email);
@@ -186,12 +257,21 @@ export const availabilityRoutes: FastifyPluginAsync = async (app) => {
   const submitResponse = respond(app.db);
   app.post(
     "/availability/requests/:requestId/respond",
-    { preHandler: [requireAuth] },
+    {
+      preHandler: [requireAuth],
+      schema: {
+        params: requestIdParamSchema,
+        body: respondSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
     async (request) => {
       const { user } = getAuthSession(request);
-      const { requestId } = parseParams(request, requestIdParamSchema);
-      const data = parseBody(request, respondSchema);
-      return await submitResponse(user.email, requestId, data);
+      return await submitResponse(
+        user.email,
+        request.params.requestId,
+        request.body,
+      );
     },
   );
 };

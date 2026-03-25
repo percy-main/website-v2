@@ -10,98 +10,30 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api } from "@/lib/api";
+import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
-// ── Types ──
+// ── Derived API types ──
 
-interface AvailabilityRequest {
-  id: string;
-  date_from: string;
-  date_to: string;
-  status: string;
-  created_at: string;
-  created_by: string;
-  created_by_name: string | null;
-  fixtureCount: number;
-  respondentCount: number;
-}
+type ApiResponse<P extends keyof paths, M extends string = "get"> =
+  paths[P] extends Record<
+    M,
+    { responses: { 200: { content: { "application/json": infer R } } } }
+  >
+    ? R
+    : never;
 
-interface AvailabilityFixture {
-  id: string;
-  match_date: string;
-  play_cricket_match_id: string;
-  play_cricket_team_id: string;
-  opposition: string;
-  is_home: boolean;
-  competition_name: string | null;
-  match_time: string | null;
-  team_name: string | null;
-}
+type PreviewData = ApiResponse<"/api/availability/preview">;
+type PreviewFixture = PreviewData["fixtures"][number];
 
-interface DateSummary {
-  date: string;
-  fixtures: AvailabilityFixture[];
-  responseCount: number;
-  assignmentCount: number;
-}
-
-interface RequestDetail {
-  request: AvailabilityRequest;
-  dates: DateSummary[];
-}
-
-interface PreviewFixture {
-  matchDate: string;
-  playCricketMatchId: string;
-  teamName: string;
-  opposition: string;
-  isHome: boolean;
-  competitionName: string | null;
-  matchTime: string | null;
-}
-
-interface AvailabilityResponse {
-  id: string;
-  member_id: string;
-  status: string;
-  note: string | null;
-  overridden_by: string | null;
-  member_name: string | null;
-}
-
-interface Assignment {
-  id: string;
-  availability_fixture_id: string;
-  member_id: string | null;
-  player_name: string;
-  position: number;
-}
-
-interface FixtureWithAssignments extends AvailabilityFixture {
-  assignments: Assignment[];
-}
-
-interface MemberPool {
-  id: string;
-  name: string | null;
-  member_category: string | null;
-}
-
-interface DateDetail {
-  requestStatus: string;
-  fixtures: FixtureWithAssignments[];
-  pools: {
-    available: AvailabilityResponse[];
-    unavailable: AvailabilityResponse[];
-    noResponse: MemberPool[];
-  };
-  assignedMemberIds: string[];
-}
+type DateDetailData =
+  ApiResponse<"/api/availability/requests/{requestId}/dates/{date}">;
+type FixtureWithAssignments = DateDetailData["fixtures"][number];
 
 // ── Main Component ──
 
@@ -135,8 +67,7 @@ function RequestListView() {
   const { data: session } = useSession();
   const query = useQuery({
     queryKey: ["availability", "requests"],
-    queryFn: () =>
-      api.get<{ items: AvailabilityRequest[] }>("/availability/requests"),
+    queryFn: () => callApi(api.GET("/api/availability/requests")),
   });
 
   return (
@@ -228,15 +159,21 @@ function CreateRequestView() {
   const previewQuery = useQuery({
     queryKey: ["availability", "preview", dateFrom, dateTo],
     queryFn: () =>
-      api.get<{ fixtures: PreviewFixture[] }>(
-        `/availability/preview?dateFrom=${dateFrom}&dateTo=${dateTo}`,
+      callApi(
+        api.GET("/api/availability/preview", {
+          params: { query: { dateFrom, dateTo } },
+        }),
       ),
     enabled: dateFrom <= dateTo,
   });
 
   const createMutation = useMutation({
     mutationFn: () =>
-      api.post<{ id: string }>("/availability/requests", { dateFrom, dateTo }),
+      callApi(
+        api.POST("/api/availability/requests", {
+          body: { dateFrom, dateTo },
+        }),
+      ),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({
         queryKey: ["availability", "requests"],
@@ -367,12 +304,21 @@ function RequestDetailView({ requestId }: { requestId: string }) {
   const query = useQuery({
     queryKey: ["availability", "requests", requestId],
     queryFn: () =>
-      api.get<RequestDetail>(`/availability/requests/${requestId}`),
+      callApi(
+        api.GET("/api/availability/requests/{requestId}", {
+          params: { path: { requestId } },
+        }),
+      ),
   });
 
   const statusMutation = useMutation({
-    mutationFn: (status: string) =>
-      api.patch(`/availability/requests/${requestId}`, { status }),
+    mutationFn: (status: "open" | "closed") =>
+      callApi(
+        api.PATCH("/api/availability/requests/{requestId}", {
+          params: { path: { requestId } },
+          body: { status },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["availability", "requests", requestId],
@@ -503,7 +449,11 @@ function TeamSelectionView({
   const query = useQuery({
     queryKey: ["availability", "requests", requestId, "dates", date],
     queryFn: () =>
-      api.get<DateDetail>(`/availability/requests/${requestId}/dates/${date}`),
+      callApi(
+        api.GET("/api/availability/requests/{requestId}/dates/{date}", {
+          params: { path: { requestId, date } },
+        }),
+      ),
   });
 
   const assignMutation = useMutation({
@@ -512,9 +462,11 @@ function TeamSelectionView({
       memberId?: string;
       playerName: string;
     }) =>
-      api.post(
-        `/availability/requests/${requestId}/dates/${date}/assign`,
-        data,
+      callApi(
+        api.POST("/api/availability/requests/{requestId}/dates/{date}/assign", {
+          params: { path: { requestId, date } },
+          body: data,
+        }),
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
@@ -527,7 +479,11 @@ function TeamSelectionView({
 
   const removeMutation = useMutation({
     mutationFn: (assignmentId: string) =>
-      api.delete(`/availability/assignments/${assignmentId}`),
+      callApi(
+        api.DELETE("/api/availability/assignments/{assignmentId}", {
+          params: { path: { assignmentId } },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["availability", "requests", requestId, "dates", date],
@@ -536,10 +492,16 @@ function TeamSelectionView({
   });
 
   const overrideMutation = useMutation({
-    mutationFn: (data: { responseId: string; status: string }) =>
-      api.put(`/availability/responses/${data.responseId}/override`, {
-        status: data.status,
-      }),
+    mutationFn: (data: {
+      responseId: string;
+      status: "available" | "unavailable";
+    }) =>
+      callApi(
+        api.PUT("/api/availability/responses/{responseId}/override", {
+          params: { path: { responseId: data.responseId } },
+          body: { status: data.status },
+        }),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["availability", "requests", requestId, "dates", date],
@@ -549,7 +511,14 @@ function TeamSelectionView({
 
   const confirmMutation = useMutation({
     mutationFn: () =>
-      api.post(`/availability/requests/${requestId}/dates/${date}/confirm`),
+      callApi(
+        api.POST(
+          "/api/availability/requests/{requestId}/dates/{date}/confirm",
+          {
+            params: { path: { requestId, date } },
+          },
+        ),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["availability", "requests", requestId],
@@ -888,8 +857,8 @@ function PlayerPool({
   }>;
   fixtures: FixtureWithAssignments[];
   onAssign: (fixtureId: string, memberId: string, name: string) => void;
-  onOverride: (responseId: string, status: string) => void;
-  overrideStatus: string;
+  onOverride: (responseId: string, status: "available" | "unavailable") => void;
+  overrideStatus: "available" | "unavailable";
   isAssigning: boolean;
 }) {
   return (
