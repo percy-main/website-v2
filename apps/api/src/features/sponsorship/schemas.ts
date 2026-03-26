@@ -5,7 +5,7 @@ export const gameSponsorshipPaymentSchema = z.object({
   gameId: z.string(),
   sponsorName: z.string().min(1),
   sponsorEmail: z.email(),
-  sponsorWebsite: z.url().optional(),
+  sponsorWebsite: z.string().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
 });
@@ -16,7 +16,7 @@ export const playerSponsorshipPaymentSchema = z.object({
   playerName: z.string(),
   sponsorName: z.string().min(1),
   sponsorEmail: z.email(),
-  sponsorWebsite: z.url().optional(),
+  sponsorWebsite: z.string().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
 });
@@ -38,6 +38,7 @@ export const sponsorshipUpdateSchema = z.object({
   displayName: z.string().optional(),
   notes: z.string().optional(),
   sponsorLogoDataUrl: z.string().optional(),
+  sponsorWebsite: z.string().nullable().optional(),
 });
 
 export const playerSponsorshipManualSchema = z.object({
@@ -45,7 +46,7 @@ export const playerSponsorshipManualSchema = z.object({
   playerName: z.string(),
   sponsorName: z.string().min(1),
   sponsorEmail: z.email(),
-  sponsorWebsite: z.url().optional(),
+  sponsorWebsite: z.string().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
   amountPence: z.number().int().positive(),
@@ -57,7 +58,7 @@ export const gameSponsorshipManualSchema = z.object({
   gameId: z.string(),
   sponsorName: z.string().min(1),
   sponsorEmail: z.email(),
-  sponsorWebsite: z.url().optional(),
+  sponsorWebsite: z.string().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
   amountPence: z.number().int().positive(),

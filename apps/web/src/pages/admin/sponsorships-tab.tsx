@@ -129,22 +129,46 @@ function InlineEdit({
   );
 }
 
+function isValidUrl(value: string): boolean {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function SponsorColumn({
   name,
   email,
   website,
   logoUrl,
+  onWebsiteChange,
 }: {
   name: string;
   email: string;
   website: string | null;
   logoUrl: string | null;
+  onWebsiteChange?: (value: string | null) => void;
 }) {
   return (
     <div className="space-y-0.5">
       <div className="font-bold">{name}</div>
       <div className="text-xs text-gray-500">{email}</div>
-      {website && (
+      {onWebsiteChange ? (
+        <div>
+          <InlineEdit
+            value={website}
+            placeholder="Add website"
+            onSave={onWebsiteChange}
+          />
+          {website && !isValidUrl(website) && (
+            <div className="text-xs font-medium text-amber-600">
+              Invalid URL — fix before approving
+            </div>
+          )}
+        </div>
+      ) : website ? (
         <a
           href={website}
           target="_blank"
@@ -153,7 +177,7 @@ function SponsorColumn({
         >
           {website}
         </a>
-      )}
+      ) : null}
       {logoUrl && (
         <img
           src={logoUrl}
@@ -396,6 +420,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
       sponsorshipId: string;
       displayName?: string | undefined;
       notes?: string | undefined;
+      sponsorWebsite?: string | null | undefined;
     }) =>
       callApi(
         api.PUT("/api/sponsorship/admin/game/{sponsorshipId}", {
@@ -441,6 +466,12 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
                   email={s.sponsor_email}
                   website={s.sponsor_website}
                   logoUrl={s.sponsor_logo_url}
+                  onWebsiteChange={(v) =>
+                    updateMutation.mutate({
+                      sponsorshipId: s.id,
+                      sponsorWebsite: v,
+                    })
+                  }
                 />
               </TableCell>
               <TableCell>
@@ -604,6 +635,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
       sponsorshipId: string;
       displayName?: string | undefined;
       notes?: string | undefined;
+      sponsorWebsite?: string | null | undefined;
     }) =>
       callApi(
         api.PUT("/api/sponsorship/admin/player/{sponsorshipId}", {
@@ -654,6 +686,12 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
                   email={s.sponsor_email}
                   website={s.sponsor_website}
                   logoUrl={s.sponsor_logo_url}
+                  onWebsiteChange={(v) =>
+                    updateMutation.mutate({
+                      sponsorshipId: s.id,
+                      sponsorWebsite: v,
+                    })
+                  }
                 />
               </TableCell>
               <TableCell>

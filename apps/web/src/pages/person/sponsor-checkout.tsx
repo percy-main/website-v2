@@ -273,8 +273,8 @@ export function Component() {
               <Label htmlFor="sponsorWebsite">Website URL</Label>
               <Input
                 id="sponsorWebsite"
-                type="url"
-                placeholder="https://"
+                type="text"
+                placeholder="https://www.example.com"
                 value={sponsorWebsite}
                 onChange={(e) => setSponsorWebsite(e.target.value)}
               />
