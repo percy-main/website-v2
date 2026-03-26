@@ -154,7 +154,9 @@ function SponsorBadge({
         <p
           className={cn(
             "text-lg font-semibold text-orange-800",
-            sponsor.website && "underline decoration-dotted underline-offset-2",
+            sponsor.website &&
+              /^https?:\/\//i.test(sponsor.website) &&
+              "underline decoration-dotted underline-offset-2",
           )}
         >
           {sponsor.name}
@@ -166,7 +168,7 @@ function SponsorBadge({
     </div>
   );
 
-  if (sponsor.website) {
+  if (sponsor.website && /^https?:\/\//i.test(sponsor.website)) {
     return (
       <a
         href={sponsor.website}

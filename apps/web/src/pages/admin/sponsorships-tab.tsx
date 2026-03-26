@@ -129,31 +129,59 @@ function InlineEdit({
   );
 }
 
+function isValidUrl(value: string): boolean {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function SponsorColumn({
   name,
   email,
   website,
   logoUrl,
+  onWebsiteChange,
 }: {
   name: string;
   email: string;
   website: string | null;
   logoUrl: string | null;
+  onWebsiteChange?: (value: string | null) => void;
 }) {
   return (
     <div className="space-y-0.5">
       <div className="font-bold">{name}</div>
       <div className="text-xs text-gray-500">{email}</div>
-      {website && (
-        <a
-          href={website}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-blue-600 hover:underline"
-        >
-          {website}
-        </a>
-      )}
+      {onWebsiteChange ? (
+        <div>
+          <InlineEdit
+            value={website}
+            placeholder="Add website"
+            onSave={onWebsiteChange}
+          />
+          {website && !isValidUrl(website) && (
+            <div className="text-xs font-medium text-amber-600">
+              Invalid URL — fix before approving
+            </div>
+          )}
+        </div>
+      ) : website ? (
+        isValidUrl(website) ? (
+          <a
+            href={website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 hover:underline"
+          >
+            {website}
+          </a>
+        ) : (
+          <span className="text-xs text-gray-500">{website}</span>
+        )
+      ) : null}
       {logoUrl && (
         <img
           src={logoUrl}
@@ -396,6 +424,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
       sponsorshipId: string;
       displayName?: string | undefined;
       notes?: string | undefined;
+      sponsorWebsite?: string | null | undefined;
     }) =>
       callApi(
         api.PUT("/api/sponsorship/admin/game/{sponsorshipId}", {
@@ -441,6 +470,12 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
                   email={s.sponsor_email}
                   website={s.sponsor_website}
                   logoUrl={s.sponsor_logo_url}
+                  onWebsiteChange={(v) =>
+                    updateMutation.mutate({
+                      sponsorshipId: s.id,
+                      sponsorWebsite: v,
+                    })
+                  }
                 />
               </TableCell>
               <TableCell>
@@ -480,16 +515,29 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
                 </div>
               </TableCell>
               <TableCell>
-                {s.paid_at && !s.approved && (
-                  <Button
-                    size="sm"
-                    className="bg-green-600 text-white hover:bg-green-700"
-                    disabled={approveMutation.isPending}
-                    onClick={() => approveMutation.mutate(s.id)}
-                  >
-                    Approve
-                  </Button>
-                )}
+                {s.paid_at &&
+                  !s.approved &&
+                  (() => {
+                    const hasInvalidUrl =
+                      !!s.sponsor_website && !isValidUrl(s.sponsor_website);
+                    return (
+                      <div className="space-y-1">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 text-white hover:bg-green-700"
+                          disabled={approveMutation.isPending || hasInvalidUrl}
+                          onClick={() => approveMutation.mutate(s.id)}
+                        >
+                          Approve
+                        </Button>
+                        {hasInvalidUrl && (
+                          <div className="text-xs text-amber-600">
+                            Fix URL first
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 {s.approved && (
                   <Button
                     size="sm"
@@ -604,6 +652,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
       sponsorshipId: string;
       displayName?: string | undefined;
       notes?: string | undefined;
+      sponsorWebsite?: string | null | undefined;
     }) =>
       callApi(
         api.PUT("/api/sponsorship/admin/player/{sponsorshipId}", {
@@ -654,6 +703,12 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
                   email={s.sponsor_email}
                   website={s.sponsor_website}
                   logoUrl={s.sponsor_logo_url}
+                  onWebsiteChange={(v) =>
+                    updateMutation.mutate({
+                      sponsorshipId: s.id,
+                      sponsorWebsite: v,
+                    })
+                  }
                 />
               </TableCell>
               <TableCell>
@@ -693,16 +748,29 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
                 </div>
               </TableCell>
               <TableCell>
-                {s.paid_at && !s.approved && (
-                  <Button
-                    size="sm"
-                    className="bg-green-600 text-white hover:bg-green-700"
-                    disabled={approveMutation.isPending}
-                    onClick={() => approveMutation.mutate(s.id)}
-                  >
-                    Approve
-                  </Button>
-                )}
+                {s.paid_at &&
+                  !s.approved &&
+                  (() => {
+                    const hasInvalidUrl =
+                      !!s.sponsor_website && !isValidUrl(s.sponsor_website);
+                    return (
+                      <div className="space-y-1">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 text-white hover:bg-green-700"
+                          disabled={approveMutation.isPending || hasInvalidUrl}
+                          onClick={() => approveMutation.mutate(s.id)}
+                        >
+                          Approve
+                        </Button>
+                        {hasInvalidUrl && (
+                          <div className="text-xs text-amber-600">
+                            Fix URL first
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 {s.approved && (
                   <Button
                     size="sm"

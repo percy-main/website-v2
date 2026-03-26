@@ -5416,8 +5416,7 @@
                     "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   "sponsorWebsite": {
-                    "type": "string",
-                    "format": "uri"
+                    "type": "string"
                   },
                   "sponsorLogoDataUrl": {
                     "type": "string"
@@ -5640,8 +5639,7 @@
                     "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   "sponsorWebsite": {
-                    "type": "string",
-                    "format": "uri"
+                    "type": "string"
                   },
                   "sponsorLogoDataUrl": {
                     "type": "string"
@@ -6189,8 +6187,7 @@
                     "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   "sponsorWebsite": {
-                    "type": "string",
-                    "format": "uri"
+                    "type": "string"
                   },
                   "sponsorLogoDataUrl": {
                     "type": "string"
@@ -6268,8 +6265,7 @@
                     "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   "sponsorWebsite": {
-                    "type": "string",
-                    "format": "uri"
+                    "type": "string"
                   },
                   "sponsorLogoDataUrl": {
                     "type": "string"
@@ -6343,6 +6339,10 @@
                   },
                   "sponsorLogoDataUrl": {
                     "type": "string"
+                  },
+                  "sponsorWebsite": {
+                    "nullable": true,
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -6404,6 +6404,10 @@
                     "type": "string"
                   },
                   "sponsorLogoDataUrl": {
+                    "type": "string"
+                  },
+                  "sponsorWebsite": {
+                    "nullable": true,
                     "type": "string"
                   }
                 },

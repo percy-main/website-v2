@@ -3080,7 +3080,6 @@ export interface paths {
                         sponsorName: string;
                         /** Format: email */
                         sponsorEmail: string;
-                        /** Format: uri */
                         sponsorWebsite?: string;
                         sponsorLogoDataUrl?: string;
                         sponsorMessage?: string;
@@ -3228,7 +3227,6 @@ export interface paths {
                         sponsorName: string;
                         /** Format: email */
                         sponsorEmail: string;
-                        /** Format: uri */
                         sponsorWebsite?: string;
                         sponsorLogoDataUrl?: string;
                         sponsorMessage?: string;
@@ -3572,7 +3570,6 @@ export interface paths {
                         sponsorName: string;
                         /** Format: email */
                         sponsorEmail: string;
-                        /** Format: uri */
                         sponsorWebsite?: string;
                         sponsorLogoDataUrl?: string;
                         sponsorMessage?: string;
@@ -3626,7 +3623,6 @@ export interface paths {
                         sponsorName: string;
                         /** Format: email */
                         sponsorEmail: string;
-                        /** Format: uri */
                         sponsorWebsite?: string;
                         sponsorLogoDataUrl?: string;
                         sponsorMessage?: string;
@@ -3680,6 +3676,7 @@ export interface paths {
                         displayName?: string;
                         notes?: string;
                         sponsorLogoDataUrl?: string;
+                        sponsorWebsite?: string | null;
                     };
                 };
             };
@@ -3728,6 +3725,7 @@ export interface paths {
                         displayName?: string;
                         notes?: string;
                         sponsorLogoDataUrl?: string;
+                        sponsorWebsite?: string | null;
                     };
                 };
             };

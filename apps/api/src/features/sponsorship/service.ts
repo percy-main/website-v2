@@ -285,6 +285,9 @@ export function updateGameSponsorship(db: Kysely<DB>) {
         display_name: data.displayName,
         notes: data.notes,
         sponsor_logo_url: data.sponsorLogoDataUrl,
+        ...(data.sponsorWebsite !== undefined
+          ? { sponsor_website: data.sponsorWebsite }
+          : {}),
       })
       .where("id", "=", sponsorshipId)
       .execute();
@@ -304,6 +307,9 @@ export function updatePlayerSponsorship(db: Kysely<DB>) {
         display_name: data.displayName,
         notes: data.notes,
         sponsor_logo_url: data.sponsorLogoDataUrl,
+        ...(data.sponsorWebsite !== undefined
+          ? { sponsor_website: data.sponsorWebsite }
+          : {}),
       })
       .where("id", "=", sponsorshipId)
       .execute();
