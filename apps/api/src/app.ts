@@ -114,6 +114,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(cors, {
     origin: config.BASE_URL,
     credentials: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
