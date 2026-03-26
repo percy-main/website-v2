@@ -47,7 +47,8 @@ export function PlayerSponsor({ slug }: { slug: string }) {
             className="mb-2 max-w-[120px]"
           />
         )}
-        {sponsor.sponsor_website ? (
+        {sponsor.sponsor_website &&
+        /^https?:\/\//i.test(sponsor.sponsor_website) ? (
           <a
             href={sponsor.sponsor_website}
             target="_blank"

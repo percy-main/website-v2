@@ -169,14 +169,18 @@ function SponsorColumn({
           )}
         </div>
       ) : website ? (
-        <a
-          href={website}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-blue-600 hover:underline"
-        >
-          {website}
-        </a>
+        isValidUrl(website) ? (
+          <a
+            href={website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 hover:underline"
+          >
+            {website}
+          </a>
+        ) : (
+          <span className="text-xs text-gray-500">{website}</span>
+        )
       ) : null}
       {logoUrl && (
         <img
@@ -511,16 +515,29 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
                 </div>
               </TableCell>
               <TableCell>
-                {s.paid_at && !s.approved && (
-                  <Button
-                    size="sm"
-                    className="bg-green-600 text-white hover:bg-green-700"
-                    disabled={approveMutation.isPending}
-                    onClick={() => approveMutation.mutate(s.id)}
-                  >
-                    Approve
-                  </Button>
-                )}
+                {s.paid_at &&
+                  !s.approved &&
+                  (() => {
+                    const hasInvalidUrl =
+                      !!s.sponsor_website && !isValidUrl(s.sponsor_website);
+                    return (
+                      <div className="space-y-1">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 text-white hover:bg-green-700"
+                          disabled={approveMutation.isPending || hasInvalidUrl}
+                          onClick={() => approveMutation.mutate(s.id)}
+                        >
+                          Approve
+                        </Button>
+                        {hasInvalidUrl && (
+                          <div className="text-xs text-amber-600">
+                            Fix URL first
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 {s.approved && (
                   <Button
                     size="sm"
@@ -731,16 +748,29 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
                 </div>
               </TableCell>
               <TableCell>
-                {s.paid_at && !s.approved && (
-                  <Button
-                    size="sm"
-                    className="bg-green-600 text-white hover:bg-green-700"
-                    disabled={approveMutation.isPending}
-                    onClick={() => approveMutation.mutate(s.id)}
-                  >
-                    Approve
-                  </Button>
-                )}
+                {s.paid_at &&
+                  !s.approved &&
+                  (() => {
+                    const hasInvalidUrl =
+                      !!s.sponsor_website && !isValidUrl(s.sponsor_website);
+                    return (
+                      <div className="space-y-1">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 text-white hover:bg-green-700"
+                          disabled={approveMutation.isPending || hasInvalidUrl}
+                          onClick={() => approveMutation.mutate(s.id)}
+                        >
+                          Approve
+                        </Button>
+                        {hasInvalidUrl && (
+                          <div className="text-xs text-amber-600">
+                            Fix URL first
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 {s.approved && (
                   <Button
                     size="sm"
