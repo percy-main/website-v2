@@ -42,7 +42,13 @@ function parsePdfDataUrl(dataUrl: string): Buffer {
       { statusCode: 400 },
     );
   }
-  return Buffer.from(match[1], "base64");
+  const buf = Buffer.from(match[1], "base64");
+  if (buf.length < 4 || buf.subarray(0, 4).toString("ascii") !== "%PDF") {
+    throw Object.assign(new Error("File does not appear to be a valid PDF."), {
+      statusCode: 400,
+    });
+  }
+  return buf;
 }
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async

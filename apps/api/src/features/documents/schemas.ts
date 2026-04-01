@@ -60,7 +60,6 @@ export const documentDetailResponseSchema = z.object({
   id: z.string(),
   title: z.string(),
   version: z.number(),
-  s3Key: z.string(),
   archivedAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),

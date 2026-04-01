@@ -66,6 +66,8 @@ export function createS3DocumentStore(config: Config): S3DocumentStore {
       const command = new GetObjectCommand({
         Bucket: bucket,
         Key: s3Key,
+        ResponseContentType: "application/pdf",
+        ResponseContentDisposition: "inline",
       });
 
       return await getSignedUrl(client, command, {
