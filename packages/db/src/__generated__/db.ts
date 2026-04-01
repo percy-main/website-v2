@@ -142,6 +142,28 @@ export interface Dependent {
   whatsapp_consent: boolean | null;
 }
 
+export interface Document {
+  archived_at: string | null;
+  created_at: Generated<string>;
+  created_by: string;
+  id: string;
+  s3_key: string;
+  title: string;
+  updated_at: Generated<string>;
+  updated_by: string;
+  version: Generated<number>;
+}
+
+export interface DocumentAssignment {
+  assigned_at: Generated<string>;
+  assigned_by: string;
+  confirmed_at: string | null;
+  confirmed_version: number | null;
+  document_id: string;
+  id: string;
+  user_id: string;
+}
+
 export interface EventSubscriber {
   email: string;
   id: string;
@@ -533,6 +555,8 @@ export interface DB {
   charge_dependent: ChargeDependent;
   contact_submission: ContactSubmission;
   dependent: Dependent;
+  document: Document;
+  document_assignment: DocumentAssignment;
   event_subscriber: EventSubscriber;
   fantasy_chaos_week: FantasyChaosWeek;
   fantasy_chip_usage: FantasyChipUsage;
