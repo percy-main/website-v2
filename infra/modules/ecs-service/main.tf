@@ -108,6 +108,12 @@ variable "documents_bucket_arn" {
   description = "ARN of the S3 bucket for policy documents. When set, grants GetObject + PutObject (no delete)."
 }
 
+variable "document_uploads_bucket_arn" {
+  type        = string
+  default     = ""
+  description = "ARN of the temporary document uploads bucket. When set, grants PutObject (for presigning) + GetObject (for copy source)."
+}
+
 # ------------------------------------------------------------------------------
 # Locals
 # ------------------------------------------------------------------------------
@@ -305,6 +311,29 @@ resource "aws_iam_role_policy" "task_s3_documents" {
         Resource = [
           var.documents_bucket_arn,
           "${var.documents_bucket_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "task_s3_document_uploads" {
+  count = var.document_uploads_bucket_arn != "" ? 1 : 0
+  name  = "${local.name_prefix}-task-s3-document-uploads"
+  role  = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject"
+        ]
+        Resource = [
+          var.document_uploads_bucket_arn,
+          "${var.document_uploads_bucket_arn}/*"
         ]
       }
     ]

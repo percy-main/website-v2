@@ -24,10 +24,19 @@ function createMockS3(): S3DocumentStore & { keys: string[] } {
   const keys: string[] = [];
   return {
     keys,
-    uploadDocument({ documentId, version }) {
-      const key = `documents/${documentId}/v${version}.pdf`;
-      keys.push(key);
-      return Promise.resolve(key);
+    getSignedUploadUrl(documentId, version) {
+      const pendingKey = `pending/${documentId}/v${version}.pdf`;
+      return Promise.resolve({
+        uploadUrl: `https://mock-s3.example.com/${pendingKey}?presigned=true`,
+        pendingKey,
+      });
+    },
+    copyToPermanent(pendingKey, documentId, version) {
+      const permanentKey = `documents/${documentId}/v${version}.pdf`;
+      keys.push(permanentKey);
+      // pendingKey consumed — simulates the copy
+      void pendingKey;
+      return Promise.resolve(permanentKey);
     },
     getSignedDocumentUrl(s3Key: string) {
       return Promise.resolve(
@@ -58,7 +67,7 @@ describe("documents service (integration)", () => {
       mockS3,
     )({
       title: "Safeguarding Policy",
-      pdfBytes: Buffer.from("fake-pdf"),
+      pendingKey: "pending/test/v1.pdf",
       createdBy: admin.userId,
     });
 
@@ -84,7 +93,7 @@ describe("documents service (integration)", () => {
       mockS3,
     )({
       title: "Old Title",
-      pdfBytes: Buffer.from("fake-pdf"),
+      pendingKey: "pending/test/v1.pdf",
       createdBy: admin.userId,
     });
 
@@ -109,7 +118,7 @@ describe("documents service (integration)", () => {
       mockS3,
     )({
       title: "Policy",
-      pdfBytes: Buffer.from("v1-pdf"),
+      pendingKey: "pending/test/v1.pdf",
       createdBy: admin.userId,
     });
 
@@ -118,7 +127,7 @@ describe("documents service (integration)", () => {
       mockS3,
     )({
       documentId: doc.id,
-      pdfBytes: Buffer.from("v2-pdf"),
+      pendingKey: "pending/test/v2.pdf",
       updatedBy: admin.userId,
     });
 
@@ -135,7 +144,7 @@ describe("documents service (integration)", () => {
       mockS3,
     )({
       title: "Code of Conduct",
-      pdfBytes: Buffer.from("fake-pdf"),
+      pendingKey: "pending/test/v1.pdf",
       createdBy: admin.userId,
     });
 
@@ -168,7 +177,7 @@ describe("documents service (integration)", () => {
       mockS3,
     )({
       title: "Privacy Policy",
-      pdfBytes: Buffer.from("fake-pdf"),
+      pendingKey: "pending/test/v1.pdf",
       createdBy: admin.userId,
     });
 
@@ -204,7 +213,7 @@ describe("documents service (integration)", () => {
       mockS3,
     )({
       title: "Anti-Doping Policy",
-      pdfBytes: Buffer.from("v1"),
+      pendingKey: "pending/test/v1.pdf",
       createdBy: admin.userId,
     });
 
@@ -223,7 +232,7 @@ describe("documents service (integration)", () => {
       mockS3,
     )({
       documentId: doc.id,
-      pdfBytes: Buffer.from("v2"),
+      pendingKey: "pending/test/v2.pdf",
       updatedBy: admin.userId,
     });
 
@@ -254,7 +263,7 @@ describe("documents service (integration)", () => {
       mockS3,
     )({
       title: "To Be Removed",
-      pdfBytes: Buffer.from("fake"),
+      pendingKey: "pending/test/v1.pdf",
       createdBy: admin.userId,
     });
 
@@ -279,7 +288,7 @@ describe("documents service (integration)", () => {
       mockS3,
     )({
       title: "Old Policy",
-      pdfBytes: Buffer.from("fake"),
+      pendingKey: "pending/test/v1.pdf",
       createdBy: admin.userId,
     });
 

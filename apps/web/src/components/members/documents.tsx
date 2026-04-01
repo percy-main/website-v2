@@ -98,6 +98,7 @@ export function Documents() {
                 <TableHead>Version</TableHead>
                 <TableHead>Confirmed</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -112,6 +113,17 @@ export function Documents() {
                     <Badge variant="success">
                       Confirmed (v{doc.confirmedVersion})
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        void navigate(`/members/documents/${doc.documentId}`)
+                      }
+                    >
+                      View
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

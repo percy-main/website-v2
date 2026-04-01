@@ -15,6 +15,7 @@ const config = parseConfig({
   STRIPE_SECRET_KEY: "sk_test_placeholder",
   S3_BUCKET: "placeholder",
   S3_DOCUMENTS_BUCKET: "placeholder",
+  S3_DOCUMENT_UPLOADS_BUCKET: "placeholder",
   NODE_ENV: "development",
   LOG_LEVEL: "error",
   PLAY_CRICKET_API_TOKEN: "placeholder",

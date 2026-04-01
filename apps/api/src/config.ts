@@ -46,6 +46,7 @@ const configSchema = z.object({
   // S3 (policy documents)
   S3_DOCUMENTS_BUCKET: z.string().min(1),
   S3_DOCUMENTS_PREFIX: z.string().default("documents"),
+  S3_DOCUMENT_UPLOADS_BUCKET: z.string().min(1),
 
   // Observability (New Relic via OpenTelemetry)
   NEW_RELIC_LICENSE_KEY: z.string().optional(),

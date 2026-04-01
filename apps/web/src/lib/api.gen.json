@@ -12718,6 +12718,35 @@
         }
       }
     },
+    "/api/admin/documents/upload-url": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "pendingKey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "uploadUrl",
+                    "pendingKey"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/documents": {
       "post": {
         "requestBody": {
@@ -12732,14 +12761,14 @@
                     "minLength": 1,
                     "maxLength": 255
                   },
-                  "file": {
+                  "pendingKey": {
                     "type": "string",
                     "minLength": 1
                   }
                 },
                 "required": [
                   "title",
-                  "file"
+                  "pendingKey"
                 ]
               }
             }
@@ -12840,6 +12869,46 @@
         }
       }
     },
+    "/api/admin/documents/{documentId}/upload-url": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "documentId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "pendingKey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "uploadUrl",
+                    "pendingKey"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/documents/{documentId}": {
       "put": {
         "requestBody": {
@@ -12854,7 +12923,7 @@
                     "minLength": 1,
                     "maxLength": 255
                   },
-                  "file": {
+                  "pendingKey": {
                     "type": "string",
                     "minLength": 1
                   }
@@ -12933,9 +13002,6 @@
                     "version": {
                       "type": "number"
                     },
-                    "s3Key": {
-                      "type": "string"
-                    },
                     "archivedAt": {
                       "nullable": true,
                       "type": "string"
@@ -12997,7 +13063,6 @@
                     "id",
                     "title",
                     "version",
-                    "s3Key",
                     "archivedAt",
                     "createdAt",
                     "updatedAt",

@@ -19,6 +19,7 @@ import {
   unassignDocumentResponseSchema,
   updateDocumentResponseSchema,
   updateDocumentSchema,
+  uploadUrlResponseSchema,
   viewDocumentResponseSchema,
 } from "./schemas.ts";
 import {
@@ -33,23 +34,6 @@ import {
   updateDocument,
   viewDocument,
 } from "./service.ts";
-
-function parsePdfDataUrl(dataUrl: string): Buffer {
-  const match = /^data:application\/pdf;base64,(.+)$/.exec(dataUrl);
-  if (!match) {
-    throw Object.assign(
-      new Error("Invalid file format. Expected a base64-encoded PDF data URL."),
-      { statusCode: 400 },
-    );
-  }
-  const buf = Buffer.from(match[1], "base64");
-  if (buf.length < 4 || buf.subarray(0, 4).toString("ascii") !== "%PDF") {
-    throw Object.assign(new Error("File does not appear to be a valid PDF."), {
-      statusCode: 400,
-    });
-  }
-  return buf;
-}
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -68,6 +52,22 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
   // ── Admin endpoints ──
 
   app.post(
+    "/admin/documents/upload-url",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        response: { 200: uploadUrlResponseSchema },
+      },
+    },
+    async () => {
+      // Generate a unique ID and version 1 for the pending upload
+      const documentId = crypto.randomUUID();
+      const version = 1;
+      return await app.s3Documents.getSignedUploadUrl(documentId, version);
+    },
+  );
+
+  app.post(
     "/admin/documents",
     {
       preHandler: [requireRole("admin")],
@@ -78,12 +78,31 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      const pdfBytes = parsePdfDataUrl(request.body.file);
       return await create({
         title: request.body.title,
-        pdfBytes,
+        pendingKey: request.body.pendingKey,
         createdBy: user.id,
       });
+    },
+  );
+
+  app.post(
+    "/admin/documents/:documentId/upload-url",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: documentIdParamSchema,
+        response: { 200: uploadUrlResponseSchema },
+      },
+    },
+    async (request) => {
+      // Get current version to generate next version's upload URL
+      const doc = await detail(request.params.documentId);
+      const nextVersion = doc.version + 1;
+      return await app.s3Documents.getSignedUploadUrl(
+        request.params.documentId,
+        nextVersion,
+      );
     },
   );
 
@@ -99,13 +118,10 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      const pdfBytes = request.body.file
-        ? parsePdfDataUrl(request.body.file)
-        : undefined;
       return await update({
         documentId: request.params.documentId,
         title: request.body.title,
-        pdfBytes,
+        pendingKey: request.body.pendingKey,
         updatedBy: user.id,
       });
     },

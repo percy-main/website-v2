@@ -7233,6 +7233,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/documents/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            uploadUrl: string;
+                            pendingKey: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/documents": {
         parameters: {
             query?: never;
@@ -7283,7 +7321,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         title: string;
-                        file: string;
+                        pendingKey: string;
                     };
                 };
             };
@@ -7298,6 +7336,46 @@ export interface paths {
                             id: string;
                             title: string;
                             version: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/documents/{documentId}/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    documentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            uploadUrl: string;
+                            pendingKey: string;
                         };
                     };
                 };
@@ -7337,7 +7415,6 @@ export interface paths {
                             id: string;
                             title: string;
                             version: number;
-                            s3Key: string;
                             archivedAt: string | null;
                             createdAt: string;
                             updatedAt: string;
@@ -7369,7 +7446,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         title?: string;
-                        file?: string;
+                        pendingKey?: string;
                     };
                 };
             };

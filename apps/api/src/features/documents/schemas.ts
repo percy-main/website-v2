@@ -11,11 +11,18 @@ export const assignmentParamSchema = z.object({
   userId: z.string().min(1),
 });
 
-// ── Admin: Create document ──
+// ── Admin: Request upload URL ──
+
+export const uploadUrlResponseSchema = z.object({
+  uploadUrl: z.string(),
+  pendingKey: z.string(),
+});
+
+// ── Admin: Create document (after browser upload) ──
 
 export const createDocumentSchema = z.object({
   title: z.string().min(1).max(255),
-  file: z.string().min(1), // base64 data URL (data:application/pdf;base64,...)
+  pendingKey: z.string().min(1),
 });
 
 export const createDocumentResponseSchema = z.object({
@@ -28,7 +35,7 @@ export const createDocumentResponseSchema = z.object({
 
 export const updateDocumentSchema = z.object({
   title: z.string().min(1).max(255).optional(),
-  file: z.string().min(1).optional(), // new PDF replaces old, increments version
+  pendingKey: z.string().min(1).optional(), // new PDF — triggers version bump + copy
 });
 
 export const updateDocumentResponseSchema = z.object({

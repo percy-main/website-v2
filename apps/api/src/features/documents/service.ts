@@ -2,22 +2,19 @@ import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import type { S3DocumentStore } from "../../lib/s3-documents.ts";
 
-// ── Admin: Create document ──
+// ── Admin: Create document (after browser upload to pending bucket) ──
 
 export function createDocument(db: Kysely<DB>, s3: S3DocumentStore) {
   return async (params: {
     title: string;
-    pdfBytes: Buffer;
+    pendingKey: string;
     createdBy: string;
   }) => {
     const id = crypto.randomUUID();
     const version = 1;
 
-    const s3Key = await s3.uploadDocument({
-      pdfBytes: params.pdfBytes,
-      documentId: id,
-      version,
-    });
+    // Copy from pending uploads bucket to permanent documents bucket
+    const s3Key = await s3.copyToPermanent(params.pendingKey, id, version);
 
     await db
       .insertInto("document")
@@ -41,7 +38,7 @@ export function updateDocument(db: Kysely<DB>, s3: S3DocumentStore) {
   return async (params: {
     documentId: string;
     title?: string;
-    pdfBytes?: Buffer;
+    pendingKey?: string; // new PDF in pending bucket → version bump + copy
     updatedBy: string;
   }) => {
     const doc = await db
@@ -60,14 +57,14 @@ export function updateDocument(db: Kysely<DB>, s3: S3DocumentStore) {
     let newVersion = doc.version;
     let newS3Key = doc.s3_key;
 
-    // New PDF → increment version and upload
-    if (params.pdfBytes) {
+    // New PDF → increment version and copy from pending to permanent
+    if (params.pendingKey) {
       newVersion = doc.version + 1;
-      newS3Key = await s3.uploadDocument({
-        pdfBytes: params.pdfBytes,
-        documentId: doc.id,
-        version: newVersion,
-      });
+      newS3Key = await s3.copyToPermanent(
+        params.pendingKey,
+        doc.id,
+        newVersion,
+      );
     }
 
     const newTitle = params.title ?? doc.title;

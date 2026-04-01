@@ -42,17 +42,21 @@ function CreateDocumentDialog({
   const mutation = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error("No file selected");
-      const buffer = await file.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(buffer).reduce(
-          (data, byte) => data + String.fromCharCode(byte),
-          "",
-        ),
+      // Step 1: Get pre-signed upload URL
+      const { uploadUrl, pendingKey } = await callApi(
+        api.POST("/api/admin/documents/upload-url"),
       );
-      const dataUrl = `data:application/pdf;base64,${base64}`;
+      // Step 2: Upload PDF directly to S3
+      const res = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": "application/pdf" },
+      });
+      if (!res.ok) throw new Error("Failed to upload file");
+      // Step 3: Create document record with pending key
       return callApi(
         api.POST("/api/admin/documents", {
-          body: { title, file: dataUrl },
+          body: { title, pendingKey },
         }),
       );
     },
@@ -137,23 +141,29 @@ function EditDocumentDialog({
 
   const mutation = useMutation({
     mutationFn: async () => {
-      let fileDataUrl: string | undefined;
+      let pendingKey: string | undefined;
       if (file) {
-        const buffer = await file.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(buffer).reduce(
-            (data, byte) => data + String.fromCharCode(byte),
-            "",
-          ),
+        // Step 1: Get pre-signed upload URL for next version
+        const upload = await callApi(
+          api.POST("/api/admin/documents/{documentId}/upload-url", {
+            params: { path: { documentId } },
+          }),
         );
-        fileDataUrl = `data:application/pdf;base64,${base64}`;
+        // Step 2: Upload PDF directly to S3
+        const res = await fetch(upload.uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": "application/pdf" },
+        });
+        if (!res.ok) throw new Error("Failed to upload file");
+        pendingKey = upload.pendingKey;
       }
       return callApi(
         api.PUT("/api/admin/documents/{documentId}", {
           params: { path: { documentId } },
           body: {
             ...(title !== currentTitle ? { title } : {}),
-            ...(fileDataUrl ? { file: fileDataUrl } : {}),
+            ...(pendingKey ? { pendingKey } : {}),
           },
         }),
       );
@@ -232,57 +242,148 @@ function AssignUsersDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [resultMessage, setResultMessage] = useState<string | null>(null);
 
-  const assignAllMutation = useMutation({
-    mutationFn: () =>
+  const { data: usersData } = useQuery({
+    queryKey: ["admin", "listUsers", search],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/users", {
+          params: {
+            query: { page: 1, pageSize: 20, search: search || undefined },
+          },
+        }),
+      ),
+    enabled: open,
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (body: { userIds?: string[]; assignAllActive?: boolean }) =>
       callApi(
         api.POST("/api/admin/documents/{documentId}/assign", {
           params: { path: { documentId } },
-          body: { assignAllActive: true },
+          body,
         }),
       ),
-    onSuccess: () => {
+    onSuccess: (data) => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "documents"],
       });
       void queryClient.invalidateQueries({
         queryKey: ["admin", "documentDetail", documentId],
       });
-      onOpenChange(false);
+      setResultMessage(
+        `Assigned to ${data.assigned} new member${data.assigned === 1 ? "" : "s"}.`,
+      );
+      setSelectedUserIds([]);
     },
   });
 
+  const toggleUser = (userId: string) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId],
+    );
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) {
+          setSearch("");
+          setSelectedUserIds([]);
+          setResultMessage(null);
+        }
+        onOpenChange(v);
+      }}
+    >
+      <DialogContent className="max-h-[80vh] w-full max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Assign Document</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-gray-600">
-          Assign this document to all active members. Members who are already
-          assigned will be skipped.
-        </p>
-        {assignAllMutation.isSuccess && (
-          <div className="text-sm text-green-600">
-            Assigned to {assignAllMutation.data.assigned} new members.
+
+        <div className="space-y-4">
+          <div>
+            <Button
+              className="w-full"
+              onClick={() => assignMutation.mutate({ assignAllActive: true })}
+              disabled={assignMutation.isPending}
+            >
+              {assignMutation.isPending
+                ? "Assigning..."
+                : "Assign to All Active Members"}
+            </Button>
           </div>
-        )}
-        {assignAllMutation.isError && (
-          <div className="text-sm text-red-600">
-            {assignAllMutation.error.message}
+
+          <div className="relative flex items-center">
+            <div className="flex-grow border-t border-gray-300" />
+            <span className="mx-3 text-xs text-gray-500">
+              or select individuals
+            </span>
+            <div className="flex-grow border-t border-gray-300" />
           </div>
-        )}
+
+          <Input
+            placeholder="Search members..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
+          <div className="max-h-48 overflow-y-auto rounded border">
+            {usersData?.items.map((u) => (
+              <label
+                key={u.id}
+                className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-gray-50"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedUserIds.includes(u.id)}
+                  onChange={() => toggleUser(u.id)}
+                  className="rounded"
+                />
+                <span className="text-sm">{u.name ?? u.email}</span>
+                {u.name && (
+                  <span className="text-xs text-gray-400">{u.email}</span>
+                )}
+              </label>
+            ))}
+            {usersData?.items.length === 0 && (
+              <div className="px-3 py-4 text-center text-sm text-gray-500">
+                No members found.
+              </div>
+            )}
+          </div>
+
+          {selectedUserIds.length > 0 && (
+            <Button
+              onClick={() =>
+                assignMutation.mutate({ userIds: selectedUserIds })
+              }
+              disabled={assignMutation.isPending}
+            >
+              {assignMutation.isPending
+                ? "Assigning..."
+                : `Assign to ${selectedUserIds.length} Selected`}
+            </Button>
+          )}
+
+          {resultMessage && (
+            <div className="text-sm text-green-600">{resultMessage}</div>
+          )}
+          {assignMutation.isError && (
+            <div className="text-sm text-red-600">
+              {assignMutation.error.message}
+            </div>
+          )}
+        </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => assignAllMutation.mutate()}
-            disabled={assignAllMutation.isPending}
-          >
-            {assignAllMutation.isPending
-              ? "Assigning..."
-              : "Assign to All Active Members"}
+            Close
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -345,11 +446,11 @@ function DocumentDetailModal({
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-h-[90vh] w-full max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
         {isLoading ? (
           <div className="py-8 text-center text-gray-500">Loading...</div>
         ) : data ? (
-          <>
+          <div className="space-y-4">
             <DialogHeader>
               <DialogTitle>{data.title}</DialogTitle>
             </DialogHeader>
@@ -458,7 +559,7 @@ function DocumentDetailModal({
               open={assignOpen}
               onOpenChange={setAssignOpen}
             />
-          </>
+          </div>
         ) : null}
       </DialogContent>
     </Dialog>
