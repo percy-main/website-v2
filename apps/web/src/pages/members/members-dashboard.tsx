@@ -1,5 +1,6 @@
 import { ChangePassword } from "@/components/members/change-password";
 import { Charges } from "@/components/members/charges";
+import { Documents } from "@/components/members/documents";
 import {
   MemberDetails,
   useMemberDetails,
@@ -26,7 +27,13 @@ import { format } from "date-fns";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
-const TABS = ["membership", "details", "security", "payments"] as const;
+const TABS = [
+  "membership",
+  "details",
+  "security",
+  "payments",
+  "documents",
+] as const;
 type Tab = (typeof TABS)[number];
 
 function isValidTab(value: string | null): value is Tab {
@@ -102,6 +109,7 @@ export function Component() {
             <TabsTrigger value="details">Your Details</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
+            <TabsTrigger value="documents">Documents</TabsTrigger>
           </TabsList>
           <IncompleteDetailsBanner hidden={tab === "details"} />
           <AvailabilityBanner />
@@ -129,6 +137,9 @@ export function Component() {
               <Charges />
               <Subscriptions />
             </div>
+          </TabsContent>
+          <TabsContent value="documents">
+            <Documents />
           </TabsContent>
         </Tabs>
       </div>

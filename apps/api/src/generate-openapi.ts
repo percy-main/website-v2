@@ -14,6 +14,7 @@ const config = parseConfig({
   API_BASE_URL: "http://localhost:3000",
   STRIPE_SECRET_KEY: "sk_test_placeholder",
   S3_BUCKET: "placeholder",
+  S3_DOCUMENTS_BUCKET: "placeholder",
   NODE_ENV: "development",
   LOG_LEVEL: "error",
   PLAY_CRICKET_API_TOKEN: "placeholder",
