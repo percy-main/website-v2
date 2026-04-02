@@ -122,6 +122,7 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
         documentId: request.params.documentId,
         title: request.body.title,
         pendingKey: request.body.pendingKey,
+        expectedVersion: request.body.expectedVersion,
         updatedBy: user.id,
       });
     },

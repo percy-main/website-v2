@@ -36,6 +36,7 @@ export const createDocumentResponseSchema = z.object({
 export const updateDocumentSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   pendingKey: z.string().min(1).optional(), // new PDF — triggers version bump + copy
+  expectedVersion: z.number().int().positive(),
 });
 
 export const updateDocumentResponseSchema = z.object({
@@ -63,6 +64,13 @@ export const listDocumentsResponseSchema = z.object({
 
 // ── Admin: Get document detail ──
 
+const historyEntrySchema = z.object({
+  version: z.number(),
+  title: z.string(),
+  createdBy: z.string(),
+  createdAt: z.string(),
+});
+
 export const documentDetailResponseSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -70,6 +78,7 @@ export const documentDetailResponseSchema = z.object({
   archivedAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  history: z.array(historyEntrySchema),
   assignments: z.array(
     z.object({
       id: z.string(),

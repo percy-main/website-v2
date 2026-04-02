@@ -7418,6 +7418,12 @@ export interface paths {
                             archivedAt: string | null;
                             createdAt: string;
                             updatedAt: string;
+                            history: {
+                                version: number;
+                                title: string;
+                                createdBy: string;
+                                createdAt: string;
+                            }[];
                             assignments: {
                                 id: string;
                                 userId: string;
@@ -7447,6 +7453,7 @@ export interface paths {
                     "application/json": {
                         title?: string;
                         pendingKey?: string;
+                        expectedVersion: number;
                     };
                 };
             };

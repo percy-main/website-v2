@@ -127,11 +127,13 @@ function CreateDocumentDialog({
 function EditDocumentDialog({
   documentId,
   currentTitle,
+  currentVersion,
   open,
   onOpenChange,
 }: {
   documentId: string;
   currentTitle: string;
+  currentVersion: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -162,6 +164,7 @@ function EditDocumentDialog({
         api.PUT("/api/admin/documents/{documentId}", {
           params: { path: { documentId } },
           body: {
+            expectedVersion: currentVersion,
             ...(title !== currentTitle ? { title } : {}),
             ...(pendingKey ? { pendingKey } : {}),
           },
@@ -234,10 +237,12 @@ function EditDocumentDialog({
 
 function AssignUsersDialog({
   documentId,
+  assignedUserIds,
   open,
   onOpenChange,
 }: {
   documentId: string;
+  assignedUserIds: ReadonlySet<string>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -334,23 +339,25 @@ function AssignUsersDialog({
           />
 
           <div className="max-h-48 overflow-y-auto rounded border">
-            {usersData?.items.map((u) => (
-              <label
-                key={u.id}
-                className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-gray-50"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedUserIds.includes(u.id)}
-                  onChange={() => toggleUser(u.id)}
-                  className="rounded"
-                />
-                <span className="text-sm">{u.name ?? u.email}</span>
-                {u.name && (
-                  <span className="text-xs text-gray-400">{u.email}</span>
-                )}
-              </label>
-            ))}
+            {usersData?.items
+              .filter((u) => !assignedUserIds.has(u.id))
+              .map((u) => (
+                <label
+                  key={u.id}
+                  className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-gray-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedUserIds.includes(u.id)}
+                    onChange={() => toggleUser(u.id)}
+                    className="rounded"
+                  />
+                  <span className="text-sm">{u.name ?? u.email}</span>
+                  {u.name && (
+                    <span className="text-xs text-gray-400">{u.email}</span>
+                  )}
+                </label>
+              ))}
             {usersData?.items.length === 0 && (
               <div className="px-3 py-4 text-center text-sm text-gray-500">
                 No members found.
@@ -548,14 +555,42 @@ function DocumentDetailModal({
               </Table>
             )}
 
+            {data.history.length > 0 && (
+              <>
+                <h3 className="text-sm font-medium">
+                  Version History ({data.history.length})
+                </h3>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Version</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.history.map((h) => (
+                      <TableRow key={h.version}>
+                        <TableCell>v{h.version}</TableCell>
+                        <TableCell>{h.title}</TableCell>
+                        <TableCell>{formatDate(h.createdAt)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
+            )}
+
             <EditDocumentDialog
               documentId={documentId}
               currentTitle={data.title}
+              currentVersion={data.version}
               open={editOpen}
               onOpenChange={setEditOpen}
             />
             <AssignUsersDialog
               documentId={documentId}
+              assignedUserIds={new Set(data.assignments.map((a) => a.userId))}
               open={assignOpen}
               onOpenChange={setAssignOpen}
             />

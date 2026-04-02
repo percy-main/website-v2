@@ -12926,8 +12926,16 @@
                   "pendingKey": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "expectedVersion": {
+                    "type": "integer",
+                    "exclusiveMinimum": true,
+                    "maximum": 9007199254740991
                   }
-                }
+                },
+                "required": [
+                  "expectedVersion"
+                ]
               }
             }
           }
@@ -13012,6 +13020,33 @@
                     "updatedAt": {
                       "type": "string"
                     },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "number"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "title",
+                          "createdBy",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "assignments": {
                       "type": "array",
                       "items": {
@@ -13066,6 +13101,7 @@
                     "archivedAt",
                     "createdAt",
                     "updatedAt",
+                    "history",
                     "assignments"
                   ],
                   "additionalProperties": false

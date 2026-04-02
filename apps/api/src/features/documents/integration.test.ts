@@ -103,6 +103,7 @@ describe("documents service (integration)", () => {
     )({
       documentId: doc.id,
       title: "New Title",
+      expectedVersion: 1,
       updatedBy: admin.userId,
     });
 
@@ -128,6 +129,7 @@ describe("documents service (integration)", () => {
     )({
       documentId: doc.id,
       pendingKey: "pending/test/v2.pdf",
+      expectedVersion: 1,
       updatedBy: admin.userId,
     });
 
@@ -233,6 +235,7 @@ describe("documents service (integration)", () => {
     )({
       documentId: doc.id,
       pendingKey: "pending/test/v2.pdf",
+      expectedVersion: 1,
       updatedBy: admin.userId,
     });
 

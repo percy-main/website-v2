@@ -146,6 +146,7 @@ export interface Document {
   archived_at: string | null;
   created_at: Generated<string>;
   created_by: string;
+  history: Generated<Json>;
   id: string;
   s3_key: string;
   title: string;

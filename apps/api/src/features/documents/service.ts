@@ -2,6 +2,10 @@ import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import type { S3DocumentStore } from "../../lib/s3-documents.ts";
 
+function throwHttpError(statusCode: number, message: string): never {
+  throw Object.assign(new Error(message), { statusCode });
+}
+
 // ── Admin: Create document (after browser upload to pending bucket) ──
 
 export function createDocument(db: Kysely<DB>, s3: S3DocumentStore) {
@@ -39,49 +43,97 @@ export function updateDocument(db: Kysely<DB>, s3: S3DocumentStore) {
     documentId: string;
     title?: string;
     pendingKey?: string; // new PDF in pending bucket → version bump + copy
+    expectedVersion: number;
     updatedBy: string;
   }) => {
-    const doc = await db
-      .selectFrom("document")
-      .where("id", "=", params.documentId)
-      .where("archived_at", "is", null)
-      .select(["id", "title", "version", "s3_key"])
-      .executeTakeFirst();
+    // S3 copy happens outside the transaction (idempotent, no rollback needed)
+    let newS3Key: string | undefined;
+    let newVersion: number | undefined;
 
-    if (!doc) {
-      throw Object.assign(new Error("Document not found"), {
-        statusCode: 404,
-      });
-    }
-
-    let newVersion = doc.version;
-    let newS3Key = doc.s3_key;
-
-    // New PDF → increment version and copy from pending to permanent
     if (params.pendingKey) {
-      newVersion = doc.version + 1;
+      // Pre-fetch current version to compute next version for the S3 key
+      const current = await db
+        .selectFrom("document")
+        .where("id", "=", params.documentId)
+        .where("archived_at", "is", null)
+        .select("version")
+        .executeTakeFirst();
+
+      if (!current) {
+        throwHttpError(404, "Document not found");
+      }
+
+      newVersion = current.version + 1;
       newS3Key = await s3.copyToPermanent(
         params.pendingKey,
-        doc.id,
+        params.documentId,
         newVersion,
       );
     }
 
-    const newTitle = params.title ?? doc.title;
+    // Read + snapshot history + update in a transaction
+    return await db.transaction().execute(async (tx) => {
+      const doc = await tx
+        .selectFrom("document")
+        .where("id", "=", params.documentId)
+        .where("archived_at", "is", null)
+        .select([
+          "id",
+          "title",
+          "version",
+          "s3_key",
+          "history",
+          "updated_by",
+          "updated_at",
+        ])
+        .executeTakeFirst();
 
-    await db
-      .updateTable("document")
-      .set({
-        title: newTitle,
-        version: newVersion,
-        s3_key: newS3Key,
-        updated_by: params.updatedBy,
-        updated_at: new Date().toISOString(),
-      })
-      .where("id", "=", doc.id)
-      .execute();
+      if (!doc) {
+        throwHttpError(404, "Document not found");
+      }
 
-    return { id: doc.id, title: newTitle, version: newVersion };
+      if (doc.version !== params.expectedVersion) {
+        throwHttpError(
+          409,
+          `Version conflict: expected v${params.expectedVersion} but document is at v${doc.version}`,
+        );
+      }
+
+      // Snapshot current state into history before applying changes
+      const history = (Array.isArray(doc.history) ? doc.history : []) as Array<{
+        version: number;
+        title: string;
+        s3Key: string;
+        createdBy: string;
+        createdAt: string;
+      }>;
+      history.push({
+        version: doc.version,
+        title: doc.title,
+        s3Key: doc.s3_key,
+        createdBy: doc.updated_by,
+        createdAt: doc.updated_at,
+      });
+
+      const finalVersion = newVersion ?? doc.version;
+      const finalS3Key = newS3Key ?? doc.s3_key;
+      const finalTitle = params.title ?? doc.title;
+
+      await tx
+        .updateTable("document")
+        .set({
+          title: finalTitle,
+          version: finalVersion,
+          s3_key: finalS3Key,
+          updated_by: params.updatedBy,
+          updated_at: new Date().toISOString(),
+          history: JSON.stringify(history),
+        })
+        .where("id", "=", doc.id)
+        .execute();
+
+      return { id: doc.id, title: finalTitle, version: finalVersion };
+    });
   };
 }
 
@@ -143,14 +195,21 @@ export function getDocumentDetail(db: Kysely<DB>) {
         "archived_at",
         "created_at",
         "updated_at",
+        "history",
       ])
       .executeTakeFirst();
 
     if (!doc) {
-      throw Object.assign(new Error("Document not found"), {
-        statusCode: 404,
-      });
+      throwHttpError(404, "Document not found");
     }
+
+    const history = (Array.isArray(doc.history) ? doc.history : []) as Array<{
+      version: number;
+      title: string;
+      s3Key: string;
+      createdBy: string;
+      createdAt: string;
+    }>;
 
     const assignments = await db
       .selectFrom("document_assignment as da")
@@ -175,6 +234,12 @@ export function getDocumentDetail(db: Kysely<DB>) {
       archivedAt: doc.archived_at,
       createdAt: doc.created_at,
       updatedAt: doc.updated_at,
+      history: history.map((h) => ({
+        version: h.version,
+        title: h.title,
+        createdBy: h.createdBy,
+        createdAt: h.createdAt,
+      })),
       assignments: assignments.map((a) => ({
         id: a.id,
         userId: a.user_id,
@@ -208,9 +273,7 @@ export function assignDocument(db: Kysely<DB>) {
       .executeTakeFirst();
 
     if (!doc) {
-      throw Object.assign(new Error("Document not found"), {
-        statusCode: 404,
-      });
+      throwHttpError(404, "Document not found");
     }
 
     let targetUserIds: string[];
@@ -289,9 +352,7 @@ export function archiveDocument(db: Kysely<DB>) {
       .executeTakeFirst();
 
     if (result.numUpdatedRows === 0n) {
-      throw Object.assign(new Error("Document not found or already archived"), {
-        statusCode: 404,
-      });
+      throwHttpError(404, "Document not found or already archived");
     }
 
     return { success: true };
@@ -356,9 +417,7 @@ export function viewDocument(db: Kysely<DB>, s3: S3DocumentStore) {
       .executeTakeFirst();
 
     if (!row) {
-      throw Object.assign(new Error("Document not found or not assigned"), {
-        statusCode: 404,
-      });
+      throwHttpError(404, "Document not found or not assigned");
     }
 
     const signedUrl = await s3.getSignedDocumentUrl(row.s3_key);
@@ -389,9 +448,7 @@ export function confirmDocument(db: Kysely<DB>) {
       .executeTakeFirst();
 
     if (!doc) {
-      throw Object.assign(new Error("Document not found"), {
-        statusCode: 404,
-      });
+      throwHttpError(404, "Document not found");
     }
 
     // Verify user is assigned
@@ -403,9 +460,7 @@ export function confirmDocument(db: Kysely<DB>) {
       .executeTakeFirst();
 
     if (!assignment) {
-      throw Object.assign(new Error("Document not assigned to you"), {
-        statusCode: 403,
-      });
+      throwHttpError(403, "Document not assigned to you");
     }
 
     const confirmedAt = new Date().toISOString();
