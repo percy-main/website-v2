@@ -479,14 +479,14 @@ function DocumentDetailModal({
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => setEditOpen(true)}>
-                Edit
-              </Button>
-              <Button size="sm" onClick={() => setAssignOpen(true)}>
-                Assign Users
-              </Button>
-              {!data.archivedAt && (
+            {!data.archivedAt && (
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => setEditOpen(true)}>
+                  Edit
+                </Button>
+                <Button size="sm" onClick={() => setAssignOpen(true)}>
+                  Assign Users
+                </Button>
                 <Button
                   size="sm"
                   variant="destructive"
@@ -495,8 +495,8 @@ function DocumentDetailModal({
                 >
                   {archiveMutation.isPending ? "Archiving..." : "Archive"}
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
 
             <h3 className="text-sm font-medium">
               Assignments ({data.assignments.length})
@@ -538,17 +538,19 @@ function DocumentDetailModal({
                       <TableCell className="text-xs">
                         {a.confirmedAt ? formatDate(a.confirmedAt) : "—"}
                       </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs text-red-600"
-                          onClick={() => unassignMutation.mutate(a.userId)}
-                          disabled={unassignMutation.isPending}
-                        >
-                          Remove
-                        </Button>
-                      </TableCell>
+                      {!data.archivedAt && (
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-red-600"
+                            onClick={() => unassignMutation.mutate(a.userId)}
+                            disabled={unassignMutation.isPending}
+                          >
+                            Remove
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
