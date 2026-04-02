@@ -13,6 +13,10 @@ import {
 import type { Kysely, PostgresDialect } from "kysely";
 import type { Config } from "./config.ts";
 import { createAuth, type Auth } from "./features/auth/auth.ts";
+import {
+  createS3DocumentStore,
+  type S3DocumentStore,
+} from "./lib/s3-documents.ts";
 import { createS3Uploader, type S3Uploader } from "./lib/s3-upload.ts";
 
 // Feature routes
@@ -22,6 +26,7 @@ import { availabilityRoutes } from "./features/availability/routes.ts";
 import { chargeRoutes } from "./features/charges/routes.ts";
 import { contactRoutes } from "./features/contact/routes.ts";
 import { cricketLeaderboardRoutes } from "./features/cricket-leaderboard/routes.ts";
+import { documentRoutes } from "./features/documents/routes.ts";
 import { fantasyRoutes } from "./features/fantasy/routes.ts";
 import { gamesRoutes } from "./features/games/routes.ts";
 import { healthRoutes } from "./features/health/routes.ts";
@@ -46,6 +51,7 @@ declare module "fastify" {
     auth: Auth;
     send: (email: Email) => Promise<void>;
     s3: S3Uploader;
+    s3Documents: S3DocumentStore;
   }
 }
 
@@ -90,9 +96,13 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   const auth = createAuth(config, dialect, send);
   app.decorate("auth", auth);
 
-  // Create and decorate the S3 uploader (null if S3 not configured)
+  // Create and decorate the S3 uploader (receipt images)
   const s3 = createS3Uploader(config);
   app.decorate("s3", s3);
+
+  // Create and decorate the S3 document store (policy documents)
+  const s3Documents = createS3DocumentStore(config);
+  app.decorate("s3Documents", s3Documents);
 
   // Plugins
   await app.register(swagger, {
@@ -140,6 +150,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(availabilityRoutes, { prefix: "/api" });
   await app.register(paymentRoutes, { prefix: "/api" });
   await app.register(adminRoutes, { prefix: "/api" });
+  await app.register(documentRoutes, { prefix: "/api" });
   await app.register(treasurerRoutes, { prefix: "/api" });
   await app.register(leaderboardRoutes, { prefix: "/api" });
   await app.register(cricketLeaderboardRoutes, { prefix: "/api" });

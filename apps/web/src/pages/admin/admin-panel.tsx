@@ -4,6 +4,7 @@ import { useSession } from "@/lib/auth-client";
 import { Link, useSearchParams } from "react-router";
 import { ChargesTab } from "./charges-tab";
 import { ContactsTab } from "./contacts-tab";
+import { DocumentsTab } from "./documents-tab";
 import { DuplicatesTab } from "./duplicates-tab";
 import { ExpenseHistoryTab } from "./expense-history-tab";
 import { FantasyTab } from "./fantasy-tab";
@@ -21,6 +22,7 @@ const TABS = [
   "charges",
   "contacts",
   "sponsorships",
+  "documents",
   "duplicates",
   "match-fees",
   "record-linking",
@@ -37,6 +39,7 @@ const ACTIVE_TABS: Tab[] = [
   "charges",
   "contacts",
   "sponsorships",
+  "documents",
   "duplicates",
   "match-fees",
   "record-linking",
@@ -86,6 +89,7 @@ export function Component() {
             <TabsTrigger value="charges">Charges</TabsTrigger>
             <TabsTrigger value="contacts">Contacts</TabsTrigger>
             <TabsTrigger value="sponsorships">Sponsorships</TabsTrigger>
+            <TabsTrigger value="documents">Documents</TabsTrigger>
             <TabsTrigger value="duplicates">Duplicates</TabsTrigger>
             <TabsTrigger value="match-fees">Match Fees</TabsTrigger>
             <TabsTrigger value="record-linking">Record Linking</TabsTrigger>
@@ -109,6 +113,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="sponsorships">
             <SponsorshipsTab />
+          </TabsContent>
+          <TabsContent value="documents">
+            <DocumentsTab />
           </TabsContent>
           <TabsContent value="duplicates">
             <DuplicatesTab />

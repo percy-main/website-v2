@@ -43,6 +43,11 @@ const configSchema = z.object({
   S3_RECEIPT_PREFIX: z.string().default("receipts"),
   S3_ENDPOINT: z.url().optional(),
 
+  // S3 (policy documents)
+  S3_DOCUMENTS_BUCKET: z.string().min(1),
+  S3_DOCUMENTS_PREFIX: z.string().default("documents"),
+  S3_DOCUMENT_UPLOADS_BUCKET: z.string().min(1),
+
   // Observability (New Relic via OpenTelemetry)
   NEW_RELIC_LICENSE_KEY: z.string().optional(),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url().default("https://otlp.eu01.nr-data.net"),

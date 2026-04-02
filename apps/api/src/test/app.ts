@@ -17,6 +17,8 @@ export async function buildTestApp(db: Kysely<DB>, dialect: PostgresDialect) {
     LOG_LEVEL: "error",
     STRIPE_SECRET_KEY: "unused-stripe-key",
     S3_BUCKET: "test-bucket",
+    S3_DOCUMENTS_BUCKET: "test-documents-bucket",
+    S3_DOCUMENT_UPLOADS_BUCKET: "test-document-uploads-bucket",
   });
 
   return buildApp({ db, dialect, config });

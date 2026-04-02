@@ -92,16 +92,22 @@ module "ecs" {
   assign_public_ip      = true
   ses_identity_arn      = local.shared.ses_identity_arn
 
+  documents_bucket_arn        = module.documents_bucket.bucket_arn
+  document_uploads_bucket_arn = module.document_uploads.bucket_arn
+
   environment_variables = {
-    NODE_ENV          = "staging"
-    PORT              = "3000"
-    HOST              = "0.0.0.0"
-    LOG_LEVEL         = "info"
-    EMAIL_PROVIDER    = "ses"
-    SES_REGION        = "eu-west-2"
-    S3_BUCKET         = "percy-main-staging-uploads"
-    S3_REGION         = "eu-west-2"
-    S3_RECEIPT_PREFIX = "receipts"
+    NODE_ENV                     = "staging"
+    PORT                         = "3000"
+    HOST                         = "0.0.0.0"
+    LOG_LEVEL                    = "info"
+    EMAIL_PROVIDER               = "ses"
+    SES_REGION                   = "eu-west-2"
+    S3_BUCKET                    = "percy-main-staging-uploads"
+    S3_REGION                    = "eu-west-2"
+    S3_RECEIPT_PREFIX            = "receipts"
+    S3_DOCUMENTS_BUCKET          = module.documents_bucket.bucket_name
+    S3_DOCUMENTS_PREFIX          = "documents"
+    S3_DOCUMENT_UPLOADS_BUCKET   = module.document_uploads.bucket_name
   }
 
   secrets = {
@@ -124,6 +130,21 @@ module "ecs" {
     PLAY_CRICKET_SITE_ID = aws_ssm_parameter.play_cricket_site_id.arn
     SES_FROM_ADDRESS     = aws_ssm_parameter.ses_from_address.arn
   }
+}
+
+# -----------------------------------------------------------------------------
+# Documents Bucket — S3 (Object Lock, no CloudFront)
+# -----------------------------------------------------------------------------
+
+module "documents_bucket" {
+  source      = "../../modules/documents-bucket"
+  environment = "staging"
+}
+
+module "document_uploads" {
+  source      = "../../modules/document-uploads"
+  environment = "staging"
+  domain_name = "staging.${var.domain_name}"
 }
 
 # -----------------------------------------------------------------------------

@@ -145,6 +145,10 @@ export const router = createBrowserRouter([
                 path: "members/availability",
                 lazy: () => import("./pages/members/members-availability.js"),
               },
+              {
+                path: "members/documents/:documentId",
+                lazy: () => import("./pages/members/document-viewer.js"),
+              },
               // Membership flows
               {
                 path: "membership/join",

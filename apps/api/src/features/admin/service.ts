@@ -34,7 +34,22 @@ export function listUsers(db: Kysely<DB>) {
     let query = db
       .selectFrom("user")
       .leftJoin("member", "member.email", "user.email")
-      .leftJoin("membership", "membership.member_id", "member.id");
+      .leftJoin(
+        (eb) =>
+          eb
+            .selectFrom("membership")
+            .select([
+              "membership.member_id",
+              "membership.id",
+              "membership.type",
+              "membership.paid_until",
+            ])
+            .distinctOn("membership.member_id")
+            .orderBy("membership.member_id")
+            .orderBy("membership.paid_until", "desc")
+            .as("membership"),
+        (join) => join.onRef("membership.member_id", "=", "member.id"),
+      );
 
     if (!includeArchived) {
       query = query.where((eb) =>
