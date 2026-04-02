@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "contentful": "^11.5.0",
-    "yaml": "^2.7.0"
+    "yaml": "^2.8.3"
   }
 }
