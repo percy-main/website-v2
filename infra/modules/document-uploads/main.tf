@@ -78,7 +78,7 @@ resource "aws_s3_bucket_cors_configuration" "document_uploads" {
   bucket = aws_s3_bucket.document_uploads.id
 
   cors_rule {
-    allowed_headers = ["Content-Type"]
+    allowed_headers = ["*"]
     allowed_methods = ["PUT"]
     allowed_origins = var.domain_name != "" ? ["https://${var.domain_name}"] : ["*"]
     max_age_seconds = 3600
