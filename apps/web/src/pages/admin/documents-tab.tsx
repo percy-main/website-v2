@@ -28,6 +28,16 @@ function formatDate(iso: string) {
   });
 }
 
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function CreateDocumentDialog({
   open,
   onOpenChange,
@@ -571,11 +581,16 @@ function DocumentDetailModal({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.history.map((h) => (
+                    {[...data.history].reverse().map((h, i) => (
                       <TableRow key={h.version}>
-                        <TableCell>v{h.version}</TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-2">
+                            v{h.version}
+                            {i === 0 && <Badge variant="success">Latest</Badge>}
+                          </span>
+                        </TableCell>
                         <TableCell>{h.title}</TableCell>
-                        <TableCell>{formatDate(h.createdAt)}</TableCell>
+                        <TableCell>{formatDateTime(h.createdAt)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

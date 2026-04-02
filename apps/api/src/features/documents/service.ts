@@ -16,9 +16,20 @@ export function createDocument(db: Kysely<DB>, s3: S3DocumentStore) {
   }) => {
     const id = crypto.randomUUID();
     const version = 1;
+    const now = new Date().toISOString();
 
     // Copy from pending uploads bucket to permanent documents bucket
     const s3Key = await s3.copyToPermanent(params.pendingKey, id, version);
+
+    const initialHistory = [
+      {
+        version,
+        title: params.title,
+        s3Key,
+        createdBy: params.createdBy,
+        createdAt: now,
+      },
+    ];
 
     await db
       .insertInto("document")
@@ -29,6 +40,7 @@ export function createDocument(db: Kysely<DB>, s3: S3DocumentStore) {
         version,
         created_by: params.createdBy,
         updated_by: params.createdBy,
+        history: JSON.stringify(initialHistory),
       })
       .execute();
 
@@ -99,7 +111,12 @@ export function updateDocument(db: Kysely<DB>, s3: S3DocumentStore) {
         );
       }
 
-      // Snapshot current state into history before applying changes
+      const finalVersion = newVersion ?? doc.version;
+      const finalS3Key = newS3Key ?? doc.s3_key;
+      const finalTitle = params.title ?? doc.title;
+      const now = new Date().toISOString();
+
+      // Append new state to history
       const history = (Array.isArray(doc.history) ? doc.history : []) as Array<{
         version: number;
         title: string;
@@ -108,16 +125,12 @@ export function updateDocument(db: Kysely<DB>, s3: S3DocumentStore) {
         createdAt: string;
       }>;
       history.push({
-        version: doc.version,
-        title: doc.title,
-        s3Key: doc.s3_key,
-        createdBy: doc.updated_by,
-        createdAt: doc.updated_at,
+        version: finalVersion,
+        title: finalTitle,
+        s3Key: finalS3Key,
+        createdBy: params.updatedBy,
+        createdAt: now,
       });
-
-      const finalVersion = newVersion ?? doc.version;
-      const finalS3Key = newS3Key ?? doc.s3_key;
-      const finalTitle = params.title ?? doc.title;
 
       await tx
         .updateTable("document")
@@ -126,7 +139,7 @@ export function updateDocument(db: Kysely<DB>, s3: S3DocumentStore) {
           version: finalVersion,
           s3_key: finalS3Key,
           updated_by: params.updatedBy,
-          updated_at: new Date().toISOString(),
+          updated_at: now,
           history: JSON.stringify(history),
         })
         .where("id", "=", doc.id)
