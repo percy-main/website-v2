@@ -104,14 +104,12 @@ variable "newrelic_license_key_arn" {
 
 variable "documents_bucket_arn" {
   type        = string
-  default     = ""
-  description = "ARN of the S3 bucket for policy documents. When set, grants GetObject + PutObject (no delete)."
+  description = "ARN of the S3 bucket for permanent policy documents."
 }
 
 variable "document_uploads_bucket_arn" {
   type        = string
-  default     = ""
-  description = "ARN of the temporary document uploads bucket. When set, grants PutObject (for presigning) + GetObject (for copy source)."
+  description = "ARN of the temporary document uploads bucket (browser-direct uploads)."
 }
 
 # ------------------------------------------------------------------------------
@@ -295,9 +293,8 @@ resource "aws_iam_role_policy" "task_s3" {
 }
 
 resource "aws_iam_role_policy" "task_s3_documents" {
-  count = var.documents_bucket_arn != "" ? 1 : 0
-  name  = "${local.name_prefix}-task-s3-documents"
-  role  = aws_iam_role.task.id
+  name = "${local.name_prefix}-task-s3-documents"
+  role = aws_iam_role.task.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -318,9 +315,8 @@ resource "aws_iam_role_policy" "task_s3_documents" {
 }
 
 resource "aws_iam_role_policy" "task_s3_document_uploads" {
-  count = var.document_uploads_bucket_arn != "" ? 1 : 0
-  name  = "${local.name_prefix}-task-s3-document-uploads"
-  role  = aws_iam_role.task.id
+  name = "${local.name_prefix}-task-s3-document-uploads"
+  role = aws_iam_role.task.id
 
   policy = jsonencode({
     Version = "2012-10-17"
