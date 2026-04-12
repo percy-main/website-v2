@@ -1,8 +1,15 @@
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 export function Component() {
   useDocumentMeta("Registration Complete");
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
+
+  const loginUrl = returnTo
+    ? `/auth/login?returnTo=${encodeURIComponent(returnTo)}`
+    : "/auth/login";
+
   return (
     <div className="w-full rounded-lg bg-white shadow-sm sm:max-w-md">
       <div className="space-y-4 p-6 text-center sm:p-8">
@@ -15,7 +22,7 @@ export function Component() {
         </p>
         <p className="text-sm text-gray-500">
           Already verified?{" "}
-          <Link to="/auth/login" className="font-medium hover:underline">
+          <Link to={loginUrl} className="font-medium hover:underline">
             Sign in
           </Link>
         </p>

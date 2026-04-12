@@ -36,18 +36,26 @@ export function Component() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [ageError, setAgeError] = useState(false);
   const navigate = useNavigate();
+  const returnTo = searchParams.get("returnTo");
 
   const register = useMutation({
-    mutationFn: () =>
-      authClient.signUp.email({
+    mutationFn: () => {
+      const emailConfirmedUrl = returnTo
+        ? `${window.location.origin}/auth/email-confirmed?returnTo=${encodeURIComponent(returnTo)}`
+        : `${window.location.origin}/auth/email-confirmed/`;
+      return authClient.signUp.email({
         name,
         email,
         password,
-        callbackURL: `${window.location.origin}/auth/email-confirmed/`,
-      }),
+        callbackURL: emailConfirmedUrl,
+      });
+    },
     onSuccess(result) {
       if (!result.error) {
-        void navigate("/auth/registered");
+        const registeredUrl = returnTo
+          ? `/auth/registered?returnTo=${encodeURIComponent(returnTo)}`
+          : "/auth/registered";
+        void navigate(registeredUrl);
       }
     },
   });
@@ -56,7 +64,7 @@ export function Component() {
     mutationFn: () =>
       authClient.signIn.social({
         provider: "google",
-        callbackURL: "/members",
+        callbackURL: returnTo ?? "/members",
       }),
   });
 
@@ -199,7 +207,14 @@ export function Component() {
 
           <p className="text-sm font-light text-gray-500">
             Already have an account?{" "}
-            <Link to="/auth/login" className="font-medium hover:underline">
+            <Link
+              to={
+                returnTo
+                  ? `/auth/login?returnTo=${encodeURIComponent(returnTo)}`
+                  : "/auth/login"
+              }
+              className="font-medium hover:underline"
+            >
               Sign in
             </Link>
           </p>

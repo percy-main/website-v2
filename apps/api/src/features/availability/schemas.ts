@@ -232,6 +232,49 @@ export const previewFixturesResponseSchema = z.object({
   fixtures: z.array(previewFixtureSchema),
 });
 
+// ── Notification schemas ──
+
+export const notifyPreviewSchema = z.object({
+  memberCategory: z.string().optional(),
+  membershipStatus: z.enum(["active", "lapsed"]).optional(),
+  additionalEmails: z.array(z.email()).optional(),
+});
+
+const recipientSchema = z.object({
+  email: z.string(),
+  name: z.string().nullable(),
+  source: z.enum(["filter", "manual"]),
+});
+
+export const notifyPreviewResponseSchema = z.object({
+  recipients: z.array(recipientSchema),
+});
+
+export const notifySendSchema = z.object({
+  recipients: z.array(
+    z.object({
+      email: z.email(),
+      name: z.string().nullable(),
+    }),
+  ),
+});
+
+export const notifySendResponseSchema = z.object({
+  sent: z.number(),
+});
+
+// ── Public request schema ──
+
+export const getPublicRequestResponseSchema = z.object({
+  request: z.object({
+    id: z.string(),
+    date_from: z.string(),
+    date_to: z.string(),
+    status: z.string(),
+  }),
+  fixtures: z.array(activeFixtureSchema),
+});
+
 // ── Types ──
 
 export type CreateRequest = z.infer<typeof createRequestSchema>;
@@ -240,3 +283,5 @@ export type OverrideResponse = z.infer<typeof overrideResponseSchema>;
 export type Respond = z.infer<typeof respondSchema>;
 export type UpdateRequestStatus = z.infer<typeof updateRequestStatusSchema>;
 export type ListRequests = z.infer<typeof listRequestsSchema>;
+export type NotifyPreview = z.infer<typeof notifyPreviewSchema>;
+export type NotifySend = z.infer<typeof notifySendSchema>;

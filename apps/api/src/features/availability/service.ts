@@ -1,10 +1,15 @@
 import type { DB } from "@percy-main/db";
+import { AvailabilityRequest } from "@percy-main/email";
+import { render } from "@react-email/render";
 import type { Kysely } from "kysely";
+import { createElement } from "react";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type {
   AssignPlayer,
   CreateRequest,
   ListRequests,
+  NotifyPreview,
+  NotifySend,
   OverrideResponse,
   Respond,
   UpdateRequestStatus,
@@ -887,5 +892,181 @@ export function previewFixtures(
       .sort((a, b) => a.matchDate.localeCompare(b.matchDate));
 
     return { fixtures };
+  };
+}
+
+// ── Notification Services ──
+
+export function previewNotifyRecipients(db: Kysely<DB>) {
+  return async (requestId: string, data: NotifyPreview) => {
+    // Verify request exists
+    const request = await db
+      .selectFrom("availability_request")
+      .where("id", "=", requestId)
+      .select("id")
+      .executeTakeFirst();
+
+    if (!request) throwHttpError(404, "Availability request not found");
+
+    // Query members with optional filters (reuses admin listUsers pattern)
+    let query = db
+      .selectFrom("member")
+      .leftJoin(
+        (eb) =>
+          eb
+            .selectFrom("membership")
+            .select([
+              "membership.member_id",
+              "membership.id",
+              "membership.paid_until",
+            ])
+            .distinctOn("membership.member_id")
+            .orderBy("membership.member_id")
+            .orderBy("membership.paid_until", "desc")
+            .as("membership"),
+        (join) => join.onRef("membership.member_id", "=", "member.id"),
+      )
+      .where("member.deleted_at", "is", null)
+      .where("member.email", "is not", null);
+
+    if (data.memberCategory) {
+      query = query.where("member.member_category", "=", data.memberCategory);
+    }
+
+    if (data.membershipStatus) {
+      const now = new Date().toISOString();
+      if (data.membershipStatus === "active") {
+        query = query.where("membership.paid_until", ">", now);
+      } else if (data.membershipStatus === "lapsed") {
+        query = query
+          .where("membership.paid_until", "is not", null)
+          .where("membership.paid_until", "<=", now);
+      }
+    }
+
+    const members = await query
+      .select(["member.email", "member.name"])
+      .orderBy("member.name", "asc")
+      .execute();
+
+    const recipients: Array<{
+      email: string;
+      name: string | null;
+      source: "filter" | "manual";
+    }> = members.map((m) => ({
+      email: m.email,
+      name: m.name,
+      source: "filter" as const,
+    }));
+
+    // Merge in additional emails (deduplicated)
+    if (data.additionalEmails?.length) {
+      const existingEmails = new Set(
+        recipients.map((r) => r.email.toLowerCase()),
+      );
+      for (const email of data.additionalEmails) {
+        if (!existingEmails.has(email.toLowerCase())) {
+          recipients.push({ email, name: null, source: "manual" });
+          existingEmails.add(email.toLowerCase());
+        }
+      }
+    }
+
+    return { recipients };
+  };
+}
+
+export function sendAvailabilityNotification(
+  db: Kysely<DB>,
+  sendEmail: (email: {
+    to: string;
+    subject: string;
+    html: string;
+  }) => Promise<void>,
+  baseUrl: string,
+) {
+  return async (requestId: string, data: NotifySend) => {
+    // Fetch request details
+    const request = await db
+      .selectFrom("availability_request")
+      .where("id", "=", requestId)
+      .select(["id", "date_from", "date_to"])
+      .executeTakeFirst();
+
+    if (!request) throwHttpError(404, "Availability request not found");
+
+    // Count fixtures
+    const fixtureResult = await db
+      .selectFrom("availability_fixture")
+      .where("availability_request_id", "=", requestId)
+      .select(db.fn.countAll<string>().as("count"))
+      .executeTakeFirst();
+
+    const fixtureCount = Number(fixtureResult?.count ?? 0);
+    const imageBaseUrl = `${baseUrl}/images`;
+    const url = `${baseUrl}/availability/${requestId}`;
+
+    let sent = 0;
+    for (const recipient of data.recipients) {
+      const html = await render(
+        createElement(AvailabilityRequest.component, {
+          imageBaseUrl,
+          name: recipient.name,
+          dateFrom: request.date_from,
+          dateTo: request.date_to,
+          fixtureCount,
+          url,
+        }),
+      );
+
+      await sendEmail({
+        to: recipient.email,
+        subject: AvailabilityRequest.subject,
+        html,
+      });
+      sent++;
+    }
+
+    return { sent };
+  };
+}
+
+// ── Public Request ──
+
+export function getPublicRequest(db: Kysely<DB>) {
+  return async (requestId: string) => {
+    const request = await db
+      .selectFrom("availability_request")
+      .where("id", "=", requestId)
+      .where("status", "=", "open")
+      .select(["id", "date_from", "date_to", "status"])
+      .executeTakeFirst();
+
+    if (!request) throwHttpError(404, "Availability request not found");
+
+    const fixtures = await db
+      .selectFrom("availability_fixture")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "availability_fixture.play_cricket_team_id",
+      )
+      .where("availability_fixture.availability_request_id", "=", requestId)
+      .select([
+        "availability_fixture.id",
+        "availability_fixture.availability_request_id",
+        "availability_fixture.match_date",
+        "availability_fixture.play_cricket_team_id",
+        "availability_fixture.play_cricket_match_id",
+        "availability_fixture.opposition",
+        "availability_fixture.is_home",
+        "availability_fixture.competition_name",
+        "availability_fixture.match_time",
+        "play_cricket_team.name as team_name",
+      ])
+      .orderBy("availability_fixture.match_date", "asc")
+      .execute();
+
+    return { request, fixtures };
   };
 }

@@ -94,6 +94,10 @@ export const router = createBrowserRouter([
         path: "nets",
         lazy: () => import("./pages/nets.js"),
       },
+      {
+        path: "availability/:requestId",
+        lazy: () => import("./pages/availability/public-availability.js"),
+      },
 
       // Auth routes (minimal layout)
       {
