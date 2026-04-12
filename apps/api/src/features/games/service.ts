@@ -224,22 +224,11 @@ export function getGame(
   siteId: string,
 ) {
   return async (matchId: string): Promise<GameDetail | null> => {
-    // Get the current year and try to find the match in recent seasons
-    const currentYear = new Date().getFullYear();
-    const seasons = [currentYear, currentYear - 1];
-
-    let matchSummary: MatchSummary | undefined;
-    for (const season of seasons) {
-      const matches = await fetchMatchSummaries(api, siteId, season);
-      matchSummary = matches.find((m) => m.id === matchId);
-      if (matchSummary) break;
-    }
-
-    if (!matchSummary) return null;
-
-    // Fetch result, sponsorship, match detail, and manual result in parallel
-    const [dbResult, sponsorship, matchDetail, manualResult] =
+    // Fetch match detail, DB data, and sponsorship in parallel
+    // Match detail is the primary source — no season search needed
+    const [matchDetail, dbResult, sponsorship, manualResult] =
       await Promise.all([
+        api.getMatchDetail(matchId).catch(() => null),
         db
           .selectFrom("match_result")
           .where("match_id", "=", matchId)
@@ -258,7 +247,6 @@ export function getGame(
             "sponsor_website",
           ])
           .executeTakeFirst(),
-        api.getMatchDetail(matchId).catch(() => null),
         db
           .selectFrom("matchday")
           .where("play_cricket_match_id", "=", matchId)
@@ -266,6 +254,22 @@ export function getGame(
           .select(["result_type", "result_source"])
           .executeTakeFirst(),
       ]);
+
+    const detail = matchDetail?.match_details[0];
+    if (!detail) return null;
+
+    const home = detail.home_club_id === siteId;
+    const ourTeamId = home ? detail.home_team_id : detail.away_team_id;
+
+    // Try to enrich from cached summary (has league, competition, ground, match_time)
+    let matchSummary: MatchSummary | undefined;
+    const season = detail.season ? parseInt(detail.season) : null;
+    if (season) {
+      const cached = summaryCache.get(season);
+      if (cached && Date.now() - cached.fetchedAt < SUMMARY_TTL_MS) {
+        matchSummary = cached.data.find((m) => m.id === matchId);
+      }
+    }
 
     let outcome: Outcome | null = null;
     let result: GameDetail["result"] = null;
@@ -275,7 +279,7 @@ export function getGame(
         dbResult.result,
         dbResult.result_applied_to,
         dbResult.result_description,
-        matchSummary.team.id,
+        ourTeamId,
       );
     }
 
@@ -284,8 +288,7 @@ export function getGame(
       outcome = manualResult.result_type as Outcome;
     }
 
-    const detail = matchDetail?.match_details[0];
-    if (detail?.innings.some((inn) => inn.bat.length > 0)) {
+    if (detail.innings.some((inn) => inn.bat.length > 0)) {
       const innings = detail.innings.map((inn) => {
         const isHome = inn.team_batting_id === detail.home_team_id;
         const teamName = isHome
@@ -313,7 +316,7 @@ export function getGame(
       };
     }
 
-    const location = matchSummary.home
+    const location = home
       ? {
           name: "Percy Main Cricket and Sports Club",
           street: "St Johns Terrace",
@@ -322,13 +325,41 @@ export function getGame(
           county: "Tyne and Wear",
           country: "United Kingdom",
         }
-      : matchSummary.groundName
+      : matchSummary?.groundName
         ? { name: matchSummary.groundName }
         : null;
 
+    // Build summary from match detail, enriching with cached summary where available
+    const matchDate = detail.match_date ?? matchSummary?.matchDate ?? "";
+    const matchTime = matchSummary?.matchTime ?? null;
+
     return {
-      ...matchSummary,
-      when: parseMatchDateTime(matchSummary.matchDate, matchSummary.matchTime),
+      id: matchId,
+      matchDate,
+      matchTime,
+      home,
+      team: matchSummary?.team ?? {
+        id: ourTeamId,
+        name: home ? detail.home_team_name : detail.away_team_name,
+      },
+      opposition: matchSummary?.opposition ?? {
+        club: {
+          id: home ? (detail.away_club_id ?? "") : (detail.home_club_id ?? ""),
+          name: home ? detail.away_club_name : detail.home_club_name,
+        },
+        team: {
+          id: home ? detail.away_team_id : detail.home_team_id,
+          name: home ? detail.away_team_name : detail.home_team_name,
+        },
+      },
+      league: matchSummary?.league ?? { id: "", name: "" },
+      competition: matchSummary?.competition ?? {
+        id: "",
+        name: "",
+        type: detail.competition_type ?? "",
+      },
+      groundName: matchSummary?.groundName ?? null,
+      when: parseMatchDateTime(matchDate, matchTime),
       outcome,
       scoreDescription: result ? buildScoreDescription(result.innings) : null,
       sponsorName: sponsorship
