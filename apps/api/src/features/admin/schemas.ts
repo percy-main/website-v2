@@ -30,7 +30,6 @@ export const listUsersSchema = z.object({
 });
 
 export const updateUserSchema = z.object({
-  userId: z.string(),
   name: z.string().optional(),
   email: z.email().optional(),
   role: z
