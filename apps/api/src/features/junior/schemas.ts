@@ -108,6 +108,7 @@ export const playerDetailResponseSchema = z.object({
   name: z.string(),
   sex: z.string(),
   dob: z.string(),
+  created_at: z.string(),
   school_year: z.string().nullable(),
   played_before: z.boolean().nullable(),
   previous_cricket: z.string().nullable(),
@@ -129,4 +130,6 @@ export const playerDetailResponseSchema = z.object({
   parent_email: z.string(),
   parent_address: z.string().nullable(),
   parent_postcode: z.string().nullable(),
+  emergency_contact_name: z.string().nullable(),
+  emergency_contact_telephone: z.string().nullable(),
 });

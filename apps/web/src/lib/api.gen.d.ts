@@ -747,6 +747,7 @@ export interface paths {
                             name: string;
                             sex: string;
                             dob: string;
+                            created_at: string;
                             school_year: string | null;
                             played_before: boolean | null;
                             previous_cricket: string | null;
@@ -768,6 +769,8 @@ export interface paths {
                             parent_email: string;
                             parent_address: string | null;
                             parent_postcode: string | null;
+                            emergency_contact_name: string | null;
+                            emergency_contact_telephone: string | null;
                         };
                     };
                 };
