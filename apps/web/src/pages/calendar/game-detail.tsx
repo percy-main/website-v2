@@ -301,10 +301,11 @@ function GameDetailContent({ game }: { game: GameData }) {
               <strong>Opposition:</strong> {game.opposition.club.name}{" "}
               {game.opposition.team.name}
             </li>
-            <li>
-              <strong>Competition:</strong>{" "}
-              {game.competition.name || "Friendly"}
-            </li>
+            {game.competition.name && (
+              <li>
+                <strong>Competition:</strong> {game.competition.name}
+              </li>
+            )}
             {game.home !== undefined && (
               <li>
                 <strong>Venue:</strong>{" "}
