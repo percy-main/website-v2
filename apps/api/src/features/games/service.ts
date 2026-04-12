@@ -330,7 +330,7 @@ export function getGame(
         : null;
 
     // Build summary from match detail, enriching with cached summary where available
-    const matchDate = detail.match_date || matchSummary?.matchDate || "";
+    const matchDate = detail.match_date ?? matchSummary?.matchDate ?? "";
     const matchTime = matchSummary?.matchTime ?? null;
 
     return {
