@@ -323,6 +323,7 @@ export function getPlayerDetail(db: Kysely<DB>) {
         "dependent.name",
         "dependent.sex",
         "dependent.dob",
+        "dependent.created_at",
         "dependent.school_year",
         "dependent.played_before",
         "dependent.previous_cricket",
@@ -344,6 +345,8 @@ export function getPlayerDetail(db: Kysely<DB>) {
         "member.email as parent_email",
         "member.address as parent_address",
         "member.postcode as parent_postcode",
+        "member.emergency_contact_name",
+        "member.emergency_contact_telephone",
       ])
       .executeTakeFirst();
 

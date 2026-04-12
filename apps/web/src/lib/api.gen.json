@@ -1040,6 +1040,9 @@
                     "dob": {
                       "type": "string"
                     },
+                    "created_at": {
+                      "type": "string"
+                    },
                     "school_year": {
                       "nullable": true,
                       "type": "string"
@@ -1122,6 +1125,14 @@
                     "parent_postcode": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "emergency_contact_name": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "emergency_contact_telephone": {
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -1129,6 +1140,7 @@
                     "name",
                     "sex",
                     "dob",
+                    "created_at",
                     "school_year",
                     "played_before",
                     "previous_cricket",
@@ -1149,7 +1161,9 @@
                     "parent_telephone",
                     "parent_email",
                     "parent_address",
-                    "parent_postcode"
+                    "parent_postcode",
+                    "emergency_contact_name",
+                    "emergency_contact_telephone"
                   ],
                   "additionalProperties": false
                 }
