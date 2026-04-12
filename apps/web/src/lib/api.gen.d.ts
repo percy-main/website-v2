@@ -5729,7 +5729,6 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        userId: string;
                         name?: string;
                         /** Format: email */
                         email?: string;

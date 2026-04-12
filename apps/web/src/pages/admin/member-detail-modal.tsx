@@ -212,7 +212,6 @@ function AccountSection({
         api.PUT("/api/admin/users/{userId}", {
           params: { path: { userId } },
           body: {
-            userId,
             role: newRole as
               | "user"
               | "admin"

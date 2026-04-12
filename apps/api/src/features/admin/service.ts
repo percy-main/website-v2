@@ -134,7 +134,7 @@ export function listUsers(db: Kysely<DB>) {
 }
 
 export function updateUser(db: Kysely<DB>) {
-  return async (userId: string, data: Omit<UpdateUser, "userId">) => {
+  return async (userId: string, data: UpdateUser) => {
     if (Object.values(data).filter((v) => v !== undefined).length > 0) {
       await db.updateTable("user").set(data).where("id", "=", userId).execute();
     }
