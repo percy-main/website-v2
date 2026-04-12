@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button.js";
 import { authClient } from "@/lib/auth-client.js";
 import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useState, type FC } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import type { LoginPhase } from "../login.js";
 
 interface Props {
@@ -35,6 +35,8 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
 
   useEffect(() => {
     async function tryPasskeyAutofill() {
@@ -46,13 +48,13 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
         { autoFill: true },
         {
           onSuccess() {
-            void navigate("/members");
+            void navigate(returnTo ?? "/members");
           },
         },
       );
     }
     void tryPasskeyAutofill();
-  }, [navigate]);
+  }, [navigate, returnTo]);
 
   const signin = useMutation({
     mutationFn: async () => {
@@ -66,7 +68,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
         setPhase("2fa");
         return;
       }
-      void navigate("/members");
+      void navigate(returnTo ?? "/members");
     },
   });
 
@@ -74,7 +76,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
     mutationFn: () =>
       authClient.signIn.social({
         provider: "google",
-        callbackURL: "/members",
+        callbackURL: returnTo ?? "/members",
       }),
   });
 
@@ -145,7 +147,14 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
           )}
           <p className="text-sm font-light text-gray-500">
             Don&apos;t have an account yet?{" "}
-            <Link to="/auth/register" className="font-medium hover:underline">
+            <Link
+              to={
+                returnTo
+                  ? `/auth/register?returnTo=${encodeURIComponent(returnTo)}`
+                  : "/auth/register"
+              }
+              className="font-medium hover:underline"
+            >
               Sign up
             </Link>
           </p>

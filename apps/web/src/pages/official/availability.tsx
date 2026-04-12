@@ -1,6 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -15,7 +22,7 @@ import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 // ── Derived API types ──
@@ -365,7 +372,7 @@ function RequestDetailView({ requestId }: { requestId: string }) {
         </Badge>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 flex gap-2">
         {request.status === "open" ? (
           <Button
             variant="outline"
@@ -385,6 +392,17 @@ function RequestDetailView({ requestId }: { requestId: string }) {
             Reopen Request
           </Button>
         )}
+        <NotifyDialog requestId={requestId} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const url = `${window.location.origin}/availability/${requestId}`;
+            void navigator.clipboard.writeText(url);
+          }}
+        >
+          Copy Link
+        </Button>
       </div>
 
       {dates.length === 0 && (
@@ -927,6 +945,276 @@ function PlayerPool({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ── Notify Dialog ──
+
+interface Recipient {
+  email: string;
+  name: string | null;
+  source: "filter" | "manual";
+}
+
+function NotifyDialog({ requestId }: { requestId: string }) {
+  const [open, setOpen] = useState(false);
+  const [memberCategory, setMemberCategory] = useState<string>("");
+  const [membershipStatus, setMembershipStatus] = useState<string>("");
+  const [manualEmails, setManualEmails] = useState("");
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [previewed, setPreviewed] = useState(false);
+
+  const previewMutation = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/availability/requests/{requestId}/notify/preview", {
+          params: { path: { requestId } },
+          body: {
+            memberCategory: memberCategory || undefined,
+            membershipStatus:
+              (membershipStatus as "active" | "lapsed") || undefined,
+            additionalEmails: manualEmails
+              ? manualEmails
+                  .split(",")
+                  .map((e) => e.trim())
+                  .filter(Boolean)
+              : undefined,
+          },
+        }),
+      ),
+    onSuccess: (data) => {
+      setRecipients(data.recipients);
+      setChecked(new Set(data.recipients.map((r) => r.email)));
+      setPreviewed(true);
+    },
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/availability/requests/{requestId}/notify/send", {
+          params: { path: { requestId } },
+          body: {
+            recipients: recipients
+              .filter((r) => checked.has(r.email))
+              .map((r) => ({ email: r.email, name: r.name })),
+          },
+        }),
+      ),
+    onSuccess: () => {
+      // Keep dialog open to show success
+    },
+  });
+
+  const toggleRecipient = useCallback((email: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) {
+        next.delete(email);
+      } else {
+        next.add(email);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    setChecked((prev) => {
+      if (prev.size === recipients.length) {
+        return new Set();
+      }
+      return new Set(recipients.map((r) => r.email));
+    });
+  }, [recipients]);
+
+  const reset = useCallback(() => {
+    setRecipients([]);
+    setChecked(new Set());
+    setPreviewed(false);
+    setMemberCategory("");
+    setMembershipStatus("");
+    setManualEmails("");
+    sendMutation.reset();
+    previewMutation.reset();
+  }, [sendMutation, previewMutation]);
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        Notify Members
+      </Button>
+      <Dialog
+        open={open}
+        onOpenChange={(v: boolean) => {
+          setOpen(v);
+          if (!v) reset();
+        }}
+      >
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Notify Members</DialogTitle>
+          </DialogHeader>
+
+          {sendMutation.isSuccess ? (
+            <div className="space-y-3">
+              <p className="text-sm text-green-600">
+                Sent {sendMutation.data.sent} email
+                {sendMutation.data.sent !== 1 ? "s" : ""}.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          ) : !previewed ? (
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  Member Category
+                </label>
+                <Select
+                  value={memberCategory || "__all__"}
+                  onValueChange={(v) =>
+                    setMemberCategory(v === "__all__" ? "" : v)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All categories</SelectItem>
+                    <SelectItem value="senior">Senior</SelectItem>
+                    <SelectItem value="junior">Junior</SelectItem>
+                    <SelectItem value="student">Student</SelectItem>
+                    <SelectItem value="bursary">Bursary</SelectItem>
+                    <SelectItem value="guest">Guest</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  Membership Status
+                </label>
+                <Select
+                  value={membershipStatus || "__any__"}
+                  onValueChange={(v) =>
+                    setMembershipStatus(v === "__any__" ? "" : v)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Any status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any status</SelectItem>
+                    <SelectItem value="active">Active (paid up)</SelectItem>
+                    <SelectItem value="lapsed">Lapsed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  Additional Emails
+                </label>
+                <Input
+                  placeholder="email1@example.com, email2@example.com"
+                  value={manualEmails}
+                  onChange={(e) => setManualEmails(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Comma-separated. These will be added to the filtered list.
+                </p>
+              </div>
+
+              <Button
+                onClick={() => previewMutation.mutate()}
+                disabled={previewMutation.isPending}
+              >
+                {previewMutation.isPending
+                  ? "Loading..."
+                  : "Preview Recipients"}
+              </Button>
+
+              {previewMutation.isError && (
+                <p className="text-sm text-red-600">
+                  Failed to load recipients.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  {checked.size} of {recipients.length} selected
+                </p>
+                <button
+                  className="text-xs text-blue-600 hover:text-blue-800"
+                  onClick={toggleAll}
+                >
+                  {checked.size === recipients.length
+                    ? "Deselect all"
+                    : "Select all"}
+                </button>
+              </div>
+
+              <div className="max-h-60 overflow-y-auto rounded border">
+                {recipients.map((r) => (
+                  <label
+                    key={r.email}
+                    className="flex cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-gray-50"
+                  >
+                    <Checkbox
+                      checked={checked.has(r.email)}
+                      onCheckedChange={() => toggleRecipient(r.email)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">
+                        {r.name ?? r.email}
+                        {r.source === "manual" && (
+                          <span className="ml-1 text-xs text-gray-400">
+                            (manual)
+                          </span>
+                        )}
+                      </p>
+                      {r.name && (
+                        <p className="truncate text-xs text-gray-500">
+                          {r.email}
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => sendMutation.mutate()}
+                  disabled={sendMutation.isPending || checked.size === 0}
+                >
+                  {sendMutation.isPending
+                    ? "Sending..."
+                    : `Send to ${checked.size} recipient${checked.size !== 1 ? "s" : ""}`}
+                </Button>
+                <Button variant="outline" onClick={reset}>
+                  Back
+                </Button>
+              </div>
+
+              {sendMutation.isError && (
+                <p className="text-sm text-red-600">
+                  Failed to send notifications.
+                </p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

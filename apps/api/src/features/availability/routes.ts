@@ -14,9 +14,14 @@ import {
   createRequestSchema,
   getActiveRequestsResponseSchema,
   getDateDetailResponseSchema,
+  getPublicRequestResponseSchema,
   getRequestResponseSchema,
   listRequestsResponseSchema,
   listRequestsSchema,
+  notifyPreviewResponseSchema,
+  notifyPreviewSchema,
+  notifySendResponseSchema,
+  notifySendSchema,
   overrideResponseSchema,
   previewFixturesResponseSchema,
   requestDateParamSchema,
@@ -32,12 +37,15 @@ import {
   createRequest,
   getActiveRequests,
   getDateDetail,
+  getPublicRequest,
   getRequest,
   listRequests,
   overrideResponse,
   previewFixtures,
+  previewNotifyRecipients,
   removeAssignment,
   respond,
+  sendAvailabilityNotification,
   updateRequestStatus,
 } from "./service.ts";
 
@@ -234,6 +242,60 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
         });
       }
       return await preview(request.query.dateFrom, request.query.dateTo);
+    },
+  );
+
+  // ── Notification Routes ──
+
+  const previewRecipients = previewNotifyRecipients(app.db);
+  app.post(
+    "/availability/requests/:requestId/notify/preview",
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: requestIdParamSchema,
+        body: notifyPreviewSchema,
+        response: { 200: notifyPreviewResponseSchema },
+      },
+    },
+    async (request) => {
+      return await previewRecipients(request.params.requestId, request.body);
+    },
+  );
+
+  const sendNotification = sendAvailabilityNotification(
+    app.db,
+    app.send,
+    app.config.BASE_URL,
+  );
+  app.post(
+    "/availability/requests/:requestId/notify/send",
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: requestIdParamSchema,
+        body: notifySendSchema,
+        response: { 200: notifySendResponseSchema },
+      },
+    },
+    async (request) => {
+      return await sendNotification(request.params.requestId, request.body);
+    },
+  );
+
+  // ── Public Routes ──
+
+  const getPublic = getPublicRequest(app.db);
+  app.get(
+    "/availability/requests/:requestId/public",
+    {
+      schema: {
+        params: requestIdParamSchema,
+        response: { 200: getPublicRequestResponseSchema },
+      },
+    },
+    async (request) => {
+      return await getPublic(request.params.requestId);
     },
   );
 

@@ -11,7 +11,8 @@ export function RequireAuth() {
   }
 
   if (!session) {
-    return <Navigate to="/auth/login" state={{ from: location }} replace />;
+    const returnTo = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/auth/login?returnTo=${returnTo}`} replace />;
   }
 
   return <Outlet />;
