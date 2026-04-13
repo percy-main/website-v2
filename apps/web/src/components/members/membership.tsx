@@ -1,6 +1,6 @@
 import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
-import { formatDate } from "date-fns";
+import { formatDate, isPast, parseISO } from "date-fns";
 import { Link } from "react-router";
 import { match } from "ts-pattern";
 
@@ -67,6 +67,14 @@ export function Membership() {
               <span className="font-semibold">Paid Until: </span>
               {formatDate(membership.paid_until, "dd/MM/yyyy")}
             </p>
+            {isPast(parseISO(membership.paid_until)) && (
+              <Link
+                className="mt-3 inline-block rounded-lg border border-blue-700 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 focus:ring-4 focus:ring-blue-300 focus:outline-none"
+                to="/membership/pay"
+              >
+                Renew Membership
+              </Link>
+            )}
           </>
         ) : (
           <>

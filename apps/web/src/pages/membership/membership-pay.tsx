@@ -58,7 +58,7 @@ function PayMembershipInner() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h4>Thanks for joining the club!</h4>
+      <h4>Choose Your Membership</h4>
 
       <div className="mt-8">
         <section className="mb-12">
