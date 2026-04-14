@@ -315,3 +315,19 @@
 .mdx-content img {
   @apply h-auto max-w-full rounded-lg;
 }
+
+.mdx-content table {
+  @apply w-full border-collapse text-sm;
+}
+
+.mdx-content th {
+  @apply border-b-2 border-gray-200 bg-gray-50 px-4 py-2 text-left font-semibold text-gray-700;
+}
+
+.mdx-content td {
+  @apply border-b border-gray-100 px-4 py-2;
+}
+
+.mdx-content tr:last-child td {
+  @apply border-b-0;
+}

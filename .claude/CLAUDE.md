@@ -132,6 +132,10 @@ pnpm run openapi:generate              # regenerate spec + frontend types
 - **Use `return await` in async route handlers** — preserves stack traces for error debugging
 - **Always add imports and their usage in the same edit** — lint hooks run on save and will strip unused imports. Never add an import in one edit and its usage in a separate edit.
 
+## Content Pages (MDX)
+
+The site has a file-based content page system for static informational pages. See `docs/content.md` for full documentation on how to create and structure content pages (file location, frontmatter, available MDX components, navigation). Use this when creating prose-heavy pages like announcements, codes of conduct, or club information — no router changes or code generation needed.
+
 ## Feature Folder Structure
 
 Each API feature is self-contained:
