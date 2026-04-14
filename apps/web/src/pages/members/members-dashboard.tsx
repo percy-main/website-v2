@@ -23,9 +23,8 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 const TABS = [
   "membership",
@@ -60,7 +59,7 @@ export function Component() {
   return (
     <div className="container mx-auto px-4 py-8">
       <OnboardingModal onGoToDetails={() => onTabChange("details")} />
-      <AvailabilityNagModal />
+
       <div className="flex flex-col items-start justify-stretch gap-4">
         <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1>Members Area</h1>
@@ -209,83 +208,6 @@ function IncompleteDetailsBanner({ hidden }: { hidden: boolean }) {
       Your details are incomplete. Please go to the{" "}
       <strong>Your Details</strong> tab to fill them in.
     </div>
-  );
-}
-
-const AVAILABILITY_NAG_DISMISSED_KEY = "pmcsc_availability_nag_dismissed";
-
-function AvailabilityNagModal() {
-  const navigate = useNavigate();
-  const [dismissed, setDismissed] = useState(
-    () => !!sessionStorage.getItem(AVAILABILITY_NAG_DISMISSED_KEY),
-  );
-
-  const query = useQuery({
-    queryKey: ["availability", "active"],
-    queryFn: () => callApi(api.GET("/api/availability/active")),
-    enabled: !dismissed,
-  });
-
-  const dismiss = () => {
-    sessionStorage.setItem(AVAILABILITY_NAG_DISMISSED_KEY, "1");
-    setDismissed(true);
-  };
-
-  if (dismissed || !query.data?.memberId) return null;
-
-  // Find requests with unanswered dates
-  const unansweredDates: string[] = [];
-  for (const req of query.data.items) {
-    const answeredDates = new Set(req.myResponses.map((r) => r.match_date));
-    const fixtureDates = [
-      ...new Set(req.fixtures.map((f) => f.match_date)),
-    ].sort();
-    for (const d of fixtureDates) {
-      if (!answeredDates.has(d)) {
-        unansweredDates.push(d);
-      }
-    }
-  }
-
-  if (unansweredDates.length === 0) return null;
-
-  return (
-    <Dialog open onOpenChange={(v) => !v && dismiss()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Availability needed</DialogTitle>
-          <DialogDescription>
-            Officials are waiting on your availability for{" "}
-            {unansweredDates.length === 1 ? (
-              <strong>
-                {format(new Date(unansweredDates[0]), "EEEE d MMMM")}
-              </strong>
-            ) : (
-              <>
-                <strong>{unansweredDates.length} dates</strong> including{" "}
-                <strong>
-                  {format(new Date(unansweredDates[0]), "EEEE d MMMM")}
-                </strong>
-              </>
-            )}
-            . Please let them know if you're available.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" onClick={dismiss}>
-            Later
-          </Button>
-          <Button
-            onClick={() => {
-              dismiss();
-              void navigate("/matchday");
-            }}
-          >
-            Respond Now
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
