@@ -20,7 +20,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 
 const FIRST_CHILD_PRICE = 50;
-const ADDITIONAL_CHILD_PRICE = 30;
+const ADDITIONAL_CHILD_PRICE = 40;
 
 const SCHOOL_YEARS = [
   "Year 4",

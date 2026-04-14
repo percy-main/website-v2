@@ -4,7 +4,7 @@ import type { Kysely } from "kysely";
 import type { DependentInput } from "./schemas.ts";
 
 const FIRST_CHILD_FEE_PENCE = 5000;
-const ADDITIONAL_CHILD_FEE_PENCE = 3000;
+const ADDITIONAL_CHILD_FEE_PENCE = 4000;
 
 /**
  * Find an existing member by email or create a minimal record.
