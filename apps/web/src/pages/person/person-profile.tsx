@@ -81,6 +81,16 @@ export function Component() {
         </div>
 
         <aside className="w-full shrink-0 md:w-64">
+          {person.isDBSChecked && (
+            <div className="mb-4 flex justify-center">
+              <img
+                src="/images/dbs-checked.png"
+                alt="DBS Checked"
+                height={64}
+                className="h-16"
+              />
+            </div>
+          )}
           <PlayerSponsor slug={person.slug} />
         </aside>
       </div>
