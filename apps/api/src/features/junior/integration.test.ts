@@ -58,7 +58,7 @@ describe("junior service (integration)", () => {
       expect(dependent?.sex).toBe("male");
     });
 
-    it("creates a charge with correct amount: 5000 for first, 3000 for additional", async () => {
+    it("creates a charge with correct amount: 5000 for first, 4000 for additional", async () => {
       // Use withMember: false so addDependents creates the member fresh
       // (no pre-existing member -> no pre-existing dependents -> existingCount=0)
       const email = `parent-charge-${crypto.randomUUID()}@test.com`;
@@ -94,8 +94,8 @@ describe("junior service (integration)", () => {
         .executeTakeFirst();
 
       expect(charge).toBeTruthy();
-      // First child = 5000, second child = 3000
-      expect(charge?.amount_pence).toBe(8000);
+      // First child = 5000, second child = 4000
+      expect(charge?.amount_pence).toBe(9000);
     });
 
     it("links charge to dependents via charge_dependent", async () => {
