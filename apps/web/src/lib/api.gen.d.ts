@@ -2424,6 +2424,12 @@ export interface paths {
                                 message: string | null;
                                 website: string | null;
                             } | null;
+                            lineup: {
+                                confirmedAt: string;
+                                players: {
+                                    name: string;
+                                }[];
+                            } | null;
                         };
                     };
                 };
@@ -3922,6 +3928,44 @@ export interface paths {
                             }[];
                         };
                     };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/matchday/{matchId}/team-news-image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    isHome?: string;
+                    matchTime?: string;
+                };
+                header?: never;
+                path: {
+                    matchId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };

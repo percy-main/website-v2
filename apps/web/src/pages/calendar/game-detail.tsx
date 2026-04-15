@@ -317,6 +317,22 @@ function GameDetailContent({ game }: { game: GameData }) {
           </ul>
         </div>
 
+        {/* Confirmed team lineup */}
+        {game.lineup && game.lineup.players.length > 0 && (
+          <Card>
+            <CardContent className="flex flex-col gap-3 p-4">
+              <h4 className="text-lg font-semibold">Team</h4>
+              <ol className="list-inside list-decimal space-y-1">
+                {game.lineup.players.map((player, i) => (
+                  <li key={i} className="text-sm">
+                    {player.name}
+                  </li>
+                ))}
+              </ol>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Result summary — full card if Play Cricket has data, badge-only for manual result */}
         {game.result ? (
           <ResultSummary result={game.result} />
