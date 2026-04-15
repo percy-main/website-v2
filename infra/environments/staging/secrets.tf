@@ -7,7 +7,7 @@
 #
 # Keys: DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_API_KEY, STRIPE_SECRET_KEY,
 #       STRIPE_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
-#       PLAY_CRICKET_API_TOKEN, SLACK_WEBHOOK_URL
+#       PLAY_CRICKET_API_TOKEN, SLACK_WEBHOOK_URL, SSO_SAML_CERT
 
 resource "aws_secretsmanager_secret" "app_secrets" {
   name = "staging/percy-main/app"
@@ -107,6 +107,38 @@ resource "aws_ssm_parameter" "play_cricket_site_id" {
 
 resource "aws_ssm_parameter" "ses_from_address" {
   name  = "/staging/percy-main/SES_FROM_ADDRESS"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "staging"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "sso_saml_entry_point" {
+  name  = "/staging/percy-main/SSO_SAML_ENTRY_POINT"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "staging"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "sso_saml_issuer" {
+  name  = "/staging/percy-main/SSO_SAML_ISSUER"
   type  = "String"
   value = "placeholder"
 

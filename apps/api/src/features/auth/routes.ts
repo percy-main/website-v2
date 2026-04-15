@@ -27,13 +27,28 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
+    let body: BodyInit | undefined;
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      const contentType = request.headers["content-type"] ?? "";
+      if (contentType.includes("application/x-www-form-urlencoded")) {
+        // SAML IdP-initiated POST sends form-encoded data.
+        // Convert the parsed object back to URLSearchParams for the Web Request.
+        const params = new URLSearchParams();
+        for (const [key, value] of Object.entries(
+          request.body as Record<string, string>,
+        )) {
+          params.append(key, value);
+        }
+        body = params.toString();
+      } else {
+        body = JSON.stringify(request.body);
+      }
+    }
+
     const webRequest = new Request(url.toString(), {
       method: request.method,
       headers,
-      body:
-        request.method !== "GET" && request.method !== "HEAD"
-          ? JSON.stringify(request.body)
-          : undefined,
+      body,
     });
 
     const response = await app.auth.handler(webRequest);
@@ -45,7 +60,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       void reply.header(key, value);
     });
 
-    const body = await response.text();
-    return reply.send(body);
+    const responseBody = await response.text();
+    return reply.send(responseBody);
   });
 };

@@ -56,6 +56,11 @@ const configSchema = z.object({
   // Better Auth Dash (infra plugin — optional, only enabled when API key is set)
   BETTER_AUTH_API_KEY: z.string().optional(),
 
+  // SSO (SAML) — all three must be set to enable Google Workspace SSO
+  SSO_SAML_ENTRY_POINT: z.url().optional(),
+  SSO_SAML_ISSUER: z.string().optional(),
+  SSO_SAML_CERT: z.string().optional(),
+
   // External services
   SLACK_WEBHOOK_URL: z.url().optional(),
   PLAY_CRICKET_API_TOKEN: z.string().optional(),

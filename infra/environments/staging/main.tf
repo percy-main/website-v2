@@ -129,6 +129,11 @@ module "ecs" {
     BETTER_AUTH_RP_NAME  = aws_ssm_parameter.better_auth_rp_name.arn
     PLAY_CRICKET_SITE_ID = aws_ssm_parameter.play_cricket_site_id.arn
     SES_FROM_ADDRESS     = aws_ssm_parameter.ses_from_address.arn
+
+    # SSO (SAML)
+    SSO_SAML_ENTRY_POINT = aws_ssm_parameter.sso_saml_entry_point.arn
+    SSO_SAML_ISSUER      = aws_ssm_parameter.sso_saml_issuer.arn
+    SSO_SAML_CERT        = "${aws_secretsmanager_secret.app_secrets.arn}:SSO_SAML_CERT::"
   }
 }
 

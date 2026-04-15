@@ -1,5 +1,6 @@
 import { dash } from "@better-auth/infra";
 import { passkey } from "@better-auth/passkey";
+import { sso } from "@better-auth/sso";
 import { ResetPassword, VerifyEmail, type Email } from "@percy-main/email";
 import { render } from "@react-email/render";
 import { betterAuth } from "better-auth";
@@ -15,6 +16,32 @@ export function createAuth(
 ) {
   const baseURL = config.BASE_URL;
   const apiBaseURL = config.API_BASE_URL;
+
+  const ssoPlugin =
+    config.SSO_SAML_ENTRY_POINT &&
+    config.SSO_SAML_ISSUER &&
+    config.SSO_SAML_CERT
+      ? sso({
+          defaultSSO: [
+            {
+              providerId: "google-workspace",
+              domain: "percymain.org",
+              samlConfig: {
+                issuer: config.SSO_SAML_ISSUER,
+                entryPoint: config.SSO_SAML_ENTRY_POINT,
+                cert: config.SSO_SAML_CERT,
+                callbackUrl: `${apiBaseURL}/api/auth/sso/saml2/sp/acs/google-workspace`,
+                spMetadata: {
+                  entityID: `${apiBaseURL}/api/auth/sso/saml2/sp/metadata`,
+                },
+              },
+            },
+          ],
+          saml: {
+            allowIdpInitiated: true,
+          },
+        })
+      : null;
 
   return betterAuth({
     baseURL: apiBaseURL,
@@ -41,6 +68,7 @@ export function createAuth(
       twoFactor(),
       admin(),
       ...(config.BETTER_AUTH_API_KEY ? [dash()] : []),
+      ...(ssoPlugin ? [ssoPlugin] : []),
     ],
     emailAndPassword: {
       enabled: true,
