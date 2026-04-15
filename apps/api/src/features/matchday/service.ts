@@ -1198,3 +1198,127 @@ export function listPendingExpenses(db: Kysely<DB>) {
     return { items };
   };
 }
+
+export interface TeamNewsPlayer {
+  playerName: string;
+  sponsorName: string | null;
+}
+
+export interface TeamNewsData {
+  teamName: string;
+  opposition: string;
+  matchDate: string;
+  matchTime: string | null;
+  isHome: boolean;
+  players: TeamNewsPlayer[];
+  matchSponsor: { name: string; logoUrl: string | null } | null;
+}
+
+export function getTeamNewsData(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    role: string,
+    matchId: string,
+    isHome: boolean,
+    matchTime: string | undefined,
+  ): Promise<TeamNewsData> => {
+    // Verify access (same pattern as getMatch)
+    if (role !== "admin") {
+      const access = await db
+        .selectFrom("matchday")
+        .innerJoin(
+          "team_official",
+          "team_official.play_cricket_team_id",
+          "matchday.play_cricket_team_id",
+        )
+        .where("matchday.id", "=", matchId)
+        .where("team_official.user_id", "=", userId)
+        .select("matchday.id")
+        .executeTakeFirst();
+
+      if (!access) {
+        throwHttpError(404, "Match not found or access denied");
+      }
+    }
+
+    const match = await db
+      .selectFrom("matchday")
+      .where("id", "=", matchId)
+      .selectAll()
+      .executeTakeFirst();
+
+    if (!match) {
+      throwHttpError(404, "Match not found");
+    }
+
+    const team = await db
+      .selectFrom("play_cricket_team")
+      .where("id", "=", match.play_cricket_team_id)
+      .select(["id", "name"])
+      .executeTakeFirst();
+
+    // Fetch players with their member slug for sponsor lookup
+    const players = await db
+      .selectFrom("matchday_player")
+      .where("matchday_id", "=", matchId)
+      .where("matchday_player.status", "!=", "replaced")
+      .leftJoin("member", "member.id", "matchday_player.member_id")
+      .select(["matchday_player.player_name", "member.slug"])
+      .orderBy("matchday_player.created_at", "asc")
+      .execute();
+
+    // Batch-fetch player sponsorships for all slugs
+    const currentYear = new Date().getFullYear();
+    const slugs = players
+      .map((p) => p.slug)
+      .filter((s): s is string => s !== null);
+
+    const playerSponsorships =
+      slugs.length > 0
+        ? await db
+            .selectFrom("player_sponsorship")
+            .where("slug", "in", slugs)
+            .where("season", "=", currentYear)
+            .where("approved", "=", true)
+            .where("paid_at", "is not", null)
+            .select(["slug", "display_name", "sponsor_name"])
+            .execute()
+        : [];
+
+    const sponsorBySlug = new Map(
+      playerSponsorships.map((s) => [s.slug, s.display_name ?? s.sponsor_name]),
+    );
+
+    // Fetch game sponsorship
+    let matchSponsor: TeamNewsData["matchSponsor"] = null;
+    if (match.play_cricket_match_id) {
+      const sponsorship = await db
+        .selectFrom("game_sponsorship")
+        .where("game_id", "=", match.play_cricket_match_id)
+        .where("approved", "=", true)
+        .where("paid_at", "is not", null)
+        .select(["display_name", "sponsor_name", "sponsor_logo_url"])
+        .executeTakeFirst();
+
+      if (sponsorship) {
+        matchSponsor = {
+          name: sponsorship.display_name ?? sponsorship.sponsor_name,
+          logoUrl: sponsorship.sponsor_logo_url,
+        };
+      }
+    }
+
+    return {
+      teamName: team?.name ?? "Percy Main",
+      opposition: match.opposition,
+      matchDate: match.match_date,
+      matchTime: matchTime ?? null,
+      isHome,
+      players: players.map((p) => ({
+        playerName: p.player_name,
+        sponsorName: p.slug ? (sponsorBySlug.get(p.slug) ?? null) : null,
+      })),
+      matchSponsor,
+    };
+  };
+}

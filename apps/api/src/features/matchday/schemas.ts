@@ -96,6 +96,16 @@ export const searchMembersSchema = z.object({
   query: z.string().min(1),
 });
 
+// ── Team news image schemas ──
+
+export const teamNewsImageQuerySchema = z.object({
+  isHome: z
+    .string()
+    .default("true")
+    .transform((v) => v === "true"),
+  matchTime: z.string().optional(),
+});
+
 // ── Result confirmation schemas ──
 
 export const resultTypeSchema = z.enum(["W", "L", "D", "T", "A", "C", "N"]);

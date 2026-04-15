@@ -28,6 +28,7 @@ import {
   submitExpenseSchema,
   successResponseSchema,
   teamIdParamSchema,
+  teamNewsImageQuerySchema,
   upcomingMatchesResponseSchema,
   updateExpenseSchema,
 } from "./schemas.ts";
@@ -39,6 +40,7 @@ import {
   deleteExpense,
   finishMatch,
   getMatch,
+  getTeamNewsData,
   getUpcomingMatches,
   listMatches,
   listPendingExpenses,
@@ -52,6 +54,7 @@ import {
   submitExpenseClaim,
   updateExpense,
 } from "./service.ts";
+import { generateTeamNewsImage } from "./team-news-image.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -62,6 +65,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
 
   const list = listMatches(app.db);
   const get = getMatch(app.db);
+  const getNewsData = getTeamNewsData(app.db);
   const record = recordExpense(app.db, app.s3);
   const update = updateExpense(app.db);
   const remove = deleteExpense(app.db);
@@ -95,6 +99,46 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
       return await get(user.id, role, request.params.matchId);
+    },
+  );
+
+  // ── Team news image ──
+
+  app.get(
+    "/matchday/:matchId/team-news-image",
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: matchIdParamSchema,
+        querystring: teamNewsImageQuerySchema,
+      },
+    },
+    async (request, reply) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      const data = await getNewsData(
+        user.id,
+        role,
+        request.params.matchId,
+        request.query.isHome,
+        request.query.matchTime,
+      );
+
+      if (data.players.length === 0) {
+        throw Object.assign(new Error("No players selected yet"), {
+          statusCode: 400,
+        });
+      }
+
+      const image = await generateTeamNewsImage(data);
+
+      return await reply
+        .header("Content-Type", "image/png")
+        .header(
+          "Content-Disposition",
+          `attachment; filename="team-news-${request.params.matchId}.png"`,
+        )
+        .send(image);
     },
   );
 
