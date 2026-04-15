@@ -8,7 +8,8 @@ import { useSession } from "@/lib/auth-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useCallback, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { IoLockClosed } from "react-icons/io5";
+import { Link, useParams } from "react-router";
 
 // ── Types ──
 
@@ -36,10 +37,6 @@ function loadDraft(requestId: string): DraftResponse[] | null {
   }
 }
 
-function saveDraft(requestId: string, responses: DraftResponse[]) {
-  localStorage.setItem(getDraftKey(requestId), JSON.stringify(responses));
-}
-
 function clearDraft(requestId: string) {
   localStorage.removeItem(getDraftKey(requestId));
 }
@@ -49,7 +46,6 @@ function clearDraft(requestId: string) {
 export function Component() {
   useDocumentMeta("Availability");
   const { requestId } = useParams<{ requestId: string }>();
-  const navigate = useNavigate();
   const { data: session, isPending: sessionPending } = useSession();
 
   const query = useQuery({
@@ -73,9 +69,9 @@ export function Component() {
   const hasMemberRecord = memberQuery.data?.memberId != null;
   const isSignedIn = !!session;
 
-  // Load draft from localStorage (once, on mount)
+  // Load draft from localStorage (once, on mount — for users returning after sign-up)
   const initialResponses = useMemo(() => {
-    if (!requestId) return new Map<string, DraftResponse>();
+    if (!requestId || !isSignedIn) return new Map<string, DraftResponse>();
     const draft = loadDraft(requestId);
     if (!draft) return new Map<string, DraftResponse>();
     const map = new Map<string, DraftResponse>();
@@ -83,7 +79,7 @@ export function Component() {
       map.set(r.matchDate, r);
     }
     return map;
-  }, [requestId]);
+  }, [requestId, isSignedIn]);
 
   const [responses, setResponses] =
     useState<Map<string, DraftResponse>>(initialResponses);
@@ -172,17 +168,8 @@ export function Component() {
 
   const handleSubmit = useCallback(() => {
     if (!requestId) return;
-
-    if (!isSignedIn) {
-      // Save draft and redirect to register
-      saveDraft(requestId, Array.from(effectiveResponses.values()));
-      const returnTo = `/availability/${requestId}`;
-      void navigate(`/auth/register?returnTo=${encodeURIComponent(returnTo)}`);
-      return;
-    }
-
     submitMutation.mutate();
-  }, [requestId, isSignedIn, effectiveResponses, navigate, submitMutation]);
+  }, [requestId, submitMutation]);
 
   if (query.isPending || sessionPending) {
     return (
@@ -215,8 +202,11 @@ export function Component() {
   }
   const dates = Array.from(fixturesByDate.keys()).sort();
 
-  const hasDraft = requestId ? loadDraft(requestId) !== null : false;
+  const hasDraft =
+    requestId && isSignedIn ? loadDraft(requestId) !== null : false;
   const hasResponses = effectiveResponses.size > 0;
+
+  const returnTo = encodeURIComponent(`/availability/${requestId}`);
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
@@ -256,6 +246,28 @@ export function Component() {
         </Alert>
       )}
 
+      {!isSignedIn && (
+        <div className="mt-4 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <IoLockClosed className="h-4 w-4 shrink-0" />
+          <p>
+            <Link
+              to={`/auth/login?returnTo=${returnTo}`}
+              className="font-medium underline"
+            >
+              Sign in
+            </Link>{" "}
+            or{" "}
+            <Link
+              to={`/auth/register?returnTo=${returnTo}`}
+              className="font-medium underline"
+            >
+              create an account
+            </Link>{" "}
+            to submit your availability.
+          </p>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-col gap-4">
         {dates.map((date) => (
           <DateCard
@@ -265,40 +277,23 @@ export function Component() {
             response={effectiveResponses.get(date)}
             onStatusChange={(status) => setDateResponse(date, status)}
             onNoteChange={(note) => setDateNote(date, note)}
-            disabled={submitted}
+            disabled={submitted || !isSignedIn}
+            locked={!isSignedIn}
           />
         ))}
       </div>
 
-      {!submitted && dates.length > 0 && (
+      {!submitted && dates.length > 0 && isSignedIn && (
         <div className="mt-6">
           <Button
             onClick={handleSubmit}
             disabled={
-              !hasResponses ||
-              submitMutation.isPending ||
-              (isSignedIn && !hasMemberRecord)
+              !hasResponses || submitMutation.isPending || !hasMemberRecord
             }
             className="w-full sm:w-auto"
           >
-            {submitMutation.isPending
-              ? "Saving..."
-              : isSignedIn
-                ? "Submit Responses"
-                : "Sign Up & Submit"}
+            {submitMutation.isPending ? "Saving..." : "Submit Responses"}
           </Button>
-          {!isSignedIn && hasResponses && (
-            <p className="mt-2 text-sm text-gray-500">
-              You'll need to create an account to save your responses. Already
-              have one?{" "}
-              <Link
-                to={`/auth/login?returnTo=${encodeURIComponent(`/availability/${requestId}`)}`}
-                className="font-medium underline"
-              >
-                Sign in
-              </Link>
-            </p>
-          )}
           {submitMutation.isError && (
             <p className="mt-2 text-sm text-red-600">
               Failed to save your responses. Please try again.
@@ -319,6 +314,7 @@ function DateCard({
   onStatusChange,
   onNoteChange,
   disabled,
+  locked,
 }: {
   date: string;
   fixtures: Fixture[];
@@ -326,9 +322,10 @@ function DateCard({
   onStatusChange: (status: "available" | "unavailable") => void;
   onNoteChange: (note: string) => void;
   disabled: boolean;
+  locked: boolean;
 }) {
   return (
-    <div className="rounded border p-3">
+    <div className={`rounded border p-3 ${locked ? "opacity-60" : ""}`}>
       <p className="mb-2 text-sm font-semibold">
         {format(new Date(date), "EEEE d MMMM")}
       </p>
@@ -348,8 +345,8 @@ function DateCard({
           className={`rounded px-3 py-1 text-sm ${
             response?.status === "available"
               ? "bg-green-600 text-white"
-              : "border bg-white text-gray-700 hover:bg-green-50"
-          }`}
+              : "border bg-white text-gray-700"
+          } ${locked ? "cursor-not-allowed" : "hover:bg-green-50"}`}
           onClick={() => onStatusChange("available")}
           disabled={disabled}
         >
@@ -359,8 +356,8 @@ function DateCard({
           className={`rounded px-3 py-1 text-sm ${
             response?.status === "unavailable"
               ? "bg-red-600 text-white"
-              : "border bg-white text-gray-700 hover:bg-red-50"
-          }`}
+              : "border bg-white text-gray-700"
+          } ${locked ? "cursor-not-allowed" : "hover:bg-red-50"}`}
           onClick={() => onStatusChange("unavailable")}
           disabled={disabled}
         >
