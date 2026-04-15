@@ -91,7 +91,7 @@ const lineupPlayerSchema = z.object({
 
 const lineupSchema = z
   .object({
-    confirmedAt: z.string(),
+    confirmed: z.boolean(),
     players: z.array(lineupPlayerSchema),
   })
   .nullable();

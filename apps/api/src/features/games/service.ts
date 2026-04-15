@@ -69,7 +69,7 @@ export interface GameDetail extends GameListItem {
     website: string | null;
   } | null;
   lineup: {
-    confirmedAt: string;
+    confirmed: boolean;
     players: Array<{ name: string }>;
   } | null;
 }
@@ -265,7 +265,6 @@ export function getGame(
       db
         .selectFrom("matchday")
         .where("play_cricket_match_id", "=", matchId)
-        .where("confirmed_at", "is not", null)
         .select(["id", "confirmed_at"])
         .executeTakeFirst(),
     ]);
@@ -344,19 +343,19 @@ export function getGame(
         ? { name: matchSummary.groundName }
         : null;
 
-    // Build confirmed lineup if the team has been confirmed by an official
+    // Build lineup if a matchday exists with selected or playing players
     let lineup: GameDetail["lineup"] = null;
     if (confirmedMatchday) {
       const players = await db
         .selectFrom("matchday_player")
         .where("matchday_id", "=", confirmedMatchday.id)
-        .where("status", "=", "playing")
+        .where("status", "in", ["selected", "playing"])
         .select(["player_name"])
         .orderBy("created_at", "asc")
         .execute();
 
       lineup = {
-        confirmedAt: confirmedMatchday.confirmed_at ?? "",
+        confirmed: confirmedMatchday.confirmed_at !== null,
         players: players.map((p) => ({ name: p.player_name })),
       };
     }

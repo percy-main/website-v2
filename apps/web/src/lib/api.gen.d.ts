@@ -2425,7 +2425,7 @@ export interface paths {
                                 website: string | null;
                             } | null;
                             lineup: {
-                                confirmedAt: string;
+                                confirmed: boolean;
                                 players: {
                                     name: string;
                                 }[];

@@ -4258,8 +4258,8 @@
                       "nullable": true,
                       "type": "object",
                       "properties": {
-                        "confirmedAt": {
-                          "type": "string"
+                        "confirmed": {
+                          "type": "boolean"
                         },
                         "players": {
                           "type": "array",
@@ -4278,7 +4278,7 @@
                         }
                       },
                       "required": [
-                        "confirmedAt",
+                        "confirmed",
                         "players"
                       ],
                       "additionalProperties": false
