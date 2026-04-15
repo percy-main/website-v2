@@ -57,6 +57,57 @@ type MatchdayData =
   paths["/api/matchday/{matchId}"]["get"]["responses"][200]["content"]["application/json"];
 type MatchdayExpense = MatchdayData["expenses"][number];
 
+// ── Team news image download ──
+
+function DownloadTeamNewsButton({
+  matchdayId,
+  isHome,
+  matchTime,
+  size = "sm",
+}: {
+  matchdayId: string;
+  isHome: boolean;
+  matchTime?: string | null;
+  size?: "sm" | "default";
+}) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = () => {
+    setDownloading(true);
+    // Raw fetch: endpoint returns a PNG blob, not JSON — openapi-fetch can't handle binary downloads
+    void fetch(
+      `/api/matchday/${encodeURIComponent(matchdayId)}/team-news-image?isHome=${isHome}${matchTime ? `&matchTime=${encodeURIComponent(matchTime)}` : ""}`,
+      { credentials: "include" },
+    )
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to generate image");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `team-news-${matchdayId}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      })
+      .finally(() => {
+        setDownloading(false);
+      });
+  };
+
+  return (
+    <Button
+      size={size}
+      variant="outline"
+      disabled={downloading}
+      onClick={handleDownload}
+    >
+      {downloading ? "Generating..." : "Download Image"}
+    </Button>
+  );
+}
+
 // ── Component ──
 
 export function Component() {
@@ -97,9 +148,11 @@ export function Component() {
 
 function TeamsDashboard() {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
-  const [selectedMatchdayId, setSelectedMatchdayId] = useState<string | null>(
-    null,
-  );
+  const [selectedMatchday, setSelectedMatchday] = useState<{
+    id: string;
+    isHome: boolean;
+    matchTime: string | null;
+  } | null>(null);
 
   const teamsQuery = useQuery({
     queryKey: ["official", "myTeams"],
@@ -124,11 +177,13 @@ function TeamsDashboard() {
     );
   }
 
-  if (selectedMatchdayId) {
+  if (selectedMatchday) {
     return (
       <MatchdayView
-        matchdayId={selectedMatchdayId}
-        onBack={() => setSelectedMatchdayId(null)}
+        matchdayId={selectedMatchday.id}
+        isHome={selectedMatchday.isHome}
+        matchTime={selectedMatchday.matchTime}
+        onBack={() => setSelectedMatchday(null)}
       />
     );
   }
@@ -139,7 +194,9 @@ function TeamsDashboard() {
         teamId={selectedTeamId}
         teamName={teams.find((t) => t.id === selectedTeamId)?.name ?? ""}
         onBack={() => setSelectedTeamId(null)}
-        onSelectMatchday={(id) => setSelectedMatchdayId(id)}
+        onSelectMatchday={(id, isHome, matchTime) =>
+          setSelectedMatchday({ id, isHome, matchTime })
+        }
       />
     );
   }
@@ -175,7 +232,11 @@ function TeamMatchesView({
   teamId: string;
   teamName: string;
   onBack: () => void;
-  onSelectMatchday: (id: string) => void;
+  onSelectMatchday: (
+    id: string,
+    isHome: boolean,
+    matchTime: string | null,
+  ) => void;
 }) {
   const queryClient = useQueryClient();
 
@@ -196,18 +257,25 @@ function TeamMatchesView({
       opposition: string;
       competitionType?: string;
       playCricketMatchId?: string;
+      isHome: boolean;
     }) =>
       callApi(
         api.POST("/api/matchday", {
-          body: input,
+          body: {
+            teamId: input.teamId,
+            matchDate: input.matchDate,
+            opposition: input.opposition,
+            competitionType: input.competitionType,
+            playCricketMatchId: input.playCricketMatchId,
+          },
         }),
       ),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       void queryClient.invalidateQueries({
         queryKey: ["official", "upcomingMatches", teamId],
       });
       if (data?.id) {
-        onSelectMatchday(data.id);
+        onSelectMatchday(data.id, variables.isHome, null);
       }
     },
   });
@@ -261,18 +329,31 @@ function TeamMatchesView({
                     </p>
                   )}
                 </div>
-                <div>
+                <div className="flex gap-2">
                   {match.matchdayId ? (
-                    <Button
-                      size="sm"
-                      onClick={() => onSelectMatchday(match.matchdayId ?? "")}
-                    >
-                      {match.matchdayStatus === "confirmed"
-                        ? "View Confirmed"
-                        : match.matchdayStatus === "finished"
-                          ? "View Finished"
-                          : "Edit Squad"}
-                    </Button>
+                    <>
+                      <DownloadTeamNewsButton
+                        matchdayId={match.matchdayId}
+                        isHome={match.isHome}
+                        matchTime={match.matchTime}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          onSelectMatchday(
+                            match.matchdayId ?? "",
+                            match.isHome,
+                            match.matchTime ?? null,
+                          )
+                        }
+                      >
+                        {match.matchdayStatus === "confirmed"
+                          ? "View Confirmed"
+                          : match.matchdayStatus === "finished"
+                            ? "View Finished"
+                            : "Edit Squad"}
+                      </Button>
+                    </>
                   ) : (
                     <Button
                       size="sm"
@@ -285,6 +366,7 @@ function TeamMatchesView({
                           opposition: match.opposition,
                           competitionType: match.competitionType ?? undefined,
                           playCricketMatchId: match.matchId,
+                          isHome: match.isHome,
                         })
                       }
                     >
@@ -309,9 +391,13 @@ function TeamMatchesView({
 
 function MatchdayView({
   matchdayId,
+  isHome,
+  matchTime,
   onBack,
 }: {
   matchdayId: string;
+  isHome: boolean;
+  matchTime: string | null;
   onBack: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -565,6 +651,13 @@ function MatchdayView({
               <CardTitle className="flex items-center justify-between">
                 <span>Squad ({players.length})</span>
                 <div className="flex gap-2">
+                  {players.length > 0 && (
+                    <DownloadTeamNewsButton
+                      matchdayId={matchdayId}
+                      isHome={isHome}
+                      matchTime={matchTime}
+                    />
+                  )}
                   {data.matchday.status === "pending" && !confirmingTeam && (
                     <>
                       <Button
