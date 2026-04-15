@@ -64,18 +64,13 @@ export function Component() {
     mutationFn: () =>
       authClient.signIn.social({
         provider: "google",
-        callbackURL: returnTo ?? "/members",
+        callbackURL: `${window.location.origin}${returnTo ?? "/members"}`,
       }),
   });
 
   const handleGoogleClick = useCallback(() => {
-    if (!ageConfirmed) {
-      setAgeError(true);
-      return;
-    }
-    setAgeError(false);
     googleSignUp.mutate();
-  }, [ageConfirmed, googleSignUp]);
+  }, [googleSignUp]);
 
   const handleSubmit = useCallback(
     (event: React.SyntheticEvent) => {
