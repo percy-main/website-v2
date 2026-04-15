@@ -29,7 +29,8 @@ class ApiError extends Error {
   }
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
+export const API_BASE =
+  (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
 
 export const api = createClient<paths>({
   baseUrl: API_BASE.replace(/\/api$/, ""),

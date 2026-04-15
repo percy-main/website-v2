@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api, callApi } from "@/lib/api-client";
+import { API_BASE, api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
 import { compressImage } from "@/lib/image-utils";
@@ -76,7 +76,7 @@ function DownloadTeamNewsButton({
     setDownloading(true);
     // Raw fetch: endpoint returns a PNG blob, not JSON — openapi-fetch can't handle binary downloads
     void fetch(
-      `/api/matchday/${encodeURIComponent(matchdayId)}/team-news-image?isHome=${isHome}${matchTime ? `&matchTime=${encodeURIComponent(matchTime)}` : ""}`,
+      `${API_BASE}/matchday/${encodeURIComponent(matchdayId)}/team-news-image?isHome=${isHome}${matchTime ? `&matchTime=${encodeURIComponent(matchTime)}` : ""}`,
       { credentials: "include" },
     )
       .then(async (res) => {
