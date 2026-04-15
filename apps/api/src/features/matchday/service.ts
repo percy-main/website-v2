@@ -1309,7 +1309,7 @@ export function getTeamNewsData(db: Kysely<DB>) {
     }
 
     return {
-      teamName: team?.name ?? "Percy Main",
+      teamName: team?.name ? `Percy Main ${team.name}` : "Percy Main",
       opposition: match.opposition,
       matchDate: match.match_date,
       matchTime: matchTime ?? null,
