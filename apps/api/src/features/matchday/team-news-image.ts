@@ -27,11 +27,28 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
+const NAME_SUFFIXES = new Set(["jnr", "jr", "snr", "sr", "ii", "iii", "iv"]);
+
+function capitalise(word: string): string {
+  if (word.length === 0) return word;
+  return word[0].toUpperCase() + word.slice(1).toLowerCase();
+}
+
 function formatShortName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
   if (parts.length < 2) return fullName;
-  const initial = parts[0][0];
-  const surname = parts[parts.length - 1];
+
+  const initial = parts[0][0].toUpperCase();
+
+  // If the last part is a suffix (Jnr, Jr, etc.), keep surname + suffix
+  const lastPart = parts[parts.length - 1];
+  if (parts.length >= 3 && NAME_SUFFIXES.has(lastPart.toLowerCase())) {
+    const surname = capitalise(parts[parts.length - 2]);
+    const suffix = capitalise(lastPart);
+    return `${initial} ${surname} ${suffix}`;
+  }
+
+  const surname = capitalise(lastPart);
   return `${initial} ${surname}`;
 }
 
@@ -49,7 +66,8 @@ function formatMatchDate(isoDate: string): string {
 }
 
 function buildSvg(data: TeamNewsData): string {
-  const titleText = `${escapeXml(data.teamName)} V  ${escapeXml(data.opposition)}`;
+  const teamName = escapeXml(data.teamName);
+  const opposition = escapeXml(data.opposition);
   const venueText = data.isHome
     ? "HOME"
     : `AWAY @ ${escapeXml(data.opposition).split(" ")[0].toUpperCase()}`;
@@ -58,8 +76,8 @@ function buildSvg(data: TeamNewsData): string {
 
   // Player list
   const maxPlayers = Math.min(data.players.length, 12);
-  const playerStartY = 240;
-  const playerLineHeight = 58;
+  const playerStartY = 290;
+  const playerLineHeight = 55;
 
   const playerLines = data.players.slice(0, maxPlayers).map((p, i) => {
     const name = escapeXml(formatShortName(p.playerName));
@@ -91,20 +109,28 @@ function buildSvg(data: TeamNewsData): string {
   <!-- Header bar background -->
   <rect x="0" y="0" width="${SIZE}" height="6" fill="#D4A843"/>
 
-  <!-- Title: team vs opposition -->
-  <text x="${SIZE / 2}" y="80" text-anchor="middle" font-family="${FONT}" font-size="40" font-weight="bold" fill="${WHITE}" letter-spacing="2">
-    ${titleText}
+  <!-- Title: team name -->
+  <text x="${SIZE / 2}" y="60" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="bold" fill="${WHITE}" letter-spacing="2">
+    ${teamName}
+  </text>
+  <!-- vs -->
+  <text x="${SIZE / 2}" y="95" text-anchor="middle" font-family="${FONT}" font-size="22" fill="rgba(255,255,255,0.5)">
+    vs
+  </text>
+  <!-- Opposition name -->
+  <text x="${SIZE / 2}" y="130" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="bold" fill="${WHITE}" letter-spacing="2">
+    ${opposition}
   </text>
 
   <!-- Date and time -->
-  <text x="${SIZE / 2}" y="125" text-anchor="middle" font-family="${FONT}" font-size="28" font-weight="bold" fill="#F0D078" letter-spacing="1">
+  <text x="${SIZE / 2}" y="170" text-anchor="middle" font-family="${FONT}" font-size="26" font-weight="bold" fill="#F0D078" letter-spacing="1">
     ${dateText}${timeText}
   </text>
   <!-- Venue -->
-  <text x="${SIZE / 2}" y="160" text-anchor="middle" font-family="${FONT}" font-size="22" fill="rgba(255,255,255,0.6)">${venueText}</text>
+  <text x="${SIZE / 2}" y="205" text-anchor="middle" font-family="${FONT}" font-size="22" fill="rgba(255,255,255,0.6)">${venueText}</text>
 
   <!-- Horizontal rule -->
-  <rect x="120" y="180" width="${SIZE - 240}" height="2" fill="rgba(255,255,255,0.2)"/>
+  <rect x="120" y="230" width="${SIZE - 240}" height="2" fill="rgba(255,255,255,0.2)"/>
 
   ${watermark}
 
@@ -151,7 +177,7 @@ export async function generateTeamNewsImage(
     </defs>
     <rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>
     <!-- Top bar solid for header readability -->
-    <rect width="${SIZE}" height="175" fill="rgba(0,0,0,0.55)"/>
+    <rect width="${SIZE}" height="230" fill="rgba(0,0,0,0.55)"/>
   </svg>`;
   const overlayBuffer = await sharp(Buffer.from(overlaySvg))
     .resize(SIZE, SIZE)
