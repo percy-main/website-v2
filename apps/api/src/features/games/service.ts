@@ -68,6 +68,10 @@ export interface GameDetail extends GameListItem {
     message: string | null;
     website: string | null;
   } | null;
+  lineup: {
+    confirmedAt: string;
+    players: Array<{ name: string }>;
+  } | null;
 }
 
 // --- Helpers ---
@@ -226,34 +230,45 @@ export function getGame(
   return async (matchId: string): Promise<GameDetail | null> => {
     // Fetch match detail, DB data, and sponsorship in parallel
     // Match detail is the primary source — no season search needed
-    const [matchDetail, dbResult, sponsorship, manualResult] =
-      await Promise.all([
-        api.getMatchDetail(matchId).catch(() => null),
-        db
-          .selectFrom("match_result")
-          .where("match_id", "=", matchId)
-          .selectAll()
-          .executeTakeFirst(),
-        db
-          .selectFrom("game_sponsorship")
-          .where("game_id", "=", matchId)
-          .where("approved", "=", true)
-          .where("paid_at", "is not", null)
-          .select([
-            "sponsor_name",
-            "display_name",
-            "sponsor_logo_url",
-            "sponsor_message",
-            "sponsor_website",
-          ])
-          .executeTakeFirst(),
-        db
-          .selectFrom("matchday")
-          .where("play_cricket_match_id", "=", matchId)
-          .where("result_type", "is not", null)
-          .select(["result_type", "result_source"])
-          .executeTakeFirst(),
-      ]);
+    const [
+      matchDetail,
+      dbResult,
+      sponsorship,
+      manualResult,
+      confirmedMatchday,
+    ] = await Promise.all([
+      api.getMatchDetail(matchId).catch(() => null),
+      db
+        .selectFrom("match_result")
+        .where("match_id", "=", matchId)
+        .selectAll()
+        .executeTakeFirst(),
+      db
+        .selectFrom("game_sponsorship")
+        .where("game_id", "=", matchId)
+        .where("approved", "=", true)
+        .where("paid_at", "is not", null)
+        .select([
+          "sponsor_name",
+          "display_name",
+          "sponsor_logo_url",
+          "sponsor_message",
+          "sponsor_website",
+        ])
+        .executeTakeFirst(),
+      db
+        .selectFrom("matchday")
+        .where("play_cricket_match_id", "=", matchId)
+        .where("result_type", "is not", null)
+        .select(["result_type", "result_source"])
+        .executeTakeFirst(),
+      db
+        .selectFrom("matchday")
+        .where("play_cricket_match_id", "=", matchId)
+        .where("confirmed_at", "is not", null)
+        .select(["id", "confirmed_at"])
+        .executeTakeFirst(),
+    ]);
 
     const detail = matchDetail?.match_details[0];
     if (!detail) return null;
@@ -329,6 +344,23 @@ export function getGame(
         ? { name: matchSummary.groundName }
         : null;
 
+    // Build confirmed lineup if the team has been confirmed by an official
+    let lineup: GameDetail["lineup"] = null;
+    if (confirmedMatchday) {
+      const players = await db
+        .selectFrom("matchday_player")
+        .where("matchday_id", "=", confirmedMatchday.id)
+        .where("status", "=", "playing")
+        .select(["player_name"])
+        .orderBy("created_at", "asc")
+        .execute();
+
+      lineup = {
+        confirmedAt: confirmedMatchday.confirmed_at ?? "",
+        players: players.map((p) => ({ name: p.player_name })),
+      };
+    }
+
     // Build summary from match detail, enriching with cached summary where available
     const matchDate = detail.match_date ?? matchSummary?.matchDate ?? "";
     const matchTime = matchSummary?.matchTime ?? null;
@@ -376,6 +408,7 @@ export function getGame(
             website: sponsorship.sponsor_website,
           }
         : null,
+      lineup,
     };
   };
 }

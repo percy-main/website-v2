@@ -4253,6 +4253,35 @@
                         "website"
                       ],
                       "additionalProperties": false
+                    },
+                    "lineup": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "confirmedAt": {
+                          "type": "string"
+                        },
+                        "players": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "confirmedAt",
+                        "players"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -4272,7 +4301,8 @@
                     "sponsorLogoUrl",
                     "location",
                     "result",
-                    "sponsor"
+                    "sponsor",
+                    "lineup"
                   ],
                   "additionalProperties": false
                 }
@@ -6946,6 +6976,42 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/matchday/{matchId}/team-news-image": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "default": "true",
+              "type": "string"
+            },
+            "in": "query",
+            "name": "isHome",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "matchTime",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "matchId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
           }
         }
       }

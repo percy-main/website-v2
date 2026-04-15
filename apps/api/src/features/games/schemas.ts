@@ -85,8 +85,20 @@ const sponsorSchema = z
   })
   .nullable();
 
+const lineupPlayerSchema = z.object({
+  name: z.string(),
+});
+
+const lineupSchema = z
+  .object({
+    confirmedAt: z.string(),
+    players: z.array(lineupPlayerSchema),
+  })
+  .nullable();
+
 export const gameDetailResponseSchema = gameListItemSchema.extend({
   location: locationSchema,
   result: resultSchema,
   sponsor: sponsorSchema,
+  lineup: lineupSchema,
 });
