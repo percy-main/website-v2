@@ -69,13 +69,8 @@ export function Component() {
   });
 
   const handleGoogleClick = useCallback(() => {
-    if (!ageConfirmed) {
-      setAgeError(true);
-      return;
-    }
-    setAgeError(false);
     googleSignUp.mutate();
-  }, [ageConfirmed, googleSignUp]);
+  }, [googleSignUp]);
 
   const handleSubmit = useCallback(
     (event: React.SyntheticEvent) => {
