@@ -64,7 +64,7 @@ export function Component() {
     mutationFn: () =>
       authClient.signIn.social({
         provider: "google",
-        callbackURL: returnTo ?? "/members",
+        callbackURL: `${window.location.origin}${returnTo ?? "/members"}`,
       }),
   });
 
