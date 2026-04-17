@@ -204,6 +204,7 @@ export function Component() {
         <div className="flex min-w-0 grow flex-col">
           <MDXProvider components={mdxComponents}>
             <div className="mdx-content flex flex-col *:mb-4">
+              {!page.hideTitle && <h2>{page.title}</h2>}
               <PageContent />
             </div>
           </MDXProvider>

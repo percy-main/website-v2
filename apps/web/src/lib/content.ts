@@ -13,6 +13,7 @@ export interface ContentPage {
   description?: string;
   menuOrder: number;
   isMainMenu: boolean;
+  hideTitle: boolean;
   ldjson?: unknown;
   /** The React component that renders the MDX content */
   Component: FC;
@@ -55,6 +56,7 @@ function loadPages(): ContentPage[] {
       description: fm.description as string | undefined,
       menuOrder: (fm.menuOrder as number) ?? 99,
       isMainMenu: (fm.isMainMenu as boolean) ?? false,
+      hideTitle: (fm.hideTitle as boolean) ?? false,
       ldjson: fm.ldjson,
       Component: mod.default,
     };
