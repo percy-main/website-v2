@@ -38,12 +38,13 @@ menuOrder: 3
 ---
 ```
 
-| Field         | Required | Description                                                                            |
-| ------------- | -------- | -------------------------------------------------------------------------------------- |
-| `title`       | Yes      | Page title, shown in breadcrumbs and sidebar nav                                       |
-| `description` | No       | Meta description for SEO                                                               |
-| `menuOrder`   | No       | Sort order within parent section (default: 99). Lower numbers appear first in sidebar. |
-| `isMainMenu`  | No       | If `true`, the page appears in the site's top-level navigation menu                    |
+| Field         | Required | Description                                                                                                                            |
+| ------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`       | Yes      | Page title, shown in breadcrumbs and sidebar nav                                                                                       |
+| `description` | No       | Meta description for SEO                                                                                                               |
+| `menuOrder`   | No       | Sort order within parent section (default: 99). Lower numbers appear first in sidebar.                                                 |
+| `isMainMenu`  | No       | If `true`, the page appears in the site's top-level navigation menu                                                                    |
+| `hideTitle`   | No       | If `true`, suppresses the auto-rendered page title heading (the frontmatter `title` is normally rendered as an h2 above the page body) |
 
 ## Navigation and sidebar
 
