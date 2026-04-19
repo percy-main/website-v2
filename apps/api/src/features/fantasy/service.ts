@@ -1114,6 +1114,7 @@ export function getOwnershipOverview(db: Kysely<DB>) {
         differentials: [],
         teamCount: 0,
         gameweek,
+        isFromPreviousSeason: false,
       };
     }
 
@@ -1167,41 +1168,40 @@ export function getOwnershipOverview(db: Kysely<DB>) {
         captainPct,
       }));
 
-    // Build points map for differential ranking
+    // Build points map for differential ranking from current-season scores.
     const diffPointsMap = new Map<
       string,
       { playerName: string; points: number }
     >();
-    const lastCompletedGw = Math.max(0, gameweek - 1);
+    let isFromPreviousSeason = false;
 
-    if (lastCompletedGw > 0) {
-      const gwScores = await db
-        .selectFrom("fantasy_player_score as fps")
-        .innerJoin(
-          "fantasy_player as fp",
-          "fp.play_cricket_id",
-          "fps.play_cricket_id",
-        )
-        .where("fps.season", "=", s)
-        .where("fps.gameweek_id", "=", lastCompletedGw)
-        .select([
-          "fps.play_cricket_id",
-          "fp.player_name",
-          sql<string>`SUM(fps.total_points)`.as("total_points"),
-        ])
-        .groupBy(["fps.play_cricket_id", "fp.player_name"])
-        .execute();
+    const currentScores = await db
+      .selectFrom("fantasy_player_score as fps")
+      .innerJoin(
+        "fantasy_player as fp",
+        "fp.play_cricket_id",
+        "fps.play_cricket_id",
+      )
+      .where("fps.season", "=", s)
+      .select([
+        "fps.play_cricket_id",
+        "fp.player_name",
+        sql<string>`SUM(fps.total_points)`.as("total_points"),
+      ])
+      .groupBy(["fps.play_cricket_id", "fp.player_name"])
+      .having(sql`SUM(fps.total_points)`, ">", 0)
+      .execute();
 
-      for (const row of gwScores) {
-        diffPointsMap.set(row.play_cricket_id, {
-          playerName: row.player_name,
-          points: Number(row.total_points),
-        });
-      }
+    for (const row of currentScores) {
+      diffPointsMap.set(row.play_cricket_id, {
+        playerName: row.player_name,
+        points: Number(row.total_points),
+      });
     }
 
-    // Fall back to previous season totals from fantasy_player_score
-    if (diffPointsMap.size === 0 || lastCompletedGw === 0) {
+    // Fall back to previous season totals when the current season has no scores yet.
+    if (diffPointsMap.size === 0) {
+      isFromPreviousSeason = true;
       const prevSeason = getPreviousSeason(s);
       const prevScores = await db
         .selectFrom("fantasy_player_score as fps")
@@ -1221,15 +1221,13 @@ export function getOwnershipOverview(db: Kysely<DB>) {
         .execute();
 
       for (const row of prevScores) {
-        if (!diffPointsMap.has(row.play_cricket_id)) {
-          diffPointsMap.set(row.play_cricket_id, {
-            playerName: row.player_name,
-            points: Number(row.total_points),
-          });
-        }
+        diffPointsMap.set(row.play_cricket_id, {
+          playerName: row.player_name,
+          points: Number(row.total_points),
+        });
       }
 
-      // Fall back to raw match performance data if fantasy_player_score is empty
+      // Final fall back to raw match performance data if fantasy_player_score is empty.
       if (diffPointsMap.size === 0) {
         const rawPoints = await calculateSeasonPointsFromMatches(db, [
           prevSeason,
@@ -1253,7 +1251,14 @@ export function getOwnershipOverview(db: Kysely<DB>) {
       costMap,
     );
 
-    return { mostOwned, mostCaptained, differentials, teamCount, gameweek };
+    return {
+      mostOwned,
+      mostCaptained,
+      differentials,
+      teamCount,
+      gameweek,
+      isFromPreviousSeason,
+    };
   };
 }
 
@@ -1913,7 +1918,7 @@ export function getTeam(db: Kysely<DB>) {
       throw httpError(404, "Team not found.");
     }
 
-    const gameweek = getCurrentGameweek(team.season);
+    const currentGameweek = getCurrentGameweek(team.season);
 
     const players = await db
       .selectFrom("fantasy_team_player as ftp")
@@ -1923,11 +1928,11 @@ export function getTeam(db: Kysely<DB>) {
         "ftp.play_cricket_id",
       )
       .where("ftp.fantasy_team_id", "=", team.id)
-      .where("ftp.gameweek_added", "<=", gameweek)
+      .where("ftp.gameweek_added", "<=", currentGameweek)
       .where((eb) =>
         eb.or([
           eb("ftp.gameweek_removed", "is", null),
-          eb("ftp.gameweek_removed", ">", gameweek),
+          eb("ftp.gameweek_removed", ">", currentGameweek),
         ]),
       )
       .select([
@@ -1940,7 +1945,39 @@ export function getTeam(db: Kysely<DB>) {
       ])
       .execute();
 
-    const { ownershipMap } = await getOwnershipData(db, team.season, gameweek);
+    const { ownershipMap } = await getOwnershipData(
+      db,
+      team.season,
+      currentGameweek,
+    );
+
+    // Team-level weekly scores across the season.
+    const teamScores = await db
+      .selectFrom("fantasy_team_score")
+      .where("fantasy_team_id", "=", team.id)
+      .where("season", "=", team.season)
+      .select(["gameweek_id", "total_points"])
+      .orderBy("gameweek_id", "asc")
+      .execute();
+
+    const seasonPoints = teamScores.reduce((sum, s) => sum + s.total_points, 0);
+    const gameweeksPlayed = teamScores.length;
+    const latestGameweek =
+      teamScores.length > 0
+        ? (teamScores[teamScores.length - 1]?.gameweek_id ?? null)
+        : null;
+    const latestGameweekPoints =
+      teamScores.length > 0
+        ? (teamScores[teamScores.length - 1]?.total_points ?? 0)
+        : 0;
+
+    // Compute per-player effective points across the season for this team.
+    const effectivePointsBy = await computeTeamEffectivePoints(
+      db,
+      team.id,
+      team.season,
+      teamScores.map((ts) => ts.gameweek_id),
+    );
 
     return {
       team: {
@@ -1948,9 +1985,14 @@ export function getTeam(db: Kysely<DB>) {
         season: team.season,
         ownerName: team.ownerName,
         ownerId: team.ownerId,
+        seasonPoints,
+        latestGameweek,
+        latestGameweekPoints,
+        gameweeksPlayed,
       },
       players: players.map((p) => {
         const ownership = ownershipMap.get(p.play_cricket_id);
+        const eff = effectivePointsBy.get(p.play_cricket_id);
         return {
           playCricketId: p.play_cricket_id,
           playerName: p.player_name,
@@ -1959,10 +2001,160 @@ export function getTeam(db: Kysely<DB>) {
           slotType: p.slot_type as SlotType,
           isWicketkeeper: p.is_wicketkeeper,
           ownershipPct: ownership?.ownershipPct ?? 0,
+          seasonPoints: eff?.seasonPoints ?? 0,
+          latestGameweekPoints: eff?.latestGameweekPoints ?? 0,
         };
       }),
     };
   };
+}
+
+/**
+ * Load all squad memberships, player scores, and chip usages for this team,
+ * then compute per-player effective points (accounting for captain multiplier,
+ * slot/WK rules, triple-captain chip) for each gameweek in `gameweeks`, and
+ * return a per-player aggregate of season total and latest-gameweek totals.
+ */
+async function computeTeamEffectivePoints(
+  db: Kysely<DB>,
+  teamId: number,
+  season: string,
+  gameweeks: number[],
+): Promise<
+  Map<string, { seasonPoints: number; latestGameweekPoints: number }>
+> {
+  if (gameweeks.length === 0) return new Map();
+
+  const latestGameweek = gameweeks[gameweeks.length - 1] ?? null;
+
+  const memberships = await db
+    .selectFrom("fantasy_team_player")
+    .where("fantasy_team_id", "=", teamId)
+    .select([
+      "play_cricket_id",
+      "gameweek_added",
+      "gameweek_removed",
+      "is_captain",
+      "slot_type",
+      "is_wicketkeeper",
+    ])
+    .execute();
+
+  if (memberships.length === 0) return new Map();
+
+  const playerIds = Array.from(
+    new Set(memberships.map((m) => m.play_cricket_id)),
+  );
+
+  const scores = await db
+    .selectFrom("fantasy_player_score")
+    .where("season", "=", season)
+    .where("gameweek_id", "in", gameweeks)
+    .where("play_cricket_id", "in", playerIds)
+    .select([
+      "play_cricket_id",
+      "gameweek_id",
+      "batting_points",
+      "bowling_points",
+      "fielding_points",
+      "team_points",
+      "catches",
+      "stumpings",
+      "is_actual_keeper",
+    ])
+    .execute();
+
+  const chipRows = await db
+    .selectFrom("fantasy_chip_usage")
+    .where("fantasy_team_id", "=", teamId)
+    .where("season", "=", season)
+    .select(["gameweek_id", "chip_type"])
+    .execute();
+
+  const tripleCaptainGameweeks = new Set(
+    chipRows
+      .filter((c) => c.chip_type === "triple_captain")
+      .map((c) => c.gameweek_id),
+  );
+
+  // Group aggregated scores: (playerId, gameweek) -> summed score components.
+  interface GwScore {
+    battingPoints: number;
+    bowlingPoints: number;
+    fieldingPoints: number;
+    teamPoints: number;
+    catches: number;
+    stumpings: number;
+    isActualKeeper: boolean;
+  }
+  const scoresByPlayerGw = new Map<string, GwScore>();
+  const key = (playerId: string, gw: number) => `${playerId}::${gw}`;
+  for (const s of scores) {
+    const k = key(s.play_cricket_id, s.gameweek_id);
+    const existing = scoresByPlayerGw.get(k) ?? {
+      battingPoints: 0,
+      bowlingPoints: 0,
+      fieldingPoints: 0,
+      teamPoints: 0,
+      catches: 0,
+      stumpings: 0,
+      isActualKeeper: false,
+    };
+    existing.battingPoints += s.batting_points;
+    existing.bowlingPoints += s.bowling_points;
+    existing.fieldingPoints += s.fielding_points;
+    existing.teamPoints += s.team_points;
+    existing.catches += s.catches;
+    existing.stumpings += s.stumpings;
+    if (s.is_actual_keeper) existing.isActualKeeper = true;
+    scoresByPlayerGw.set(k, existing);
+  }
+
+  const result = new Map<
+    string,
+    { seasonPoints: number; latestGameweekPoints: number }
+  >();
+
+  for (const m of memberships) {
+    for (const gw of gameweeks) {
+      // Player only counts if in squad that gameweek.
+      if (m.gameweek_added > gw) continue;
+      if (m.gameweek_removed !== null && m.gameweek_removed <= gw) continue;
+
+      const s = scoresByPlayerGw.get(key(m.play_cricket_id, gw));
+      if (!s) continue;
+
+      const captainMultiplier = tripleCaptainGameweeks.has(gw)
+        ? CHIPS.triple_captain.captainMultiplier
+        : 2;
+
+      const effective = calculateSlotEffectivePoints({
+        slotType: m.slot_type as SlotType,
+        isFantasyWk: m.is_wicketkeeper,
+        battingPts: s.battingPoints,
+        bowlingPts: s.bowlingPoints,
+        fieldingPts: s.fieldingPoints,
+        teamPts: s.teamPoints,
+        catches: s.catches,
+        stumpings: s.stumpings,
+        isActualKeeper: s.isActualKeeper,
+        isCaptain: m.is_captain,
+        captainMultiplier,
+      });
+
+      const existing = result.get(m.play_cricket_id) ?? {
+        seasonPoints: 0,
+        latestGameweekPoints: 0,
+      };
+      existing.seasonPoints += effective;
+      if (gw === latestGameweek) {
+        existing.latestGameweekPoints += effective;
+      }
+      result.set(m.play_cricket_id, existing);
+    }
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -2145,32 +2337,6 @@ export function getGameweekDetail(db: Kysely<DB>) {
         };
       }),
     };
-  };
-}
-
-export function getSeasonTimeline(db: Kysely<DB>) {
-  return async (teamId: number, season?: string) => {
-    const s = season ?? getCurrentSeason();
-
-    const scores = await db
-      .selectFrom("fantasy_team_score")
-      .where("fantasy_team_id", "=", teamId)
-      .where("season", "=", s)
-      .select(["gameweek_id", "total_points"])
-      .orderBy("gameweek_id", "asc")
-      .execute();
-
-    let cumulative = 0;
-    const timeline = scores.map((sc) => {
-      cumulative += sc.total_points;
-      return {
-        gameweek: sc.gameweek_id,
-        weeklyPoints: sc.total_points,
-        cumulativePoints: cumulative,
-      };
-    });
-
-    return { timeline, season: s, teamId };
   };
 }
 

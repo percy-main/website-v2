@@ -158,6 +158,7 @@ export const ownershipOverviewResponseSchema = z.object({
   ),
   teamCount: z.number(),
   gameweek: z.number(),
+  isFromPreviousSeason: z.boolean(),
 });
 
 // getSandwichEfficiency
@@ -310,6 +311,10 @@ export const teamDetailResponseSchema = z.object({
     season: z.string(),
     ownerName: z.string(),
     ownerId: z.string(),
+    seasonPoints: z.number(),
+    latestGameweek: z.number().nullable(),
+    latestGameweekPoints: z.number(),
+    gameweeksPlayed: z.number(),
   }),
   players: z.array(
     z.object({
@@ -320,21 +325,10 @@ export const teamDetailResponseSchema = z.object({
       slotType: slotTypeSchema,
       isWicketkeeper: z.boolean(),
       ownershipPct: z.number(),
+      seasonPoints: z.number(),
+      latestGameweekPoints: z.number(),
     }),
   ),
-});
-
-// getSeasonTimeline
-export const seasonTimelineResponseSchema = z.object({
-  timeline: z.array(
-    z.object({
-      gameweek: z.number(),
-      weeklyPoints: z.number(),
-      cumulativePoints: z.number(),
-    }),
-  ),
-  season: z.string(),
-  teamId: z.number(),
 });
 
 // getGameweekDetail

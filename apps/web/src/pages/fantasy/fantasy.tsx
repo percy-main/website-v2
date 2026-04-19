@@ -12,19 +12,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
-import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { ScoringRulesContent } from "./fantasy-rules.js";
 
 // ---------------------------------------------------------------------------
@@ -124,22 +113,6 @@ function useTeamDetail(teamId: number | null) {
   });
 }
 
-function useTimeline(teamId: number | null) {
-  return useQuery({
-    queryKey: ["fantasy", "timeline", teamId],
-    queryFn: () => {
-      if (teamId === null) throw new Error("teamId is required");
-      return callApi(
-        api.GET("/api/fantasy/teams/{teamId}/timeline", {
-          params: { path: { teamId } },
-        }),
-      );
-    },
-    enabled: teamId !== null,
-    staleTime: 5 * 60_000,
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Skeleton
 // ---------------------------------------------------------------------------
@@ -152,7 +125,7 @@ function Skeleton({ className = "" }: { className?: string }) {
 // Home Tab
 // ---------------------------------------------------------------------------
 
-function HomeTab() {
+function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
   const tw = useTransferWindow();
   const stats = usePreSeasonStats();
   const highlights = useHighlights();
@@ -246,7 +219,7 @@ function HomeTab() {
         <Card>
           <CardContent className="flex flex-col items-center gap-1 py-6">
             <span className="text-lg font-semibold text-green-600">
-              Transfer window open — GW{tw.data?.gameweek}
+              Transfer window open — Gameweek {tw.data?.gameweek}
             </span>
             <span className="text-muted-foreground text-sm">
               Locks in {tw.data?.daysUntilLock} day
@@ -406,7 +379,14 @@ function HomeTab() {
         {ownership.data && ownership.data.differentials.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Differential Picks</CardTitle>
+              <CardTitle>
+                Differential Picks
+                {ownership.data.isFromPreviousSeason && (
+                  <Badge variant="secondary" className="ml-2">
+                    Previous Season
+                  </Badge>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -498,14 +478,20 @@ function HomeTab() {
                   <TableHead>#</TableHead>
                   <TableHead>Team</TableHead>
                   <TableHead className="text-right">Points</TableHead>
-                  <TableHead className="text-right">GWs</TableHead>
+                  <TableHead className="text-right">Gameweeks</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {seasonBoard.data.entries.slice(0, 5).map((e) => (
-                  <TableRow key={e.teamId}>
+                  <TableRow
+                    key={e.teamId}
+                    className="cursor-pointer"
+                    onClick={() => onViewTeam(e.teamId)}
+                  >
                     <TableCell>{e.rank}</TableCell>
-                    <TableCell>{e.ownerName}</TableCell>
+                    <TableCell className="text-primary font-medium">
+                      {e.ownerName}
+                    </TableCell>
                     <TableCell className="text-right">
                       {e.totalPoints}
                     </TableCell>
@@ -545,10 +531,25 @@ function HighlightCard({
 // Leaderboards Tab
 // ---------------------------------------------------------------------------
 
-function LeaderboardsTab() {
+function LeaderboardsTab({
+  onViewTeam,
+}: {
+  onViewTeam: (teamId: number) => void;
+}) {
   const [params, setParams] = useSearchParams();
   const subTab = params.get("lb") ?? "season";
-  const [selectedGw, setSelectedGw] = useState<number | undefined>(undefined);
+
+  const gwParam = params.get("gw");
+  const selectedGw =
+    gwParam !== null && gwParam !== "" && !Number.isNaN(Number(gwParam))
+      ? Number(gwParam)
+      : undefined;
+
+  function setSelectedGw(gw: number) {
+    const next = new URLSearchParams(params);
+    next.set("gw", String(gw));
+    setParams(next, { replace: true });
+  }
 
   return (
     <div className="space-y-4">
@@ -561,6 +562,7 @@ function LeaderboardsTab() {
             onClick={() => {
               const next = new URLSearchParams(params);
               next.set("lb", t);
+              if (t !== "weekly") next.delete("gw");
               setParams(next, { replace: true });
             }}
           >
@@ -569,16 +571,24 @@ function LeaderboardsTab() {
         ))}
       </div>
 
-      {subTab === "season" && <SeasonLeaderboard />}
+      {subTab === "season" && <SeasonLeaderboard onViewTeam={onViewTeam} />}
       {subTab === "weekly" && (
-        <WeeklyLeaderboard selectedGw={selectedGw} onSelectGw={setSelectedGw} />
+        <WeeklyLeaderboard
+          selectedGw={selectedGw}
+          onSelectGw={setSelectedGw}
+          onViewTeam={onViewTeam}
+        />
       )}
       {subTab === "players" && <PlayerLeaderboard />}
     </div>
   );
 }
 
-function SeasonLeaderboard() {
+function SeasonLeaderboard({
+  onViewTeam,
+}: {
+  onViewTeam: (teamId: number) => void;
+}) {
   const { data, isPending, error } = useSeasonLeaderboard();
 
   if (isPending) return <LoadingTable rows={10} cols={4} />;
@@ -596,14 +606,20 @@ function SeasonLeaderboard() {
           <TableHead>#</TableHead>
           <TableHead>Team</TableHead>
           <TableHead className="text-right">Points</TableHead>
-          <TableHead className="text-right">GWs</TableHead>
+          <TableHead className="text-right">Gameweeks</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {data.entries.map((e) => (
-          <TableRow key={e.teamId}>
+          <TableRow
+            key={e.teamId}
+            className="cursor-pointer"
+            onClick={() => onViewTeam(e.teamId)}
+          >
             <TableCell>{e.rank}</TableCell>
-            <TableCell>{e.ownerName}</TableCell>
+            <TableCell className="text-primary font-medium">
+              {e.ownerName}
+            </TableCell>
             <TableCell className="text-right">{e.totalPoints}</TableCell>
             <TableCell className="text-right">{e.gameweeksPlayed}</TableCell>
           </TableRow>
@@ -616,9 +632,11 @@ function SeasonLeaderboard() {
 function WeeklyLeaderboard({
   selectedGw,
   onSelectGw,
+  onViewTeam,
 }: {
   selectedGw: number | undefined;
   onSelectGw: (gw: number) => void;
+  onViewTeam: (teamId: number) => void;
 }) {
   const { data, isPending, error } = useWeeklyLeaderboard(selectedGw);
 
@@ -658,9 +676,15 @@ function WeeklyLeaderboard({
           </TableHeader>
           <TableBody>
             {data.entries.map((e) => (
-              <TableRow key={e.teamId}>
+              <TableRow
+                key={e.teamId}
+                className="cursor-pointer"
+                onClick={() => onViewTeam(e.teamId)}
+              >
                 <TableCell>{e.rank}</TableCell>
-                <TableCell>{e.ownerName}</TableCell>
+                <TableCell className="text-primary font-medium">
+                  {e.ownerName}
+                </TableCell>
                 <TableCell className="text-right">{e.weeklyPoints}</TableCell>
               </TableRow>
             ))}
@@ -695,7 +719,7 @@ function PlayerLeaderboard() {
             <TableHead className="text-right">Bowl</TableHead>
             <TableHead className="text-right">Field</TableHead>
             <TableHead className="text-right">Total</TableHead>
-            <TableHead className="text-right">MP</TableHead>
+            <TableHead className="text-right">Matches</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -722,13 +746,8 @@ function PlayerLeaderboard() {
 // All Teams Tab
 // ---------------------------------------------------------------------------
 
-function AllTeamsTab() {
+function AllTeamsTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
   const { data, isPending, error } = useTeams();
-  const [viewTeamId, setViewTeamId] = useState<number | null>(null);
-
-  if (viewTeamId !== null) {
-    return <TeamView teamId={viewTeamId} onBack={() => setViewTeamId(null)} />;
-  }
 
   if (isPending) return <LoadingTable rows={8} cols={2} />;
   if (error)
@@ -753,7 +772,7 @@ function AllTeamsTab() {
           <TableRow
             key={t.id}
             className="cursor-pointer"
-            onClick={() => setViewTeamId(t.id)}
+            onClick={() => onViewTeam(t.id)}
           >
             <TableCell className="text-primary font-medium">
               {t.ownerName}
@@ -768,6 +787,10 @@ function AllTeamsTab() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Team detail view
+// ---------------------------------------------------------------------------
+
 function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
   const { data, isPending, error } = useTeamDetail(teamId);
 
@@ -781,12 +804,46 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
     (a, b) => (slotOrder[a.slotType] ?? 3) - (slotOrder[b.slotType] ?? 3),
   );
 
+  const { latestGameweek } = data.team;
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <Button variant="outline" size="sm" onClick={onBack}>
-        &larr; All Teams
+        &larr; Back
       </Button>
       <h3 className="text-lg font-semibold">{data.team.ownerName}</h3>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <Card>
+          <CardContent className="flex flex-col items-center py-6">
+            <span className="text-3xl font-bold">{data.team.seasonPoints}</span>
+            <span className="text-muted-foreground text-sm">Season points</span>
+          </CardContent>
+        </Card>
+        {latestGameweek !== null && (
+          <Card>
+            <CardContent className="flex flex-col items-center py-6">
+              <span className="text-3xl font-bold">
+                {data.team.latestGameweekPoints}
+              </span>
+              <span className="text-muted-foreground text-sm">
+                Gameweek {latestGameweek} points
+              </span>
+            </CardContent>
+          </Card>
+        )}
+        <Card>
+          <CardContent className="flex flex-col items-center py-6">
+            <span className="text-3xl font-bold">
+              {data.team.gameweeksPlayed}
+            </span>
+            <span className="text-muted-foreground text-sm">
+              Gameweeks played
+            </span>
+          </CardContent>
+        </Card>
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -794,6 +851,10 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
             <TableHead>Slot</TableHead>
             <TableHead className="text-center">Cost</TableHead>
             <TableHead className="text-right">Owned</TableHead>
+            <TableHead className="text-right">Season</TableHead>
+            {latestGameweek !== null && (
+              <TableHead className="text-right">GW{latestGameweek}</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -819,130 +880,19 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
                 </span>
               </TableCell>
               <TableCell className="text-right">{p.ownershipPct}%</TableCell>
+              <TableCell className="text-right font-medium">
+                {p.seasonPoints}
+              </TableCell>
+              {latestGameweek !== null && (
+                <TableCell className="text-right">
+                  {p.latestGameweekPoints}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
       </Table>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// History Tab (requires auth)
-// ---------------------------------------------------------------------------
-
-function HistoryTab() {
-  const { data: session } = useSession();
-  const seasonBoard = useSeasonLeaderboard();
-
-  if (!session) {
-    return (
-      <Card>
-        <CardContent className="py-6 text-center">
-          <p>
-            <Link to="/auth/login" className="text-primary underline">
-              Sign in
-            </Link>{" "}
-            to view your team history.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Find user's team from season leaderboard
-  const myTeam = seasonBoard.data?.entries.find(
-    (e) => e.ownerName === session.user.name,
-  );
-
-  if (seasonBoard.isPending) return <LoadingTable rows={5} cols={3} />;
-
-  if (!myTeam) {
-    return (
-      <Card>
-        <CardContent className="text-muted-foreground py-6 text-center">
-          No scoring history yet. Your history will appear after your first
-          scored gameweek.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return <TimelineView teamId={myTeam.teamId} ownerName={myTeam.ownerName} />;
-}
-
-function TimelineView({
-  teamId,
-  ownerName,
-}: {
-  teamId: number;
-  ownerName: string;
-}) {
-  const { data, isPending } = useTimeline(teamId);
-
-  if (isPending) return <LoadingTable rows={5} cols={3} />;
-  if (!data?.timeline.length) {
-    return (
-      <p className="text-muted-foreground text-center">
-        No gameweeks scored yet.
-      </p>
-    );
-  }
-
-  const chartData = data.timeline.map((t) => ({
-    name: `GW${t.gameweek}`,
-    weekly: t.weeklyPoints,
-    cumulative: t.cumulativePoints,
-  }));
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{ownerName}&apos;s Season Timeline</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="cumulative"
-                name="Cumulative"
-                stroke="#2563eb"
-                strokeWidth={2}
-                dot={{ r: 4 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="weekly"
-                name="Weekly"
-                stroke="#9ca3af"
-                strokeWidth={1}
-                strokeDasharray="4 4"
-                dot={{ r: 3 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="mt-3 flex gap-6 text-sm">
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-0.5 w-4 bg-blue-600" /> Cumulative
-            points
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-0.5 w-4 border-t-2 border-dashed border-gray-400" />{" "}
-            Weekly points
-          </span>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -975,14 +925,33 @@ export function Component() {
   );
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") ?? "home";
-  const { data: session } = useSession();
+
+  const teamParam = params.get("team");
+  const viewTeamId =
+    teamParam !== null && teamParam !== "" && !Number.isNaN(Number(teamParam))
+      ? Number(teamParam)
+      : null;
 
   function setTab(t: string) {
     const next = new URLSearchParams(params);
     next.set("tab", t);
-    // Clean up sub-params when switching tabs
+    // Clean up sub-params when switching tabs so stale state doesn't leak across.
     next.delete("lb");
+    next.delete("gw");
+    next.delete("team");
     setParams(next, { replace: true });
+  }
+
+  function onViewTeam(teamId: number) {
+    const next = new URLSearchParams(params);
+    next.set("team", String(teamId));
+    setParams(next);
+  }
+
+  function onBackFromTeam() {
+    const next = new URLSearchParams(params);
+    next.delete("team");
+    setParams(next);
   }
 
   return (
@@ -994,27 +963,27 @@ export function Component() {
           <TabsTrigger value="home">Home</TabsTrigger>
           <TabsTrigger value="teams">All Teams</TabsTrigger>
           <TabsTrigger value="leaderboards">Leaderboards</TabsTrigger>
-          {session && <TabsTrigger value="history">History</TabsTrigger>}
           <TabsTrigger value="rules">Rules</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="home">
-          <HomeTab />
-        </TabsContent>
-        <TabsContent value="teams">
-          <AllTeamsTab />
-        </TabsContent>
-        <TabsContent value="leaderboards">
-          <LeaderboardsTab />
-        </TabsContent>
-        {session && (
-          <TabsContent value="history">
-            <HistoryTab />
-          </TabsContent>
+        {viewTeamId !== null ? (
+          <TeamView teamId={viewTeamId} onBack={onBackFromTeam} />
+        ) : (
+          <>
+            <TabsContent value="home">
+              <HomeTab onViewTeam={onViewTeam} />
+            </TabsContent>
+            <TabsContent value="teams">
+              <AllTeamsTab onViewTeam={onViewTeam} />
+            </TabsContent>
+            <TabsContent value="leaderboards">
+              <LeaderboardsTab onViewTeam={onViewTeam} />
+            </TabsContent>
+            <TabsContent value="rules">
+              <ScoringRulesContent />
+            </TabsContent>
+          </>
         )}
-        <TabsContent value="rules">
-          <ScoringRulesContent />
-        </TabsContent>
       </Tabs>
     </div>
   );
