@@ -4312,6 +4312,31 @@
         }
       }
     },
+    "/api/play-cricket/admin/sync": {
+      "post": {
+        "responses": {
+          "202": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "taskArn": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "taskArn"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/play-cricket/match/{matchId}": {
       "get": {
         "parameters": [

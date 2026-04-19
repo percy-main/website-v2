@@ -47,6 +47,16 @@ variable "assign_public_ip" {
   description = "Whether to assign public IP to the task"
 }
 
+variable "alarms_sns_topic_arn" {
+  type        = string
+  description = "SNS topic ARN for DLQ + sync-failure alarms"
+}
+
+variable "log_group_name" {
+  type        = string
+  description = "CloudWatch log group name where the sync task writes (used for the failure metric filter)"
+}
+
 # ------------------------------------------------------------------------------
 # Locals
 # ------------------------------------------------------------------------------
@@ -104,9 +114,86 @@ resource "aws_iam_role_policy" "scheduler_ecs" {
           var.task_execution_role_arn,
           var.task_role_arn,
         ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = "sqs:SendMessage"
+        Resource = aws_sqs_queue.scheduler_dlq.arn
       }
     ]
   })
+}
+
+# ------------------------------------------------------------------------------
+# Dead-letter queue for EventBridge invocation failures
+# (Catches RunTask invocation failures only — IAM, capacity, throttling.
+# Does NOT catch tasks that started and exited non-zero. See the log metric
+# filter below for that.)
+# ------------------------------------------------------------------------------
+
+resource "aws_sqs_queue" "scheduler_dlq" {
+  name                      = "${local.name_prefix}-play-cricket-sync-dlq"
+  message_retention_seconds = 1209600 # 14 days
+  sqs_managed_sse_enabled   = true
+  tags                      = local.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "scheduler_dlq_messages" {
+  alarm_name          = "${local.name_prefix}-play-cricket-sync-dlq-messages"
+  alarm_description   = "EventBridge failed to invoke the Play Cricket sync — message in DLQ"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    QueueName = aws_sqs_queue.scheduler_dlq.name
+  }
+
+  alarm_actions = [var.alarms_sns_topic_arn]
+  ok_actions    = [var.alarms_sns_topic_arn]
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
+# Log metric filter — catch sync tasks that ran but exited non-zero
+# (The DLQ above only catches invocation failures, not in-task crashes.)
+# ------------------------------------------------------------------------------
+
+resource "aws_cloudwatch_log_metric_filter" "sync_failed" {
+  name           = "${local.name_prefix}-play-cricket-sync-failed"
+  log_group_name = var.log_group_name
+  pattern        = "\"Sync failed\""
+
+  metric_transformation {
+    name          = "PlayCricketSyncFailed"
+    namespace     = "PercyMain/${var.environment}"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "sync_failed" {
+  alarm_name          = "${local.name_prefix}-play-cricket-sync-failed"
+  alarm_description   = "Play Cricket sync task ran and exited non-zero"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = aws_cloudwatch_log_metric_filter.sync_failed.metric_transformation[0].name
+  namespace           = aws_cloudwatch_log_metric_filter.sync_failed.metric_transformation[0].namespace
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [var.alarms_sns_topic_arn]
+  ok_actions    = [var.alarms_sns_topic_arn]
+
+  tags = local.tags
 }
 
 # ------------------------------------------------------------------------------
@@ -116,7 +203,7 @@ resource "aws_iam_role_policy" "scheduler_ecs" {
 resource "aws_scheduler_schedule" "play_cricket_sync" {
   name = "${var.environment}-play-cricket-sync"
 
-  schedule_expression          = "cron(0 3 ? * SUN,FRI *)"
+  schedule_expression          = "cron(0 3 ? * SUN,MON,TUE *)"
   schedule_expression_timezone = "Europe/London"
   state                        = "ENABLED"
 
@@ -128,6 +215,10 @@ resource "aws_scheduler_schedule" "play_cricket_sync" {
   target {
     arn      = var.cluster_arn
     role_arn = aws_iam_role.scheduler.arn
+
+    dead_letter_config {
+      arn = aws_sqs_queue.scheduler_dlq.arn
+    }
 
     ecs_parameters {
       task_definition_arn = var.task_definition_arn

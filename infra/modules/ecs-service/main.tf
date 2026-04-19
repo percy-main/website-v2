@@ -314,6 +314,30 @@ resource "aws_iam_role_policy" "task_s3_documents" {
   })
 }
 
+resource "aws_iam_role_policy" "task_run_sync" {
+  name = "${local.name_prefix}-task-run-sync"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "ecs:RunTask"
+        Resource = "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.api.family}:*"
+      },
+      {
+        Effect = "Allow"
+        Action = "iam:PassRole"
+        Resource = [
+          aws_iam_role.task_execution.arn,
+          aws_iam_role.task.arn,
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "task_s3_document_uploads" {
   name = "${local.name_prefix}-task-s3-document-uploads"
   role = aws_iam_role.task.id
@@ -701,4 +725,14 @@ output "alb_zone_id" {
 output "task_definition_arn" {
   description = "ARN of the ECS task definition family (without revision)"
   value       = "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.api.family}"
+}
+
+output "task_definition_family" {
+  description = "Family name of the ECS task definition (without revision)"
+  value       = aws_ecs_task_definition.api.family
+}
+
+output "log_group_name" {
+  description = "CloudWatch log group name for the API task"
+  value       = aws_cloudwatch_log_group.api.name
 }
