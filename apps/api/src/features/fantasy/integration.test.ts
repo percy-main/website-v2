@@ -1,4 +1,13 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   seedTestUser,
   startTestContainer,
@@ -15,6 +24,21 @@ import {
   saveTeam,
   toggleEligibility,
 } from "./service.ts";
+
+// A weekday inside the cricket season (2026-04-22 = Wednesday). Used by
+// describe blocks that exercise the weekend-lock-protected paths so they
+// aren't dependent on the day the suite runs.
+const IN_SEASON_WEEKDAY = new Date("2026-04-22T12:00:00Z");
+
+function pinDateToWeekday() {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(IN_SEASON_WEEKDAY);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+}
 
 let ctx: TestContext;
 
@@ -103,6 +127,8 @@ describe("fantasy service (integration)", () => {
   });
 
   describe("saveTeam", () => {
+    pinDateToWeekday();
+
     it("creates a new team with 11 players", async () => {
       const { userId } = await seedTestUser(ctx.db, {
         email: `saveteam-${crypto.randomUUID()}@test.com`,
