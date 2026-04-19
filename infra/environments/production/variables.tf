@@ -5,5 +5,5 @@ variable "domain_name" {
 
 variable "alarm_email" {
   type    = string
-  default = ""
+  default = "alex.young@percymain.org"
 }
