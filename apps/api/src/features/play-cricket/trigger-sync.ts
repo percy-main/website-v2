@@ -37,6 +37,9 @@ export function triggerSync(config: Config) {
 
     const ecs = new ECSClient({ region: config.AWS_REGION });
 
+    // RunTask returns once ECS accepts task placement (typically <1s); the sync
+    // itself runs entirely inside the spawned Fargate task. Hard-cap at 10s so
+    // a stuck/throttled RunTask can't tie up the API request.
     const result = await ecs.send(
       new RunTaskCommand({
         cluster,
@@ -62,6 +65,7 @@ export function triggerSync(config: Config) {
           ],
         },
       }),
+      { abortSignal: AbortSignal.timeout(10_000) },
     );
 
     const failure = result.failures?.[0];
