@@ -41,7 +41,6 @@ import {
   saveTeamSchema,
   seasonLeaderboardResponseSchema,
   seasonSchema,
-  seasonTimelineResponseSchema,
   successResponseSchema,
   teamDetailResponseSchema,
   teamIdSchema,
@@ -70,7 +69,6 @@ import {
   getPreSeasonStats,
   getSandwichEfficiency,
   getSeasonLeaderboard,
-  getSeasonTimeline,
   getTeam,
   getTeamShareData,
   getTransferWindow,
@@ -114,7 +112,6 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   const teams = listTeams(app.db);
   const teamDetail = getTeam(app.db);
   const gwDetail = getGameweekDetail(app.db);
-  const timeline = getSeasonTimeline(app.db);
   const playerHist = getPlayerHistory(app.db);
   const chipStatus = getChipStatus(app.db);
   const chipActivate = activateChip(app.db);
@@ -278,22 +275,6 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { teamId } = request.params;
       return await teamDetail(teamId);
-    },
-  );
-
-  app.get(
-    "/fantasy/teams/:teamId/timeline",
-    {
-      schema: {
-        params: teamIdSchema,
-        querystring: seasonSchema,
-        response: { 200: seasonTimelineResponseSchema },
-      },
-    },
-    async (request) => {
-      const { teamId } = request.params;
-      const { season } = request.query;
-      return await timeline(teamId, season);
     },
   );
 

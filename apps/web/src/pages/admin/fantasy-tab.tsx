@@ -445,7 +445,7 @@ function ChaosWeeksSection() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>GW</TableHead>
+                  <TableHead>Gameweek</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Rule</TableHead>
                   <TableHead>Email</TableHead>

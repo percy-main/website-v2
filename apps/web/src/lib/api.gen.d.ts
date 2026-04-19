@@ -1063,6 +1063,7 @@ export interface paths {
                             }[];
                             teamCount: number;
                             gameweek: number;
+                            isFromPreviousSeason: boolean;
                         };
                     };
                 };
@@ -1430,6 +1431,10 @@ export interface paths {
                                 season: string;
                                 ownerName: string;
                                 ownerId: string;
+                                seasonPoints: number;
+                                latestGameweek: number | null;
+                                latestGameweekPoints: number;
+                                gameweeksPlayed: number;
                             };
                             players: {
                                 playCricketId: string;
@@ -1440,54 +1445,9 @@ export interface paths {
                                 slotType: "batting" | "bowling" | "allrounder";
                                 isWicketkeeper: boolean;
                                 ownershipPct: number;
+                                seasonPoints: number;
+                                latestGameweekPoints: number;
                             }[];
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/fantasy/teams/{teamId}/timeline": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: {
-                    season?: string;
-                };
-                header?: never;
-                path: {
-                    teamId: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            timeline: {
-                                gameweek: number;
-                                weeklyPoints: number;
-                                cumulativePoints: number;
-                            }[];
-                            season: string;
-                            teamId: number;
                         };
                     };
                 };
