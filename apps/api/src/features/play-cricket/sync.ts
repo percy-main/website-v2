@@ -2,6 +2,7 @@ import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 
 import type { z } from "zod";
+import { calculateFantasyScores } from "../fantasy/calculate-scores.ts";
 import {
   GetMatchDetailResponse,
   MatchDetailBat,
@@ -570,8 +571,6 @@ export function runSync(db: Kysely<DB>, api: PlayCricketApiClient) {
       // scoring-rule edits, chip changes, and corrected results between matches.
       // Non-fatal: scoring failures are logged but don't fail the sync.
       try {
-        const { calculateFantasyScores } =
-          await import("../fantasy/calculate-scores.js");
         const season = String(new Date().getFullYear());
         await calculateFantasyScores(db)(season);
       } catch (scoringErr) {
