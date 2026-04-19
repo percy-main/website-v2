@@ -71,6 +71,7 @@ export { didBat, isJuniorTeam, isNotOut, parseDismissalType };
 // --- Main sync logic ---
 
 const DEADLINE_MS = 10 * 60 * 1000; // 10 minutes
+const RESYNC_WINDOW_DAYS = 7;
 
 type MatchDetailType = z.output<
   typeof GetMatchDetailResponse
@@ -377,11 +378,37 @@ async function syncMatches(
   resultCutoff.setDate(resultCutoff.getDate() - 14);
   resultCutoff.setHours(0, 0, 0, 0);
 
+  // Recent matches are re-fetched even if they already have a match_result
+  // row, so that late scorecard fills (captain adding players hours or days
+  // after the first sync) and result corrections actually land.
+  const resyncCutoff = new Date();
+  resyncCutoff.setDate(resyncCutoff.getDate() - RESYNC_WINDOW_DAYS);
+  resyncCutoff.setHours(0, 0, 0, 0);
+
   for (const { match, season } of allMatches) {
     const matchId = match.id.toString();
 
     try {
-      if (processedMatchIds.has(matchId)) continue;
+      // Validate match_date format (DD/MM/YYYY) up front so we can use it for
+      // the resync-window decision below.
+      if (
+        !match.match_date ||
+        !/^\d{2}\/\d{2}\/\d{4}$/.test(match.match_date)
+      ) {
+        continue;
+      }
+
+      const [dd, mm, yyyy] = match.match_date.split("/");
+      const matchDate = new Date(
+        parseInt(yyyy),
+        parseInt(mm) - 1,
+        parseInt(dd),
+      );
+
+      // Skip already-processed matches only when they're past the resync
+      // window. Inside the window, re-fetch — all writes are idempotent
+      // upserts, so this just refreshes performance + result rows.
+      if (processedMatchIds.has(matchId) && matchDate < resyncCutoff) continue;
 
       // Stop after deadline
       if (Date.now() - startTime > DEADLINE_MS) {
@@ -395,14 +422,6 @@ async function syncMatches(
       // Must have at least one innings with batting data
       const hasScorecard = detail.innings.some((inn) => inn.bat.length > 0);
       if (!hasScorecard) continue;
-
-      // Validate match_date format (DD/MM/YYYY)
-      if (
-        !match.match_date ||
-        !/^\d{2}\/\d{2}\/\d{4}$/.test(match.match_date)
-      ) {
-        continue;
-      }
 
       // Upsert teams from match detail
       await upsertTeamFromMatch(
@@ -487,12 +506,6 @@ async function syncMatches(
 
       // Store match result with cutoff logic
       const matchResult = (detail.result ?? "").trim();
-      const [dd, mm, yyyy] = match.match_date.split("/");
-      const matchDate = new Date(
-        parseInt(yyyy),
-        parseInt(mm) - 1,
-        parseInt(dd),
-      );
       const isRecent = matchDate > resultCutoff;
       const shouldWriteResult = matchResult || !isRecent;
 

@@ -189,8 +189,8 @@ describe("runSync", () => {
     /* eslint-enable @typescript-eslint/unbound-method */
   });
 
-  it("skips already-processed matches", async () => {
-    // Return a match from the API
+  it("skips already-processed matches outside the resync window", async () => {
+    // Match dated well in the past so it's outside the resync window
     mockApi = createMockApi({
       getMatchesSummary: vi.fn().mockResolvedValue({
         matches: [
@@ -198,9 +198,9 @@ describe("runSync", () => {
             id: 12345,
             status: "Completed",
             published: "Yes",
-            last_updated: "2026-07-01",
-            season: "2026",
-            match_date: "01/07/2026",
+            last_updated: "2024-07-01",
+            season: "2024",
+            match_date: "01/07/2024",
             home_club_name: "Percy Main",
             home_team_name: "1st XI",
             home_team_id: "68498",
@@ -222,6 +222,66 @@ describe("runSync", () => {
     expect(result.matchesProcessed).toBe(0);
     // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn() mock
     expect(mockApi.getMatchDetail).not.toHaveBeenCalled();
+  });
+
+  it("re-fetches already-processed matches inside the resync window", async () => {
+    // Match dated yesterday — well inside the 7-day resync window.
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dd = String(yesterday.getDate()).padStart(2, "0");
+    const mm = String(yesterday.getMonth() + 1).padStart(2, "0");
+    const yyyy = yesterday.getFullYear();
+    const matchDateStr = `${dd}/${mm}/${yyyy}`;
+
+    mockApi = createMockApi({
+      getMatchesSummary: vi.fn().mockResolvedValue({
+        matches: [
+          {
+            id: 12345,
+            status: "Completed",
+            published: "Yes",
+            last_updated: `${yyyy}-${mm}-${dd}`,
+            season: String(yyyy),
+            match_date: matchDateStr,
+            home_club_name: "Percy Main",
+            home_team_name: "1st XI",
+            home_team_id: "68498",
+            home_club_id: "134",
+            away_club_name: "Opposition",
+            away_team_name: "1st XI",
+            away_team_id: "99999",
+            away_club_id: "999",
+          },
+        ],
+      }),
+      // Detail with no scorecard — bails before any DB writes, but still
+      // proves we did re-fetch despite the match already being processed.
+      getMatchDetail: vi.fn().mockResolvedValue({
+        match_details: [
+          {
+            home_team_id: "68498",
+            home_team_name: "1st XI",
+            home_club_id: "134",
+            away_team_id: "99999",
+            away_team_name: "1st XI",
+            away_club_id: "999",
+            innings: [],
+            players: [],
+            result: "",
+            result_description: "",
+            result_applied_to: "",
+          },
+        ],
+      }),
+    });
+    // Mark it as already processed
+    mockSelectExecute.mockResolvedValueOnce([{ match_id: "12345" }]);
+
+    const sync = runSync(mockDb, mockApi);
+    await sync({ siteId: "134" });
+
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn() mock
+    expect(mockApi.getMatchDetail).toHaveBeenCalledWith("12345");
   });
 
   it("records team sync errors without failing", async () => {
