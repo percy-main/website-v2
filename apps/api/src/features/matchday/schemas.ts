@@ -86,6 +86,8 @@ export const confirmTeamSchema = z.object({
       status: z.enum(["playing", "dropped_out", "no_show"]),
     }),
   ),
+  isHome: z.boolean(),
+  matchTime: z.string().nullable(),
 });
 
 export const markPaidSchema = z.object({

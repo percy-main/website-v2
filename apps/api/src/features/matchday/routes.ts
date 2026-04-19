@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { getAuthSession, requireRole } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
+import { publishTeamSheet } from "../social-posting/service.ts";
 import {
   addPlayerResponseSchema,
   addPlayerSchema,
@@ -425,7 +426,33 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      return await confirm(user.id, role, request.params.matchId, request.body);
+      const { matchId } = request.params;
+      const { isHome, matchTime, ...confirmBody } = request.body;
+
+      const result = await confirm(user.id, role, matchId, confirmBody);
+
+      // Fire-and-forget: kick off social posting after the confirm transaction
+      // completes. Errors are logged + Slack-alerted inside publishTeamSheet;
+      // they must never surface to the HTTP response.
+      publishTeamSheet({
+        db: app.db,
+        llm: app.llm,
+        meta: app.meta,
+        s3Social: app.s3SocialMedia,
+        slackWebhookUrl: app.config.SLACK_WEBHOOK_URL,
+        log: request.log,
+        enabled: app.config.SOCIAL_POSTING_ENABLED,
+      })({
+        matchdayId: matchId,
+        userId: user.id,
+        role,
+        isHome,
+        matchTime,
+      }).catch((err: unknown) => {
+        request.log.error({ err, matchId }, "Team sheet social publish failed");
+      });
+
+      return result;
     },
   );
 

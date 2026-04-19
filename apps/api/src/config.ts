@@ -60,14 +60,42 @@ const configSchema = z.object({
   SLACK_WEBHOOK_URL: z.url().optional(),
   PLAY_CRICKET_API_TOKEN: z.string().optional(),
   PLAY_CRICKET_SITE_ID: z.string().optional(),
+
+  // Social auto-posting (team sheets → Facebook + Instagram)
+  SOCIAL_POSTING_ENABLED: z.coerce.boolean().default(false),
+  META_FB_PAGE_ID: z.string().optional(),
+  META_FB_ACCESS_TOKEN: z.string().optional(),
+  META_IG_USER_ID: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  S3_SOCIAL_MEDIA_BUCKET: z.string().optional(),
+  S3_SOCIAL_MEDIA_PREFIX: z.string().default("social-media/team-sheets"),
 });
 
 export type Config = z.infer<typeof configSchema>;
+
+const REQUIRED_WHEN_SOCIAL_ENABLED = [
+  "META_FB_PAGE_ID",
+  "META_FB_ACCESS_TOKEN",
+  "META_IG_USER_ID",
+  "ANTHROPIC_API_KEY",
+  "S3_SOCIAL_MEDIA_BUCKET",
+] as const satisfies ReadonlyArray<keyof Config>;
 
 /**
  * Parse and validate configuration from an environment object.
  * In production, pass process.env. In tests, pass a minimal object.
  */
 export function parseConfig(env: Record<string, string | undefined>): Config {
-  return configSchema.parse(env);
+  const config = configSchema.parse(env);
+
+  if (config.SOCIAL_POSTING_ENABLED) {
+    const missing = REQUIRED_WHEN_SOCIAL_ENABLED.filter((key) => !config[key]);
+    if (missing.length > 0) {
+      throw new Error(
+        `SOCIAL_POSTING_ENABLED=true but missing: ${missing.join(", ")}`,
+      );
+    }
+  }
+
+  return config;
 }

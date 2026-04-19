@@ -7828,10 +7828,19 @@
                         "status"
                       ]
                     }
+                  },
+                  "isHome": {
+                    "type": "boolean"
+                  },
+                  "matchTime": {
+                    "nullable": true,
+                    "type": "string"
                   }
                 },
                 "required": [
-                  "playerStatuses"
+                  "playerStatuses",
+                  "isHome",
+                  "matchTime"
                 ]
               }
             }
@@ -8000,6 +8009,281 @@
                     "success",
                     "emailsSent",
                     "emailErrors"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matchday/{matchId}/social-publications": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "matchId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "matchday_id": {
+                            "type": "string"
+                          },
+                          "platform": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          },
+                          "claimed_at": {
+                            "type": "string"
+                          },
+                          "posted_at": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "external_post_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "caption": {
+                            "type": "string"
+                          },
+                          "caption_source": {
+                            "type": "string"
+                          },
+                          "image_url": {
+                            "type": "string"
+                          },
+                          "last_error": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "attempt_count": {
+                            "type": "number"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "matchday_id",
+                          "platform",
+                          "state",
+                          "claimed_at",
+                          "posted_at",
+                          "external_post_id",
+                          "caption",
+                          "caption_source",
+                          "image_url",
+                          "last_error",
+                          "attempt_count",
+                          "updated_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matchday/{matchId}/social-publications/{platform}/retry": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isHome": {
+                    "type": "boolean"
+                  },
+                  "matchTime": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "isHome",
+                  "matchTime"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "matchId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "facebook",
+                "instagram"
+              ]
+            },
+            "in": "path",
+            "name": "platform",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "posted",
+                        "failed",
+                        "already_posted",
+                        "in_flight"
+                      ]
+                    },
+                    "externalPostId": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matchday/{matchId}/social-publications/{platform}/reconcile": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "outcome": {
+                        "type": "string",
+                        "enum": [
+                          "posted"
+                        ]
+                      },
+                      "externalPostId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "outcome",
+                      "externalPostId"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "outcome": {
+                        "type": "string",
+                        "enum": [
+                          "failed"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "outcome"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "matchId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "facebook",
+                "instagram"
+              ]
+            },
+            "in": "path",
+            "name": "platform",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "posted",
+                        "failed"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "state"
                   ],
                   "additionalProperties": false
                 }

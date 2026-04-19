@@ -628,7 +628,7 @@ export function confirmTeam(db: Kysely<DB>) {
     userId: string,
     role: string,
     matchdayId: string,
-    data: ConfirmTeam,
+    data: Pick<ConfirmTeam, "playerStatuses">,
   ) => {
     const matchday = await db
       .selectFrom("matchday")

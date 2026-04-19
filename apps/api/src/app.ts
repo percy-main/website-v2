@@ -14,9 +14,21 @@ import type { Kysely, PostgresDialect } from "kysely";
 import type { Config } from "./config.ts";
 import { createAuth, type Auth } from "./features/auth/auth.ts";
 import {
+  createLlmClient,
+  type LlmClient,
+} from "./features/social-posting/caption.ts";
+import {
+  createMetaClient,
+  type MetaClient,
+} from "./features/social-posting/meta-client.ts";
+import {
   createS3DocumentStore,
   type S3DocumentStore,
 } from "./lib/s3-documents.ts";
+import {
+  createSocialMediaUploader,
+  type SocialMediaUploader,
+} from "./lib/s3-social-media.ts";
 import { createS3Uploader, type S3Uploader } from "./lib/s3-upload.ts";
 
 // Feature routes
@@ -40,6 +52,7 @@ import { paymentRoutes } from "./features/payments/routes.ts";
 import { webhookRoutes } from "./features/payments/webhook.ts";
 import { playCricketRoutes } from "./features/play-cricket/routes.ts";
 import { recordsRoutes } from "./features/records/routes.ts";
+import { socialPostingRoutes } from "./features/social-posting/routes.ts";
 import { sponsorshipRoutes } from "./features/sponsorship/routes.ts";
 import { treasurerRoutes } from "./features/treasurer/routes.ts";
 
@@ -52,6 +65,9 @@ declare module "fastify" {
     send: (email: Email) => Promise<void>;
     s3: S3Uploader;
     s3Documents: S3DocumentStore;
+    llm: LlmClient;
+    meta: MetaClient;
+    s3SocialMedia: SocialMediaUploader;
   }
 }
 
@@ -104,6 +120,11 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   const s3Documents = createS3DocumentStore(config);
   app.decorate("s3Documents", s3Documents);
 
+  // Social posting (team sheets → FB/IG)
+  app.decorate("llm", createLlmClient(config));
+  app.decorate("meta", createMetaClient(config));
+  app.decorate("s3SocialMedia", createSocialMediaUploader(config));
+
   // Plugins
   await app.register(swagger, {
     openapi: {
@@ -147,6 +168,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(playCricketRoutes, { prefix: "/api" });
   await app.register(sponsorshipRoutes, { prefix: "/api" });
   await app.register(matchdayRoutes, { prefix: "/api" });
+  await app.register(socialPostingRoutes, { prefix: "/api" });
   await app.register(availabilityRoutes, { prefix: "/api" });
   await app.register(paymentRoutes, { prefix: "/api" });
   await app.register(adminRoutes, { prefix: "/api" });

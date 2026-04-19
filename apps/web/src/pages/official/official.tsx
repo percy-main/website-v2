@@ -17,6 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parse } from "date-fns";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
+import { SocialPublicationsPanel } from "./social-publications-panel";
 
 // ── Constants ──
 
@@ -401,6 +402,8 @@ function MatchdayView({
   onBack: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const isAdmin = session?.user.role === "admin";
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [adHocName, setAdHocName] = useState("");
@@ -476,7 +479,7 @@ function MatchdayView({
       callApi(
         api.POST("/api/matchday/{matchId}/confirm", {
           params: { path: { matchId: matchdayId } },
-          body: input,
+          body: { ...input, isHome, matchTime },
         }),
       ),
     onSuccess: () => {
@@ -957,6 +960,15 @@ function MatchdayView({
               isFinished={data.matchday.status === "finished"}
               addExpenseMutation={addExpenseMutation}
               deleteExpenseMutation={deleteExpenseMutation}
+            />
+          )}
+
+          {/* Social posting status — admin-only, visible once confirmed */}
+          {isAdmin && data.matchday.status !== "pending" && (
+            <SocialPublicationsPanel
+              matchdayId={matchdayId}
+              isHome={isHome}
+              matchTime={matchTime}
             />
           )}
 

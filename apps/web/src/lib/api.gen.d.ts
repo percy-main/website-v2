@@ -4568,6 +4568,8 @@ export interface paths {
                             /** @enum {string} */
                             status: "playing" | "dropped_out" | "no_show";
                         }[];
+                        isHome: boolean;
+                        matchTime: string | null;
                     };
                 };
             };
@@ -4675,6 +4677,161 @@ export interface paths {
                             success: boolean;
                             emailsSent: number;
                             emailErrors: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/matchday/{matchId}/social-publications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                matchday_id: string;
+                                platform: string;
+                                state: string;
+                                claimed_at: string;
+                                posted_at: string | null;
+                                external_post_id: string | null;
+                                caption: string;
+                                caption_source: string;
+                                image_url: string;
+                                last_error: string | null;
+                                attempt_count: number;
+                                updated_at: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/matchday/{matchId}/social-publications/{platform}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchId: string;
+                    platform: "facebook" | "instagram";
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        isHome: boolean;
+                        matchTime: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            state: "posted" | "failed" | "already_posted" | "in_flight";
+                            externalPostId?: string;
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/matchday/{matchId}/social-publications/{platform}/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchId: string;
+                    platform: "facebook" | "instagram";
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        outcome: "posted";
+                        externalPostId: string;
+                    } | {
+                        /** @enum {string} */
+                        outcome: "failed";
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            state: "posted" | "failed";
                         };
                     };
                 };

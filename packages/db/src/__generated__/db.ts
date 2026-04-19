@@ -335,6 +335,25 @@ export interface MatchdayPlayer {
   status: Generated<string>;
 }
 
+export interface MatchdaySocialPublication {
+  attempt_count: Generated<number>;
+  caption: string;
+  caption_prompt_version: string;
+  caption_source: string;
+  claim_token: string;
+  claimed_at: Generated<string>;
+  created_at: Generated<string>;
+  external_post_id: string | null;
+  id: string;
+  image_url: string;
+  last_error: string | null;
+  matchday_id: string;
+  platform: string;
+  posted_at: string | null;
+  state: string;
+  updated_at: Generated<string>;
+}
+
 export interface MatchFeeRate {
   amount_pence: number;
   competition_type: string | null;
@@ -578,6 +597,7 @@ export interface DB {
   matchday: Matchday;
   matchday_expense: MatchdayExpense;
   matchday_player: MatchdayPlayer;
+  matchday_social_publication: MatchdaySocialPublication;
   member: Member;
   membership: Membership;
   passkey: Passkey;
