@@ -6870,6 +6870,12 @@
                           "chargePaidAt": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "is_captain": {
+                            "type": "boolean"
+                          },
+                          "is_wicketkeeper": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -6881,7 +6887,9 @@
                           "charge_id",
                           "created_at",
                           "member_category",
-                          "chargePaidAt"
+                          "chargePaidAt",
+                          "is_captain",
+                          "is_wicketkeeper"
                         ],
                         "additionalProperties": false
                       }
@@ -7832,6 +7840,65 @@
                 },
                 "required": [
                   "playerStatuses"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "matchId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matchday/{matchId}/roles": {
+      "put": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "captainPlayerId": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "wicketkeeperPlayerId": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "captainPlayerId",
+                  "wicketkeeperPlayerId"
                 ]
               }
             }

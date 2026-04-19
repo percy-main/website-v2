@@ -88,6 +88,11 @@ export const confirmTeamSchema = z.object({
   ),
 });
 
+export const setRolesSchema = z.object({
+  captainPlayerId: z.string().nullable(),
+  wicketkeeperPlayerId: z.string().nullable(),
+});
+
 export const markPaidSchema = z.object({
   paymentMethod: paymentMethodSchema,
 });
@@ -178,6 +183,8 @@ const matchdayPlayerSchema = z.object({
   created_at: z.string(),
   member_category: z.string().nullable(),
   chargePaidAt: z.string().nullable(),
+  is_captain: z.boolean(),
+  is_wicketkeeper: z.boolean(),
 });
 
 const matchdayExpenseSchema = z.object({
@@ -299,6 +306,7 @@ export type DeleteExpense = z.infer<typeof deleteExpenseSchema>;
 export type CreateMatchday = z.infer<typeof createMatchdaySchema>;
 export type AddPlayer = z.infer<typeof addPlayerSchema>;
 export type ConfirmTeam = z.infer<typeof confirmTeamSchema>;
+export type SetRoles = z.infer<typeof setRolesSchema>;
 export type MarkPaid = z.infer<typeof markPaidSchema>;
 export type SearchMembers = z.infer<typeof searchMembersSchema>;
 export type SubmitExpense = z.infer<typeof submitExpenseSchema>;

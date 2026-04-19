@@ -19,6 +19,7 @@ import type {
   RecordExpense,
   RejectExpense,
   SearchMembers,
+  SetRoles,
   SubmitExpense,
   UpdateExpense,
 } from "./schemas.ts";
@@ -213,6 +214,8 @@ export function getMatch(db: Kysely<DB>) {
           "matchday_player.replaced_by_matchday_player_id",
           "matchday_player.charge_id",
           "matchday_player.created_at",
+          "matchday_player.is_captain",
+          "matchday_player.is_wicketkeeper",
           "member.member_category",
           "charge.paid_at as chargePaidAt",
         ])
@@ -757,6 +760,90 @@ export function confirmTeam(db: Kysely<DB>) {
   };
 }
 
+export function setMatchRoles(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    role: string,
+    matchdayId: string,
+    data: SetRoles,
+  ) => {
+    const matchday = await db
+      .selectFrom("matchday")
+      .where("id", "=", matchdayId)
+      .select(["id", "play_cricket_team_id", "status"])
+      .executeTakeFirst();
+
+    if (!matchday) throwHttpError(404, "Matchday not found");
+
+    if (matchday.status === "finished") {
+      throwHttpError(400, "Cannot change roles on a finished matchday");
+    }
+
+    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
+    if (!accessibleIds.includes(matchday.play_cricket_team_id)) {
+      throwHttpError(403, "You do not have access to this matchday");
+    }
+
+    const targetIds = [data.captainPlayerId, data.wicketkeeperPlayerId].filter(
+      (id): id is string => id !== null,
+    );
+
+    if (targetIds.length > 0) {
+      const validPlayers = await db
+        .selectFrom("matchday_player")
+        .where("matchday_id", "=", matchdayId)
+        .where("id", "in", targetIds)
+        .select("id")
+        .execute();
+
+      const validIds = new Set(validPlayers.map((p) => p.id));
+      const invalid = targetIds.filter((id) => !validIds.has(id));
+      if (invalid.length > 0) {
+        throwHttpError(
+          400,
+          "One or more player IDs do not belong to this matchday",
+        );
+      }
+    }
+
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable("matchday_player")
+        .set({ is_captain: false })
+        .where("matchday_id", "=", matchdayId)
+        .where("is_captain", "=", true)
+        .execute();
+
+      await trx
+        .updateTable("matchday_player")
+        .set({ is_wicketkeeper: false })
+        .where("matchday_id", "=", matchdayId)
+        .where("is_wicketkeeper", "=", true)
+        .execute();
+
+      if (data.captainPlayerId) {
+        await trx
+          .updateTable("matchday_player")
+          .set({ is_captain: true })
+          .where("id", "=", data.captainPlayerId)
+          .where("matchday_id", "=", matchdayId)
+          .execute();
+      }
+
+      if (data.wicketkeeperPlayerId) {
+        await trx
+          .updateTable("matchday_player")
+          .set({ is_wicketkeeper: true })
+          .where("id", "=", data.wicketkeeperPlayerId)
+          .where("matchday_id", "=", matchdayId)
+          .execute();
+      }
+    });
+
+    return { success: true };
+  };
+}
+
 export function markFeePaid(db: Kysely<DB>) {
   return async (
     userId: string,
@@ -1202,6 +1289,8 @@ export function listPendingExpenses(db: Kysely<DB>) {
 export interface TeamNewsPlayer {
   playerName: string;
   sponsorName: string | null;
+  isCaptain: boolean;
+  isWicketkeeper: boolean;
 }
 
 export interface TeamNewsData {
@@ -1263,7 +1352,12 @@ export function getTeamNewsData(db: Kysely<DB>) {
       .where("matchday_id", "=", matchId)
       .where("matchday_player.status", "!=", "replaced")
       .leftJoin("member", "member.id", "matchday_player.member_id")
-      .select(["matchday_player.player_name", "member.slug"])
+      .select([
+        "matchday_player.player_name",
+        "matchday_player.is_captain",
+        "matchday_player.is_wicketkeeper",
+        "member.slug",
+      ])
       .orderBy("matchday_player.created_at", "asc")
       .execute();
 
@@ -1317,6 +1411,8 @@ export function getTeamNewsData(db: Kysely<DB>) {
       players: players.map((p) => ({
         playerName: p.player_name,
         sponsorName: p.slug ? (sponsorBySlug.get(p.slug) ?? null) : null,
+        isCaptain: p.is_captain,
+        isWicketkeeper: p.is_wicketkeeper,
       })),
       matchSponsor,
     };

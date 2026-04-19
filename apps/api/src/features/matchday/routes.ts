@@ -24,6 +24,7 @@ import {
   rejectExpenseSchema,
   searchMembersResponseSchema,
   searchMembersSchema,
+  setRolesSchema,
   submitExpenseResponseSchema,
   submitExpenseSchema,
   successResponseSchema,
@@ -51,6 +52,7 @@ import {
   rejectExpense,
   removePlayer,
   searchMembers,
+  setMatchRoles,
   submitExpenseClaim,
   updateExpense,
 } from "./service.ts";
@@ -295,6 +297,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const add = addPlayer(app.db);
   const removeP = removePlayer(app.db);
   const confirm = confirmTeam(app.db);
+  const setRoles = setMatchRoles(app.db);
   const paid = markFeePaid(app.db);
   const finish = finishMatch(app.db, app.send, app.config);
 
@@ -426,6 +429,28 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
       return await confirm(user.id, role, request.params.matchId, request.body);
+    },
+  );
+
+  app.put(
+    "/matchday/:matchId/roles",
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: matchIdParamSchema,
+        body: setRolesSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await setRoles(
+        user.id,
+        role,
+        request.params.matchId,
+        request.body,
+      );
     },
   );
 
