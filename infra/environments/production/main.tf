@@ -108,8 +108,11 @@ module "ecs" {
     S3_DOCUMENTS_PREFIX          = "documents"
     S3_DOCUMENT_UPLOADS_BUCKET   = module.document_uploads.bucket_name
     AWS_REGION                   = "eu-west-2"
-    SYNC_ECS_CLUSTER             = module.ecs.cluster_arn
-    SYNC_ECS_TASK_DEFINITION     = module.ecs.task_definition_family
+    # Cannot reference module.ecs.* outputs that depend on the task definition
+    # here — that would cycle through the env-vars input. The cluster and family
+    # names are deterministic from the environment, so inline them.
+    SYNC_ECS_CLUSTER             = "percy-main-production-cluster"
+    SYNC_ECS_TASK_DEFINITION     = "production-api"
     SYNC_ECS_SUBNETS             = join(",", module.vpc.public_subnet_ids)
     SYNC_ECS_SECURITY_GROUP      = module.vpc.ecs_security_group_id
     SYNC_ECS_ASSIGN_PUBLIC_IP    = "true"
