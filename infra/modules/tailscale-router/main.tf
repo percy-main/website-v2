@@ -51,8 +51,8 @@ variable "advertise_cidr" {
 
 variable "instance_type" {
   type        = string
-  default     = "t4g.nano"
-  description = "EC2 instance type (ARM/Graviton recommended for cost)"
+  default     = "t3.micro"
+  description = "EC2 instance type. t3.micro is free-tier eligible; a t4g.nano would be cheaper steady-state but this account is restricted to free-tier instance types."
 }
 
 # -----------------------------------------------------------------------------
@@ -161,11 +161,11 @@ resource "aws_iam_instance_profile" "router" {
 }
 
 # -----------------------------------------------------------------------------
-# AMI — latest Amazon Linux 2023 ARM
+# AMI — latest Amazon Linux 2023 x86_64 (free-tier compatible)
 # -----------------------------------------------------------------------------
 
-data "aws_ssm_parameter" "al2023_arm" {
-  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64"
+data "aws_ssm_parameter" "al2023" {
+  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
 # -----------------------------------------------------------------------------
@@ -244,7 +244,7 @@ data "aws_region" "current" {}
 # -----------------------------------------------------------------------------
 
 resource "aws_instance" "router" {
-  ami                    = data.aws_ssm_parameter.al2023_arm.value
+  ami                    = data.aws_ssm_parameter.al2023.value
   instance_type          = var.instance_type
   subnet_id              = var.public_subnet_id
   vpc_security_group_ids = [aws_security_group.router.id]
