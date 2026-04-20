@@ -43,20 +43,21 @@ ensure_secret() {
   local secret_id="$1"
   local description="$2"
 
+  # Status messages go to stderr so only the password ends up in $(…) capture.
   if aws --profile "$PROFILE" --region "$REGION" secretsmanager describe-secret \
     --secret-id "$secret_id" >/dev/null 2>&1; then
-    echo "  ✓ $secret_id already exists — reusing"
+    echo "  ✓ $secret_id already exists — reusing" >&2
     aws --profile "$PROFILE" --region "$REGION" secretsmanager get-secret-value \
       --secret-id "$secret_id" --query SecretString --output text
   else
-    echo "  + creating $secret_id"
+    echo "  + creating $secret_id" >&2
     local pw
     pw=$(gen_password)
     aws --profile "$PROFILE" --region "$REGION" secretsmanager create-secret \
       --name "$secret_id" \
       --description "$description" \
       --secret-string "$pw" >/dev/null
-    echo "$pw"
+    printf '%s\n' "$pw"
   fi
 }
 
