@@ -11,10 +11,11 @@
 #     arrives via NAT-traversed UDP.
 #   - No SSH. If debugging is ever needed, `aws ssm start-session` via the
 #     SSM agent installed by user_data.
-#   - OAuth client secret (a `tskey-client-...` reusable auth key minted by
-#     an OAuth client scoped to `tag:subnet-router`) is created in Secrets
-#     Manager here as an empty resource. The value is populated manually
-#     after first apply — see docs/adrs/NNNN-prod-db-access.md.
+#   - OAuth client secret (a `tskey-client-...` reusable auth key) lives in
+#     Secrets Manager at the ARN exposed by `auth_secret_arn`. The module
+#     owns the container; the environment is expected to own the value
+#     (typically via a `tailscale_oauth_client` resource + an
+#     `aws_secretsmanager_secret_version`). See ADR #012 for the pattern.
 
 terraform {
   required_providers {

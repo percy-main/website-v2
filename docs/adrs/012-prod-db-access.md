@@ -82,51 +82,38 @@ Secrets Manager at `percy-main-production/rds/admin-ro` and `admin-rw`.
 
 ## Bootstrap runbook
 
-Steps you have to do manually — no way around them:
+The ACL policy, subnet-router OAuth client, and its Secrets Manager value
+are all managed by Terraform. The only manual step is **once** creating a
+bootstrap OAuth client that Terraform itself uses to authenticate to the
+Tailscale API.
 
-### 1. Tailscale account + OAuth client
+### 1. Tailscale account
 
-1. Sign up at https://tailscale.com using your Google Workspace account
-   (alex@percymain.org or similar). Free Personal plan is fine.
-2. **Admin console → Settings → OAuth clients → Generate OAuth client**
-   - Scopes: **`auth_keys:write`** (nothing else)
-   - Tags: **`tag:subnet-router`** (only)
-   - Description: "percy-main production subnet router"
-3. Copy the generated client secret (`tskey-client-...`) — shown once.
+Sign up at https://tailscale.com using your Google Workspace account
+(`alex.young@percymain.org` or similar). Free Personal plan is fine.
 
-### 2. Tailscale ACL policy
+### 2. Bootstrap "trust credential" for Terraform
 
-Open **Admin console → Access Controls** and use roughly this policy (adjust
-the user email):
+**Admin console → Settings → Trust credentials → New credential → OAuth**
 
-```json
-{
-  "tagOwners": {
-    "tag:subnet-router": ["autogroup:admin"]
-  },
-  "groups": {
-    "group:db-admins": ["alex@percymain.org"]
-  },
-  "autoApprovers": {
-    "routes": {
-      "10.0.0.0/16": ["tag:subnet-router"]
-    }
-  },
-  "acls": [
-    {
-      "action": "accept",
-      "src": ["group:db-admins"],
-      "dst": ["10.0.128.0/23:5432"]
-    }
-  ]
-}
+- Description: `github-actions terraform apply — percy-main production`
+- Scopes:
+  - **Policy File** → Write
+  - **OAuth Keys** → Write (called "OAuth Clients" in some UI versions)
+- Tags: `tag:subnet-router` (Terraform needs to own the tag so it can
+  delegate it to the subnet-router OAuth client it creates)
+
+Copy the generated `client_id` and `tskey-client-...` secret and store as
+JSON in Secrets Manager:
+
+```sh
+aws --profile percy-main --region eu-west-2 secretsmanager create-secret \
+  --name percy-main-production/tailscale/terraform-oauth \
+  --description "Tailscale OAuth client used by GHA to apply tf (Policy File + OAuth Keys scopes)" \
+  --secret-string '{"client_id":"...","client_secret":"tskey-client-..."}'
 ```
 
-- `group:db-admins` — add future admins here, not as individual users in ACLs.
-- `autoApprovers` — route is approved automatically when the router
-  reconnects (after reboot, AMI refresh, etc.). No manual click-through.
-- ACL grants tailnet users access to RDS (the /23 covers both private
-  subnets) on 5432 only. The router itself isn't reachable for anything else.
+(If the secret already exists, use `put-secret-value` instead to update.)
 
 ### 3. Terraform apply
 
@@ -135,24 +122,20 @@ cd infra/environments/production
 terraform apply
 ```
 
-This creates the router EC2, SG, IAM role, and an **empty** Secrets Manager
-secret at `percy-main-production/tailscale/auth-key`.
+This creates everything:
 
-### 4. Populate the Tailscale auth secret
-
-```sh
-aws --profile percy-main --region eu-west-2 secretsmanager put-secret-value \
-  --secret-id percy-main-production/tailscale/auth-key \
-  --secret-string 'tskey-client-...'
-```
-
-The router's `tailscale-authenticate.service` retries every 30 seconds on
-failure, so it will pick the secret up within a minute of it being populated.
+- Router EC2, SG, IAM role
+- The `tag:subnet-router` tag owner, `group:db-admins` group, and RDS-only
+  ACL in the tailnet policy
+- A fresh OAuth client for the subnet router, with its secret written
+  straight into `percy-main-production/tailscale/auth-key`
+- `autoApprovers` on the 10.0.0.0/16 route so the router registers without
+  manual approval
 
 Verify: **Tailscale admin → Machines** should list `percy-main-production-router`
-as online with the 10.0.0.0/16 route approved.
+as online within a minute or so, with the 10.0.0.0/16 route approved.
 
-### 5. Bootstrap DB roles
+### 4. Bootstrap DB roles
 
 Make sure Tailscale is up on your laptop, then:
 
@@ -163,7 +146,7 @@ RUN_MODE=tailscale ./scripts/setup-db-admin-users.sh
 This generates passwords, stores them in Secrets Manager, and creates the
 two Postgres roles with the privilege grants described above.
 
-### 6. Connection details for TablePlus / psql
+### 5. Connection details for TablePlus / psql
 
 Fetch the password:
 
@@ -194,13 +177,15 @@ Label TablePlus connections distinctly — e.g. green for `admin_ro`, red for
 - **Patching**: EC2 is patched by SSM Patch Manager via the default baseline.
   Plan monthly `terraform apply` to pick up new AMI IDs (user_data triggers
   instance replacement via `user_data_replace_on_change = true`).
-- **OAuth client rotation**: annually. Generate a new client in the Tailscale
-  admin console, `put-secret-value` the new secret, wait a minute for the
-  router to re-auth, then revoke the old client.
-- **Adding a second admin**: add them to `group:db-admins` in the ACL policy.
-  They sign in to Tailscale with their Google Workspace account; nothing else
-  to configure. They retrieve DB passwords from Secrets Manager (IAM
-  permissions separate).
+- **OAuth client rotation**: `terraform taint tailscale_oauth_client.subnet_router && terraform apply`
+  replaces the client and rewrites the auth secret. The running router doesn't
+  re-auth on the fly — either reboot the EC2 (`user_data_replace_on_change`
+  triggers on AMI refresh anyway) or delete the router device in the
+  Tailscale admin to force re-registration on its next restart.
+- **Adding a second admin**: add their Google Workspace email to
+  `var.tailscale_db_admins` in `infra/environments/production/variables.tf`
+  and apply. They sign in to Tailscale with that account; nothing else to
+  configure. DB passwords are in Secrets Manager (separate IAM).
 
 ## Follow-ups
 
