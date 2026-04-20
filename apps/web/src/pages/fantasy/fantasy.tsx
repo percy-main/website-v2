@@ -113,6 +113,22 @@ function useTeamDetail(teamId: number | null) {
   });
 }
 
+function usePlayerHistory(playCricketId: string | null) {
+  return useQuery({
+    queryKey: ["fantasy", "player-history", playCricketId],
+    queryFn: () => {
+      if (playCricketId === null) throw new Error("playCricketId is required");
+      return callApi(
+        api.GET("/api/fantasy/players/{playCricketId}/history", {
+          params: { path: { playCricketId } },
+        }),
+      );
+    },
+    enabled: playCricketId !== null,
+    staleTime: 5 * 60_000,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Skeleton
 // ---------------------------------------------------------------------------
@@ -533,8 +549,10 @@ function HighlightCard({
 
 function LeaderboardsTab({
   onViewTeam,
+  onViewPlayer,
 }: {
   onViewTeam: (teamId: number) => void;
+  onViewPlayer: (playCricketId: string) => void;
 }) {
   const [params, setParams] = useSearchParams();
   const subTab = params.get("lb") ?? "season";
@@ -579,7 +597,9 @@ function LeaderboardsTab({
           onViewTeam={onViewTeam}
         />
       )}
-      {subTab === "players" && <PlayerLeaderboard />}
+      {subTab === "players" && (
+        <PlayerLeaderboard onViewPlayer={onViewPlayer} />
+      )}
     </div>
   );
 }
@@ -695,7 +715,11 @@ function WeeklyLeaderboard({
   );
 }
 
-function PlayerLeaderboard() {
+function PlayerLeaderboard({
+  onViewPlayer,
+}: {
+  onViewPlayer: (playCricketId: string) => void;
+}) {
   const { data, isPending, error } = usePlayerLeaderboard();
 
   if (isPending) return <LoadingTable rows={10} cols={6} />;
@@ -724,9 +748,15 @@ function PlayerLeaderboard() {
         </TableHeader>
         <TableBody>
           {data.entries.map((e) => (
-            <TableRow key={e.playCricketId}>
+            <TableRow
+              key={e.playCricketId}
+              className="cursor-pointer"
+              onClick={() => onViewPlayer(e.playCricketId)}
+            >
               <TableCell>{e.rank}</TableCell>
-              <TableCell>{e.playerName}</TableCell>
+              <TableCell className="text-primary font-medium">
+                {e.playerName}
+              </TableCell>
               <TableCell className="text-right">{e.battingPoints}</TableCell>
               <TableCell className="text-right">{e.bowlingPoints}</TableCell>
               <TableCell className="text-right">{e.fieldingPoints}</TableCell>
@@ -791,7 +821,15 @@ function AllTeamsTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
 // Team detail view
 // ---------------------------------------------------------------------------
 
-function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
+function TeamView({
+  teamId,
+  onBack,
+  onViewPlayer,
+}: {
+  teamId: number;
+  onBack: () => void;
+  onViewPlayer: (playCricketId: string) => void;
+}) {
   const { data, isPending, error } = useTeamDetail(teamId);
 
   if (isPending) return <LoadingTable rows={11} cols={4} />;
@@ -859,8 +897,12 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
         </TableHeader>
         <TableBody>
           {sorted.map((p) => (
-            <TableRow key={p.playCricketId}>
-              <TableCell>
+            <TableRow
+              key={p.playCricketId}
+              className="cursor-pointer"
+              onClick={() => onViewPlayer(p.playCricketId)}
+            >
+              <TableCell className="text-primary font-medium">
                 {p.playerName}
                 {p.isCaptain && (
                   <Badge variant="default" className="ml-1">
@@ -892,6 +934,98 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
           ))}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Player detail view
+// ---------------------------------------------------------------------------
+
+function PlayerView({
+  playCricketId,
+  onBack,
+}: {
+  playCricketId: string;
+  onBack: () => void;
+}) {
+  const { data, isPending, error } = usePlayerHistory(playCricketId);
+
+  if (isPending) return <LoadingTable rows={6} cols={7} />;
+  if (error)
+    return <p className="text-center text-red-600">Failed to load player.</p>;
+  if (!data) return null;
+
+  const totals = data.gameweeks.reduce(
+    (acc, gw) => ({
+      batting: acc.batting + gw.battingPoints,
+      bowling: acc.bowling + gw.bowlingPoints,
+      fielding: acc.fielding + gw.fieldingPoints,
+      team: acc.team + gw.teamPoints,
+      total: acc.total + gw.totalPoints,
+      matches: acc.matches + gw.matchCount,
+    }),
+    { batting: 0, bowling: 0, fielding: 0, team: 0, total: 0, matches: 0 },
+  );
+
+  return (
+    <div className="space-y-4">
+      <Button variant="outline" size="sm" onClick={onBack}>
+        &larr; Back
+      </Button>
+      <h3 className="text-lg font-semibold">{data.playerName}</h3>
+
+      {data.gameweeks.length === 0 ? (
+        <p className="text-muted-foreground text-center">
+          No scores yet this season.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Gameweek</TableHead>
+                <TableHead className="text-right">Bat</TableHead>
+                <TableHead className="text-right">Bowl</TableHead>
+                <TableHead className="text-right">Field</TableHead>
+                <TableHead className="text-right">Team</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                <TableHead className="text-right">Matches</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow className="bg-muted/50 font-semibold">
+                <TableCell>Total</TableCell>
+                <TableCell className="text-right">{totals.batting}</TableCell>
+                <TableCell className="text-right">{totals.bowling}</TableCell>
+                <TableCell className="text-right">{totals.fielding}</TableCell>
+                <TableCell className="text-right">{totals.team}</TableCell>
+                <TableCell className="text-right">{totals.total}</TableCell>
+                <TableCell className="text-right">{totals.matches}</TableCell>
+              </TableRow>
+              {data.gameweeks.map((gw) => (
+                <TableRow key={gw.gameweek}>
+                  <TableCell>GW{gw.gameweek}</TableCell>
+                  <TableCell className="text-right">
+                    {gw.battingPoints}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {gw.bowlingPoints}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {gw.fieldingPoints}
+                  </TableCell>
+                  <TableCell className="text-right">{gw.teamPoints}</TableCell>
+                  <TableCell className="text-right font-semibold">
+                    {gw.totalPoints}
+                  </TableCell>
+                  <TableCell className="text-right">{gw.matchCount}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }
@@ -932,6 +1066,10 @@ export function Component() {
       ? Number(teamParam)
       : null;
 
+  const playerParam = params.get("player");
+  const viewPlayerId =
+    playerParam !== null && playerParam !== "" ? playerParam : null;
+
   function setTab(t: string) {
     const next = new URLSearchParams(params);
     next.set("tab", t);
@@ -939,18 +1077,32 @@ export function Component() {
     next.delete("lb");
     next.delete("gw");
     next.delete("team");
+    next.delete("player");
     setParams(next, { replace: true });
   }
 
   function onViewTeam(teamId: number) {
     const next = new URLSearchParams(params);
     next.set("team", String(teamId));
+    next.delete("player");
     setParams(next);
   }
 
   function onBackFromTeam() {
     const next = new URLSearchParams(params);
     next.delete("team");
+    setParams(next);
+  }
+
+  function onViewPlayer(playCricketId: string) {
+    const next = new URLSearchParams(params);
+    next.set("player", playCricketId);
+    setParams(next);
+  }
+
+  function onBackFromPlayer() {
+    const next = new URLSearchParams(params);
+    next.delete("player");
     setParams(next);
   }
 
@@ -966,8 +1118,14 @@ export function Component() {
           <TabsTrigger value="rules">Rules</TabsTrigger>
         </TabsList>
 
-        {viewTeamId !== null ? (
-          <TeamView teamId={viewTeamId} onBack={onBackFromTeam} />
+        {viewPlayerId !== null ? (
+          <PlayerView playCricketId={viewPlayerId} onBack={onBackFromPlayer} />
+        ) : viewTeamId !== null ? (
+          <TeamView
+            teamId={viewTeamId}
+            onBack={onBackFromTeam}
+            onViewPlayer={onViewPlayer}
+          />
         ) : (
           <>
             <TabsContent value="home">
@@ -977,7 +1135,10 @@ export function Component() {
               <AllTeamsTab onViewTeam={onViewTeam} />
             </TabsContent>
             <TabsContent value="leaderboards">
-              <LeaderboardsTab onViewTeam={onViewTeam} />
+              <LeaderboardsTab
+                onViewTeam={onViewTeam}
+                onViewPlayer={onViewPlayer}
+              />
             </TabsContent>
             <TabsContent value="rules">
               <ScoringRulesContent />
