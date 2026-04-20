@@ -97,6 +97,14 @@ function useTeams() {
   });
 }
 
+function useTransferNews() {
+  return useQuery({
+    queryKey: ["fantasy", "transfer-news"],
+    queryFn: () => callApi(api.GET("/api/fantasy/transfer-news")),
+    staleTime: 60_000,
+  });
+}
+
 function useTeamDetail(teamId: number | null) {
   return useQuery({
     queryKey: ["fantasy", "team", teamId],
@@ -148,6 +156,7 @@ function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
   const ownership = useOwnership();
   const sandwich = useSandwichEfficiency();
   const seasonBoard = useSeasonLeaderboard();
+  const transferNews = useTransferNews();
 
   return (
     <div className="space-y-6">
@@ -241,6 +250,49 @@ function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
               Locks in {tw.data?.daysUntilLock} day
               {tw.data?.daysUntilLock !== 1 ? "s" : ""}
             </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Transfer news */}
+      {transferNews.data && transferNews.data.entries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Transfer News</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {transferNews.data.entries.map((e) => (
+                <li
+                  key={`${e.teamId}-${e.gameweek}`}
+                  className="flex items-start justify-between gap-3"
+                >
+                  <span>
+                    <span className="font-medium">{e.ownerName}</span>
+                    {e.added.length > 0 && (
+                      <>
+                        {" added "}
+                        <span className="font-medium text-green-700">
+                          {e.added.map((p) => p.playerName).join(", ")}
+                        </span>
+                      </>
+                    )}
+                    {e.added.length > 0 && e.dropped.length > 0 && " and"}
+                    {e.dropped.length > 0 && (
+                      <>
+                        {" dropped "}
+                        <span className="font-medium text-red-700">
+                          {e.dropped.map((p) => p.playerName).join(", ")}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                  <span className="text-muted-foreground text-xs whitespace-nowrap">
+                    GW{e.gameweek}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}

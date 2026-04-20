@@ -930,6 +930,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/fantasy/transfer-news": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    season?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            entries: {
+                                teamId: number;
+                                ownerName: string;
+                                gameweek: number;
+                                added: {
+                                    playCricketId: string;
+                                    playerName: string;
+                                }[];
+                                dropped: {
+                                    playCricketId: string;
+                                    playerName: string;
+                                }[];
+                            }[];
+                            season: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/fantasy/chaos-week": {
         parameters: {
             query?: never;
