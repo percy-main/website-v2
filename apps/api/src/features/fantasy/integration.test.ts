@@ -203,6 +203,363 @@ describe("fantasy service (integration)", () => {
     });
   });
 
+  describe("versioned captain/slot/WK history", () => {
+    // GW1 Wed and GW2 Wed — weekdays inside successive gameweeks given
+    // the 2026 season GW1 start of 2026-04-18 (Saturday).
+    const GW1_WED = new Date("2026-04-22T12:00:00Z");
+    const GW2_WED = new Date("2026-04-29T12:00:00Z");
+
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    async function seedElevenPlayers() {
+      const ids: string[] = [];
+      for (let i = 0; i < 11; i++) {
+        ids.push(await seedFantasyPlayer({ eligible: true, sandwichCost: 1 }));
+      }
+      return ids;
+    }
+
+    it("captain change in GW2 preserves GW1 captain on the closed row", async () => {
+      vi.setSystemTime(GW1_WED);
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `cap-hist-${crypto.randomUUID()}@test.com`,
+      });
+      const season = getCurrentSeason();
+      const playerIds = await seedElevenPlayers();
+
+      const { teamId } = await saveTeam(ctx.db)(
+        userId,
+        buildSquad(playerIds),
+        season,
+      );
+
+      vi.setSystemTime(GW2_WED);
+      const capMoved = buildSquad(playerIds).map((p, i) => ({
+        ...p,
+        isCaptain: i === 1,
+      }));
+      await saveTeam(ctx.db)(userId, capMoved, season);
+
+      const rows = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .where("play_cricket_id", "in", [playerIds[0], playerIds[1]])
+        .orderBy("gameweek_added", "asc")
+        .selectAll()
+        .execute();
+
+      const p0Gw1 = rows.find(
+        (r) => r.play_cricket_id === playerIds[0] && r.gameweek_added === 1,
+      );
+      const p0Gw2 = rows.find(
+        (r) => r.play_cricket_id === playerIds[0] && r.gameweek_added === 2,
+      );
+      const p1Gw1 = rows.find(
+        (r) => r.play_cricket_id === playerIds[1] && r.gameweek_added === 1,
+      );
+      const p1Gw2 = rows.find(
+        (r) => r.play_cricket_id === playerIds[1] && r.gameweek_added === 2,
+      );
+
+      expect(p0Gw1?.is_captain).toBe(true);
+      expect(p0Gw1?.gameweek_removed).toBe(2);
+      expect(p0Gw2?.is_captain).toBe(false);
+      expect(p0Gw2?.gameweek_removed).toBeNull();
+
+      expect(p1Gw1?.is_captain).toBe(false);
+      expect(p1Gw1?.gameweek_removed).toBe(2);
+      expect(p1Gw2?.is_captain).toBe(true);
+      expect(p1Gw2?.gameweek_removed).toBeNull();
+
+      // Reconstructed GW1 squad shows the original captain (11 players, 1 captain, p0)
+      const gw1View = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .where("gameweek_added", "<=", 1)
+        .where((eb) =>
+          eb.or([
+            eb("gameweek_removed", "is", null),
+            eb("gameweek_removed", ">", 1),
+          ]),
+        )
+        .selectAll()
+        .execute();
+      expect(gw1View).toHaveLength(11);
+      const gw1Captain = gw1View.find((r) => r.is_captain);
+      expect(gw1Captain?.play_cricket_id).toBe(playerIds[0]);
+    });
+
+    it("slot_type change in GW2 preserves GW1 slot on the closed row", async () => {
+      vi.setSystemTime(GW1_WED);
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `slot-hist-${crypto.randomUUID()}@test.com`,
+      });
+      const season = getCurrentSeason();
+      const playerIds = await seedElevenPlayers();
+      await saveTeam(ctx.db)(userId, buildSquad(playerIds), season);
+
+      vi.setSystemTime(GW2_WED);
+      // Swap a batting slot (i=0) with a bowling slot (i=6) so the overall
+      // squad still satisfies SLOT_COUNTS. Move WK off i=0 too, since WK
+      // must be in a non-allrounder slot — i=0 is going to bowling, that's
+      // fine. But we also move captain off 0 because captain is allowed in
+      // either batting or bowling. Keeping captain on i=0 is valid.
+      const swapped = buildSquad(playerIds).map((p, i) => {
+        if (i === 0) return { ...p, slotType: "bowling" as const };
+        if (i === 6) return { ...p, slotType: "batting" as const };
+        return p;
+      });
+      await saveTeam(ctx.db)(userId, swapped, season);
+
+      const rows = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("play_cricket_id", "in", [playerIds[0], playerIds[6]])
+        .selectAll()
+        .execute();
+
+      const p0Gw1 = rows.find(
+        (r) => r.play_cricket_id === playerIds[0] && r.gameweek_added === 1,
+      );
+      const p0Gw2 = rows.find(
+        (r) => r.play_cricket_id === playerIds[0] && r.gameweek_added === 2,
+      );
+      const p6Gw1 = rows.find(
+        (r) => r.play_cricket_id === playerIds[6] && r.gameweek_added === 1,
+      );
+      const p6Gw2 = rows.find(
+        (r) => r.play_cricket_id === playerIds[6] && r.gameweek_added === 2,
+      );
+
+      expect(p0Gw1?.slot_type).toBe("batting");
+      expect(p0Gw1?.gameweek_removed).toBe(2);
+      expect(p0Gw2?.slot_type).toBe("bowling");
+      expect(p6Gw1?.slot_type).toBe("bowling");
+      expect(p6Gw1?.gameweek_removed).toBe(2);
+      expect(p6Gw2?.slot_type).toBe("batting");
+    });
+
+    it("wicketkeeper change in GW2 preserves GW1 WK on the closed row", async () => {
+      vi.setSystemTime(GW1_WED);
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `wk-hist-${crypto.randomUUID()}@test.com`,
+      });
+      const season = getCurrentSeason();
+      const playerIds = await seedElevenPlayers();
+      await saveTeam(ctx.db)(userId, buildSquad(playerIds), season);
+
+      vi.setSystemTime(GW2_WED);
+      // Move WK from i=0 (batting) to i=1 (batting).
+      const wkMoved = buildSquad(playerIds).map((p, i) => ({
+        ...p,
+        isWicketkeeper: i === 1,
+      }));
+      await saveTeam(ctx.db)(userId, wkMoved, season);
+
+      const p0Rows = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("play_cricket_id", "=", playerIds[0])
+        .orderBy("gameweek_added", "asc")
+        .selectAll()
+        .execute();
+
+      expect(p0Rows).toHaveLength(2);
+      expect(p0Rows[0]?.gameweek_added).toBe(1);
+      expect(p0Rows[0]?.is_wicketkeeper).toBe(true);
+      expect(p0Rows[0]?.gameweek_removed).toBe(2);
+      expect(p0Rows[1]?.gameweek_added).toBe(2);
+      expect(p0Rows[1]?.is_wicketkeeper).toBe(false);
+      expect(p0Rows[1]?.gameweek_removed).toBeNull();
+    });
+
+    it("multiple captain changes inside the same gameweek mutate in place (no row explosion)", async () => {
+      vi.setSystemTime(GW1_WED);
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `same-gw-churn-${crypto.randomUUID()}@test.com`,
+      });
+      const season = getCurrentSeason();
+      const playerIds = await seedElevenPlayers();
+      const { teamId } = await saveTeam(ctx.db)(
+        userId,
+        buildSquad(playerIds),
+        season,
+      );
+
+      // Flip captain around within GW1 (row is still-open for this gameweek)
+      for (const capIdx of [1, 2, 3, 4, 0]) {
+        const s = buildSquad(playerIds).map((p, i) => ({
+          ...p,
+          isCaptain: i === capIdx,
+        }));
+        await saveTeam(ctx.db)(userId, s, season);
+      }
+
+      const rows = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .selectAll()
+        .execute();
+      expect(rows).toHaveLength(11);
+    });
+
+    it("config-only changes across gameweeks don't count as transfers", async () => {
+      vi.setSystemTime(GW1_WED);
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `no-transfer-count-${crypto.randomUUID()}@test.com`,
+      });
+      const season = getCurrentSeason();
+      const playerIds = await seedElevenPlayers();
+      await saveTeam(ctx.db)(userId, buildSquad(playerIds), season);
+
+      vi.setSystemTime(GW2_WED);
+      // Captain move — no roster change
+      const capMoved = buildSquad(playerIds).map((p, i) => ({
+        ...p,
+        isCaptain: i === 1,
+      }));
+      await saveTeam(ctx.db)(userId, capMoved, season);
+
+      const team = await getMyTeam(ctx.db)(userId, season);
+      expect(team.transfersUsed).toBe(0);
+      expect(team.maxTransfers).toBe(3);
+    });
+
+    it("real transfers in GW2 count against the 3-per-gameweek limit", async () => {
+      vi.setSystemTime(GW1_WED);
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `real-transfers-${crypto.randomUUID()}@test.com`,
+      });
+      const season = getCurrentSeason();
+      const playerIds = await seedElevenPlayers();
+      const replacementIds: string[] = [];
+      for (let i = 0; i < 4; i++) {
+        replacementIds.push(
+          await seedFantasyPlayer({ eligible: true, sandwichCost: 1 }),
+        );
+      }
+      await saveTeam(ctx.db)(userId, buildSquad(playerIds), season);
+
+      vi.setSystemTime(GW2_WED);
+      // Swap out three players — within limit
+      const threeOut = buildSquad([
+        replacementIds[0],
+        replacementIds[1],
+        replacementIds[2],
+        ...playerIds.slice(3),
+      ]);
+      await expect(
+        saveTeam(ctx.db)(userId, threeOut, season),
+      ).resolves.toBeDefined();
+
+      const afterThree = await getMyTeam(ctx.db)(userId, season);
+      expect(afterThree.transfersUsed).toBe(3);
+
+      // Try to add a 4th — should reject
+      const fourOut = buildSquad([
+        replacementIds[0],
+        replacementIds[1],
+        replacementIds[2],
+        replacementIds[3],
+        ...playerIds.slice(4),
+      ]);
+      await expect(saveTeam(ctx.db)(userId, fourOut, season)).rejects.toThrow(
+        /transfers per gameweek/,
+      );
+    });
+
+    it("transfer + config change on a retained player in the same save both version correctly", async () => {
+      vi.setSystemTime(GW1_WED);
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `mixed-edit-${crypto.randomUUID()}@test.com`,
+      });
+      const season = getCurrentSeason();
+      const playerIds = await seedElevenPlayers();
+      const replacement = await seedFantasyPlayer({
+        eligible: true,
+        sandwichCost: 1,
+      });
+      const { teamId } = await saveTeam(ctx.db)(
+        userId,
+        buildSquad(playerIds),
+        season,
+      );
+
+      vi.setSystemTime(GW2_WED);
+      // In one save: swap player 10 (allrounder) for replacement, AND move
+      // captain from 0 to 1 on retained players.
+      const mixed = buildSquad([...playerIds.slice(0, 10), replacement]).map(
+        (p, i) => ({
+          ...p,
+          isCaptain: i === 1,
+        }),
+      );
+      await saveTeam(ctx.db)(userId, mixed, season);
+
+      // Retained captain-swap players are versioned
+      const p0Rows = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .where("play_cricket_id", "=", playerIds[0])
+        .orderBy("gameweek_added", "asc")
+        .selectAll()
+        .execute();
+      expect(p0Rows).toHaveLength(2);
+      expect(p0Rows[0]?.is_captain).toBe(true);
+      expect(p0Rows[0]?.gameweek_removed).toBe(2);
+      expect(p0Rows[1]?.is_captain).toBe(false);
+
+      // Transferred-out player: single row, closed this GW
+      const p10Rows = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .where("play_cricket_id", "=", playerIds[10])
+        .selectAll()
+        .execute();
+      expect(p10Rows).toHaveLength(1);
+      expect(p10Rows[0]?.gameweek_removed).toBe(2);
+
+      // New player: single row, added this GW
+      const newRows = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .where("play_cricket_id", "=", replacement)
+        .selectAll()
+        .execute();
+      expect(newRows).toHaveLength(1);
+      expect(newRows[0]?.gameweek_added).toBe(2);
+      expect(newRows[0]?.gameweek_removed).toBeNull();
+
+      // Transfer count = 1 (only the real swap, not the captain move)
+      const view = await getMyTeam(ctx.db)(userId, season);
+      expect(view.transfersUsed).toBe(1);
+
+      // GW1 reconstruction: 11 original players with original captain
+      const gw1View = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .where("gameweek_added", "<=", 1)
+        .where((eb) =>
+          eb.or([
+            eb("gameweek_removed", "is", null),
+            eb("gameweek_removed", ">", 1),
+          ]),
+        )
+        .selectAll()
+        .execute();
+      expect(gw1View).toHaveLength(11);
+      expect(gw1View.find((r) => r.is_captain)?.play_cricket_id).toBe(
+        playerIds[0],
+      );
+      expect(gw1View.map((r) => r.play_cricket_id).sort()).toEqual(
+        [...playerIds].sort(),
+      );
+    });
+  });
+
   describe("toggleEligibility", () => {
     it("flips the eligible flag", async () => {
       const id = await seedFantasyPlayer({ eligible: true });

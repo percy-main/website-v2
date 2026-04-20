@@ -163,38 +163,33 @@ export function getMyTeam(db: Kysely<DB>) {
       ])
       .execute();
 
-    // Count transfers this gameweek (only still-active ones, not reverted)
-    const transfersThisWeek = await db
-      .selectFrom("fantasy_team_player")
-      .where("fantasy_team_id", "=", team.id)
-      .where("gameweek_added", "=", gameweek)
-      .where((eb) =>
-        eb.or([
-          eb("gameweek_removed", "is", null),
-          eb("gameweek_removed", ">", gameweek),
-        ]),
-      )
-      .select(sql<number>`count(*)`.as("count"))
-      .executeTakeFirst();
+    // Transfers used this gameweek = count of play_cricket_ids active at
+    // `gameweek` that weren't active at `gameweek - 1`. Independent of
+    // config-only row churn (captain/slot/WK) and of the order the user
+    // made their swaps.
+    const previousActive =
+      gameweek <= 1
+        ? []
+        : await db
+            .selectFrom("fantasy_team_player")
+            .where("fantasy_team_id", "=", team.id)
+            .where("gameweek_added", "<=", gameweek - 1)
+            .where((eb) =>
+              eb.or([
+                eb("gameweek_removed", "is", null),
+                eb("gameweek_removed", ">", gameweek - 1),
+              ]),
+            )
+            .select("play_cricket_id")
+            .execute();
 
-    // Check if this is the user's initial squad (no players from before this gameweek)
-    const initialPlayers = await db
-      .selectFrom("fantasy_team_player")
-      .where("fantasy_team_id", "=", team.id)
-      .where("gameweek_added", "<", gameweek)
-      .where((eb) =>
-        eb.or([
-          eb("gameweek_removed", "is", null),
-          eb("gameweek_removed", ">", gameweek),
-        ]),
-      )
-      .select(sql<number>`count(*)`.as("count"))
-      .executeTakeFirst();
-
-    const isInitialSquad = Number(initialPlayers?.count ?? 0) === 0;
+    const previousActiveIds = new Set(
+      previousActive.map((p) => p.play_cricket_id),
+    );
+    const isInitialSquad = previousActiveIds.size === 0;
     const transfersUsed = isInitialSquad
       ? 0
-      : Number(transfersThisWeek?.count ?? 0);
+      : players.filter((p) => !previousActiveIds.has(p.play_cricket_id)).length;
 
     // Transfers are unlimited in pre-season or if this is the user's first squad
     const unlimitedTransfers = isPreSeason(s) || isInitialSquad;
@@ -409,44 +404,38 @@ export function saveTeam(db: Kysely<DB>) {
         }
       }
 
-      // Check transfer limit in-season
-      if (
-        currentPlayers.length > 0 &&
-        playersToAdd.length > 0 &&
-        !isPreSeason(s)
-      ) {
-        const hasSquadFromBefore = currentPlayers.some(
-          (p) => p.gameweek_added < gameweek,
+      // Check transfer limit in-season. A transfer is any play_cricket_id
+      // active at `gameweek` that wasn't active at `gameweek - 1`. This is
+      // independent of how many config-only row churns (captain/slot/WK)
+      // have occurred this gameweek, and independent of the order in which
+      // the user made their swaps.
+      if (!isPreSeason(s) && gameweek > 1) {
+        const previousActive = await trx
+          .selectFrom("fantasy_team_player")
+          .where("fantasy_team_id", "=", teamId)
+          .where("gameweek_added", "<=", gameweek - 1)
+          .where((eb) =>
+            eb.or([
+              eb("gameweek_removed", "is", null),
+              eb("gameweek_removed", ">", gameweek - 1),
+            ]),
+          )
+          .select("play_cricket_id")
+          .execute();
+
+        const previousActiveIds = new Set(
+          previousActive.map((p) => p.play_cricket_id),
         );
 
-        if (hasSquadFromBefore) {
-          const addedThisWeekBeingRemoved = playersToRemove.filter(
-            (p) => p.gameweek_added === gameweek,
+        if (previousActiveIds.size > 0) {
+          const netTransfers = Array.from(newPlayerIds).filter(
+            (id) => !previousActiveIds.has(id),
           ).length;
-
-          const persistedTransfers = await trx
-            .selectFrom("fantasy_team_player")
-            .where("fantasy_team_id", "=", teamId)
-            .where("gameweek_added", "=", gameweek)
-            .where((eb) =>
-              eb.or([
-                eb("gameweek_removed", "is", null),
-                eb("gameweek_removed", ">", gameweek),
-              ]),
-            )
-            .select(sql<string>`COUNT(*)`.as("count"))
-            .executeTakeFirst();
-
-          const previousTransfers = Number(persistedTransfers?.count ?? 0);
-          // Subtract cancelled transfers (added this week but being removed now)
-          // before adding new ones — removals haven't been applied to DB yet
-          const netTransfers =
-            previousTransfers - addedThisWeekBeingRemoved + playersToAdd.length;
 
           if (netTransfers > MAX_TRANSFERS_PER_GAMEWEEK) {
             throw httpError(
               400,
-              `You can only make ${MAX_TRANSFERS_PER_GAMEWEEK} transfers per gameweek. You have used ${previousTransfers} already.`,
+              `You can only make ${MAX_TRANSFERS_PER_GAMEWEEK} transfers per gameweek.`,
             );
           }
         }
@@ -476,29 +465,55 @@ export function saveTeam(db: Kysely<DB>) {
           .execute();
       }
 
-      // Update captain, slot_type, and is_wicketkeeper for existing players
+      // Update captain, slot_type, and is_wicketkeeper for retained players.
+      //
+      // Key rule for historical reconstruction: when a row was added in a
+      // prior (now-locked) gameweek, we must NOT mutate its flags in place,
+      // or we destroy the snapshot used to rescore that past gameweek.
+      // Instead, close the existing row (gameweek_removed = current gw) and
+      // insert a new row (gameweek_added = current gw) carrying the new
+      // flags. Rows added in the current gameweek are still open — mutating
+      // them in place is safe and avoids row explosion for repeated edits
+      // within the same gameweek.
       for (const player of players) {
-        if (currentPlayerIds.has(player.playCricketId)) {
-          const existing = currentPlayers.find(
-            (p) => p.play_cricket_id === player.playCricketId,
-          );
-          if (existing) {
-            const captainChanged = existing.is_captain !== player.isCaptain;
-            const slotChanged = existing.slot_type !== player.slotType;
-            const wkChanged =
-              existing.is_wicketkeeper !== player.isWicketkeeper;
-            if (captainChanged || slotChanged || wkChanged) {
-              await trx
-                .updateTable("fantasy_team_player")
-                .set({
-                  is_captain: player.isCaptain,
-                  slot_type: player.slotType,
-                  is_wicketkeeper: player.isWicketkeeper,
-                })
-                .where("id", "=", existing.id)
-                .execute();
-            }
-          }
+        if (!currentPlayerIds.has(player.playCricketId)) continue;
+        const existing = currentPlayers.find(
+          (p) => p.play_cricket_id === player.playCricketId,
+        );
+        if (!existing) continue;
+
+        const captainChanged = existing.is_captain !== player.isCaptain;
+        const slotChanged = existing.slot_type !== player.slotType;
+        const wkChanged = existing.is_wicketkeeper !== player.isWicketkeeper;
+        if (!captainChanged && !slotChanged && !wkChanged) continue;
+
+        if (existing.gameweek_added === gameweek) {
+          await trx
+            .updateTable("fantasy_team_player")
+            .set({
+              is_captain: player.isCaptain,
+              slot_type: player.slotType,
+              is_wicketkeeper: player.isWicketkeeper,
+            })
+            .where("id", "=", existing.id)
+            .execute();
+        } else {
+          await trx
+            .updateTable("fantasy_team_player")
+            .set({ gameweek_removed: gameweek })
+            .where("id", "=", existing.id)
+            .execute();
+          await trx
+            .insertInto("fantasy_team_player")
+            .values({
+              fantasy_team_id: teamId,
+              play_cricket_id: player.playCricketId,
+              is_captain: player.isCaptain,
+              gameweek_added: gameweek,
+              slot_type: player.slotType,
+              is_wicketkeeper: player.isWicketkeeper,
+            })
+            .execute();
         }
       }
 
