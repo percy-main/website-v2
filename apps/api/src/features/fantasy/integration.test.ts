@@ -20,6 +20,7 @@ import { SLOT_COUNTS } from "./scoring.ts";
 import {
   getEligiblePlayers,
   getMyTeam,
+  getRecentTransfers,
   populatePlayers,
   saveTeam,
   toggleEligibility,
@@ -624,6 +625,124 @@ describe("fantasy service (integration)", () => {
       expect(row).toBeTruthy();
       expect(row?.player_name).toBe(playerName);
       expect(row?.eligible).toBe(false); // default
+    });
+  });
+
+  describe("getRecentTransfers", () => {
+    const GW2_WED = new Date("2026-04-22T12:00:00Z"); // gameweek 2
+    const GW3_WED = new Date("2026-04-29T12:00:00Z"); // gameweek 3
+
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    async function seedSquad(playerCount = 11) {
+      const ids: string[] = [];
+      for (let i = 0; i < playerCount; i++) {
+        ids.push(await seedFantasyPlayer({ eligible: true, sandwichCost: 1 }));
+      }
+      return ids;
+    }
+
+    it("returns empty entries when no team exists", async () => {
+      const result = await getRecentTransfers(ctx.db)("1900");
+      expect(result.entries).toEqual([]);
+      expect(result.season).toBe("1900");
+    });
+
+    it("returns one entry per (team, gameweek) with real adds and drops", async () => {
+      vi.setSystemTime(GW2_WED);
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `rt-basic-${crypto.randomUUID()}@test.com`,
+        name: "Alex Young",
+      });
+      const season = getCurrentSeason();
+      const ids: string[] = [];
+      for (let i = 0; i < 11; i++) {
+        ids.push(
+          await seedFantasyPlayer({
+            eligible: true,
+            sandwichCost: 1,
+            playerName: `Original ${i}`,
+          }),
+        );
+      }
+      const replacement = await seedFantasyPlayer({
+        eligible: true,
+        sandwichCost: 1,
+        playerName: "New Guy",
+      });
+      await saveTeam(ctx.db)(userId, buildSquad(ids), season);
+
+      vi.setSystemTime(GW3_WED);
+      const swapped = buildSquad([...ids.slice(0, 10), replacement]);
+      await saveTeam(ctx.db)(userId, swapped, season);
+
+      const result = await getRecentTransfers(ctx.db)(season);
+      const entry = result.entries.find((e) => e.ownerName === "Alex Young");
+      expect(entry).toBeDefined();
+      expect(entry?.gameweek).toBe(3);
+      expect(entry?.added).toHaveLength(1);
+      expect(entry?.added[0]?.playerName).toBe("New Guy");
+      expect(entry?.dropped).toHaveLength(1);
+      expect(entry?.dropped[0]?.playerName).toBe("Original 10");
+    });
+
+    it("ignores config-only churn (captain/slot/WK versioning)", async () => {
+      vi.setSystemTime(GW2_WED);
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `rt-churn-${crypto.randomUUID()}@test.com`,
+        name: "Config Only",
+      });
+      const season = getCurrentSeason();
+      const ids = await seedSquad();
+      await saveTeam(ctx.db)(userId, buildSquad(ids), season);
+
+      vi.setSystemTime(GW3_WED);
+      const configChanged = buildSquad(ids).map((p, i) => ({
+        ...p,
+        isCaptain: i === 1,
+        isWicketkeeper: i === 1,
+      }));
+      await saveTeam(ctx.db)(userId, configChanged, season);
+
+      const result = await getRecentTransfers(ctx.db)(season);
+      expect(
+        result.entries.find((e) => e.ownerName === "Config Only"),
+      ).toBeUndefined();
+    });
+
+    it("respects the limit parameter", async () => {
+      vi.setSystemTime(GW2_WED);
+      const season = getCurrentSeason();
+      const makeTeamWithTransfer = async (name: string) => {
+        const { userId } = await seedTestUser(ctx.db, {
+          email: `rt-lim-${crypto.randomUUID()}@test.com`,
+          name,
+        });
+        const ids = await seedSquad();
+        const rep = await seedFantasyPlayer({
+          eligible: true,
+          sandwichCost: 1,
+        });
+        await saveTeam(ctx.db)(userId, buildSquad(ids), season);
+        vi.setSystemTime(GW3_WED);
+        await saveTeam(ctx.db)(
+          userId,
+          buildSquad([rep, ...ids.slice(1)]),
+          season,
+        );
+        vi.setSystemTime(GW2_WED);
+      };
+      await makeTeamWithTransfer("Limit A");
+      await makeTeamWithTransfer("Limit B");
+      await makeTeamWithTransfer("Limit C");
+
+      const capped = await getRecentTransfers(ctx.db)(season, 2);
+      expect(capped.entries.length).toBeLessThanOrEqual(2);
     });
   });
 });

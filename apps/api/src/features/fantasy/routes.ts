@@ -35,6 +35,8 @@ import {
   playerLeaderboardResponseSchema,
   populatePlayersResponseSchema,
   preSeasonStatsResponseSchema,
+  recentTransfersResponseSchema,
+  recentTransfersSchema,
   sandwichEfficiencyResponseSchema,
   sandwichEfficiencySchema,
   saveTeamResponseSchema,
@@ -67,6 +69,7 @@ import {
   getPlayerHistory,
   getPlayerLeaderboard,
   getPreSeasonStats,
+  getRecentTransfers,
   getSandwichEfficiency,
   getSeasonLeaderboard,
   getTeam,
@@ -120,6 +123,7 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   const chaosWeekCreate = createChaosWeek(app.db);
   const chaosWeekDelete = deleteChaosWeek(app.db);
   const shareData = getTeamShareData(app.db);
+  const recentTransfers = getRecentTransfers(app.db);
 
   // --- Public routes ---
 
@@ -135,6 +139,20 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
       const { season } = request.query;
       // transferWindow is sync; wrap to satisfy return await pattern
       return await Promise.resolve(transferWindow(season));
+    },
+  );
+
+  app.get(
+    "/fantasy/transfer-news",
+    {
+      schema: {
+        querystring: recentTransfersSchema,
+        response: { 200: recentTransfersResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season, limit } = request.query;
+      return await recentTransfers(season, limit);
     },
   );
 

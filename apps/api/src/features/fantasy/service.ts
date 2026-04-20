@@ -2750,3 +2750,136 @@ export function getTeamShareData(db: Kysely<DB>) {
     };
   };
 }
+
+/**
+ * Recent transfer activity across all teams.
+ *
+ * Returns one entry per (team, gameweek) where the team's active roster
+ * changed between gameweek-1 and gameweek. Adds/drops are computed via
+ * set-difference on the active roster, so config-only row churn
+ * (captain/slot/WK versioning) does not produce spurious entries.
+ *
+ * Ordered by gameweek DESC, then by max(fantasy_team_player.id) DESC
+ * within a gameweek (a proxy for recency since the table has no
+ * timestamp column — ids are monotonically assigned).
+ */
+export function getRecentTransfers(db: Kysely<DB>) {
+  return async (season?: string, limit = 5) => {
+    const s = season ?? getCurrentSeason();
+
+    const rows = await db
+      .selectFrom("fantasy_team_player as ftp")
+      .innerJoin("fantasy_team as ft", "ft.id", "ftp.fantasy_team_id")
+      .innerJoin("user as u", "u.id", "ft.user_id")
+      .innerJoin(
+        "fantasy_player as fp",
+        "fp.play_cricket_id",
+        "ftp.play_cricket_id",
+      )
+      .where("ft.season", "=", s)
+      .select([
+        "ftp.id",
+        "ftp.fantasy_team_id as teamId",
+        "ftp.play_cricket_id as playCricketId",
+        "ftp.gameweek_added as gameweekAdded",
+        "ftp.gameweek_removed as gameweekRemoved",
+        "u.name as ownerName",
+        "fp.player_name as playerName",
+      ])
+      .execute();
+
+    type Row = (typeof rows)[number];
+    const byTeam = new Map<number, Row[]>();
+    for (const r of rows) {
+      const list = byTeam.get(r.teamId);
+      if (list) list.push(r);
+      else byTeam.set(r.teamId, [r]);
+    }
+
+    interface Entry {
+      teamId: number;
+      ownerName: string;
+      gameweek: number;
+      added: Array<{ playCricketId: string; playerName: string }>;
+      dropped: Array<{ playCricketId: string; playerName: string }>;
+      orderId: number;
+    }
+
+    const entries: Entry[] = [];
+
+    for (const [teamId, teamRows] of byTeam) {
+      const ownerName = teamRows[0]?.ownerName ?? "Unknown";
+
+      const candidateGws = new Set<number>();
+      for (const r of teamRows) {
+        if (r.gameweekAdded > 1) candidateGws.add(r.gameweekAdded);
+        if (r.gameweekRemoved !== null && r.gameweekRemoved > 1) {
+          candidateGws.add(r.gameweekRemoved);
+        }
+      }
+
+      for (const gw of candidateGws) {
+        const prevActive = new Map<string, string>();
+        const currActive = new Map<string, string>();
+        for (const r of teamRows) {
+          const activeAtPrev =
+            r.gameweekAdded <= gw - 1 &&
+            (r.gameweekRemoved === null || r.gameweekRemoved > gw - 1);
+          const activeAtCurr =
+            r.gameweekAdded <= gw &&
+            (r.gameweekRemoved === null || r.gameweekRemoved > gw);
+          if (activeAtPrev) prevActive.set(r.playCricketId, r.playerName);
+          if (activeAtCurr) currActive.set(r.playCricketId, r.playerName);
+        }
+
+        const added: Entry["added"] = [];
+        for (const [playCricketId, playerName] of currActive) {
+          if (!prevActive.has(playCricketId)) {
+            added.push({ playCricketId, playerName });
+          }
+        }
+        const dropped: Entry["dropped"] = [];
+        for (const [playCricketId, playerName] of prevActive) {
+          if (!currActive.has(playCricketId)) {
+            dropped.push({ playCricketId, playerName });
+          }
+        }
+
+        if (added.length === 0 && dropped.length === 0) continue;
+        // Skip initial squads (previous roster empty). That's a brand-new
+        // team, not a transfer — all 11 players would otherwise show up
+        // as "added".
+        if (prevActive.size === 0) continue;
+
+        let orderId = 0;
+        for (const r of teamRows) {
+          if (r.gameweekAdded === gw || r.gameweekRemoved === gw) {
+            if (r.id > orderId) orderId = r.id;
+          }
+        }
+
+        entries.push({
+          teamId,
+          ownerName,
+          gameweek: gw,
+          added,
+          dropped,
+          orderId,
+        });
+      }
+    }
+
+    entries.sort((a, b) => b.gameweek - a.gameweek || b.orderId - a.orderId);
+
+    return {
+      entries: entries.slice(0, limit).map((e) => ({
+        teamId: e.teamId,
+        ownerName: e.ownerName,
+        gameweek: e.gameweek,
+        added: e.added,
+        dropped: e.dropped,
+      })),
+      season: s,
+    };
+  };
+}
