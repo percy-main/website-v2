@@ -470,6 +470,94 @@ describe("fantasy service (integration)", () => {
         /transfers per gameweek/,
       );
     });
+
+    it("transfer + config change on a retained player in the same save both version correctly", async () => {
+      vi.setSystemTime(GW1_WED);
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `mixed-edit-${crypto.randomUUID()}@test.com`,
+      });
+      const season = getCurrentSeason();
+      const playerIds = await seedElevenPlayers();
+      const replacement = await seedFantasyPlayer({
+        eligible: true,
+        sandwichCost: 1,
+      });
+      const { teamId } = await saveTeam(ctx.db)(
+        userId,
+        buildSquad(playerIds),
+        season,
+      );
+
+      vi.setSystemTime(GW2_WED);
+      // In one save: swap player 10 (allrounder) for replacement, AND move
+      // captain from 0 to 1 on retained players.
+      const mixed = buildSquad([...playerIds.slice(0, 10), replacement]).map(
+        (p, i) => ({
+          ...p,
+          isCaptain: i === 1,
+        }),
+      );
+      await saveTeam(ctx.db)(userId, mixed, season);
+
+      // Retained captain-swap players are versioned
+      const p0Rows = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .where("play_cricket_id", "=", playerIds[0])
+        .orderBy("gameweek_added", "asc")
+        .selectAll()
+        .execute();
+      expect(p0Rows).toHaveLength(2);
+      expect(p0Rows[0]?.is_captain).toBe(true);
+      expect(p0Rows[0]?.gameweek_removed).toBe(2);
+      expect(p0Rows[1]?.is_captain).toBe(false);
+
+      // Transferred-out player: single row, closed this GW
+      const p10Rows = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .where("play_cricket_id", "=", playerIds[10])
+        .selectAll()
+        .execute();
+      expect(p10Rows).toHaveLength(1);
+      expect(p10Rows[0]?.gameweek_removed).toBe(2);
+
+      // New player: single row, added this GW
+      const newRows = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .where("play_cricket_id", "=", replacement)
+        .selectAll()
+        .execute();
+      expect(newRows).toHaveLength(1);
+      expect(newRows[0]?.gameweek_added).toBe(2);
+      expect(newRows[0]?.gameweek_removed).toBeNull();
+
+      // Transfer count = 1 (only the real swap, not the captain move)
+      const view = await getMyTeam(ctx.db)(userId, season);
+      expect(view.transfersUsed).toBe(1);
+
+      // GW1 reconstruction: 11 original players with original captain
+      const gw1View = await ctx.db
+        .selectFrom("fantasy_team_player")
+        .where("fantasy_team_id", "=", teamId)
+        .where("gameweek_added", "<=", 1)
+        .where((eb) =>
+          eb.or([
+            eb("gameweek_removed", "is", null),
+            eb("gameweek_removed", ">", 1),
+          ]),
+        )
+        .selectAll()
+        .execute();
+      expect(gw1View).toHaveLength(11);
+      expect(gw1View.find((r) => r.is_captain)?.play_cricket_id).toBe(
+        playerIds[0],
+      );
+      expect(gw1View.map((r) => r.play_cricket_id).sort()).toEqual(
+        [...playerIds].sort(),
+      );
+    });
   });
 
   describe("toggleEligibility", () => {
