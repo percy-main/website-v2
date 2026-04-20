@@ -176,10 +176,21 @@ ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 \
   -i "$KEY_FILE" -N -L "${LOCAL_PORT}:${RDS_HOST}:5432" \
   ec2-user@"$BASTION_IP" &
 SSH_PID=$!
-sleep 2
 
-if ! kill -0 $SSH_PID 2>/dev/null; then
-  echo "ERROR: SSH tunnel failed to start"
+echo "  Waiting for tunnel listener on localhost:${LOCAL_PORT}..."
+for i in $(seq 1 30); do
+  if ! kill -0 $SSH_PID 2>/dev/null; then
+    echo "ERROR: SSH tunnel process exited"
+    exit 1
+  fi
+  if (echo > /dev/tcp/localhost/$LOCAL_PORT) 2>/dev/null; then
+    break
+  fi
+  sleep 1
+done
+
+if ! (echo > /dev/tcp/localhost/$LOCAL_PORT) 2>/dev/null; then
+  echo "ERROR: SSH tunnel never started accepting connections"
   exit 1
 fi
 echo "  Tunnel PID: $SSH_PID"
