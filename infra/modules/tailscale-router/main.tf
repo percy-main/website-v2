@@ -89,7 +89,7 @@ resource "aws_secretsmanager_secret" "tailscale_auth" {
 
 resource "aws_security_group" "router" {
   name        = "${local.name_prefix}-tailscale-router-sg"
-  description = "Tailscale subnet router — no inbound, outbound-only to control plane + peers"
+  description = "Tailscale subnet router: no inbound, outbound-only to control plane and peers"
   vpc_id      = var.vpc_id
 
   # Deliberately no ingress rules. tailscaled initiates all connections
