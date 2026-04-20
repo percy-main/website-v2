@@ -187,9 +187,9 @@ locals {
     SYSCTL
     sysctl --system
 
-    # Install Tailscale
-    dnf install -y yum-utils jq awscli
-    yum-config-manager --add-repo https://pkgs.tailscale.com/stable/amazon-linux/2023/tailscale.repo
+    # Install Tailscale (aws CLI v2 is preinstalled on AL2023)
+    curl -fsSL https://pkgs.tailscale.com/stable/amazon-linux/2023/tailscale.repo \
+      -o /etc/yum.repos.d/tailscale.repo
     dnf install -y tailscale
     systemctl enable --now tailscaled
 
