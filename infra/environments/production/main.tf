@@ -212,6 +212,30 @@ module "monitoring" {
 }
 
 # ---------------------------------------------------------------------------
+# Tailscale Subnet Router — admin DB access
+# Advertises the VPC CIDR to the tailnet. See docs/adrs/ for bootstrap steps.
+# ---------------------------------------------------------------------------
+
+module "tailscale_router" {
+  source           = "../../modules/tailscale-router"
+  environment      = "production"
+  vpc_id           = module.vpc.vpc_id
+  public_subnet_id = module.vpc.public_subnet_ids[0]
+  advertise_cidr   = "10.0.0.0/16"
+}
+
+# Allow admins on the tailnet (via the router) to reach RDS
+resource "aws_security_group_rule" "rds_ingress_from_tailscale" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = module.tailscale_router.security_group_id
+  security_group_id        = module.vpc.rds_security_group_id
+  description              = "PostgreSQL from Tailscale subnet router (admin access)"
+}
+
+# ---------------------------------------------------------------------------
 # Scheduled Tasks
 # ---------------------------------------------------------------------------
 
