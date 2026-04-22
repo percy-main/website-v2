@@ -108,6 +108,93 @@ function DownloadTeamNewsButton({
   );
 }
 
+// ── Role selectors (captain / wicketkeeper) ──
+
+function RoleSelectors({
+  players,
+  disabled,
+  onChange,
+}: {
+  players: Array<{
+    id: string;
+    player_name: string;
+    is_captain: boolean;
+    is_wicketkeeper: boolean;
+  }>;
+  disabled: boolean;
+  onChange: (roles: {
+    captainPlayerId: string | null;
+    wicketkeeperPlayerId: string | null;
+  }) => void;
+}) {
+  const CLEAR = "__none__";
+  const captain = players.find((p) => p.is_captain)?.id ?? CLEAR;
+  const wicketkeeper = players.find((p) => p.is_wicketkeeper)?.id ?? CLEAR;
+
+  const update = (next: {
+    captainPlayerId: string | null;
+    wicketkeeperPlayerId: string | null;
+  }) => {
+    onChange(next);
+  };
+
+  return (
+    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <label className="flex items-center gap-2 text-sm">
+        <span className="text-gray-700">Captain (*)</span>
+        <Select
+          value={captain}
+          disabled={disabled}
+          onValueChange={(value) =>
+            update({
+              captainPlayerId: value === CLEAR ? null : value,
+              wicketkeeperPlayerId:
+                wicketkeeper === CLEAR ? null : wicketkeeper,
+            })
+          }
+        >
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Select captain" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={CLEAR}>None</SelectItem>
+            {players.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.player_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+      <label className="flex items-center gap-2 text-sm">
+        <span className="text-gray-700">Wicketkeeper (†)</span>
+        <Select
+          value={wicketkeeper}
+          disabled={disabled}
+          onValueChange={(value) =>
+            update({
+              captainPlayerId: captain === CLEAR ? null : captain,
+              wicketkeeperPlayerId: value === CLEAR ? null : value,
+            })
+          }
+        >
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Select wicketkeeper" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={CLEAR}>None</SelectItem>
+            {players.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.player_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+    </div>
+  );
+}
+
 // ── Component ──
 
 export function Component() {
@@ -524,6 +611,24 @@ function MatchdayView({
     },
   });
 
+  const setRolesMutation = useMutation({
+    mutationFn: (input: {
+      captainPlayerId: string | null;
+      wicketkeeperPlayerId: string | null;
+    }) =>
+      callApi(
+        api.PUT("/api/matchday/{matchId}/roles", {
+          params: { path: { matchId: matchdayId } },
+          body: input,
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["official", "matchday", matchdayId],
+      });
+    },
+  });
+
   const addExpenseMutation = useMutation({
     mutationFn: (input: {
       type:
@@ -678,6 +783,15 @@ function MatchdayView({
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {players.length > 0 &&
+                data.matchday.status !== "finished" &&
+                !confirmingTeam && (
+                  <RoleSelectors
+                    players={players}
+                    disabled={setRolesMutation.isPending}
+                    onChange={(roles) => setRolesMutation.mutate(roles)}
+                  />
+                )}
               {players.length === 0 ? (
                 <p className="text-sm text-gray-500">
                   No players selected yet.
@@ -760,7 +874,25 @@ function MatchdayView({
                           {idx + 1}
                         </span>
                         <div>
-                          <p className="font-medium">{player.player_name}</p>
+                          <p className="font-medium">
+                            {player.player_name}
+                            {player.is_captain && (
+                              <span
+                                className="ml-1 text-gray-500"
+                                title="Captain"
+                              >
+                                *
+                              </span>
+                            )}
+                            {player.is_wicketkeeper && (
+                              <span
+                                className="ml-0.5 text-gray-500"
+                                title="Wicketkeeper"
+                              >
+                                †
+                              </span>
+                            )}
+                          </p>
                           <div className="flex items-center gap-2">
                             {player.member_category && (
                               <span className="text-xs text-gray-400 capitalize">

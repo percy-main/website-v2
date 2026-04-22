@@ -328,6 +328,8 @@ export interface MatchdayPlayer {
   charge_id: string | null;
   created_at: Generated<string>;
   id: string;
+  is_captain: Generated<boolean>;
+  is_wicketkeeper: Generated<boolean>;
   matchday_id: string;
   member_id: string | null;
   player_name: string;

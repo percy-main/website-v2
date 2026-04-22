@@ -1,31 +1,32 @@
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import opentype from "opentype.js";
 import sharp from "sharp";
 import type { TeamNewsData } from "./service.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const HERO_IMAGE_PATH = join(__dirname, "..", "..", "assets", "pitch.png");
-const CLUB_LOGO_PATH = join(__dirname, "..", "..", "assets", "club_logo.png");
-const CLUB_SPONSOR_PATH = join(
-  __dirname,
-  "..",
-  "..",
-  "assets",
-  "club_sponsor.png",
-);
+const ASSETS = join(__dirname, "..", "..", "assets");
+const HERO_IMAGE_PATH = join(ASSETS, "pitch.jpg");
+const CLUB_LOGO_PATH = join(ASSETS, "club_logo.png");
+const CLUB_SPONSOR_PATH = join(ASSETS, "club_sponsor.png");
+const DISPLAY_FONT_PATH = join(ASSETS, "Anton-Regular.ttf");
+
+// Parse the display font at module load. librsvg (used by sharp) doesn't
+// support @font-face with data URIs, so we convert each text string to an
+// SVG path at render time using the parsed font.
+const displayFont = opentype.parse(readFileSync(DISPLAY_FONT_PATH).buffer);
 
 const SIZE = 1080;
 const WHITE = "#FFFFFF";
-const FONT = "Arial, Helvetica, sans-serif";
+const RED = "#C94434";
+const TITLE_BLUE = "#1E3A8C";
+const SUBTITLE_RED = "#8A2E23";
 
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
+// Red panel shape: slightly trapezoidal, narrower at top, wider at bottom
+const PANEL_TOP_Y = 165;
+const PANEL_TOP_RIGHT_X = 470;
+const PANEL_BOTTOM_RIGHT_X = 640;
 
 const NAME_SUFFIXES = new Set(["jnr", "jr", "snr", "sr", "ii", "iii", "iv"]);
 
@@ -40,7 +41,6 @@ function formatShortName(fullName: string): string {
 
   const initial = parts[0][0].toUpperCase();
 
-  // If the last part is a suffix (Jnr, Jr, etc.), keep surname + suffix
   const lastPart = parts[parts.length - 1];
   if (parts.length >= 3 && NAME_SUFFIXES.has(lastPart.toLowerCase())) {
     const surname = capitalise(parts[parts.length - 2]);
@@ -57,93 +57,188 @@ function formatMatchDate(isoDate: string): string {
   const weekday = date.toLocaleDateString("en-GB", { weekday: "long" });
   const day = date.getDate();
   const month = date.toLocaleDateString("en-GB", { month: "long" });
-  const year = date.getFullYear();
 
   const suffixes = ["th", "st", "nd", "rd"];
   const suffix = day >= 11 && day <= 13 ? "th" : (suffixes[day % 10] ?? "th");
 
-  return `${weekday} ${day}${suffix} ${month} ${year}`;
+  return `${weekday} ${day}${suffix} ${month}`;
+}
+
+function shortTeamLabel(teamName: string): string {
+  return teamName.replace(/^Percy Main\s*/i, "").trim() || teamName;
+}
+
+function venueLabel(data: TeamNewsData): string {
+  if (data.isHome) return "PERCY MAIN";
+  const first = data.opposition.split(" ")[0];
+  return first.toUpperCase();
+}
+
+// Shrink the font size until `text` fits within `maxWidth`. Returns the
+// preferred size if it already fits, otherwise steps down by 2pt until it
+// does (stopping at `minSize`).
+function fitFontSize(
+  text: string,
+  preferredSize: number,
+  maxWidth: number,
+  minSize: number,
+): number {
+  let size = preferredSize;
+  while (size > minSize && displayFont.getAdvanceWidth(text, size) > maxWidth) {
+    size -= 2;
+  }
+  return size;
+}
+
+interface TextOpts {
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  opacity?: number;
+  anchor?: "start" | "middle" | "end";
+  transform?: string;
+}
+
+// Render a text string as an SVG <path> using the loaded display font.
+// Baseline is at y. x is relative to the anchor.
+function textPath(
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number,
+  opts: TextOpts = {},
+): { markup: string; width: number } {
+  const anchor = opts.anchor ?? "start";
+  const width = displayFont.getAdvanceWidth(text, fontSize);
+  let renderX = x;
+  if (anchor === "middle") renderX = x - width / 2;
+  else if (anchor === "end") renderX = x - width;
+
+  const path = displayFont.getPath(text, renderX, y, fontSize);
+  const d = path.toPathData(2);
+
+  const attrs: string[] = [`d="${d}"`];
+  attrs.push(`fill="${opts.fill ?? "none"}"`);
+  if (opts.stroke) attrs.push(`stroke="${opts.stroke}"`);
+  if (opts.strokeWidth) attrs.push(`stroke-width="${opts.strokeWidth}"`);
+  if (opts.opacity !== undefined) attrs.push(`opacity="${opts.opacity}"`);
+  if (opts.transform) attrs.push(`transform="${opts.transform}"`);
+
+  return { markup: `<path ${attrs.join(" ")}/>`, width };
 }
 
 function buildSvg(data: TeamNewsData): string {
-  const teamName = escapeXml(data.teamName);
-  const opposition = escapeXml(data.opposition);
-  const venueText = data.isHome
-    ? "HOME"
-    : `AWAY @ ${escapeXml(data.opposition).split(" ")[0].toUpperCase()}`;
-  const dateText = escapeXml(formatMatchDate(data.matchDate)).toUpperCase();
-  const timeText = data.matchTime ? ` - ${escapeXml(data.matchTime)}` : "";
+  const teamShort = shortTeamLabel(data.teamName).toUpperCase();
+  const opposition = data.opposition.toUpperCase();
+  const homeAway = data.isHome ? "H" : "A";
+  const title = `${teamShort} V ${opposition} (${homeAway})`;
 
-  // Player list
-  const maxPlayers = Math.min(data.players.length, 12);
-  const playerStartY = 290;
-  const playerLineHeight = 55;
+  const dateText = formatMatchDate(data.matchDate).toUpperCase();
+  const timeText = data.matchTime ? ` • ${data.matchTime}` : "";
+  const subtitle = `${dateText}${timeText} @ ${venueLabel(data)}`;
 
-  const playerLines = data.players.slice(0, maxPlayers).map((p, i) => {
-    const name = escapeXml(formatShortName(p.playerName));
-    const y = playerStartY + i * playerLineHeight;
-    const sponsorSuffix = p.sponsorName
-      ? ` <tspan font-size="16" fill="rgba(255,255,255,0.5)" font-style="italic">Sponsored by ${escapeXml(p.sponsorName)}</tspan>`
-      : "";
+  // Header text — centered in the area to the right of the club logo.
+  // Shrink the font if the title is too long to fit (long opposition names).
+  const headerLeftPadding = 170; // right edge of the logo + gap
+  const headerRightPadding = 30;
+  const headerCenterX = (headerLeftPadding + (SIZE - headerRightPadding)) / 2;
+  const maxTitleWidth = SIZE - headerLeftPadding - headerRightPadding;
+  const titleFontSize = fitFontSize(title, 58, maxTitleWidth, 30);
+  const subtitleFontSize = fitFontSize(subtitle, 36, maxTitleWidth, 20);
+  const titlePath = textPath(title, headerCenterX, 82, titleFontSize, {
+    fill: TITLE_BLUE,
+    anchor: "middle",
+  });
+  const subtitlePath = textPath(
+    subtitle,
+    headerCenterX,
+    138,
+    subtitleFontSize,
+    { fill: SUBTITLE_RED, anchor: "middle" },
+  );
 
-    return `  <text x="140" y="${y}" font-family="${FONT}" font-size="38" font-weight="bold" fill="${WHITE}">${name}${sponsorSuffix}</text>`;
+  const maxPlayers = Math.min(data.players.length, 11);
+  const playerStartY = 240;
+  const playerFontSize = 50;
+  const sponsorFontSize = 18;
+  const sponsorX = 186;
+
+  const selectedPlayers = data.players.slice(0, maxPlayers);
+  const sponsorCount = selectedPlayers.filter((p) => p.sponsorName).length;
+
+  // Spread players to use the full vertical space. Sponsored players get a
+  // bit more room so the sponsor line doesn't crowd the next name. If that
+  // would overflow the panel, shrink the base line proportionally.
+  const sponsorExtra = 26;
+  const bottomPadding = 25;
+  const availableHeight = SIZE - playerStartY - bottomPadding;
+  const preferredBase = 70;
+  const totalAtPreferred =
+    selectedPlayers.length * preferredBase + sponsorCount * sponsorExtra;
+  const baseLineHeight =
+    totalAtPreferred > availableHeight
+      ? (availableHeight - sponsorCount * sponsorExtra) / selectedPlayers.length
+      : preferredBase;
+
+  const playerPaths: string[] = [];
+  let baseline = playerStartY;
+  for (const p of selectedPlayers) {
+    const name = formatShortName(p.playerName);
+    const roleSuffix = `${p.isCaptain ? " *" : ""}${p.isWicketkeeper ? " †" : ""}`;
+    const lineText = `${name}${roleSuffix}`;
+    const line = textPath(lineText, 180, baseline, playerFontSize, {
+      fill: WHITE,
+    });
+    playerPaths.push(line.markup);
+
+    if (p.sponsorName) {
+      // Sponsor sits just below the player name. Overflow past the red
+      // panel's right edge is fine — long sponsor names are acceptable.
+      const sponsorText = `Sponsored by ${p.sponsorName}`;
+      const sponsor = textPath(
+        sponsorText,
+        sponsorX,
+        baseline + 32,
+        sponsorFontSize,
+        { fill: WHITE, opacity: 0.7 },
+      );
+      playerPaths.push(sponsor.markup);
+      baseline += baseLineHeight + sponsorExtra;
+    } else {
+      baseline += baseLineHeight;
+    }
+  }
+
+  // "TEAM NEWS" — outlined, italic, rotated vertically down the left of the
+  // red panel. Positioned so the top sits clear of the header and the letters
+  // don't clip the left edge or the player list.
+  const watermarkFontSize = 125;
+  const watermarkText = "TEAM NEWS";
+  const watermarkWidth = displayFont.getAdvanceWidth(
+    watermarkText,
+    watermarkFontSize,
+  );
+  const watermarkTopY = 280;
+  const watermarkX = 135;
+  const watermark = textPath(watermarkText, 0, 0, watermarkFontSize, {
+    stroke: WHITE,
+    strokeWidth: 3,
+    transform: `translate(${watermarkX}, ${watermarkTopY + watermarkWidth}) rotate(-90) skewX(-12)`,
   });
 
-  // "TEAM NEWS" — large outlined text, rotated vertically on the left
-  // Positioned far enough right that rotation doesn't clip it
-  const watermarkX = 85;
-  const watermarkY = SIZE / 2 + 50;
-  const watermark = `
-  <text x="${watermarkX}" y="${watermarkY}" text-anchor="middle"
-    font-family="${FONT}" font-size="110" font-weight="bold"
-    fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="2.5"
-    transform="rotate(-90, ${watermarkX}, ${watermarkY})">TEAM NEWS</text>`;
+  // Red diagonal panel
+  const panel = `<polygon points="0,${PANEL_TOP_Y} ${PANEL_TOP_RIGHT_X},${PANEL_TOP_Y} ${PANEL_BOTTOM_RIGHT_X},${SIZE} 0,${SIZE}" fill="${RED}" fill-opacity="0.92"/>`;
 
-  // Match sponsor text (bottom area, left-aligned)
-  const matchSponsorSvg = data.matchSponsor
-    ? `<text x="140" y="${SIZE - 100}" font-family="${FONT}" font-size="16" fill="rgba(255,255,255,0.5)">Match sponsored by</text>
-  <text x="140" y="${SIZE - 72}" font-family="${FONT}" font-size="26" font-weight="bold" fill="${WHITE}">${escapeXml(data.matchSponsor.name)}</text>`
-    : "";
+  // Translucent header band so title is readable over any photo
+  const header = `<rect x="0" y="0" width="${SIZE}" height="${PANEL_TOP_Y}" fill="rgba(255,255,255,0.82)"/>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
-  <!-- Header bar background -->
-  <rect x="0" y="0" width="${SIZE}" height="6" fill="#D4A843"/>
-
-  <!-- Title: team name -->
-  <text x="${SIZE / 2}" y="60" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="bold" fill="${WHITE}" letter-spacing="2">
-    ${teamName}
-  </text>
-  <!-- vs -->
-  <text x="${SIZE / 2}" y="95" text-anchor="middle" font-family="${FONT}" font-size="22" fill="rgba(255,255,255,0.5)">
-    vs
-  </text>
-  <!-- Opposition name -->
-  <text x="${SIZE / 2}" y="130" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="bold" fill="${WHITE}" letter-spacing="2">
-    ${opposition}
-  </text>
-
-  <!-- Date and time -->
-  <text x="${SIZE / 2}" y="170" text-anchor="middle" font-family="${FONT}" font-size="26" font-weight="bold" fill="#F0D078" letter-spacing="1">
-    ${dateText}${timeText}
-  </text>
-  <!-- Venue -->
-  <text x="${SIZE / 2}" y="205" text-anchor="middle" font-family="${FONT}" font-size="22" fill="rgba(255,255,255,0.6)">${venueText}</text>
-
-  <!-- Horizontal rule -->
-  <rect x="120" y="230" width="${SIZE - 240}" height="2" fill="rgba(255,255,255,0.2)"/>
-
-  ${watermark}
-
-  <!-- Player list -->
-${playerLines.join("\n")}
-
-  <!-- Bottom rule -->
-  <rect x="120" y="${SIZE - 140}" width="${SIZE - 240}" height="2" fill="rgba(255,255,255,0.2)"/>
-
-  ${matchSponsorSvg}
-
-  <!-- Footer -->
-  <text x="${SIZE / 2}" y="${SIZE - 15}" text-anchor="middle" font-family="${FONT}" font-size="16" fill="rgba(255,255,255,0.3)">percymain.org</text>
+  ${header}
+  ${panel}
+  ${titlePath.markup}
+  ${subtitlePath.markup}
+  ${watermark.markup}
+${playerPaths.join("\n")}
 </svg>`;
 }
 
@@ -160,90 +255,102 @@ async function fetchImage(url: string): Promise<Buffer | null> {
 export async function generateTeamNewsImage(
   data: TeamNewsData,
 ): Promise<Buffer> {
-  // Background: pitch photo — bright, only lightly darkened
-  const heroBackground = await sharp(HERO_IMAGE_PATH)
-    .resize(SIZE, SIZE, { fit: "cover" })
-    .modulate({ brightness: 0.65, saturation: 1.1 })
+  // Resize the photo to the canvas width preserving aspect so the entire
+  // image is shown without cropping. Pad the top with a colour sampled from
+  // the top edge of the photo so the extended band blends into the sky.
+  const resized = await sharp(HERO_IMAGE_PATH)
+    .resize(SIZE, null, { fit: "inside" })
+    .toBuffer();
+  const resizedMeta = await sharp(resized).metadata();
+  const resizedH = resizedMeta.height ?? SIZE;
+
+  const topRowPixel = await sharp(resized)
+    .extract({ left: 0, top: 0, width: SIZE, height: 1 })
+    .resize(1, 1, { kernel: "cubic" })
+    .raw()
     .toBuffer();
 
-  // Semi-transparent dark overlay on the left half for text readability
-  const overlaySvg = `<svg width="${SIZE}" height="${SIZE}">
-    <defs>
-      <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#000" stop-opacity="0.7"/>
-        <stop offset="0.55" stop-color="#000" stop-opacity="0.45"/>
-        <stop offset="1" stop-color="#000" stop-opacity="0.1"/>
-      </linearGradient>
-    </defs>
-    <rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>
-    <!-- Top bar solid for header readability -->
-    <rect width="${SIZE}" height="230" fill="rgba(0,0,0,0.55)"/>
-  </svg>`;
-  const overlayBuffer = await sharp(Buffer.from(overlaySvg))
-    .resize(SIZE, SIZE)
-    .png()
-    .toBuffer();
+  const heroBackground =
+    resizedH >= SIZE
+      ? resized
+      : await sharp(resized)
+          .extend({
+            top: SIZE - resizedH,
+            bottom: 0,
+            background: {
+              r: topRowPixel[0],
+              g: topRowPixel[1],
+              b: topRowPixel[2],
+            },
+          })
+          .toBuffer();
 
-  // Render the text SVG
   const svg = buildSvg(data);
   const svgBuffer = await sharp(Buffer.from(svg))
     .resize(SIZE, SIZE)
     .png()
     .toBuffer();
 
-  const layers: sharp.OverlayOptions[] = [
-    { input: overlayBuffer, blend: "over" },
-    { input: svgBuffer, blend: "over" },
-  ];
+  const layers: sharp.OverlayOptions[] = [{ input: svgBuffer, blend: "over" }];
 
-  // Club logo — top-left, prominent
+  // Club logo — top-left, sits inside the header band
   try {
     const clubLogo = await sharp(CLUB_LOGO_PATH)
-      .resize({ height: 130, fit: "inside" })
+      .resize({ height: 140, fit: "inside" })
       .toBuffer();
     layers.push({
       input: clubLogo,
-      top: 25,
-      left: 25,
+      top: 15,
+      left: 20,
       blend: "over",
     });
   } catch {
     // Skip if not found
   }
 
-  // Club sponsor (Crossling) — bottom-right area
+  // Sponsors stacked on the right side
+  const sponsorSlots: Array<{ buffer: Buffer; top: number; left: number }> = [];
+  let nextTop = SIZE - 120;
+
   try {
     const sponsorLogo = await sharp(CLUB_SPONSOR_PATH)
-      .resize({ height: 55, fit: "inside" })
+      .resize({ height: 80, fit: "inside" })
       .toBuffer();
     const meta = await sharp(sponsorLogo).metadata();
-    const logoWidth = meta.width ?? 100;
-    layers.push({
-      input: sponsorLogo,
-      top: SIZE - 65,
-      left: SIZE - logoWidth - 15,
-      blend: "over",
+    const logoWidth = meta.width ?? 120;
+    sponsorSlots.push({
+      buffer: sponsorLogo,
+      top: nextTop,
+      left: SIZE - logoWidth - 40,
     });
+    nextTop -= 110;
   } catch {
     // Skip if not found
   }
 
-  // Match sponsor logo — right side, above club sponsor
   if (data.matchSponsor?.logoUrl) {
     const logoBuffer = await fetchImage(data.matchSponsor.logoUrl);
     if (logoBuffer) {
       const resizedLogo = await sharp(logoBuffer)
-        .resize({ height: 55, fit: "inside" })
+        .resize({ height: 80, fit: "inside" })
         .toBuffer();
       const logoMeta = await sharp(resizedLogo).metadata();
-      const logoWidth = logoMeta.width ?? 55;
-      layers.push({
-        input: resizedLogo,
-        top: SIZE - 135,
-        left: SIZE - logoWidth - 20,
-        blend: "over",
+      const logoWidth = logoMeta.width ?? 80;
+      sponsorSlots.push({
+        buffer: resizedLogo,
+        top: nextTop,
+        left: SIZE - logoWidth - 40,
       });
     }
+  }
+
+  for (const slot of sponsorSlots) {
+    layers.push({
+      input: slot.buffer,
+      top: slot.top,
+      left: slot.left,
+      blend: "over",
+    });
   }
 
   const pngBuffer = await sharp(heroBackground)
