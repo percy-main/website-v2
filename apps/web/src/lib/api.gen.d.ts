@@ -930,6 +930,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/fantasy/transfer-news": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    season?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            entries: {
+                                teamId: number;
+                                ownerName: string;
+                                gameweek: number;
+                                added: {
+                                    playCricketId: string;
+                                    playerName: string;
+                                }[];
+                                dropped: {
+                                    playCricketId: string;
+                                    playerName: string;
+                                }[];
+                            }[];
+                            season: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/fantasy/chaos-week": {
         parameters: {
             query?: never;
@@ -1063,6 +1116,7 @@ export interface paths {
                             }[];
                             teamCount: number;
                             gameweek: number;
+                            isFromPreviousSeason: boolean;
                         };
                     };
                 };
@@ -1430,6 +1484,10 @@ export interface paths {
                                 season: string;
                                 ownerName: string;
                                 ownerId: string;
+                                seasonPoints: number;
+                                latestGameweek: number | null;
+                                latestGameweekPoints: number;
+                                gameweeksPlayed: number;
                             };
                             players: {
                                 playCricketId: string;
@@ -1440,54 +1498,9 @@ export interface paths {
                                 slotType: "batting" | "bowling" | "allrounder";
                                 isWicketkeeper: boolean;
                                 ownershipPct: number;
+                                seasonPoints: number;
+                                latestGameweekPoints: number;
                             }[];
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/fantasy/teams/{teamId}/timeline": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: {
-                    season?: string;
-                };
-                header?: never;
-                path: {
-                    teamId: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            timeline: {
-                                gameweek: number;
-                                weeklyPoints: number;
-                                cumulativePoints: number;
-                            }[];
-                            season: string;
-                            teamId: number;
                         };
                     };
                 };
@@ -2437,6 +2450,43 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/play-cricket/admin/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            taskArn: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;

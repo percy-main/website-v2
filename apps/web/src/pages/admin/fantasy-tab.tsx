@@ -44,6 +44,52 @@ const DEFAULT_CONFIGS: Record<string, string> = {
   scoring_threshold: JSON.stringify({ min_runs: 30, min_wickets: 3 }, null, 2),
 };
 
+function PlayCricketSyncSection() {
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const syncMutation = useMutation({
+    mutationFn: () => callApi(api.POST("/api/play-cricket/admin/sync")),
+    onSuccess: () => {
+      setResult(
+        "Sync started. Match data and fantasy scores will appear in a few minutes.",
+      );
+      setError(null);
+    },
+    onError: (err) => {
+      setResult(null);
+      setError(err instanceof Error ? err.message : String(err));
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Play Cricket Sync</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-gray-600">
+          Manually trigger a Play Cricket sync. Pulls latest match scorecards
+          and recomputes fantasy scores. Runs automatically Sun/Mon/Tue at
+          03:00.
+        </p>
+        <Button
+          disabled={syncMutation.isPending}
+          onClick={() => {
+            setResult(null);
+            setError(null);
+            syncMutation.mutate();
+          }}
+        >
+          {syncMutation.isPending ? "Starting sync…" : "Sync now"}
+        </Button>
+        {result && <p className="text-sm text-green-700">{result}</p>}
+        {error && <p className="text-sm text-red-700">{error}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
 function PlayerManagementSection() {
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
@@ -445,7 +491,7 @@ function ChaosWeeksSection() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>GW</TableHead>
+                  <TableHead>Gameweek</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Rule</TableHead>
                   <TableHead>Email</TableHead>
@@ -511,6 +557,7 @@ function ChaosWeeksSection() {
 export function FantasyTab() {
   return (
     <div className="space-y-6">
+      <PlayCricketSyncSection />
       <PlayerManagementSection />
       <ChaosWeeksSection />
     </div>

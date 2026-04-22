@@ -35,13 +35,14 @@ import {
   playerLeaderboardResponseSchema,
   populatePlayersResponseSchema,
   preSeasonStatsResponseSchema,
+  recentTransfersResponseSchema,
+  recentTransfersSchema,
   sandwichEfficiencyResponseSchema,
   sandwichEfficiencySchema,
   saveTeamResponseSchema,
   saveTeamSchema,
   seasonLeaderboardResponseSchema,
   seasonSchema,
-  seasonTimelineResponseSchema,
   successResponseSchema,
   teamDetailResponseSchema,
   teamIdSchema,
@@ -68,9 +69,9 @@ import {
   getPlayerHistory,
   getPlayerLeaderboard,
   getPreSeasonStats,
+  getRecentTransfers,
   getSandwichEfficiency,
   getSeasonLeaderboard,
-  getSeasonTimeline,
   getTeam,
   getTeamShareData,
   getTransferWindow,
@@ -114,7 +115,6 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   const teams = listTeams(app.db);
   const teamDetail = getTeam(app.db);
   const gwDetail = getGameweekDetail(app.db);
-  const timeline = getSeasonTimeline(app.db);
   const playerHist = getPlayerHistory(app.db);
   const chipStatus = getChipStatus(app.db);
   const chipActivate = activateChip(app.db);
@@ -123,6 +123,7 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   const chaosWeekCreate = createChaosWeek(app.db);
   const chaosWeekDelete = deleteChaosWeek(app.db);
   const shareData = getTeamShareData(app.db);
+  const recentTransfers = getRecentTransfers(app.db);
 
   // --- Public routes ---
 
@@ -138,6 +139,20 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
       const { season } = request.query;
       // transferWindow is sync; wrap to satisfy return await pattern
       return await Promise.resolve(transferWindow(season));
+    },
+  );
+
+  app.get(
+    "/fantasy/transfer-news",
+    {
+      schema: {
+        querystring: recentTransfersSchema,
+        response: { 200: recentTransfersResponseSchema },
+      },
+    },
+    async (request) => {
+      const { season, limit } = request.query;
+      return await recentTransfers(season, limit);
     },
   );
 
@@ -278,22 +293,6 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { teamId } = request.params;
       return await teamDetail(teamId);
-    },
-  );
-
-  app.get(
-    "/fantasy/teams/:teamId/timeline",
-    {
-      schema: {
-        params: teamIdSchema,
-        querystring: seasonSchema,
-        response: { 200: seasonTimelineResponseSchema },
-      },
-    },
-    async (request) => {
-      const { teamId } = request.params;
-      const { season } = request.query;
-      return await timeline(teamId, season);
     },
   );
 

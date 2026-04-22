@@ -166,6 +166,10 @@ export const playerCareerStatsResponseSchema = z
   })
   .nullable();
 
+export const triggerSyncResponseSchema = z.object({
+  taskArn: z.string(),
+});
+
 export const playerSeasonStatsResponseSchema = z
   .object({
     playCricketId: z.string(),

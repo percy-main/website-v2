@@ -20,7 +20,7 @@ if (!PLAY_CRICKET_API_TOKEN)
 if (!PLAY_CRICKET_SITE_ID)
   throw new Error("Missing required env var: PLAY_CRICKET_SITE_ID");
 
-const { client, pool } = createClient(DATABASE_URL);
+const { client } = createClient(DATABASE_URL);
 const api = createApiClient({
   apiToken: PLAY_CRICKET_API_TOKEN,
   siteId: PLAY_CRICKET_SITE_ID,
@@ -42,11 +42,9 @@ try {
   }
 
   await client.destroy();
-  await pool.end();
   process.exit(result.errors.length > 0 ? 1 : 0);
 } catch (error) {
   console.error("Sync failed:", error);
   await client.destroy().catch(() => undefined);
-  await pool.end().catch(() => undefined);
   process.exit(1);
 }

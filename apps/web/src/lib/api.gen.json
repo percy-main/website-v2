@@ -1525,6 +1525,116 @@
         }
       }
     },
+    "/api/fantasy/transfer-news": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "season",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 5,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "teamId": {
+                            "type": "number"
+                          },
+                          "ownerName": {
+                            "type": "string"
+                          },
+                          "gameweek": {
+                            "type": "number"
+                          },
+                          "added": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "playCricketId": {
+                                  "type": "string"
+                                },
+                                "playerName": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "playCricketId",
+                                "playerName"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "dropped": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "playCricketId": {
+                                  "type": "string"
+                                },
+                                "playerName": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "playCricketId",
+                                "playerName"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "teamId",
+                          "ownerName",
+                          "gameweek",
+                          "added",
+                          "dropped"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "season": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "entries",
+                    "season"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/fantasy/chaos-week": {
       "get": {
         "parameters": [
@@ -1746,6 +1856,9 @@
                     },
                     "gameweek": {
                       "type": "number"
+                    },
+                    "isFromPreviousSeason": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -1753,7 +1866,8 @@
                     "mostCaptained",
                     "differentials",
                     "teamCount",
-                    "gameweek"
+                    "gameweek",
+                    "isFromPreviousSeason"
                   ],
                   "additionalProperties": false
                 }
@@ -2421,13 +2535,30 @@
                         },
                         "ownerId": {
                           "type": "string"
+                        },
+                        "seasonPoints": {
+                          "type": "number"
+                        },
+                        "latestGameweek": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "latestGameweekPoints": {
+                          "type": "number"
+                        },
+                        "gameweeksPlayed": {
+                          "type": "number"
                         }
                       },
                       "required": [
                         "id",
                         "season",
                         "ownerName",
-                        "ownerId"
+                        "ownerId",
+                        "seasonPoints",
+                        "latestGameweek",
+                        "latestGameweekPoints",
+                        "gameweeksPlayed"
                       ],
                       "additionalProperties": false
                     },
@@ -2461,6 +2592,12 @@
                           },
                           "ownershipPct": {
                             "type": "number"
+                          },
+                          "seasonPoints": {
+                            "type": "number"
+                          },
+                          "latestGameweekPoints": {
+                            "type": "number"
                           }
                         },
                         "required": [
@@ -2470,7 +2607,9 @@
                           "isCaptain",
                           "slotType",
                           "isWicketkeeper",
-                          "ownershipPct"
+                          "ownershipPct",
+                          "seasonPoints",
+                          "latestGameweekPoints"
                         ],
                         "additionalProperties": false
                       }
@@ -2479,77 +2618,6 @@
                   "required": [
                     "team",
                     "players"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/fantasy/teams/{teamId}/timeline": {
-      "get": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "query",
-            "name": "season",
-            "required": false
-          },
-          {
-            "schema": {
-              "type": "number"
-            },
-            "in": "path",
-            "name": "teamId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "timeline": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "gameweek": {
-                            "type": "number"
-                          },
-                          "weeklyPoints": {
-                            "type": "number"
-                          },
-                          "cumulativePoints": {
-                            "type": "number"
-                          }
-                        },
-                        "required": [
-                          "gameweek",
-                          "weeklyPoints",
-                          "cumulativePoints"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "season": {
-                      "type": "string"
-                    },
-                    "teamId": {
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "timeline",
-                    "season",
-                    "teamId"
                   ],
                   "additionalProperties": false
                 }
@@ -4303,6 +4371,31 @@
                     "result",
                     "sponsor",
                     "lineup"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/play-cricket/admin/sync": {
+      "post": {
+        "responses": {
+          "202": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "taskArn": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "taskArn"
                   ],
                   "additionalProperties": false
                 }

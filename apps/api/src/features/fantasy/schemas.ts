@@ -73,6 +73,11 @@ export const chaosWeekPublicSchema = z.object({
   gameweek: z.coerce.number().optional(),
 });
 
+export const recentTransfersSchema = z.object({
+  season: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(20).default(5),
+});
+
 export const createChaosWeekSchema = z.object({
   season: z.string().optional(),
   gameweekId: z.number().min(1),
@@ -158,6 +163,7 @@ export const ownershipOverviewResponseSchema = z.object({
   ),
   teamCount: z.number(),
   gameweek: z.number(),
+  isFromPreviousSeason: z.boolean(),
 });
 
 // getSandwichEfficiency
@@ -242,6 +248,25 @@ export const highlightsResponseSchema = z.object({
   season: z.string(),
 });
 
+// getRecentTransfers — transfer news feed
+const transferPlayerSchema = z.object({
+  playCricketId: z.string(),
+  playerName: z.string(),
+});
+
+export const recentTransfersResponseSchema = z.object({
+  entries: z.array(
+    z.object({
+      teamId: z.number(),
+      ownerName: z.string(),
+      gameweek: z.number(),
+      added: z.array(transferPlayerSchema),
+      dropped: z.array(transferPlayerSchema),
+    }),
+  ),
+  season: z.string(),
+});
+
 // getSeasonLeaderboard
 export const seasonLeaderboardResponseSchema = z.object({
   entries: z.array(
@@ -310,6 +335,10 @@ export const teamDetailResponseSchema = z.object({
     season: z.string(),
     ownerName: z.string(),
     ownerId: z.string(),
+    seasonPoints: z.number(),
+    latestGameweek: z.number().nullable(),
+    latestGameweekPoints: z.number(),
+    gameweeksPlayed: z.number(),
   }),
   players: z.array(
     z.object({
@@ -320,21 +349,10 @@ export const teamDetailResponseSchema = z.object({
       slotType: slotTypeSchema,
       isWicketkeeper: z.boolean(),
       ownershipPct: z.number(),
+      seasonPoints: z.number(),
+      latestGameweekPoints: z.number(),
     }),
   ),
-});
-
-// getSeasonTimeline
-export const seasonTimelineResponseSchema = z.object({
-  timeline: z.array(
-    z.object({
-      gameweek: z.number(),
-      weeklyPoints: z.number(),
-      cumulativePoints: z.number(),
-    }),
-  ),
-  season: z.string(),
-  teamId: z.number(),
 });
 
 // getGameweekDetail

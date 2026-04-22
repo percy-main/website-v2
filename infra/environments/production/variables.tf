@@ -5,5 +5,11 @@ variable "domain_name" {
 
 variable "alarm_email" {
   type    = string
-  default = ""
+  default = "alex.young@percymain.org"
+}
+
+variable "tailscale_db_admins" {
+  type        = list(string)
+  description = "Tailscale user emails (Google Workspace) allowed to reach RDS over the tailnet"
+  default     = ["alex.young@percymain.org"]
 }

@@ -60,6 +60,17 @@ const configSchema = z.object({
   SLACK_WEBHOOK_URL: z.url().optional(),
   PLAY_CRICKET_API_TOKEN: z.string().optional(),
   PLAY_CRICKET_SITE_ID: z.string().optional(),
+
+  // Sync task launch (admin "Sync now" button → ECS RunTask)
+  AWS_REGION: z.string().default("eu-west-2"),
+  SYNC_ECS_CLUSTER: z.string().optional(),
+  SYNC_ECS_TASK_DEFINITION: z.string().optional(),
+  SYNC_ECS_SUBNETS: z.string().optional(), // comma-separated
+  SYNC_ECS_SECURITY_GROUP: z.string().optional(),
+  SYNC_ECS_ASSIGN_PUBLIC_IP: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 export type Config = z.infer<typeof configSchema>;

@@ -2,12 +2,18 @@
  * Gameweek logic for fantasy cricket.
  *
  * The fantasy season follows the cricket season calendar year.
- * Each gameweek runs Saturday to Friday, aligned with weekend matches.
+ * Matches are played on Saturday-Sunday; each gameweek wraps one
+ * match weekend together with the preceding edit period:
  *
- * Lock deadline: Friday 23:59 UK time — teams are locked for the weekend.
- * Editing reopens: Monday 00:00 UK time.
+ *   Mon 00:00 UK  →  Fri 23:59 UK   edit period  (team unlocked)
+ *   Sat 00:00 UK  →  Sun 23:59 UK   match period (team locked)
  *
- * Pre-season (gameweek 0): before GW1 starts, unlimited team changes allowed.
+ * The gameweek number rolls over at Monday 00:00 UK — once the weekend's
+ * matches are done, the "current gameweek" becomes the *next* weekend's.
+ * GW1 is the exception: it has no edit period of its own (pre-season fills
+ * that role), so GW1 only covers Sat-Sun of the first weekend.
+ *
+ * Pre-season (gameweek 0): before GW1's Saturday. Unlimited team changes.
  * In-season (gameweek 1+): max 3 transfers per gameweek, unless it's the
  * player's first-ever squad selection (which is always unlimited).
  */
@@ -126,8 +132,10 @@ export function getPreviousSeason(season?: string): string {
 /**
  * Get the current gameweek number.
  *
- * Returns 0 for pre-season (before GW1 start date).
- * Returns 1+ during the season (each week runs Saturday to Friday).
+ * Returns 0 for pre-season (before GW1's Saturday).
+ * In-season, returns the gameweek whose matches are either currently being
+ * played (Sat-Sun of that gameweek) or are the next upcoming weekend
+ * (Mon-Fri). Rollover happens at Monday 00:00 UK time.
  */
 export function getCurrentGameweek(season?: string): number {
   const s = season ?? getCurrentSeason();
@@ -138,7 +146,11 @@ export function getCurrentGameweek(season?: string): number {
 
   const diffMs = ukNow.getTime() - gw1.getTime();
   const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
-  return diffWeeks + 1;
+  // On Mon-Fri we're in the edit period for the *next* weekend's matches,
+  // so bump by 1. On Sat-Sun we're in the current weekend's matches.
+  const dayOfWeek = getUKDayOfWeek();
+  const isEditPeriod = dayOfWeek >= 1 && dayOfWeek <= 5;
+  return diffWeeks + 1 + (isEditPeriod ? 1 : 0);
 }
 
 /**

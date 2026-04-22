@@ -163,38 +163,33 @@ export function getMyTeam(db: Kysely<DB>) {
       ])
       .execute();
 
-    // Count transfers this gameweek (only still-active ones, not reverted)
-    const transfersThisWeek = await db
-      .selectFrom("fantasy_team_player")
-      .where("fantasy_team_id", "=", team.id)
-      .where("gameweek_added", "=", gameweek)
-      .where((eb) =>
-        eb.or([
-          eb("gameweek_removed", "is", null),
-          eb("gameweek_removed", ">", gameweek),
-        ]),
-      )
-      .select(sql<number>`count(*)`.as("count"))
-      .executeTakeFirst();
+    // Transfers used this gameweek = count of play_cricket_ids active at
+    // `gameweek` that weren't active at `gameweek - 1`. Independent of
+    // config-only row churn (captain/slot/WK) and of the order the user
+    // made their swaps.
+    const previousActive =
+      gameweek <= 1
+        ? []
+        : await db
+            .selectFrom("fantasy_team_player")
+            .where("fantasy_team_id", "=", team.id)
+            .where("gameweek_added", "<=", gameweek - 1)
+            .where((eb) =>
+              eb.or([
+                eb("gameweek_removed", "is", null),
+                eb("gameweek_removed", ">", gameweek - 1),
+              ]),
+            )
+            .select("play_cricket_id")
+            .execute();
 
-    // Check if this is the user's initial squad (no players from before this gameweek)
-    const initialPlayers = await db
-      .selectFrom("fantasy_team_player")
-      .where("fantasy_team_id", "=", team.id)
-      .where("gameweek_added", "<", gameweek)
-      .where((eb) =>
-        eb.or([
-          eb("gameweek_removed", "is", null),
-          eb("gameweek_removed", ">", gameweek),
-        ]),
-      )
-      .select(sql<number>`count(*)`.as("count"))
-      .executeTakeFirst();
-
-    const isInitialSquad = Number(initialPlayers?.count ?? 0) === 0;
+    const previousActiveIds = new Set(
+      previousActive.map((p) => p.play_cricket_id),
+    );
+    const isInitialSquad = previousActiveIds.size === 0;
     const transfersUsed = isInitialSquad
       ? 0
-      : Number(transfersThisWeek?.count ?? 0);
+      : players.filter((p) => !previousActiveIds.has(p.play_cricket_id)).length;
 
     // Transfers are unlimited in pre-season or if this is the user's first squad
     const unlimitedTransfers = isPreSeason(s) || isInitialSquad;
@@ -409,44 +404,38 @@ export function saveTeam(db: Kysely<DB>) {
         }
       }
 
-      // Check transfer limit in-season
-      if (
-        currentPlayers.length > 0 &&
-        playersToAdd.length > 0 &&
-        !isPreSeason(s)
-      ) {
-        const hasSquadFromBefore = currentPlayers.some(
-          (p) => p.gameweek_added < gameweek,
+      // Check transfer limit in-season. A transfer is any play_cricket_id
+      // active at `gameweek` that wasn't active at `gameweek - 1`. This is
+      // independent of how many config-only row churns (captain/slot/WK)
+      // have occurred this gameweek, and independent of the order in which
+      // the user made their swaps.
+      if (!isPreSeason(s) && gameweek > 1) {
+        const previousActive = await trx
+          .selectFrom("fantasy_team_player")
+          .where("fantasy_team_id", "=", teamId)
+          .where("gameweek_added", "<=", gameweek - 1)
+          .where((eb) =>
+            eb.or([
+              eb("gameweek_removed", "is", null),
+              eb("gameweek_removed", ">", gameweek - 1),
+            ]),
+          )
+          .select("play_cricket_id")
+          .execute();
+
+        const previousActiveIds = new Set(
+          previousActive.map((p) => p.play_cricket_id),
         );
 
-        if (hasSquadFromBefore) {
-          const addedThisWeekBeingRemoved = playersToRemove.filter(
-            (p) => p.gameweek_added === gameweek,
+        if (previousActiveIds.size > 0) {
+          const netTransfers = Array.from(newPlayerIds).filter(
+            (id) => !previousActiveIds.has(id),
           ).length;
-
-          const persistedTransfers = await trx
-            .selectFrom("fantasy_team_player")
-            .where("fantasy_team_id", "=", teamId)
-            .where("gameweek_added", "=", gameweek)
-            .where((eb) =>
-              eb.or([
-                eb("gameweek_removed", "is", null),
-                eb("gameweek_removed", ">", gameweek),
-              ]),
-            )
-            .select(sql<string>`COUNT(*)`.as("count"))
-            .executeTakeFirst();
-
-          const previousTransfers = Number(persistedTransfers?.count ?? 0);
-          // Subtract cancelled transfers (added this week but being removed now)
-          // before adding new ones — removals haven't been applied to DB yet
-          const netTransfers =
-            previousTransfers - addedThisWeekBeingRemoved + playersToAdd.length;
 
           if (netTransfers > MAX_TRANSFERS_PER_GAMEWEEK) {
             throw httpError(
               400,
-              `You can only make ${MAX_TRANSFERS_PER_GAMEWEEK} transfers per gameweek. You have used ${previousTransfers} already.`,
+              `You can only make ${MAX_TRANSFERS_PER_GAMEWEEK} transfers per gameweek.`,
             );
           }
         }
@@ -476,29 +465,55 @@ export function saveTeam(db: Kysely<DB>) {
           .execute();
       }
 
-      // Update captain, slot_type, and is_wicketkeeper for existing players
+      // Update captain, slot_type, and is_wicketkeeper for retained players.
+      //
+      // Key rule for historical reconstruction: when a row was added in a
+      // prior (now-locked) gameweek, we must NOT mutate its flags in place,
+      // or we destroy the snapshot used to rescore that past gameweek.
+      // Instead, close the existing row (gameweek_removed = current gw) and
+      // insert a new row (gameweek_added = current gw) carrying the new
+      // flags. Rows added in the current gameweek are still open — mutating
+      // them in place is safe and avoids row explosion for repeated edits
+      // within the same gameweek.
       for (const player of players) {
-        if (currentPlayerIds.has(player.playCricketId)) {
-          const existing = currentPlayers.find(
-            (p) => p.play_cricket_id === player.playCricketId,
-          );
-          if (existing) {
-            const captainChanged = existing.is_captain !== player.isCaptain;
-            const slotChanged = existing.slot_type !== player.slotType;
-            const wkChanged =
-              existing.is_wicketkeeper !== player.isWicketkeeper;
-            if (captainChanged || slotChanged || wkChanged) {
-              await trx
-                .updateTable("fantasy_team_player")
-                .set({
-                  is_captain: player.isCaptain,
-                  slot_type: player.slotType,
-                  is_wicketkeeper: player.isWicketkeeper,
-                })
-                .where("id", "=", existing.id)
-                .execute();
-            }
-          }
+        if (!currentPlayerIds.has(player.playCricketId)) continue;
+        const existing = currentPlayers.find(
+          (p) => p.play_cricket_id === player.playCricketId,
+        );
+        if (!existing) continue;
+
+        const captainChanged = existing.is_captain !== player.isCaptain;
+        const slotChanged = existing.slot_type !== player.slotType;
+        const wkChanged = existing.is_wicketkeeper !== player.isWicketkeeper;
+        if (!captainChanged && !slotChanged && !wkChanged) continue;
+
+        if (existing.gameweek_added === gameweek) {
+          await trx
+            .updateTable("fantasy_team_player")
+            .set({
+              is_captain: player.isCaptain,
+              slot_type: player.slotType,
+              is_wicketkeeper: player.isWicketkeeper,
+            })
+            .where("id", "=", existing.id)
+            .execute();
+        } else {
+          await trx
+            .updateTable("fantasy_team_player")
+            .set({ gameweek_removed: gameweek })
+            .where("id", "=", existing.id)
+            .execute();
+          await trx
+            .insertInto("fantasy_team_player")
+            .values({
+              fantasy_team_id: teamId,
+              play_cricket_id: player.playCricketId,
+              is_captain: player.isCaptain,
+              gameweek_added: gameweek,
+              slot_type: player.slotType,
+              is_wicketkeeper: player.isWicketkeeper,
+            })
+            .execute();
         }
       }
 
@@ -1114,6 +1129,7 @@ export function getOwnershipOverview(db: Kysely<DB>) {
         differentials: [],
         teamCount: 0,
         gameweek,
+        isFromPreviousSeason: false,
       };
     }
 
@@ -1167,41 +1183,40 @@ export function getOwnershipOverview(db: Kysely<DB>) {
         captainPct,
       }));
 
-    // Build points map for differential ranking
+    // Build points map for differential ranking from current-season scores.
     const diffPointsMap = new Map<
       string,
       { playerName: string; points: number }
     >();
-    const lastCompletedGw = Math.max(0, gameweek - 1);
+    let isFromPreviousSeason = false;
 
-    if (lastCompletedGw > 0) {
-      const gwScores = await db
-        .selectFrom("fantasy_player_score as fps")
-        .innerJoin(
-          "fantasy_player as fp",
-          "fp.play_cricket_id",
-          "fps.play_cricket_id",
-        )
-        .where("fps.season", "=", s)
-        .where("fps.gameweek_id", "=", lastCompletedGw)
-        .select([
-          "fps.play_cricket_id",
-          "fp.player_name",
-          sql<string>`SUM(fps.total_points)`.as("total_points"),
-        ])
-        .groupBy(["fps.play_cricket_id", "fp.player_name"])
-        .execute();
+    const currentScores = await db
+      .selectFrom("fantasy_player_score as fps")
+      .innerJoin(
+        "fantasy_player as fp",
+        "fp.play_cricket_id",
+        "fps.play_cricket_id",
+      )
+      .where("fps.season", "=", s)
+      .select([
+        "fps.play_cricket_id",
+        "fp.player_name",
+        sql<string>`SUM(fps.total_points)`.as("total_points"),
+      ])
+      .groupBy(["fps.play_cricket_id", "fp.player_name"])
+      .having(sql`SUM(fps.total_points)`, ">", 0)
+      .execute();
 
-      for (const row of gwScores) {
-        diffPointsMap.set(row.play_cricket_id, {
-          playerName: row.player_name,
-          points: Number(row.total_points),
-        });
-      }
+    for (const row of currentScores) {
+      diffPointsMap.set(row.play_cricket_id, {
+        playerName: row.player_name,
+        points: Number(row.total_points),
+      });
     }
 
-    // Fall back to previous season totals from fantasy_player_score
-    if (diffPointsMap.size === 0 || lastCompletedGw === 0) {
+    // Fall back to previous season totals when the current season has no scores yet.
+    if (diffPointsMap.size === 0) {
+      isFromPreviousSeason = true;
       const prevSeason = getPreviousSeason(s);
       const prevScores = await db
         .selectFrom("fantasy_player_score as fps")
@@ -1221,15 +1236,13 @@ export function getOwnershipOverview(db: Kysely<DB>) {
         .execute();
 
       for (const row of prevScores) {
-        if (!diffPointsMap.has(row.play_cricket_id)) {
-          diffPointsMap.set(row.play_cricket_id, {
-            playerName: row.player_name,
-            points: Number(row.total_points),
-          });
-        }
+        diffPointsMap.set(row.play_cricket_id, {
+          playerName: row.player_name,
+          points: Number(row.total_points),
+        });
       }
 
-      // Fall back to raw match performance data if fantasy_player_score is empty
+      // Final fall back to raw match performance data if fantasy_player_score is empty.
       if (diffPointsMap.size === 0) {
         const rawPoints = await calculateSeasonPointsFromMatches(db, [
           prevSeason,
@@ -1253,7 +1266,14 @@ export function getOwnershipOverview(db: Kysely<DB>) {
       costMap,
     );
 
-    return { mostOwned, mostCaptained, differentials, teamCount, gameweek };
+    return {
+      mostOwned,
+      mostCaptained,
+      differentials,
+      teamCount,
+      gameweek,
+      isFromPreviousSeason,
+    };
   };
 }
 
@@ -1913,7 +1933,7 @@ export function getTeam(db: Kysely<DB>) {
       throw httpError(404, "Team not found.");
     }
 
-    const gameweek = getCurrentGameweek(team.season);
+    const currentGameweek = getCurrentGameweek(team.season);
 
     const players = await db
       .selectFrom("fantasy_team_player as ftp")
@@ -1923,11 +1943,11 @@ export function getTeam(db: Kysely<DB>) {
         "ftp.play_cricket_id",
       )
       .where("ftp.fantasy_team_id", "=", team.id)
-      .where("ftp.gameweek_added", "<=", gameweek)
+      .where("ftp.gameweek_added", "<=", currentGameweek)
       .where((eb) =>
         eb.or([
           eb("ftp.gameweek_removed", "is", null),
-          eb("ftp.gameweek_removed", ">", gameweek),
+          eb("ftp.gameweek_removed", ">", currentGameweek),
         ]),
       )
       .select([
@@ -1940,7 +1960,39 @@ export function getTeam(db: Kysely<DB>) {
       ])
       .execute();
 
-    const { ownershipMap } = await getOwnershipData(db, team.season, gameweek);
+    const { ownershipMap } = await getOwnershipData(
+      db,
+      team.season,
+      currentGameweek,
+    );
+
+    // Team-level weekly scores across the season.
+    const teamScores = await db
+      .selectFrom("fantasy_team_score")
+      .where("fantasy_team_id", "=", team.id)
+      .where("season", "=", team.season)
+      .select(["gameweek_id", "total_points"])
+      .orderBy("gameweek_id", "asc")
+      .execute();
+
+    const seasonPoints = teamScores.reduce((sum, s) => sum + s.total_points, 0);
+    const gameweeksPlayed = teamScores.length;
+    const latestGameweek =
+      teamScores.length > 0
+        ? (teamScores[teamScores.length - 1]?.gameweek_id ?? null)
+        : null;
+    const latestGameweekPoints =
+      teamScores.length > 0
+        ? (teamScores[teamScores.length - 1]?.total_points ?? 0)
+        : 0;
+
+    // Compute per-player effective points across the season for this team.
+    const effectivePointsBy = await computeTeamEffectivePoints(
+      db,
+      team.id,
+      team.season,
+      teamScores.map((ts) => ts.gameweek_id),
+    );
 
     return {
       team: {
@@ -1948,9 +2000,14 @@ export function getTeam(db: Kysely<DB>) {
         season: team.season,
         ownerName: team.ownerName,
         ownerId: team.ownerId,
+        seasonPoints,
+        latestGameweek,
+        latestGameweekPoints,
+        gameweeksPlayed,
       },
       players: players.map((p) => {
         const ownership = ownershipMap.get(p.play_cricket_id);
+        const eff = effectivePointsBy.get(p.play_cricket_id);
         return {
           playCricketId: p.play_cricket_id,
           playerName: p.player_name,
@@ -1959,10 +2016,160 @@ export function getTeam(db: Kysely<DB>) {
           slotType: p.slot_type as SlotType,
           isWicketkeeper: p.is_wicketkeeper,
           ownershipPct: ownership?.ownershipPct ?? 0,
+          seasonPoints: eff?.seasonPoints ?? 0,
+          latestGameweekPoints: eff?.latestGameweekPoints ?? 0,
         };
       }),
     };
   };
+}
+
+/**
+ * Load all squad memberships, player scores, and chip usages for this team,
+ * then compute per-player effective points (accounting for captain multiplier,
+ * slot/WK rules, triple-captain chip) for each gameweek in `gameweeks`, and
+ * return a per-player aggregate of season total and latest-gameweek totals.
+ */
+async function computeTeamEffectivePoints(
+  db: Kysely<DB>,
+  teamId: number,
+  season: string,
+  gameweeks: number[],
+): Promise<
+  Map<string, { seasonPoints: number; latestGameweekPoints: number }>
+> {
+  if (gameweeks.length === 0) return new Map();
+
+  const latestGameweek = gameweeks[gameweeks.length - 1] ?? null;
+
+  const memberships = await db
+    .selectFrom("fantasy_team_player")
+    .where("fantasy_team_id", "=", teamId)
+    .select([
+      "play_cricket_id",
+      "gameweek_added",
+      "gameweek_removed",
+      "is_captain",
+      "slot_type",
+      "is_wicketkeeper",
+    ])
+    .execute();
+
+  if (memberships.length === 0) return new Map();
+
+  const playerIds = Array.from(
+    new Set(memberships.map((m) => m.play_cricket_id)),
+  );
+
+  const scores = await db
+    .selectFrom("fantasy_player_score")
+    .where("season", "=", season)
+    .where("gameweek_id", "in", gameweeks)
+    .where("play_cricket_id", "in", playerIds)
+    .select([
+      "play_cricket_id",
+      "gameweek_id",
+      "batting_points",
+      "bowling_points",
+      "fielding_points",
+      "team_points",
+      "catches",
+      "stumpings",
+      "is_actual_keeper",
+    ])
+    .execute();
+
+  const chipRows = await db
+    .selectFrom("fantasy_chip_usage")
+    .where("fantasy_team_id", "=", teamId)
+    .where("season", "=", season)
+    .select(["gameweek_id", "chip_type"])
+    .execute();
+
+  const tripleCaptainGameweeks = new Set(
+    chipRows
+      .filter((c) => c.chip_type === "triple_captain")
+      .map((c) => c.gameweek_id),
+  );
+
+  // Group aggregated scores: (playerId, gameweek) -> summed score components.
+  interface GwScore {
+    battingPoints: number;
+    bowlingPoints: number;
+    fieldingPoints: number;
+    teamPoints: number;
+    catches: number;
+    stumpings: number;
+    isActualKeeper: boolean;
+  }
+  const scoresByPlayerGw = new Map<string, GwScore>();
+  const key = (playerId: string, gw: number) => `${playerId}::${gw}`;
+  for (const s of scores) {
+    const k = key(s.play_cricket_id, s.gameweek_id);
+    const existing = scoresByPlayerGw.get(k) ?? {
+      battingPoints: 0,
+      bowlingPoints: 0,
+      fieldingPoints: 0,
+      teamPoints: 0,
+      catches: 0,
+      stumpings: 0,
+      isActualKeeper: false,
+    };
+    existing.battingPoints += s.batting_points;
+    existing.bowlingPoints += s.bowling_points;
+    existing.fieldingPoints += s.fielding_points;
+    existing.teamPoints += s.team_points;
+    existing.catches += s.catches;
+    existing.stumpings += s.stumpings;
+    if (s.is_actual_keeper) existing.isActualKeeper = true;
+    scoresByPlayerGw.set(k, existing);
+  }
+
+  const result = new Map<
+    string,
+    { seasonPoints: number; latestGameweekPoints: number }
+  >();
+
+  for (const m of memberships) {
+    for (const gw of gameweeks) {
+      // Player only counts if in squad that gameweek.
+      if (m.gameweek_added > gw) continue;
+      if (m.gameweek_removed !== null && m.gameweek_removed <= gw) continue;
+
+      const s = scoresByPlayerGw.get(key(m.play_cricket_id, gw));
+      if (!s) continue;
+
+      const captainMultiplier = tripleCaptainGameweeks.has(gw)
+        ? CHIPS.triple_captain.captainMultiplier
+        : 2;
+
+      const effective = calculateSlotEffectivePoints({
+        slotType: m.slot_type as SlotType,
+        isFantasyWk: m.is_wicketkeeper,
+        battingPts: s.battingPoints,
+        bowlingPts: s.bowlingPoints,
+        fieldingPts: s.fieldingPoints,
+        teamPts: s.teamPoints,
+        catches: s.catches,
+        stumpings: s.stumpings,
+        isActualKeeper: s.isActualKeeper,
+        isCaptain: m.is_captain,
+        captainMultiplier,
+      });
+
+      const existing = result.get(m.play_cricket_id) ?? {
+        seasonPoints: 0,
+        latestGameweekPoints: 0,
+      };
+      existing.seasonPoints += effective;
+      if (gw === latestGameweek) {
+        existing.latestGameweekPoints += effective;
+      }
+      result.set(m.play_cricket_id, existing);
+    }
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -2145,32 +2352,6 @@ export function getGameweekDetail(db: Kysely<DB>) {
         };
       }),
     };
-  };
-}
-
-export function getSeasonTimeline(db: Kysely<DB>) {
-  return async (teamId: number, season?: string) => {
-    const s = season ?? getCurrentSeason();
-
-    const scores = await db
-      .selectFrom("fantasy_team_score")
-      .where("fantasy_team_id", "=", teamId)
-      .where("season", "=", s)
-      .select(["gameweek_id", "total_points"])
-      .orderBy("gameweek_id", "asc")
-      .execute();
-
-    let cumulative = 0;
-    const timeline = scores.map((sc) => {
-      cumulative += sc.total_points;
-      return {
-        gameweek: sc.gameweek_id,
-        weeklyPoints: sc.total_points,
-        cumulativePoints: cumulative,
-      };
-    });
-
-    return { timeline, season: s, teamId };
   };
 }
 
@@ -2566,6 +2747,139 @@ export function getTeamShareData(db: Kysely<DB>) {
         slotType: p.slot_type as SlotType,
         isWicketkeeper: p.is_wicketkeeper,
       })),
+    };
+  };
+}
+
+/**
+ * Recent transfer activity across all teams.
+ *
+ * Returns one entry per (team, gameweek) where the team's active roster
+ * changed between gameweek-1 and gameweek. Adds/drops are computed via
+ * set-difference on the active roster, so config-only row churn
+ * (captain/slot/WK versioning) does not produce spurious entries.
+ *
+ * Ordered by gameweek DESC, then by max(fantasy_team_player.id) DESC
+ * within a gameweek (a proxy for recency since the table has no
+ * timestamp column — ids are monotonically assigned).
+ */
+export function getRecentTransfers(db: Kysely<DB>) {
+  return async (season?: string, limit = 5) => {
+    const s = season ?? getCurrentSeason();
+
+    const rows = await db
+      .selectFrom("fantasy_team_player as ftp")
+      .innerJoin("fantasy_team as ft", "ft.id", "ftp.fantasy_team_id")
+      .innerJoin("user as u", "u.id", "ft.user_id")
+      .innerJoin(
+        "fantasy_player as fp",
+        "fp.play_cricket_id",
+        "ftp.play_cricket_id",
+      )
+      .where("ft.season", "=", s)
+      .select([
+        "ftp.id",
+        "ftp.fantasy_team_id as teamId",
+        "ftp.play_cricket_id as playCricketId",
+        "ftp.gameweek_added as gameweekAdded",
+        "ftp.gameweek_removed as gameweekRemoved",
+        "u.name as ownerName",
+        "fp.player_name as playerName",
+      ])
+      .execute();
+
+    type Row = (typeof rows)[number];
+    const byTeam = new Map<number, Row[]>();
+    for (const r of rows) {
+      const list = byTeam.get(r.teamId);
+      if (list) list.push(r);
+      else byTeam.set(r.teamId, [r]);
+    }
+
+    interface Entry {
+      teamId: number;
+      ownerName: string;
+      gameweek: number;
+      added: Array<{ playCricketId: string; playerName: string }>;
+      dropped: Array<{ playCricketId: string; playerName: string }>;
+      orderId: number;
+    }
+
+    const entries: Entry[] = [];
+
+    for (const [teamId, teamRows] of byTeam) {
+      const ownerName = teamRows[0]?.ownerName ?? "Unknown";
+
+      const candidateGws = new Set<number>();
+      for (const r of teamRows) {
+        if (r.gameweekAdded > 1) candidateGws.add(r.gameweekAdded);
+        if (r.gameweekRemoved !== null && r.gameweekRemoved > 1) {
+          candidateGws.add(r.gameweekRemoved);
+        }
+      }
+
+      for (const gw of candidateGws) {
+        const prevActive = new Map<string, string>();
+        const currActive = new Map<string, string>();
+        for (const r of teamRows) {
+          const activeAtPrev =
+            r.gameweekAdded <= gw - 1 &&
+            (r.gameweekRemoved === null || r.gameweekRemoved > gw - 1);
+          const activeAtCurr =
+            r.gameweekAdded <= gw &&
+            (r.gameweekRemoved === null || r.gameweekRemoved > gw);
+          if (activeAtPrev) prevActive.set(r.playCricketId, r.playerName);
+          if (activeAtCurr) currActive.set(r.playCricketId, r.playerName);
+        }
+
+        const added: Entry["added"] = [];
+        for (const [playCricketId, playerName] of currActive) {
+          if (!prevActive.has(playCricketId)) {
+            added.push({ playCricketId, playerName });
+          }
+        }
+        const dropped: Entry["dropped"] = [];
+        for (const [playCricketId, playerName] of prevActive) {
+          if (!currActive.has(playCricketId)) {
+            dropped.push({ playCricketId, playerName });
+          }
+        }
+
+        if (added.length === 0 && dropped.length === 0) continue;
+        // Skip initial squads (previous roster empty). That's a brand-new
+        // team, not a transfer — all 11 players would otherwise show up
+        // as "added".
+        if (prevActive.size === 0) continue;
+
+        let orderId = 0;
+        for (const r of teamRows) {
+          if (r.gameweekAdded === gw || r.gameweekRemoved === gw) {
+            if (r.id > orderId) orderId = r.id;
+          }
+        }
+
+        entries.push({
+          teamId,
+          ownerName,
+          gameweek: gw,
+          added,
+          dropped,
+          orderId,
+        });
+      }
+    }
+
+    entries.sort((a, b) => b.gameweek - a.gameweek || b.orderId - a.orderId);
+
+    return {
+      entries: entries.slice(0, limit).map((e) => ({
+        teamId: e.teamId,
+        ownerName: e.ownerName,
+        gameweek: e.gameweek,
+        added: e.added,
+        dropped: e.dropped,
+      })),
+      season: s,
     };
   };
 }

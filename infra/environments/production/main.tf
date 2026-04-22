@@ -9,6 +9,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    tailscale = {
+      source  = "tailscale/tailscale"
+      version = "~> 0.18"
+    }
   }
 
   backend "s3" {
@@ -22,6 +26,27 @@ terraform {
 
 provider "aws" {
   region = "eu-west-2"
+}
+
+# ---------------------------------------------------------------------------
+# Tailscale provider — auth via OAuth client stored in Secrets Manager
+# (manually created in the Tailscale admin console with scopes: Policy File
+# write + OAuth Keys write, and tag ownership of tag:subnet-router so it can
+# delegate that tag to the router's OAuth client)
+# ---------------------------------------------------------------------------
+
+data "aws_secretsmanager_secret_version" "tailscale_terraform_oauth" {
+  secret_id = "percy-main-production/tailscale/terraform-oauth"
+}
+
+locals {
+  tailscale_tf_creds = jsondecode(data.aws_secretsmanager_secret_version.tailscale_terraform_oauth.secret_string)
+}
+
+provider "tailscale" {
+  oauth_client_id     = local.tailscale_tf_creds.client_id
+  oauth_client_secret = local.tailscale_tf_creds.client_secret
+  tailnet             = "-" # "-" = the tailnet owned by the authenticated client
 }
 
 # ---------------------------------------------------------------------------
@@ -72,41 +97,50 @@ module "rds" {
 # ---------------------------------------------------------------------------
 
 module "ecs" {
-  source                = "../../modules/ecs-service"
-  environment           = "production"
-  task_count            = 1
-  max_task_count        = 4
-  cpu                   = 256
-  memory                = 512
-  ecr_repository_url    = local.shared.ecr_repository_url
-  acm_certificate_arn   = local.shared.acm_alb_certificate_arn
-  vpc_id                = module.vpc.vpc_id
-  private_subnet_ids    = module.vpc.public_subnet_ids
-  public_subnet_ids     = module.vpc.public_subnet_ids
-  ecs_security_group_id = module.vpc.ecs_security_group_id
-  alb_security_group_id = module.vpc.alb_security_group_id
-  health_check_path     = "/health"
-  log_retention_days    = 30
-  assign_public_ip      = true
-  ses_identity_arn        = local.shared.ses_identity_arn
+  source                   = "../../modules/ecs-service"
+  environment              = "production"
+  task_count               = 1
+  max_task_count           = 4
+  cpu                      = 256
+  memory                   = 512
+  ecr_repository_url       = local.shared.ecr_repository_url
+  acm_certificate_arn      = local.shared.acm_alb_certificate_arn
+  vpc_id                   = module.vpc.vpc_id
+  private_subnet_ids       = module.vpc.public_subnet_ids
+  public_subnet_ids        = module.vpc.public_subnet_ids
+  ecs_security_group_id    = module.vpc.ecs_security_group_id
+  alb_security_group_id    = module.vpc.alb_security_group_id
+  health_check_path        = "/health"
+  log_retention_days       = 30
+  assign_public_ip         = true
+  ses_identity_arn         = local.shared.ses_identity_arn
   newrelic_license_key_arn = "${aws_secretsmanager_secret.app_secrets.arn}:NEW_RELIC_LICENSE_KEY::"
 
   documents_bucket_arn        = module.documents_bucket.bucket_arn
   document_uploads_bucket_arn = module.document_uploads.bucket_arn
 
   environment_variables = {
-    NODE_ENV                     = "production"
-    PORT                         = "3000"
-    HOST                         = "0.0.0.0"
-    LOG_LEVEL                    = "info"
-    EMAIL_PROVIDER               = "ses"
-    SES_REGION                   = "eu-west-2"
-    S3_BUCKET                    = "percy-main-production-uploads"
-    S3_REGION                    = "eu-west-2"
-    S3_RECEIPT_PREFIX            = "receipts"
-    S3_DOCUMENTS_BUCKET          = module.documents_bucket.bucket_name
-    S3_DOCUMENTS_PREFIX          = "documents"
-    S3_DOCUMENT_UPLOADS_BUCKET   = module.document_uploads.bucket_name
+    NODE_ENV                   = "production"
+    PORT                       = "3000"
+    HOST                       = "0.0.0.0"
+    LOG_LEVEL                  = "info"
+    EMAIL_PROVIDER             = "ses"
+    SES_REGION                 = "eu-west-2"
+    S3_BUCKET                  = "percy-main-production-uploads"
+    S3_REGION                  = "eu-west-2"
+    S3_RECEIPT_PREFIX          = "receipts"
+    S3_DOCUMENTS_BUCKET        = module.documents_bucket.bucket_name
+    S3_DOCUMENTS_PREFIX        = "documents"
+    S3_DOCUMENT_UPLOADS_BUCKET = module.document_uploads.bucket_name
+    AWS_REGION                 = "eu-west-2"
+    # Cannot reference module.ecs.* outputs that depend on the task definition
+    # here — that would cycle through the env-vars input. The cluster and family
+    # names are deterministic from the environment, so inline them.
+    SYNC_ECS_CLUSTER          = "percy-main-production-cluster"
+    SYNC_ECS_TASK_DEFINITION  = "production-api"
+    SYNC_ECS_SUBNETS          = join(",", module.vpc.public_subnet_ids)
+    SYNC_ECS_SECURITY_GROUP   = module.vpc.ecs_security_group_id
+    SYNC_ECS_ASSIGN_PUBLIC_IP = "true"
   }
 
   secrets = {
@@ -203,6 +237,67 @@ module "monitoring" {
 }
 
 # ---------------------------------------------------------------------------
+# Tailscale Subnet Router — admin DB access
+# Advertises the VPC CIDR to the tailnet. See docs/adrs/ for bootstrap steps.
+# ---------------------------------------------------------------------------
+
+module "tailscale_router" {
+  source           = "../../modules/tailscale-router"
+  environment      = "production"
+  vpc_id           = module.vpc.vpc_id
+  public_subnet_id = module.vpc.public_subnet_ids[0]
+  advertise_cidr   = "10.0.0.0/16"
+}
+
+# Allow admins on the tailnet (via the router) to reach RDS
+resource "aws_security_group_rule" "rds_ingress_from_tailscale" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = module.tailscale_router.security_group_id
+  security_group_id        = module.vpc.rds_security_group_id
+  description              = "PostgreSQL from Tailscale subnet router (admin access)"
+}
+
+# Tailscale ACL — who can reach what over the tailnet
+resource "tailscale_acl" "main" {
+  acl = jsonencode({
+    tagOwners = {
+      "tag:subnet-router" = ["autogroup:admin"]
+    }
+    groups = {
+      "group:db-admins" = var.tailscale_db_admins
+    }
+    autoApprovers = {
+      routes = {
+        "10.0.0.0/16" = ["tag:subnet-router"]
+      }
+    }
+    acls = [
+      {
+        action = "accept"
+        src    = ["group:db-admins"]
+        dst    = ["10.0.128.0/23:5432"]
+      }
+    ]
+  })
+}
+
+# Subnet-router OAuth client — minted under terraform so its secret flows
+# straight into the Secrets Manager placeholder the module creates.
+resource "tailscale_oauth_client" "subnet_router" {
+  description = "percy-main production subnet router"
+  scopes      = ["auth_keys"]
+  tags        = ["tag:subnet-router"]
+}
+
+resource "aws_secretsmanager_secret_version" "tailscale_auth" {
+  secret_id     = module.tailscale_router.auth_secret_arn
+  secret_string = tailscale_oauth_client.subnet_router.key
+}
+
+# ---------------------------------------------------------------------------
 # Scheduled Tasks
 # ---------------------------------------------------------------------------
 
@@ -216,4 +311,6 @@ module "scheduling" {
   task_execution_role_arn = module.ecs.task_execution_role_arn
   task_role_arn           = module.ecs.task_role_arn
   assign_public_ip        = true
+  alarms_sns_topic_arn    = module.monitoring.sns_topic_arn
+  log_group_name          = module.ecs.log_group_name
 }

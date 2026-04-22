@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { requireRole } from "../auth/middleware.ts";
 import {
   leagueTableResponseSchema,
   leagueTableSchema,
@@ -12,6 +13,7 @@ import {
   resultSummaryResponseSchema,
   resultSummarySchema,
   teamsResponseSchema,
+  triggerSyncResponseSchema,
 } from "./schemas.ts";
 import {
   getLeagueTable,
@@ -22,6 +24,7 @@ import {
   getResultSummary,
   getTeams,
 } from "./service.ts";
+import { SyncNotConfiguredError, triggerSync } from "./trigger-sync.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const playCricketRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -32,6 +35,29 @@ export const playCricketRoutes: FastifyPluginAsyncZod = async (app) => {
   const liveScores = getLiveScores(app.db);
   const careerStats = getPlayerCareerStats(app.db);
   const seasonStats = getPlayerSeasonStats(app.db);
+  const trigger = triggerSync(app.config);
+
+  app.post(
+    "/play-cricket/admin/sync",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        response: { 202: triggerSyncResponseSchema },
+      },
+    },
+    async (_request, reply) => {
+      try {
+        const result = await trigger();
+        reply.status(202);
+        return result;
+      } catch (err) {
+        if (err instanceof SyncNotConfiguredError) {
+          throw Object.assign(new Error(err.message), { statusCode: 503 });
+        }
+        throw err;
+      }
+    },
+  );
 
   app.get(
     "/play-cricket/match/:matchId",

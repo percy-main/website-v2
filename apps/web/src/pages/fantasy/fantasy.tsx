@@ -12,19 +12,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
-import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { ScoringRulesContent } from "./fantasy-rules.js";
 
 // ---------------------------------------------------------------------------
@@ -108,6 +97,14 @@ function useTeams() {
   });
 }
 
+function useTransferNews() {
+  return useQuery({
+    queryKey: ["fantasy", "transfer-news"],
+    queryFn: () => callApi(api.GET("/api/fantasy/transfer-news")),
+    staleTime: 60_000,
+  });
+}
+
 function useTeamDetail(teamId: number | null) {
   return useQuery({
     queryKey: ["fantasy", "team", teamId],
@@ -124,18 +121,18 @@ function useTeamDetail(teamId: number | null) {
   });
 }
 
-function useTimeline(teamId: number | null) {
+function usePlayerHistory(playCricketId: string | null) {
   return useQuery({
-    queryKey: ["fantasy", "timeline", teamId],
+    queryKey: ["fantasy", "player-history", playCricketId],
     queryFn: () => {
-      if (teamId === null) throw new Error("teamId is required");
+      if (playCricketId === null) throw new Error("playCricketId is required");
       return callApi(
-        api.GET("/api/fantasy/teams/{teamId}/timeline", {
-          params: { path: { teamId } },
+        api.GET("/api/fantasy/players/{playCricketId}/history", {
+          params: { path: { playCricketId } },
         }),
       );
     },
-    enabled: teamId !== null,
+    enabled: playCricketId !== null,
     staleTime: 5 * 60_000,
   });
 }
@@ -152,13 +149,14 @@ function Skeleton({ className = "" }: { className?: string }) {
 // Home Tab
 // ---------------------------------------------------------------------------
 
-function HomeTab() {
+function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
   const tw = useTransferWindow();
   const stats = usePreSeasonStats();
   const highlights = useHighlights();
   const ownership = useOwnership();
   const sandwich = useSandwichEfficiency();
   const seasonBoard = useSeasonLeaderboard();
+  const transferNews = useTransferNews();
 
   return (
     <div className="space-y-6">
@@ -246,12 +244,55 @@ function HomeTab() {
         <Card>
           <CardContent className="flex flex-col items-center gap-1 py-6">
             <span className="text-lg font-semibold text-green-600">
-              Transfer window open — GW{tw.data?.gameweek}
+              Transfer window open — Gameweek {tw.data?.gameweek}
             </span>
             <span className="text-muted-foreground text-sm">
               Locks in {tw.data?.daysUntilLock} day
               {tw.data?.daysUntilLock !== 1 ? "s" : ""}
             </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Transfer news */}
+      {transferNews.data && transferNews.data.entries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Transfer News</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {transferNews.data.entries.map((e) => (
+                <li
+                  key={`${e.teamId}-${e.gameweek}`}
+                  className="flex items-start justify-between gap-3"
+                >
+                  <span>
+                    <span className="font-medium">{e.ownerName}</span>
+                    {e.added.length > 0 && (
+                      <>
+                        {" added "}
+                        <span className="font-medium text-green-700">
+                          {e.added.map((p) => p.playerName).join(", ")}
+                        </span>
+                      </>
+                    )}
+                    {e.added.length > 0 && e.dropped.length > 0 && " and"}
+                    {e.dropped.length > 0 && (
+                      <>
+                        {" dropped "}
+                        <span className="font-medium text-red-700">
+                          {e.dropped.map((p) => p.playerName).join(", ")}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                  <span className="text-muted-foreground text-xs whitespace-nowrap">
+                    GW{e.gameweek}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}
@@ -406,7 +447,14 @@ function HomeTab() {
         {ownership.data && ownership.data.differentials.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Differential Picks</CardTitle>
+              <CardTitle>
+                Differential Picks
+                {ownership.data.isFromPreviousSeason && (
+                  <Badge variant="secondary" className="ml-2">
+                    Previous Season
+                  </Badge>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -498,14 +546,20 @@ function HomeTab() {
                   <TableHead>#</TableHead>
                   <TableHead>Team</TableHead>
                   <TableHead className="text-right">Points</TableHead>
-                  <TableHead className="text-right">GWs</TableHead>
+                  <TableHead className="text-right">Gameweeks</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {seasonBoard.data.entries.slice(0, 5).map((e) => (
-                  <TableRow key={e.teamId}>
+                  <TableRow
+                    key={e.teamId}
+                    className="cursor-pointer"
+                    onClick={() => onViewTeam(e.teamId)}
+                  >
                     <TableCell>{e.rank}</TableCell>
-                    <TableCell>{e.ownerName}</TableCell>
+                    <TableCell className="text-primary font-medium">
+                      {e.ownerName}
+                    </TableCell>
                     <TableCell className="text-right">
                       {e.totalPoints}
                     </TableCell>
@@ -545,10 +599,27 @@ function HighlightCard({
 // Leaderboards Tab
 // ---------------------------------------------------------------------------
 
-function LeaderboardsTab() {
+function LeaderboardsTab({
+  onViewTeam,
+  onViewPlayer,
+}: {
+  onViewTeam: (teamId: number) => void;
+  onViewPlayer: (playCricketId: string) => void;
+}) {
   const [params, setParams] = useSearchParams();
   const subTab = params.get("lb") ?? "season";
-  const [selectedGw, setSelectedGw] = useState<number | undefined>(undefined);
+
+  const gwParam = params.get("gw");
+  const selectedGw =
+    gwParam !== null && gwParam !== "" && !Number.isNaN(Number(gwParam))
+      ? Number(gwParam)
+      : undefined;
+
+  function setSelectedGw(gw: number) {
+    const next = new URLSearchParams(params);
+    next.set("gw", String(gw));
+    setParams(next, { replace: true });
+  }
 
   return (
     <div className="space-y-4">
@@ -561,6 +632,7 @@ function LeaderboardsTab() {
             onClick={() => {
               const next = new URLSearchParams(params);
               next.set("lb", t);
+              if (t !== "weekly") next.delete("gw");
               setParams(next, { replace: true });
             }}
           >
@@ -569,16 +641,26 @@ function LeaderboardsTab() {
         ))}
       </div>
 
-      {subTab === "season" && <SeasonLeaderboard />}
+      {subTab === "season" && <SeasonLeaderboard onViewTeam={onViewTeam} />}
       {subTab === "weekly" && (
-        <WeeklyLeaderboard selectedGw={selectedGw} onSelectGw={setSelectedGw} />
+        <WeeklyLeaderboard
+          selectedGw={selectedGw}
+          onSelectGw={setSelectedGw}
+          onViewTeam={onViewTeam}
+        />
       )}
-      {subTab === "players" && <PlayerLeaderboard />}
+      {subTab === "players" && (
+        <PlayerLeaderboard onViewPlayer={onViewPlayer} />
+      )}
     </div>
   );
 }
 
-function SeasonLeaderboard() {
+function SeasonLeaderboard({
+  onViewTeam,
+}: {
+  onViewTeam: (teamId: number) => void;
+}) {
   const { data, isPending, error } = useSeasonLeaderboard();
 
   if (isPending) return <LoadingTable rows={10} cols={4} />;
@@ -596,14 +678,20 @@ function SeasonLeaderboard() {
           <TableHead>#</TableHead>
           <TableHead>Team</TableHead>
           <TableHead className="text-right">Points</TableHead>
-          <TableHead className="text-right">GWs</TableHead>
+          <TableHead className="text-right">Gameweeks</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {data.entries.map((e) => (
-          <TableRow key={e.teamId}>
+          <TableRow
+            key={e.teamId}
+            className="cursor-pointer"
+            onClick={() => onViewTeam(e.teamId)}
+          >
             <TableCell>{e.rank}</TableCell>
-            <TableCell>{e.ownerName}</TableCell>
+            <TableCell className="text-primary font-medium">
+              {e.ownerName}
+            </TableCell>
             <TableCell className="text-right">{e.totalPoints}</TableCell>
             <TableCell className="text-right">{e.gameweeksPlayed}</TableCell>
           </TableRow>
@@ -616,9 +704,11 @@ function SeasonLeaderboard() {
 function WeeklyLeaderboard({
   selectedGw,
   onSelectGw,
+  onViewTeam,
 }: {
   selectedGw: number | undefined;
   onSelectGw: (gw: number) => void;
+  onViewTeam: (teamId: number) => void;
 }) {
   const { data, isPending, error } = useWeeklyLeaderboard(selectedGw);
 
@@ -658,9 +748,15 @@ function WeeklyLeaderboard({
           </TableHeader>
           <TableBody>
             {data.entries.map((e) => (
-              <TableRow key={e.teamId}>
+              <TableRow
+                key={e.teamId}
+                className="cursor-pointer"
+                onClick={() => onViewTeam(e.teamId)}
+              >
                 <TableCell>{e.rank}</TableCell>
-                <TableCell>{e.ownerName}</TableCell>
+                <TableCell className="text-primary font-medium">
+                  {e.ownerName}
+                </TableCell>
                 <TableCell className="text-right">{e.weeklyPoints}</TableCell>
               </TableRow>
             ))}
@@ -671,7 +767,11 @@ function WeeklyLeaderboard({
   );
 }
 
-function PlayerLeaderboard() {
+function PlayerLeaderboard({
+  onViewPlayer,
+}: {
+  onViewPlayer: (playCricketId: string) => void;
+}) {
   const { data, isPending, error } = usePlayerLeaderboard();
 
   if (isPending) return <LoadingTable rows={10} cols={6} />;
@@ -695,14 +795,20 @@ function PlayerLeaderboard() {
             <TableHead className="text-right">Bowl</TableHead>
             <TableHead className="text-right">Field</TableHead>
             <TableHead className="text-right">Total</TableHead>
-            <TableHead className="text-right">MP</TableHead>
+            <TableHead className="text-right">Matches</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.entries.map((e) => (
-            <TableRow key={e.playCricketId}>
+            <TableRow
+              key={e.playCricketId}
+              className="cursor-pointer"
+              onClick={() => onViewPlayer(e.playCricketId)}
+            >
               <TableCell>{e.rank}</TableCell>
-              <TableCell>{e.playerName}</TableCell>
+              <TableCell className="text-primary font-medium">
+                {e.playerName}
+              </TableCell>
               <TableCell className="text-right">{e.battingPoints}</TableCell>
               <TableCell className="text-right">{e.bowlingPoints}</TableCell>
               <TableCell className="text-right">{e.fieldingPoints}</TableCell>
@@ -722,13 +828,8 @@ function PlayerLeaderboard() {
 // All Teams Tab
 // ---------------------------------------------------------------------------
 
-function AllTeamsTab() {
+function AllTeamsTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
   const { data, isPending, error } = useTeams();
-  const [viewTeamId, setViewTeamId] = useState<number | null>(null);
-
-  if (viewTeamId !== null) {
-    return <TeamView teamId={viewTeamId} onBack={() => setViewTeamId(null)} />;
-  }
 
   if (isPending) return <LoadingTable rows={8} cols={2} />;
   if (error)
@@ -753,7 +854,7 @@ function AllTeamsTab() {
           <TableRow
             key={t.id}
             className="cursor-pointer"
-            onClick={() => setViewTeamId(t.id)}
+            onClick={() => onViewTeam(t.id)}
           >
             <TableCell className="text-primary font-medium">
               {t.ownerName}
@@ -768,7 +869,19 @@ function AllTeamsTab() {
   );
 }
 
-function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
+// ---------------------------------------------------------------------------
+// Team detail view
+// ---------------------------------------------------------------------------
+
+function TeamView({
+  teamId,
+  onBack,
+  onViewPlayer,
+}: {
+  teamId: number;
+  onBack: () => void;
+  onViewPlayer: (playCricketId: string) => void;
+}) {
   const { data, isPending, error } = useTeamDetail(teamId);
 
   if (isPending) return <LoadingTable rows={11} cols={4} />;
@@ -781,12 +894,46 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
     (a, b) => (slotOrder[a.slotType] ?? 3) - (slotOrder[b.slotType] ?? 3),
   );
 
+  const { latestGameweek } = data.team;
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <Button variant="outline" size="sm" onClick={onBack}>
-        &larr; All Teams
+        &larr; Back
       </Button>
       <h3 className="text-lg font-semibold">{data.team.ownerName}</h3>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <Card>
+          <CardContent className="flex flex-col items-center py-6">
+            <span className="text-3xl font-bold">{data.team.seasonPoints}</span>
+            <span className="text-muted-foreground text-sm">Season points</span>
+          </CardContent>
+        </Card>
+        {latestGameweek !== null && (
+          <Card>
+            <CardContent className="flex flex-col items-center py-6">
+              <span className="text-3xl font-bold">
+                {data.team.latestGameweekPoints}
+              </span>
+              <span className="text-muted-foreground text-sm">
+                Gameweek {latestGameweek} points
+              </span>
+            </CardContent>
+          </Card>
+        )}
+        <Card>
+          <CardContent className="flex flex-col items-center py-6">
+            <span className="text-3xl font-bold">
+              {data.team.gameweeksPlayed}
+            </span>
+            <span className="text-muted-foreground text-sm">
+              Gameweeks played
+            </span>
+          </CardContent>
+        </Card>
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -794,12 +941,20 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
             <TableHead>Slot</TableHead>
             <TableHead className="text-center">Cost</TableHead>
             <TableHead className="text-right">Owned</TableHead>
+            <TableHead className="text-right">Season</TableHead>
+            {latestGameweek !== null && (
+              <TableHead className="text-right">GW{latestGameweek}</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {sorted.map((p) => (
-            <TableRow key={p.playCricketId}>
-              <TableCell>
+            <TableRow
+              key={p.playCricketId}
+              className="cursor-pointer"
+              onClick={() => onViewPlayer(p.playCricketId)}
+            >
+              <TableCell className="text-primary font-medium">
                 {p.playerName}
                 {p.isCaptain && (
                   <Badge variant="default" className="ml-1">
@@ -819,6 +974,14 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
                 </span>
               </TableCell>
               <TableCell className="text-right">{p.ownershipPct}%</TableCell>
+              <TableCell className="text-right font-medium">
+                {p.seasonPoints}
+              </TableCell>
+              {latestGameweek !== null && (
+                <TableCell className="text-right">
+                  {p.latestGameweekPoints}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
@@ -828,121 +991,94 @@ function TeamView({ teamId, onBack }: { teamId: number; onBack: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// History Tab (requires auth)
+// Player detail view
 // ---------------------------------------------------------------------------
 
-function HistoryTab() {
-  const { data: session } = useSession();
-  const seasonBoard = useSeasonLeaderboard();
+function PlayerView({
+  playCricketId,
+  onBack,
+}: {
+  playCricketId: string;
+  onBack: () => void;
+}) {
+  const { data, isPending, error } = usePlayerHistory(playCricketId);
 
-  if (!session) {
-    return (
-      <Card>
-        <CardContent className="py-6 text-center">
-          <p>
-            <Link to="/auth/login" className="text-primary underline">
-              Sign in
-            </Link>{" "}
-            to view your team history.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (isPending) return <LoadingTable rows={6} cols={7} />;
+  if (error)
+    return <p className="text-center text-red-600">Failed to load player.</p>;
+  if (!data) return null;
 
-  // Find user's team from season leaderboard
-  const myTeam = seasonBoard.data?.entries.find(
-    (e) => e.ownerName === session.user.name,
+  const totals = data.gameweeks.reduce(
+    (acc, gw) => ({
+      batting: acc.batting + gw.battingPoints,
+      bowling: acc.bowling + gw.bowlingPoints,
+      fielding: acc.fielding + gw.fieldingPoints,
+      team: acc.team + gw.teamPoints,
+      total: acc.total + gw.totalPoints,
+      matches: acc.matches + gw.matchCount,
+    }),
+    { batting: 0, bowling: 0, fielding: 0, team: 0, total: 0, matches: 0 },
   );
 
-  if (seasonBoard.isPending) return <LoadingTable rows={5} cols={3} />;
-
-  if (!myTeam) {
-    return (
-      <Card>
-        <CardContent className="text-muted-foreground py-6 text-center">
-          No scoring history yet. Your history will appear after your first
-          scored gameweek.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return <TimelineView teamId={myTeam.teamId} ownerName={myTeam.ownerName} />;
-}
-
-function TimelineView({
-  teamId,
-  ownerName,
-}: {
-  teamId: number;
-  ownerName: string;
-}) {
-  const { data, isPending } = useTimeline(teamId);
-
-  if (isPending) return <LoadingTable rows={5} cols={3} />;
-  if (!data?.timeline.length) {
-    return (
-      <p className="text-muted-foreground text-center">
-        No gameweeks scored yet.
-      </p>
-    );
-  }
-
-  const chartData = data.timeline.map((t) => ({
-    name: `GW${t.gameweek}`,
-    weekly: t.weeklyPoints,
-    cumulative: t.cumulativePoints,
-  }));
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{ownerName}&apos;s Season Timeline</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="cumulative"
-                name="Cumulative"
-                stroke="#2563eb"
-                strokeWidth={2}
-                dot={{ r: 4 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="weekly"
-                name="Weekly"
-                stroke="#9ca3af"
-                strokeWidth={1}
-                strokeDasharray="4 4"
-                dot={{ r: 3 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+    <div className="space-y-4">
+      <Button variant="outline" size="sm" onClick={onBack}>
+        &larr; Back
+      </Button>
+      <h3 className="text-lg font-semibold">{data.playerName}</h3>
+
+      {data.gameweeks.length === 0 ? (
+        <p className="text-muted-foreground text-center">
+          No scores yet this season.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Gameweek</TableHead>
+                <TableHead className="text-right">Bat</TableHead>
+                <TableHead className="text-right">Bowl</TableHead>
+                <TableHead className="text-right">Field</TableHead>
+                <TableHead className="text-right">Team</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                <TableHead className="text-right">Matches</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow className="bg-muted/50 font-semibold">
+                <TableCell>Total</TableCell>
+                <TableCell className="text-right">{totals.batting}</TableCell>
+                <TableCell className="text-right">{totals.bowling}</TableCell>
+                <TableCell className="text-right">{totals.fielding}</TableCell>
+                <TableCell className="text-right">{totals.team}</TableCell>
+                <TableCell className="text-right">{totals.total}</TableCell>
+                <TableCell className="text-right">{totals.matches}</TableCell>
+              </TableRow>
+              {data.gameweeks.map((gw) => (
+                <TableRow key={gw.gameweek}>
+                  <TableCell>GW{gw.gameweek}</TableCell>
+                  <TableCell className="text-right">
+                    {gw.battingPoints}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {gw.bowlingPoints}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {gw.fieldingPoints}
+                  </TableCell>
+                  <TableCell className="text-right">{gw.teamPoints}</TableCell>
+                  <TableCell className="text-right font-semibold">
+                    {gw.totalPoints}
+                  </TableCell>
+                  <TableCell className="text-right">{gw.matchCount}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
-        <div className="mt-3 flex gap-6 text-sm">
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-0.5 w-4 bg-blue-600" /> Cumulative
-            points
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-0.5 w-4 border-t-2 border-dashed border-gray-400" />{" "}
-            Weekly points
-          </span>
-        </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
 
@@ -975,14 +1111,51 @@ export function Component() {
   );
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") ?? "home";
-  const { data: session } = useSession();
+
+  const teamParam = params.get("team");
+  const viewTeamId =
+    teamParam !== null && teamParam !== "" && !Number.isNaN(Number(teamParam))
+      ? Number(teamParam)
+      : null;
+
+  const playerParam = params.get("player");
+  const viewPlayerId =
+    playerParam !== null && playerParam !== "" ? playerParam : null;
 
   function setTab(t: string) {
     const next = new URLSearchParams(params);
     next.set("tab", t);
-    // Clean up sub-params when switching tabs
+    // Clean up sub-params when switching tabs so stale state doesn't leak across.
     next.delete("lb");
+    next.delete("gw");
+    next.delete("team");
+    next.delete("player");
     setParams(next, { replace: true });
+  }
+
+  function onViewTeam(teamId: number) {
+    const next = new URLSearchParams(params);
+    next.set("team", String(teamId));
+    next.delete("player");
+    setParams(next);
+  }
+
+  function onBackFromTeam() {
+    const next = new URLSearchParams(params);
+    next.delete("team");
+    setParams(next);
+  }
+
+  function onViewPlayer(playCricketId: string) {
+    const next = new URLSearchParams(params);
+    next.set("player", playCricketId);
+    setParams(next);
+  }
+
+  function onBackFromPlayer() {
+    const next = new URLSearchParams(params);
+    next.delete("player");
+    setParams(next);
   }
 
   return (
@@ -994,27 +1167,36 @@ export function Component() {
           <TabsTrigger value="home">Home</TabsTrigger>
           <TabsTrigger value="teams">All Teams</TabsTrigger>
           <TabsTrigger value="leaderboards">Leaderboards</TabsTrigger>
-          {session && <TabsTrigger value="history">History</TabsTrigger>}
           <TabsTrigger value="rules">Rules</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="home">
-          <HomeTab />
-        </TabsContent>
-        <TabsContent value="teams">
-          <AllTeamsTab />
-        </TabsContent>
-        <TabsContent value="leaderboards">
-          <LeaderboardsTab />
-        </TabsContent>
-        {session && (
-          <TabsContent value="history">
-            <HistoryTab />
-          </TabsContent>
+        {viewPlayerId !== null ? (
+          <PlayerView playCricketId={viewPlayerId} onBack={onBackFromPlayer} />
+        ) : viewTeamId !== null ? (
+          <TeamView
+            teamId={viewTeamId}
+            onBack={onBackFromTeam}
+            onViewPlayer={onViewPlayer}
+          />
+        ) : (
+          <>
+            <TabsContent value="home">
+              <HomeTab onViewTeam={onViewTeam} />
+            </TabsContent>
+            <TabsContent value="teams">
+              <AllTeamsTab onViewTeam={onViewTeam} />
+            </TabsContent>
+            <TabsContent value="leaderboards">
+              <LeaderboardsTab
+                onViewTeam={onViewTeam}
+                onViewPlayer={onViewPlayer}
+              />
+            </TabsContent>
+            <TabsContent value="rules">
+              <ScoringRulesContent />
+            </TabsContent>
+          </>
         )}
-        <TabsContent value="rules">
-          <ScoringRulesContent />
-        </TabsContent>
       </Tabs>
     </div>
   );
