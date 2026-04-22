@@ -12,9 +12,9 @@ import {
   getDateDetail,
   getRequest,
   listRequests,
-  overrideResponse,
   removeAssignment,
   respond,
+  setAvailability,
   updateRequestStatus,
 } from "./service.ts";
 
@@ -270,8 +270,8 @@ describe("availability service (integration)", () => {
     });
   });
 
-  describe("overrideResponse", () => {
-    it("overrides a player response", async () => {
+  describe("setAvailability", () => {
+    it("overrides an existing player response", async () => {
       const { userId } = await seedTestUser(ctx.db, {
         email: `override-${crypto.randomUUID()}@test.com`,
         role: "admin",
@@ -285,11 +285,10 @@ describe("availability service (integration)", () => {
       );
 
       // Dave says unavailable
-      const responseId = crypto.randomUUID();
       await ctx.db
         .insertInto("availability_response")
         .values({
-          id: responseId,
+          id: crypto.randomUUID(),
           availability_request_id: reqId,
           member_id: memberId,
           match_date: "2026-11-01",
@@ -300,20 +299,79 @@ describe("availability service (integration)", () => {
         .execute();
 
       // Official overrides to available
-      const result = await overrideResponse(ctx.db)(userId, responseId, {
-        status: "available",
-      });
+      const result = await setAvailability(ctx.db)(
+        userId,
+        reqId,
+        "2026-11-01",
+        memberId,
+        { status: "available" },
+      );
       expect(result.success).toBe(true);
 
-      // Verify
       const updated = await ctx.db
         .selectFrom("availability_response")
-        .where("id", "=", responseId)
+        .where("availability_request_id", "=", reqId)
+        .where("member_id", "=", memberId)
+        .where("match_date", "=", "2026-11-01")
         .selectAll()
         .executeTakeFirst();
       expect(updated).toBeDefined();
       expect(updated?.status).toBe("available");
       expect(updated?.overridden_by).toBe(userId);
+    });
+
+    it("creates a response for a member who hasn't responded", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `setavail-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("SetAvail XI");
+      const reqId = await seedRequest(userId, "2026-11-08", "2026-11-14");
+      await seedFixture(reqId, teamId, "2026-11-08");
+      const memberId = await seedMember(
+        "Eve",
+        `eve-${crypto.randomUUID()}@test.com`,
+      );
+
+      const result = await setAvailability(ctx.db)(
+        userId,
+        reqId,
+        "2026-11-08",
+        memberId,
+        { status: "available" },
+      );
+      expect(result.success).toBe(true);
+
+      const created = await ctx.db
+        .selectFrom("availability_response")
+        .where("availability_request_id", "=", reqId)
+        .where("member_id", "=", memberId)
+        .where("match_date", "=", "2026-11-08")
+        .selectAll()
+        .executeTakeFirst();
+      expect(created).toBeDefined();
+      expect(created?.status).toBe("available");
+      expect(created?.overridden_by).toBe(userId);
+    });
+
+    it("404s when there's no fixture on the date", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `setavail-nofix-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("NoFix XI");
+      const reqId = await seedRequest(userId, "2026-11-15", "2026-11-21");
+      await seedFixture(reqId, teamId, "2026-11-15");
+      const memberId = await seedMember(
+        "Frank",
+        `frank-${crypto.randomUUID()}@test.com`,
+      );
+
+      await expect(
+        setAvailability(ctx.db)(userId, reqId, "2026-11-20", memberId, {
+          status: "available",
+        }),
+      ).rejects.toThrow("No fixtures");
     });
   });
 

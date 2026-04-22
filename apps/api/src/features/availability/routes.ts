@@ -22,12 +22,12 @@ import {
   notifyPreviewSchema,
   notifySendResponseSchema,
   notifySendSchema,
-  overrideResponseSchema,
   previewFixturesResponseSchema,
+  requestDateMemberParamSchema,
   requestDateParamSchema,
   requestIdParamSchema,
   respondSchema,
-  responseIdParamSchema,
+  setAvailabilitySchema,
   successResponseSchema,
   updateRequestStatusSchema,
 } from "./schemas.ts";
@@ -40,12 +40,12 @@ import {
   getPublicRequest,
   getRequest,
   listRequests,
-  overrideResponse,
   previewFixtures,
   previewNotifyRecipients,
   removeAssignment,
   respond,
   sendAvailabilityNotification,
+  setAvailability,
   updateRequestStatus,
 } from "./service.ts";
 
@@ -169,20 +169,26 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
-  const override = overrideResponse(app.db);
+  const setAvail = setAvailability(app.db);
   app.put(
-    "/availability/responses/:responseId/override",
+    "/availability/requests/:requestId/dates/:date/members/:memberId/availability",
     {
       preHandler: [officialRole],
       schema: {
-        params: responseIdParamSchema,
-        body: overrideResponseSchema,
+        params: requestDateMemberParamSchema,
+        body: setAvailabilitySchema,
         response: { 200: successResponseSchema },
       },
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      return await override(user.id, request.params.responseId, request.body);
+      return await setAvail(
+        user.id,
+        request.params.requestId,
+        request.params.date,
+        request.params.memberId,
+        request.body,
+      );
     },
   );
 

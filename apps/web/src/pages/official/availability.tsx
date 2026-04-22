@@ -509,16 +509,21 @@ function TeamSelectionView({
     },
   });
 
-  const overrideMutation = useMutation({
+  const setAvailabilityMutation = useMutation({
     mutationFn: (data: {
-      responseId: string;
+      memberId: string;
       status: "available" | "unavailable";
     }) =>
       callApi(
-        api.PUT("/api/availability/responses/{responseId}/override", {
-          params: { path: { responseId: data.responseId } },
-          body: { status: data.status },
-        }),
+        api.PUT(
+          "/api/availability/requests/{requestId}/dates/{date}/members/{memberId}/availability",
+          {
+            params: {
+              path: { requestId, date, memberId: data.memberId },
+            },
+            body: { status: data.status },
+          },
+        ),
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
@@ -736,7 +741,6 @@ function TeamSelectionView({
               id: p.member_id,
               name: p.member_name ?? "Unknown",
               note: p.note,
-              responseId: p.id,
               overridden: !!p.overridden_by,
             }))}
             fixtures={fixtures}
@@ -747,8 +751,8 @@ function TeamSelectionView({
                 playerName: name,
               })
             }
-            onOverride={(responseId, status) =>
-              overrideMutation.mutate({ responseId, status })
+            onSetAvailability={(memberId, status) =>
+              setAvailabilityMutation.mutate({ memberId, status })
             }
             overrideStatus="unavailable"
             isAssigning={assignMutation.isPending}
@@ -766,7 +770,6 @@ function TeamSelectionView({
                 id: p.member_id,
                 name: p.member_name ?? "Unknown",
                 note: p.note,
-                responseId: p.id,
                 overridden: !!p.overridden_by,
               }))}
             fixtures={fixtures}
@@ -777,8 +780,8 @@ function TeamSelectionView({
                 playerName: name,
               })
             }
-            onOverride={(responseId, status) =>
-              overrideMutation.mutate({ responseId, status })
+            onSetAvailability={(memberId, status) =>
+              setAvailabilityMutation.mutate({ memberId, status })
             }
             overrideStatus="available"
             isAssigning={assignMutation.isPending}
@@ -805,36 +808,32 @@ function TeamSelectionView({
                       className="flex items-center justify-between text-sm"
                     >
                       <span>{p.name ?? "Unknown"}</span>
-                      {fixtures.length === 1 ? (
+                      <div className="flex gap-2">
                         <button
-                          className="text-xs text-blue-600 hover:text-blue-800"
-                          disabled={
-                            assignMutation.isPending ||
-                            fixtures[0].assignments.length >= 11
-                          }
+                          className="text-xs text-green-700 hover:text-green-900"
+                          disabled={setAvailabilityMutation.isPending}
                           onClick={() =>
-                            assignMutation.mutate({
-                              fixtureId: fixtures[0].id,
+                            setAvailabilityMutation.mutate({
                               memberId: p.id,
-                              playerName: p.name ?? "Unknown",
+                              status: "available",
                             })
                           }
                         >
-                          Assign
+                          Available
                         </button>
-                      ) : (
-                        <FixtureSelect
-                          fixtures={fixtures}
-                          onSelect={(fixtureId) =>
-                            assignMutation.mutate({
-                              fixtureId,
+                        <button
+                          className="text-xs text-red-600 hover:text-red-800"
+                          disabled={setAvailabilityMutation.isPending}
+                          onClick={() =>
+                            setAvailabilityMutation.mutate({
                               memberId: p.id,
-                              playerName: p.name ?? "Unknown",
+                              status: "unavailable",
                             })
                           }
-                          disabled={assignMutation.isPending}
-                        />
-                      )}
+                        >
+                          Unavailable
+                        </button>
+                      </div>
                     </div>
                   ))}
                   {filteredNoResponse.length > 50 && (
@@ -860,7 +859,7 @@ function PlayerPool({
   players,
   fixtures,
   onAssign,
-  onOverride,
+  onSetAvailability,
   overrideStatus,
   isAssigning,
 }: {
@@ -870,12 +869,14 @@ function PlayerPool({
     id: string;
     name: string;
     note: string | null;
-    responseId: string;
     overridden: boolean;
   }>;
   fixtures: FixtureWithAssignments[];
   onAssign: (fixtureId: string, memberId: string, name: string) => void;
-  onOverride: (responseId: string, status: "available" | "unavailable") => void;
+  onSetAvailability: (
+    memberId: string,
+    status: "available" | "unavailable",
+  ) => void;
   overrideStatus: "available" | "unavailable";
   isAssigning: boolean;
 }) {
@@ -913,7 +914,7 @@ function PlayerPool({
                 <div className="flex items-center gap-2">
                   <button
                     className="text-xs text-gray-400 hover:text-gray-600"
-                    onClick={() => onOverride(p.responseId, overrideStatus)}
+                    onClick={() => onSetAvailability(p.id, overrideStatus)}
                   >
                     {overrideStatus === "available"
                       ? "Mark available"
