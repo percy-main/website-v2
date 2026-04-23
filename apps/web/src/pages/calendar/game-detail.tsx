@@ -215,6 +215,11 @@ function GameDetailContent({ game }: { game: GameData }) {
     ? getLocationByName(game.location.name)
     : undefined;
 
+  const isFutureGame = game.when
+    ? isAfter(new Date(game.when), new Date())
+    : false;
+  const hasHeaderRow = !!game.sponsor || isFutureGame;
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="text-h4 mb-4 flex items-center gap-2">
@@ -240,8 +245,7 @@ function GameDetailContent({ game }: { game: GameData }) {
         {/* Header row: sponsor left, date card right.
             Skipped entirely for past non-sponsored games — the date card then
             sits inline next to Match Details so nothing is pushed down. */}
-        {(game.sponsor ||
-          (game.when && isAfter(new Date(game.when), new Date()))) && (
+        {hasHeaderRow && (
           <div className="flex w-full flex-row flex-wrap items-stretch justify-end gap-2 md:gap-4">
             {game.sponsor ? (
               <div className="flex-1">
@@ -261,7 +265,7 @@ function GameDetailContent({ game }: { game: GameData }) {
         {/* Match details */}
         <div className="flex w-full flex-col gap-4 md:flex-row md:items-start">
           <div className="flex min-w-0 flex-1 flex-col gap-4">
-            {game.when && isAfter(new Date(game.when), new Date()) && (
+            {game.when && isFutureGame && (
               <div className="flex w-full justify-end">
                 <AddToCalendarButton
                   hideBranding
@@ -332,11 +336,9 @@ function GameDetailContent({ game }: { game: GameData }) {
               )}
             </ul>
           </div>
-          {!game.sponsor &&
-            game.when &&
-            !isAfter(new Date(game.when), new Date()) && (
-              <When start={game.when} end={finish} />
-            )}
+          {!game.sponsor && game.when && !isFutureGame && (
+            <When start={game.when} end={finish} />
+          )}
         </div>
 
         {/* Team lineup — hidden once Play Cricket has a result (scorecard shows actual teams) */}
