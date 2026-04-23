@@ -215,6 +215,11 @@ function GameDetailContent({ game }: { game: GameData }) {
     ? getLocationByName(game.location.name)
     : undefined;
 
+  const isFutureGame = game.when
+    ? isAfter(new Date(game.when), new Date())
+    : false;
+  const hasHeaderRow = !!game.sponsor || isFutureGame;
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="text-h4 mb-4 flex items-center gap-2">
@@ -237,98 +242,107 @@ function GameDetailContent({ game }: { game: GameData }) {
       </div>
 
       <div className="flex flex-col items-start gap-6">
-        {/* Header row: sponsor left, time + calendar right */}
-        <div className="flex w-full flex-row flex-wrap items-stretch justify-between gap-2 md:gap-4">
-          {game.sponsor && (
-            <div className="flex-1">
-              <SponsorBadge sponsor={game.sponsor} />
-            </div>
-          )}
-          {!game.sponsor && game.when && (
-            <div className="flex-1">
-              <SponsorThisGame gameId={game.id} when={game.when} />
-            </div>
-          )}
-          {game.when && <When start={game.when} end={finish} />}
-        </div>
+        {/* Header row: sponsor left, date card right.
+            Skipped entirely for past non-sponsored games — the date card then
+            sits inline next to Match Details so nothing is pushed down. */}
+        {hasHeaderRow && (
+          <div className="flex w-full flex-row flex-wrap items-stretch justify-end gap-2 md:gap-4">
+            {game.sponsor ? (
+              <div className="flex-1">
+                <SponsorBadge sponsor={game.sponsor} />
+              </div>
+            ) : (
+              game.when && (
+                <div className="flex-1">
+                  <SponsorThisGame gameId={game.id} when={game.when} />
+                </div>
+              )
+            )}
+            {game.when && <When start={game.when} end={finish} />}
+          </div>
+        )}
 
         {/* Match details */}
-        <div className="flex w-full flex-col gap-4">
-          <div className="flex w-full items-center justify-between">
-            <h4 className="text-lg font-semibold md:text-xl">Match Details</h4>
-            {game.when && (
-              <AddToCalendarButton
-                hideBranding
-                name={title}
-                options={[
-                  "Apple",
-                  "Google",
-                  "iCal",
-                  "Microsoft365",
-                  "MicrosoftTeams",
-                  "Outlook.com",
-                  "Yahoo",
-                ]}
-                location={game.location?.name}
-                startDate={formatInTimeZone(
-                  new Date(game.when),
-                  "Europe/London",
-                  "yyyy-MM-dd",
-                )}
-                endDate={
-                  finish
-                    ? formatInTimeZone(
-                        new Date(finish),
-                        "Europe/London",
-                        "yyyy-MM-dd",
-                      )
-                    : undefined
-                }
-                startTime={formatInTimeZone(
-                  new Date(game.when),
-                  "Europe/London",
-                  "HH:mm",
-                )}
-                endTime={
-                  finish
-                    ? formatInTimeZone(
-                        new Date(finish),
-                        "Europe/London",
-                        "HH:mm",
-                      )
-                    : undefined
-                }
-                timeZone="Europe/London"
-                hideRichData
-              />
+        <div className="flex w-full flex-col gap-4 md:flex-row md:items-start">
+          <div className="flex min-w-0 flex-1 flex-col gap-4">
+            {game.when && isFutureGame && (
+              <div className="flex w-full justify-end">
+                <AddToCalendarButton
+                  hideBranding
+                  name={title}
+                  options={[
+                    "Apple",
+                    "Google",
+                    "iCal",
+                    "Microsoft365",
+                    "MicrosoftTeams",
+                    "Outlook.com",
+                    "Yahoo",
+                  ]}
+                  location={game.location?.name}
+                  startDate={formatInTimeZone(
+                    new Date(game.when),
+                    "Europe/London",
+                    "yyyy-MM-dd",
+                  )}
+                  endDate={
+                    finish
+                      ? formatInTimeZone(
+                          new Date(finish),
+                          "Europe/London",
+                          "yyyy-MM-dd",
+                        )
+                      : undefined
+                  }
+                  startTime={formatInTimeZone(
+                    new Date(game.when),
+                    "Europe/London",
+                    "HH:mm",
+                  )}
+                  endTime={
+                    finish
+                      ? formatInTimeZone(
+                          new Date(finish),
+                          "Europe/London",
+                          "HH:mm",
+                        )
+                      : undefined
+                  }
+                  timeZone="Europe/London"
+                  hideRichData
+                />
+              </div>
             )}
+            <ul className="flex flex-col gap-2">
+              <li>
+                <strong>Team:</strong> {game.team.name}
+              </li>
+              <li>
+                <strong>Opposition:</strong> {game.opposition.club.name}{" "}
+                {game.opposition.team.name}
+              </li>
+              {game.competition.name && (
+                <li>
+                  <strong>Competition:</strong> {game.competition.name}
+                </li>
+              )}
+              {game.home !== undefined && (
+                <li>
+                  <strong>Venue:</strong>{" "}
+                  <Badge variant={game.home ? "default" : "secondary"}>
+                    {game.home ? "Home" : "Away"}
+                  </Badge>
+                </li>
+              )}
+            </ul>
           </div>
-          <ul className="flex flex-col gap-2">
-            <li>
-              <strong>Team:</strong> {game.team.name}
-            </li>
-            <li>
-              <strong>Opposition:</strong> {game.opposition.club.name}{" "}
-              {game.opposition.team.name}
-            </li>
-            {game.competition.name && (
-              <li>
-                <strong>Competition:</strong> {game.competition.name}
-              </li>
-            )}
-            {game.home !== undefined && (
-              <li>
-                <strong>Venue:</strong>{" "}
-                <Badge variant={game.home ? "default" : "secondary"}>
-                  {game.home ? "Home" : "Away"}
-                </Badge>
-              </li>
-            )}
-          </ul>
+          {!game.sponsor && game.when && !isFutureGame && (
+            <When start={game.when} end={finish} />
+          )}
         </div>
 
-        {/* Team lineup */}
-        {game.lineup && game.lineup.players.length > 0 && (
+        {/* Team lineup — hidden once Play Cricket has a result (scorecard shows actual teams) */}
+        {!game.result && game.lineup && game.lineup.players.length > 0 && (
           <Card>
             <CardContent className="flex flex-col gap-3 p-4">
               <h4 className="text-lg font-semibold">
