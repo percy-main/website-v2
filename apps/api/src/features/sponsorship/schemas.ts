@@ -6,6 +6,7 @@ export const gameSponsorshipPaymentSchema = z.object({
   sponsorName: z.string().min(1),
   sponsorEmail: z.email(),
   sponsorWebsite: z.string().optional(),
+  sponsorPhone: z.string().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
 });
@@ -17,6 +18,7 @@ export const playerSponsorshipPaymentSchema = z.object({
   sponsorName: z.string().min(1),
   sponsorEmail: z.email(),
   sponsorWebsite: z.string().optional(),
+  sponsorPhone: z.string().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
 });
@@ -37,8 +39,9 @@ export const sponsorshipUpdateSchema = z.object({
   sponsorshipId: z.string(),
   displayName: z.string().optional(),
   notes: z.string().optional(),
-  sponsorLogoDataUrl: z.string().optional(),
+  sponsorLogoDataUrl: z.string().nullable().optional(),
   sponsorWebsite: z.string().nullable().optional(),
+  sponsorPhone: z.string().nullable().optional(),
 });
 
 export const playerSponsorshipManualSchema = z.object({
@@ -47,6 +50,7 @@ export const playerSponsorshipManualSchema = z.object({
   sponsorName: z.string().min(1),
   sponsorEmail: z.email(),
   sponsorWebsite: z.string().optional(),
+  sponsorPhone: z.string().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
   amountPence: z.number().int().positive(),
@@ -59,6 +63,7 @@ export const gameSponsorshipManualSchema = z.object({
   sponsorName: z.string().min(1),
   sponsorEmail: z.email(),
   sponsorWebsite: z.string().optional(),
+  sponsorPhone: z.string().optional(),
   sponsorLogoDataUrl: z.string().optional(),
   sponsorMessage: z.string().optional(),
   amountPence: z.number().int().positive(),
@@ -101,6 +106,7 @@ const gameSponsorshipRowSchema = z.object({
   sponsor_name: z.string(),
   sponsor_email: z.string(),
   sponsor_website: z.string().nullable(),
+  sponsor_phone: z.string().nullable(),
   sponsor_logo_url: z.string().nullable(),
   sponsor_message: z.string().nullable(),
   amount_pence: z.number(),
@@ -119,6 +125,7 @@ const playerSponsorshipRowSchema = z.object({
   sponsor_name: z.string(),
   sponsor_email: z.string(),
   sponsor_website: z.string().nullable(),
+  sponsor_phone: z.string().nullable(),
   sponsor_logo_url: z.string().nullable(),
   sponsor_message: z.string().nullable(),
   amount_pence: z.number(),
@@ -173,6 +180,10 @@ export const successResponseSchema = z.object({
 
 export const idResponseSchema = z.object({
   id: z.string(),
+});
+
+export const takenSlugsResponseSchema = z.object({
+  slugs: z.array(z.string()),
 });
 
 export type GameSponsorshipPayment = z.infer<

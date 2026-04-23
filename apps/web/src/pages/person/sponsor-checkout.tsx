@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import { getImageUrl, getPicture } from "@/lib/image-map";
+import { resizeLogo } from "@/lib/logo-resize";
 import { getPersonBySlug } from "@/lib/people";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -22,7 +23,6 @@ import { Link, useParams } from "react-router";
 
 const ANON_IMAGE = getImageUrl("/images/anon.jpg");
 const ANON_PICTURE = getPicture("/images/anon.jpg");
-const MAX_LOGO_BYTES = 150_000;
 const MAX_MESSAGE_CHARS = 100;
 
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
@@ -32,48 +32,6 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
 });
 
 type Step = "details" | "paying" | "success";
-
-function resizeLogo(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const maxDim = 300;
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          const ratio = Math.min(maxDim / width, maxDim / height);
-          width = Math.round(width * ratio);
-          height = Math.round(height * ratio);
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("Failed to create canvas context"));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Try progressively lower quality to fit under size limit
-        for (let q = 0.8; q >= 0.1; q -= 0.1) {
-          const dataUrl = canvas.toDataURL("image/jpeg", q);
-          if (dataUrl.length <= MAX_LOGO_BYTES) {
-            resolve(dataUrl);
-            return;
-          }
-        }
-        reject(new Error("Logo could not be compressed below 150KB"));
-      };
-      img.onerror = () => reject(new Error("Failed to load image"));
-      img.src = reader.result as string;
-    };
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
 
 export function Component() {
   const { slug } = useParams();
@@ -85,6 +43,7 @@ export function Component() {
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorEmail, setSponsorEmail] = useState("");
   const [sponsorWebsite, setSponsorWebsite] = useState("");
+  const [sponsorPhone, setSponsorPhone] = useState("");
   const [sponsorMessage, setSponsorMessage] = useState("");
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const [logoError, setLogoError] = useState<string | null>(null);
@@ -105,6 +64,7 @@ export function Component() {
             sponsorName,
             sponsorEmail,
             sponsorWebsite: sponsorWebsite || undefined,
+            sponsorPhone: sponsorPhone || undefined,
             sponsorLogoDataUrl: logoDataUrl ?? undefined,
             sponsorMessage: sponsorMessage || undefined,
           },
@@ -274,9 +234,20 @@ export function Component() {
               <Input
                 id="sponsorWebsite"
                 type="text"
-                placeholder="https://www.example.com"
+                placeholder="https://www.example.com (optional)"
                 value={sponsorWebsite}
                 onChange={(e) => setSponsorWebsite(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="sponsorPhone">Phone</Label>
+              <Input
+                id="sponsorPhone"
+                type="tel"
+                placeholder="Optional"
+                value={sponsorPhone}
+                onChange={(e) => setSponsorPhone(e.target.value)}
               />
             </div>
 

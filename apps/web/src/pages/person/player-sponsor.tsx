@@ -60,6 +60,16 @@ export function PlayerSponsor({ slug }: { slug: string }) {
         ) : (
           <p className="font-semibold text-green-800">{displayName}</p>
         )}
+        {sponsor.sponsor_phone && (
+          <p className="mt-1 text-sm text-green-700">
+            <a
+              href={`tel:${sponsor.sponsor_phone}`}
+              className="underline decoration-green-800/30 underline-offset-2 hover:decoration-green-800"
+            >
+              {sponsor.sponsor_phone}
+            </a>
+          </p>
+        )}
         {sponsor.sponsor_message && (
           <p className="mt-1 text-sm text-green-700 italic">
             {sponsor.sponsor_message}

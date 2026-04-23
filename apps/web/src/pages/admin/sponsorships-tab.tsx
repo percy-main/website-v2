@@ -24,14 +24,102 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
+import { resizeLogo } from "@/lib/logo-resize";
+import { getAllPeople } from "@/lib/people";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { formatDate, formatPence } from "./status-pill";
 
 const PAGE_SIZE = 20;
 
 type SubTab = "game" | "player";
 type FilterValue = "all" | "pending_payment" | "pending_approval" | "approved";
+
+function PlayerSelect({
+  value,
+  playerName,
+  takenSlugs,
+  onChange,
+}: {
+  value: string;
+  playerName: string;
+  takenSlugs: Set<string>;
+  onChange: (slug: string, name: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const available = useMemo(() => {
+    return getAllPeople()
+      .filter((p) => !p.hasLeftClub && !takenSlugs.has(p.slug))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [takenSlugs]);
+
+  const filtered = query.trim()
+    ? available.filter((p) =>
+        p.name.toLowerCase().includes(query.trim().toLowerCase()),
+      )
+    : available;
+
+  if (value) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="border-border bg-muted/30 flex-1 rounded border px-3 py-2 text-sm">
+          {playerName} <span className="text-gray-500">({value})</span>
+        </div>
+        <button
+          type="button"
+          className="text-xs text-blue-600 hover:underline"
+          onClick={() => onChange("", "")}
+        >
+          Change
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <Input
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setDropdownOpen(true);
+        }}
+        onFocus={() => setDropdownOpen(true)}
+        onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
+        placeholder="Search players..."
+      />
+      {dropdownOpen && (
+        <div className="border-border bg-surface absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded border shadow-lg">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-gray-500">
+              {query.trim()
+                ? "No matching players available"
+                : "No players available"}
+            </div>
+          ) : (
+            filtered.map((p) => (
+              <button
+                key={p.slug}
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange(p.slug, p.name);
+                  setQuery("");
+                  setDropdownOpen(false);
+                }}
+              >
+                {p.name}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SponsorshipStatus({
   paid_at,
@@ -105,7 +193,7 @@ function InlineEdit({
   if (value) {
     return (
       <button
-        className="cursor-pointer text-left text-xs text-gray-700 hover:underline"
+        className="block cursor-pointer text-left text-xs text-gray-700 hover:underline"
         onClick={() => {
           setDraft(value);
           setEditing(true);
@@ -118,7 +206,7 @@ function InlineEdit({
 
   return (
     <button
-      className="cursor-pointer text-xs text-blue-600 hover:underline"
+      className="block cursor-pointer text-left text-xs text-blue-600 hover:underline"
       onClick={() => {
         setDraft("");
         setEditing(true);
@@ -138,18 +226,97 @@ function isValidUrl(value: string): boolean {
   }
 }
 
+function LogoEdit({
+  logoUrl,
+  alt,
+  onChange,
+}: {
+  logoUrl: string | null;
+  alt: string;
+  onChange: (dataUrl: string | null) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const dataUrl = await resizeLogo(file);
+      onChange(dataUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to process image");
+    } finally {
+      setBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      {logoUrl && (
+        <img
+          src={logoUrl}
+          alt={alt}
+          className="h-8 max-w-[80px] object-contain"
+        />
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void handleFile(e)}
+      />
+      <div className="flex flex-wrap gap-1">
+        <button
+          type="button"
+          disabled={busy}
+          className="cursor-pointer text-xs text-blue-600 hover:underline disabled:opacity-50"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {busy ? "Uploading..." : logoUrl ? "Change logo" : "Add logo"}
+        </button>
+        {logoUrl && (
+          <button
+            type="button"
+            disabled={busy}
+            className="cursor-pointer text-xs text-red-600 hover:underline disabled:opacity-50"
+            onClick={() => {
+              setError(null);
+              onChange(null);
+            }}
+          >
+            Remove
+          </button>
+        )}
+      </div>
+      {error && <div className="text-xs text-amber-600">{error}</div>}
+    </div>
+  );
+}
+
 function SponsorColumn({
   name,
   email,
   website,
+  phone,
   logoUrl,
   onWebsiteChange,
+  onPhoneChange,
+  onLogoChange,
 }: {
   name: string;
   email: string;
   website: string | null;
+  phone: string | null;
   logoUrl: string | null;
   onWebsiteChange?: (value: string | null) => void;
+  onPhoneChange?: (value: string | null) => void;
+  onLogoChange?: (dataUrl: string | null) => void;
 }) {
   return (
     <div className="space-y-0.5">
@@ -182,12 +349,36 @@ function SponsorColumn({
           <span className="text-xs text-gray-500">{website}</span>
         )
       ) : null}
-      {logoUrl && (
-        <img
-          src={logoUrl}
+      {onPhoneChange ? (
+        <div>
+          <InlineEdit
+            value={phone}
+            placeholder="Add phone"
+            onSave={onPhoneChange}
+          />
+        </div>
+      ) : phone ? (
+        <a
+          href={`tel:${phone}`}
+          className="text-xs text-blue-600 hover:underline"
+        >
+          {phone}
+        </a>
+      ) : null}
+      {onLogoChange ? (
+        <LogoEdit
+          logoUrl={logoUrl}
           alt={`${name} logo`}
-          className="h-8 max-w-[80px] object-contain"
+          onChange={onLogoChange}
         />
+      ) : (
+        logoUrl && (
+          <img
+            src={logoUrl}
+            alt={`${name} logo`}
+            className="h-8 max-w-[80px] object-contain"
+          />
+        )
       )}
     </div>
   );
@@ -205,6 +396,7 @@ function CreateGameSponsorshipDialog({
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorEmail, setSponsorEmail] = useState("");
   const [website, setWebsite] = useState("");
+  const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
   const [amount, setAmount] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -220,6 +412,7 @@ function CreateGameSponsorshipDialog({
             sponsorEmail: string;
             amountPence: number;
             sponsorWebsite?: string;
+            sponsorPhone?: string;
             sponsorMessage?: string;
             displayName?: string;
             notes?: string;
@@ -240,6 +433,7 @@ function CreateGameSponsorshipDialog({
     setSponsorName("");
     setSponsorEmail("");
     setWebsite("");
+    setPhone("");
     setMessage("");
     setAmount("");
     setDisplayName("");
@@ -254,6 +448,7 @@ function CreateGameSponsorshipDialog({
       sponsorName,
       sponsorEmail,
       ...(website ? { sponsorWebsite: website } : {}),
+      ...(phone ? { sponsorPhone: phone } : {}),
       ...(message ? { sponsorMessage: message } : {}),
       amountPence,
       ...(displayName ? { displayName } : {}),
@@ -304,6 +499,15 @@ function CreateGameSponsorshipDialog({
             <Input
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Phone</label>
+            <Input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               placeholder="Optional"
             />
           </div>
@@ -359,6 +563,223 @@ function CreateGameSponsorshipDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreatePlayerSponsorshipDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [slug, setSlug] = useState("");
+  const [playerName, setPlayerName] = useState("");
+  const [sponsorName, setSponsorName] = useState("");
+  const [sponsorEmail, setSponsorEmail] = useState("");
+  const [website, setWebsite] = useState("");
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
+  const [amount, setAmount] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const takenSlugsQuery = useQuery({
+    queryKey: ["admin", "playerSponsorships", "takenSlugs"],
+    queryFn: () =>
+      callApi(api.GET("/api/sponsorship/admin/player/taken-slugs", {})),
+    enabled: open,
+  });
+
+  const takenSlugs = useMemo(
+    () => new Set(takenSlugsQuery.data?.slugs ?? []),
+    [takenSlugsQuery.data],
+  );
+
+  const createMutation = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      callApi(
+        api.POST("/api/sponsorship/admin/player/manual", {
+          body: body as {
+            slug: string;
+            playerName: string;
+            sponsorName: string;
+            sponsorEmail: string;
+            amountPence: number;
+            sponsorWebsite?: string;
+            sponsorPhone?: string;
+            sponsorMessage?: string;
+            displayName?: string;
+            notes?: string;
+          },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "playerSponsorships"],
+      });
+      resetForm();
+      onOpenChange(false);
+    },
+  });
+
+  function resetForm() {
+    setSlug("");
+    setPlayerName("");
+    setSponsorName("");
+    setSponsorEmail("");
+    setWebsite("");
+    setPhone("");
+    setMessage("");
+    setAmount("");
+    setDisplayName("");
+    setNotes("");
+  }
+
+  function handleSubmit(e: React.SyntheticEvent) {
+    e.preventDefault();
+    if (!slug || !playerName) return;
+    const amountPence = Math.round(parseFloat(amount) * 100);
+    createMutation.mutate({
+      slug,
+      playerName,
+      sponsorName,
+      sponsorEmail,
+      ...(website ? { sponsorWebsite: website } : {}),
+      ...(phone ? { sponsorPhone: phone } : {}),
+      ...(message ? { sponsorMessage: message } : {}),
+      amountPence,
+      ...(displayName ? { displayName } : {}),
+      ...(notes ? { notes } : {}),
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create Player Sponsorship</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Player</label>
+            <PlayerSelect
+              value={slug}
+              playerName={playerName}
+              takenSlugs={takenSlugs}
+              onChange={(nextSlug, nextName) => {
+                setSlug(nextSlug);
+                setPlayerName(nextName);
+              }}
+            />
+            {takenSlugsQuery.isLoading && (
+              <div className="mt-1 text-xs text-gray-500">
+                Loading available players...
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Sponsor Name
+            </label>
+            <Input
+              value={sponsorName}
+              onChange={(e) => setSponsorName(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Sponsor Email
+            </label>
+            <Input
+              type="email"
+              value={sponsorEmail}
+              onChange={(e) => setSponsorEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Website URL
+            </label>
+            <Input
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Phone</label>
+            <Input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Message</label>
+            <Input
+              value={message}
+              onChange={(e) => setMessage(e.target.value.slice(0, 100))}
+              placeholder="Optional (max 100 chars)"
+              maxLength={100}
+            />
+            <div className="mt-0.5 text-right text-xs text-gray-400">
+              {message.length}/100
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Amount (GBP)
+            </label>
+            <Input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              min={0}
+              step={0.01}
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Display Name
+            </label>
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Notes</label>
+            <Input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={createMutation.isPending || !slug || !playerName}
+            >
               {createMutation.isPending ? "Creating..." : "Create"}
             </Button>
           </DialogFooter>
@@ -425,6 +846,8 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
       displayName?: string | undefined;
       notes?: string | undefined;
       sponsorWebsite?: string | null | undefined;
+      sponsorPhone?: string | null | undefined;
+      sponsorLogoDataUrl?: string | null | undefined;
     }) =>
       callApi(
         api.PUT("/api/sponsorship/admin/game/{sponsorshipId}", {
@@ -469,11 +892,24 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
                   name={s.sponsor_name}
                   email={s.sponsor_email}
                   website={s.sponsor_website}
+                  phone={s.sponsor_phone}
                   logoUrl={s.sponsor_logo_url}
                   onWebsiteChange={(v) =>
                     updateMutation.mutate({
                       sponsorshipId: s.id,
                       sponsorWebsite: v,
+                    })
+                  }
+                  onPhoneChange={(v) =>
+                    updateMutation.mutate({
+                      sponsorshipId: s.id,
+                      sponsorPhone: v,
+                    })
+                  }
+                  onLogoChange={(v) =>
+                    updateMutation.mutate({
+                      sponsorshipId: s.id,
+                      sponsorLogoDataUrl: v,
                     })
                   }
                 />
@@ -653,6 +1089,8 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
       displayName?: string | undefined;
       notes?: string | undefined;
       sponsorWebsite?: string | null | undefined;
+      sponsorPhone?: string | null | undefined;
+      sponsorLogoDataUrl?: string | null | undefined;
     }) =>
       callApi(
         api.PUT("/api/sponsorship/admin/player/{sponsorshipId}", {
@@ -702,11 +1140,24 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
                   name={s.sponsor_name}
                   email={s.sponsor_email}
                   website={s.sponsor_website}
+                  phone={s.sponsor_phone}
                   logoUrl={s.sponsor_logo_url}
                   onWebsiteChange={(v) =>
                     updateMutation.mutate({
                       sponsorshipId: s.id,
                       sponsorWebsite: v,
+                    })
+                  }
+                  onPhoneChange={(v) =>
+                    updateMutation.mutate({
+                      sponsorshipId: s.id,
+                      sponsorPhone: v,
+                    })
+                  }
+                  onLogoChange={(v) =>
+                    updateMutation.mutate({
+                      sponsorshipId: s.id,
+                      sponsorLogoDataUrl: v,
                     })
                   }
                 />
@@ -832,7 +1283,8 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
 export function SponsorshipsTab() {
   const [subTab, setSubTab] = useState<SubTab>("game");
   const [filter, setFilter] = useState<FilterValue>("all");
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createGameDialogOpen, setCreateGameDialogOpen] = useState(false);
+  const [createPlayerDialogOpen, setCreatePlayerDialogOpen] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -870,8 +1322,12 @@ export function SponsorshipsTab() {
           </SelectContent>
         </Select>
 
-        {subTab === "game" && (
-          <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
+        {subTab === "game" ? (
+          <Button size="sm" onClick={() => setCreateGameDialogOpen(true)}>
+            Create Sponsorship
+          </Button>
+        ) : (
+          <Button size="sm" onClick={() => setCreatePlayerDialogOpen(true)}>
             Create Sponsorship
           </Button>
         )}
@@ -884,10 +1340,14 @@ export function SponsorshipsTab() {
         <PlayerSponsorshipsTable filter={filter} />
       )}
 
-      {/* Create Dialog */}
+      {/* Create Dialogs */}
       <CreateGameSponsorshipDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
+        open={createGameDialogOpen}
+        onOpenChange={setCreateGameDialogOpen}
+      />
+      <CreatePlayerSponsorshipDialog
+        open={createPlayerDialogOpen}
+        onOpenChange={setCreatePlayerDialogOpen}
       />
     </div>
   );

@@ -1051,7 +1051,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
           if (!v) reset();
         }}
       >
-        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[80vh] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Notify Members</DialogTitle>
           </DialogHeader>

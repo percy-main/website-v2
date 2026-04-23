@@ -140,6 +140,9 @@ function SponsorBadge({
 }: {
   sponsor: NonNullable<GameData["sponsor"]>;
 }) {
+  const hasValidWebsite =
+    !!sponsor.website && /^https?:\/\//i.test(sponsor.website);
+
   const content = (
     <div className="flex w-full flex-col items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
       {sponsor.logoUrl && (
@@ -154,13 +157,20 @@ function SponsorBadge({
         <p
           className={cn(
             "text-lg font-semibold text-orange-800",
-            sponsor.website &&
-              /^https?:\/\//i.test(sponsor.website) &&
-              "underline decoration-dotted underline-offset-2",
+            hasValidWebsite && "underline decoration-dotted underline-offset-2",
           )}
         >
           {sponsor.name}
         </p>
+        {sponsor.phone && (
+          <a
+            href={`tel:${sponsor.phone}`}
+            className="mt-1 block text-sm text-orange-700 underline decoration-dotted underline-offset-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {sponsor.phone}
+          </a>
+        )}
       </div>
       {sponsor.message && (
         <p className="text-sm text-orange-600">{sponsor.message}</p>
@@ -168,10 +178,10 @@ function SponsorBadge({
     </div>
   );
 
-  if (sponsor.website && /^https?:\/\//i.test(sponsor.website)) {
+  if (hasValidWebsite) {
     return (
       <a
-        href={sponsor.website}
+        href={sponsor.website ?? ""}
         target="_blank"
         rel="noopener noreferrer"
         className="hover:opacity-80"

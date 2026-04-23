@@ -44,3 +44,7 @@ for (const mod of Object.values(modules)) {
 export function getPersonBySlug(slug: string): PersonData | undefined {
   return people.get(slug);
 }
+
+export function getAllPeople(): PersonData[] {
+  return Array.from(people.values());
+}

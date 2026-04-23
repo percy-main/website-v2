@@ -82,6 +82,7 @@ const sponsorSchema = z
     logoUrl: z.string().nullable(),
     message: z.string().nullable(),
     website: z.string().nullable(),
+    phone: z.string().nullable(),
   })
   .nullable();
 
