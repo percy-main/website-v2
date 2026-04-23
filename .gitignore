@@ -19,5 +19,8 @@ coverage/
 # Claude Code
 .claude/settings.local.json
 
+# JetBrains IDEs
+.idea/
+
 # Database dumps
 dumps/
