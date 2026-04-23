@@ -87,6 +87,26 @@ export function hasPlayerPendingSponsor(db: Kysely<DB>) {
   };
 }
 
+export function getTakenPlayerSponsorshipSlugs(db: Kysely<DB>) {
+  return async (season?: number) => {
+    const targetSeason = season ?? new Date().getFullYear();
+
+    const rows = await db
+      .selectFrom("player_sponsorship")
+      .where("season", "=", targetSeason)
+      .where("paid_at", "is not", null)
+      .where("slug", "is not", null)
+      .select("slug")
+      .execute();
+
+    const slugs = rows
+      .map((r) => r.slug)
+      .filter((s): s is string => s !== null);
+
+    return { slugs };
+  };
+}
+
 export function getAllApprovedPlayerSponsors(db: Kysely<DB>) {
   return async (season?: number) => {
     const targetSeason = season ?? new Date().getFullYear();
@@ -228,6 +248,7 @@ export function createManualGameSponsorship(db: Kysely<DB>) {
         sponsor_name: data.sponsorName,
         sponsor_email: data.sponsorEmail,
         sponsor_website: data.sponsorWebsite ?? null,
+        sponsor_phone: data.sponsorPhone ?? null,
         sponsor_logo_url: data.sponsorLogoDataUrl ?? null,
         sponsor_message: data.sponsorMessage ?? null,
         amount_pence: data.amountPence,
@@ -258,6 +279,7 @@ export function createManualPlayerSponsorship(db: Kysely<DB>) {
         sponsor_name: data.sponsorName,
         sponsor_email: data.sponsorEmail,
         sponsor_website: data.sponsorWebsite ?? null,
+        sponsor_phone: data.sponsorPhone ?? null,
         sponsor_logo_url: data.sponsorLogoDataUrl ?? null,
         sponsor_message: data.sponsorMessage ?? null,
         amount_pence: data.amountPence,
@@ -274,19 +296,34 @@ export function createManualPlayerSponsorship(db: Kysely<DB>) {
   };
 }
 
+function validateLogoSize(logo: string | null | undefined) {
+  if (typeof logo === "string" && logo.length > 150_000) {
+    throw Object.assign(new Error("Logo must be under 150KB"), {
+      statusCode: 400,
+    });
+  }
+}
+
 export function updateGameSponsorship(db: Kysely<DB>) {
   return async (
     sponsorshipId: string,
     data: Omit<SponsorshipUpdate, "sponsorshipId">,
   ) => {
+    validateLogoSize(data.sponsorLogoDataUrl);
+
     await db
       .updateTable("game_sponsorship")
       .set({
         display_name: data.displayName,
         notes: data.notes,
-        sponsor_logo_url: data.sponsorLogoDataUrl,
+        ...(data.sponsorLogoDataUrl !== undefined
+          ? { sponsor_logo_url: data.sponsorLogoDataUrl }
+          : {}),
         ...(data.sponsorWebsite !== undefined
           ? { sponsor_website: data.sponsorWebsite }
+          : {}),
+        ...(data.sponsorPhone !== undefined
+          ? { sponsor_phone: data.sponsorPhone }
           : {}),
       })
       .where("id", "=", sponsorshipId)
@@ -301,14 +338,21 @@ export function updatePlayerSponsorship(db: Kysely<DB>) {
     sponsorshipId: string,
     data: Omit<SponsorshipUpdate, "sponsorshipId">,
   ) => {
+    validateLogoSize(data.sponsorLogoDataUrl);
+
     await db
       .updateTable("player_sponsorship")
       .set({
         display_name: data.displayName,
         notes: data.notes,
-        sponsor_logo_url: data.sponsorLogoDataUrl,
+        ...(data.sponsorLogoDataUrl !== undefined
+          ? { sponsor_logo_url: data.sponsorLogoDataUrl }
+          : {}),
         ...(data.sponsorWebsite !== undefined
           ? { sponsor_website: data.sponsorWebsite }
+          : {}),
+        ...(data.sponsorPhone !== undefined
+          ? { sponsor_phone: data.sponsorPhone }
           : {}),
       })
       .where("id", "=", sponsorshipId)
@@ -423,6 +467,7 @@ export function createGameSponsorshipPayment(
         sponsor_name: data.sponsorName,
         sponsor_email: data.sponsorEmail,
         sponsor_website: data.sponsorWebsite ?? null,
+        sponsor_phone: data.sponsorPhone ?? null,
         sponsor_logo_url: data.sponsorLogoDataUrl ?? null,
         sponsor_message: data.sponsorMessage ?? null,
         amount_pence: price.amountPence,
@@ -551,6 +596,7 @@ export function createPlayerSponsorshipPayment(
         sponsor_name: data.sponsorName,
         sponsor_email: data.sponsorEmail,
         sponsor_website: data.sponsorWebsite ?? null,
+        sponsor_phone: data.sponsorPhone ?? null,
         sponsor_logo_url: data.sponsorLogoDataUrl ?? null,
         sponsor_message: data.sponsorMessage ?? null,
         amount_pence: price.amountPence,

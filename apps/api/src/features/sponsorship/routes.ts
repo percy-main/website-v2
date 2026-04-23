@@ -25,6 +25,7 @@ import {
   sponsorshipListSchema,
   sponsorshipUpdateSchema,
   successResponseSchema,
+  takenSlugsResponseSchema,
 } from "./schemas.ts";
 import {
   approveGameSponsorship,
@@ -38,6 +39,7 @@ import {
   getGameSponsorshipPrice,
   getPlayerSponsorForPlayer,
   getPlayerSponsorshipPrice,
+  getTakenPlayerSponsorshipSlugs,
   hasGamePendingSponsor,
   hasPlayerPendingSponsor,
   listGameSponsorships,
@@ -86,6 +88,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   const playerSponsor = getPlayerSponsorForPlayer(app.db);
   const playerPending = hasPlayerPendingSponsor(app.db);
   const allApproved = getAllApprovedPlayerSponsors(app.db);
+  const takenSlugs = getTakenPlayerSponsorshipSlugs(app.db);
   const createGamePayment = createGameSponsorshipPayment(
     app.db,
     stripe,
@@ -289,6 +292,20 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { page, pageSize, filter } = request.query;
       return await listPlayer(page, pageSize, filter);
+    },
+  );
+
+  app.get(
+    "/sponsorship/admin/player/taken-slugs",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: allApprovedSchema,
+        response: { 200: takenSlugsResponseSchema },
+      },
+    },
+    async (request) => {
+      return await takenSlugs(request.query.season);
     },
   );
 

@@ -49,13 +49,13 @@ export function DialogContent({
       />
       <div
         className={cn(
-          "border-border bg-surface relative z-50 w-full max-w-lg rounded-lg border p-6 shadow-lg",
+          "border-border bg-surface relative z-50 flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg border shadow-lg",
           className,
         )}
       >
         <button
           type="button"
-          className="text-muted hover:text-foreground absolute top-4 right-4 rounded-sm p-1"
+          className="text-muted hover:text-foreground absolute top-4 right-4 z-10 rounded-sm p-1"
           onClick={() => onOpenChange(false)}
           aria-label="Close"
         >
@@ -74,7 +74,7 @@ export function DialogContent({
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
-        {children}
+        <div className="overflow-y-auto p-6">{children}</div>
       </div>
     </div>
   );

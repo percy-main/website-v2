@@ -298,7 +298,7 @@ function PlayerDetailModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] w-full max-w-2xl overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         {isLoading || !data ? (
           <div className="py-12 text-center text-gray-500">Loading...</div>
         ) : (

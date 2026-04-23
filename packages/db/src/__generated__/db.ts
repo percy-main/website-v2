@@ -269,6 +269,7 @@ export interface GameSponsorship {
   sponsor_logo_url: string | null;
   sponsor_message: string | null;
   sponsor_name: string;
+  sponsor_phone: string | null;
   sponsor_website: string | null;
   stripe_payment_intent_id: string | null;
 }
@@ -496,6 +497,7 @@ export interface PlayerSponsorship {
   sponsor_logo_url: string | null;
   sponsor_message: string | null;
   sponsor_name: string;
+  sponsor_phone: string | null;
   sponsor_website: string | null;
   stripe_payment_intent_id: string | null;
 }

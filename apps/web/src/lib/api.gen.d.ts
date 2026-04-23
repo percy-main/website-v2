@@ -2436,6 +2436,7 @@ export interface paths {
                                 logoUrl: string | null;
                                 message: string | null;
                                 website: string | null;
+                                phone: string | null;
                             } | null;
                             lineup: {
                                 confirmed: boolean;
@@ -2999,6 +3000,7 @@ export interface paths {
                                 sponsor_name: string;
                                 sponsor_email: string;
                                 sponsor_website: string | null;
+                                sponsor_phone: string | null;
                                 sponsor_logo_url: string | null;
                                 sponsor_message: string | null;
                                 amount_pence: number;
@@ -3054,6 +3056,7 @@ export interface paths {
                                 sponsor_name: string;
                                 sponsor_email: string;
                                 sponsor_website: string | null;
+                                sponsor_phone: string | null;
                                 sponsor_logo_url: string | null;
                                 sponsor_message: string | null;
                                 amount_pence: number;
@@ -3140,6 +3143,7 @@ export interface paths {
                         /** Format: email */
                         sponsorEmail: string;
                         sponsorWebsite?: string;
+                        sponsorPhone?: string;
                         sponsorLogoDataUrl?: string;
                         sponsorMessage?: string;
                     };
@@ -3199,6 +3203,7 @@ export interface paths {
                                 sponsor_name: string;
                                 sponsor_email: string;
                                 sponsor_website: string | null;
+                                sponsor_phone: string | null;
                                 sponsor_logo_url: string | null;
                                 sponsor_message: string | null;
                                 amount_pence: number;
@@ -3287,6 +3292,7 @@ export interface paths {
                         /** Format: email */
                         sponsorEmail: string;
                         sponsorWebsite?: string;
+                        sponsorPhone?: string;
                         sponsorLogoDataUrl?: string;
                         sponsorMessage?: string;
                     };
@@ -3347,6 +3353,7 @@ export interface paths {
                                 sponsor_name: string;
                                 sponsor_email: string;
                                 sponsor_website: string | null;
+                                sponsor_phone: string | null;
                                 sponsor_logo_url: string | null;
                                 sponsor_message: string | null;
                                 amount_pence: number;
@@ -3407,6 +3414,7 @@ export interface paths {
                                 sponsor_name: string;
                                 sponsor_email: string;
                                 sponsor_website: string | null;
+                                sponsor_phone: string | null;
                                 sponsor_logo_url: string | null;
                                 sponsor_message: string | null;
                                 amount_pence: number;
@@ -3421,6 +3429,45 @@ export interface paths {
                             total: number;
                             page: number;
                             pageSize: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sponsorship/admin/player/taken-slugs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    season?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            slugs: string[];
                         };
                     };
                 };
@@ -3630,6 +3677,7 @@ export interface paths {
                         /** Format: email */
                         sponsorEmail: string;
                         sponsorWebsite?: string;
+                        sponsorPhone?: string;
                         sponsorLogoDataUrl?: string;
                         sponsorMessage?: string;
                         amountPence: number;
@@ -3683,6 +3731,7 @@ export interface paths {
                         /** Format: email */
                         sponsorEmail: string;
                         sponsorWebsite?: string;
+                        sponsorPhone?: string;
                         sponsorLogoDataUrl?: string;
                         sponsorMessage?: string;
                         amountPence: number;
@@ -3734,8 +3783,9 @@ export interface paths {
                         sponsorshipId: string;
                         displayName?: string;
                         notes?: string;
-                        sponsorLogoDataUrl?: string;
+                        sponsorLogoDataUrl?: string | null;
                         sponsorWebsite?: string | null;
+                        sponsorPhone?: string | null;
                     };
                 };
             };
@@ -3783,8 +3833,9 @@ export interface paths {
                         sponsorshipId: string;
                         displayName?: string;
                         notes?: string;
-                        sponsorLogoDataUrl?: string;
+                        sponsorLogoDataUrl?: string | null;
                         sponsorWebsite?: string | null;
+                        sponsorPhone?: string | null;
                     };
                 };
             };

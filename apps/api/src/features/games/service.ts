@@ -67,6 +67,7 @@ export interface GameDetail extends GameListItem {
     logoUrl: string | null;
     message: string | null;
     website: string | null;
+    phone: string | null;
   } | null;
   lineup: {
     confirmed: boolean;
@@ -254,6 +255,7 @@ export function getGame(
           "sponsor_logo_url",
           "sponsor_message",
           "sponsor_website",
+          "sponsor_phone",
         ])
         .executeTakeFirst(),
       db
@@ -405,6 +407,7 @@ export function getGame(
             logoUrl: sponsorship.sponsor_logo_url,
             message: sponsorship.sponsor_message,
             website: sponsorship.sponsor_website,
+            phone: sponsorship.sponsor_phone,
           }
         : null,
       lineup,

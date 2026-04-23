@@ -4312,13 +4312,18 @@
                         "website": {
                           "nullable": true,
                           "type": "string"
+                        },
+                        "phone": {
+                          "nullable": true,
+                          "type": "string"
                         }
                       },
                       "required": [
                         "name",
                         "logoUrl",
                         "message",
-                        "website"
+                        "website",
+                        "phone"
                       ],
                       "additionalProperties": false
                     },
@@ -5322,6 +5327,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "sponsor_phone": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "sponsor_logo_url": {
                             "nullable": true,
                             "type": "string"
@@ -5366,6 +5375,7 @@
                           "sponsor_name",
                           "sponsor_email",
                           "sponsor_website",
+                          "sponsor_phone",
                           "sponsor_logo_url",
                           "sponsor_message",
                           "amount_pence",
@@ -5432,6 +5442,10 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "sponsor_phone": {
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "sponsor_logo_url": {
                           "nullable": true,
                           "type": "string"
@@ -5472,6 +5486,7 @@
                         "sponsor_name",
                         "sponsor_email",
                         "sponsor_website",
+                        "sponsor_phone",
                         "sponsor_logo_url",
                         "sponsor_message",
                         "amount_pence",
@@ -5553,6 +5568,9 @@
                     "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   "sponsorWebsite": {
+                    "type": "string"
+                  },
+                  "sponsorPhone": {
                     "type": "string"
                   },
                   "sponsorLogoDataUrl": {
@@ -5647,6 +5665,10 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "sponsor_phone": {
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "sponsor_logo_url": {
                           "nullable": true,
                           "type": "string"
@@ -5691,6 +5713,7 @@
                         "sponsor_name",
                         "sponsor_email",
                         "sponsor_website",
+                        "sponsor_phone",
                         "sponsor_logo_url",
                         "sponsor_message",
                         "amount_pence",
@@ -5776,6 +5799,9 @@
                     "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   "sponsorWebsite": {
+                    "type": "string"
+                  },
+                  "sponsorPhone": {
                     "type": "string"
                   },
                   "sponsorLogoDataUrl": {
@@ -5897,6 +5923,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "sponsor_phone": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "sponsor_logo_url": {
                             "nullable": true,
                             "type": "string"
@@ -5937,6 +5967,7 @@
                           "sponsor_name",
                           "sponsor_email",
                           "sponsor_website",
+                          "sponsor_phone",
                           "sponsor_logo_url",
                           "sponsor_message",
                           "amount_pence",
@@ -6048,6 +6079,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "sponsor_phone": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "sponsor_logo_url": {
                             "nullable": true,
                             "type": "string"
@@ -6092,6 +6127,7 @@
                           "sponsor_name",
                           "sponsor_email",
                           "sponsor_website",
+                          "sponsor_phone",
                           "sponsor_logo_url",
                           "sponsor_message",
                           "amount_pence",
@@ -6121,6 +6157,44 @@
                     "total",
                     "page",
                     "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sponsorship/admin/player/taken-slugs": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "number"
+            },
+            "in": "query",
+            "name": "season",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "slugs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "slugs"
                   ],
                   "additionalProperties": false
                 }
@@ -6326,6 +6400,9 @@
                   "sponsorWebsite": {
                     "type": "string"
                   },
+                  "sponsorPhone": {
+                    "type": "string"
+                  },
                   "sponsorLogoDataUrl": {
                     "type": "string"
                   },
@@ -6404,6 +6481,9 @@
                   "sponsorWebsite": {
                     "type": "string"
                   },
+                  "sponsorPhone": {
+                    "type": "string"
+                  },
                   "sponsorLogoDataUrl": {
                     "type": "string"
                   },
@@ -6475,9 +6555,14 @@
                     "type": "string"
                   },
                   "sponsorLogoDataUrl": {
+                    "nullable": true,
                     "type": "string"
                   },
                   "sponsorWebsite": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "sponsorPhone": {
                     "nullable": true,
                     "type": "string"
                   }
@@ -6541,9 +6626,14 @@
                     "type": "string"
                   },
                   "sponsorLogoDataUrl": {
+                    "nullable": true,
                     "type": "string"
                   },
                   "sponsorWebsite": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "sponsorPhone": {
                     "nullable": true,
                     "type": "string"
                   }

@@ -228,7 +228,7 @@ function MergePreviewModal({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Merge Preview</DialogTitle>
         </DialogHeader>

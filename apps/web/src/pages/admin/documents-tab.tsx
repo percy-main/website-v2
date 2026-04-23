@@ -316,7 +316,7 @@ function AssignUsersDialog({
         onOpenChange(v);
       }}
     >
-      <DialogContent className="max-h-[80vh] w-full max-w-lg overflow-y-auto">
+      <DialogContent className="max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>Assign Document</DialogTitle>
         </DialogHeader>
@@ -463,7 +463,7 @@ function DocumentDetailModal({
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
+      <DialogContent className="max-w-2xl">
         {isLoading ? (
           <div className="py-8 text-center text-gray-500">Loading...</div>
         ) : data ? (
