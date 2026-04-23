@@ -14,44 +14,118 @@ export function getMatchDetail(db: Kysely<DB>) {
       .selectAll()
       .executeTakeFirst();
 
+    let data: unknown;
+
     if (cached?.fetched_at) {
       const fetchedAt = new Date(cached.fetched_at).getTime();
       if (Date.now() - fetchedAt < CACHE_TTL_MS) {
-        return JSON.parse(cached.data) as unknown;
+        data = JSON.parse(cached.data) as unknown;
       }
     }
 
-    // Fetch from API
-    const data = await apiClient.getMatchDetail(matchId);
-    const dataRecord = data as Record<string, unknown>;
+    if (data === undefined) {
+      data = await apiClient.getMatchDetail(matchId);
+      const dataRecord = data as Record<string, unknown>;
 
-    // Upsert cache
-    if (cached) {
-      await db
-        .updateTable("play_cricket_match_cache")
-        .set({
-          data: JSON.stringify(data),
-          fetched_at: new Date().toISOString(),
-        })
-        .where("match_id", "=", matchId)
-        .execute();
-    } else {
-      await db
-        .insertInto("play_cricket_match_cache")
-        .values({
-          match_id: matchId,
-          data: JSON.stringify(data),
-          match_date:
-            (typeof dataRecord.match_date === "string"
-              ? dataRecord.match_date
-              : null) ?? new Date().toISOString().split("T")[0],
-          fetched_at: new Date().toISOString(),
-        })
-        .execute();
+      // Upsert cache with raw Play Cricket response — enrichment happens
+      // after this so member slug changes are picked up on the next read.
+      if (cached) {
+        await db
+          .updateTable("play_cricket_match_cache")
+          .set({
+            data: JSON.stringify(data),
+            fetched_at: new Date().toISOString(),
+          })
+          .where("match_id", "=", matchId)
+          .execute();
+      } else {
+        await db
+          .insertInto("play_cricket_match_cache")
+          .values({
+            match_id: matchId,
+            data: JSON.stringify(data),
+            match_date:
+              (typeof dataRecord.match_date === "string"
+                ? dataRecord.match_date
+                : null) ?? new Date().toISOString().split("T")[0],
+            fetched_at: new Date().toISOString(),
+          })
+          .execute();
+      }
     }
 
+    await enrichMatchDetailWithMemberSlugs(db, data);
     return data;
   };
+}
+
+/**
+ * Annotate each batting/bowling row with `batsman_member_slug` /
+ * `bowler_member_slug` for Percy Main players, using a single
+ * `member.play_cricket_id IN (...)` lookup (no N+1).
+ */
+async function enrichMatchDetailWithMemberSlugs(
+  db: Kysely<DB>,
+  data: unknown,
+): Promise<void> {
+  const matchDetails = (data as { match_details?: unknown[] } | null)
+    ?.match_details;
+  if (!Array.isArray(matchDetails) || matchDetails.length === 0) return;
+
+  const match = matchDetails[0] as { innings?: unknown[] };
+  const innings = match.innings;
+  if (!Array.isArray(innings)) return;
+
+  const playerIds = new Set<string>();
+  for (const inn of innings) {
+    const i = inn as { bat?: unknown[]; bowl?: unknown[] };
+    for (const b of i.bat ?? []) {
+      const bat = b as { batsman_id?: string; bowler_id?: string };
+      if (bat.batsman_id) playerIds.add(bat.batsman_id);
+      if (bat.bowler_id) playerIds.add(bat.bowler_id);
+    }
+    for (const b of i.bowl ?? []) {
+      const bowl = b as { bowler_id?: string };
+      if (bowl.bowler_id) playerIds.add(bowl.bowler_id);
+    }
+  }
+
+  if (playerIds.size === 0) return;
+
+  const members = await db
+    .selectFrom("member")
+    .where("play_cricket_id", "in", [...playerIds])
+    .where("slug", "is not", null)
+    .select(["play_cricket_id", "slug"])
+    .execute();
+
+  const slugByPcId = new Map<string, string>();
+  for (const m of members) {
+    if (m.play_cricket_id && m.slug) slugByPcId.set(m.play_cricket_id, m.slug);
+  }
+  if (slugByPcId.size === 0) return;
+
+  for (const inn of innings) {
+    const i = inn as { bat?: unknown[]; bowl?: unknown[] };
+    for (const b of i.bat ?? []) {
+      const bat = b as Record<string, unknown> & {
+        batsman_id?: string;
+        bowler_id?: string;
+      };
+      if (bat.batsman_id && slugByPcId.has(bat.batsman_id)) {
+        bat.batsman_member_slug = slugByPcId.get(bat.batsman_id);
+      }
+      if (bat.bowler_id && slugByPcId.has(bat.bowler_id)) {
+        bat.bowler_member_slug = slugByPcId.get(bat.bowler_id);
+      }
+    }
+    for (const b of i.bowl ?? []) {
+      const bowl = b as Record<string, unknown> & { bowler_id?: string };
+      if (bowl.bowler_id && slugByPcId.has(bowl.bowler_id)) {
+        bowl.bowler_member_slug = slugByPcId.get(bowl.bowler_id);
+      }
+    }
+  }
 }
 
 export function getResultSummary(db: Kysely<DB>) {

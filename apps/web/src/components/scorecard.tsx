@@ -15,6 +15,8 @@ import {
 import { api, callApi } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
 import { isPast } from "date-fns";
+import { IoPersonCircleOutline } from "react-icons/io5";
+import { Link } from "react-router";
 
 // --- Types ---
 // The /api/play-cricket/match/{matchId} endpoint returns `unknown` in the
@@ -24,6 +26,7 @@ import { isPast } from "date-fns";
 interface BattingEntry {
   position: string;
   name: string;
+  memberSlug: string | null;
   howOut: string | null;
   fielderName: string | null;
   bowlerName: string | null;
@@ -35,6 +38,7 @@ interface BattingEntry {
 
 interface BowlingEntry {
   name: string;
+  memberSlug: string | null;
   overs: string;
   maidens: number;
   runs: number;
@@ -182,6 +186,7 @@ function transformMatchDetail(
     const batting: BattingEntry[] = bat.map((b) => ({
       position: b.position,
       name: b.batsman_name,
+      memberSlug: b.batsman_member_slug ?? null,
       howOut: b.how_out ?? null,
       fielderName: b.fielder_name ?? null,
       bowlerName: b.bowler_name ?? null,
@@ -193,6 +198,7 @@ function transformMatchDetail(
 
     const bowling: BowlingEntry[] = bowl.map((b) => ({
       name: b.bowler_name,
+      memberSlug: b.bowler_member_slug ?? null,
       overs: b.overs,
       maidens: parseInt(b.maidens) || 0,
       runs: parseInt(b.runs) || 0,
@@ -252,6 +258,32 @@ function transformMatchDetail(
 
 // --- Sub-components ---
 
+function PlayerName({
+  name,
+  slug,
+  className,
+}: {
+  name: string;
+  slug: string | null;
+  className?: string;
+}) {
+  if (!slug) return <span className={className}>{name}</span>;
+  return (
+    <Link
+      to={`/person/${slug}`}
+      className={`${className ?? ""} text-primary inline-flex items-center gap-0.5 underline decoration-dotted decoration-1 underline-offset-2 hover:decoration-solid`}
+      title="View player profile"
+    >
+      {name}
+      <IoPersonCircleOutline
+        className="shrink-0"
+        size={14}
+        aria-hidden="true"
+      />
+    </Link>
+  );
+}
+
 function BattingCard({
   batting,
   extras,
@@ -282,7 +314,11 @@ function BattingCard({
             <TableRow key={b.position}>
               <TableCell>
                 <div>
-                  <span className="font-medium">{b.name}</span>
+                  <PlayerName
+                    name={b.name}
+                    slug={b.memberSlug}
+                    className="font-medium"
+                  />
                   <div className="text-xs text-gray-500">
                     {formatDismissal(b)}
                   </div>
@@ -330,7 +366,12 @@ function BattingCard({
       {didNotBat.length > 0 && (
         <p className="mt-2 text-xs text-gray-500">
           <strong>Did not bat:</strong>{" "}
-          {didNotBat.map((b) => b.name).join(", ")}
+          {didNotBat.map((b, i) => (
+            <span key={b.position}>
+              {i > 0 && ", "}
+              <PlayerName name={b.name} slug={b.memberSlug} />
+            </span>
+          ))}
         </p>
       )}
     </div>
@@ -357,7 +398,13 @@ function BowlingCard({ bowling }: { bowling: BowlingEntry[] }) {
             decimalOvers > 0 ? (b.runs / decimalOvers).toFixed(1) : "-";
           return (
             <TableRow key={`${b.name}-${i}`}>
-              <TableCell className="font-medium">{b.name}</TableCell>
+              <TableCell>
+                <PlayerName
+                  name={b.name}
+                  slug={b.memberSlug}
+                  className="font-medium"
+                />
+              </TableCell>
               <TableCell className="text-right font-mono tabular-nums">
                 {b.overs}
               </TableCell>
