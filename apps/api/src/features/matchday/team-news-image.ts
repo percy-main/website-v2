@@ -28,6 +28,10 @@ const PANEL_TOP_Y = 165;
 const PANEL_TOP_RIGHT_X = 470;
 const PANEL_BOTTOM_RIGHT_X = 640;
 
+// Solid blue band above the pitch that holds the match sponsor content.
+// Sized so its bottom aligns with the top of the unextended pitch photo.
+const MATCH_SPONSOR_BAND_HEIGHT = 105;
+
 const NAME_SUFFIXES = new Set(["jnr", "jr", "snr", "sr", "ii", "iii", "iv"]);
 
 function capitalise(word: string): string {
@@ -127,7 +131,7 @@ function textPath(
   return { markup: `<path ${attrs.join(" ")}/>`, width };
 }
 
-function buildSvg(data: TeamNewsData): string {
+function buildSvg(data: TeamNewsData, hasMatchSponsorLogo: boolean): string {
   const teamShort = shortTeamLabel(data.teamName).toUpperCase();
   const opposition = data.opposition.toUpperCase();
   const homeAway = data.isHome ? "H" : "A";
@@ -209,6 +213,45 @@ function buildSvg(data: TeamNewsData): string {
     }
   }
 
+  // Match sponsor — sits in a solid dark-blue band above the pitch photo,
+  // right of the red panel. The band gives consistent contrast regardless of
+  // the sky colour sampled from the photo. Always shows a "MATCH SPONSOR"
+  // label; the logo is composited separately by sharp, or the sponsor name
+  // is rendered here as a text fallback (no logo, or logo fetch failed).
+  let matchSponsorBand = "";
+  const matchSponsorPaths: string[] = [];
+  if (data.matchSponsor) {
+    const bandCenterX = 785;
+    // Full-width band; the red panel draws on top of it so only the portion
+    // right of the panel is visible.
+    matchSponsorBand = `<rect x="0" y="${PANEL_TOP_Y}" width="${SIZE}" height="${MATCH_SPONSOR_BAND_HEIGHT}" fill="${TITLE_BLUE}"/>`;
+
+    const labelPath = textPath("MATCH SPONSOR", bandCenterX, 200, 22, {
+      fill: WHITE,
+      anchor: "middle",
+      opacity: 0.85,
+    });
+    matchSponsorPaths.push(labelPath.markup);
+
+    if (!hasMatchSponsorLogo) {
+      const maxNameWidth = 540;
+      const nameFontSize = fitFontSize(
+        data.matchSponsor.name,
+        38,
+        maxNameWidth,
+        20,
+      );
+      const namePath = textPath(
+        data.matchSponsor.name,
+        bandCenterX,
+        252,
+        nameFontSize,
+        { fill: WHITE, anchor: "middle" },
+      );
+      matchSponsorPaths.push(namePath.markup);
+    }
+  }
+
   // "TEAM NEWS" — outlined, italic, rotated vertically down the left of the
   // red panel. Positioned so the top sits clear of the header and the letters
   // don't clip the left edge or the player list.
@@ -234,10 +277,12 @@ function buildSvg(data: TeamNewsData): string {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
   ${header}
+  ${matchSponsorBand}
   ${panel}
   ${titlePath.markup}
   ${subtitlePath.markup}
   ${watermark.markup}
+${matchSponsorPaths.join("\n")}
 ${playerPaths.join("\n")}
 </svg>`;
 }
@@ -285,7 +330,33 @@ export async function generateTeamNewsImage(
           })
           .toBuffer();
 
-  const svg = buildSvg(data);
+  // Pre-fetch and size the match sponsor logo so buildSvg knows whether it
+  // needs to render the sponsor name as a text fallback.
+  let matchSponsorLogoSlot: {
+    buffer: Buffer;
+    top: number;
+    left: number;
+  } | null = null;
+  if (data.matchSponsor?.logoUrl) {
+    const logoBuffer = await fetchImage(data.matchSponsor.logoUrl);
+    if (logoBuffer) {
+      const resizedLogo = await sharp(logoBuffer)
+        .resize({ height: 55, fit: "inside" })
+        .toBuffer();
+      const logoMeta = await sharp(resizedLogo).metadata();
+      const logoWidth = logoMeta.width ?? 100;
+      const logoHeight = logoMeta.height ?? 55;
+      // Centered in the sky band on x=785, y=240 (below the "MATCH SPONSOR"
+      // label rendered in the SVG).
+      matchSponsorLogoSlot = {
+        buffer: resizedLogo,
+        top: 240 - Math.round(logoHeight / 2),
+        left: 785 - Math.round(logoWidth / 2),
+      };
+    }
+  }
+
+  const svg = buildSvg(data, matchSponsorLogoSlot !== null);
   const svgBuffer = await sharp(Buffer.from(svg))
     .resize(SIZE, SIZE)
     .png()
@@ -308,47 +379,46 @@ export async function generateTeamNewsImage(
     // Skip if not found
   }
 
-  // Sponsors stacked on the right side
-  const sponsorSlots: Array<{ buffer: Buffer; top: number; left: number }> = [];
-  let nextTop = SIZE - 120;
-
+  // Club sponsor (Crossling) — bottom-right corner, on a semi-transparent
+  // light-grey rounded backing for contrast against the pitch photo.
   try {
     const sponsorLogo = await sharp(CLUB_SPONSOR_PATH)
       .resize({ height: 80, fit: "inside" })
       .toBuffer();
     const meta = await sharp(sponsorLogo).metadata();
     const logoWidth = meta.width ?? 120;
-    sponsorSlots.push({
-      buffer: sponsorLogo,
-      top: nextTop,
-      left: SIZE - logoWidth - 40,
+    const logoHeight = meta.height ?? 80;
+    const padX = 22;
+    const padY = 14;
+    const bgWidth = logoWidth + padX * 2;
+    const bgHeight = logoHeight + padY * 2;
+    const backingSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${bgWidth}" height="${bgHeight}"><rect x="0" y="0" width="${bgWidth}" height="${bgHeight}" rx="14" ry="14" fill="rgba(245,245,245,0.78)"/></svg>`;
+    const backing = await sharp(Buffer.from(backingSvg)).png().toBuffer();
+
+    const logoTop = SIZE - 120;
+    const logoLeft = SIZE - logoWidth - 40;
+    layers.push({
+      input: backing,
+      top: logoTop - padY,
+      left: logoLeft - padX,
+      blend: "over",
     });
-    nextTop -= 110;
+    layers.push({
+      input: sponsorLogo,
+      top: logoTop,
+      left: logoLeft,
+      blend: "over",
+    });
   } catch {
     // Skip if not found
   }
 
-  if (data.matchSponsor?.logoUrl) {
-    const logoBuffer = await fetchImage(data.matchSponsor.logoUrl);
-    if (logoBuffer) {
-      const resizedLogo = await sharp(logoBuffer)
-        .resize({ height: 80, fit: "inside" })
-        .toBuffer();
-      const logoMeta = await sharp(resizedLogo).metadata();
-      const logoWidth = logoMeta.width ?? 80;
-      sponsorSlots.push({
-        buffer: resizedLogo,
-        top: nextTop,
-        left: SIZE - logoWidth - 40,
-      });
-    }
-  }
-
-  for (const slot of sponsorSlots) {
+  // Match sponsor logo — sky band above the pitch (if present)
+  if (matchSponsorLogoSlot) {
     layers.push({
-      input: slot.buffer,
-      top: slot.top,
-      left: slot.left,
+      input: matchSponsorLogoSlot.buffer,
+      top: matchSponsorLogoSlot.top,
+      left: matchSponsorLogoSlot.left,
       blend: "over",
     });
   }
