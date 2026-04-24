@@ -67,6 +67,14 @@ export const SiteFooter: FC = () => {
               </li>
               <li>
                 <Link
+                  to="/report-incident"
+                  className="text-white/80 transition hover:text-white"
+                >
+                  Report an accident or incident
+                </Link>
+              </li>
+              <li>
+                <Link
                   to="/legal/privacy"
                   className="text-white/80 transition hover:text-white"
                 >
