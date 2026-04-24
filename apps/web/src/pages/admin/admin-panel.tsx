@@ -9,6 +9,7 @@ import { DuplicatesTab } from "./duplicates-tab";
 import { ExpenseHistoryTab } from "./expense-history-tab";
 import { FantasyTab } from "./fantasy-tab";
 import { GameReportsTab } from "./game-reports-tab";
+import { IncidentsTab } from "./incidents-tab";
 import { JuniorsTab } from "./juniors-tab";
 import { MatchFeesTab } from "./match-fees-tab";
 import { MembersTab } from "./members-tab";
@@ -22,6 +23,7 @@ const TABS = [
   "charges",
   "contacts",
   "sponsorships",
+  "incidents",
   "documents",
   "duplicates",
   "match-fees",
@@ -39,6 +41,7 @@ const ACTIVE_TABS: Tab[] = [
   "charges",
   "contacts",
   "sponsorships",
+  "incidents",
   "documents",
   "duplicates",
   "match-fees",
@@ -89,6 +92,7 @@ export function Component() {
             <TabsTrigger value="charges">Charges</TabsTrigger>
             <TabsTrigger value="contacts">Contacts</TabsTrigger>
             <TabsTrigger value="sponsorships">Sponsorships</TabsTrigger>
+            <TabsTrigger value="incidents">Incidents</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
             <TabsTrigger value="duplicates">Duplicates</TabsTrigger>
             <TabsTrigger value="match-fees">Match Fees</TabsTrigger>
@@ -113,6 +117,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="sponsorships">
             <SponsorshipsTab />
+          </TabsContent>
+          <TabsContent value="incidents">
+            <IncidentsTab />
           </TabsContent>
           <TabsContent value="documents">
             <DocumentsTab />

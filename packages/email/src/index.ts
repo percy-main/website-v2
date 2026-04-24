@@ -4,6 +4,7 @@ export { AvailabilityRequest } from "./templates/AvailabilityRequest.tsx";
 export { ChaosWeekAnnouncement } from "./templates/ChaosWeekAnnouncement.tsx";
 export { ChargeNotification } from "./templates/ChargeNotification.tsx";
 export { FantasyReminder } from "./templates/FantasyReminder.tsx";
+export { IncidentReportConfirmation } from "./templates/IncidentReportConfirmation.tsx";
 export { MembershipUpdated } from "./templates/MembershipUpdated.tsx";
 export { PaymentReminder } from "./templates/PaymentReminder.tsx";
 export { PlayerSponsorshipConfirmation } from "./templates/PlayerSponsorshipConfirmation.tsx";

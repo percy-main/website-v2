@@ -52,6 +52,11 @@ export function Component() {
             </a>
           </li>
           <li>
+            <a className="text-blue-900 underline" href="#incidents">
+              Accident and incident reports
+            </a>
+          </li>
+          <li>
             <a className="text-blue-900 underline" href="#complain">
               How to complain
             </a>
@@ -110,6 +115,30 @@ export function Component() {
           <li>Name</li>
           <li>Contact information</li>
           <li>Health and safety information</li>
+        </ul>
+
+        <p>
+          We collect or use the following personal information to{" "}
+          <strong>
+            record, review and respond to accidents, incidents and safety
+            concerns
+          </strong>
+          :
+        </p>
+        <ul>
+          <li>Names and contact details of the reporter</li>
+          <li>
+            Name and age indication (adult or under 18) of the person affected
+          </li>
+          <li>
+            Details of the incident — date, time, location, activity, and a
+            description of what happened
+          </li>
+          <li>
+            Health-related information where relevant — for example whether an
+            injury occurred and what first aid or emergency care was given
+          </li>
+          <li>Witness details where known</li>
         </ul>
 
         <p>
@@ -373,6 +402,49 @@ export function Component() {
           processing and storage
         </p>
 
+        {/* Accident and incident reports */}
+        <h2 id="incidents" className="scroll-mt-40">
+          Accident and incident reports
+        </h2>
+        <p>
+          The club provides a form for reporting accidents, injuries, near
+          misses and safety concerns at{" "}
+          <a className="text-blue-900 underline" href="/report-incident">
+            /report-incident
+          </a>
+          . Information submitted through this form is used to record, review
+          and respond to the incident, and to demonstrate responsible health and
+          safety governance.
+        </p>
+        <p>
+          Reports may include health-related information (for example details of
+          an injury or first aid given). We treat this information as sensitive
+          and only use it for the purposes set out below.
+        </p>
+        <p>
+          <strong>Who can see accident and incident reports:</strong> access is
+          restricted to authorised club admins. These individuals are DBS
+          checked and safeguarding aware. Reports involving people under 18 are
+          handled with particular care and, where appropriate, discussed with
+          the club&rsquo;s safeguarding officer.
+        </p>
+        <p>
+          <strong>How long we keep them:</strong> accident, incident and health
+          and safety records are retained for as long as is necessary to meet
+          our health and safety, insurance and legal obligations. Where children
+          are involved, records may be kept for longer in line with safeguarding
+          guidance.
+        </p>
+        <p>
+          <strong>Who we may share them with:</strong> where necessary and
+          lawful, we may share information from accident and incident reports
+          with third parties including our insurers, relevant sport governing
+          bodies (for example the England and Wales Cricket Board or the
+          Northumberland &amp; Tyneside Cricket League), emergency services,
+          local authorities, safeguarding agencies and regulators such as the
+          Health and Safety Executive.
+        </p>
+
         {/* How to complain */}
         <h2 id="complain" className="scroll-mt-40">
           How to complain
@@ -414,7 +486,7 @@ export function Component() {
         </p>
 
         <h2>Last updated</h2>
-        <p>10 January 2025</p>
+        <p>24 April 2026</p>
       </div>
     </div>
   );

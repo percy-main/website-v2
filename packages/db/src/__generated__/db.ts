@@ -23,6 +23,50 @@ export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export interface AccidentIncidentReport {
+  actions_taken: string | null;
+  activity: string | null;
+  affected_contact: string | null;
+  affected_is_minor: Generated<boolean>;
+  affected_name: string | null;
+  affected_relationship: string | null;
+  body_parts_affected: string | null;
+  closed_at: Timestamp | null;
+  closure_reason: string | null;
+  created_at: Generated<Timestamp>;
+  declaration_confirmed: boolean;
+  description: string;
+  first_aid_details: string | null;
+  first_aid_given: Generated<boolean>;
+  first_aider_name: string | null;
+  id: string;
+  immediate_actions: string | null;
+  incident_type: string;
+  injury_occurred: Generated<boolean>;
+  injury_severity: string | null;
+  internal_notes: string | null;
+  location: string;
+  medical_treatment_required: Generated<boolean>;
+  nature_of_injury: string | null;
+  occurred_at: Timestamp;
+  owner_user_id: string | null;
+  prefers_no_contact: Generated<boolean>;
+  reporter_email: string;
+  reporter_name: string;
+  reporter_phone: string | null;
+  reporter_relationship: string;
+  riddor_reported_at: Timestamp | null;
+  riddor_required: boolean | null;
+  safeguarding_discussed: Generated<boolean>;
+  safeguarding_discussed_at: Timestamp | null;
+  safeguarding_notes: string | null;
+  severity: string | null;
+  status: Generated<string>;
+  target_completion_date: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+  witnesses: string | null;
+}
+
 export interface Account {
   accessToken: string | null;
   accessTokenExpiresAt: Timestamp | null;
@@ -551,6 +595,7 @@ export interface Verification {
 }
 
 export interface DB {
+  accident_incident_report: AccidentIncidentReport;
   account: Account;
   availability_assignment: AvailabilityAssignment;
   availability_fixture: AvailabilityFixture;

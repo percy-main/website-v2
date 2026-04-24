@@ -83,6 +83,10 @@ export const router = createBrowserRouter([
         lazy: () => import("./pages/legal/privacy.js"),
       },
       {
+        path: "report-incident",
+        lazy: () => import("./pages/report-incident.js"),
+      },
+      {
         path: "purchase/:priceId",
         lazy: () => import("./pages/purchase/purchase.js"),
       },
