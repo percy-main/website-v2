@@ -331,6 +331,58 @@ export interface JuniorTeamManager {
   user_id: string;
 }
 
+export interface Lead {
+  attribution: Json | null;
+  consent_ad_storage: Generated<string>;
+  consent_ad_user_data: Generated<string>;
+  consent_recorded_at: string | null;
+  consent_version: string | null;
+  created_at: Generated<string>;
+  email: string;
+  first_campaign_id: string | null;
+  first_segment: string | null;
+  id: string;
+  member_id: string | null;
+  name: string | null;
+  notes: string | null;
+  phone: string | null;
+  source: string;
+  /**
+   * Denormalised from marketing_event; event rows are the source of truth.
+   */
+  status: Generated<string>;
+  updated_at: string | null;
+}
+
+export interface MarketingEvent {
+  ads_conversion_action: string | null;
+  attribution: Json | null;
+  campaign_id: string | null;
+  created_at: Generated<string>;
+  created_by: string | null;
+  currency: string | null;
+  id: string;
+  lead_id: string | null;
+  payload: Json | null;
+  segment: string | null;
+  source: string;
+  type: string;
+  user_id: string | null;
+  value_pence: number | null;
+}
+
+export interface MarketingOutbox {
+  attempts: Generated<number>;
+  created_at: Generated<string>;
+  destination: string;
+  event_id: string;
+  id: string;
+  last_error: string | null;
+  next_attempt_at: Generated<string>;
+  status: Generated<string>;
+  succeeded_at: string | null;
+}
+
 export interface Matchday {
   competition_type: string | null;
   confirmed_at: string | null;
@@ -619,6 +671,9 @@ export interface DB {
   game_sponsorship: GameSponsorship;
   junior_team: JuniorTeam;
   junior_team_manager: JuniorTeamManager;
+  lead: Lead;
+  marketing_event: MarketingEvent;
+  marketing_outbox: MarketingOutbox;
   match_fee_rate: MatchFeeRate;
   match_performance_batting: MatchPerformanceBatting;
   match_performance_bowling: MatchPerformanceBowling;
