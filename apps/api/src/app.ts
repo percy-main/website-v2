@@ -30,6 +30,7 @@ import { documentRoutes } from "./features/documents/routes.ts";
 import { fantasyRoutes } from "./features/fantasy/routes.ts";
 import { gamesRoutes } from "./features/games/routes.ts";
 import { healthRoutes } from "./features/health/routes.ts";
+import { incidentReportRoutes } from "./features/incident-report/routes.ts";
 import { juniorRoutes } from "./features/junior/routes.ts";
 import { leaderboardRoutes } from "./features/leaderboard/routes.ts";
 import { matchdayRoutes } from "./features/matchday/routes.ts";
@@ -156,6 +157,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(cricketLeaderboardRoutes, { prefix: "/api" });
   await app.register(recordsRoutes, { prefix: "/api" });
   await app.register(contactRoutes, { prefix: "/api" });
+  await app.register(incidentReportRoutes, { prefix: "/api" });
   await app.register(webhookRoutes, { prefix: "/api" });
   await app.register(ogImageRoutes, { prefix: "/api" });
 
