@@ -67,24 +67,29 @@ Four dedicated segment pages plus a fallback. URL shape is user-voice (`/tell-me
 - `/tell-me-about/junior-girls`
 - `/tell-me-about` (optional index/fallback; for recruitment it picks a segment, for other topics it could list them)
 
-Each is a React Router lazy route under `apps/web/src/pages/tell-me-about/`. Each renders:
+Each is a React Router lazy route under `apps/web/src/pages/tell-me-about/`. URL slugs are format-neutral (matching the public labels); enum keys retain the format detail. Nobody sees enum keys; everybody sees URLs.
 
-- A short segment-specific hero (copy + image).
-- The shared `<LeadForm campaignId="recruit-2026" segment="…" />` component from the platform.
-- 2–3 pieces of segment-relevant reassurance (training times, coach, what to bring).
-- Link to the privacy page.
+### Page structure
 
-URL slugs are format-neutral (matching the public labels); enum keys retain the format detail. Nobody sees enum keys; everybody sees URLs.
+Every page renders, in order:
 
-### Content
+1. **Hero** — segment-specific, 2–3 lines of copy + a single relevant image.
+2. **Four essential reassurance items**:
+   - Who the session is for (age band / experience level).
+   - When training happens (day, time, where).
+   - What to bring (typically "nothing — we'll sort kit for your first session").
+   - What happens after submitting the form (we reply within 1 working day; we agree a date; you turn up).
+3. **"Trial is free"** line — removes the most common conversion-blocker fear: _"Your first session is free. Membership details only come up if you decide to join after trying."_
+4. **Safeguarding reassurance on junior pages only** — one line + a link to the club's safeguarding policy. Example: _"All junior sessions are run by DBS-checked coaches and a Level 3 Club Safeguarding Officer. [Read our safeguarding policy](...)."_ Don't belabour it; the link carries the detail.
+5. **Form headline** — one line that restates the ask in segment terms (e.g. "Book your first women's softball session").
+6. **The shared `<LeadForm campaignId="recruit-2026" segment="…" />` component** from the platform.
+7. **Footer links** to: about the club, fixtures/season, privacy policy, safeguarding policy, contact. These give Ad Grants website reviewers enough site context to satisfy the "substantial, mission-relevant content" requirement without bloating the conversion surface.
 
-Written collaboratively. Each page needs:
+### Content philosophy
 
-- Hero: 2–3 lines + a single relevant image.
-- Reassurance: 3 short items (when training happens, who'll meet you, what to bring).
-- Form headline: one line that restates the ask in segment terms.
-
-Shared structure keeps the effort small — hero block + reassurance block + form component, parameterised per segment.
+- Keep the page focused. The hero + form is the product; everything else exists to remove objections.
+- Mission content lives on the broader site (About, History, Teams, Fixtures). Ad Grants website policy evaluates the site as a whole, not each landing page in isolation, so we don't need every landing page to be a mission statement — just to link back to where the mission lives.
+- Copy is written collaboratively: club voice + structure + character-limit compliance.
 
 ---
 
@@ -177,15 +182,71 @@ One-time setup, outside the codebase, before Phase 3 of the platform rollout:
    - `recruit-2026 / Generate Lead / Junior Girls Dynamos`
    - `recruit-2026 / Attended Session` (one, all segments)
    - `recruit-2026 / Became Member` (one, all segments)
-3. Set each `generate_lead` action to count "one per click", value £0, 30-day click-through, 1-day view-through. Add to Secondary conversions column initially.
-4. Set the two offline actions to count "every", same windows, Secondary column.
+3. Set each `generate_lead` action to count "one per click", value £0, **30-day click-through** + 1-day view-through. Add to Secondary conversions column initially.
+4. Set the two offline actions (`Attended Session`, `Became Member`) to count "every", value **£50 flat** on Became Member (per §3), **60-day click-through** + 1-day view-through. Secondary column. Longer click-through windows reflect the real funnel — people try sessions and decide on membership over weeks, not days. 60 days is the practical maximum given Google retains clicks for offline matching for 63 days.
 5. Record the resource names of each in the campaign registry (`packages/shared/src/marketing/campaigns.ts`) via a PR.
 6. Create four campaigns in Ads, one per segment, each targeting its own conversion action.
-7. Start on **Manual CPC bidding**. Do not switch to Smart Bidding / Maximise Conversions until §8 validation completes.
+7. **Bidding.** Ad Grants requires conversion-based Smart Bidding (post-2019 accounts). Manual CPC is not an option. Launch on **Maximize Clicks** as a short bootstrap while conversion actions are in Secondary and volume is being proven. Promote to **Maximize Conversions** only after the §10 validation gate passes and `generate_lead` is moved to Primary.
 
 ---
 
-## 9. Validation before bidding on these conversions
+## 9. Ad Grants compliance checklist
+
+Standing Ad Grants requirements that must be satisfied at launch and on an ongoing basis. Non-compliance can result in account suspension, not just suppressed impressions.
+
+### Account structure
+
+- **At least two enabled ad groups per campaign.** Each tightly themed, each aligned to its own landing page and ad copy. We run four campaigns × ≥2 ad groups = ≥8 ad groups minimum.
+- **At least two unique sitelink extensions** account-wide. Target: 4–6 useful sitelinks with descriptions (e.g. "About the club", "Fixtures", "Safeguarding", "Contact"). Added at account level so all campaigns inherit.
+
+### Keywords
+
+- **No single-word keywords** (except brand names like "Percy Main"). Always multi-word, intent-bearing phrases.
+- **No overly generic keywords** — avoid bare "cricket", "sport", "kids activities", "things to do", "exercise". Search engine operators will reject these at review.
+- **No unrelated ECB / program name hijacking** — only use "Dynamos" on the junior girls landing page because that's genuinely what we offer; don't bid on it elsewhere.
+- **Quality Score ≤ 2 must be paused.** Automated rule in Ads: daily scan, pause any enabled keyword with QS 1 or 2. QS 3 is also weak — review manually.
+
+### Click-through rate
+
+- **5% account-level CTR minimum.** Monitored monthly. Two consecutive sub-5% months triggers Ad Grants "underperforming account" status. Three months → account deactivation.
+- Proactive defence: pause keywords with CTR below 1% before they drag the account average down. Re-enable only after rewriting the ad copy or tightening the match type.
+
+### Geo-targeting
+
+- **Local catchment only.** Someone in London is not a realistic recruit for a North Tyneside cricket club. Geo-target the club's actual catchment — probably a 10–15 mile radius around the ground, or specific postcode districts (NE27, NE28, NE29, NE30, etc. — confirm at setup).
+- Exclude the inverse: set negative geo targets for the rest of the UK if unintended impressions appear in the search terms report.
+
+### Search terms hygiene
+
+- **Review weekly during launch, monthly once steady-state.** Add exact-match negatives for any irrelevant term that matched.
+- Common negatives to seed: "jobs", "equipment", "bats", "shop", "buy", "watch", "live score", "IPL", "England", "international", "free stream".
+
+### Budget
+
+- USD **$329/day** is the account cap, not a guaranteed spend. Ad Grants grants up to $10k/month but only delivers what it can at the ~$2 max CPC (raised to auction-set CPC for conversion-based Smart Bidding, but still effectively capped for Grants accounts). Expect real spend to be a fraction of the cap.
+- Budget per campaign should be set high enough not to throttle delivery — Grants accounts rarely exhaust daily budgets.
+
+### Starting ad-group structure
+
+One starting cut per campaign — refine based on search terms data in the first month.
+
+- **Men's Cricket** — (a) "cricket club near me" intent, (b) "adult cricket training" intent.
+- **Women's Softball Cricket** — (a) "women's cricket club", (b) "women's softball cricket".
+- **Junior Boys Cricket** — (a) "junior cricket club", (b) "kids cricket training".
+- **Junior Girls Dynamos** — (a) "girls cricket club", (b) "dynamos cricket".
+
+### Weekly operations during launch
+
+Assigned owner: Alex. Review cadence:
+
+- Search terms report → add negatives.
+- Quality Score distribution → pause QS ≤ 2.
+- CTR by campaign → flag anything trending below 5%.
+- Conversion count reconciliation (Ads vs DB).
+
+---
+
+## 10. Validation before bidding on these conversions
 
 This campaign is the first real traffic through the pipeline; bad conversion data here will poison future Smart Bidding. Before promoting `generate_lead` to the Primary conversion column:
 
@@ -194,11 +255,11 @@ This campaign is the first real traffic through the pipeline; bad conversion dat
 - Spot-check 5 random leads: `lead.attribution.gclid` is set, hashed email was included, Ads shows the conversion credited to the right campaign and segment.
 - No admin-facing error spikes in `marketing_outbox` for offline events (check at ~30 days when first "attended" outcomes start being marked).
 
-Only then promote to Primary and optionally enable Maximise Conversions bidding.
+Only then promote `generate_lead` to Primary and switch bidding from Maximize Clicks to Maximize Conversions.
 
 ---
 
-## 10. Rollout (specific to this campaign, sits on top of platform phases)
+## 11. Rollout (specific to this campaign, sits on top of platform phases)
 
 This assumes the platform is rolling out in parallel per [`CONVERSION_TRACKING.md` §19](./CONVERSION_TRACKING.md). Campaign milestones:
 
@@ -215,7 +276,7 @@ Campaign runs year-round. Seasonal intent (cricket-season peak Apr–Jul, presea
 
 ---
 
-## 11. Content ownership
+## 12. Content ownership
 
 Landing page copy and ad copy are both written collaboratively. Club voice from Alex; structure, variants, and compliance with Google's character limits from Claude.
 

@@ -77,19 +77,23 @@ Generic — a person who has entered any funnel.
 
 ```
 lead
-  id                TEXT PK
-  email             TEXT NOT NULL
-  name              TEXT NULL
-  phone             TEXT NULL
-  source            TEXT NOT NULL          -- 'contact_form' | 'marketing_lead_form' | 'stripe_checkout' | ...
-  first_campaign_id TEXT NULL              -- campaign key from the registry
-  first_segment     TEXT NULL              -- campaign-defined segment, arbitrary string
-  attribution       JSONB NULL             -- gclid/utm snapshot at creation time
-  status            TEXT NOT NULL DEFAULT 'new'   -- denormalised from events
-  member_id         TEXT NULL REFERENCES member(id)
-  notes             TEXT NULL
-  created_at        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  updated_at        TEXT NULL
+  id                    TEXT PK
+  email                 TEXT NOT NULL
+  name                  TEXT NULL
+  phone                 TEXT NULL
+  source                TEXT NOT NULL    -- 'contact_form' | 'marketing_lead_form' | 'stripe_checkout' | ...
+  first_campaign_id     TEXT NULL        -- campaign key from the registry
+  first_segment         TEXT NULL        -- campaign-defined segment, arbitrary string
+  attribution           JSONB NULL       -- gclid/utm snapshot at creation time
+  consent_ad_user_data  TEXT NOT NULL DEFAULT 'unknown'   -- 'granted' | 'denied' | 'unknown'
+  consent_ad_storage    TEXT NOT NULL DEFAULT 'unknown'   -- 'granted' | 'denied' | 'unknown'
+  consent_version       TEXT NULL        -- privacy-notice version at time of submission
+  consent_recorded_at   TEXT NULL
+  status                TEXT NOT NULL DEFAULT 'new'   -- denormalised from events
+  member_id             TEXT NULL REFERENCES member(id)
+  notes                 TEXT NULL
+  created_at            TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at            TEXT NULL
 
   idx: (email), (first_campaign_id, created_at), (status, created_at), (member_id)
 ```
@@ -99,6 +103,8 @@ Notes:
 - `status` is denormalised for cheap admin list queries. Events are the source of truth — a comment on the column makes that explicit.
 - `first_campaign_id` is set once and never changed — it's the acquisition campaign, not the most recent touchpoint.
 - One lead per email (soft constraint — app-level lookup before insert; not a unique index, because legitimate duplicates happen e.g. shared family email).
+- **Consent columns capture the user's choices at the moment they submitted the form**, frozen in time. These drive what we may send to Google about this specific lead for the life of the record. Admins may not retroactively "grant" consent on behalf of a user.
+- `consent_ad_user_data` is **distinct from** `consent_ad_storage` (see [§8](#8-consent-consent-mode-v2)). A user can grant cookie storage but decline having their hashed email sent to Google, and Google Ads API has a separate field for each.
 
 ### 4.2 `marketing_event`
 
@@ -197,22 +203,43 @@ Campaigns live in `packages/shared/src/marketing/campaigns.ts` as a typed consta
 export const campaigns = {
   "recruit-2026": {
     displayName: "Recruit 2026",
-    segments: ["senior_men", "senior_women", "junior_boys", "junior_girls"],
+    segments: [
+      "senior_men_cricket",
+      "senior_women_softball_cricket",
+      "junior_boys_cricket",
+      "junior_girls_dynamos_cricket",
+    ],
     primaryEvent: "generate_lead",
     conversionActions: {
       generate_lead: {
-        senior_men: "customers/X/conversionActions/1001",
-        senior_women: "customers/X/conversionActions/1002",
-        junior_boys: "customers/X/conversionActions/1003",
-        junior_girls: "customers/X/conversionActions/1004",
+        senior_men_cricket: "customers/X/conversionActions/1001",
+        senior_women_softball_cricket: "customers/X/conversionActions/1002",
+        junior_boys_cricket: "customers/X/conversionActions/1003",
+        junior_girls_dynamos_cricket: "customers/X/conversionActions/1004",
       },
       lead_attended_session: { _all: "customers/X/conversionActions/1005" },
       lead_became_member: { _all: "customers/X/conversionActions/1006" },
     },
     defaultValue: { amount: 0, currency: "GBP" as const },
   },
-  // Future campaigns added here.
+  // Future campaigns added here. Naming convention for segments:
+  //   {audience}_{gender}_{format?}_{sport}
+  // e.g. senior_women_hardball_cricket, senior_men_football.
 } as const;
+```
+
+### Type-level guard
+
+Add a compile-time check that every configured segment has a resolvable Ads conversion action for the campaign's primary event — catches PR-time typos before they become silent "skipped upload" bugs at runtime:
+
+```ts
+type AssertAllSegmentsHavePrimaryAction<C extends keyof typeof campaigns> =
+  (typeof campaigns)[C]["segments"][number] extends keyof (typeof campaigns)[C]["conversionActions"][(typeof campaigns)[C]["primaryEvent"]]
+    ? true
+    : never;
+
+// Fails to compile if any segment in recruit-2026 lacks a generate_lead action.
+type _Check = AssertAllSegmentsHavePrimaryAction<"recruit-2026">;
 ```
 
 Resolution at emit time:
@@ -349,8 +376,7 @@ The template placeholders are substituted by Vite at build time; if either env v
 
 - Fixed-position bar at the bottom of the page. Full-width on mobile, stacked content + buttons. Page content gets ~72px of `padding-bottom` until dismissed to avoid covering it.
 - Not modal. Not blocking. Not decorative. Keyboard-navigable, screen-reader-labelled.
-- One cookie, `pm_consent`, with value `granted` or `denied`. 12-month expiry.
-- If `pm_consent` is already set on page load, banner does not render, and the app issues the appropriate `gtag('consent', 'update', ...)` immediately (within the `wait_for_update` window).
+- If consent is already recorded on page load, banner does not render, and the app issues the appropriate `gtag('consent', 'update', ...)` immediately (within the `wait_for_update` window).
 
 Copy:
 
@@ -359,6 +385,32 @@ Copy:
 > [Allow] [Decline] [Privacy]
 
 Button styling: "Allow" uses the club's primary green, "Decline" uses a neutral grey. Both buttons are the same size and weight — colour is the only differentiation, no dark-pattern asymmetry.
+
+### Consent record
+
+A single `granted|denied` cookie isn't enough for a defensible audit trail. Store:
+
+```ts
+type ConsentRecord = {
+  state: "granted" | "denied";
+  version: string; // policy version at time of decision, e.g. "2026-05-01"
+  timestamp: string; // ISO 8601 UTC
+  source: "banner" | "settings-link" | "privacy-page";
+};
+```
+
+Serialised JSON in a first-party cookie `pm_consent`, 12-month expiry, `SameSite=Lax`, `Secure`. Writing a new record with a later timestamp supersedes the previous one; we do not keep history in the cookie (too heavy). If a written audit trail is ever needed, the same record can be mirrored to a server-side `consent_event` table (deferred; flag if required).
+
+`version` bumps whenever the privacy notice materially changes what data we send to Google. If a visitor's stored `version` is older than the current one, the banner re-appears so they can re-consent (or re-decline) against the new terms.
+
+### Cookie settings / withdrawal
+
+Withdrawal must be as easy as acceptance (PECR + Google EU User Consent Policy). Two entry points:
+
+- Persistent **"Cookie settings"** link in the site footer, visible on every page. Clicking it re-opens the banner so the user can flip their choice either direction.
+- Same link embedded in the privacy page, next to the cookies section.
+
+Flipping consent writes a new `ConsentRecord` with `source: "settings-link"` and calls `gtag('consent', 'update', ...)` with the new state. No page reload required.
 
 ### On accept
 
@@ -371,15 +423,20 @@ gtag("consent", "update", {
 });
 ```
 
-Write `pm_consent=granted`. From then on, `attribution.ts` is allowed to write `pm_attrib` on the next campaign-parameter hit.
+Write a `ConsentRecord` with `state: "granted"`, current `version`, `timestamp: Date.now()`, `source: "banner"`. From then on, `attribution.ts` is allowed to write `pm_attrib` on the next campaign-parameter hit.
 
 ### On decline
 
-`gtag` stays in denied state. Google's cookieless pings continue — no identifiers stored, but modelling signals reach Ads. `pm_attrib` is never written. Write `pm_consent=denied`.
+`gtag` stays in denied state. Google's cookieless pings continue — modelling signals reach Ads with no user identifiers attached (Consent Mode v2 behaviour). `pm_attrib` is never written. Write a `ConsentRecord` with `state: "denied"`.
 
 ### Returning visitors
 
-On subsequent page loads the stub queues default=denied as always. Immediately after the stub, the app reads `pm_consent` and, if set, issues the matching `update` inside the 500ms `wait_for_update` window — so `gtag.js` effectively boots with the correct state and no tracking is briefly-denied-then-granted.
+On subsequent page loads the stub queues default=denied as always. Immediately after the stub, the app reads the stored `ConsentRecord` and:
+
+- If absent, or if `version` is older than the current one → show banner.
+- If present and current → issue matching `gtag('consent', 'update', ...)` inside the 500ms `wait_for_update` window, skip the banner.
+
+This keeps the Advanced Consent Mode transition seamless and ensures a privacy-notice change triggers re-consent.
 
 ### What the banner does not do
 
@@ -398,6 +455,8 @@ Captures a lead from any public form. Replaces the dedicated "trial" endpoint fr
 
 ```ts
 // packages/shared/src/marketing/schemas.ts
+const consentStateSchema = z.enum(["granted", "denied", "unknown"]);
+
 const marketingLeadSchema = z.object({
   campaignId: z.string(), // from campaign registry
   segment: z.string().optional(), // campaign-defined
@@ -407,9 +466,16 @@ const marketingLeadSchema = z.object({
   source: z.string(), // which form posted this
   fields: z.record(z.string(), z.unknown()).optional(), // free-form campaign-specific
   attribution: attributionSchema.optional(),
-  consentGranted: z.boolean(),
+  consent: z.object({
+    ad_user_data: consentStateSchema, // sending hashed email / gclid to Google
+    ad_storage: consentStateSchema, // cookies + attribution storage
+    version: z.string(), // privacy-notice version the user consented against
+    recordedAt: z.string(), // ISO timestamp from pm_consent
+  }),
 });
 ```
+
+Note: consent is required but any of its axes may be `denied` or `unknown`. A submission with `ad_user_data: 'denied'` still creates the lead — we just never send the user's hashed email to Google for that lead. Submitting the form itself is the lawful basis for the club to respond; it is not tied to advertising consent.
 
 The handler:
 
@@ -460,17 +526,26 @@ Form submission is two independent calls (fire-and-forget on the gtag side; the 
 
 ```ts
 await callApi(api.POST("/api/marketing/leads", { body }));
-trackEvent("generate_lead", {
+
+const params: Record<string, unknown> = {
   campaign_id,
   segment,
   send_to: `${ADS_CONVERSION_ID}/${conversionLabel}`,
   value: 0,
   currency: "GBP",
-  user_data: { email_address: sha256(email.toLowerCase().trim()) }, // Enhanced Conversions
-});
+};
+
+// Enhanced Conversions: only attach hashed email when ad_user_data is granted.
+if (getConsent().ad_user_data === "granted") {
+  params.user_data = {
+    email_address: await sha256(email.toLowerCase().trim()),
+  };
+}
+
+trackEvent("generate_lead", params);
 ```
 
-Enhanced Conversions hashes user email client-side (Google provides a helper or we use SubtleCrypto). This is what lets Ads match the conversion to a `gclid` without us sending raw PII to Google.
+Enhanced Conversions hashes user email client-side (SubtleCrypto). Hashed email is still personal data under UK GDPR, so it is only sent when the user has granted `ad_user_data` consent. Without it, the conversion still fires — just without the user identifier — and Google matches on `gclid` alone when possible.
 
 ### What gtag takes off our plate
 
@@ -498,15 +573,41 @@ This is fine for expected volume (tens of events/day). If volume or reliability 
 
 ### What it sends (Google Ads)
 
-For each event:
+Each `ClickConversion` payload:
 
-- `conversion_action` resource name from the campaign registry.
-- `gclid` from `lead.attribution.gclid` (preferred) **and/or** hashed `user_identifiers` (email SHA-256) as fallback.
+- `conversion_action` — resource name resolved from the campaign registry.
 - `conversion_date_time` — ISO with timezone.
-- `conversion_value` + `currency_code` from the event (or campaign default).
-- `order_id` = `event.id` for idempotency.
+- `conversion_value` + `currency_code` — from the event (or campaign default).
+- `order_id` — `event.id` for idempotency.
+- **`gclid`** from `lead.attribution.gclid` when present. **Preferred**; it is the strongest signal and avoids sending any user identifier.
+- **`user_identifiers`** (hashed email SHA-256) — **only** when `lead.consent_ad_user_data = 'granted'` and `gclid` is absent or we want to boost match rate. Skipped entirely when consent is denied.
+- **`consent`** object — populated from `lead.consent_ad_user_data` and `lead.consent_ad_storage`:
+  ```
+  consent: {
+    ad_user_data: GRANTED | DENIED | UNSPECIFIED,
+    ad_personalization: GRANTED | DENIED | UNSPECIFIED,
+  }
+  ```
+  `UNSPECIFIED` is used when the stored consent is `'unknown'` (e.g. legacy/admin-created leads predating this design).
 
-The 63-day attribution window is a hard constraint. We surface it in admin: if an event is older than 60 days, the outcome button shows "(past attribution window)" and skips the upload.
+### Consent-driven behaviour matrix
+
+| `consent_ad_user_data` | `gclid` present | What we upload                                         |
+| ---------------------- | --------------- | ------------------------------------------------------ |
+| `granted`              | Yes             | Full payload: gclid + hashed email + Consent=granted   |
+| `granted`              | No              | Hashed email only + Consent=granted                    |
+| `denied`               | Yes             | gclid only + Consent=denied (no user_identifiers)      |
+| `denied`               | No              | Skip upload entirely (nothing to match on, no consent) |
+| `unknown`              | Yes             | gclid only + Consent=unspecified                       |
+| `unknown`              | No              | Skip upload                                            |
+
+### Attribution windows
+
+Click-through and upload windows are derived from each conversion action's Ads configuration, not hard-coded:
+
+- Click-through window: configured per-action in Google Ads (30 days for `generate_lead`, longer for `lead_attended_session` and `lead_became_member` which can reasonably take weeks).
+- Upload window: Google Ads retains click data for up to 63 days from the click. Offline conversions referencing a `gclid` must reach Ads inside that window.
+- **Admin UI**: for each `pending` offline event, compute `min(clickThroughWindow, 63 days)` from `lead.attribution.first_seen_at` and show a per-lead cutoff date. If the cutoff has passed, the outcome button marks the event without queueing an Ads upload.
 
 ### Retry & failure
 
@@ -597,10 +698,37 @@ No flags for per-env disable; instead, if `GA4_MEASUREMENT_ID` is unset, the gta
 
 ## 16. Consent, compliance, retention
 
-- Lawful basis for the `lead` record is legitimate interest + pre-contract (the user actively submitted a form to request something from us).
-- Lawful basis for `pm_attrib` + Ads forwarding is **consent**, granted via the banner.
-- Privacy page (`apps/web/src/pages/legal/privacy.tsx`) must be updated: what we collect, why, retention, how to opt out, how to request deletion.
-- Retention: `lead` and `marketing_event` rows kept 3 years, matching the existing member retention policy (membership + 36 months). Leads linked to a member inherit the member's retention. A nightly cleanup job deletes unlinked leads (+ cascaded events) older than 3 years — add in a later phase, not day 1. `marketing_outbox` `succeeded` rows purged after 90 days; `dead` rows kept until manually cleared.
+### Lawful bases
+
+- **Lead record**: legitimate interest + pre-contract. The user actively submitted a form to request something from us; responding is in-scope for that request.
+- **Attribution cookie (`pm_attrib`) and Google Ads forwarding**: **consent**, granted via the banner and recorded in `pm_consent` with version and timestamp.
+- **Analytics storage + Google Analytics measurement**: consent (same record).
+- **`ad_user_data` (sending hashed email / identifiers to Google for conversion measurement)**: a distinct consent axis — see [§8 Consent](#8-consent-consent-mode-v2) and [§11 Offline conversion forwarder](#11-offline-conversion-forwarder). Granted only when the user accepts the banner; must be set on every Google Ads API `ClickConversion` via the `Consent` object.
+
+### Privacy notice requirements
+
+Must be updated before Phase 2 of rollout. Required content:
+
+- **Processors named explicitly**: Google (Ads, Analytics), AWS, Better-Auth, New Relic, Slack, Stripe. Not "a third party".
+- **What we collect**: lead data (name, email, phone, notes), cookie identifiers (`pm_consent`, `pm_attrib`, Google cookies), page/event data.
+- **Why**: responding to enquiries, measuring recruitment campaigns, site analytics, service operation.
+- **What Google specifically receives**: page events via `gtag.js`, hashed email when `ad_user_data` is granted, `gclid` for ad click matching, offline conversion uploads for admin-marked outcomes.
+- **Consent Mode**: plain English — "Google's tag is loaded on every page. Until you accept, it sends traffic signals to Google with no identifiers attached so Google can measure ad performance in aggregate. If you accept, it also reads and writes identifiers that let us and Google measure specific users."
+- **How to withdraw consent**: footer "Cookie settings" link, changes take effect immediately.
+- **Retention**: as below.
+- **Rights**: access, rectification, erasure, portability; address the trustees to exercise them.
+
+### Service communications vs direct marketing
+
+- Responding to a trial/enquiry form submission is a **service communication** — in-scope under the user's original request, not marketing.
+- Newsletters, fundraising asks, seasonal recruitment reminders, sponsor promotions, and similar are **direct marketing** and need their own lawful basis (opt-in, or a documented charitable-purpose soft opt-in for existing members).
+- The privacy notice must make this distinction so users know what to expect from a form submission (reply about your enquiry, nothing else) vs signing up to a marketing list (which, if it ever exists, is a separate consent).
+
+### Retention
+
+- `lead` and `marketing_event` rows kept 3 years, matching the existing member retention policy (membership + 36 months). Leads linked to a member inherit the member's retention.
+- A nightly cleanup job deletes unlinked leads (+ cascaded events) older than 3 years — add in a later phase, not day 1.
+- `marketing_outbox`: `succeeded` rows purged after 90 days; `dead` rows kept until manually cleared.
 - Data subject requests are satisfied by deleting the `lead` row — events FK-cascade or are scrubbed.
 
 ---
@@ -661,7 +789,7 @@ Each phase is independently deployable, independently valuable, and reversible.
 
 - Add Ads conversion ID, fire conversion send_to in `gtag`.
 - In Ads, create conversion actions in **Secondary** (observation) column.
-- Campaigns run on manual CPC, not Smart Bidding.
+- **Bidding.** Ad Grants accounts created after 2019-04-22 are required to use conversion-based Smart Bidding; Manual CPC is not permitted. If the account has no conversion history yet, launch on **Maximize Clicks** as a short, documented bootstrap phase to gather traffic. Do **not** set any automated-bid conversion action while conversion tracking is still being validated (that's the whole point of Secondary-column launch).
 - **Validation gate**: Ads conversion counts match DB counts within 5% over 2 weeks.
 
 ### Phase 5 — Offline forwarder + outcome uploads
@@ -674,7 +802,7 @@ Each phase is independently deployable, independently valuable, and reversible.
 ### Phase 6 — Promote to primary bidding
 
 - Move `generate_lead` to **Primary** conversion in Ads.
-- Optionally switch campaigns to Maximise Conversions.
+- Switch from Maximize Clicks to **Maximize Conversions** now that there's enough signal. (Maximize Conversion Value is an option once `lead_became_member` starts landing and values are trusted; stick with Maximize Conversions first.)
 - Weekly CPA review.
 
 ### Phase 7 — Operational polish (as needed)
