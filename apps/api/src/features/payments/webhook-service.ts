@@ -20,6 +20,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { createElement } from "react";
 import type Stripe from "stripe";
+import { emitMarketingEventForMembership } from "../marketing/membership-hook.ts";
 import { invoiceLinesToDuration, stripeDate } from "./stripe-utils.ts";
 
 /** Log a warning if a charge was not created due to missing member. */
@@ -144,6 +145,13 @@ export function handleCheckoutCompleted({
           }),
         ),
       });
+
+      await emitMarketingEventForMembership(db, log, {
+        email,
+        amountPence: fullSession.amount_total ?? null,
+        membershipType: memberMeta.data.membership,
+      });
+
       return;
     }
 
@@ -323,6 +331,12 @@ export function handleInvoicePayment({
           }),
         ),
       });
+
+      await emitMarketingEventForMembership(db, log, {
+        email,
+        amountPence: invoice.amount_paid,
+        membershipType: meta.membership,
+      });
     }
   };
 }
@@ -450,6 +464,13 @@ export function handlePaymentIntentSucceeded({
           }),
         ),
       });
+
+      await emitMarketingEventForMembership(db, log, {
+        email,
+        amountPence: paymentIntent.amount,
+        membershipType: memberMeta.data.membership,
+      });
+
       return;
     }
 

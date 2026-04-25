@@ -103,6 +103,28 @@ export const router = createBrowserRouter([
         lazy: () => import("./pages/availability/public-availability.js"),
       },
 
+      // Recruit-2026 landing pages
+      {
+        path: "tell-me-about",
+        lazy: () => import("./pages/tell-me-about/index.js"),
+      },
+      {
+        path: "tell-me-about/mens-cricket",
+        lazy: () => import("./pages/tell-me-about/mens-cricket.js"),
+      },
+      {
+        path: "tell-me-about/womens-cricket",
+        lazy: () => import("./pages/tell-me-about/womens-cricket.js"),
+      },
+      {
+        path: "tell-me-about/junior-boys",
+        lazy: () => import("./pages/tell-me-about/junior-boys.js"),
+      },
+      {
+        path: "tell-me-about/junior-girls",
+        lazy: () => import("./pages/tell-me-about/junior-girls.js"),
+      },
+
       // Auth routes (minimal layout)
       {
         element: <AuthLayout />,

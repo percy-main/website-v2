@@ -61,6 +61,14 @@ const configSchema = z.object({
   PLAY_CRICKET_API_TOKEN: z.string().optional(),
   PLAY_CRICKET_SITE_ID: z.string().optional(),
 
+  // Google Ads (offline conversion uploads)
+  GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
+  GOOGLE_ADS_CUSTOMER_ID: z.string().optional(),
+  GOOGLE_ADS_LOGIN_CUSTOMER_ID: z.string().optional(),
+  GOOGLE_ADS_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_ADS_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_ADS_OAUTH_REFRESH_TOKEN: z.string().optional(),
+
   // Sync task launch (admin "Sync now" button → ECS RunTask)
   AWS_REGION: z.string().default("eu-west-2"),
   SYNC_ECS_CLUSTER: z.string().optional(),

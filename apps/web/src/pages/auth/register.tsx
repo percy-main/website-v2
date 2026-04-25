@@ -2,6 +2,7 @@ import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { authClient } from "@/lib/auth-client.js";
+import { trackEvent } from "@/lib/marketing/gtag.js";
 import { useMutation } from "@tanstack/react-query";
 import { useCallback, useState, type FC } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
@@ -52,6 +53,7 @@ export function Component() {
     },
     onSuccess(result) {
       if (!result.error) {
+        trackEvent("sign_up", { method: "email" });
         const registeredUrl = returnTo
           ? `/auth/registered?returnTo=${encodeURIComponent(returnTo)}`
           : "/auth/registered";

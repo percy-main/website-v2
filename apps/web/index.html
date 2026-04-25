@@ -60,6 +60,34 @@
       media="(prefers-color-scheme: dark)"
       content="#0f172a"
     />
+    <!-- pm-gtag:start -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("consent", "default", {
+        ad_storage: "denied",
+        ad_user_data: "denied",
+        ad_personalization: "denied",
+        analytics_storage: "denied",
+        wait_for_update: 500,
+      });
+    </script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=%VITE_GA4_MEASUREMENT_ID%"
+    ></script>
+    <script>
+      gtag("js", new Date());
+      gtag("config", "%VITE_GA4_MEASUREMENT_ID%");
+    </script>
+    <!-- pm-gtag-ads:start -->
+    <script>
+      gtag("config", "%VITE_GOOGLE_ADS_CONVERSION_ID%");
+    </script>
+    <!-- pm-gtag-ads:end -->
+    <!-- pm-gtag:end -->
   </head>
   <body>
     <script>

@@ -8825,6 +8825,23 @@ export interface paths {
                         email: string;
                         message: string;
                         page: string;
+                        campaignId?: string;
+                        segment?: string;
+                        attribution?: {
+                            gclid?: string;
+                            gbraid?: string;
+                            wbraid?: string;
+                            utm_source?: string;
+                            utm_medium?: string;
+                            utm_campaign?: string;
+                            utm_term?: string;
+                            utm_content?: string;
+                            landing_path?: string;
+                            referrer?: string;
+                            experiment_id?: string;
+                            variant?: string;
+                            first_seen_at: string;
+                        };
                     };
                 };
             };
@@ -9159,6 +9176,370 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/admin/leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    search?: string;
+                    campaignId?: string;
+                    segment?: string;
+                    status?: string;
+                    source?: string;
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                email: string;
+                                name: string | null;
+                                phone: string | null;
+                                source: string;
+                                firstCampaignId: string | null;
+                                firstSegment: string | null;
+                                status: string;
+                                memberId: string | null;
+                                consentAdUserData: string;
+                                consentAdStorage: string;
+                                notes: string | null;
+                                createdAt: string;
+                                updatedAt: string | null;
+                                lastEventType: string | null;
+                                lastEventAt: string | null;
+                                adsCutoffAt: string | null;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/marketing-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    leadId: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                type: string;
+                                campaignId: string | null;
+                                segment: string | null;
+                                source: string;
+                                valuePence: number | null;
+                                currency: string | null;
+                                adsConversionAction: string | null;
+                                payload: unknown;
+                                createdAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/leads/{leadId}/outcomes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    leadId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        outcome: "contacted" | "attended" | "joined" | "lost";
+                        notes?: string;
+                        memberId?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            ok: true;
+                            eventId: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/marketing-outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    status?: string;
+                    destination?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                eventId: string;
+                                destination: string;
+                                status: string;
+                                attempts: number;
+                                lastError: string | null;
+                                nextAttemptAt: string;
+                                succeededAt: string | null;
+                                createdAt: string;
+                                eventType: string | null;
+                                campaignId: string | null;
+                                segment: string | null;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/marketing-outbox/{outboxId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    outboxId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            ok: true;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/marketing/leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        campaignId: string;
+                        segment?: string;
+                        name: string;
+                        /** Format: email */
+                        email: string;
+                        phone?: string;
+                        source: string;
+                        fields?: {
+                            [key: string]: unknown;
+                        };
+                        attribution?: {
+                            gclid?: string;
+                            gbraid?: string;
+                            wbraid?: string;
+                            utm_source?: string;
+                            utm_medium?: string;
+                            utm_campaign?: string;
+                            utm_term?: string;
+                            utm_content?: string;
+                            landing_path?: string;
+                            referrer?: string;
+                            experiment_id?: string;
+                            variant?: string;
+                            first_seen_at: string;
+                        };
+                        consent: {
+                            /** @enum {string} */
+                            ad_user_data: "granted" | "denied" | "unknown";
+                            /** @enum {string} */
+                            ad_storage: "granted" | "denied" | "unknown";
+                            version: string;
+                            recordedAt: string;
+                        };
+                        honeypot?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            leadId: string;
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Default Response */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/stripe/webhook": {

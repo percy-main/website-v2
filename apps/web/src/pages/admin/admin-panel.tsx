@@ -11,6 +11,8 @@ import { FantasyTab } from "./fantasy-tab";
 import { GameReportsTab } from "./game-reports-tab";
 import { IncidentsTab } from "./incidents-tab";
 import { JuniorsTab } from "./juniors-tab";
+import { LeadsTab } from "./leads-tab";
+import { MarketingOutboxTab } from "./marketing-outbox-tab";
 import { MatchFeesTab } from "./match-fees-tab";
 import { MembersTab } from "./members-tab";
 import { RecordLinkingTab } from "./record-linking-tab";
@@ -21,6 +23,7 @@ const TABS = [
   "members",
   "juniors",
   "charges",
+  "leads",
   "contacts",
   "sponsorships",
   "incidents",
@@ -32,6 +35,7 @@ const TABS = [
   "treasurer",
   "expense-history",
   "fantasy",
+  "marketing-outbox",
 ] as const;
 type Tab = (typeof TABS)[number];
 
@@ -39,6 +43,7 @@ const ACTIVE_TABS: Tab[] = [
   "members",
   "juniors",
   "charges",
+  "leads",
   "contacts",
   "sponsorships",
   "incidents",
@@ -50,6 +55,7 @@ const ACTIVE_TABS: Tab[] = [
   "treasurer",
   "expense-history",
   "fantasy",
+  "marketing-outbox",
 ];
 
 function isValidTab(value: string | null): value is Tab {
@@ -90,6 +96,7 @@ export function Component() {
             <TabsTrigger value="members">Members</TabsTrigger>
             <TabsTrigger value="juniors">Juniors</TabsTrigger>
             <TabsTrigger value="charges">Charges</TabsTrigger>
+            <TabsTrigger value="leads">Leads</TabsTrigger>
             <TabsTrigger value="contacts">Contacts</TabsTrigger>
             <TabsTrigger value="sponsorships">Sponsorships</TabsTrigger>
             <TabsTrigger value="incidents">Incidents</TabsTrigger>
@@ -111,6 +118,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="charges">
             <ChargesTab />
+          </TabsContent>
+          <TabsContent value="leads">
+            <LeadsTab />
           </TabsContent>
           <TabsContent value="contacts">
             <ContactsTab />
@@ -144,6 +154,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="game-reports">
             <GameReportsTab />
+          </TabsContent>
+          <TabsContent value="marketing-outbox">
+            <MarketingOutboxTab />
           </TabsContent>
 
           {TABS.filter((t) => !ACTIVE_TABS.includes(t)).map((t) => (

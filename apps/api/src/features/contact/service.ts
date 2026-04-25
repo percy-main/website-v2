@@ -1,5 +1,7 @@
 import type { DB } from "@percy-main/db";
+import { isCampaignId } from "@percy-main/shared/marketing";
 import type { Kysely } from "kysely";
+import { emitMarketingEvent } from "../marketing/service.ts";
 import type { ContactSubmission, EventSubscriber } from "./schemas.ts";
 
 function createSlackNotifier(slackWebhookUrl?: string) {
@@ -26,6 +28,7 @@ export function createContactSubmission(
   config: { slackWebhookUrl?: string },
 ) {
   const sendSlackNotification = createSlackNotifier(config.slackWebhookUrl);
+  const emit = emitMarketingEvent(db);
 
   return async (data: ContactSubmission) => {
     const id = crypto.randomUUID();
@@ -40,6 +43,33 @@ export function createContactSubmission(
         page: data.page,
       })
       .execute();
+
+    // Marketing event — never let this fail the submission.
+    try {
+      const campaignId =
+        data.campaignId && isCampaignId(data.campaignId)
+          ? data.campaignId
+          : null;
+      await emit({
+        type: "contact_form_submitted",
+        campaignId,
+        segment: data.segment ?? null,
+        attribution: data.attribution ?? null,
+        source: "browser",
+        payload: { page: data.page, message: data.message.slice(0, 500) },
+        // Only create a lead row when this submission is campaign-linked;
+        // a general /contact enquiry stays in contact_submission only.
+        lead: campaignId
+          ? {
+              email: data.email,
+              name: data.name,
+              source: "contact_form",
+            }
+          : null,
+      });
+    } catch {
+      // Marketing pipeline failures must not affect the contact form response.
+    }
 
     // Fire-and-forget — don't block the response on Slack delivery
     sendSlackNotification(data).catch(() => {

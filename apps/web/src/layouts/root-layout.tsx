@@ -1,3 +1,4 @@
+import { ConsentBanner } from "@/components/consent-banner.js";
 import { SiteFooter } from "@/components/site-footer.js";
 import { SiteHeader } from "@/components/site-header.js";
 import { useEffect } from "react";
@@ -20,6 +21,7 @@ export function RootLayout() {
         <Outlet />
       </main>
       <SiteFooter />
+      <ConsentBanner />
     </div>
   );
 }

@@ -43,6 +43,19 @@ locals {
   tailscale_tf_creds = jsondecode(data.aws_secretsmanager_secret_version.tailscale_terraform_oauth.secret_string)
 }
 
+# ---------------------------------------------------------------------------
+# Google Ads API credentials (recruit-2026 offline conversion uploads).
+# Created out-of-band via the AWS CLI (see
+# plans/ad-campaign-mk1/ops/01-ads-account-setup.md step 6) - the refresh
+# token has its own rotation cadence that doesn't fit cleanly into a
+# Terraform resource lifecycle. This data block just lets the ECS task
+# definition reference the JSON keys inside the secret.
+# ---------------------------------------------------------------------------
+
+data "aws_secretsmanager_secret" "google_ads" {
+  name = "percy-main/google-ads"
+}
+
 provider "tailscale" {
   oauth_client_id     = local.tailscale_tf_creds.client_id
   oauth_client_secret = local.tailscale_tf_creds.client_secret
@@ -154,6 +167,17 @@ module "ecs" {
     GOOGLE_CLIENT_SECRET   = "${aws_secretsmanager_secret.app_secrets.arn}:GOOGLE_CLIENT_SECRET::"
     PLAY_CRICKET_API_TOKEN = "${aws_secretsmanager_secret.app_secrets.arn}:PLAY_CRICKET_API_TOKEN::"
     SLACK_WEBHOOK_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SLACK_WEBHOOK_URL::"
+
+    # Google Ads API (offline conversion uploads — recruit-2026 + future
+    # campaigns). Stored in a separate secret from app_secrets so the
+    # OAuth refresh token can be rotated independently when it ages out.
+    # The IAM allow on `*percy-main*` already covers this secret.
+    GOOGLE_ADS_DEVELOPER_TOKEN     = "${data.aws_secretsmanager_secret.google_ads.arn}:developerToken::"
+    GOOGLE_ADS_CUSTOMER_ID         = "${data.aws_secretsmanager_secret.google_ads.arn}:customerId::"
+    GOOGLE_ADS_LOGIN_CUSTOMER_ID   = "${data.aws_secretsmanager_secret.google_ads.arn}:loginCustomerId::"
+    GOOGLE_ADS_OAUTH_CLIENT_ID     = "${data.aws_secretsmanager_secret.google_ads.arn}:clientId::"
+    GOOGLE_ADS_OAUTH_CLIENT_SECRET = "${data.aws_secretsmanager_secret.google_ads.arn}:clientSecret::"
+    GOOGLE_ADS_OAUTH_REFRESH_TOKEN = "${data.aws_secretsmanager_secret.google_ads.arn}:refreshToken::"
 
     # SSM Parameter Store (non-secret config)
     BASE_URL             = aws_ssm_parameter.base_url.arn

@@ -1,9 +1,12 @@
+import { requestConsentReopen } from "@/lib/marketing/consent.js";
 import type { FC } from "react";
 import { Link } from "react-router";
 import { Logo } from "./logo.js";
 import { SocialLinks } from "./social-links.js";
 
 export const SiteFooter: FC = () => {
+  const openCookieSettings = () => requestConsentReopen();
+
   return (
     <footer className="bg-primary text-white">
       <div className="container mx-auto px-8 py-12">
@@ -80,6 +83,23 @@ export const SiteFooter: FC = () => {
                 >
                   Privacy Policy
                 </Link>
+              </li>
+              <li>
+                <Link
+                  to="/cricket/safeguarding"
+                  className="text-white/80 transition hover:text-white"
+                >
+                  Safeguarding
+                </Link>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={openCookieSettings}
+                  className="text-left text-white/80 transition hover:text-white"
+                >
+                  Cookie settings
+                </button>
               </li>
             </ul>
           </div>
