@@ -85,7 +85,7 @@ training}, `junior_girls_dynamos_cricket` × {girls club, dynamos}):
       tightly-themed groups.
 - [ ] **Conversions per ad group**, trailing 7 days. Compare against
       DB `marketing_event WHERE campaign_id='recruit-2026' AND
-  segment=<segment_key>` over the same window.
+segment=<segment_key>` over the same window.
 - [ ] **CTR by individual asset (headline / description)** in the RSA
       asset report. Ads marks each asset Best / Good / Low. Flag any
       asset stuck at "Low" for > 14 days.
