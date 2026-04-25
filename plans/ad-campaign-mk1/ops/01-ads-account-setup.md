@@ -75,8 +75,30 @@ Access, formally apply for Basic Access:
       **Apply for Basic Access**.
 - [ ] Provide accurate company details and a regularly-monitored
       contact email.
-- [ ] Wait for review. Basic Access raises the daily operations cap
-      to 15,000 — well above anything recruit-2026 will need.
+- [ ] **Intended use ("permissible use") → "Ad creation /
+      management"**. Why: the actual API surface we use is
+      `ConversionUploadService.uploadClickConversions`, which is not
+      named in any of the three permissible-use descriptions. The
+      "Reporting" option is read-only (`GoogleAdsService.Search` /
+      `SearchStream` only) — that doesn't cover writes, so it's the
+      wrong choice. "Researching keywords" is irrelevant. "Ad creation
+      / management" covers "all services of the API" and is the
+      umbrella permission that includes conversion uploads.
+- [ ] Application body, suggested wording: _"Single registered
+      charity (Percy Main CSC, charity 1206787) running Google Ad
+      Grants recruitment campaigns. We use the Google Ads API only to
+      upload offline conversions back to our own Ad Grants account
+      (`ConversionUploadService.uploadClickConversions`) when admins
+      mark a lead as Attended Session or Became Member. No third-party
+      ad management, no agency model, no resale. Expected volume: tens
+      of conversions per day at peak season."_
+- [ ] Wait for review (~2 business days per Google's docs). Basic
+      Access raises the daily operations cap to 15,000 — well above
+      anything recruit-2026 will need.
+
+Note on permissible use: the field only appears for Basic and Standard
+applications. Test Account Access and Explorer Access do not require
+an intended-use selection.
 
 ## 4. Create the GCP project
 
@@ -100,15 +122,15 @@ Same pattern as the existing Stripe/SES secrets.
 - [ ] Secret name: `percy-main/google-ads`.
 - [ ] Secret JSON shape:
       `json
-  {
-    "developerToken": "...",
-    "clientId": "...",
-    "clientSecret": "...",
-    "refreshToken": "...",
-    "customerId": "8821235703",
-    "loginCustomerId": "<manager-account-customer-id>"
-  }
-  `
+{
+  "developerToken": "...",
+  "clientId": "...",
+  "clientSecret": "...",
+  "refreshToken": "...",
+  "customerId": "8821235703",
+  "loginCustomerId": "<manager-account-customer-id>"
+}
+`
       `customerId` is the operating account (the Ad Grants account
       that runs the campaigns). `loginCustomerId` is the manager
       account from step 3a — required when calling the API on a
