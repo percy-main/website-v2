@@ -329,6 +329,13 @@ jobs:
           VITE_NEW_RELIC_LICENSE_KEY: ${{ vars.NEW_RELIC_BROWSER_LICENSE_KEY }}
           VITE_NEW_RELIC_APP_ID: ${{ vars.NEW_RELIC_BROWSER_APP_ID }}
           VITE_NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
+          # Marketing — gtag block is omitted from index.html when these are unset
+          # (see apps/web/vite.config.ts gtagHtmlPlugin). Set both repo variables
+          # in GitHub → Settings → Variables before the next deploy:
+          #   GOOGLE_ADS_CONVERSION_ID = "AW-18093051885"
+          #   GA4_MEASUREMENT_ID       = "G-XXXXXXX" (when GA4 property is created)
+          VITE_GOOGLE_ADS_CONVERSION_ID: ${{ vars.GOOGLE_ADS_CONVERSION_ID }}
+          VITE_GA4_MEASUREMENT_ID: ${{ vars.GA4_MEASUREMENT_ID }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

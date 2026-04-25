@@ -62,7 +62,9 @@ describe("emitMarketingEvent (integration)", () => {
       .where("id", "=", result.eventId)
       .executeTakeFirstOrThrow();
     expect(event.type).toBe("generate_lead");
-    expect(event.ads_conversion_action).toMatch(/conversionActions\/1001$/);
+    expect(event.ads_conversion_action).toMatch(
+      /conversionActions\/7588949430$/,
+    );
 
     const outbox = await ctx.db
       .selectFrom("marketing_outbox")

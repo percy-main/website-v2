@@ -36,32 +36,37 @@ export const campaigns = {
     conversionActions: {
       generate_lead: {
         senior_men_cricket: {
-          resourceName: "customers/0/conversionActions/1001",
-          conversionLabel: "PLACEHOLDER_MEN",
+          resourceName: "customers/8821235703/conversionActions/7588949430",
+          conversionLabel: "h9JoCLbb2KIcEO2fuLND",
         },
         senior_women_softball_cricket: {
-          resourceName: "customers/0/conversionActions/1002",
-          conversionLabel: "PLACEHOLDER_WOMEN",
+          resourceName: "customers/8821235703/conversionActions/7588949433",
+          conversionLabel: "BAS8CLnb2KIcEO2fuLND",
         },
         junior_boys_cricket: {
-          resourceName: "customers/0/conversionActions/1003",
-          conversionLabel: "PLACEHOLDER_JBOYS",
+          resourceName: "customers/8821235703/conversionActions/7588949436",
+          conversionLabel: "_vJsCLzb2KIcEO2fuLND",
         },
         junior_girls_dynamos_cricket: {
-          resourceName: "customers/0/conversionActions/1004",
-          conversionLabel: "PLACEHOLDER_JGIRLS",
+          resourceName: "customers/8821235703/conversionActions/7588949439",
+          conversionLabel: "sEynCL_b2KIcEO2fuLND",
         },
       },
       lead_attended_session: {
+        // Offline action — uploaded via Google Ads API
+        // (ConversionUploadService.uploadClickConversions). The conversionLabel
+        // field is unused for offline actions but kept here as the
+        // conversion-action numeric id for traceability; the forwarder reads
+        // resourceName only.
         _all: {
-          resourceName: "customers/0/conversionActions/1005",
-          conversionLabel: "PLACEHOLDER_ATTENDED",
+          resourceName: "customers/8821235703/conversionActions/7588911586",
+          conversionLabel: "OFFLINE_ATTENDED",
         },
       },
       lead_became_member: {
         _all: {
-          resourceName: "customers/0/conversionActions/1006",
-          conversionLabel: "PLACEHOLDER_MEMBER",
+          resourceName: "customers/8821235703/conversionActions/7588911589",
+          conversionLabel: "OFFLINE_BECAME_MEMBER",
         },
       },
     },
