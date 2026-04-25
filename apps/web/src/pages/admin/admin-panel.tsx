@@ -12,6 +12,7 @@ import { GameReportsTab } from "./game-reports-tab";
 import { IncidentsTab } from "./incidents-tab";
 import { JuniorsTab } from "./juniors-tab";
 import { LeadsTab } from "./leads-tab";
+import { MarketingOutboxTab } from "./marketing-outbox-tab";
 import { MatchFeesTab } from "./match-fees-tab";
 import { MembersTab } from "./members-tab";
 import { RecordLinkingTab } from "./record-linking-tab";
@@ -34,6 +35,7 @@ const TABS = [
   "treasurer",
   "expense-history",
   "fantasy",
+  "marketing-outbox",
 ] as const;
 type Tab = (typeof TABS)[number];
 
@@ -53,6 +55,7 @@ const ACTIVE_TABS: Tab[] = [
   "treasurer",
   "expense-history",
   "fantasy",
+  "marketing-outbox",
 ];
 
 function isValidTab(value: string | null): value is Tab {
@@ -151,6 +154,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="game-reports">
             <GameReportsTab />
+          </TabsContent>
+          <TabsContent value="marketing-outbox">
+            <MarketingOutboxTab />
           </TabsContent>
 
           {TABS.filter((t) => !ACTIVE_TABS.includes(t)).map((t) => (

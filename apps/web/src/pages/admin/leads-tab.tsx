@@ -10,11 +10,15 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import { campaigns } from "@percy-main/shared/marketing";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { formatDate } from "./status-pill";
 
 const PAGE_SIZE = 25;
+
+type Outcome = "contacted" | "attended" | "joined" | "lost";
+const OUTCOMES: Outcome[] = ["contacted", "attended", "joined", "lost"];
+const OFFLINE_OUTCOMES = new Set<Outcome>(["attended", "joined"]);
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -40,7 +44,9 @@ export function LeadsTab() {
   const [status, setStatus] = useState<string>("");
   const [source, setSource] = useState<string>("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [memberLinkLeadId, setMemberLinkLeadId] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -57,19 +63,17 @@ export function LeadsTab() {
     ? (campaigns[campaignId as keyof typeof campaigns]?.segments ?? [])
     : [];
 
-  const queryKey = [
-    "admin",
-    "leads",
-    page,
-    debouncedSearch,
-    campaignId,
-    segment,
-    status,
-    source,
-  ] as const;
-
   const { data, isLoading, isError } = useQuery({
-    queryKey,
+    queryKey: [
+      "admin",
+      "leads",
+      page,
+      debouncedSearch,
+      campaignId,
+      segment,
+      status,
+      source,
+    ] as const,
     queryFn: () =>
       callApi(
         api.GET("/api/admin/leads", {
@@ -86,6 +90,29 @@ export function LeadsTab() {
           },
         }),
       ),
+  });
+
+  const outcomeMutation = useMutation({
+    mutationFn: async (vars: {
+      leadId: string;
+      outcome: Outcome;
+      memberId?: string;
+    }) =>
+      callApi(
+        api.POST("/api/admin/leads/{leadId}/outcomes", {
+          params: { path: { leadId: vars.leadId } },
+          body: {
+            outcome: vars.outcome,
+            ...(vars.memberId ? { memberId: vars.memberId } : {}),
+          },
+        }),
+      ),
+    onSuccess: (_data, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "leads"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "lead-events", vars.leadId],
+      });
+    },
   });
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
@@ -177,13 +204,14 @@ export function LeadsTab() {
                 <TableHead>Segment</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead>Outcome</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.items.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="py-6 text-center text-gray-500"
                   >
                     No leads found.
@@ -192,6 +220,9 @@ export function LeadsTab() {
               )}
               {data.items.map((lead) => {
                 const isExpanded = expandedId === lead.id;
+                const cutoffPassed = lead.adsCutoffAt
+                  ? new Date(lead.adsCutoffAt) < new Date()
+                  : false;
                 return (
                   <Fragment key={lead.id}>
                     <TableRow
@@ -207,10 +238,45 @@ export function LeadsTab() {
                       <TableCell>{lead.firstSegment ?? "—"}</TableCell>
                       <TableCell>{lead.status}</TableCell>
                       <TableCell>{formatDate(lead.createdAt, true)}</TableCell>
+                      <TableCell
+                        className="flex flex-wrap gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {OUTCOMES.map((outcome) => {
+                          const isOffline = OFFLINE_OUTCOMES.has(outcome);
+                          const dbOnly = isOffline && cutoffPassed;
+                          return (
+                            <Button
+                              key={outcome}
+                              variant="outline"
+                              size="sm"
+                              disabled={outcomeMutation.isPending}
+                              title={
+                                dbOnly
+                                  ? "Past Ads attribution window — recorded in DB only"
+                                  : undefined
+                              }
+                              onClick={() => {
+                                if (outcome === "joined") {
+                                  setMemberLinkLeadId(lead.id);
+                                  return;
+                                }
+                                outcomeMutation.mutate({
+                                  leadId: lead.id,
+                                  outcome,
+                                });
+                              }}
+                            >
+                              {outcome}
+                              {dbOnly ? " (DB only)" : ""}
+                            </Button>
+                          );
+                        })}
+                      </TableCell>
                     </TableRow>
                     {isExpanded && (
                       <TableRow>
-                        <TableCell colSpan={7} className="bg-muted/30">
+                        <TableCell colSpan={8} className="bg-muted/30">
                           <LeadEventTimeline leadId={lead.id} />
                         </TableCell>
                       </TableRow>
@@ -248,6 +314,21 @@ export function LeadsTab() {
             </div>
           </div>
         </>
+      )}
+
+      {memberLinkLeadId && (
+        <JoinedModal
+          leadId={memberLinkLeadId}
+          onClose={() => setMemberLinkLeadId(null)}
+          onSubmit={(memberId) => {
+            outcomeMutation.mutate({
+              leadId: memberLinkLeadId,
+              outcome: "joined",
+              memberId: memberId || undefined,
+            });
+            setMemberLinkLeadId(null);
+          }}
+        />
       )}
     </div>
   );
@@ -292,5 +373,42 @@ function LeadEventTimeline({ leadId }: { leadId: string }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+function JoinedModal({
+  leadId,
+  onClose,
+  onSubmit,
+}: {
+  leadId: string;
+  onClose: () => void;
+  onSubmit: (memberId: string) => void;
+}) {
+  const [memberId, setMemberId] = useState("");
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex w-full max-w-md flex-col gap-4 rounded-md bg-white p-6 shadow-xl">
+        <h3 className="text-lg font-semibold">
+          Mark lead {leadId.slice(0, 8)}… as joined
+        </h3>
+        <p className="text-sm text-gray-600">
+          Optionally link an existing member record by id. Leave blank to record
+          the outcome without a link.
+        </p>
+        <Input
+          type="text"
+          placeholder="member id (optional)"
+          value={memberId}
+          onChange={(e) => setMemberId(e.target.value)}
+        />
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => onSubmit(memberId.trim())}>Mark joined</Button>
+        </div>
+      </div>
+    </div>
   );
 }
