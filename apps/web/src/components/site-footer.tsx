@@ -85,6 +85,14 @@ export const SiteFooter: FC = () => {
                 </Link>
               </li>
               <li>
+                <Link
+                  to="/legal/safeguarding"
+                  className="text-white/80 transition hover:text-white"
+                >
+                  Safeguarding
+                </Link>
+              </li>
+              <li>
                 <button
                   type="button"
                   onClick={openCookieSettings}
