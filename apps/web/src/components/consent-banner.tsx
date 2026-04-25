@@ -8,15 +8,20 @@ import { Link } from "react-router";
 
 export function ConsentBanner() {
   const [open, setOpen] = useState<boolean>(() => needsConsent());
+  const [reopened, setReopened] = useState(false);
 
   useEffect(() => {
-    return onConsentReopenRequested(() => setOpen(true));
+    return onConsentReopenRequested(() => {
+      setReopened(true);
+      setOpen(true);
+    });
   }, []);
 
   if (!open) return null;
 
   const handle = (state: "granted" | "denied") => {
-    setConsent(state, "banner");
+    setConsent(state, reopened ? "settings-link" : "banner");
+    setReopened(false);
     setOpen(false);
   };
 
