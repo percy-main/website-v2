@@ -47,7 +47,7 @@ Path 2: `north-shields` (13)
 
 Display URL: `percymain.org/tell-me-about/junior-girls`
 Path 1: `dynamos` (7)
-Path 2: `mondays` (7)
+Path 2: `training` (8)
 
 ### Headlines (15 / 15 ≤ 30)
 

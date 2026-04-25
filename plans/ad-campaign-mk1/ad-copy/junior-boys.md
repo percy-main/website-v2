@@ -46,7 +46,7 @@ Path 2: `north-shields` (13)
 
 Display URL: `percymain.org/tell-me-about/junior-boys`
 Path 1: `kids-cricket` (12)
-Path 2: `tuesdays` (8)
+Path 2: `training` (8)
 
 ### Headlines (15 / 15 ≤ 30)
 
