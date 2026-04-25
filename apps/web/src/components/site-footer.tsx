@@ -86,7 +86,7 @@ export const SiteFooter: FC = () => {
               </li>
               <li>
                 <Link
-                  to="/legal/safeguarding"
+                  to="/cricket/safeguarding"
                   className="text-white/80 transition hover:text-white"
                 >
                   Safeguarding

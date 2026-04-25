@@ -100,7 +100,7 @@ interface SafeguardingLineProps {
 }
 
 export const SafeguardingLine: FC<SafeguardingLineProps> = ({
-  href = "/legal/safeguarding",
+  href = "/cricket/safeguarding",
 }) => (
   <section className="bg-white py-6">
     <div className="container mx-auto px-6">

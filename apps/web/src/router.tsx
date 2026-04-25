@@ -87,10 +87,6 @@ export const router = createBrowserRouter([
         lazy: () => import("./pages/report-incident.js"),
       },
       {
-        path: "legal/safeguarding",
-        lazy: () => import("./pages/legal/safeguarding.js"),
-      },
-      {
         path: "purchase/:priceId",
         lazy: () => import("./pages/purchase/purchase.js"),
       },
