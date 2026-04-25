@@ -15568,6 +15568,298 @@
         }
       }
     },
+    "/api/admin/leads": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "page",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "pageSize",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "search",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "campaignId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "segment",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "source",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "from",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "to",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "phone": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "firstCampaignId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "firstSegment": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "memberId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "consentAdUserData": {
+                            "type": "string"
+                          },
+                          "consentAdStorage": {
+                            "type": "string"
+                          },
+                          "notes": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "lastEventType": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "lastEventAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "adsCutoffAt": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "email",
+                          "name",
+                          "phone",
+                          "source",
+                          "firstCampaignId",
+                          "firstSegment",
+                          "status",
+                          "memberId",
+                          "consentAdUserData",
+                          "consentAdStorage",
+                          "notes",
+                          "createdAt",
+                          "updatedAt",
+                          "lastEventType",
+                          "lastEventAt",
+                          "adsCutoffAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/marketing-events": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "leadId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "campaignId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "segment": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "valuePence": {
+                            "nullable": true,
+                            "type": "number"
+                          },
+                          "currency": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "adsConversionAction": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "payload": {
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "campaignId",
+                          "segment",
+                          "source",
+                          "valuePence",
+                          "currency",
+                          "adsConversionAction",
+                          "payload",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/marketing/leads": {
       "post": {
         "requestBody": {

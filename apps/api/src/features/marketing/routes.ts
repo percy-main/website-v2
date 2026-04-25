@@ -1,5 +1,6 @@
 import { isCampaignId } from "@percy-main/shared/marketing";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { marketingAdminRoutes } from "./admin-routes.ts";
 import { createRateLimiter } from "./rate-limiter.ts";
 import {
   marketingLeadErrorSchema,
@@ -9,8 +10,9 @@ import {
 import { emitMarketingEvent } from "./service.ts";
 import { createLeadSlackNotifier } from "./slack.ts";
 
-// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const marketingRoutes: FastifyPluginAsyncZod = async (app) => {
+  await app.register(marketingAdminRoutes);
+
   const emit = emitMarketingEvent(app.db);
   const slackNotify = createLeadSlackNotifier(app.config.SLACK_WEBHOOK_URL);
 

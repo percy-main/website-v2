@@ -8912,6 +8912,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    search?: string;
+                    campaignId?: string;
+                    segment?: string;
+                    status?: string;
+                    source?: string;
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                email: string;
+                                name: string | null;
+                                phone: string | null;
+                                source: string;
+                                firstCampaignId: string | null;
+                                firstSegment: string | null;
+                                status: string;
+                                memberId: string | null;
+                                consentAdUserData: string;
+                                consentAdStorage: string;
+                                notes: string | null;
+                                createdAt: string;
+                                updatedAt: string | null;
+                                lastEventType: string | null;
+                                lastEventAt: string | null;
+                                adsCutoffAt: string | null;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/marketing-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    leadId: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                type: string;
+                                campaignId: string | null;
+                                segment: string | null;
+                                source: string;
+                                valuePence: number | null;
+                                currency: string | null;
+                                adsConversionAction: string | null;
+                                payload: unknown;
+                                createdAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/marketing/leads": {
         parameters: {
             query?: never;
