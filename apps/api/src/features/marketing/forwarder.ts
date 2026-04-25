@@ -11,7 +11,11 @@ import { buildClickConversion } from "./build-click-conversion.ts";
 
 const BACKOFF_MINUTES = [1, 5, 30, 120, 360, 1440] as const;
 const MAX_ATTEMPTS = BACKOFF_MINUTES.length;
-const BATCH_SIZE = 20;
+// Batch size of 1 keeps validation errors per-row: a single bad gclid in a
+// batch can't dead-letter sibling rows. Volume at this club is tens of
+// conversions/day, so the throughput cost is negligible. Revisit if the
+// drain ever struggles to keep up.
+const BATCH_SIZE = 1;
 const TICK_INTERVAL_MS = 30_000;
 
 function nextAttemptAt(attempts: number): Date {

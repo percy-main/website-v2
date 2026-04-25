@@ -63,7 +63,12 @@ async function upsertLead(
 ): Promise<string> {
   const existing = await trx
     .selectFrom("lead")
-    .select(["id", "first_campaign_id"])
+    .select([
+      "id",
+      "first_campaign_id",
+      "consent_ad_user_data",
+      "consent_ad_storage",
+    ])
     .where("email", "=", input.email)
     .executeTakeFirst();
 
@@ -74,6 +79,29 @@ async function upsertLead(
     if (!existing.first_campaign_id && campaignId) {
       update.first_campaign_id = campaignId;
       if (segment) update.first_segment = segment;
+    }
+    // Consent: ratchet only DOWN. A re-submit that newly DENIES an axis
+    // overwrites a stored "granted" - the user has actively withdrawn.
+    // We never silently upgrade "denied" to "granted" via re-submit; the
+    // user must accept on the banner for that.
+    if (input.consent) {
+      const newConsent = input.consent;
+      if (
+        existing.consent_ad_user_data === "granted" &&
+        newConsent.ad_user_data === "denied"
+      ) {
+        update.consent_ad_user_data = "denied";
+        update.consent_version = newConsent.version;
+        update.consent_recorded_at = newConsent.recordedAt;
+      }
+      if (
+        existing.consent_ad_storage === "granted" &&
+        newConsent.ad_storage === "denied"
+      ) {
+        update.consent_ad_storage = "denied";
+        update.consent_version = newConsent.version;
+        update.consent_recorded_at = newConsent.recordedAt;
+      }
     }
     if (Object.keys(update).length > 0) {
       update.updated_at = new Date().toISOString();

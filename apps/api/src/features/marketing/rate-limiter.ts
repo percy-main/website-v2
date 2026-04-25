@@ -21,6 +21,13 @@ export function createRateLimiter(opts: {
       const existing = (hits.get(key) ?? []).filter((t) => t > windowStart);
       existing.push(now);
       hits.set(key, existing);
+      // Opportunistic prune: if every key seen during this tick has expired
+      // out, remove it so the Map doesn't grow unbounded.
+      if (Math.random() < 0.01) {
+        for (const [k, v] of hits) {
+          if (v.every((t) => t <= windowStart)) hits.delete(k);
+        }
+      }
       if (existing.length > opts.max) {
         const oldest = existing[0] ?? now;
         return {
