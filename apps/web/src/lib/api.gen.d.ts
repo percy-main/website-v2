@@ -8912,6 +8912,272 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/incident-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reporterName: string;
+                        /** Format: email */
+                        reporterEmail: string;
+                        reporterPhone?: string;
+                        /** @enum {string} */
+                        reporterRelationship: "member" | "parent_or_guardian" | "player" | "coach_or_volunteer" | "visitor" | "other";
+                        /** @default false */
+                        prefersNoContact?: boolean;
+                        affectedName?: string;
+                        /** @enum {string} */
+                        affectedRelationship?: "trustee" | "member" | "volunteer" | "visitor" | "contractor" | "other";
+                        affectedContact?: string;
+                        /** @default false */
+                        affectedIsMinor?: boolean;
+                        occurredAt: string;
+                        location: string;
+                        activity?: string;
+                        /** @enum {string} */
+                        incidentType: "injury" | "near_miss" | "dangerous_occurrence" | "ill_health" | "property_damage";
+                        description: string;
+                        /** @default false */
+                        injuryOccurred?: boolean;
+                        natureOfInjury?: string;
+                        bodyPartsAffected?: string;
+                        /** @enum {string} */
+                        injurySeverity?: "minor" | "serious" | "fatal";
+                        /** @default false */
+                        firstAidGiven?: boolean;
+                        firstAiderName?: string;
+                        firstAidDetails?: string;
+                        /** @default false */
+                        medicalTreatmentRequired?: boolean;
+                        immediateActions?: string;
+                        witnesses?: string;
+                        /** @enum {boolean} */
+                        declarationConfirmed: true;
+                        website?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/incident-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    status?: "new" | "in_review" | "done";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            reports: {
+                                id: string;
+                                /** @enum {string} */
+                                status: "new" | "in_review" | "done";
+                                /** @enum {string|null} */
+                                severity: "low" | "medium" | "high" | null;
+                                /** @enum {string} */
+                                incidentType: "injury" | "near_miss" | "dangerous_occurrence" | "ill_health" | "property_damage";
+                                reporterName: string;
+                                affectedIsMinor: boolean;
+                                injuryOccurred: boolean;
+                                /** @enum {string|null} */
+                                injurySeverity: "minor" | "serious" | "fatal" | null;
+                                location: string;
+                                occurredAt: string;
+                                createdAt: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/incident-reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            reporterName: string;
+                            reporterEmail: string;
+                            reporterPhone: string | null;
+                            reporterRelationship: string;
+                            prefersNoContact: boolean;
+                            affectedName: string | null;
+                            affectedRelationship: string | null;
+                            affectedContact: string | null;
+                            affectedIsMinor: boolean;
+                            occurredAt: string;
+                            location: string;
+                            activity: string | null;
+                            /** @enum {string} */
+                            incidentType: "injury" | "near_miss" | "dangerous_occurrence" | "ill_health" | "property_damage";
+                            description: string;
+                            injuryOccurred: boolean;
+                            natureOfInjury: string | null;
+                            bodyPartsAffected: string | null;
+                            /** @enum {string|null} */
+                            injurySeverity: "minor" | "serious" | "fatal" | null;
+                            firstAidGiven: boolean;
+                            firstAiderName: string | null;
+                            firstAidDetails: string | null;
+                            medicalTreatmentRequired: boolean;
+                            immediateActions: string | null;
+                            witnesses: string | null;
+                            declarationConfirmed: boolean;
+                            /** @enum {string} */
+                            status: "new" | "in_review" | "done";
+                            /** @enum {string|null} */
+                            severity: "low" | "medium" | "high" | null;
+                            ownerUserId: string | null;
+                            ownerName: string | null;
+                            actionsTaken: string | null;
+                            targetCompletionDate: string | null;
+                            riddorRequired: boolean | null;
+                            riddorReportedAt: string | null;
+                            internalNotes: string | null;
+                            closureReason: string | null;
+                            closedAt: string | null;
+                            safeguardingDiscussed: boolean;
+                            safeguardingDiscussedAt: string | null;
+                            safeguardingNotes: string | null;
+                            createdAt: string;
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status?: "new" | "in_review" | "done";
+                        /** @enum {string|null} */
+                        severity?: "low" | "medium" | "high" | null;
+                        ownerUserId?: string | null;
+                        actionsTaken?: string | null;
+                        targetCompletionDate?: string | null;
+                        riddorRequired?: boolean | null;
+                        riddorReportedAt?: string | null;
+                        internalNotes?: string | null;
+                        closureReason?: string | null;
+                        closedAt?: string | null;
+                        safeguardingDiscussed?: boolean;
+                        safeguardingDiscussedAt?: string | null;
+                        safeguardingNotes?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/admin/leads": {
         parameters: {
             query?: never;

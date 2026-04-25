@@ -15568,6 +15568,693 @@
         }
       }
     },
+    "/api/incident-report": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reporterName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "reporterEmail": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "reporterPhone": {
+                    "type": "string",
+                    "maxLength": 50
+                  },
+                  "reporterRelationship": {
+                    "type": "string",
+                    "enum": [
+                      "member",
+                      "parent_or_guardian",
+                      "player",
+                      "coach_or_volunteer",
+                      "visitor",
+                      "other"
+                    ]
+                  },
+                  "prefersNoContact": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "affectedName": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "affectedRelationship": {
+                    "type": "string",
+                    "enum": [
+                      "trustee",
+                      "member",
+                      "volunteer",
+                      "visitor",
+                      "contractor",
+                      "other"
+                    ]
+                  },
+                  "affectedContact": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "affectedIsMinor": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "location": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "activity": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "incidentType": {
+                    "type": "string",
+                    "enum": [
+                      "injury",
+                      "near_miss",
+                      "dangerous_occurrence",
+                      "ill_health",
+                      "property_damage"
+                    ]
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "injuryOccurred": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "natureOfInjury": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "bodyPartsAffected": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "injurySeverity": {
+                    "type": "string",
+                    "enum": [
+                      "minor",
+                      "serious",
+                      "fatal"
+                    ]
+                  },
+                  "firstAidGiven": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "firstAiderName": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "firstAidDetails": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "medicalTreatmentRequired": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "immediateActions": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "witnesses": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "declarationConfirmed": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "website": {
+                    "type": "string",
+                    "maxLength": 0
+                  }
+                },
+                "required": [
+                  "reporterName",
+                  "reporterEmail",
+                  "reporterRelationship",
+                  "occurredAt",
+                  "location",
+                  "incidentType",
+                  "description",
+                  "declarationConfirmed"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/incident-reports": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "page",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "pageSize",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "new",
+                "in_review",
+                "done"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reports": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "new",
+                              "in_review",
+                              "done"
+                            ]
+                          },
+                          "severity": {
+                            "nullable": true,
+                            "type": "string",
+                            "enum": [
+                              "low",
+                              "medium",
+                              "high"
+                            ]
+                          },
+                          "incidentType": {
+                            "type": "string",
+                            "enum": [
+                              "injury",
+                              "near_miss",
+                              "dangerous_occurrence",
+                              "ill_health",
+                              "property_damage"
+                            ]
+                          },
+                          "reporterName": {
+                            "type": "string"
+                          },
+                          "affectedIsMinor": {
+                            "type": "boolean"
+                          },
+                          "injuryOccurred": {
+                            "type": "boolean"
+                          },
+                          "injurySeverity": {
+                            "nullable": true,
+                            "type": "string",
+                            "enum": [
+                              "minor",
+                              "serious",
+                              "fatal"
+                            ]
+                          },
+                          "location": {
+                            "type": "string"
+                          },
+                          "occurredAt": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "status",
+                          "severity",
+                          "incidentType",
+                          "reporterName",
+                          "affectedIsMinor",
+                          "injuryOccurred",
+                          "injurySeverity",
+                          "location",
+                          "occurredAt",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "reports",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/incident-reports/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "reporterName": {
+                      "type": "string"
+                    },
+                    "reporterEmail": {
+                      "type": "string"
+                    },
+                    "reporterPhone": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "reporterRelationship": {
+                      "type": "string"
+                    },
+                    "prefersNoContact": {
+                      "type": "boolean"
+                    },
+                    "affectedName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "affectedRelationship": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "affectedContact": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "affectedIsMinor": {
+                      "type": "boolean"
+                    },
+                    "occurredAt": {
+                      "type": "string"
+                    },
+                    "location": {
+                      "type": "string"
+                    },
+                    "activity": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "incidentType": {
+                      "type": "string",
+                      "enum": [
+                        "injury",
+                        "near_miss",
+                        "dangerous_occurrence",
+                        "ill_health",
+                        "property_damage"
+                      ]
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "injuryOccurred": {
+                      "type": "boolean"
+                    },
+                    "natureOfInjury": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "bodyPartsAffected": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "injurySeverity": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "minor",
+                        "serious",
+                        "fatal"
+                      ]
+                    },
+                    "firstAidGiven": {
+                      "type": "boolean"
+                    },
+                    "firstAiderName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "firstAidDetails": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "medicalTreatmentRequired": {
+                      "type": "boolean"
+                    },
+                    "immediateActions": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "witnesses": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "declarationConfirmed": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "new",
+                        "in_review",
+                        "done"
+                      ]
+                    },
+                    "severity": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high"
+                      ]
+                    },
+                    "ownerUserId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "ownerName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "actionsTaken": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "targetCompletionDate": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "riddorRequired": {
+                      "nullable": true,
+                      "type": "boolean"
+                    },
+                    "riddorReportedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "internalNotes": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "closureReason": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "closedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "safeguardingDiscussed": {
+                      "type": "boolean"
+                    },
+                    "safeguardingDiscussedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "safeguardingNotes": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "reporterName",
+                    "reporterEmail",
+                    "reporterPhone",
+                    "reporterRelationship",
+                    "prefersNoContact",
+                    "affectedName",
+                    "affectedRelationship",
+                    "affectedContact",
+                    "affectedIsMinor",
+                    "occurredAt",
+                    "location",
+                    "activity",
+                    "incidentType",
+                    "description",
+                    "injuryOccurred",
+                    "natureOfInjury",
+                    "bodyPartsAffected",
+                    "injurySeverity",
+                    "firstAidGiven",
+                    "firstAiderName",
+                    "firstAidDetails",
+                    "medicalTreatmentRequired",
+                    "immediateActions",
+                    "witnesses",
+                    "declarationConfirmed",
+                    "status",
+                    "severity",
+                    "ownerUserId",
+                    "ownerName",
+                    "actionsTaken",
+                    "targetCompletionDate",
+                    "riddorRequired",
+                    "riddorReportedAt",
+                    "internalNotes",
+                    "closureReason",
+                    "closedAt",
+                    "safeguardingDiscussed",
+                    "safeguardingDiscussedAt",
+                    "safeguardingNotes",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "new",
+                      "in_review",
+                      "done"
+                    ]
+                  },
+                  "severity": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "ownerUserId": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "actionsTaken": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 5000
+                  },
+                  "targetCompletionDate": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "riddorRequired": {
+                    "nullable": true,
+                    "type": "boolean"
+                  },
+                  "riddorReportedAt": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "internalNotes": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 5000
+                  },
+                  "closureReason": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "closedAt": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "safeguardingDiscussed": {
+                    "type": "boolean"
+                  },
+                  "safeguardingDiscussedAt": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "safeguardingNotes": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/leads": {
       "get": {
         "parameters": [
