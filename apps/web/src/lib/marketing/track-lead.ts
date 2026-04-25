@@ -51,12 +51,11 @@ export async function trackLeadGenerated(input: {
 
   if (ADS_CONVERSION_ID) {
     const label = resolveConversionLabel(campaignId, segment);
-    if (label && label !== "PLACEHOLDER_MEN" && label !== "PLACEHOLDER_WOMEN") {
-      params.send_to = `${ADS_CONVERSION_ID}/${label}`;
-    } else if (label) {
-      // Phase 4 placeholder labels — keep the call shape but skip send_to so
-      // we don't fire bogus conversions to Ads. Real labels land via Phase 4
-      // ticket 003.
+    // Suppress send_to for any placeholder labels still in the registry -
+    // real labels land via Phase 4 ticket 003. Without this guard the
+    // generate_lead conversion would fire to a non-existent Ads
+    // conversion action and pollute the Ads diagnostics with errors.
+    if (label && !label.startsWith("PLACEHOLDER_")) {
       params.send_to = `${ADS_CONVERSION_ID}/${label}`;
     }
   }
