@@ -8825,6 +8825,23 @@ export interface paths {
                         email: string;
                         message: string;
                         page: string;
+                        campaignId?: string;
+                        segment?: string;
+                        attribution?: {
+                            gclid?: string;
+                            gbraid?: string;
+                            wbraid?: string;
+                            utm_source?: string;
+                            utm_medium?: string;
+                            utm_campaign?: string;
+                            utm_term?: string;
+                            utm_content?: string;
+                            landing_path?: string;
+                            referrer?: string;
+                            experiment_id?: string;
+                            variant?: string;
+                            first_seen_at: string;
+                        };
                     };
                 };
             };

@@ -1,3 +1,4 @@
+import { attributionSchema } from "@percy-main/shared/marketing";
 import { z } from "zod";
 
 export const contactSubmissionSchema = z.object({
@@ -5,6 +6,9 @@ export const contactSubmissionSchema = z.object({
   email: z.email(),
   message: z.string().min(1),
   page: z.string().min(1),
+  campaignId: z.string().optional(),
+  segment: z.string().optional(),
+  attribution: attributionSchema.optional(),
 });
 
 export const eventSubscriberSchema = z.object({

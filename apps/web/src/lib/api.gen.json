@@ -15430,6 +15430,59 @@
                   "page": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "campaignId": {
+                    "type": "string"
+                  },
+                  "segment": {
+                    "type": "string"
+                  },
+                  "attribution": {
+                    "type": "object",
+                    "properties": {
+                      "gclid": {
+                        "type": "string"
+                      },
+                      "gbraid": {
+                        "type": "string"
+                      },
+                      "wbraid": {
+                        "type": "string"
+                      },
+                      "utm_source": {
+                        "type": "string"
+                      },
+                      "utm_medium": {
+                        "type": "string"
+                      },
+                      "utm_campaign": {
+                        "type": "string"
+                      },
+                      "utm_term": {
+                        "type": "string"
+                      },
+                      "utm_content": {
+                        "type": "string"
+                      },
+                      "landing_path": {
+                        "type": "string"
+                      },
+                      "referrer": {
+                        "type": "string"
+                      },
+                      "experiment_id": {
+                        "type": "string"
+                      },
+                      "variant": {
+                        "type": "string"
+                      },
+                      "first_seen_at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "first_seen_at"
+                    ]
                   }
                 },
                 "required": [
