@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildTestApp } from "../../test/app.ts";
 import {
   startTestContainer,
   stopTestContainer,
@@ -7,12 +8,16 @@ import {
 import { emitMarketingEvent } from "./service.ts";
 
 let ctx: TestContext;
+let app: Awaited<ReturnType<typeof buildTestApp>>;
 
 beforeAll(async () => {
   ctx = await startTestContainer();
+  app = await buildTestApp(ctx.db, ctx.dialect);
+  await app.ready();
 });
 
 afterAll(async () => {
+  await app.close();
   await stopTestContainer(ctx);
 });
 
@@ -125,7 +130,7 @@ describe("emitMarketingEvent (integration)", () => {
     expect(outboxRows).toHaveLength(0);
   });
 
-  it("updates lead.status from a funnel-relevant event", async () => {
+  it("denormalises lead.status from a funnel-relevant event", async () => {
     const seeded = await emitMarketingEvent(ctx.db)({
       type: "generate_lead",
       campaignId: "recruit-2026",
@@ -151,5 +156,86 @@ describe("emitMarketingEvent (integration)", () => {
       .where("id", "=", seeded.leadId!)
       .executeTakeFirstOrThrow();
     expect(lead.status).toBe("contacted");
+  });
+});
+
+describe("POST /api/marketing/leads (integration)", () => {
+  const validBody = {
+    campaignId: "recruit-2026",
+    segment: "senior_men_cricket",
+    name: "Test Lead",
+    email: "test-lead@example.com",
+    source: "marketing_lead_form",
+    consent: {
+      ad_user_data: "granted",
+      ad_storage: "granted",
+      version: "2026-04-25",
+      recordedAt: "2026-04-25T12:00:00Z",
+    },
+  };
+
+  it("accepts a valid submission and writes lead + event + outbox", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/marketing/leads",
+      payload: validBody,
+    });
+    expect(response.statusCode).toBe(200);
+    const body: { leadId: string } = response.json();
+    expect(body.leadId).toBeTruthy();
+
+    const lead = await ctx.db
+      .selectFrom("lead")
+      .selectAll()
+      .where("id", "=", body.leadId)
+      .executeTakeFirstOrThrow();
+    expect(lead.email).toBe(validBody.email);
+    expect(lead.first_campaign_id).toBe("recruit-2026");
+  });
+
+  it("returns 400 for an unknown campaignId", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/marketing/leads",
+      payload: {
+        ...validBody,
+        email: "unknown@example.com",
+        campaignId: "nope",
+      },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("silently ignores honeypot-filled submissions (no DB writes)", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/marketing/leads",
+      payload: {
+        ...validBody,
+        email: "honeypot@example.com",
+        honeypot: "I am a bot",
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    const rows = await ctx.db
+      .selectFrom("lead")
+      .where("email", "=", "honeypot@example.com")
+      .selectAll()
+      .execute();
+    expect(rows).toHaveLength(0);
+  });
+
+  it("rate-limits the same email after the threshold", async () => {
+    const email = "rate-limited@example.com";
+    let last = 0;
+    for (let i = 0; i < 7; i++) {
+      const r = await app.inject({
+        method: "POST",
+        url: "/api/marketing/leads",
+        payload: { ...validBody, email, name: `Rate ${i}` },
+      });
+      last = r.statusCode;
+    }
+    expect(last).toBe(429);
   });
 });

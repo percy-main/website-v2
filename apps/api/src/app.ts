@@ -33,6 +33,7 @@ import { healthRoutes } from "./features/health/routes.ts";
 import { incidentReportRoutes } from "./features/incident-report/routes.ts";
 import { juniorRoutes } from "./features/junior/routes.ts";
 import { leaderboardRoutes } from "./features/leaderboard/routes.ts";
+import { marketingRoutes } from "./features/marketing/routes.ts";
 import { matchdayRoutes } from "./features/matchday/routes.ts";
 import { memberRoutes } from "./features/members/routes.ts";
 import { membershipRoutes } from "./features/membership/routes.ts";
@@ -158,6 +159,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(recordsRoutes, { prefix: "/api" });
   await app.register(contactRoutes, { prefix: "/api" });
   await app.register(incidentReportRoutes, { prefix: "/api" });
+  await app.register(marketingRoutes, { prefix: "/api" });
   await app.register(webhookRoutes, { prefix: "/api" });
   await app.register(ogImageRoutes, { prefix: "/api" });
 
