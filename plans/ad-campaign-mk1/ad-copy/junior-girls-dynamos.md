@@ -2,8 +2,10 @@
 
 Landing page: `/tell-me-about/junior-girls`
 
-Voice: speaks to parents searching for their daughter. "Dynamos" only used on
-this segment (it's an ECB program name, not a generic term). Character counts in
+Voice: speaks to parents searching for their daughter. ECB Dynamos sessions
+run on **Mondays** and require booking and payment up front via the ECB
+programme — **no free first session** offer on this segment. "Dynamos" only
+used here (it's an ECB program name, not a generic term). Character counts in
 parentheses; nothing exceeds 30 (headlines) or 90 (descriptions).
 
 ---
@@ -16,28 +18,28 @@ Path 2: `north-shields` (13)
 
 ### Headlines (15 / 15 ≤ 30)
 
-1. Girls' Cricket Club (19)
+1. Girls Cricket at Percy Main (27)
 2. Girls' Cricket NE29 (19)
 3. Girls' Cricket Near Me (22)
 4. Cricket for Girls (17)
-5. Girls' Cricket Sessions (23)
+5. Girls 8–11 Cricket (18)
 6. Junior Girls' Cricket (21)
-7. All-Girls Cricket Group (23)
+7. Dynamos for Girls 8–11 (22)
 8. DBS-Checked Coaches (19)
-9. Saturday Girls' Cricket (23)
-10. First Session Free (18)
+9. Monday Girls' Cricket (21)
+10. Book 2026 Dynamos (17)
 11. Welcoming Girls' Team (21)
-12. Book a Free Trial (17)
+12. Sign Up for Dynamos (19)
 13. Friendly Girls' Cricket (23)
-14. Try Cricket This Year (21)
+14. Play Cricket This Year (22)
 15. Beginners Welcome (17)
 
 ### Descriptions (4 / 4 ≤ 90)
 
-1. ECB Dynamos cricket for girls at St Johns Terrace, North Shields. First trial is free. (86)
-2. Soft ball, real game, all the fun. DBS-checked coaches. Kit provided. Just turn up. (83)
-3. Friendly girls-only sessions. New to cricket? Perfect. Book a free first trial today. (85)
-4. Registered charity, volunteer coaches, real teammates. Saturday cricket in NE29. (80)
+1. ECB Dynamos cricket for girls at Percy Main, North Shields. Booking now for 2026. (81)
+2. Soft ball, real game, all the fun. DBS-checked coaches. Kit provided. Mondays. (78)
+3. Friendly girls-only sessions. New to cricket? Perfect. Sign up for ECB Dynamos. (79)
+4. Registered charity, volunteer coaches, real teammates. Monday cricket in NE29. (79)
 
 ---
 
@@ -45,7 +47,7 @@ Path 2: `north-shields` (13)
 
 Display URL: `percymain.org/tell-me-about/junior-girls`
 Path 1: `dynamos` (7)
-Path 2: `cricket` (7)
+Path 2: `mondays` (7)
 
 ### Headlines (15 / 15 ≤ 30)
 
@@ -54,20 +56,20 @@ Path 2: `cricket` (7)
 3. ECB Dynamos Cricket (19)
 4. Dynamos at Percy Main (21)
 5. Dynamos for Girls 8–11 (22)
-6. Join Dynamos Cricket (20)
+6. Book 2026 Dynamos (17)
 7. Dynamos Sessions, NE29 (22)
 8. Soft Ball, Big Smiles (21)
-9. Saturday Dynamos (16)
-10. Try Dynamos Free (16)
-11. First Session Is Free (21)
+9. Monday Dynamos (14)
+10. Sign Up for Dynamos (19)
+11. ECB Girls' Programme (20)
 12. All Kit Provided (16)
 13. New to Cricket? Welcome (23)
 14. Beginner-Friendly Cricket (25)
-15. Coached by DBS Adults (21)
+15. All Coaches DBS-Checked (23)
 
 ### Descriptions (4 / 4 ≤ 90)
 
 1. ECB Dynamos cricket at Percy Main. Built for girls trying cricket for the first time. (85)
-2. Soft ball, real game, friendly group. DBS-checked coaches. First session is free. (82)
-3. Saturday Dynamos sessions at St Johns Terrace, North Shields. Kit provided — turn up. (84)
-4. Volunteer-run charity. Coached by Level 3 Safeguarding Officer. Book a free trial. (82)
+2. Soft ball, real game, friendly squad. DBS-checked coaches. Mondays in North Shields. (84)
+3. Monday Dynamos sessions at Percy Main, North Shields. Kit provided. Book your spot. (83)
+4. Volunteer-run charity. Sign up for the 2026 ECB Dynamos programme at Percy Main. (80)

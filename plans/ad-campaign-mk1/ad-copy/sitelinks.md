@@ -1,41 +1,50 @@
 # Account-level sitelinks — `recruit-2026`
 
 Sitelinks live at the Google Ads **account** level so every campaign and every
-ad group inherits the same four. Each one needs link text plus two description
-lines, every line ≤ 35 characters. Counts in parentheses.
+ad group inherits the same set. Each one needs link text plus two description
+lines: text ≤ 25 chars, each description line ≤ 35 chars. Counts in parentheses.
 
-These four also satisfy the Ad Grants "≥ 2 unique sitelinks per account"
-compliance requirement with two to spare.
+Every URL below is a real, live path on percymain.org — no inventions. The
+five chosen here cover: cricket overview, fixtures, juniors, safeguarding, and
+women's cricket. This satisfies (and exceeds) the Ad Grants "≥ 2 unique
+sitelinks per account" compliance requirement.
 
 ---
 
-## 1. About the Club
+## 1. Cricket at Percy Main
 
-- **Sitelink text**: About the Club (14)
-- **Final URL**: `/about`
-- **Description line 1**: Founded 1894. Volunteer-run. (28)
-- **Description line 2**: Registered charity 1206787. (27)
+- **Sitelink text**: Cricket at Percy Main (21)
+- **Final URL**: `/cricket`
+- **Description line 1**: Men, women and junior teams. (29)
+- **Description line 2**: Founded 1894. Registered charity. (33)
 
-## 2. Fixtures
+## 2. Fixtures & Calendar
 
-- **Sitelink text**: Fixtures (8)
-- **Final URL**: `/fixtures`
+- **Sitelink text**: Fixtures & Calendar (19)
+- **Final URL**: `/calendar`
 - **Description line 1**: Saturday and midweek matches. (29)
 - **Description line 2**: Adult, junior, men and women. (29)
 
-## 3. Safeguarding
+## 3. Junior Cricket
+
+- **Sitelink text**: Junior Cricket (14)
+- **Final URL**: `/cricket/juniors`
+- **Description line 1**: Boys and girls, school years 1-11. (34)
+- **Description line 2**: All coaches DBS-checked. (24)
+
+## 4. Safeguarding
 
 - **Sitelink text**: Safeguarding (12)
-- **Final URL**: `/safeguarding`
-- **Description line 1**: DBS-checked coaches and CSO. (28)
+- **Final URL**: `/cricket/safeguarding`
+- **Description line 1**: DBS-checked coaches. Level 3 CSO. (33)
 - **Description line 2**: Read our safeguarding policy. (29)
 
-## 4. Contact
+## 5. Women's Cricket
 
-- **Sitelink text**: Contact (7)
-- **Final URL**: `/contact`
-- **Description line 1**: St Johns Terrace, North Shields. (32)
-- **Description line 2**: Email or call the trustees. (27)
+- **Sitelink text**: Women's Cricket (15)
+- **Final URL**: `/cricket/women`
+- **Description line 1**: Softball cricket, Mondays 6pm. (30)
+- **Description line 2**: Beginners welcome. No kit needed. (33)
 
 ---
 
@@ -46,6 +55,6 @@ compliance requirement with two to spare.
   campaign level; that defeats the inheritance.
 - If we want to A/B test sitelink copy later, do it by adding a second
   variant of the same sitelink at account level — Ads will rotate.
-- Junior-segment campaigns may benefit from a **fifth** sitelink later
-  (`Junior Pathway`) once the junior section has a stable landing page.
-  Out of scope for the launch four.
+- A sixth sitelink pointing at `/cricket/juniors/welcome-2026` could be added
+  closer to the start of the 2026 junior intake to deep-link parents
+  straight at the welcome page. Out of scope for the launch five.

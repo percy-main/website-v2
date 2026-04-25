@@ -2,9 +2,9 @@
 
 Landing page: `/tell-me-about/mens-cricket`
 
-Voice: intent-anchored, North Tyneside-rooted, free-trial-forward. Avoid generic
-branded headlines. Character counts in parentheses; nothing exceeds 30 (headlines)
-or 90 (descriptions).
+Voice: intent-anchored, North Tyneside-rooted. Free-first-session offer used
+selectively, not on every line. Avoid generic branded headlines. Character
+counts in parentheses; nothing exceeds 30 (headlines) or 90 (descriptions).
 
 ---
 
@@ -23,21 +23,21 @@ Path 2: `north-shields` (13)
 5. North Shields Cricket Club (26)
 6. Join a Cricket Club Today (25)
 7. Cricket Club, North Shields (27)
-8. Your First Session Is Free (26)
-9. Book a Free Trial Session (25)
+8. First Session Free (18)
+9. Come and Play Cricket (21)
 10. Friendly Cricket Club NE29 (26)
 11. Play Cricket This Season (24)
 12. New to Cricket? Start Here (26)
 13. All Abilities Welcome (21)
 14. Saturday League Cricket (23)
-15. Cricket at St Johns Terrace (27)
+15. Cricket at Percy Main (21)
 
 ### Descriptions (4 / 4 ≤ 90)
 
-1. Friendly men's cricket club at St Johns Terrace, North Shields. First session is free. (86)
-2. Saturday league and midweek XI in North Tyneside. Book a free trial — no kit needed. (84)
-3. Established 1894. Registered charity. Adult men's cricket on the Tyne — first trial free. (89)
-4. Beginners and returners welcome. Coached nets, league cricket, real teammates. Try free. (88)
+1. Friendly men's cricket club at Percy Main, North Shields. Your first session is free. (85)
+2. Saturday league and midweek XI in North Tyneside. Come along — no kit needed. (77)
+3. Established 1894. Registered charity. Adult men's cricket on the Tyne. Drop in free. (84)
+4. Beginners and returners welcome. Coached nets, league cricket, real teammates. (78)
 
 ---
 
@@ -60,14 +60,14 @@ Path 2: `training` (8)
 9. Beginners Welcome (17)
 10. Returning to Cricket? (21)
 11. Coached Cricket Sessions (24)
-12. Free First Net Session (22)
-13. Hardball Cricket Training (25)
+12. First Net Session Free (22)
+13. Adult Men's Cricket NE29 (24)
 14. Train, Play, Belong (19)
 15. Friendly Adult Sessions (23)
 
 ### Descriptions (4 / 4 ≤ 90)
 
 1. Coached adult cricket nets in North Shields. New, rusty or experienced — all welcome. (85)
-2. Indoor winter nets, outdoor summer training. Hardball pathway, league fixtures. (79)
-3. First session free. No kit needed for the trial — turn up, have a bowl, see if it fits. (87)
-4. Run by volunteer coaches at St Johns Terrace, NE29. Book a free trial in under a minute. (88)
+2. Indoor winter nets, outdoor summer training. Hard-ball cricket and league fixtures. (83)
+3. Your first session is free. No kit needed — turn up, have a bowl, see if it fits. (81)
+4. Run by volunteer coaches at Percy Main, North Shields. Come along to a session. (79)
