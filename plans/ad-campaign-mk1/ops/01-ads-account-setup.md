@@ -66,39 +66,44 @@ with test accounts`. If you land here, you can still use the
 - [ ] Capture the **developer token** (22-char alphanumeric string)
       shown on the API Center page.
 
-### 3c. Apply for Basic Access (only if needed)
+### 3c. Apply for Basic Access — **skipped**
 
-If we hit Explorer Access rate limits or get stuck on Test Account
-Access, formally apply for Basic Access:
+We were issued **Explorer Access** automatically on submit at step 3b,
+which allows production-account calls up to 2,880 operations/day. At
+recruit-2026's expected volume (tens of offline conversion uploads per
+day at peak), Explorer Access has plenty of headroom — no need to
+apply for Basic Access at launch.
 
-- [ ] In API Center, click the dropdown next to the access level →
-      **Apply for Basic Access**.
-- [ ] Provide accurate company details and a regularly-monitored
-      contact email.
-- [ ] **Intended use ("permissible use") → "Ad creation /
-      management"**. Why: the actual API surface we use is
-      `ConversionUploadService.uploadClickConversions`, which is not
-      named in any of the three permissible-use descriptions. The
-      "Reporting" option is read-only (`GoogleAdsService.Search` /
-      `SearchStream` only) — that doesn't cover writes, so it's the
-      wrong choice. "Researching keywords" is irrelevant. "Ad creation
-      / management" covers "all services of the API" and is the
-      umbrella permission that includes conversion uploads.
-- [ ] Application body, suggested wording: _"Single registered
-      charity (Percy Main CSC, charity 1206787) running Google Ad
-      Grants recruitment campaigns. We use the Google Ads API only to
-      upload offline conversions back to our own Ad Grants account
-      (`ConversionUploadService.uploadClickConversions`) when admins
-      mark a lead as Attended Session or Became Member. No third-party
-      ad management, no agency model, no resale. Expected volume: tens
-      of conversions per day at peak season."_
-- [ ] Wait for review (~2 business days per Google's docs). Basic
-      Access raises the daily operations cap to 15,000 — well above
-      anything recruit-2026 will need.
+Re-open this step only if either of the following becomes true:
 
-Note on permissible use: the field only appears for Basic and Standard
-applications. Test Account Access and Explorer Access do not require
-an intended-use selection.
+- We start hitting the 2,880 ops/day cap (would mean ~120 conversions
+  per hour sustained — well past anything we'd see).
+- A future feature needs one of the services restricted at Explorer
+  Access (account creation via `CustomerService.CreateCustomerClient`,
+  user management via `CustomerUserAccessService`, keyword planning,
+  or billing/payments services). None of those are on the recruit-2026
+  roadmap.
+
+If we ever do need to upgrade, the application notes still apply:
+
+- **Intended use ("permissible use") → "Ad creation / management"**.
+  The actual API surface we use is
+  `ConversionUploadService.uploadClickConversions`, which is not
+  named in any of the three permissible-use descriptions. "Reporting"
+  is read-only (`GoogleAdsService.Search` / `SearchStream` only) —
+  doesn't cover writes. "Researching keywords" is irrelevant. "Ad
+  creation / management" is the umbrella permission that covers all
+  services and is the only category that fits a writing surface like
+  `ConversionUploadService`.
+- Suggested application body: _"Single registered charity (Percy Main
+  CSC, charity 1206787) running Google Ad Grants recruitment
+  campaigns. We use the Google Ads API only to upload offline
+  conversions back to our own Ad Grants account
+  (`ConversionUploadService.uploadClickConversions`) when admins mark
+  a lead as Attended Session or Became Member. No third-party ad
+  management, no agency model, no resale. Expected volume: tens of
+  conversions per day at peak season."_
+- Review time per Google's docs: ~2 business days.
 
 ## 4. Create the GCP project
 
