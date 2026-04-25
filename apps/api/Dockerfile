@@ -39,8 +39,12 @@ COPY --from=builder /app/packages/email/package.json packages/email/
 
 RUN pnpm install --frozen-lockfile --prod
 
-# Rewrite package exports from source to compiled dist
-RUN sed -i 's|"./src/index.ts"|"./dist/index.js"|' packages/*/package.json
+# Rewrite package exports from source to compiled dist. Covers the root
+# `.` export and any subpath export of shape `./<name>: ./src/<name>/index.ts`.
+RUN sed -i \
+    -e 's|"./src/index.ts"|"./dist/index.js"|g' \
+    -e 's|"./src/\([^"]*\)/index.ts"|"./dist/\1/index.js"|g' \
+    packages/*/package.json
 
 COPY --from=builder /app/apps/api/dist apps/api/dist
 COPY --from=builder /app/apps/api/src/assets apps/api/dist/assets
