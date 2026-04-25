@@ -1,7 +1,8 @@
 # Google Ads account setup runbook (Phase 4 ticket 001)
 
-Pure ops, mostly Google UIs. Start early — the Ads API developer-token
-approval typically takes 2–5 working days.
+Pure ops, mostly Google UIs. Start early — even with the new
+auto-issue flow, full Basic/Standard access still goes through manual
+review.
 
 Customer ID: `882-123-5703` (Ad Grants account, $10k/month notional).
 Sole admin today: `alex.young@percymain.org`.
@@ -19,12 +20,63 @@ Per CONVERSION_TRACKING.md §21. Pick another trustee.
 - [ ] Google Ads → Admin → Account settings → Auto-tagging → on. Confirms
       `{gclid}` will be appended to every ad URL automatically.
 
-## 3. Apply for Ads API access
+## 3. Get a Google Ads API developer token
 
-- [ ] Google Ads → Admin → API Center → "Apply for API access" → Basic
-      access tier (sufficient for our volume).
-- [ ] Wait for approval (2–5 working days).
-- [ ] Capture the **developer token** when approved.
+The procedure changed in early 2026. There is no longer a single "Apply
+for API access" button on a regular Ads account. The API Center is only
+available on a **manager (MCC) account**, and the developer token is
+auto-issued at one of two starting tiers based on your form answers.
+
+### 3a. Create a Google Ads manager (MCC) account
+
+A regular Ads account does not have an API Center. The Ad Grants
+account `882-123-5703` cannot be used directly to issue a token.
+
+- [ ] Visit https://ads.google.com/intl/en_uk/home/tools/manager-accounts/
+      and create a new manager account from the same Google Workspace
+      identity that owns the Ad Grants account
+      (`alex.young@percymain.org`).
+- [ ] Name it `Percy Main CSC — Manager`.
+- [ ] Link the existing Ad Grants account `882-123-5703` underneath it
+      (Manager → Sub-account-settings → Link existing account → enter
+      the customer ID; accept the link from the Ad Grants account
+      side). Putting the manager at the root of the hierarchy makes
+      the eventual Basic-access review cleaner.
+
+### 3b. Apply for the developer token
+
+- [ ] Sign in to the **manager account** at
+      https://ads.google.com/aw/apicenter (or Admin → API center on
+      the manager account).
+- [ ] Complete the **API Access form**. Use the API contact email
+      `alex.young@percymain.org` — Google's API compliance team may
+      reach out for clarification.
+- [ ] Accept the Terms and Conditions.
+- [ ] On submit, the token is auto-issued at one of two tiers:
+  - **Explorer Access** ("Approved") — production calls allowed with
+    rate limits. Sufficient to run our offline conversion uploader at
+    expected volume (tens of conversions/day) and to start Phase 5
+    end-to-end testing immediately.
+  - **Test Account Access** ("Pending Approval") — you can call the
+    API but only against test accounts. Production calls fail with
+    `authorization_error: developer token is only approved for use
+with test accounts`. If you land here, you can still use the
+    token for the Phase 5 sandbox E2E run; production-scale uploads
+    wait on review (typical 5–14 business days).
+- [ ] Capture the **developer token** (22-char alphanumeric string)
+      shown on the API Center page.
+
+### 3c. Apply for Basic Access (only if needed)
+
+If we hit Explorer Access rate limits or get stuck on Test Account
+Access, formally apply for Basic Access:
+
+- [ ] In API Center, click the dropdown next to the access level →
+      **Apply for Basic Access**.
+- [ ] Provide accurate company details and a regularly-monitored
+      contact email.
+- [ ] Wait for review. Basic Access raises the daily operations cap
+      to 15,000 — well above anything recruit-2026 will need.
 
 ## 4. Create the GCP project
 
@@ -48,18 +100,23 @@ Same pattern as the existing Stripe/SES secrets.
 - [ ] Secret name: `percy-main/google-ads`.
 - [ ] Secret JSON shape:
       `json
-    {
-      "developerToken": "...",
-      "clientId": "...",
-      "clientSecret": "...",
-      "refreshToken": "...",
-      "customerId": "8821235703"
-    }
-    `
+  {
+    "developerToken": "...",
+    "clientId": "...",
+    "clientSecret": "...",
+    "refreshToken": "...",
+    "customerId": "8821235703",
+    "loginCustomerId": "<manager-account-customer-id>"
+  }
+  `
+      `customerId` is the operating account (the Ad Grants account
+      that runs the campaigns). `loginCustomerId` is the manager
+      account from step 3a — required when calling the API on a
+      managed (sub-)account.
 - [ ] Terraform: extend the API task IAM policy with
       `secretsmanager:GetSecretValue` on this ARN.
-- [ ] App config (Phase 5 ticket 001 wires the actual env-var pull): values
-      land in `app.config.GOOGLE_ADS_DEVELOPER_TOKEN`,
+- [ ] App config (Phase 5 ticket 001 wires the actual env-var pull):
+      values land in `app.config.GOOGLE_ADS_DEVELOPER_TOKEN`,
       `GOOGLE_ADS_CUSTOMER_ID`, `GOOGLE_ADS_LOGIN_CUSTOMER_ID`,
       `GOOGLE_ADS_OAUTH_CLIENT_ID`, `GOOGLE_ADS_OAUTH_CLIENT_SECRET`,
       `GOOGLE_ADS_OAUTH_REFRESH_TOKEN`.
@@ -108,8 +165,13 @@ Per RECRUIT_CAMPAIGN.md §9 starter list.
 
 - [ ] Second admin added.
 - [ ] Auto-tagging on.
-- [ ] Developer token approved + creds in Secrets Manager.
+- [ ] Manager (MCC) account created and Ad Grants account linked
+      under it.
+- [ ] Developer token issued (Explorer Access is sufficient to start;
+      Basic Access can follow if needed) and creds in Secrets Manager,
+      including `loginCustomerId`.
 - [ ] Six conversion actions in Secondary column.
-- [ ] Four campaigns on Maximize Clicks, geo-targeted to North Tyneside.
+- [ ] Four campaigns on Maximize Clicks, geo-targeted to North
+      Tyneside.
 - [ ] Sitelinks live.
 - [ ] Resource names + conversion labels captured for ticket 003.
