@@ -148,6 +148,6 @@ export function createAdsClient(config: AdsClientConfig | Config): AdsClient {
   return new GoogleAdsApiClient(customer, customerId);
 }
 
-export function isNoopAdsClient(client: AdsClient): client is NoopAdsClient {
+export function isNoopAdsClient(client: AdsClient): boolean {
   return client instanceof NoopAdsClient;
 }

@@ -33,6 +33,8 @@ import { healthRoutes } from "./features/health/routes.ts";
 import { incidentReportRoutes } from "./features/incident-report/routes.ts";
 import { juniorRoutes } from "./features/junior/routes.ts";
 import { leaderboardRoutes } from "./features/leaderboard/routes.ts";
+import { createAdsClient } from "./features/marketing/ads-client.ts";
+import { startForwarder } from "./features/marketing/forwarder.ts";
 import { marketingRoutes } from "./features/marketing/routes.ts";
 import { matchdayRoutes } from "./features/matchday/routes.ts";
 import { memberRoutes } from "./features/members/routes.ts";
@@ -162,6 +164,18 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(marketingRoutes, { prefix: "/api" });
   await app.register(webhookRoutes, { prefix: "/api" });
   await app.register(ogImageRoutes, { prefix: "/api" });
+
+  // Marketing forwarder: periodic drain of marketing_outbox -> Google Ads.
+  // No-op when GOOGLE_ADS_* env vars are absent.
+  const adsClient = createAdsClient(config);
+  const forwarder = startForwarder({
+    db,
+    client: adsClient,
+    log: app.log,
+  });
+  app.addHook("onClose", () => {
+    forwarder.stop();
+  });
 
   return app;
 }
