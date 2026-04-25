@@ -237,7 +237,30 @@ export function LeadsTab() {
                       <TableCell>{lead.firstCampaignId ?? "—"}</TableCell>
                       <TableCell>{lead.firstSegment ?? "—"}</TableCell>
                       <TableCell>{lead.status}</TableCell>
-                      <TableCell>{formatDate(lead.createdAt, true)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span>{formatDate(lead.createdAt, true)}</span>
+                          {lead.adsCutoffAt && (
+                            <span
+                              className={
+                                cutoffPassed
+                                  ? "text-xs text-gray-500"
+                                  : "text-xs text-gray-400"
+                              }
+                              title={
+                                cutoffPassed
+                                  ? "The Google Ads attribution window for this lead has expired. Outcome events are still recorded in our DB but won't be uploaded to Ads."
+                                  : "Latest date this lead's offline outcomes can still reach Google Ads."
+                              }
+                            >
+                              {cutoffPassed
+                                ? "Ads window: closed"
+                                : "Ads window:"}{" "}
+                              {formatDate(lead.adsCutoffAt, false)}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell
                         className="flex flex-wrap gap-1"
                         onClick={(e) => e.stopPropagation()}
