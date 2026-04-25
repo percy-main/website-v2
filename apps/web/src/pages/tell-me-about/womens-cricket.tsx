@@ -11,11 +11,11 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 const REASSURANCE: readonly ReassuranceItem[] = [
   {
     heading: "Who it's for",
-    body: "Women aged 18 and over. No previous experience needed — softball cricket is designed for people who've never played. If you have played before, you'll still enjoy it; the format is friendlier and faster than hardball.",
+    body: "Women and girls aged 13 and over. No previous experience needed — softball cricket is designed for people who've never played. If you have played before, you'll still enjoy it; the format is friendlier and faster than hardball.",
   },
   {
     heading: "When training happens",
-    body: "Tuesday evenings, 6:30pm–8pm during the season at our ground on St. Johns Terrace, North Shields, NE29 6HS. Indoor sessions over the winter — we'll let you know dates when you get in touch.",
+    body: "Monday evenings, 6pm–7:30pm during the season at our ground on St. Johns Terrace, Percy Main, North Shields, NE29 6HS. Indoor sessions over the winter — we'll let you know dates when you get in touch.",
   },
   {
     heading: "What to bring",
@@ -30,16 +30,15 @@ const REASSURANCE: readonly ReassuranceItem[] = [
 export function Component() {
   useDocumentMeta(
     "Try Women's Softball Cricket — Percy Main Community Sports Club",
-    "Free trial women's softball cricket session at Percy Main, North Tyneside. Beginners welcome. We'll be in touch within one working day.",
+    "Free first session of women's softball cricket at Percy Main, North Tyneside. Beginners welcome. We'll be in touch within one working day.",
   );
 
   return (
     <>
       <RecruitHero
-        eyebrow="Recruit 2026"
         title="Try women's softball cricket"
         description="Softball cricket is a shorter, more welcoming format of the game — perfect if you've never picked up a bat before. Played with a softer ball, smaller teams, and shorter games."
-        imageAlt="Women's cricket at Percy Main"
+        imageAlt="The cricket pitch at Percy Main"
       />
       <ReassuranceList items={REASSURANCE} />
       <TrialIsFree />

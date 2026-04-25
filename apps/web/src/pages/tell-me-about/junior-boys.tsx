@@ -16,7 +16,20 @@ const REASSURANCE: readonly ReassuranceItem[] = [
   },
   {
     heading: "When training happens",
-    body: "Tuesday evenings, 6:30pm–8pm during the season at our ground on St. Johns Terrace, North Shields, NE29 6HS. Some age groups also train on weekends — we'll point you to the right session when you get in touch.",
+    body: (
+      <>
+        Tuesday evenings during the season at our ground on St. Johns Terrace,
+        Percy Main, North Shields, NE29 6HS:
+        <ul className="mt-2 ml-5 list-disc space-y-1">
+          <li>
+            <strong>Under 11s</strong> — 4:30pm to 5:45pm
+          </li>
+          <li>
+            <strong>Under 13 / Under 15 / Under 19</strong> — 6pm to 7:30pm
+          </li>
+        </ul>
+      </>
+    ),
   },
   {
     heading: "What to bring",
@@ -30,17 +43,16 @@ const REASSURANCE: readonly ReassuranceItem[] = [
 
 export function Component() {
   useDocumentMeta(
-    "Junior Boys Cricket Trial — Percy Main Community Sports Club",
-    "Free trial junior boys cricket session at Percy Main, North Tyneside. DBS-checked coaches. We'll be in touch within one working day.",
+    "Junior Boys Cricket — Percy Main Community Sports Club",
+    "Free first session of junior boys cricket at Percy Main, North Tyneside. DBS-checked coaches. We'll be in touch within one working day.",
   );
 
   return (
     <>
       <RecruitHero
-        eyebrow="Recruit 2026"
         title="Try junior boys cricket"
         description="Coaching for boys in school years 1–11 at Percy Main Cricket Club, North Shields. Friendly groups, qualified coaches, and a first session that's free."
-        imageAlt="Junior cricket at Percy Main"
+        imageAlt="The cricket pitch at Percy Main"
       />
       <ReassuranceList items={REASSURANCE} />
       <TrialIsFree />

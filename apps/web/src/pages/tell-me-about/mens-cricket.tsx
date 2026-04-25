@@ -15,7 +15,7 @@ const REASSURANCE: readonly ReassuranceItem[] = [
   },
   {
     heading: "When training happens",
-    body: "Tuesday evenings, 6:30pm–8pm during the season at our ground on St. Johns Terrace, North Shields, NE29 6HS. Indoor nets through the winter — we'll point you to those when you get in touch.",
+    body: "Wednesday evenings, 6pm–8pm during the season at our ground on St. Johns Terrace, Percy Main, North Shields, NE29 6HS. Indoor nets through the winter — we'll point you to those when you get in touch.",
   },
   {
     heading: "What to bring",
@@ -30,16 +30,15 @@ const REASSURANCE: readonly ReassuranceItem[] = [
 export function Component() {
   useDocumentMeta(
     "Try Men's Cricket — Percy Main Community Sports Club",
-    "Free trial men's cricket session at Percy Main, North Tyneside. Submit your details and we'll be in touch within one working day.",
+    "Free first session of men's cricket at Percy Main, North Tyneside. Submit your details and we'll be in touch within one working day.",
   );
 
   return (
     <>
       <RecruitHero
-        eyebrow="Recruit 2026"
         title="Try a session of men's cricket"
         description="Hardball cricket in the Northumberland & Tyneside Cricket League. Adults of any experience level — from never-played to returning club cricketer."
-        imageAlt="Cricket at Percy Main"
+        imageAlt="The cricket pitch at Percy Main"
       />
       <ReassuranceList items={REASSURANCE} />
       <TrialIsFree />

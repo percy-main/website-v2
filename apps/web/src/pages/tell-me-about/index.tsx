@@ -18,7 +18,7 @@ const REASSURANCE: readonly ReassuranceItem[] = [
   },
   {
     heading: "When training happens",
-    body: "Tuesday evenings, 6:30pm–8pm during the season at our ground on St. Johns Terrace, North Shields, NE29 6HS. Some junior age groups also train at weekends.",
+    body: "Different sessions for different groups, all at our ground on St. Johns Terrace, Percy Main, North Shields, NE29 6HS. Pick a group below for the exact day and time.",
   },
   {
     heading: "What to bring",
@@ -78,10 +78,9 @@ export function Component() {
   return (
     <>
       <RecruitHero
-        eyebrow="Recruit 2026"
         title="Try a session at Percy Main"
         description="Cricket at Percy Main Community Sports Club, North Shields. Pick the group that fits and we'll get back to you within one working day."
-        imageAlt="Percy Main Cricket Club"
+        imageAlt="The cricket pitch at Percy Main"
       />
 
       <ReassuranceList items={REASSURANCE} />

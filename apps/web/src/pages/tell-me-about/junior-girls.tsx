@@ -4,7 +4,6 @@ import {
   ReassuranceList,
   RecruitHero,
   SafeguardingLine,
-  TrialIsFree,
   type ReassuranceItem,
 } from "@/components/marketing/recruit-page-sections.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
@@ -16,7 +15,7 @@ const REASSURANCE: readonly ReassuranceItem[] = [
   },
   {
     heading: "When training happens",
-    body: "Tuesday evenings, 6:30pm–8pm during the season at our ground on St. Johns Terrace, North Shields, NE29 6HS. The Dynamos block typically runs across the spring and summer; we'll point you to the right dates when you get in touch.",
+    body: "Monday evenings, 5pm–6pm at our ground on St. Johns Terrace, Percy Main, North Shields, NE29 6HS. The 2026 Dynamos block starts on 1 June.",
   },
   {
     heading: "What to bring",
@@ -24,28 +23,26 @@ const REASSURANCE: readonly ReassuranceItem[] = [
   },
   {
     heading: "What happens next",
-    body: "Submit the form and someone from the club will be in touch within one working day to agree a date. We'll meet you at the ground, introduce your daughter to the coach, and you're welcome to stay and watch.",
+    body: "Submit the form and someone from the club will be in touch within one working day to agree a date and walk you through the ECB Dynamos sign-up. We'll meet you at the ground, introduce your daughter to the coach, and you're welcome to stay and watch.",
   },
 ];
 
 export function Component() {
   useDocumentMeta(
     "Junior Girls Dynamos Cricket — Percy Main Community Sports Club",
-    "Free trial girls' Dynamos cricket session at Percy Main, North Tyneside. ECB-backed programme for girls aged 8–11. We'll be in touch within one working day.",
+    "ECB Dynamos cricket for girls aged 8–11 at Percy Main, North Tyneside. Mondays from 1 June. We'll be in touch within one working day.",
   );
 
   return (
     <>
       <RecruitHero
-        eyebrow="Recruit 2026"
-        title="Try girls' Dynamos cricket"
+        title="Girls' Dynamos cricket"
         description="Dynamos is the ECB's national programme for 8–11 year olds — focused on learning the game in a fun, mixed-ability setting. Sessions run at Percy Main Cricket Club, North Shields."
-        imageAlt="Girls' cricket at Percy Main"
+        imageAlt="The cricket pitch at Percy Main"
       />
       <ReassuranceList items={REASSURANCE} />
-      <TrialIsFree />
       <SafeguardingLine />
-      <FormSection headline="Book your daughter's first Dynamos session">
+      <FormSection headline="Register your daughter for Dynamos">
         <LeadForm
           campaignId="recruit-2026"
           segment="junior_girls_dynamos_cricket"

@@ -1,3 +1,5 @@
+import { OptimisedImage } from "@/components/optimised-image.js";
+import { getPicture } from "@/lib/image-map.js";
 import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
 
@@ -7,48 +9,52 @@ import { Link } from "react-router";
  * in structure — only the copy differs.
  */
 
+const FORM_ANCHOR_ID = "register-interest";
+
+// Pitch photo - shipped at apps/web/src/assets/images/pitch.png so the
+// optimised picture map always has it. Asserted non-null because the asset
+// is part of the source tree.
+// eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- shipped asset, guaranteed present
+const heroPicture = getPicture("/images/pitch.png")!;
+
 interface RecruitHeroProps {
-  eyebrow: string;
   title: string;
   description: string;
-  /** Provisional image URL — falls back gracefully if missing. */
-  imageSrc?: string;
   imageAlt?: string;
 }
 
 export const RecruitHero: FC<RecruitHeroProps> = ({
-  eyebrow,
   title,
   description,
-  imageSrc = "/images/og-default.png",
-  imageAlt = "",
+  imageAlt = "Cricket at Percy Main",
 }) => (
   <section className="relative">
-    <div className="relative">
-      <img
-        src={imageSrc}
-        alt={imageAlt}
-        className="h-72 w-full object-cover md:h-96"
-        // Don't break the page if the image is missing — hide the element
-        // and let the dark gradient fill the space.
-        onError={(e) => {
-          e.currentTarget.style.display = "none";
-        }}
-        loading="eager"
-      />
+    <div className="relative h-[28rem] md:h-[32rem]">
+      <div className="absolute inset-0">
+        <OptimisedImage
+          picture={heroPicture}
+          alt={imageAlt}
+          loading="eager"
+          fetchPriority="high"
+          className="h-full w-full object-cover"
+        />
+      </div>
       <div className="absolute inset-0 bg-black/55" />
       <div className="absolute inset-0 flex items-center">
         <div className="container mx-auto px-6">
           <div className="max-w-2xl text-white">
-            <p className="mb-2 text-sm font-semibold tracking-wide text-white/80 uppercase">
-              {eyebrow}
-            </p>
             <h1 className="text-h2 md:text-h1 mb-4 leading-tight font-extrabold tracking-tight text-white">
               {title}
             </h1>
-            <p className="text-lg text-balance text-white/90 md:text-xl">
+            <p className="mb-6 text-lg text-balance text-white/90 md:text-xl">
               {description}
             </p>
+            <a
+              href={`#${FORM_ANCHOR_ID}`}
+              className="bg-cta hover:bg-cta-dark inline-block rounded px-6 py-3 text-base font-semibold text-white shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              I&rsquo;m interested
+            </a>
           </div>
         </div>
       </div>
@@ -122,7 +128,7 @@ interface FormSectionProps {
 }
 
 export const FormSection: FC<FormSectionProps> = ({ headline, children }) => (
-  <section className="bg-white py-12">
+  <section id={FORM_ANCHOR_ID} className="scroll-mt-16 bg-white py-12">
     <div className="container mx-auto px-6">
       <div className="mx-auto max-w-xl">
         <h2 className="text-h4 mb-6 text-center">{headline}</h2>
