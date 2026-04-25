@@ -140,13 +140,25 @@ Same pattern as the existing Stripe/SES secrets.
       that runs the campaigns). `loginCustomerId` is the manager
       account from step 3a — required when calling the API on a
       managed (sub-)account.
-- [ ] Terraform: extend the API task IAM policy with
+- [x] Terraform: extend the API task IAM policy with
       `secretsmanager:GetSecretValue` on this ARN.
-- [ ] App config (Phase 5 ticket 001 wires the actual env-var pull):
-      values land in `app.config.GOOGLE_ADS_DEVELOPER_TOKEN`,
+      _Already covered by the existing wildcard
+      `arn:aws:secretsmanager:eu-west-2:<account>:secret:*percy-main*`
+      grant in `infra/modules/ecs-service/main.tf` — the new
+      `percy-main/google-ads` secret matches that pattern, so no IAM
+      change is needed._
+- [x] App config (already wired by Phase 5 ticket 001 in
+      `apps/api/src/config.ts`): values land in
+      `app.config.GOOGLE_ADS_DEVELOPER_TOKEN`,
       `GOOGLE_ADS_CUSTOMER_ID`, `GOOGLE_ADS_LOGIN_CUSTOMER_ID`,
       `GOOGLE_ADS_OAUTH_CLIENT_ID`, `GOOGLE_ADS_OAUTH_CLIENT_SECRET`,
-      `GOOGLE_ADS_OAUTH_REFRESH_TOKEN`.
+      `GOOGLE_ADS_OAUTH_REFRESH_TOKEN`. The production ECS task
+      definition (`infra/environments/production/main.tf`) maps each
+      env var to the matching JSON key in the
+      `percy-main/google-ads` Secrets Manager entry. Staging
+      intentionally leaves them unset — `createAdsClient` falls back
+      to a NoopAdsClient when any required env var is missing, so the
+      forwarder is a clean no-op in non-prod.
 
 ## 7. Create six conversion actions (Secondary column)
 
