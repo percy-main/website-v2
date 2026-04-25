@@ -31,7 +31,7 @@ same Monday slot.
 ### Conversion reconciliation (Phase 6+ only)
 
 - [ ] Per-segment `generate_lead` Ads count vs DB count for the last
-      7 days within ±5%. Use the `reconciliation-gate.md` SQL.
+      7 days within ±5%. Use the `04-reconciliation-gate.md` SQL.
 - [ ] `lead_attended_session` and `lead_became_member` Ads counts vs
       DB counts. Should also match within ±5%.
 - [ ] Outbox: `marketing_outbox` `dead` count = 0. Anything > 0 →
@@ -85,7 +85,7 @@ training}, `junior_girls_dynamos_cricket` × {girls club, dynamos}):
       tightly-themed groups.
 - [ ] **Conversions per ad group**, trailing 7 days. Compare against
       DB `marketing_event WHERE campaign_id='recruit-2026' AND
-    segment=<segment_key>` over the same window.
+  segment=<segment_key>` over the same window.
 - [ ] **CTR by individual asset (headline / description)** in the RSA
       asset report. Ads marks each asset Best / Good / Low. Flag any
       asset stuck at "Low" for > 14 days.
