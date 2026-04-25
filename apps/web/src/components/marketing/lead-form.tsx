@@ -175,10 +175,11 @@ export const LeadForm: FC<LeadFormProps> = ({
         style={HONEYPOT_STYLE}
         value={variant === "junior" ? junior.honeypot : adult.honeypot}
         onChange={(e) => {
+          const value = e.currentTarget.value;
           if (variant === "junior") {
-            setJunior((s) => ({ ...s, honeypot: e.currentTarget.value }));
+            setJunior((s) => ({ ...s, honeypot: value }));
           } else {
-            setAdult((s) => ({ ...s, honeypot: e.currentTarget.value }));
+            setAdult((s) => ({ ...s, honeypot: value }));
           }
         }}
       />
@@ -193,9 +194,10 @@ export const LeadForm: FC<LeadFormProps> = ({
               autoComplete="name"
               required
               value={adult.name}
-              onChange={(e) =>
-                setAdult((s) => ({ ...s, name: e.currentTarget.value }))
-              }
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setAdult((s) => ({ ...s, name: value }));
+              }}
               disabled={isPending}
             />
           </Field>
@@ -207,9 +209,10 @@ export const LeadForm: FC<LeadFormProps> = ({
               autoComplete="email"
               required
               value={adult.email}
-              onChange={(e) =>
-                setAdult((s) => ({ ...s, email: e.currentTarget.value }))
-              }
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setAdult((s) => ({ ...s, email: value }));
+              }}
               disabled={isPending}
             />
           </Field>
@@ -224,9 +227,10 @@ export const LeadForm: FC<LeadFormProps> = ({
               name="phone"
               autoComplete="tel"
               value={adult.phone}
-              onChange={(e) =>
-                setAdult((s) => ({ ...s, phone: e.currentTarget.value }))
-              }
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setAdult((s) => ({ ...s, phone: value }));
+              }}
               disabled={isPending}
             />
           </Field>
@@ -237,9 +241,10 @@ export const LeadForm: FC<LeadFormProps> = ({
               rows={3}
               placeholder="Anything we should know? Previous experience, preferred day, questions…"
               value={adult.notes}
-              onChange={(e) =>
-                setAdult((s) => ({ ...s, notes: e.currentTarget.value }))
-              }
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setAdult((s) => ({ ...s, notes: value }));
+              }}
               disabled={isPending}
             />
           </Field>
@@ -254,12 +259,10 @@ export const LeadForm: FC<LeadFormProps> = ({
               autoComplete="off"
               required
               value={junior.childName}
-              onChange={(e) =>
-                setJunior((s) => ({
-                  ...s,
-                  childName: e.currentTarget.value,
-                }))
-              }
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setJunior((s) => ({ ...s, childName: value }));
+              }}
               disabled={isPending}
             />
           </Field>
@@ -271,12 +274,10 @@ export const LeadForm: FC<LeadFormProps> = ({
               autoComplete="name"
               required
               value={junior.parentName}
-              onChange={(e) =>
-                setJunior((s) => ({
-                  ...s,
-                  parentName: e.currentTarget.value,
-                }))
-              }
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setJunior((s) => ({ ...s, parentName: value }));
+              }}
               disabled={isPending}
             />
           </Field>
@@ -292,12 +293,10 @@ export const LeadForm: FC<LeadFormProps> = ({
               autoComplete="email"
               required
               value={junior.parentEmail}
-              onChange={(e) =>
-                setJunior((s) => ({
-                  ...s,
-                  parentEmail: e.currentTarget.value,
-                }))
-              }
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setJunior((s) => ({ ...s, parentEmail: value }));
+              }}
               disabled={isPending}
             />
           </Field>
@@ -312,12 +311,10 @@ export const LeadForm: FC<LeadFormProps> = ({
               name="parent_phone"
               autoComplete="tel"
               value={junior.parentPhone}
-              onChange={(e) =>
-                setJunior((s) => ({
-                  ...s,
-                  parentPhone: e.currentTarget.value,
-                }))
-              }
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setJunior((s) => ({ ...s, parentPhone: value }));
+              }}
               disabled={isPending}
             />
           </Field>
@@ -328,9 +325,10 @@ export const LeadForm: FC<LeadFormProps> = ({
               rows={3}
               placeholder="Anything we should know? Age, previous experience, preferred day…"
               value={junior.notes}
-              onChange={(e) =>
-                setJunior((s) => ({ ...s, notes: e.currentTarget.value }))
-              }
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setJunior((s) => ({ ...s, notes: value }));
+              }}
               disabled={isPending}
             />
           </Field>
