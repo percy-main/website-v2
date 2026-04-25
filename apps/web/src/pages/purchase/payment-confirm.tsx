@@ -1,11 +1,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
+import { trackEvent } from "@/lib/marketing/gtag.js";
+import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router";
 
 export function Component() {
   useDocumentMeta("Payment");
   const [searchParams] = useSearchParams();
   const status = searchParams.get("redirect_status");
+
+  useEffect(() => {
+    if (status === "succeeded") {
+      // Stripe's redirect carries no value/currency in the URL, but the
+      // server-side webhook records the authoritative purchase event. This
+      // browser-side fire is for GA4 reporting only.
+      trackEvent("purchase", { currency: "GBP" });
+    }
+  }, [status]);
 
   return (
     <div className="container mx-auto max-w-lg px-4 py-8">
