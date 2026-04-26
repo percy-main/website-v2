@@ -1,0 +1,97 @@
+name: Deploy Terraform (manual)
+
+# Escape hatch for re-running terraform apply outside the auto chain in
+# deploy.yml. Useful when the auto run skipped a layer because CI failed
+# earlier, or when applying a state-only change that doesn't touch app
+# code at all.
+#
+# Choose which layer(s) to apply via the `target` input.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch, tag, or SHA) to apply. Defaults to main."
+        required: false
+        default: "main"
+      target:
+        description: "Which layer to apply."
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - shared
+          - production
+          - both
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-2
+  TF_VERSION: "1.7"
+
+jobs:
+  terraform-shared:
+    if: ${{ inputs.target == 'shared' || inputs.target == 'both' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: infra/environments/shared
+        run: terraform init
+
+      - name: Verify remote backend is configured
+        working-directory: infra/environments/shared
+        run: |
+          if grep -q '# backend "s3"' main.tf || grep -q '#   bucket' main.tf; then
+            echo "ERROR: S3 backend is still commented out in shared/main.tf"
+            echo "Uncomment the backend block before applying."
+            exit 1
+          fi
+
+      - name: Terraform Apply
+        working-directory: infra/environments/shared
+        run: terraform apply -auto-approve
+
+  terraform-production:
+    if: ${{ always() && (inputs.target == 'production' || inputs.target == 'both') && (needs.terraform-shared.result == 'success' || needs.terraform-shared.result == 'skipped') }}
+    needs: terraform-shared
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: infra/environments/production
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: infra/environments/production
+        run: terraform apply -auto-approve
