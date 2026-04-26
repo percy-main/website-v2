@@ -97,6 +97,7 @@ export function Component() {
             <TabsTrigger value="juniors">Juniors</TabsTrigger>
             <TabsTrigger value="charges">Charges</TabsTrigger>
             <TabsTrigger value="leads">Leads</TabsTrigger>
+            <TabsTrigger value="marketing-outbox">Marketing Outbox</TabsTrigger>
             <TabsTrigger value="contacts">Contacts</TabsTrigger>
             <TabsTrigger value="sponsorships">Sponsorships</TabsTrigger>
             <TabsTrigger value="incidents">Incidents</TabsTrigger>

@@ -183,6 +183,14 @@ export async function drainOnce(deps: DrainDeps): Promise<DrainOnceResult> {
             .execute();
           result.dead += 1;
         }
+        log.warn(
+          {
+            err: err.message,
+            outboxIds: uploads.map((u) => u.outboxId),
+            dead: uploads.length,
+          },
+          "Marketing outbox validation failure (dead-lettered)",
+        );
       } else {
         // Transient — back off and retry, dead-letter after MAX_ATTEMPTS.
         const errMessage = err instanceof Error ? err.message : String(err);

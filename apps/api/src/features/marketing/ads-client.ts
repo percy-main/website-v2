@@ -87,8 +87,15 @@ class GoogleAdsApiClient implements AdsClient {
       const partial = (response as { partial_failure_error?: unknown })
         .partial_failure_error;
       if (partial) {
+        const detail = (() => {
+          try {
+            return JSON.stringify(partial);
+          } catch {
+            return String(partial);
+          }
+        })();
         throw new AdsValidationError(
-          "Google Ads partial_failure_error on uploadClickConversions",
+          `Google Ads partial_failure_error on uploadClickConversions: ${detail}`,
           partial,
         );
       }
