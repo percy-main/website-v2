@@ -34,8 +34,7 @@ export interface ClickConversionPayload {
   conversion_value: number;
   currency_code: string;
   order_id: string;
-  gclid?: string;
-  user_identifiers?: Array<{ hashed_email: string }>;
+  gclid: string;
   consent?: {
     ad_user_data: "GRANTED" | "DENIED" | "UNSPECIFIED";
     ad_personalization: "GRANTED" | "DENIED" | "UNSPECIFIED";

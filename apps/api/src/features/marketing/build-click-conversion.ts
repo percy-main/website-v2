@@ -4,7 +4,6 @@ import {
   resolveAdsConversionAction,
   type MarketingEventType,
 } from "@percy-main/shared/marketing";
-import { createHash } from "node:crypto";
 import type { ClickConversionPayload } from "./ads-client.ts";
 
 interface AttributionShape {
@@ -36,16 +35,7 @@ export interface BuildResult {
    * Reason for skipping when payload is null. Recorded on the outbox row
    * so admins can see why an event wasn't uploaded.
    */
-  skipReason?:
-    | "no_match"
-    | "past_window"
-    | "no_consent"
-    | "missing_action"
-    | "no_value";
-}
-
-function sha256(input: string): string {
-  return createHash("sha256").update(input).digest("hex");
+  skipReason?: "no_match" | "past_window" | "missing_action" | "no_value";
 }
 
 function mapConsentToAds(state: string): "GRANTED" | "DENIED" | "UNSPECIFIED" {
@@ -109,17 +99,11 @@ export function buildClickConversion(input: {
     if (past) return { payload: null, skipReason: "past_window" };
   }
 
-  // Consent matrix. We never include user_identifiers without granted
-  // consent; we never upload anything when there's no matchable signal.
-  const hasGclid = Boolean(gclid);
-  const consentGranted = consent === "granted";
-  const hasEmail = Boolean(lead?.email);
-
-  if (!hasGclid && !consentGranted) {
-    // No gclid and no consent for hashed email upload → nothing to match.
-    return { payload: null, skipReason: "no_consent" };
-  }
-  if (!hasGclid && consentGranted && !hasEmail) {
+  // Without a gclid there's nothing to attribute the conversion to. The
+  // on-site gtag handles user-provided data (enhanced conversions) at
+  // submit time; offline API uploads carry only the click identifier
+  // and the state transition.
+  if (!gclid) {
     return { payload: null, skipReason: "no_match" };
   }
 
@@ -144,19 +128,12 @@ export function buildClickConversion(input: {
     conversion_value: value / 100, // Ads expects decimal currency, value_pence is integer pence
     currency_code: currency,
     order_id: event.id,
+    gclid,
     consent: {
       ad_user_data: mapConsentToAds(consent),
       ad_personalization: mapConsentToAds(consent),
     },
   };
-
-  if (gclid) payload.gclid = gclid;
-
-  if (consentGranted && lead?.email) {
-    payload.user_identifiers = [
-      { hashed_email: sha256(lead.email.toLowerCase().trim()) },
-    ];
-  }
 
   return { payload };
 }

@@ -35,7 +35,7 @@ function makeLead(overrides: Partial<LeadRowForBuild> = {}): LeadRowForBuild {
 }
 
 describe("buildClickConversion (consent matrix)", () => {
-  it("granted + gclid present → full payload with hashed email", () => {
+  it("granted + gclid present → gclid payload, GRANTED consent", () => {
     const result = buildClickConversion({
       event: makeEvent(),
       lead: makeLead(),
@@ -43,25 +43,20 @@ describe("buildClickConversion (consent matrix)", () => {
     });
     expect(result.payload).toBeTruthy();
     expect(result.payload?.gclid).toBe("abc");
-    expect(result.payload?.user_identifiers?.[0].hashed_email).toMatch(
-      /^[a-f0-9]{64}$/,
-    );
     expect(result.payload?.consent?.ad_user_data).toBe("GRANTED");
   });
 
-  it("granted + no gclid → hashed email only", () => {
+  it("granted + no gclid → skip (no_match)", () => {
     const result = buildClickConversion({
       event: makeEvent(),
       lead: makeLead({ attribution: { first_seen_at: RECENT } }),
       now: NOW,
     });
-    expect(result.payload).toBeTruthy();
-    expect(result.payload?.gclid).toBeUndefined();
-    expect(result.payload?.user_identifiers).toHaveLength(1);
-    expect(result.payload?.consent?.ad_user_data).toBe("GRANTED");
+    expect(result.payload).toBeNull();
+    expect(result.skipReason).toBe("no_match");
   });
 
-  it("denied + gclid present → gclid only, no user_identifiers", () => {
+  it("denied + gclid present → gclid payload, DENIED consent", () => {
     const result = buildClickConversion({
       event: makeEvent(),
       lead: makeLead({ consent_ad_user_data: "denied" }),
@@ -69,7 +64,6 @@ describe("buildClickConversion (consent matrix)", () => {
     });
     expect(result.payload).toBeTruthy();
     expect(result.payload?.gclid).toBe("abc");
-    expect(result.payload?.user_identifiers).toBeUndefined();
     expect(result.payload?.consent?.ad_user_data).toBe("DENIED");
   });
 
@@ -83,10 +77,10 @@ describe("buildClickConversion (consent matrix)", () => {
       now: NOW,
     });
     expect(result.payload).toBeNull();
-    expect(result.skipReason).toBe("no_consent");
+    expect(result.skipReason).toBe("no_match");
   });
 
-  it("unknown consent + gclid → gclid only with UNSPECIFIED consent", () => {
+  it("unknown consent + gclid → gclid payload with UNSPECIFIED consent", () => {
     const result = buildClickConversion({
       event: makeEvent(),
       lead: makeLead({ consent_ad_user_data: "unknown" }),
@@ -94,7 +88,6 @@ describe("buildClickConversion (consent matrix)", () => {
     });
     expect(result.payload).toBeTruthy();
     expect(result.payload?.gclid).toBe("abc");
-    expect(result.payload?.user_identifiers).toBeUndefined();
     expect(result.payload?.consent?.ad_user_data).toBe("UNSPECIFIED");
   });
 
@@ -108,7 +101,7 @@ describe("buildClickConversion (consent matrix)", () => {
       now: NOW,
     });
     expect(result.payload).toBeNull();
-    expect(result.skipReason).toBe("no_consent");
+    expect(result.skipReason).toBe("no_match");
   });
 
   it("past attribution window → skip", () => {

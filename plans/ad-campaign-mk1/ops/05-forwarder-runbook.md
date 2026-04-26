@@ -79,12 +79,11 @@ These aren't errors — the builder deliberately didn't upload because
 nothing matchable existed. The succeeded state lets us garbage-collect
 the row in the Phase 7 retention job.
 
-| Reason                   | Meaning                                                                                                    |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `skipped:past_window`    | Lead's first_seen_at is older than the configured Ads window.                                              |
-| `skipped:no_consent`     | No gclid AND `consent_ad_user_data != granted`. Nothing to match on, no consent for hashed-email fallback. |
-| `skipped:no_match`       | Granted consent but no email and no gclid.                                                                 |
-| `skipped:missing_action` | Event has no `ads_conversion_action` resolved. Should be rare; investigate.                                |
+| Reason                   | Meaning                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `skipped:past_window`    | Lead's first_seen_at is older than the configured Ads window.                                                                         |
+| `skipped:no_match`       | No gclid on the lead — nothing to attribute. Hashed-email matching is handled by the on-site gtag at submit time, not by API uploads. |
+| `skipped:missing_action` | Event has no `ads_conversion_action` resolved. Should be rare; investigate.                                                           |
 
 ## End-to-end smoke test
 
