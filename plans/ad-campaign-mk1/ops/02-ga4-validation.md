@@ -1,19 +1,56 @@
 # GA4 DebugView validation gate (Phase 3 ticket 002)
 
-This is an operational gate, not code. After Phase 3 ticket 001 ships and
-`VITE_GA4_MEASUREMENT_ID` is set, run this checklist for ~48 hours of live
-traffic before promoting anything to Phase 4.
+This is an operational gate, not code. Run this checklist for ~48 hours
+of live traffic before promoting anything to Phase 4.
 
-## Pre-flight
+## Setup (one-time, before validation can start)
 
-- [ ] GA4 property exists in `alex.young@percymain.org` Google Workspace.
-- [ ] Measurement ID set in:
-  - [ ] Local `.env`
-  - [ ] GitHub Actions deploy secret
-  - [ ] ECS task definition (production env)
-- [ ] First post-deploy build verified: view-source on a live page shows
-      `<script src="...gtag/js?id=G-XXXX">` and the inline consent default
-      stub.
+The gtag block is stripped from `index.html` at build time when
+`VITE_GA4_MEASUREMENT_ID` is unset (see `apps/web/vite.config.ts`
+`gtagHtmlPlugin`), so until both halves below are done, no GA4 events
+fire from production.
+
+1. **Create a GA4 property** in Google Analytics under the same
+   Workspace identity that owns the Ads MCC
+   (`alex.young@percymain.org`):
+   - https://analytics.google.com → Admin → **+ Create** → **Property**
+   - Property name: `Percy Main CSC` (or similar). Reporting time
+     zone: `(GMT+00:00) United Kingdom`. Currency: GBP.
+   - Add a **Web data stream** pointing at `https://www.percymain.org`.
+   - Copy the **Measurement ID** (format `G-XXXXXXXXXX` — distinct
+     from the legacy `UA-` prefix).
+
+2. **Set the GitHub Actions repo variable** so the next deploy injects
+   it into the frontend build:
+
+   ```
+   gh variable set GA4_MEASUREMENT_ID --body "G-XXXXXXXXXX"
+   ```
+
+   The value is non-sensitive (it's emitted in every visitor's HTML)
+   so a _variable_ — not a secret — is the right surface. The
+   workflow at `.github/workflows/deploy.yml` already references it
+   as `${{ vars.GA4_MEASUREMENT_ID }}` in the `Build frontend` step;
+   no workflow change needed.
+
+3. **Trigger a deploy** (push any change to `main`, or re-run the
+   most recent successful Deploy workflow with the same SHA).
+
+4. **Verify the tag is live**: view-source on
+   `https://www.percymain.org/` should now show
+   ```html
+   <script
+     async
+     src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"
+   ></script>
+   ```
+   inside the `<!-- pm-gtag:start -->` ... `<!-- pm-gtag:end -->` block.
+   If the entire block is missing, the env var didn't make it into the
+   build — re-check step 2.
+
+(Local dev does not need the var. The same Vite plugin keeps the gtag
+block out of dev builds when the var is unset, which is the desired
+behaviour — no GA4 traffic from local development.)
 
 ## DebugView checks (over 48h)
 
