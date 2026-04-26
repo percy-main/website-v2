@@ -19,60 +19,143 @@ import { RecordLinkingTab } from "./record-linking-tab";
 import { SponsorshipsTab } from "./sponsorships-tab";
 import { TreasurerTab } from "./treasurer-tab";
 
-const TABS = [
-  "members",
-  "juniors",
-  "charges",
-  "leads",
-  "contacts",
-  "sponsorships",
-  "incidents",
-  "documents",
-  "duplicates",
-  "match-fees",
-  "record-linking",
-  "game-reports",
-  "treasurer",
-  "expense-history",
-  "fantasy",
-  "marketing-outbox",
-] as const;
-type Tab = (typeof TABS)[number];
+interface SectionDef {
+  value: string;
+  label: string;
+  subTabs: Array<{
+    value: string;
+    label: string;
+    render: () => React.ReactNode;
+  }>;
+}
 
-const ACTIVE_TABS: Tab[] = [
-  "members",
-  "juniors",
-  "charges",
-  "leads",
-  "contacts",
-  "sponsorships",
-  "incidents",
-  "documents",
-  "duplicates",
-  "match-fees",
-  "record-linking",
-  "game-reports",
-  "treasurer",
-  "expense-history",
-  "fantasy",
-  "marketing-outbox",
-];
+const SECTIONS = [
+  {
+    value: "people",
+    label: "People",
+    subTabs: [
+      { value: "members", label: "Members", render: () => <MembersTab /> },
+      { value: "juniors", label: "Juniors", render: () => <JuniorsTab /> },
+      {
+        value: "duplicates",
+        label: "Duplicates",
+        render: () => <DuplicatesTab />,
+      },
+      {
+        value: "record-linking",
+        label: "Record Linking",
+        render: () => <RecordLinkingTab />,
+      },
+    ],
+  },
+  {
+    value: "outreach",
+    label: "Outreach",
+    subTabs: [
+      { value: "leads", label: "Leads", render: () => <LeadsTab /> },
+      { value: "contacts", label: "Contacts", render: () => <ContactsTab /> },
+      {
+        value: "marketing-outbox",
+        label: "Marketing Outbox",
+        render: () => <MarketingOutboxTab />,
+      },
+    ],
+  },
+  {
+    value: "finance",
+    label: "Finance",
+    subTabs: [
+      {
+        value: "overview",
+        label: "Overview",
+        render: () => <TreasurerTab />,
+      },
+      { value: "charges", label: "Charges", render: () => <ChargesTab /> },
+      {
+        value: "sponsorships",
+        label: "Sponsorships",
+        render: () => <SponsorshipsTab />,
+      },
+      {
+        value: "expenses",
+        label: "Expenses",
+        render: () => <ExpenseHistoryTab />,
+      },
+    ],
+  },
+  {
+    value: "cricket",
+    label: "Cricket",
+    subTabs: [
+      {
+        value: "game-reports",
+        label: "Game Reports",
+        render: () => <GameReportsTab />,
+      },
+      {
+        value: "match-fees",
+        label: "Match Fees",
+        render: () => <MatchFeesTab />,
+      },
+      { value: "fantasy", label: "Fantasy", render: () => <FantasyTab /> },
+    ],
+  },
+  {
+    value: "compliance",
+    label: "Compliance",
+    subTabs: [
+      {
+        value: "incidents",
+        label: "Incidents",
+        render: () => <IncidentsTab />,
+      },
+      {
+        value: "documents",
+        label: "Documents",
+        render: () => <DocumentsTab />,
+      },
+    ],
+  },
+] as const satisfies readonly SectionDef[];
 
-function isValidTab(value: string | null): value is Tab {
-  return TABS.includes(value as Tab);
+type Section = (typeof SECTIONS)[number];
+type SectionValue = Section["value"];
+
+const DEFAULT_SECTION: SectionValue = "people";
+
+function findSection(value: string | null): Section | undefined {
+  return SECTIONS.find((s) => s.value === value);
+}
+
+function getSection(value: string | null): Section {
+  return findSection(value) ?? SECTIONS[0];
 }
 
 export function Component() {
   useDocumentMeta("Admin Panel");
   const { data: session } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const tab: Tab = isValidTab(tabParam) ? tabParam : "members";
 
-  const onTabChange = (value: string) => {
-    setSearchParams(value === "members" ? {} : { tab: value }, {
-      replace: true,
-    });
+  const sectionParam = searchParams.get("section");
+  const section = getSection(sectionParam);
+
+  const subParam = searchParams.get("sub");
+  const subTab =
+    section.subTabs.find((s) => s.value === subParam) ?? section.subTabs[0];
+
+  const onSectionChange = (value: string) => {
+    const next = findSection(value);
+    if (!next) return;
+    const params = new URLSearchParams();
+    if (next.value !== DEFAULT_SECTION) params.set("section", next.value);
+    setSearchParams(params, { replace: true });
+  };
+
+  const onSubChange = (value: string) => {
+    const params = new URLSearchParams();
+    if (section.value !== DEFAULT_SECTION) params.set("section", section.value);
+    if (value !== section.subTabs[0].value) params.set("sub", value);
+    setSearchParams(params, { replace: true });
   };
 
   if (!session) return null;
@@ -91,80 +174,41 @@ export function Component() {
             </Link>
           </div>
         </div>
-        <Tabs value={tab} onValueChange={onTabChange} className="w-full">
+        <Tabs
+          value={section.value}
+          onValueChange={onSectionChange}
+          className="w-full"
+        >
           <TabsList>
-            <TabsTrigger value="members">Members</TabsTrigger>
-            <TabsTrigger value="juniors">Juniors</TabsTrigger>
-            <TabsTrigger value="charges">Charges</TabsTrigger>
-            <TabsTrigger value="leads">Leads</TabsTrigger>
-            <TabsTrigger value="marketing-outbox">Marketing Outbox</TabsTrigger>
-            <TabsTrigger value="contacts">Contacts</TabsTrigger>
-            <TabsTrigger value="sponsorships">Sponsorships</TabsTrigger>
-            <TabsTrigger value="incidents">Incidents</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="duplicates">Duplicates</TabsTrigger>
-            <TabsTrigger value="match-fees">Match Fees</TabsTrigger>
-            <TabsTrigger value="record-linking">Record Linking</TabsTrigger>
-            <TabsTrigger value="game-reports">Game Reports</TabsTrigger>
-            <TabsTrigger value="treasurer">Treasurer</TabsTrigger>
-            <TabsTrigger value="expense-history">Expense History</TabsTrigger>
-            <TabsTrigger value="fantasy">Fantasy</TabsTrigger>
+            {SECTIONS.map((s) => (
+              <TabsTrigger key={s.value} value={s.value}>
+                {s.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          <TabsContent value="members">
-            <MembersTab />
-          </TabsContent>
-          <TabsContent value="juniors">
-            <JuniorsTab />
-          </TabsContent>
-          <TabsContent value="charges">
-            <ChargesTab />
-          </TabsContent>
-          <TabsContent value="leads">
-            <LeadsTab />
-          </TabsContent>
-          <TabsContent value="contacts">
-            <ContactsTab />
-          </TabsContent>
-          <TabsContent value="sponsorships">
-            <SponsorshipsTab />
-          </TabsContent>
-          <TabsContent value="incidents">
-            <IncidentsTab />
-          </TabsContent>
-          <TabsContent value="documents">
-            <DocumentsTab />
-          </TabsContent>
-          <TabsContent value="duplicates">
-            <DuplicatesTab />
-          </TabsContent>
-          <TabsContent value="match-fees">
-            <MatchFeesTab />
-          </TabsContent>
-          <TabsContent value="treasurer">
-            <TreasurerTab />
-          </TabsContent>
-          <TabsContent value="expense-history">
-            <ExpenseHistoryTab />
-          </TabsContent>
-          <TabsContent value="fantasy">
-            <FantasyTab />
-          </TabsContent>
-          <TabsContent value="record-linking">
-            <RecordLinkingTab />
-          </TabsContent>
-          <TabsContent value="game-reports">
-            <GameReportsTab />
-          </TabsContent>
-          <TabsContent value="marketing-outbox">
-            <MarketingOutboxTab />
-          </TabsContent>
-
-          {TABS.filter((t) => !ACTIVE_TABS.includes(t)).map((t) => (
-            <TabsContent key={t} value={t}>
-              <div className="py-12 text-center text-gray-500">
-                Coming soon — this tab will be available in a future update.
-              </div>
+          {SECTIONS.map((s) => (
+            <TabsContent key={s.value} value={s.value}>
+              {s.value === section.value && (
+                <Tabs
+                  value={subTab.value}
+                  onValueChange={onSubChange}
+                  className="w-full"
+                >
+                  <TabsList className="mt-4">
+                    {s.subTabs.map((sub) => (
+                      <TabsTrigger key={sub.value} value={sub.value}>
+                        {sub.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  {s.subTabs.map((sub) => (
+                    <TabsContent key={sub.value} value={sub.value}>
+                      {sub.value === subTab.value && sub.render()}
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              )}
             </TabsContent>
           ))}
         </Tabs>
