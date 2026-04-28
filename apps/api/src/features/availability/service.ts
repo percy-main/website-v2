@@ -706,36 +706,8 @@ export function getActiveRequests(db: Kysely<DB>) {
         .execute();
     }
 
-    // Exclude fixtures that were confirmed from availability (have a matchday
-    // with the same play_cricket_match_id). Manually-created matchdays won't
-    // match because they use different IDs or null.
-    const confirmedMatchIds = new Set<string>();
-    if (fixtures.length > 0) {
-      const pcMatchIds = fixtures
-        .map((f) => f.play_cricket_match_id)
-        .filter(Boolean);
-
-      if (pcMatchIds.length > 0) {
-        const matchdays = await db
-          .selectFrom("matchday")
-          .where("play_cricket_match_id", "in", pcMatchIds)
-          .select("play_cricket_match_id")
-          .execute();
-
-        for (const md of matchdays) {
-          if (md.play_cricket_match_id) {
-            confirmedMatchIds.add(md.play_cricket_match_id);
-          }
-        }
-      }
-    }
-
     const today = new Date().toISOString().split("T")[0];
-    const activeFixtures = fixtures.filter(
-      (f) =>
-        f.match_date >= today &&
-        !confirmedMatchIds.has(f.play_cricket_match_id),
-    );
+    const activeFixtures = fixtures.filter((f) => f.match_date >= today);
 
     const fixturesByRequest = new Map<string, typeof fixtures>();
     for (const f of activeFixtures) {
