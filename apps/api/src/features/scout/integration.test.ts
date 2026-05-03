@@ -129,15 +129,16 @@ describe("db_run_sql tool against the readonly role (defence-in-depth)", () => {
     });
   });
 
-  it("an attempt to run a write that bypasses the regex check still fails", async () => {
+  it("a write wrapped in a CTE — which the prefix check waves through — still fails", async () => {
     const t = tools();
     const result = await t.db_run_sql.execute!(
-      // Wrap a write inside a CTE — passes the SELECT/WITH prefix check.
-      // Three independent layers all reject this: (1) Postgres refuses a
-      // data-modifying CTE inside our `SELECT * FROM (…) _scout_q` wrapper,
-      // (2) the readonly role lacks DELETE grants on matchday, (3) the
-      // transaction sets transaction_read_only = on. Belt + braces +
-      // suspenders.
+      // The SELECT/WITH prefix check is just a friendly hint to the agent;
+      // it doesn't constitute a security boundary because a `WITH` can
+      // contain a data-modifying CTE. The real boundary is the readonly
+      // role's grants. Postgres also refuses a data-modifying CTE inside
+      // our `SELECT * FROM (…) _scout_q` LIMIT wrapper, and we set
+      // `transaction_read_only = on` for the session — but those are
+      // belt-and-braces; the role grant is what makes this safe.
       {
         query: "WITH x AS (DELETE FROM matchday RETURNING id) SELECT * FROM x",
       },
