@@ -7,10 +7,13 @@
 
 ## Overview
 
-Scout is a chat interface at [`/scout`](/scout) that pairs an Anthropic Claude model with two tool sets:
+Scout is a chat interface at [`/scout`](/scout) that pairs an Anthropic Claude model with several tool sets:
 
 - **Play Cricket API** — fixtures, scorecards, league tables, and per-club season views (any club, not just Percy Main).
 - **Read-only club database** — our own match performances, availability, matchdays, and the redacted `scout_member` view.
+- **Weather** — Open-Meteo for matchday forecasts and historical conditions on any ground.
+- **Charts** — inline Chart.js renders for trends, comparisons, distributions.
+- **Fact memory (RAG)** — a persistent knowledge corpus Scout writes to and reads from across conversations. Captures the things you can't derive from data: ground quirks ("Mitford have no covers"), scheduling rules ("Saturday games start at 1pm"), opposition reputations, and personal preferences.
 
 Each conversation is persisted as a thread so you can come back to the same scouting session, share insights with co-captains, and keep an audit trail of how decisions were reached.
 
@@ -27,6 +30,8 @@ To widen access, ask the tech lead to add an email to the `SCOUT_ALLOWED_EMAILS`
 - **Scout an opposition's recent form.** "Look at Morpeth 2nd XI this season" — pulls their fixtures against everyone (not just us), then drills into individual scorecards. See [Limitations](#limitations) below for what the data does and doesn't cover.
 - **Cross-reference our own data.** Anything in `availability_*`, `matchday`, `match_performance_*`, or `play_cricket_*` is fair game via the database tools.
 - **Ad-hoc SQL.** When the curated tools can't express what you want, Scout can write read-only queries against the `scout_readonly` Postgres role.
+- **Remember what you tell it.** State a domain fact ("Mitford have no covers") or a personal preference ("I hate facing spin") and Scout records it. On every subsequent turn — in any thread — the most relevant facts are auto-retrieved and injected as context, so you don't have to repeat yourself.
+- **Cite its sources.** When Scout grounds a claim in a recorded fact, it emits a numbered citation chip inline; a Sources panel beneath the reply lists the underlying facts so you can verify what came from where.
 
 ## Limitations — please read
 
@@ -74,6 +79,45 @@ The ad-hoc SQL tool also blocks anything that isn't a `SELECT` or `WITH`, sets a
 
 Threads auto-rename themselves with a 4-word summary after the first turn — you don't need to title them yourself.
 
+## Fact memory
+
+Scout has a persistent fact corpus that survives across conversations. Three primitives:
+
+- **Auto-retrieval.** Before every user turn, the most relevant facts (top 8) are pulled and injected into the prompt. Scope is per-user: you see your own personal facts plus shared club-wide facts, never another user's personal facts.
+- **`fact_record`.** Scout writes a fact when you state one — domain knowledge ("Swalwell is a massive ground"), a recurring rule ("Saturday games start at 1pm"), or a personal preference ("I open the bowling"). Facts are tagged (e.g. `team: Mitford CC`, `topic: ground`) and assigned a confidence (1–5) and scope (`club` shared, `user` personal).
+- **`cite_fact`.** When Scout uses a fact in a reply, it emits a citation. The cited claim shows a numbered chip; the bottom of the message shows the source.
+
+### What facts are good for
+
+- Things you can't get from data: ground covers/sightscreens/boundaries, club kit rules, scheduling quirks, off-field stuff.
+- Personal preferences (`scope: user`) so opposition captains' Scout sessions don't see them.
+- Long-range patterns the model would otherwise re-derive every conversation: "X struggles vs left-arm pace in 3-season window".
+
+Facts are NOT for transient state — match results, today's score, who's available this Saturday — that lives in the database and Scout queries it directly.
+
+### Admin: reviewing and editing the corpus
+
+Click **Facts** next to **New thread** in the Scout sidebar. The modal lets you:
+
+- Filter by scope, full-text search, or tag (`key:value`).
+- Edit a fact's content (regenerates the embedding so retrieval stays in sync), scope, confidence, or tags.
+- Hard-delete a fact. Citations referencing a deleted id resolve to "not found".
+
+The agent records facts conservatively and we trust the corpus, but bad facts compound silently — review periodically, especially after long scouting sessions.
+
+### How retrieval works (for the curious)
+
+Hybrid retrieval over a `pgvector` corpus:
+
+1. Embed the query (last two user messages plus current, joined) with Voyage `voyage-4`.
+2. Pull top-30 candidates by cosine distance over an HNSW index, plus top-30 by Postgres full-text search, plus tag-filter matches if tags are supplied.
+3. Dedup, then send the merged candidates through Voyage `rerank-2.5` — a cross-encoder that scores each (query, fact) pair jointly. Take top 8.
+4. Inject as a `<known-facts>` block in the user message, with `[fact:UUID]` markers Scout uses when calling `cite_fact`.
+
+The reranker exists because pure embedding similarity confidently surfaces antonyms ("loves spin" / "hates spin" embed very close). Cross-encoding fixes that.
+
+[ADR 013](https://github.com/percy-main/website-v2/blob/main/docs/adrs/013-scout-fact-rag.md) covers the architecture and rejected alternatives in detail.
+
 ## Tips for better answers
 
 - **Be specific.** "Who do we play next" is fine; "what's the bowling line for our 1st XI's next game" gives Scout a clearer target.
@@ -92,7 +136,7 @@ For both: copy the thread URL and message the tech lead. The system prompt and t
 
 ## Cost
 
-Scout uses Anthropic Claude Sonnet 4.6 for chat and Claude Haiku 4.5 for thread title generation. A typical scouting conversation costs cents, but it's worth knowing it isn't free. The thread header shows token usage in development builds; if you want a per-environment usage report, ask the tech lead.
+Scout uses Anthropic Claude Sonnet 4.6 for chat, Claude Haiku 4.5 for thread title generation, and Voyage `voyage-4` + `rerank-2.5` for fact retrieval. A typical scouting conversation costs cents on Anthropic; Voyage is on a 200M-token free tier (≈ 200k turns of fact retrieval) and is effectively free at our usage. The thread header shows token usage in development builds; if you want a per-environment usage report, ask the tech lead.
 
 Three mechanisms keep cost down:
 
@@ -111,8 +155,9 @@ Two structured log lines per turn make this measurable in CloudWatch:
 
 - Frontend: React + `@ai-sdk/react`'s `useChat` hook, streaming via SSE.
 - Backend: Fastify route piping the AI SDK v6 `streamText` response directly into the HTTP reply.
-- Persistence: thread metadata, messages (as AI SDK UIMessage parts), and a TTL'd cache for Play Cricket responses live in `scout_thread`, `scout_message`, and `scout_tool_cache`.
-- Models: Anthropic API directly (not Bedrock).
+- Persistence: thread metadata, messages (as AI SDK UIMessage parts), a TTL'd cache for Play Cricket responses, and the fact corpus live in `scout_thread`, `scout_message`, `scout_tool_cache`, and `scout_fact`.
+- Models: Anthropic API directly (not Bedrock). Voyage AI for fact embeddings + reranking.
 - Cache control: `prepareStep` on `streamText` walks the message list and tags the last entry with `providerOptions.anthropic.cacheControl: { type: "ephemeral" }` before each step (see [`apps/api/src/features/scout/agent.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/agent.ts)). The Play Cricket tool projection lives in [`apps/api/src/features/scout/tools/projector.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/tools/projector.ts).
+- Fact RAG: `pgvector` extension with HNSW (cosine) + GIN (tags) + GIN (FTS) indexes. Hybrid retrieval ∪ rerank lives in [`apps/api/src/features/scout/facts/`](https://github.com/percy-main/website-v2/tree/main/apps/api/src/features/scout/facts).
 
 Source lives under [`apps/api/src/features/scout/`](https://github.com/percy-main/website-v2/tree/main/apps/api/src/features/scout) and [`apps/web/src/pages/scout/`](https://github.com/percy-main/website-v2/tree/main/apps/web/src/pages/scout).
