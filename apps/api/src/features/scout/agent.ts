@@ -40,9 +40,22 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
 
   // Anchor "today" so the model doesn't fall back to its training cutoff
-  // when picking a default season. Resolved per-request, not at module load.
+  // when picking a default season AND so it filters past/future matches
+  // correctly. Resolved per-request, not at module load.
   const today = new Date();
-  const todayLine = `Today is ${today.toISOString().slice(0, 10)} (${today.getFullYear()} season). When the user asks about "this season" or doesn't specify a year, use ${today.getFullYear()}.`;
+  const iso = today.toISOString().slice(0, 10);
+  const dayName = today.toLocaleDateString("en-GB", { weekday: "long" });
+  const ddmmyyyy = today
+    .toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    })
+    .replace(/\//g, "/");
+
+  const todayLine = `Today is ${dayName} ${iso} (${ddmmyyyy} in dd/mm/yyyy, the format Play Cricket uses). The current season is ${today.getFullYear()}; default to it when the user doesn't specify a year.
+
+When asked about the "next" or "upcoming" match, filter match_date strictly GREATER THAN ${ddmmyyyy} — anything on or before today has already been played (or is being played now). Don't trust your gut on what day-of-week a date falls on; always compare against the iso date above.`;
 
   return {
     model: anthropic(deps.config.SCOUT_MODEL_CHAT),
