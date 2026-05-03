@@ -51,24 +51,28 @@ export function createFactTools(deps: FactToolDeps) {
 
   return {
     fact_record: tool({
-      description: `Record a durable fact you've learned about a club, ground, opposition player, or the user. Facts persist across conversations and are auto-retrieved on every user turn — record anything that would help future analysis avoid the same mistakes or repeat the same insights.
+      description: `Record a durable fact about a club, ground, player, or the user. Facts persist across conversations and are auto-retrieved on every user turn.
+
+CRITICAL — when the user states a fact for you to remember, fact_record is the FIRST and ONLY tool you call. Do not run db_list_tables, db_run_sql, db_describe_table, or pc_* tools to verify the subject exists, look up player ids, or cross-check the DB before writing the fact. The user has authority over the fact; your job is to write it down. After fact_record returns recorded:true, reply briefly to confirm — never claim storage before the call succeeds, and never claim it succeeded if it returned an error.
 
 When to call:
-- The user tells you a piece of domain knowledge ("Mitford CC have no covers", "Saturday games start at 1pm").
-- The user states a personal preference relevant to scouting them ("I hate facing spin", "I open the bowling").
-- You discover a non-obvious pattern from data that's worth keeping ("Smith hasn't faced more than 20 balls vs. left-arm pace in 3 seasons").
-- The user corrects something you got wrong (record the correction, not the mistake).
+- The user tells you a piece of domain knowledge: "Mitford CC have no covers", "Saturday games start at 1pm", "Oli Robson — medium/slow, gets movement".
+- A personal preference relevant to scouting the speaker: "I hate facing spin", "I open the bowling" → scope: "user".
+- The user corrects something you got wrong (record the correction).
+- You discover a non-obvious pattern from data worth keeping ("Smith bowled/LBW in 9 of his last 12 dismissals") — this is the only case where DB lookup may precede fact_record.
+
+If the user lists multiple facts in one turn, call fact_record once per fact — don't batch.
 
 When NOT to call:
 - Transient state ("we won today") — the data is in the DB already.
-- Things the agent can re-derive cheaply from a SQL query.
-- Speculation or unverified claims.
+- Restating what's already in <known-facts> for this turn.
+- Speculation, vibes, or claims you can't ground.
 
-Tags drive retrieval. Use semantic keys: \`team\`, \`venue\`, \`player\`, \`topic\` (e.g. "weather", "scheduling", "kit"), \`season\`. Values can be strings or arrays.
+Tags drive retrieval. Use semantic keys: \`team\`, \`venue\`, \`player\`, \`topic\` (e.g. "weather", "scheduling", "kit", "bowling-style", "batting-style"), \`season\`. Values can be strings or arrays. Keep tag values stable — "Oli Robson" not "Oli", "Mitford CC" not "Mitford" — so retrieval matches across turns.
 
 Scope:
 - "user" — personal to the speaker (preferences, their own form notes). Only retrievable for that user.
-- "club" — shared by everyone with Scout access (ground info, opposition quirks, league rules).
+- "club" — shared by everyone with Scout access (ground info, opposition quirks, league rules, our players' bowling/batting profiles).
 
 Confidence is 1–5: 5 = stated outright by the user as fact; 3 = reasonably solid inference; 1 = guess. Be conservative.`,
       inputSchema: z.object({
