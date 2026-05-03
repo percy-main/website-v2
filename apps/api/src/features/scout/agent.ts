@@ -11,11 +11,11 @@ import { createPlayCricketTools } from "./tools/play-cricket.ts";
 
 /**
  * Scout's agent config — model, system prompt, and the tool dictionary that
- * gets passed to AI SDK v6's streamText / generateText. We deliberately use
- * the AI SDK directly here (rather than @mastra/core's Agent) because Mastra's
- * stream output doesn't expose a UIMessageStream that bridges cleanly to the
- * v6 frontend useChat. Mastra remains installed for future sub-agent / durable
- * workflow needs but isn't load-bearing for v1.
+ * gets passed to AI SDK v6's streamText / generateText. We use AI SDK
+ * directly because v6's UIMessageStream bridges cleanly to the v6 frontend
+ * useChat. Mastra was evaluated and dropped: its MastraModelOutput doesn't
+ * expose a v6-compatible UIMessageStream and we didn't need its sub-agent /
+ * durable workflow features for v1.
  */
 export interface ScoutAgentDeps {
   db: Kysely<DB>;

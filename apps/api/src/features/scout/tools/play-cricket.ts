@@ -118,7 +118,7 @@ Workflow to scout an opponent:
     }),
 
     pc_find_opposition_matches: tool({
-      description: `Find matches the named opposition team has played against Percy Main in a given season — filters Percy Main's match summary by name, then pulls full scorecards. NOTE: this only sees matches involving Percy Main. To scout an opposition's matches against OTHER clubs, use pc_club_matches instead (look up their club_id from any of our matches against them, then fetch their full season).`,
+      description: `Find matches the named opposition team has played against Percy Main in a given season — filters Percy Main's match summary by name, then pulls full scorecards. NOTE: this only sees matches involving Percy Main. To scout an opposition's matches against OTHER clubs, use pc_site_matches instead (look up their site_id via home_club_id/away_club_id from any of our matches against them, then fetch their full season).`,
       inputSchema: z.object({
         oppositionName: z
           .string()
