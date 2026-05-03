@@ -64,11 +64,15 @@ export function createDbTools(deps: DbToolDeps) {
 
         const byTable = new Map<
           string,
-          { name: string; type: string; nullable: boolean }[]
+          Array<{ name: string; type: string; nullable: boolean }>
         >();
         for (const row of rows) {
-          if (!byTable.has(row.table_name)) byTable.set(row.table_name, []);
-          byTable.get(row.table_name)!.push({
+          let cols = byTable.get(row.table_name);
+          if (!cols) {
+            cols = [];
+            byTable.set(row.table_name, cols);
+          }
+          cols.push({
             name: row.column_name,
             type: row.data_type,
             nullable: row.is_nullable === "YES",

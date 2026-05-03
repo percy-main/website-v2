@@ -19,55 +19,54 @@ const dbReadonly = {
 
 const tools = createDbTools({ dbReadonly });
 
+/**
+ * Run a Scout tool's execute fn in a test, asserting it's defined.
+ * Avoids the `tool.execute!(...)` non-null assertion lint error and
+ * centralises the result cast that strict-type-checked eslint flags
+ * when callers do `as { ... }` directly.
+ */
+async function runTool<T>(
+  exec: ((input: never, opts: never) => unknown) | undefined,
+  input: unknown,
+): Promise<T> {
+  if (!exec) throw new Error("tool has no execute");
+  return (await exec(input as never, opts as never)) as T;
+}
+
 describe("db_run_sql", () => {
   it("rejects an INSERT", async () => {
-    const result = await tools.db_run_sql.execute!(
-      { query: "INSERT INTO scout_member (id) VALUES ('x')" },
-      opts,
-    );
-    expect(result).toMatchObject({
-      error: expect.stringContaining("must start with SELECT or WITH"),
+    const result = await runTool<{ error: string }>(tools.db_run_sql.execute, {
+      query: "INSERT INTO scout_member (id) VALUES ('x')",
     });
+    expect(result.error).toMatch(/must start with SELECT or WITH/);
   });
 
   it("rejects an UPDATE", async () => {
-    const result = await tools.db_run_sql.execute!(
-      { query: "UPDATE scout_member SET name = 'x'" },
-      opts,
-    );
-    expect(result).toMatchObject({
-      error: expect.stringContaining("must start with SELECT or WITH"),
+    const result = await runTool<{ error: string }>(tools.db_run_sql.execute, {
+      query: "UPDATE scout_member SET name = 'x'",
     });
+    expect(result.error).toMatch(/must start with SELECT or WITH/);
   });
 
   it("rejects a DELETE", async () => {
-    const result = await tools.db_run_sql.execute!(
-      { query: "DELETE FROM scout_member" },
-      opts,
-    );
-    expect(result).toMatchObject({
-      error: expect.stringContaining("must start with SELECT or WITH"),
+    const result = await runTool<{ error: string }>(tools.db_run_sql.execute, {
+      query: "DELETE FROM scout_member",
     });
+    expect(result.error).toMatch(/must start with SELECT or WITH/);
   });
 
   it("rejects DDL", async () => {
-    const result = await tools.db_run_sql.execute!(
-      { query: "DROP TABLE scout_member" },
-      opts,
-    );
-    expect(result).toMatchObject({
-      error: expect.stringContaining("must start with SELECT or WITH"),
+    const result = await runTool<{ error: string }>(tools.db_run_sql.execute, {
+      query: "DROP TABLE scout_member",
     });
+    expect(result.error).toMatch(/must start with SELECT or WITH/);
   });
 
   it("rejects sneaky leading whitespace + uppercase write", async () => {
-    const result = await tools.db_run_sql.execute!(
-      { query: "  \n  INSERT INTO foo VALUES (1)" },
-      opts,
-    );
-    expect(result).toMatchObject({
-      error: expect.stringContaining("must start with SELECT or WITH"),
+    const result = await runTool<{ error: string }>(tools.db_run_sql.execute, {
+      query: "  \n  INSERT INTO foo VALUES (1)",
     });
+    expect(result.error).toMatch(/must start with SELECT or WITH/);
   });
 
   it("accepts a SELECT (passes through to the executor)", async () => {
@@ -90,10 +89,13 @@ describe("db_run_sql", () => {
       .fn()
       .mockReturnValue({ execute: txExecute });
 
-    const result = await tools.db_run_sql.execute!(
-      { query: "SELECT count(*) FROM scout_member" },
-      opts,
-    );
+    const result = await runTool<{
+      rows: Array<{ count: number }>;
+      rowCount: number;
+      truncated: boolean;
+    }>(tools.db_run_sql.execute, {
+      query: "SELECT count(*) FROM scout_member",
+    });
     expect(result).toMatchObject({
       rows: [{ count: 5 }],
       rowCount: 1,
@@ -118,9 +120,9 @@ describe("db_run_sql", () => {
       .fn()
       .mockReturnValue({ execute: txExecute });
 
-    const result = await tools.db_run_sql.execute!(
+    const result = await runTool<Record<string, unknown>>(
+      tools.db_run_sql.execute,
       { query: "WITH x AS (SELECT 1) SELECT * FROM x" },
-      opts,
     );
     expect(result).not.toHaveProperty("error");
   });
@@ -128,24 +130,22 @@ describe("db_run_sql", () => {
 
 describe("db_describe_table", () => {
   it("rejects tables not in the allowlist", async () => {
-    const result = await tools.db_describe_table.execute!(
+    const result = await runTool<{ error: string }>(
+      tools.db_describe_table.execute,
       { table: "user" },
-      opts,
     );
-    expect(result).toMatchObject({
-      error: expect.stringContaining("not in the Scout allowlist"),
-    });
+    expect(result.error).toMatch(/not in the Scout allowlist/);
   });
 
   it("does not call the database for disallowed tables", async () => {
+    const executeQuery = vi.fn();
     (
-      dbReadonly as unknown as { executeQuery: ReturnType<typeof vi.fn> }
-    ).executeQuery = vi.fn();
-    await tools.db_describe_table.execute!({ table: "charge" }, opts);
-    expect(
-      (dbReadonly as unknown as { executeQuery: ReturnType<typeof vi.fn> })
-        .executeQuery,
-    ).not.toHaveBeenCalled();
+      dbReadonly as unknown as { executeQuery: typeof executeQuery }
+    ).executeQuery = executeQuery;
+    await runTool<unknown>(tools.db_describe_table.execute, {
+      table: "charge",
+    });
+    expect(executeQuery).not.toHaveBeenCalled();
   });
 
   it("queries information_schema for allowed tables", async () => {
@@ -159,10 +159,10 @@ describe("db_describe_table", () => {
       dbReadonly as unknown as { executeQuery: typeof executeQuery }
     ).executeQuery = executeQuery;
 
-    const result = await tools.db_describe_table.execute!(
-      { table: "scout_member" },
-      opts,
-    );
+    const result = await runTool<{
+      name: string;
+      columns: Array<{ name: string; type: string; nullable: boolean }>;
+    }>(tools.db_describe_table.execute, { table: "scout_member" });
     expect(result).toMatchObject({
       name: "scout_member",
       columns: [

@@ -61,6 +61,19 @@ const opts = {
   abortSignal: undefined,
 } as never;
 
+/**
+ * Run a Scout tool's execute fn in a test, asserting it's defined.
+ * Centralises the type assertion so callers don't sprinkle `!` and
+ * `as unknown as { ... }` casts that strict-type-checked eslint flags.
+ */
+async function runTool<T>(
+  exec: ((input: never, opts: never) => unknown) | undefined,
+  input: unknown,
+): Promise<T> {
+  if (!exec) throw new Error("tool has no execute");
+  return (await exec(input as never, opts)) as T;
+}
+
 describe("scout_readonly role boundary (security-critical)", () => {
   it("can SELECT from the scout_member view", async () => {
     const out = await sql<{
@@ -120,47 +133,38 @@ describe("db_run_sql tool against the readonly role (defence-in-depth)", () => {
 
   it("rejects write SQL even though the role would also reject it", async () => {
     const t = tools();
-    const result = await t.db_run_sql.execute!(
-      { query: "INSERT INTO matchday (id) VALUES (gen_random_uuid())" },
-      opts,
-    );
-    expect(result).toMatchObject({
-      error: expect.stringContaining("must start with SELECT or WITH"),
+    const result = await runTool<{ error: string }>(t.db_run_sql.execute, {
+      query: "INSERT INTO matchday (id) VALUES (gen_random_uuid())",
     });
+    expect(result.error).toMatch(/must start with SELECT or WITH/);
   });
 
   it("a write wrapped in a CTE — which the prefix check waves through — still fails", async () => {
     const t = tools();
-    const result = await t.db_run_sql.execute!(
-      // The SELECT/WITH prefix check is just a friendly hint to the agent;
-      // it doesn't constitute a security boundary because a `WITH` can
-      // contain a data-modifying CTE. The real boundary is the readonly
-      // role's grants. Postgres also refuses a data-modifying CTE inside
-      // our `SELECT * FROM (…) _scout_q` LIMIT wrapper, and we set
-      // `transaction_read_only = on` for the session — but those are
-      // belt-and-braces; the role grant is what makes this safe.
-      {
-        query: "WITH x AS (DELETE FROM matchday RETURNING id) SELECT * FROM x",
-      },
-      opts,
-    );
-    expect(result).toMatchObject({
-      error: expect.stringMatching(
-        /permission denied|syntax|read-only|data-modifying/i,
-      ),
+    // The SELECT/WITH prefix check is just a friendly hint to the agent;
+    // it doesn't constitute a security boundary because a `WITH` can
+    // contain a data-modifying CTE. The real boundary is the readonly
+    // role's grants. Postgres also refuses a data-modifying CTE inside
+    // our `SELECT * FROM (…) _scout_q` LIMIT wrapper, and we set
+    // `transaction_read_only = on` for the session — but those are
+    // belt-and-braces; the role grant is what makes this safe.
+    const result = await runTool<{ error: string }>(t.db_run_sql.execute, {
+      query: "WITH x AS (DELETE FROM matchday RETURNING id) SELECT * FROM x",
     });
+    expect(result.error).toMatch(
+      /permission denied|syntax|read-only|data-modifying/i,
+    );
   });
 
   it("returns rows for a real SELECT against scout_member", async () => {
     const t = tools();
-    const result = (await t.db_run_sql.execute!(
-      { query: "SELECT count(*)::int AS n FROM scout_member" },
-      opts,
-    )) as unknown as {
+    const result = await runTool<{
       rows: Array<{ n: number }>;
       rowCount: number;
       truncated: boolean;
-    };
+    }>(t.db_run_sql.execute, {
+      query: "SELECT count(*)::int AS n FROM scout_member",
+    });
     expect(result.rowCount).toBe(1);
     expect(result.rows[0].n).toBeGreaterThanOrEqual(0);
     expect(result.truncated).toBe(false);
@@ -168,20 +172,20 @@ describe("db_run_sql tool against the readonly role (defence-in-depth)", () => {
 
   it("flags truncated when a query exceeds the row cap", async () => {
     const t = tools();
-    const result = (await t.db_run_sql.execute!(
+    const result = await runTool<{ rowCount: number; truncated: boolean }>(
+      t.db_run_sql.execute,
       { query: "SELECT * FROM generate_series(1, 1000) AS g(n)" },
-      opts,
-    )) as unknown as { rowCount: number; truncated: boolean };
+    );
     expect(result.truncated).toBe(true);
     expect(result.rowCount).toBe(500);
   });
 
   it("db_describe_table works against the readonly role", async () => {
     const t = tools();
-    const result = (await t.db_describe_table.execute!(
-      { table: "scout_member" },
-      opts,
-    )) as unknown as { name: string; columns: Array<{ name: string }> };
+    const result = await runTool<{
+      name: string;
+      columns: Array<{ name: string }>;
+    }>(t.db_describe_table.execute, { table: "scout_member" });
     expect(result.name).toBe("scout_member");
     const columnNames = result.columns.map((c) => c.name);
     expect(columnNames).toEqual(
@@ -205,9 +209,9 @@ describe("scout cache (integration)", () => {
   it("writes through to scout_tool_cache and reads back", async () => {
     const cache = createScoutCache(ctx.db);
     let calls = 0;
-    const fetcher = async () => {
+    const fetcher = () => {
       calls++;
-      return { value: "fresh" };
+      return Promise.resolve({ value: "fresh" });
     };
 
     const first = await cache.getOrSet("itest", { k: 1 }, 60, fetcher);
@@ -221,9 +225,9 @@ describe("scout cache (integration)", () => {
   it("re-fetches when the cached entry has expired", async () => {
     const cache = createScoutCache(ctx.db);
     let calls = 0;
-    const fetcher = async () => {
+    const fetcher = () => {
       calls++;
-      return { call: calls };
+      return Promise.resolve({ call: calls });
     };
 
     // Insert with a TTL of 0 → expired immediately
@@ -302,20 +306,22 @@ describe("Play Cricket tools (with stub client)", () => {
     const cache = createScoutCache(ctx.db);
     let calls = 0;
     const playCricket = {
-      getTeams: async () => ({ teams: [] }),
-      getPlayers: async () => {
+      getTeams: () => Promise.resolve({ teams: [] }),
+      getPlayers: () => {
         calls++;
-        return { players: [{ member_id: 1, name: "Test Player" }] };
+        return Promise.resolve({
+          players: [{ member_id: 1, name: "Test Player" }],
+        });
       },
-      getMatchDetail: async () => ({}),
-      getMatchesSummary: async () => ({ matches: [] }),
-      getLeagueTable: async () => ({ league_table: [] }),
+      getMatchDetail: () => Promise.resolve({}),
+      getMatchesSummary: () => Promise.resolve({ matches: [] }),
+      getLeagueTable: () => Promise.resolve({ league_table: [] }),
     } as never;
 
     const tools = createPlayCricketTools({ playCricket, cache });
 
-    const a = await tools.pc_list_players.execute!({}, opts);
-    const b = await tools.pc_list_players.execute!({}, opts);
+    const a = await runTool<unknown>(tools.pc_list_players.execute, {});
+    const b = await runTool<unknown>(tools.pc_list_players.execute, {});
 
     expect(a).toEqual(b);
     expect(calls).toBe(1);

@@ -151,8 +151,8 @@ Workflow to scout an opponent:
             const needle = oppositionName.toLowerCase();
 
             const candidates = matches.filter((m) => {
-              const home = String(m.home_club_name ?? m.home_team_name ?? "");
-              const away = String(m.away_club_name ?? m.away_team_name ?? "");
+              const home = pickString(m.home_club_name, m.home_team_name);
+              const away = pickString(m.away_club_name, m.away_team_name);
               return (
                 home.toLowerCase().includes(needle) ||
                 away.toLowerCase().includes(needle)
@@ -162,7 +162,7 @@ Workflow to scout an opponent:
             const slice = candidates.slice(0, limit);
             const details = await Promise.all(
               slice.map(async (m) => {
-                const matchId = String(m.id ?? m.match_id ?? "");
+                const matchId = pickString(m.id, m.match_id);
                 if (!matchId) return null;
                 try {
                   return await playCricket.getMatchDetail(matchId);
@@ -189,3 +189,13 @@ Workflow to scout an opponent:
 }
 
 export type PlayCricketTools = ReturnType<typeof createPlayCricketTools>;
+
+// First string-or-coercible-to-string in `vals`, else "". Avoids
+// `String(unknown)` returning `[object Object]` for unexpected shapes.
+function pickString(...vals: unknown[]): string {
+  for (const v of vals) {
+    if (typeof v === "string") return v;
+    if (typeof v === "number" || typeof v === "bigint") return String(v);
+  }
+  return "";
+}

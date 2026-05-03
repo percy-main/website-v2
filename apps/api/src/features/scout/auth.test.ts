@@ -8,10 +8,14 @@ vi.mock("../auth/middleware.ts", () => ({
 
 import { requireAuth } from "../auth/middleware.ts";
 
+// Returns the reply *and* the underlying mock fns so tests can assert on
+// the mocks directly — `expect(reply.status)` would trip the
+// unbound-method lint rule.
 function makeReply() {
   const status = vi.fn().mockReturnThis();
   const send = vi.fn();
-  return { sent: false, status, send } as unknown as FastifyReply;
+  const reply = { sent: false, status, send } as unknown as FastifyReply;
+  return { reply, status, send };
 }
 
 function makeRequest(opts: {
@@ -35,36 +39,36 @@ describe("requireScoutAccess", () => {
   });
 
   it("short-circuits if requireAuth has already responded", async () => {
-    const reply = makeReply();
+    const { reply, status } = makeReply();
     (reply as unknown as { sent: boolean }).sent = true;
     const request = makeRequest({});
 
     await requireScoutAccess(request, reply);
 
-    expect(reply.status).not.toHaveBeenCalled();
+    expect(status).not.toHaveBeenCalled();
   });
 
   it("returns 403 when authed user is not on the allowlist", async () => {
-    const reply = makeReply();
+    const { reply, status, send } = makeReply();
     const request = makeRequest({ email: "stranger@example.com" });
 
     await requireScoutAccess(request, reply);
 
-    expect(reply.status).toHaveBeenCalledWith(403);
-    expect(reply.send).toHaveBeenCalledWith({ error: "Forbidden" });
+    expect(status).toHaveBeenCalledWith(403);
+    expect(send).toHaveBeenCalledWith({ error: "Forbidden" });
   });
 
   it("returns 403 when authSession is missing after requireAuth (defensive)", async () => {
-    const reply = makeReply();
+    const { reply, status } = makeReply();
     const request = makeRequest({});
 
     await requireScoutAccess(request, reply);
 
-    expect(reply.status).toHaveBeenCalledWith(403);
+    expect(status).toHaveBeenCalledWith(403);
   });
 
   it("passes through when the authed user's email is on the allowlist", async () => {
-    const reply = makeReply();
+    const { reply, status, send } = makeReply();
     const request = makeRequest({
       email: "alex@alexyoung.info",
       allowed: ["alex@alexyoung.info"],
@@ -72,12 +76,12 @@ describe("requireScoutAccess", () => {
 
     await requireScoutAccess(request, reply);
 
-    expect(reply.status).not.toHaveBeenCalled();
-    expect(reply.send).not.toHaveBeenCalled();
+    expect(status).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
   });
 
   it("matches case-sensitively (literal email comparison)", async () => {
-    const reply = makeReply();
+    const { reply, status } = makeReply();
     const request = makeRequest({
       email: "ALEX@alexyoung.info",
       allowed: ["alex@alexyoung.info"],
@@ -85,11 +89,11 @@ describe("requireScoutAccess", () => {
 
     await requireScoutAccess(request, reply);
 
-    expect(reply.status).toHaveBeenCalledWith(403);
+    expect(status).toHaveBeenCalledWith(403);
   });
 
   it("supports a multi-entry allowlist", async () => {
-    const reply = makeReply();
+    const { reply, status } = makeReply();
     const request = makeRequest({
       email: "captain@percymain.org",
       allowed: ["alex@alexyoung.info", "captain@percymain.org"],
@@ -97,6 +101,6 @@ describe("requireScoutAccess", () => {
 
     await requireScoutAccess(request, reply);
 
-    expect(reply.status).not.toHaveBeenCalled();
+    expect(status).not.toHaveBeenCalled();
   });
 });

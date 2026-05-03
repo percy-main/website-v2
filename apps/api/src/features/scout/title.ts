@@ -27,7 +27,7 @@ export function maybeGenerateTitle(deps: TitleDeps) {
       .select(["title"])
       .executeTakeFirst();
 
-    if (!thread || thread.title !== DEFAULT_TITLE) return;
+    if (thread?.title !== DEFAULT_TITLE) return;
     if (!firstUserText.trim()) return;
 
     try {

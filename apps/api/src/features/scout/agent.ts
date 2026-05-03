@@ -45,13 +45,11 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   const today = new Date();
   const iso = today.toISOString().slice(0, 10);
   const dayName = today.toLocaleDateString("en-GB", { weekday: "long" });
-  const ddmmyyyy = today
-    .toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    })
-    .replace(/\//g, "/");
+  const ddmmyyyy = today.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 
   const todayLine = `Today is ${dayName} ${iso} (${ddmmyyyy} in dd/mm/yyyy, the format Play Cricket uses). The current season is ${today.getFullYear()}; default to it when the user doesn't specify a year.
 

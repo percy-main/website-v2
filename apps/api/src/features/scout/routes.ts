@@ -288,12 +288,21 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
 // 401).
 function toWebHeaders(headers: Record<string, unknown>): Headers {
   const webHeaders = new Headers();
+  const stringify = (v: unknown): string | null => {
+    if (typeof v === "string") return v;
+    if (typeof v === "number") return String(v);
+    return null; // skip arrays-of-non-strings, objects, booleans, etc.
+  };
   for (const [key, value] of Object.entries(headers)) {
     if (value === undefined) continue;
     if (Array.isArray(value)) {
-      for (const v of value) webHeaders.append(key, String(v));
+      for (const v of value as unknown[]) {
+        const s = stringify(v);
+        if (s !== null) webHeaders.append(key, s);
+      }
     } else {
-      webHeaders.set(key, String(value));
+      const s = stringify(value);
+      if (s !== null) webHeaders.set(key, s);
     }
   }
   return webHeaders;
