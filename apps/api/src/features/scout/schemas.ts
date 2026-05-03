@@ -90,10 +90,7 @@ export const listFactsQuerySchema = z.object({
     .describe(
       "Tag in 'key:value' form, e.g. 'team:Mitford CC'. Filters via tags @> {key:value}.",
     ),
-  q: z
-    .string()
-    .optional()
-    .describe("Full-text search against fact content."),
+  q: z.string().optional().describe("Full-text search against fact content."),
   includeSuperseded: z.coerce.boolean().default(false),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(100).default(50),

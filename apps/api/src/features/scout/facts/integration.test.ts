@@ -111,12 +111,13 @@ describe("scout_fact migration + pgvector", () => {
 describe("recordFact — write path with cosine dedup + supersession", () => {
   it("inserts a fresh fact when nothing nearby exists", async () => {
     const voyage = buildVoyageMock({
-      embeddings: new Map([
-        ["Mitford CC have no covers", vec([0, 1])],
-      ]),
+      embeddings: new Map([["Mitford CC have no covers", vec([0, 1])]]),
     });
 
-    const result = await recordFact(ctx.db, voyage)({
+    const result = await recordFact(
+      ctx.db,
+      voyage,
+    )({
       userId,
       scope: "club",
       content: "Mitford CC have no covers",
@@ -194,7 +195,11 @@ describe("recordFact — write path with cosine dedup + supersession", () => {
     });
     const record = recordFact(ctx.db, voyage);
 
-    await record({ userId, scope: "club", content: "Mitford CC have no covers" });
+    await record({
+      userId,
+      scope: "club",
+      content: "Mitford CC have no covers",
+    });
     const second = await record({
       userId,
       scope: "club",
@@ -249,7 +254,10 @@ describe("retrieveFacts — hybrid retrieval + rerank", () => {
             const score = (s: string) => (s === groundFact ? 1 : 0);
             return score(b.d) - score(a.d);
           });
-        return indexes.map(({ i }, rank) => ({ index: i, score: 1 - rank * 0.1 }));
+        return indexes.map(({ i }, rank) => ({
+          index: i,
+          score: 1 - rank * 0.1,
+        }));
       },
     });
 
@@ -262,7 +270,10 @@ describe("retrieveFacts — hybrid retrieval + rerank", () => {
       voyage,
     );
 
-    const out = await retrieveFacts(ctx.db, voyage)({
+    const out = await retrieveFacts(
+      ctx.db,
+      voyage,
+    )({
       userId,
       query: "What's Mitford's ground like?",
       topK: 3,
@@ -276,7 +287,8 @@ describe("retrieveFacts — hybrid retrieval + rerank", () => {
     // Query embedding deliberately far from the relevant fact's vector,
     // so vector retrieval alone wouldn't surface it. FTS path matches on
     // the literal token "Swalwell".
-    const swalwell = "Swalwell is a massive ground with short square boundaries";
+    const swalwell =
+      "Swalwell is a massive ground with short square boundaries";
 
     const embeddings = new Map<string, number[]>([
       [swalwell, vec([0, 1])],
@@ -287,7 +299,10 @@ describe("retrieveFacts — hybrid retrieval + rerank", () => {
 
     await seed([{ content: swalwell, vector: vec([0, 1]) }], voyage);
 
-    const out = await retrieveFacts(ctx.db, voyage)({
+    const out = await retrieveFacts(
+      ctx.db,
+      voyage,
+    )({
       userId,
       query: "Tell me about Swalwell",
     });
@@ -303,7 +318,10 @@ describe("retrieveFacts — hybrid retrieval + rerank", () => {
     ]);
     const voyage = buildVoyageMock({ embeddings });
 
-    await recordFact(ctx.db, voyage)({
+    await recordFact(
+      ctx.db,
+      voyage,
+    )({
       userId,
       scope: "user",
       content: fact,
@@ -315,7 +333,10 @@ describe("retrieveFacts — hybrid retrieval + rerank", () => {
       email: "other-scout@test.com",
     });
 
-    const out = await retrieveFacts(ctx.db, voyage)({
+    const out = await retrieveFacts(
+      ctx.db,
+      voyage,
+    )({
       userId: other.userId,
       query: "facing spin",
     });
@@ -347,7 +368,10 @@ describe("retrieveFacts — hybrid retrieval + rerank", () => {
       tags: { team: "Tynemouth" },
     });
 
-    const out = await retrieveFacts(ctx.db, voyage)({
+    const out = await retrieveFacts(
+      ctx.db,
+      voyage,
+    )({
       userId,
       query: "pitch",
       tags: { team: "Mitford CC" },
@@ -372,7 +396,10 @@ describe("retrieveFacts — hybrid retrieval + rerank", () => {
     await record({ userId, scope: "club", content: original });
     await record({ userId, scope: "club", content: updated });
 
-    const out = await retrieveFacts(ctx.db, voyage)({
+    const out = await retrieveFacts(
+      ctx.db,
+      voyage,
+    )({
       userId,
       query: "Mitford covers",
     });
@@ -409,7 +436,10 @@ describe("cite_fact tool — visibility check + writer emission", () => {
     const voyage = buildVoyageMock({
       embeddings: new Map([[fact, vec([0, 1])]]),
     });
-    const recorded = await recordFact(ctx.db, voyage)({
+    const recorded = await recordFact(
+      ctx.db,
+      voyage,
+    )({
       userId,
       scope: "club",
       content: fact,
@@ -452,7 +482,10 @@ describe("cite_fact tool — visibility check + writer emission", () => {
     const voyage = buildVoyageMock({
       embeddings: new Map([[personal, vec([0, 1])]]),
     });
-    const recorded = await recordFact(ctx.db, voyage)({
+    const recorded = await recordFact(
+      ctx.db,
+      voyage,
+    )({
       userId,
       scope: "user",
       content: personal,
@@ -599,7 +632,10 @@ describe("admin-service", () => {
         ["updated content here", vec([1, 0])],
       ]),
     });
-    const recorded = await recordFact(ctx.db, voyage)({
+    const recorded = await recordFact(
+      ctx.db,
+      voyage,
+    )({
       userId,
       scope: "club",
       content: "original",
@@ -625,7 +661,10 @@ describe("admin-service", () => {
     const voyage = buildVoyageMock({
       embeddings: new Map([["meta-only", vec([0, 1])]]),
     });
-    const recorded = await recordFact(ctx.db, voyage)({
+    const recorded = await recordFact(
+      ctx.db,
+      voyage,
+    )({
       userId,
       scope: "club",
       content: "meta-only",
@@ -648,7 +687,10 @@ describe("admin-service", () => {
     const voyage = buildVoyageMock({
       embeddings: new Map([["doomed", vec([0, 1])]]),
     });
-    const recorded = await recordFact(ctx.db, voyage)({
+    const recorded = await recordFact(
+      ctx.db,
+      voyage,
+    )({
       userId,
       scope: "club",
       content: "doomed",

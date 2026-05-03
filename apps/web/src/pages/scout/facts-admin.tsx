@@ -8,11 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, callApi } from "@/lib/api-client";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 /**
@@ -106,9 +102,7 @@ function FactsAdminModal({ open, onOpenChange }: ModalProps) {
             <select
               className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
               value={scope}
-              onChange={(e) =>
-                setScope(e.target.value as "" | "user" | "club")
-              }
+              onChange={(e) => setScope(e.target.value as "" | "user" | "club")}
             >
               <option value="">All</option>
               <option value="club">Club</option>
@@ -178,10 +172,7 @@ function FactsAdminModal({ open, onOpenChange }: ModalProps) {
         </DialogFooter>
       </DialogContent>
 
-      <FactEditDialog
-        fact={editing}
-        onClose={() => setEditing(null)}
-      />
+      <FactEditDialog fact={editing} onClose={() => setEditing(null)} />
       <FactDeleteDialog
         fact={pendingDelete}
         onClose={() => setPendingDelete(null)}
@@ -264,12 +255,9 @@ function FactEditDialog({
       if (!fact) throw new Error("no fact");
       let parsedTags: Record<string, string | string[]> | undefined;
       try {
-        parsedTags = JSON.parse(tagsText) as Record<
-          string,
-          string | string[]
-        >;
+        parsedTags = JSON.parse(tagsText) as Record<string, string | string[]>;
       } catch {
-        throw new Error("Tags must be valid JSON, e.g. {\"team\":\"Mitford CC\"}");
+        throw new Error('Tags must be valid JSON, e.g. {"team":"Mitford CC"}');
       }
       return callApi(
         api.PATCH("/api/scout/facts/{factId}", {
@@ -277,8 +265,7 @@ function FactEditDialog({
           body: {
             content: content !== fact.content ? content : undefined,
             scope: scope !== fact.scope ? scope : undefined,
-            confidence:
-              confidence !== fact.confidence ? confidence : undefined,
+            confidence: confidence !== fact.confidence ? confidence : undefined,
             tags: parsedTags,
           },
         }),
@@ -303,8 +290,8 @@ function FactEditDialog({
         <DialogHeader>
           <DialogTitle>Edit fact</DialogTitle>
           <DialogDescription>
-            Changing the content regenerates the embedding so retrieval
-            stays in sync. Other fields are metadata-only.
+            Changing the content regenerates the embedding so retrieval stays in
+            sync. Other fields are metadata-only.
           </DialogDescription>
         </DialogHeader>
 
@@ -417,9 +404,9 @@ function FactDeleteDialog({
         <DialogHeader>
           <DialogTitle>Delete fact?</DialogTitle>
           <DialogDescription>
-            &ldquo;{fact?.content}&rdquo; will be removed from the corpus.
-            This is hard-delete — citations referencing it will resolve to
-            &ldquo;not found&rdquo;.
+            &ldquo;{fact?.content}&rdquo; will be removed from the corpus. This
+            is hard-delete — citations referencing it will resolve to &ldquo;not
+            found&rdquo;.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

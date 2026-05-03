@@ -171,8 +171,7 @@ export function retrieveFacts(db: Kysely<DB>, voyage: VoyageClient) {
     const queryEmbedding = await voyage.embed(input.query, "query");
     const vectorLiteral = toVectorLiteral(queryEmbedding);
 
-    const hasTagFilter =
-      !!input.tags && Object.keys(input.tags).length > 0;
+    const hasTagFilter = !!input.tags && Object.keys(input.tags).length > 0;
     // Tag filter is constraining, not additive: when the caller passes
     // {team:"Mitford CC"} they mean "only Mitford rows", not "Mitford
     // rows AND whatever vector/FTS happens to surface". Apply the same

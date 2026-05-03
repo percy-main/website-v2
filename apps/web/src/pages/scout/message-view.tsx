@@ -24,97 +24,97 @@ function buildMarkdownComponents(
       ? children
       : injectCitations(children, citationNumberByFactId);
   return {
-  table: ({ children, ...rest }) => (
-    <div className="my-3 overflow-x-auto">
-      <table className="min-w-full border-collapse text-sm" {...rest}>
+    table: ({ children, ...rest }) => (
+      <div className="my-3 overflow-x-auto">
+        <table className="min-w-full border-collapse text-sm" {...rest}>
+          {children}
+        </table>
+      </div>
+    ),
+    thead: ({ children, ...rest }) => (
+      <thead className="border-b border-gray-300 bg-gray-50" {...rest}>
         {children}
-      </table>
-    </div>
-  ),
-  thead: ({ children, ...rest }) => (
-    <thead className="border-b border-gray-300 bg-gray-50" {...rest}>
-      {children}
-    </thead>
-  ),
-  th: ({ children, ...rest }) => (
-    <th
-      className="border border-gray-200 px-2 py-1 text-left font-medium text-gray-700"
-      {...rest}
-    >
-      {children}
-    </th>
-  ),
-  td: ({ children, ...rest }) => (
-    <td className="border border-gray-200 px-2 py-1 align-top" {...rest}>
-      {children}
-    </td>
-  ),
-  tr: ({ children, ...rest }) => (
-    <tr className="even:bg-gray-50" {...rest}>
-      {children}
-    </tr>
-  ),
-  ul: ({ children, ...rest }) => (
-    <ul className="my-2 list-disc pl-5" {...rest}>
-      {children}
-    </ul>
-  ),
-  ol: ({ children, ...rest }) => (
-    <ol className="my-2 list-decimal pl-5" {...rest}>
-      {children}
-    </ol>
-  ),
-  li: ({ children, ...rest }) => (
-    <li className="my-0.5" {...rest}>
-      {cite(children)}
-    </li>
-  ),
-  p: ({ children, ...rest }) => (
-    <p className="my-2 first:mt-0 last:mb-0" {...rest}>
-      {cite(children)}
-    </p>
-  ),
-  h1: ({ children, ...rest }) => (
-    <h1 className="my-2 text-base font-semibold" {...rest}>
-      {children}
-    </h1>
-  ),
-  h2: ({ children, ...rest }) => (
-    <h2 className="my-2 text-sm font-semibold" {...rest}>
-      {children}
-    </h2>
-  ),
-  h3: ({ children, ...rest }) => (
-    <h3 className="my-2 text-sm font-semibold" {...rest}>
-      {children}
-    </h3>
-  ),
-  code: ({ children, ...rest }) => (
-    <code
-      className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.85em]"
-      {...rest}
-    >
-      {children}
-    </code>
-  ),
-  pre: ({ children, ...rest }) => (
-    <pre
-      className="my-2 overflow-x-auto rounded bg-gray-100 p-2 text-xs"
-      {...rest}
-    >
-      {children}
-    </pre>
-  ),
-  a: ({ children, ...rest }) => (
-    <a
-      className="text-blue-700 underline hover:text-blue-900"
-      target="_blank"
-      rel="noopener noreferrer"
-      {...rest}
-    >
-      {children}
-    </a>
-  ),
+      </thead>
+    ),
+    th: ({ children, ...rest }) => (
+      <th
+        className="border border-gray-200 px-2 py-1 text-left font-medium text-gray-700"
+        {...rest}
+      >
+        {children}
+      </th>
+    ),
+    td: ({ children, ...rest }) => (
+      <td className="border border-gray-200 px-2 py-1 align-top" {...rest}>
+        {children}
+      </td>
+    ),
+    tr: ({ children, ...rest }) => (
+      <tr className="even:bg-gray-50" {...rest}>
+        {children}
+      </tr>
+    ),
+    ul: ({ children, ...rest }) => (
+      <ul className="my-2 list-disc pl-5" {...rest}>
+        {children}
+      </ul>
+    ),
+    ol: ({ children, ...rest }) => (
+      <ol className="my-2 list-decimal pl-5" {...rest}>
+        {children}
+      </ol>
+    ),
+    li: ({ children, ...rest }) => (
+      <li className="my-0.5" {...rest}>
+        {cite(children)}
+      </li>
+    ),
+    p: ({ children, ...rest }) => (
+      <p className="my-2 first:mt-0 last:mb-0" {...rest}>
+        {cite(children)}
+      </p>
+    ),
+    h1: ({ children, ...rest }) => (
+      <h1 className="my-2 text-base font-semibold" {...rest}>
+        {children}
+      </h1>
+    ),
+    h2: ({ children, ...rest }) => (
+      <h2 className="my-2 text-sm font-semibold" {...rest}>
+        {children}
+      </h2>
+    ),
+    h3: ({ children, ...rest }) => (
+      <h3 className="my-2 text-sm font-semibold" {...rest}>
+        {children}
+      </h3>
+    ),
+    code: ({ children, ...rest }) => (
+      <code
+        className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.85em]"
+        {...rest}
+      >
+        {children}
+      </code>
+    ),
+    pre: ({ children, ...rest }) => (
+      <pre
+        className="my-2 overflow-x-auto rounded bg-gray-100 p-2 text-xs"
+        {...rest}
+      >
+        {children}
+      </pre>
+    ),
+    a: ({ children, ...rest }) => (
+      <a
+        className="text-blue-700 underline hover:text-blue-900"
+        target="_blank"
+        rel="noopener noreferrer"
+        {...rest}
+      >
+        {children}
+      </a>
+    ),
   };
 }
 
@@ -169,15 +169,13 @@ export function MessageView({ message }: MessageViewProps) {
             : "border border-gray-200 bg-white text-gray-900"
         }`}
       >
-        {renderParts(message.parts, citations.numberByFactId).map(
-          (part, i) => (
-            <PartView
-              key={`${message.id}-${i}`}
-              part={part}
-              citationNumberByFactId={citations.numberByFactId}
-            />
-          ),
-        )}
+        {renderParts(message.parts, citations.numberByFactId).map((part, i) => (
+          <PartView
+            key={`${message.id}-${i}`}
+            part={part}
+            citationNumberByFactId={citations.numberByFactId}
+          />
+        ))}
         {!isUser && citations.ordered.length > 0 && (
           <SourcesPanel citations={citations.ordered} />
         )}
@@ -290,7 +288,7 @@ function CitationChip({ factId, number }: CitationChipProps) {
   return (
     <a
       href={`#fact-${factId}`}
-      className="ml-0.5 inline-flex items-baseline rounded bg-blue-100 px-1 text-[10px] font-semibold text-blue-700 align-super hover:bg-blue-200"
+      className="ml-0.5 inline-flex items-baseline rounded bg-blue-100 px-1 align-super text-[10px] font-semibold text-blue-700 hover:bg-blue-200"
       title="View source"
     >
       [{number}]
@@ -405,10 +403,7 @@ function SourcesPanel({ citations }: { citations: Citation[] }) {
       <ol className="list-decimal space-y-1 pl-5">
         {citations.map((c, idx) => {
           const tagPairs = Object.entries(c.tags)
-            .map(
-              ([k, v]) =>
-                `${k}: ${Array.isArray(v) ? v.join(" / ") : v}`,
-            )
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(" / ") : v}`)
             .join(" · ");
           return (
             <li key={c.factId} id={`fact-${c.factId}`} className="leading-snug">
@@ -418,7 +413,11 @@ function SourcesPanel({ citations }: { citations: Citation[] }) {
                 {" · "}confidence {c.confidence}/5
                 {tagPairs ? ` · ${tagPairs}` : ""}
               </span>
-              {c.claim && idx === 0 ? null : null /* claim is captured per cite; not shown in panel to keep it compact */}
+              {
+                c.claim && idx === 0
+                  ? null
+                  : null /* claim is captured per cite; not shown in panel to keep it compact */
+              }
             </li>
           );
         })}

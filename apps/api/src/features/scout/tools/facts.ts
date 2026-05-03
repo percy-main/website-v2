@@ -156,10 +156,7 @@ Citations are inexpensive and the user values them — when in doubt, cite. One 
           .where("id", "=", factId)
           .where("superseded_by", "is", null)
           .where((eb) =>
-            eb.or([
-              eb("user_id", "=", userId),
-              eb("scope", "=", "club"),
-            ]),
+            eb.or([eb("user_id", "=", userId), eb("scope", "=", "club")]),
           )
           .select(["id", "content", "tags", "scope", "confidence"])
           .executeTakeFirst();

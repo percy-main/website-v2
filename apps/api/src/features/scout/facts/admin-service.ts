@@ -6,10 +6,7 @@ import type {
   listFactsQuerySchema,
   updateFactBodySchema,
 } from "../schemas.ts";
-import {
-  toVectorLiteral,
-  type VoyageClient,
-} from "./voyage.ts";
+import { toVectorLiteral, type VoyageClient } from "./voyage.ts";
 
 /**
  * Admin-side queries for the scout_fact corpus. Used by the
