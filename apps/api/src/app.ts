@@ -44,6 +44,7 @@ import { paymentRoutes } from "./features/payments/routes.ts";
 import { webhookRoutes } from "./features/payments/webhook.ts";
 import { playCricketRoutes } from "./features/play-cricket/routes.ts";
 import { recordsRoutes } from "./features/records/routes.ts";
+import { scoutRoutes } from "./features/scout/routes.ts";
 import { sponsorshipRoutes } from "./features/sponsorship/routes.ts";
 import { treasurerRoutes } from "./features/treasurer/routes.ts";
 
@@ -173,6 +174,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(leaderboardRoutes, { prefix: "/api" });
   await app.register(cricketLeaderboardRoutes, { prefix: "/api" });
   await app.register(recordsRoutes, { prefix: "/api" });
+  await app.register(scoutRoutes, { prefix: "/api" });
   await app.register(contactRoutes, { prefix: "/api" });
   await app.register(incidentReportRoutes, { prefix: "/api" });
   await app.register(marketingRoutes, { prefix: "/api" });
