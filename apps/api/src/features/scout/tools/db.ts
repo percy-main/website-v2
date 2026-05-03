@@ -135,7 +135,44 @@ Rules:
 - Query must start with SELECT or WITH. INSERT/UPDATE/DELETE/DDL are rejected (and the role lacks the grants anyway).
 - Results are capped at ${ROW_CAP} rows; the response includes a "truncated" flag if the cap was hit.
 - Statement timeout is ${STATEMENT_TIMEOUT_SECONDS}s — long-running queries are rolled back.
-- Schema is PostgreSQL/public. Use db_list_tables for an overview first.`,
+- Schema is PostgreSQL/public. Use db_list_tables for an overview first.
+
+CRITICAL — aggregate in SQL, do not pull raw rows and reduce them yourself:
+If the question is about counts, sums, averages, max/min, frequencies, distributions, ratios, rankings, or "top N" — write a query that COMPUTES the answer in Postgres. Pulling 200 raw rows back to count them in your head is both expensive (every row lands in the chat context and is re-read on every subsequent step) and inaccurate (you lose precision doing arithmetic mentally that Postgres does exactly).
+
+Heuristic: if the result set is going to be more than ~50 rows AND the user did not literally ask "list every X" or "show me the rows for Y" — you are probably writing the wrong query. Add a GROUP BY, aggregate, ORDER BY + LIMIT.
+
+Aggregate-first patterns:
+
+  -- Average / sum / count: one row, the answer
+  SELECT AVG(runs)::int AS avg_runs FROM match_performance_batting WHERE player_name = 'Smith';
+  SELECT COUNT(*) AS ducks FROM match_performance_batting WHERE player_name = 'Smith' AND runs = 0;
+
+  -- Top N: small bounded result, the answer ranked
+  SELECT player_name, COUNT(*) AS games
+  FROM match_performance_batting
+  GROUP BY player_name
+  ORDER BY games DESC
+  LIMIT 10;
+
+  -- Distribution: one row per bucket
+  SELECT how_out, COUNT(*) AS n
+  FROM match_performance_batting
+  WHERE season = '2025'
+  GROUP BY how_out
+  ORDER BY n DESC;
+
+  -- "Most recent X" — push the filter+order+limit into SQL, don't sort in your head
+  SELECT player_name, runs, match_date
+  FROM match_performance_batting
+  WHERE runs >= 100
+  ORDER BY to_date(match_date, 'DD/MM/YYYY') DESC
+  LIMIT 1;
+
+When you DO need raw rows (e.g. quoting one specific innings in your reply), narrow with WHERE + ORDER BY + LIMIT, and SELECT only the columns you'll quote — do not SELECT *.
+
+CRITICAL — match_date is text, not date:
+\`match_date\` columns (on match_performance_*, match_result, play_cricket_match_cache, etc.) are stored as text in dd/mm/yyyy format because that's how Play Cricket returns them. Lexicographic ordering is WRONG: "31/08/2013" sorts AFTER "07/06/2025". Always wrap in to_date(match_date, 'DD/MM/YYYY') for any ORDER BY, comparison, or BETWEEN. Example: ORDER BY to_date(match_date, 'DD/MM/YYYY') DESC.`,
       inputSchema: z.object({
         query: z.string().describe("A single SELECT or WITH statement."),
       }),

@@ -326,4 +326,82 @@ describe("Play Cricket tools (with stub client)", () => {
     expect(a).toEqual(b);
     expect(calls).toBe(1);
   });
+
+  it("caches the raw payload and projects per-call so different field selections share one fetch", async () => {
+    const cache = createScoutCache(ctx.db);
+    let calls = 0;
+    const playCricket = {
+      getMatchesSummary: () => {
+        calls++;
+        return Promise.resolve({
+          matches: [
+            {
+              id: 1,
+              match_date: "01/05/2025",
+              home_team_name: "Percy Main",
+              away_team_name: "Morpeth",
+              status: "Result",
+              ground_name: "Preston Avenue",
+            },
+            {
+              id: 2,
+              match_date: "08/05/2025",
+              home_team_name: "Tynemouth",
+              away_team_name: "Percy Main",
+              status: "Result",
+              ground_name: "Preston Avenue",
+            },
+          ],
+        });
+      },
+      getTeams: () => Promise.resolve({ teams: [] }),
+      getPlayers: () => Promise.resolve({ players: [] }),
+      getMatchDetail: () => Promise.resolve({}),
+      getLeagueTable: () => Promise.resolve({ league_table: [] }),
+    } as never;
+
+    const tools = createPlayCricketTools({ playCricket, cache });
+
+    // Use a unique season so this test doesn't collide with cache rows from
+    // sibling tests sharing the same DB.
+    const season = 2099;
+
+    const narrow = await runTool<unknown>(tools.pc_match_summary.execute, {
+      season,
+      fields: ["matches[].id", "matches[].match_date"],
+    });
+    expect(narrow).toEqual({
+      matches: [
+        { id: 1, match_date: "01/05/2025" },
+        { id: 2, match_date: "08/05/2025" },
+      ],
+    });
+
+    const wider = await runTool<unknown>(tools.pc_match_summary.execute, {
+      season,
+      fields: [
+        "matches[].id",
+        "matches[].home_team_name",
+        "matches[].away_team_name",
+      ],
+    });
+    expect(wider).toEqual({
+      matches: [
+        {
+          id: 1,
+          home_team_name: "Percy Main",
+          away_team_name: "Morpeth",
+        },
+        {
+          id: 2,
+          home_team_name: "Tynemouth",
+          away_team_name: "Percy Main",
+        },
+      ],
+    });
+
+    // Different fields → same underlying API call. Caching is keyed by the
+    // tool args minus `fields`.
+    expect(calls).toBe(1);
+  });
 });

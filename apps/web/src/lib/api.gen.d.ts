@@ -8964,6 +8964,8 @@ export interface paths {
                             usage: {
                                 inputTokens: number;
                                 outputTokens: number;
+                                cacheReadTokens: number;
+                                cacheCreationTokens: number;
                             };
                         };
                     };

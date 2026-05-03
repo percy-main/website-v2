@@ -1,6 +1,12 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import type { DB } from "@percy-main/db";
-import type { LanguageModel, ToolSet, UIMessageStreamWriter } from "ai";
+import type {
+  LanguageModel,
+  ModelMessage,
+  ToolSet,
+  UIMessageStreamWriter,
+} from "ai";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { Config } from "../../config.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
@@ -28,6 +34,7 @@ export interface ScoutAgentDeps {
   // the assistant's prose. The route wraps streamText in createUIMessageStream
   // and passes the resulting writer down.
   writer: UIMessageStreamWriter;
+  logger?: FastifyBaseLogger;
 }
 
 export interface ScoutAgent {
@@ -35,6 +42,9 @@ export interface ScoutAgent {
   system: string;
   tools: ToolSet;
   maxSteps: number;
+  prepareStep: (args: { messages: ModelMessage[] }) => {
+    messages: ModelMessage[];
+  };
 }
 
 export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
@@ -42,6 +52,7 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   const playCricketTools = createPlayCricketTools({
     playCricket: deps.playCricket,
     cache,
+    logger: deps.logger,
   });
   const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
   const weatherTools = createWeatherTools({ cache });
@@ -73,5 +84,36 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
       ...chartTools,
     },
     maxSteps: deps.config.SCOUT_MAX_STEPS,
+    prepareStep: ({ messages }) => ({
+      messages: addCacheControlToLastMessage(messages),
+    }),
   };
+}
+
+/**
+ * Mark the most recent message with Anthropic's ephemeral cacheControl so
+ * the prefix-up-to-here is cached. Each agentic step moves the breakpoint
+ * forward, so by step N the previous N-1 steps' content is being read from
+ * cache (~10% cost) instead of paid as fresh input. With our heavy Play
+ * Cricket tool results, this is the difference between paying for a 50KB
+ * payload once vs. on every subsequent step in the loop.
+ *
+ * Pattern lifted from the AI SDK v6 dynamic-prompt-caching cookbook —
+ * marking only the last message is sufficient because Anthropic caches
+ * incrementally up to the breakpoint.
+ */
+function addCacheControlToLastMessage(
+  messages: ModelMessage[],
+): ModelMessage[] {
+  if (messages.length === 0) return messages;
+  return messages.map((message, index) => {
+    if (index !== messages.length - 1) return message;
+    return {
+      ...message,
+      providerOptions: {
+        ...message.providerOptions,
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
+    };
+  });
 }

@@ -94,11 +94,25 @@ For both: copy the thread URL and message the tech lead. The system prompt and t
 
 Scout uses Anthropic Claude Sonnet 4.6 for chat and Claude Haiku 4.5 for thread title generation. A typical scouting conversation costs cents, but it's worth knowing it isn't free. The thread header shows token usage in development builds; if you want a per-environment usage report, ask the tech lead.
 
+Three mechanisms keep cost down:
+
+- **DB-first by default** — the system prompt instructs Scout to try the local DB before reaching for Play Cricket. The DB already mirrors Play Cricket data for matches Percy Main was in, so anything about us or about an opponent's record against us is answered with a SQL aggregate (one row of numbers in context) rather than a raw scorecard (kilobytes per match). Play Cricket is reserved for opposition's form against other clubs, league tables for divisions we're not in, and very-recent fixtures the local mirror hasn't synced.
+- **Field projection on Play Cricket tools** — the heavy tools (`pc_match_summary`, `pc_match_detail`, `pc_site_matches`, `pc_site_results`, `pc_find_opposition_matches`) require a `fields` argument listing the dot-notation paths the model wants back (e.g. `matches[].id`, `match_details[].innings[].runs`). The raw API payload is cached server-side, then projected per call — so different field selections of the same match share the underlying fetch, and Sonnet only ever sees the bytes it asked for.
+- **Anthropic prompt caching** — every model step marks the most recent message with an ephemeral cache breakpoint. Within a multi-step agent loop, this means tool results from earlier steps are read from cache (~10% of normal input cost) on every subsequent step, instead of paid at full rate each time.
+
+### Knowing if it's working
+
+Two structured log lines per turn make this measurable in CloudWatch:
+
+- `scout.turn` — emitted once per chat turn with `{inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, cacheReadRatio}`. The ratio is the headline number for whether prompt caching is firing — if it's near zero across a multi-step turn, the breakpoint isn't doing its job. Cache-token totals are also persisted on each `scout_message` row for offline analysis.
+- `scout.tool.payload` — emitted per heavy Play Cricket tool call with `{tool, fields, rawBytes, projectedBytes, ratio}`. Lets you see how aggressively projection is shrinking each fetch.
+
 ## How it works (for the curious)
 
 - Frontend: React + `@ai-sdk/react`'s `useChat` hook, streaming via SSE.
 - Backend: Fastify route piping the AI SDK v6 `streamText` response directly into the HTTP reply.
 - Persistence: thread metadata, messages (as AI SDK UIMessage parts), and a TTL'd cache for Play Cricket responses live in `scout_thread`, `scout_message`, and `scout_tool_cache`.
 - Models: Anthropic API directly (not Bedrock).
+- Cache control: `prepareStep` on `streamText` walks the message list and tags the last entry with `providerOptions.anthropic.cacheControl: { type: "ephemeral" }` before each step (see [`apps/api/src/features/scout/agent.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/agent.ts)). The Play Cricket tool projection lives in [`apps/api/src/features/scout/tools/projector.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/tools/projector.ts).
 
 Source lives under [`apps/api/src/features/scout/`](https://github.com/percy-main/website-v2/tree/main/apps/api/src/features/scout) and [`apps/web/src/pages/scout/`](https://github.com/percy-main/website-v2/tree/main/apps/web/src/pages/scout).

@@ -62,6 +62,8 @@ export function createThread(db: Kysely<DB>) {
 export interface ThreadUsage {
   inputTokens: number;
   outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
 }
 
 export function getThread(db: Kysely<DB>) {
@@ -92,15 +94,21 @@ export function getThread(db: Kysely<DB>) {
         "created_at",
         "token_input",
         "token_output",
+        "token_cache_read",
+        "token_cache_creation",
       ])
       .orderBy("created_at", "asc")
       .execute();
 
     let inputTokens = 0;
     let outputTokens = 0;
+    let cacheReadTokens = 0;
+    let cacheCreationTokens = 0;
     for (const m of messageRows) {
       inputTokens += m.token_input ?? 0;
       outputTokens += m.token_output ?? 0;
+      cacheReadTokens += m.token_cache_read ?? 0;
+      cacheCreationTokens += m.token_cache_creation ?? 0;
     }
 
     return {
@@ -116,7 +124,12 @@ export function getThread(db: Kysely<DB>) {
         parts: Array.isArray(m.parts) ? (m.parts as unknown[]) : [m.parts],
         createdAt: toIso(m.created_at),
       })),
-      usage: { inputTokens, outputTokens },
+      usage: {
+        inputTokens,
+        outputTokens,
+        cacheReadTokens,
+        cacheCreationTokens,
+      },
     };
   };
 }
@@ -140,7 +153,12 @@ export function appendMessage(db: Kysely<DB>) {
     threadId: string,
     role: PersistedMessage["role"],
     parts: unknown[],
-    tokens?: { input?: number; output?: number },
+    tokens?: {
+      input?: number;
+      output?: number;
+      cacheRead?: number;
+      cacheCreation?: number;
+    },
   ): Promise<PersistedMessage> => {
     const row = await db
       .insertInto("scout_message")
@@ -150,6 +168,8 @@ export function appendMessage(db: Kysely<DB>) {
         parts: JSON.stringify(parts),
         token_input: tokens?.input ?? null,
         token_output: tokens?.output ?? null,
+        token_cache_read: tokens?.cacheRead ?? null,
+        token_cache_creation: tokens?.cacheCreation ?? null,
       })
       .returning(["id", "role", "parts", "created_at"])
       .executeTakeFirstOrThrow();
