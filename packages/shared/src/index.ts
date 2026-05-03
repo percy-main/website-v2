@@ -29,3 +29,5 @@ export {
 export { stripeConfig, type StripeConfig } from "./stripe-config.ts";
 
 export { nameSimilarity, normalizeName } from "./name-similarity.ts";
+
+export { chartSpecSchema, type ChartSpec } from "./scout-chart.ts";

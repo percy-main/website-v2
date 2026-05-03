@@ -1,13 +1,15 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import type { DB } from "@percy-main/db";
-import type { LanguageModel, ToolSet } from "ai";
+import type { LanguageModel, ToolSet, UIMessageStreamWriter } from "ai";
 import type { Kysely } from "kysely";
 import type { Config } from "../../config.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import { SCOUT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { createScoutCache } from "./tools/cache.ts";
+import { createChartTool } from "./tools/chart.ts";
 import { createDbTools } from "./tools/db.ts";
 import { createPlayCricketTools } from "./tools/play-cricket.ts";
+import { createWeatherTools } from "./tools/weather.ts";
 
 /**
  * Scout's agent config — model, system prompt, and the tool dictionary that
@@ -22,6 +24,10 @@ export interface ScoutAgentDeps {
   dbReadonly: Kysely<DB>;
   playCricket: PlayCricketApiClient;
   config: Config;
+  // Stream writer used by chart_render to emit data-chart parts inline with
+  // the assistant's prose. The route wraps streamText in createUIMessageStream
+  // and passes the resulting writer down.
+  writer: UIMessageStreamWriter;
 }
 
 export interface ScoutAgent {
@@ -38,6 +44,8 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
     cache,
   });
   const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
+  const weatherTools = createWeatherTools({ cache });
+  const chartTools = createChartTool({ writer: deps.writer });
 
   // Anchor "today" so the model doesn't fall back to its training cutoff
   // when picking a default season AND so it filters past/future matches
@@ -58,7 +66,12 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
   return {
     model: anthropic(deps.config.SCOUT_MODEL_CHAT),
     system: `${SCOUT_SYSTEM_PROMPT}\n\n${todayLine}`,
-    tools: { ...playCricketTools, ...dbTools },
+    tools: {
+      ...playCricketTools,
+      ...dbTools,
+      ...weatherTools,
+      ...chartTools,
+    },
     maxSteps: deps.config.SCOUT_MAX_STEPS,
   };
 }

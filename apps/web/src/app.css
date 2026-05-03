@@ -331,3 +331,45 @@
 .mdx-content tr:last-child td {
   @apply border-b-0;
 }
+
+/* ── Per-message PDF export (Scout) ──
+   The Export button on an assistant message marks it with
+   data-scout-printing, then calls window.print(). The standard "print one
+   element" pattern: hide all ink with visibility:hidden, re-show only the
+   printing element + its descendants, and pull the printing element to the
+   top-left of the page so nothing else takes layout space. visibility (vs
+   display:none) preserves the DOM tree so the printing element's ancestors
+   keep working — only the painted output is suppressed. */
+@media print {
+  body:has([data-scout-printing]) * {
+    visibility: hidden !important;
+  }
+  body:has([data-scout-printing]) [data-scout-printing],
+  body:has([data-scout-printing]) [data-scout-printing] * {
+    visibility: visible !important;
+  }
+  /* Tool-call cards are debug noise in the exported document. */
+  body:has([data-scout-printing]) [data-scout-printing] [data-scout-tool-card],
+  body:has([data-scout-printing])
+    [data-scout-printing]
+    [data-scout-tool-card]
+    * {
+    visibility: hidden !important;
+  }
+  body:has([data-scout-printing]) [data-scout-printing] [data-scout-tool-card] {
+    display: none !important;
+  }
+  body:has([data-scout-printing]) [data-scout-printing] {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    /* Drop the chat-bubble framing so the message reads like a document. */
+    max-width: none !important;
+    border: none !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+}

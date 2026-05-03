@@ -1,7 +1,9 @@
 import type { UIMessage } from "@ai-sdk/react";
+import type { ChartSpec } from "@percy-main/shared";
 import { useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { ScoutChart } from "./scout-chart.tsx";
 
 const REMARK_PLUGINS = [remarkGfm];
 
@@ -111,8 +113,9 @@ export function MessageView({ message }: MessageViewProps) {
 
   return (
     <div
-      className={`flex ${isUser ? "justify-end" : "justify-start"} my-3`}
+      className={`group flex ${isUser ? "justify-end" : "justify-start"} my-3`}
       data-message-id={message.id}
+      data-scout-message
     >
       <div
         className={`max-w-3xl rounded-lg px-4 py-3 ${
@@ -124,8 +127,44 @@ export function MessageView({ message }: MessageViewProps) {
         {message.parts.map((part, i) => (
           <PartView key={`${message.id}-${i}`} part={part} />
         ))}
+        {!isUser && (
+          <div className="mt-2 flex justify-end opacity-0 transition-opacity group-hover:opacity-100 print:hidden">
+            <ExportMessageButton messageId={message.id} />
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+// Triggers the browser's Print → Save as PDF flow, scoped to a single
+// assistant message. The print stylesheet (in scout.tsx) hides everything
+// except the message marked data-scout-printing. We pick that target by
+// message id at click time so unrelated messages stay hidden.
+function ExportMessageButton({ messageId }: { messageId: string }) {
+  function handleExport() {
+    const target = document.querySelector(
+      `[data-message-id="${CSS.escape(messageId)}"]`,
+    );
+    if (!(target instanceof HTMLElement)) return;
+    target.setAttribute("data-scout-printing", "");
+    const cleanup = () => {
+      target.removeAttribute("data-scout-printing");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.print();
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleExport}
+      className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+      title="Save this message as PDF"
+    >
+      Export
+    </button>
   );
 }
 
@@ -152,6 +191,13 @@ function PartView({ part }: { part: Part }) {
         <div className="mt-1 font-mono whitespace-pre-wrap">{part.text}</div>
       </details>
     );
+  }
+
+  if (part.type === "data-chart") {
+    // Charts arrive as data-* parts via the AI SDK's UIMessageStream writer.
+    // The schema is validated server-side (Zod) so the FE trusts the shape.
+    const chartPart = part as { type: "data-chart"; data: ChartSpec };
+    return <ScoutChart spec={chartPart.data} />;
   }
 
   if (part.type.startsWith("tool-")) {
@@ -186,7 +232,10 @@ function ToolPartView({ part }: { part: Part }) {
           : "·";
 
   return (
-    <div className="my-2 rounded border border-gray-200 bg-gray-50 text-xs">
+    <div
+      data-scout-tool-card
+      className="my-2 rounded border border-gray-200 bg-gray-50 text-xs"
+    >
       <button
         type="button"
         className="flex w-full items-center justify-between px-2 py-1 text-left font-mono text-gray-700 hover:bg-gray-100"

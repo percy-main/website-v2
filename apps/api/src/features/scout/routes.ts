@@ -1,5 +1,7 @@
 import {
   convertToModelMessages,
+  createUIMessageStream,
+  pipeUIMessageStreamToResponse,
   stepCountIs,
   streamText,
   type UIMessage,
@@ -168,7 +170,8 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       // Guard: Scout requires the readonly DB client and an Anthropic key.
       // Both are optional in config so non-Scout deployments can boot, but
       // hitting this route without them is a misconfiguration.
-      if (!app.dbReadonly) {
+      const dbReadonly = app.dbReadonly;
+      if (!dbReadonly) {
         throw Object.assign(
           new Error("Scout DB is not configured (set SCOUT_DB_URL)."),
           { statusCode: 503 },
@@ -223,29 +226,86 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         siteId: app.config.PLAY_CRICKET_SITE_ID,
       });
 
-      const agent = createScoutAgent({
-        db: app.db,
-        dbReadonly: app.dbReadonly,
-        playCricket,
-        config: app.config,
-      });
-
-      const modelMessages = await convertToModelMessages(incoming);
-      const result = streamText({
-        model: agent.model,
-        system: agent.system,
-        tools: agent.tools,
-        messages: modelMessages,
-        stopWhen: stepCountIs(agent.maxSteps),
-        onError: ({ error }) => {
-          app.log.error({ err: error }, "scout streamText error");
-        },
-      });
-
       const firstUserText = lastMessage.parts
         .filter((p): p is { type: "text"; text: string } => p.type === "text")
         .map((p) => p.text)
         .join(" ");
+
+      // Convert messages up front — execute() in createUIMessageStream is
+      // synchronous and can't await, so the conversion has to be done before
+      // the stream is built.
+      const modelMessages = await convertToModelMessages(incoming);
+
+      // Token usage is captured inside execute() and read back in onFinish.
+      // We can't await result.usage from outside because `result` is local to
+      // the stream's execute closure.
+      let usagePromise:
+        | Promise<{
+            inputTokens?: number;
+            outputTokens?: number;
+          }>
+        | undefined;
+
+      const stream = createUIMessageStream({
+        originalMessages: incoming,
+        onFinish: async ({ responseMessage, isAborted }) => {
+          if (isAborted || !responseMessage) return;
+          try {
+            const usage = (await usagePromise) ?? {};
+            await append(threadId, "assistant", responseMessage.parts, {
+              input: usage.inputTokens,
+              output: usage.outputTokens,
+            });
+            await bump(threadId);
+            // Best-effort: rename the thread if it still has the
+            // placeholder title. Failures don't break the chat turn.
+            await generateTitle(threadId, firstUserText);
+          } catch (err) {
+            app.log.error(
+              { err, threadId },
+              "scout: failed to persist assistant message",
+            );
+          }
+        },
+        execute: ({ writer }) => {
+          // The chart tool needs the writer to emit data-chart parts inline.
+          const agent = createScoutAgent({
+            db: app.db,
+            dbReadonly,
+            playCricket,
+            config: app.config,
+            writer,
+          });
+
+          const result = streamText({
+            model: agent.model,
+            system: agent.system,
+            tools: agent.tools,
+            messages: modelMessages,
+            stopWhen: stepCountIs(agent.maxSteps),
+            onError: ({ error }) => {
+              app.log.error(
+                { err: sanitizeError(error) },
+                "scout streamText error",
+              );
+            },
+          });
+          usagePromise = Promise.resolve(result.usage).then((u) => ({
+            inputTokens: u.inputTokens ?? undefined,
+            outputTokens: u.outputTokens ?? undefined,
+          }));
+
+          // sendStart: false because createUIMessageStream emits its own start
+          // chunk; merging streamText's would duplicate.
+          writer.merge(result.toUIMessageStream({ sendStart: false }));
+        },
+        onError: (error) => {
+          app.log.error({ err: sanitizeError(error) }, "scout UI stream error");
+          return error instanceof Error
+            ? error.message
+            : "Scout stream failed.";
+        },
+      });
 
       // CORS (and any other) headers set by Fastify hooks live on the reply
       // object and are flushed to `reply.raw` only when reply.send() runs.
@@ -259,40 +319,37 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         }
       }
 
-      result.pipeUIMessageStreamToResponse(reply.raw, {
-        originalMessages: incoming,
-        onFinish: async ({ responseMessage, isAborted }) => {
-          if (isAborted || !responseMessage) return;
-          try {
-            const usage = await result.usage;
-            await append(threadId, "assistant", responseMessage.parts, {
-              input: usage.inputTokens ?? undefined,
-              output: usage.outputTokens ?? undefined,
-            });
-            await bump(threadId);
-            // Best-effort: rename the thread if it still has the
-            // placeholder title. Failures don't break the chat turn.
-            await generateTitle(threadId, firstUserText);
-          } catch (err) {
-            app.log.error(
-              { err, threadId },
-              "scout: failed to persist assistant message",
-            );
-          }
-        },
-        onError: (error) => {
-          app.log.error({ err: error }, "scout UI stream error");
-          return error instanceof Error
-            ? error.message
-            : "Scout stream failed.";
-        },
-      });
+      pipeUIMessageStreamToResponse({ stream, response: reply.raw });
 
       // Return the raw reply so Fastify doesn't double-write a body.
       return reply;
     },
   );
 };
+
+// AI SDK errors (most importantly Anthropic's APICallError) carry the entire
+// request body — including the conversation history — as own properties.
+// Logging the raw error via pino spams the stream with full transcripts, so
+// project to a small set of safe fields. The Anthropic request_id is the most
+// useful debug handle when it's present.
+function sanitizeError(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) {
+    return { value: typeof error === "string" ? error : String(error) };
+  }
+  const e = error as Error & {
+    statusCode?: number;
+    responseBody?: string;
+    requestId?: string;
+    data?: { error?: { type?: string; message?: string } };
+  };
+  return {
+    name: e.name,
+    message: e.message,
+    statusCode: e.statusCode,
+    requestId: e.requestId,
+    apiError: e.data?.error,
+  };
+}
 
 // Small inline helper — same shape as the one in auth/middleware.ts but the
 // access route can't use requireAuth (we want a 200 response when not

@@ -77,7 +77,7 @@ const configSchema = z.object({
   SCOUT_MAX_STEPS: z.coerce.number().int().positive().default(20),
   SCOUT_ALLOWED_EMAILS: z
     .string()
-    .default("alex@alexyoung.info")
+    .default("alex@alexyoung.info,steve.knight@percymain.org")
     .transform((v) =>
       v
         .split(",")
