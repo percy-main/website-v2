@@ -247,6 +247,18 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         .map((p) => p.text)
         .join(" ");
 
+      // CORS (and any other) headers set by Fastify hooks live on the reply
+      // object and are flushed to `reply.raw` only when reply.send() runs.
+      // pipeUIMessageStreamToResponse writes directly to `reply.raw` via
+      // writeHead(), so we must copy those headers onto raw first — otherwise
+      // the streamed response goes out without Access-Control-Allow-Origin and
+      // the browser blocks it.
+      for (const [key, value] of Object.entries(reply.getHeaders())) {
+        if (value !== undefined && !reply.raw.hasHeader(key)) {
+          reply.raw.setHeader(key, value);
+        }
+      }
+
       result.pipeUIMessageStreamToResponse(reply.raw, {
         originalMessages: incoming,
         onFinish: async ({ responseMessage, isAborted }) => {
