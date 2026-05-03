@@ -82,18 +82,38 @@ export function createApiClient(config: PlayCricketApiConfig) {
     },
 
     /**
-     * Fetch matches involving a specific club (any team, home or away). Used
-     * by Scout to scout opposition that Percy Main hasn't necessarily played
-     * — every match summary row from /matches.json carries home_club_id /
-     * away_club_id, so the agent can pick a club_id from a previous result
-     * and pivot to that club's full fixture list.
+     * Fetch a season's fixtures for any club, using their Play-Cricket
+     * site_id. Empirically our token can read other clubs' sites — the API
+     * doesn't enforce per-token site scoping for /matches.json. The
+     * `home_club_id` / `away_club_id` fields in every match summary row
+     * are the same number as `site_id` for that club, so the agent picks
+     * up an opposition's site_id from any prior match against us.
+     *
+     * Optionally pass `teamId` (= home_team_id / away_team_id) to scope
+     * to a single XI (1st, 2nd, etc.) — useful when scouting a club whose
+     * 1st and 2nd XI play in different divisions.
      */
-    async getMatchesForClub(clubId: string, season: number) {
-      const json = await fetchPlayCricket(config, "/matches.json", {
-        club_id: clubId,
+    async getMatchesForSite(siteId: string, season: number, teamId?: string) {
+      const params: Record<string, string> = {
+        site_id: siteId,
+        season: String(season),
+      };
+      if (teamId) params.team_id = teamId;
+      const json = await fetchPlayCricket(config, "/matches.json", params);
+      return GetMatchSummaryResponse.parse(json);
+    },
+
+    /**
+     * Played matches only, with innings totals and bonus points — much
+     * cheaper than fetching N match details when you just want results
+     * and form. Like getMatchesForSite, our token works against other
+     * clubs' site_ids.
+     */
+    async getResultSummaryForSite(siteId: string, season: number) {
+      return fetchPlayCricket(config, "/result_summary.json", {
+        site_id: siteId,
         season: String(season),
       });
-      return GetMatchSummaryResponse.parse(json);
     },
   };
 }

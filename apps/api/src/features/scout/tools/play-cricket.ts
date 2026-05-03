@@ -71,27 +71,49 @@ export function createPlayCricketTools(deps: PlayCricketToolDeps) {
         ),
     }),
 
-    pc_club_matches: tool({
-      description: `Fetch the full season's fixtures for ANY Play Cricket club, not just Percy Main — both home and away matches against every opponent. This is the right tool for scouting an opposition: it returns matches that opposition has played against everyone (not only against us).
+    pc_site_matches: tool({
+      description: `Fetch a season's fixtures for ANY Play Cricket club using their site_id. THIS IS THE PRIMARY OPPOSITION-SCOUTING TOOL — it returns the opposition's matches against everyone, not only against Percy Main.
 
-Workflow:
-  1. Call pc_match_summary(season) and find a recent match where Percy Main played the opposition.
-  2. Read home_club_id / away_club_id off that match — whichever isn't Percy Main is the opposition's club_id.
-  3. Call pc_club_matches(clubId, season) to see their full season.
-  4. Use pc_match_detail on individual matchIds for scorecards.
+Important: in Play Cricket, "site_id" and "club_id" are the same number. Every match summary row carries home_club_id and away_club_id — those values can be passed directly here as siteId.
 
-Returns the same MatchSummary shape as pc_match_summary.`,
+Workflow to scout an opponent:
+  1. pc_match_summary(season) → find a Percy Main vs <Opposition> match.
+  2. Read away_club_id (or home_club_id, whichever isn't 134) off that row → that's the opposition's siteId.
+  3. Optionally read away_team_id (or home_team_id) → pass as teamId to scope to a specific XI (1st, 2nd, etc.).
+  4. pc_site_matches(siteId, season, teamId?) → their full fixture list.
+  5. pc_match_detail(matchId) on the played ones for scorecards (or pc_site_results for cheaper aggregates).`,
       inputSchema: z.object({
-        clubId: z
+        siteId: z
           .string()
           .describe(
-            "Play Cricket club id (NOT site_id, NOT team_id). Find via home_club_id/away_club_id in match summary rows.",
+            "Play Cricket site_id of the club. Identical to home_club_id / away_club_id from match summary rows. Percy Main's is 134.",
           ),
         season: z.number().int(),
+        teamId: z
+          .string()
+          .optional()
+          .describe(
+            "Optional. Pass home_team_id/away_team_id to scope to a single XI. Useful for clubs whose 1st and 2nd XI play in different divisions.",
+          ),
       }),
-      execute: async ({ clubId, season }) =>
-        cache.getOrSet("pc_club_matches", { clubId, season }, 6 * HOUR, () =>
-          playCricket.getMatchesForClub(clubId, season),
+      execute: async ({ siteId, season, teamId }) =>
+        cache.getOrSet(
+          "pc_site_matches",
+          { siteId, season, teamId },
+          6 * HOUR,
+          () => playCricket.getMatchesForSite(siteId, season, teamId),
+        ),
+    }),
+
+    pc_site_results: tool({
+      description: `Fetch played matches only for a club, with innings totals and league bonus points (batting/bowling/penalty). Much cheaper than fetching N pc_match_detail calls when you just want results, run rates, and form. Like pc_site_matches, accepts ANY club's site_id.`,
+      inputSchema: z.object({
+        siteId: z.string(),
+        season: z.number().int(),
+      }),
+      execute: async ({ siteId, season }) =>
+        cache.getOrSet("pc_site_results", { siteId, season }, 6 * HOUR, () =>
+          playCricket.getResultSummaryForSite(siteId, season),
         ),
     }),
 

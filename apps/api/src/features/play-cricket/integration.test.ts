@@ -220,7 +220,8 @@ function createMockApi(
     getMatchDetail: vi.fn().mockResolvedValue({ match_details: [] }),
     getPlayers: vi.fn().mockResolvedValue({ players: [] }),
     getLeagueTable: vi.fn().mockResolvedValue({}),
-    getMatchesForClub: vi.fn().mockResolvedValue({ matches: [] }),
+    getMatchesForSite: vi.fn().mockResolvedValue({ matches: [] }),
+    getResultSummaryForSite: vi.fn().mockResolvedValue({ result_summary: [] }),
     ...overrides,
   };
 }
