@@ -96,27 +96,27 @@ module "ecs" {
   document_uploads_bucket_arn = module.document_uploads.bucket_arn
 
   environment_variables = {
-    NODE_ENV                     = "staging"
-    PORT                         = "3000"
-    HOST                         = "0.0.0.0"
-    LOG_LEVEL                    = "info"
-    EMAIL_PROVIDER               = "ses"
-    SES_REGION                   = "eu-west-2"
-    S3_BUCKET                    = "percy-main-staging-uploads"
-    S3_REGION                    = "eu-west-2"
-    S3_RECEIPT_PREFIX            = "receipts"
-    S3_DOCUMENTS_BUCKET          = module.documents_bucket.bucket_name
-    S3_DOCUMENTS_PREFIX          = "documents"
-    S3_DOCUMENT_UPLOADS_BUCKET   = module.document_uploads.bucket_name
-    AWS_REGION                   = "eu-west-2"
+    NODE_ENV                   = "staging"
+    PORT                       = "3000"
+    HOST                       = "0.0.0.0"
+    LOG_LEVEL                  = "info"
+    EMAIL_PROVIDER             = "ses"
+    SES_REGION                 = "eu-west-2"
+    S3_BUCKET                  = "percy-main-staging-uploads"
+    S3_REGION                  = "eu-west-2"
+    S3_RECEIPT_PREFIX          = "receipts"
+    S3_DOCUMENTS_BUCKET        = module.documents_bucket.bucket_name
+    S3_DOCUMENTS_PREFIX        = "documents"
+    S3_DOCUMENT_UPLOADS_BUCKET = module.document_uploads.bucket_name
+    AWS_REGION                 = "eu-west-2"
     # Cannot reference module.ecs.* outputs that depend on the task definition
     # here — that would cycle through the env-vars input. The cluster and family
     # names are deterministic from the environment, so inline them.
-    SYNC_ECS_CLUSTER             = "percy-main-staging-cluster"
-    SYNC_ECS_TASK_DEFINITION     = "staging-api"
-    SYNC_ECS_SUBNETS             = join(",", module.vpc.public_subnet_ids)
-    SYNC_ECS_SECURITY_GROUP      = module.vpc.ecs_security_group_id
-    SYNC_ECS_ASSIGN_PUBLIC_IP    = "true"
+    SYNC_ECS_CLUSTER          = "percy-main-staging-cluster"
+    SYNC_ECS_TASK_DEFINITION  = "staging-api"
+    SYNC_ECS_SUBNETS          = join(",", module.vpc.public_subnet_ids)
+    SYNC_ECS_SECURITY_GROUP   = module.vpc.ecs_security_group_id
+    SYNC_ECS_ASSIGN_PUBLIC_IP = "true"
   }
 
   secrets = {
@@ -130,6 +130,14 @@ module "ecs" {
     GOOGLE_CLIENT_SECRET   = "${aws_secretsmanager_secret.app_secrets.arn}:GOOGLE_CLIENT_SECRET::"
     PLAY_CRICKET_API_TOKEN = "${aws_secretsmanager_secret.app_secrets.arn}:PLAY_CRICKET_API_TOKEN::"
     SLACK_WEBHOOK_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SLACK_WEBHOOK_URL::"
+
+    # Scout (alex-only AI cricket analyst). Both keys must be populated in
+    # the app_secrets blob before this redeploys, otherwise the streaming
+    # route returns 503 cleanly. SCOUT_DB_URL must use the scout_readonly
+    # role (created NOLOGIN by migration 2026-05-03; password set
+    # out-of-band on the RDS instance).
+    ANTHROPIC_API_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:ANTHROPIC_API_KEY::"
+    SCOUT_DB_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SCOUT_DB_URL::"
 
     # SSM Parameter Store (non-secret config)
     BASE_URL             = aws_ssm_parameter.base_url.arn
