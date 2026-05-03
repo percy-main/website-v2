@@ -14,6 +14,51 @@ import { z } from "zod";
 const EMBED_URL = "https://api.voyageai.com/v1/embeddings";
 const RERANK_URL = "https://api.voyageai.com/v1/rerank";
 
+/**
+ * Error thrown for non-2xx Voyage responses. The exposed `message` is
+ * deliberately terse — it gets surfaced as a tool result to Scout and
+ * potentially to the user — so we keep billing copy, dashboard URLs,
+ * and other vendor-specific guidance out of it. The raw response body
+ * is preserved on `.detail` for server-side logs only.
+ */
+export class VoyageError extends Error {
+  readonly status: number;
+  readonly endpoint: "embed" | "rerank";
+  readonly detail: string;
+
+  constructor(opts: {
+    status: number;
+    endpoint: "embed" | "rerank";
+    detail: string;
+  }) {
+    super(buildSanitisedMessage(opts.status, opts.endpoint));
+    this.name = "VoyageError";
+    this.status = opts.status;
+    this.endpoint = opts.endpoint;
+    this.detail = opts.detail;
+  }
+}
+
+function buildSanitisedMessage(
+  status: number,
+  endpoint: "embed" | "rerank",
+): string {
+  // Map common HTTP statuses to short, vendor-neutral phrasing. Anything
+  // unmapped falls back to a generic "service unavailable" so we never
+  // surface raw provider responses (billing URLs, internal hints, etc.)
+  // through the tool result chain.
+  if (status === 429) {
+    return `Fact memory ${endpoint} is rate-limited right now. Try again in a moment.`;
+  }
+  if (status === 401 || status === 403) {
+    return `Fact memory ${endpoint} is misconfigured (auth rejected). Ask the tech lead to check the Voyage API key.`;
+  }
+  if (status >= 500) {
+    return `Fact memory ${endpoint} provider is having an issue (HTTP ${status}). Try again shortly.`;
+  }
+  return `Fact memory ${endpoint} failed (HTTP ${status}).`;
+}
+
 // Voyage rejects requests over their per-call payload caps long before
 // they'd hurt our latency. Keep generous local limits as a safety net.
 const MAX_BATCH = 128;
@@ -111,9 +156,11 @@ export function createVoyageClient(config: VoyageConfig): VoyageClient {
 
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(
-        `Voyage embed failed (HTTP ${res.status}): ${body.slice(0, 500)}`,
-      );
+      throw new VoyageError({
+        status: res.status,
+        endpoint: "embed",
+        detail: body.slice(0, 500),
+      });
     }
 
     const json = embedResponseSchema.parse(await res.json());
@@ -150,9 +197,11 @@ export function createVoyageClient(config: VoyageConfig): VoyageClient {
 
       if (!res.ok) {
         const body = await res.text();
-        throw new Error(
-          `Voyage rerank failed (HTTP ${res.status}): ${body.slice(0, 500)}`,
-        );
+        throw new VoyageError({
+          status: res.status,
+          endpoint: "rerank",
+          detail: body.slice(0, 500),
+        });
       }
 
       const json = rerankResponseSchema.parse(await res.json());
