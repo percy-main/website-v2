@@ -1,73 +1,81 @@
 import { z } from "zod";
 
-// Chart specs are streamed to the FE as data-chart parts. We keep the surface
-// narrow on purpose: bar / line / scatter cover almost every cricket-stats
-// chart we'd want, and a tight schema means the model rarely produces
-// invalid output. Use a discriminated union (not optional fields) so each
-// chart type has exactly the keys it needs.
+// Chart.js v4 spec, deliberately permissive. We tried a strict
+// discriminated-union schema {type, data: [{x,y}], title, ...} originally.
+// It looked tidy but the model kept producing Chart.js-shaped specs anyway
+// — Chart.js has overwhelming representation in training data and the model
+// reaches for it on autopilot, even with a custom schema described in the
+// tool's input_schema.
+//
+// Switched to letting the model emit native Chart.js v4 specs and validating
+// only the outer envelope. The renderer (apps/web/src/pages/scout/scout-chart.tsx)
+// passes data + options straight to react-chartjs-2 and trusts Chart.js to
+// ignore unknown options. This:
+//   - removes the model's incentive to invent the spec from scratch
+//   - unlocks the full Chart.js surface (horizontal bar via indexAxis,
+//     stacked datasets, dual axes, custom colours, log scales, …) without
+//     mirroring it in our schema
+//
+// Trade-off: we accept any object shape under data/options, so a malformed
+// or pathological spec from the model would crash react-chartjs-2 at render
+// time rather than be caught by Zod up-front. The maxDataPoints check below
+// is the defence-in-depth cap.
 
-const xValueSchema = z.union([z.string(), z.number()]);
-const yValueSchema = z.number();
+const SUPPORTED_TYPES = [
+  "bar",
+  "line",
+  "scatter",
+  "bubble",
+  "pie",
+  "doughnut",
+  "radar",
+  "polarArea",
+] as const;
 
-const barDatumSchema = z.object({
-  x: xValueSchema,
-  y: yValueSchema,
-});
+const MAX_DATA_POINTS = 1000;
 
-const lineDatumSchema = z.object({
-  x: xValueSchema,
-  y: yValueSchema,
-  series: z.string().optional(),
-});
+// Chart.js's data is always { labels?: [...], datasets: [{label?, data: [...], ...}, ...] }.
+// We accept any object shape and only deep-check that the total number of
+// data points across all datasets stays under MAX_DATA_POINTS — this is a
+// soft guard against pathological model output (gigantic arrays) that would
+// kill the browser without giving useful feedback.
+const chartDataSchema = z
+  .looseObject({
+    labels: z.array(z.unknown()).optional(),
+    datasets: z
+      .array(
+        z.looseObject({
+          label: z.string().optional(),
+          data: z.array(z.unknown()),
+        }),
+      )
+      .min(1),
+  })
+  .refine(
+    (d) =>
+      d.datasets.reduce((n, ds) => n + ds.data.length, 0) <= MAX_DATA_POINTS,
+    {
+      message: `Total data points across datasets must be ≤ ${MAX_DATA_POINTS}.`,
+    },
+  );
 
-const scatterDatumSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  label: z.string().optional(),
-  series: z.string().optional(),
-});
-
-const baseFieldsSchema = z.object({
-  title: z.string().min(1).describe("Title shown above the chart."),
-  xLabel: z.string().optional().describe("X-axis label."),
-  yLabel: z.string().optional().describe("Y-axis label."),
+export const chartSpecSchema = z.object({
+  type: z.enum(SUPPORTED_TYPES),
+  data: chartDataSchema,
+  // Chart.js options is a deeply nested grab-bag (scales, plugins, animations,
+  // interaction, …). Pass through as-is; the renderer just hands it to
+  // react-chartjs-2.
+  options: z.record(z.string(), z.unknown()).optional(),
+  // Optional Scout-specific extras — rendered as caption / surrounding chrome.
+  // Not part of Chart.js itself; we strip them before handing data to the
+  // renderer.
   caption: z
     .string()
     .optional()
     .describe(
-      "Optional one-line caption shown below the chart (sample size, source, etc.).",
+      "Optional one-line caption rendered below the chart (sample size, source, etc.).",
     ),
 });
 
-export const chartSpecSchema = z.discriminatedUnion("type", [
-  baseFieldsSchema.extend({
-    type: z.literal("bar"),
-    data: z
-      .array(barDatumSchema)
-      .min(1)
-      .max(200)
-      .describe("Each datum is one bar: { x, y }."),
-  }),
-  baseFieldsSchema.extend({
-    type: z.literal("line"),
-    data: z
-      .array(lineDatumSchema)
-      .min(2)
-      .max(500)
-      .describe(
-        "Points along one or more lines: { x, y, series? }. If `series` is set on any datum, points are grouped into separate lines.",
-      ),
-  }),
-  baseFieldsSchema.extend({
-    type: z.literal("scatter"),
-    data: z
-      .array(scatterDatumSchema)
-      .min(1)
-      .max(500)
-      .describe(
-        "Points: { x, y, label?, series? }. Both x and y must be numeric. Use scatter when looking for correlation (e.g. innings score vs air temperature).",
-      ),
-  }),
-]);
-
 export type ChartSpec = z.infer<typeof chartSpecSchema>;
+export type ChartType = (typeof SUPPORTED_TYPES)[number];

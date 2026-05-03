@@ -1,5 +1,5 @@
 import type { DB } from "@percy-main/db";
-import type { ModelMessage } from "ai";
+import type { ModelMessage, UIMessageStreamWriter } from "ai";
 import type { Kysely } from "kysely";
 import { describe, expect, it } from "vitest";
 import type { Config } from "../../config.ts";
@@ -12,10 +12,11 @@ import { createScoutAgent } from "./agent.ts";
 // for the accumulated tool results — the exact bug we shipped this for.
 
 function makeAgent() {
-  // The agent only reaches its DB during tool invocation; for prepareStep
-  // tests we never invoke a tool, so empty stubs are safe.
+  // The agent only reaches its DB / writer during tool invocation; for
+  // prepareStep tests we never invoke a tool, so empty stubs are safe.
   const stubDb = {} as Kysely<DB>;
   const stubPlayCricket = {} as PlayCricketApiClient;
+  const stubWriter = {} as UIMessageStreamWriter;
   const stubConfig = {
     SCOUT_MODEL_CHAT: "claude-sonnet-4-6",
     SCOUT_MAX_STEPS: 20,
@@ -26,6 +27,7 @@ function makeAgent() {
     dbReadonly: stubDb,
     playCricket: stubPlayCricket,
     config: stubConfig,
+    writer: stubWriter,
   });
 }
 
