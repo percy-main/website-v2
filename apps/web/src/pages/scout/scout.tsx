@@ -169,7 +169,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         onDraftChange={setDraft}
         disabled={isStreaming}
         onSubmit={(text) => {
-          sendMessage({ text });
+          void sendMessage({ text });
         }}
       />
     </>

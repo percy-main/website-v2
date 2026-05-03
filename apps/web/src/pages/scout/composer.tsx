@@ -57,7 +57,7 @@ export function Composer({
           disabled={disabled}
           className="flex-1 resize-y rounded border border-gray-300 p-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50"
         />
-        <Button type="submit" disabled={disabled || !value.trim()}>
+        <Button type="submit" disabled={Boolean(disabled) || !value.trim()}>
           Send
         </Button>
       </div>

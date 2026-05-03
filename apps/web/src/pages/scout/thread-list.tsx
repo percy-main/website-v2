@@ -43,7 +43,7 @@ export function ThreadList() {
       await queryClient.invalidateQueries({
         queryKey: ["scout", "threads"],
       });
-      navigate(`/scout/${thread.id}`);
+      void navigate(`/scout/${thread.id}`);
     },
   });
 
@@ -59,7 +59,7 @@ export function ThreadList() {
         queryKey: ["scout", "threads"],
       });
       setPendingDelete(null);
-      if (threadId === activeThreadId) navigate("/scout");
+      if (threadId === activeThreadId) void navigate("/scout");
     },
   });
 
