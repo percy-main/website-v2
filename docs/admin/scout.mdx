@@ -1,0 +1,104 @@
+# Scout
+
+<AdminTab name="Scout">
+  An AI cricket analyst that helps captains scout opposition and plan dismissals
+  using the Play Cricket API and our own match history.
+</AdminTab>
+
+## Overview
+
+Scout is a chat interface at [`/scout`](/scout) that pairs an Anthropic Claude model with two tool sets:
+
+- **Play Cricket API** — fixtures, scorecards, league tables, and per-club season views (any club, not just Percy Main).
+- **Read-only club database** — our own match performances, availability, matchdays, and the redacted `scout_member` view.
+
+Each conversation is persisted as a thread so you can come back to the same scouting session, share insights with co-captains, and keep an audit trail of how decisions were reached.
+
+## Who can use it
+
+Scout is **gated to a hard-coded email allowlist** — set per environment via `SCOUT_ALLOWED_EMAILS`. Right now that's just the tech lead's address while we evaluate cost and quality. The Scout link in the members area is hidden for everyone else, and the API returns `403` to anyone not on the list, regardless of role.
+
+To widen access, ask the tech lead to add an email to the `SCOUT_ALLOWED_EMAILS` value in AWS Secrets Manager and redeploy the API.
+
+## What it can do well
+
+- **Find your next fixture.** "Who do the 1st XI play next?" returns the next match that hasn't been played yet, with date, ground, and competition.
+- **Pull league tables.** "Where are we in Division 4 North?" — full table with points, played, won.
+- **Scout an opposition's recent form.** "Look at Morpeth 2nd XI this season" — pulls their fixtures against everyone (not just us), then drills into individual scorecards. See [Limitations](#limitations) below for what the data does and doesn't cover.
+- **Cross-reference our own data.** Anything in `availability_*`, `matchday`, `match_performance_*`, or `play_cricket_*` is fair game via the database tools.
+- **Ad-hoc SQL.** When the curated tools can't express what you want, Scout can write read-only queries against the `scout_readonly` Postgres role.
+
+## Limitations — please read
+
+Scout's grounding is only as good as the data Play Cricket exposes. Specifically the API returns:
+
+- runs, balls, fours, sixes per batter
+- a single short `how_out` string ("bowled", "lbw", "caught", etc.)
+- the bowler/fielder name on each dismissal
+- batting position
+- bowling figures (overs, runs, wickets, maidens)
+
+It does **not** expose:
+
+- shot patterns or where the ball was hit
+- ball line/length or where it pitched
+- field placements
+- pitch conditions
+- player handedness or bowling style (RHB vs LHB, off-spin vs leg-spin, etc.)
+
+The system prompt forbids Scout from inventing this kind of detail, and asks it to **cite the underlying number after every concrete claim** so you can sanity-check. If you see a tactical claim like "vulnerable to short balls" with no number behind it, that's a hallucination — flag it to the tech lead so the prompt can be tightened further.
+
+Scout will also tell you when scorecard data simply isn't available yet (often the case for fixtures that finished within the last 48 hours — opposition scorers haven't uploaded). Don't take "data unavailable" as a sign of a Scout bug; it usually means Play Cricket itself doesn't have the data yet.
+
+## What's protected
+
+The local database connection Scout uses is a **dedicated read-only role** (`scout_readonly`) with `SELECT` only on a handful of allowlisted tables. It cannot read:
+
+- `user`, `account`, `session`, `passkey`, `two_factor`, `verification` (auth tables)
+- `charge`, `charge_dependent`, `match_fee_rate`, `membership` (financial)
+- `accident_incident_report`, `safeguarding`, `document` (sensitive operational)
+- `member` directly (only via the `scout_member` view, which strips email/phone/address/dob and pre-filters soft-deletes)
+
+Even if the model tries an ad-hoc SQL query against one of these, Postgres rejects the read at the role boundary. The full allowlist lives in [`apps/api/src/features/scout/tools/db.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/tools/db.ts) — search for `SCOUT_ALLOWED_TABLES`.
+
+The ad-hoc SQL tool also blocks anything that isn't a `SELECT` or `WITH`, sets a 30-second statement timeout, and caps results at 500 rows.
+
+## Using Scout
+
+1. Click **Scout** in the members area, or navigate to [`/scout`](/scout) directly.
+2. Click **New thread** in the left sidebar to start a fresh conversation.
+3. Type a question, then either click **Send** or press **Cmd/Ctrl + Enter**.
+4. Watch the streamed response. Tool calls (Play Cricket lookups, SQL queries) appear as collapsible cards — click to see the input and the raw output.
+5. Continue the conversation in the same thread for follow-ups; Scout sees the full thread history.
+6. Hover a thread in the sidebar and click the **×** to delete it (with confirmation).
+
+Threads auto-rename themselves with a 4-word summary after the first turn — you don't need to title them yourself.
+
+## Tips for better answers
+
+- **Be specific.** "Who do we play next" is fine; "what's the bowling line for our 1st XI's next game" gives Scout a clearer target.
+- **Ask for sources.** "Show me the underlying numbers" prompts Scout to print the bowler/batter rows it's basing claims on.
+- **Push back on hallucinations.** If a claim sounds wrong, ask Scout to cite the data — it'll either find the source or correct itself.
+- **Use threads per fixture.** Easier to come back to than one giant thread.
+
+## When Scout is wrong
+
+It will be wrong sometimes. Two failure modes worth knowing:
+
+- **Made-up tactical detail.** Catch it via the citation rule. Report to the tech lead so the prompt can be tightened.
+- **Stale Play Cricket data.** Scorecards from very recent matches may not be uploaded yet — Scout should say so explicitly. If it claims to have data it doesn't, that's a real bug.
+
+For both: copy the thread URL and message the tech lead. The system prompt and tool descriptions are easy to iterate on; we want this feedback loop to be tight.
+
+## Cost
+
+Scout uses Anthropic Claude Sonnet 4.6 for chat and Claude Haiku 4.5 for thread title generation. A typical scouting conversation costs cents, but it's worth knowing it isn't free. The thread header shows token usage in development builds; if you want a per-environment usage report, ask the tech lead.
+
+## How it works (for the curious)
+
+- Frontend: React + `@ai-sdk/react`'s `useChat` hook, streaming via SSE.
+- Backend: Fastify route piping the AI SDK v6 `streamText` response directly into the HTTP reply.
+- Persistence: thread metadata, messages (as AI SDK UIMessage parts), and a TTL'd cache for Play Cricket responses live in `scout_thread`, `scout_message`, and `scout_tool_cache`.
+- Models: Anthropic API directly (not Bedrock).
+
+Source lives under [`apps/api/src/features/scout/`](https://github.com/percy-main/website-v2/tree/main/apps/api/src/features/scout) and [`apps/web/src/pages/scout/`](https://github.com/percy-main/website-v2/tree/main/apps/web/src/pages/scout).
