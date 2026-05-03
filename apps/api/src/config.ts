@@ -84,6 +84,11 @@ const configSchema = z.object({
         .map((s) => s.trim())
         .filter(Boolean),
     ),
+  // Voyage AI (fact-RAG embeddings + reranking). Optional — Scout boots
+  // without it and just skips the fact tools / auto-retrieval.
+  VOYAGE_API_KEY: z.string().optional(),
+  VOYAGE_EMBED_MODEL: z.string().default("voyage-4"),
+  VOYAGE_RERANK_MODEL: z.string().default("rerank-2.5"),
 
   // Sync task launch (admin "Sync now" button → ECS RunTask)
   AWS_REGION: z.string().default("eu-west-2"),

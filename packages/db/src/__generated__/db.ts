@@ -600,6 +600,21 @@ export interface PlayerSponsorship {
   stripe_payment_intent_id: string | null;
 }
 
+export interface ScoutFact {
+  confidence: Generated<number>;
+  content: string;
+  created_at: Generated<Timestamp>;
+  embedding: string;
+  id: Generated<string>;
+  scope: string;
+  source_message_id: string | null;
+  source_thread_id: string | null;
+  superseded_by: string | null;
+  tags: Generated<Json>;
+  updated_at: Generated<Timestamp>;
+  user_id: string;
+}
+
 export interface ScoutMember {
   dob: string | null;
   first_membership_at: string | null;
@@ -731,6 +746,7 @@ export interface DB {
   play_cricket_sync_log: PlayCricketSyncLog;
   play_cricket_team: PlayCricketTeam;
   player_sponsorship: PlayerSponsorship;
+  scout_fact: ScoutFact;
   scout_member: ScoutMember;
   scout_message: ScoutMessage;
   scout_thread: ScoutThread;

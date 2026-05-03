@@ -11,6 +11,7 @@ import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { FactsAdminButton } from "./facts-admin.js";
 
 interface ThreadSummary {
   id: string;
@@ -65,14 +66,15 @@ export function ThreadList() {
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-gray-50">
-      <div className="border-b border-gray-200 p-3">
+      <div className="flex gap-2 border-b border-gray-200 p-3">
         <Button
-          className="w-full"
+          className="flex-1"
           onClick={() => createMutation.mutate()}
           disabled={createMutation.isPending}
         >
           {createMutation.isPending ? "Creating…" : "New thread"}
         </Button>
+        <FactsAdminButton />
       </div>
       <div className="flex-1 overflow-y-auto">
         {threadsQuery.isLoading && (

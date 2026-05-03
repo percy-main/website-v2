@@ -1,6 +1,9 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector/pgvector ships official Postgres images with the vector
+    # extension pre-built — drop-in for postgres:16. Switched when Scout's
+    # fact RAG corpus added a vector(1024) column.
+    image: pgvector/pgvector:pg16
     ports:
       - "5433:5432"
     environment:

@@ -227,7 +227,8 @@ export const SiteHeader: FC = () => {
       </div>
 
       {/* Row 2: Masthead Band — hidden on mobile for marketing landing pages
-          (/tell-me-about/*) so the hero is closer to the fold. Brand chrome
+          (/tell-me-about/*) so the hero is closer to the fold, and hidden
+          entirely on /scout/* so the chat fills the viewport. Brand chrome
           stays on every other route. */}
       <div
         ref={mastheadRef}
@@ -235,7 +236,7 @@ export const SiteHeader: FC = () => {
           location.pathname.startsWith("/tell-me-about")
             ? "hidden md:block"
             : ""
-        }`}
+        } ${location.pathname.startsWith("/scout") ? "hidden" : ""}`}
       >
         <div className="container mx-auto flex flex-col items-center justify-center gap-3 px-8">
           <Logo size="lg" />
@@ -266,10 +267,17 @@ export const SiteHeader: FC = () => {
         </div>
       </nav>
 
-      {/* Sticky Collapsed Bar (appears on scroll) */}
+      {/* Sticky Collapsed Bar (appears on scroll). Suppressed on /scout/*
+          where the masthead is hidden — without the masthead in the DOM
+          the IntersectionObserver fires "out of view" instantly and we
+          end up rendering the sticky nav alongside the regular Row 3
+          nav. The Scout page has its own chrome and doesn't need the
+          collapsed bar. */}
       <header
         className={`border-border bg-surface fixed top-0 right-0 left-0 z-50 border-b shadow-sm transition-transform duration-300 ${
-          stickyVisible ? "translate-y-0" : "-translate-y-full"
+          stickyVisible && !location.pathname.startsWith("/scout")
+            ? "translate-y-0"
+            : "-translate-y-full"
         }`}
       >
         <div className="container mx-auto flex items-center justify-between px-8 py-2">
