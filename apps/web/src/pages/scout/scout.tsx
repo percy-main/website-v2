@@ -82,6 +82,7 @@ interface ChatViewProps {
       role: "user" | "assistant" | "tool" | "system";
       parts: unknown[];
     }>;
+    usage: { inputTokens: number; outputTokens: number };
   };
 }
 
@@ -139,6 +140,13 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         </h2>
         <span className="text-xs text-gray-400">
           {messages.length} message{messages.length === 1 ? "" : "s"}
+          {import.meta.env.DEV && (
+            <>
+              {" · "}
+              {loaded.usage.inputTokens.toLocaleString()} in /{" "}
+              {loaded.usage.outputTokens.toLocaleString()} out
+            </>
+          )}
         </span>
       </header>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2">

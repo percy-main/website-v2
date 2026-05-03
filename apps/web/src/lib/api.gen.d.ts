@@ -8961,6 +8961,10 @@ export interface paths {
                                 /** Format: date-time */
                                 createdAt: string;
                             }[];
+                            usage: {
+                                inputTokens: number;
+                                outputTokens: number;
+                            };
                         };
                     };
                 };

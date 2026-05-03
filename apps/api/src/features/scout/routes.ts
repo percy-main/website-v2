@@ -28,6 +28,7 @@ import {
   listThreads,
   ThreadNotFoundError,
 } from "./service.ts";
+import { maybeGenerateTitle } from "./title.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -38,6 +39,10 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const append = appendMessage(app.db);
   const bump = bumpThreadUpdatedAt(app.db);
   const assertOwned = assertThreadOwnership(app.db);
+  const generateTitle = maybeGenerateTitle({
+    db: app.db,
+    modelId: app.config.SCOUT_MODEL_SUBAGENT,
+  });
 
   // ── Access probe ──
   // Always 200 so the FE can call this without a noisy 401 when nobody is
@@ -237,6 +242,11 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         },
       });
 
+      const firstUserText = lastMessage.parts
+        .filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join(" ");
+
       result.pipeUIMessageStreamToResponse(reply.raw, {
         originalMessages: incoming,
         onFinish: async ({ responseMessage, isAborted }) => {
@@ -248,6 +258,9 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               output: usage.outputTokens ?? undefined,
             });
             await bump(threadId);
+            // Best-effort: rename the thread if it still has the
+            // placeholder title. Failures don't break the chat turn.
+            await generateTitle(threadId, firstUserText);
           } catch (err) {
             app.log.error(
               { err, threadId },

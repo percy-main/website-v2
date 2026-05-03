@@ -155,7 +155,11 @@ describe("db_run_sql tool against the readonly role (defence-in-depth)", () => {
     const result = (await t.db_run_sql.execute!(
       { query: "SELECT count(*)::int AS n FROM scout_member" },
       opts,
-    )) as { rows: Array<{ n: number }>; rowCount: number; truncated: boolean };
+    )) as unknown as {
+      rows: Array<{ n: number }>;
+      rowCount: number;
+      truncated: boolean;
+    };
     expect(result.rowCount).toBe(1);
     expect(result.rows[0].n).toBeGreaterThanOrEqual(0);
     expect(result.truncated).toBe(false);
@@ -166,7 +170,7 @@ describe("db_run_sql tool against the readonly role (defence-in-depth)", () => {
     const result = (await t.db_run_sql.execute!(
       { query: "SELECT * FROM generate_series(1, 1000) AS g(n)" },
       opts,
-    )) as { rowCount: number; truncated: boolean };
+    )) as unknown as { rowCount: number; truncated: boolean };
     expect(result.truncated).toBe(true);
     expect(result.rowCount).toBe(500);
   });
@@ -176,7 +180,7 @@ describe("db_run_sql tool against the readonly role (defence-in-depth)", () => {
     const result = (await t.db_describe_table.execute!(
       { table: "scout_member" },
       opts,
-    )) as { name: string; columns: Array<{ name: string }> };
+    )) as unknown as { name: string; columns: Array<{ name: string }> };
     expect(result.name).toBe("scout_member");
     const columnNames = result.columns.map((c) => c.name);
     expect(columnNames).toEqual(

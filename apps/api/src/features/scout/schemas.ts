@@ -41,6 +41,10 @@ export const messageSchema = z.object({
 export const getThreadResponseSchema = z.object({
   thread: threadSummarySchema,
   messages: z.array(messageSchema),
+  usage: z.object({
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+  }),
 });
 
 export const deleteThreadResponseSchema = z.object({

@@ -1,13 +1,31 @@
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+
+interface ThreadSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
 
 export function ThreadList() {
   const params = useParams<{ threadId?: string }>();
   const activeThreadId = params.threadId;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [pendingDelete, setPendingDelete] = useState<ThreadSummary | null>(
+    null,
+  );
 
   const threadsQuery = useQuery({
     queryKey: ["scout", "threads"],
@@ -26,6 +44,22 @@ export function ThreadList() {
         queryKey: ["scout", "threads"],
       });
       navigate(`/scout/${thread.id}`);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (threadId: string) =>
+      callApi(
+        api.DELETE("/api/scout/threads/{threadId}", {
+          params: { path: { threadId } },
+        }),
+      ),
+    onSuccess: async (_, threadId) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["scout", "threads"],
+      });
+      setPendingDelete(null);
+      if (threadId === activeThreadId) navigate("/scout");
     },
   });
 
@@ -60,10 +94,10 @@ export function ThreadList() {
           {threadsQuery.data?.threads.map((t) => {
             const isActive = t.id === activeThreadId;
             return (
-              <li key={t.id}>
+              <li key={t.id} className="group relative">
                 <Link
                   to={`/scout/${t.id}`}
-                  className={`block px-3 py-2 text-sm hover:bg-white ${
+                  className={`block px-3 py-2 pr-10 text-sm hover:bg-white ${
                     isActive
                       ? "bg-white font-medium text-blue-700"
                       : "text-gray-700"
@@ -74,11 +108,57 @@ export function ThreadList() {
                     {new Date(t.updatedAt).toLocaleString()}
                   </div>
                 </Link>
+                <button
+                  type="button"
+                  aria-label={`Delete ${t.title}`}
+                  className="absolute top-2 right-2 rounded p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-red-700"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setPendingDelete(t);
+                  }}
+                >
+                  ×
+                </button>
               </li>
             );
           })}
         </ul>
       </div>
+
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete thread?</DialogTitle>
+            <DialogDescription>
+              &ldquo;{pendingDelete?.title}&rdquo; and all its messages will be
+              permanently deleted. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPendingDelete(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (pendingDelete) deleteMutation.mutate(pendingDelete.id);
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }

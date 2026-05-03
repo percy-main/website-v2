@@ -59,11 +59,20 @@ export function createThread(db: Kysely<DB>) {
   };
 }
 
+export interface ThreadUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export function getThread(db: Kysely<DB>) {
   return async (
     userId: string,
     threadId: string,
-  ): Promise<{ thread: ThreadSummary; messages: PersistedMessage[] }> => {
+  ): Promise<{
+    thread: ThreadSummary;
+    messages: PersistedMessage[];
+    usage: ThreadUsage;
+  }> => {
     const thread = await db
       .selectFrom("scout_thread")
       .where("id", "=", threadId)
@@ -76,9 +85,23 @@ export function getThread(db: Kysely<DB>) {
     const messageRows = await db
       .selectFrom("scout_message")
       .where("thread_id", "=", threadId)
-      .select(["id", "role", "parts", "created_at"])
+      .select([
+        "id",
+        "role",
+        "parts",
+        "created_at",
+        "token_input",
+        "token_output",
+      ])
       .orderBy("created_at", "asc")
       .execute();
+
+    let inputTokens = 0;
+    let outputTokens = 0;
+    for (const m of messageRows) {
+      inputTokens += m.token_input ?? 0;
+      outputTokens += m.token_output ?? 0;
+    }
 
     return {
       thread: {
@@ -93,6 +116,7 @@ export function getThread(db: Kysely<DB>) {
         parts: Array.isArray(m.parts) ? (m.parts as unknown[]) : [m.parts],
         createdAt: toIso(m.created_at),
       })),
+      usage: { inputTokens, outputTokens },
     };
   };
 }
