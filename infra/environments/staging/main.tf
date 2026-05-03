@@ -131,12 +131,15 @@ module "ecs" {
     PLAY_CRICKET_API_TOKEN = "${aws_secretsmanager_secret.app_secrets.arn}:PLAY_CRICKET_API_TOKEN::"
     SLACK_WEBHOOK_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SLACK_WEBHOOK_URL::"
 
-    # Scout (alex-only AI cricket analyst). Both keys must be populated in
-    # the app_secrets blob before this redeploys, otherwise the streaming
-    # route returns 503 cleanly. SCOUT_DB_URL must use the scout_readonly
-    # role (created NOLOGIN by migration 2026-05-03; password set
-    # out-of-band on the RDS instance).
+    # Scout (alex-only AI cricket analyst). All three keys must be
+    # populated in the app_secrets blob before this redeploys; Scout
+    # boots without VOYAGE_API_KEY but the fact_record / fact_retrieve /
+    # cite_fact tools and the auto-retrieved <known-facts> block are all
+    # silently omitted in that case. SCOUT_DB_URL must use the
+    # scout_readonly role (created NOLOGIN by migration 2026-05-03;
+    # password set out-of-band on the RDS instance).
     ANTHROPIC_API_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:ANTHROPIC_API_KEY::"
+    VOYAGE_API_KEY    = "${aws_secretsmanager_secret.app_secrets.arn}:VOYAGE_API_KEY::"
     SCOUT_DB_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SCOUT_DB_URL::"
 
     # SSM Parameter Store (non-secret config)
