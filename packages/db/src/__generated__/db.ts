@@ -9,6 +9,8 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
 
+export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>;
+
 export type Json = JsonValue;
 
 export type JsonArray = JsonValue[];
@@ -598,6 +600,44 @@ export interface PlayerSponsorship {
   stripe_payment_intent_id: string | null;
 }
 
+export interface ScoutMember {
+  dob: string | null;
+  first_membership_at: string | null;
+  id: string | null;
+  latest_paid_until: string | null;
+  member_category: string | null;
+  membership_count: Int8 | null;
+  name: string | null;
+  play_cricket_id: string | null;
+  slug: string | null;
+}
+
+export interface ScoutMessage {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  parts: Json;
+  role: string;
+  thread_id: string;
+  token_input: number | null;
+  token_output: number | null;
+}
+
+export interface ScoutThread {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  title: string;
+  updated_at: Generated<Timestamp>;
+  user_id: string;
+}
+
+export interface ScoutToolCache {
+  cache_key: string;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  payload: Json;
+  tool_name: string;
+}
+
 export interface Session {
   createdAt: Timestamp;
   expiresAt: Timestamp;
@@ -689,6 +729,10 @@ export interface DB {
   play_cricket_sync_log: PlayCricketSyncLog;
   play_cricket_team: PlayCricketTeam;
   player_sponsorship: PlayerSponsorship;
+  scout_member: ScoutMember;
+  scout_message: ScoutMessage;
+  scout_thread: ScoutThread;
+  scout_tool_cache: ScoutToolCache;
   session: Session;
   team_official: TeamOfficial;
   twoFactor: TwoFactor;

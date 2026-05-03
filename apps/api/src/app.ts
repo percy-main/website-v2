@@ -2,7 +2,7 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
-import type { DB } from "@percy-main/db";
+import { createClient as createDbClient, type DB } from "@percy-main/db";
 import { createSend, type Email } from "@percy-main/email";
 import Fastify from "fastify";
 import {
@@ -44,6 +44,7 @@ import { paymentRoutes } from "./features/payments/routes.ts";
 import { webhookRoutes } from "./features/payments/webhook.ts";
 import { playCricketRoutes } from "./features/play-cricket/routes.ts";
 import { recordsRoutes } from "./features/records/routes.ts";
+import { scoutRoutes } from "./features/scout/routes.ts";
 import { sponsorshipRoutes } from "./features/sponsorship/routes.ts";
 import { treasurerRoutes } from "./features/treasurer/routes.ts";
 
@@ -51,6 +52,7 @@ import { treasurerRoutes } from "./features/treasurer/routes.ts";
 declare module "fastify" {
   interface FastifyInstance {
     db: Kysely<DB>;
+    dbReadonly: Kysely<DB> | null;
     config: Config;
     auth: Auth;
     send: (email: Email) => Promise<void>;
@@ -87,6 +89,19 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   // Decorate the instance so routes can access deps via `app.db` / `this.db`
   app.decorate("db", db);
   app.decorate("config", config);
+
+  // Optional read-only Kysely client for the Scout feature. Built from
+  // SCOUT_DB_URL (a libpq URL using the `scout_readonly` Postgres role created
+  // by migration 2026-05-03). Null when unset — Scout routes guard on this.
+  const dbReadonly = config.SCOUT_DB_URL
+    ? createDbClient(config.SCOUT_DB_URL).client
+    : null;
+  app.decorate("dbReadonly", dbReadonly);
+  if (dbReadonly) {
+    app.addHook("onClose", async () => {
+      await dbReadonly.destroy();
+    });
+  }
 
   // Create and decorate the email sender
   const send = createSend({
@@ -159,6 +174,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(leaderboardRoutes, { prefix: "/api" });
   await app.register(cricketLeaderboardRoutes, { prefix: "/api" });
   await app.register(recordsRoutes, { prefix: "/api" });
+  await app.register(scoutRoutes, { prefix: "/api" });
   await app.register(contactRoutes, { prefix: "/api" });
   await app.register(incidentReportRoutes, { prefix: "/api" });
   await app.register(marketingRoutes, { prefix: "/api" });

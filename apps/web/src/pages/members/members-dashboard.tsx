@@ -94,6 +94,7 @@ export function Component() {
             >
               Fantasy Cricket
             </Link>
+            <ScoutLink />
             <Link
               className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
               to="/auth/logout"
@@ -238,6 +239,30 @@ function AvailabilityBanner() {
       You have <strong>{unansweredCount}</strong> availability{" "}
       {unansweredCount === 1 ? "date" : "dates"} to respond to.{" "}
       <span className="underline">Respond now</span>
+    </Link>
+  );
+}
+
+/**
+ * Renders the Scout dashboard link only when the server-side allowlist
+ * permits the current user. Hidden for everyone else (cosmetic gate; the
+ * real boundary is the API's requireScoutAccess preHandler).
+ */
+function ScoutLink() {
+  const access = useQuery({
+    queryKey: ["scout", "access"],
+    queryFn: () => callApi(api.GET("/api/scout/access")),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (!access.data?.allowed) return null;
+
+  return (
+    <Link
+      className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
+      to="/scout"
+    >
+      Scout
     </Link>
   );
 }
