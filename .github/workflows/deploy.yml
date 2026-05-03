@@ -17,7 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector/pgvector:pg16 = official Postgres 16 image with the
+        # vector extension pre-built. Drop-in for postgres:16-alpine —
+        # required since the scout_fact migration runs CREATE EXTENSION
+        # vector.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: percy
           POSTGRES_PASSWORD: percy
