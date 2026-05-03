@@ -28,6 +28,7 @@ function makeAgent() {
     playCricket: stubPlayCricket,
     config: stubConfig,
     writer: stubWriter,
+    userId: "test-user",
   });
 }
 

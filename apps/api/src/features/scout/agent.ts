@@ -10,10 +10,12 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { Config } from "../../config.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
+import type { VoyageClient } from "./facts/voyage.ts";
 import { SCOUT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { createScoutCache } from "./tools/cache.ts";
 import { createChartTool } from "./tools/chart.ts";
 import { createDbTools } from "./tools/db.ts";
+import { createFactTools } from "./tools/facts.ts";
 import { createPlayCricketTools } from "./tools/play-cricket.ts";
 import { createWeatherTools } from "./tools/weather.ts";
 
@@ -35,6 +37,13 @@ export interface ScoutAgentDeps {
   // and passes the resulting writer down.
   writer: UIMessageStreamWriter;
   logger?: FastifyBaseLogger;
+  // Fact-RAG dependencies. Optional so the agent can boot without a Voyage
+  // API key — the fact_record / fact_retrieve tools are simply omitted in
+  // that case. userId is the authenticated caller; threadId is attached to
+  // every recorded fact for traceability.
+  voyage?: VoyageClient;
+  userId: string;
+  threadId?: string;
 }
 
 export interface ScoutAgent {
@@ -57,6 +66,20 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
   const weatherTools = createWeatherTools({ cache });
   const chartTools = createChartTool({ writer: deps.writer });
+  // Fact tools only register when Voyage is configured. Auto-retrieval in
+  // the route also short-circuits in that case, so a deployment without
+  // VOYAGE_API_KEY behaves as if the RAG layer doesn't exist.
+  const factTools = deps.voyage
+    ? createFactTools({
+        db: deps.db,
+        voyage: deps.voyage,
+        userId: deps.userId,
+        threadId: deps.threadId,
+        // Same writer the chart tool uses — cite_fact emits
+        // data-fact-citation parts inline with assistant prose.
+        writer: deps.writer,
+      })
+    : {};
 
   // Anchor "today" so the model doesn't fall back to its training cutoff
   // when picking a default season AND so it filters past/future matches
@@ -82,6 +105,7 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
       ...dbTools,
       ...weatherTools,
       ...chartTools,
+      ...factTools,
     },
     maxSteps: deps.config.SCOUT_MAX_STEPS,
     prepareStep: ({ messages }) => ({

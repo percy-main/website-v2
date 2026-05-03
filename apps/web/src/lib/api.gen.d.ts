@@ -9004,6 +9004,204 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scout/facts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    scope?: "user" | "club";
+                    /** @description Tag in 'key:value' form, e.g. 'team:Mitford CC'. Filters via tags @> {key:value}. */
+                    tag?: string;
+                    /** @description Full-text search against fact content. */
+                    q?: string;
+                    includeSuperseded?: boolean;
+                    page?: number;
+                    pageSize?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            facts: {
+                                /** Format: uuid */
+                                id: string;
+                                userId: string;
+                                /** @enum {string} */
+                                scope: "user" | "club";
+                                content: string;
+                                tags: {
+                                    [key: string]: string | string[];
+                                };
+                                confidence: number;
+                                /** Format: uuid */
+                                sourceThreadId: string | null;
+                                /** Format: uuid */
+                                supersededBy: string | null;
+                                /** Format: date-time */
+                                createdAt: string;
+                                /** Format: date-time */
+                                updatedAt: string;
+                            }[];
+                            total: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scout/facts/{factId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    factId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            userId: string;
+                            /** @enum {string} */
+                            scope: "user" | "club";
+                            content: string;
+                            tags: {
+                                [key: string]: string | string[];
+                            };
+                            confidence: number;
+                            /** Format: uuid */
+                            sourceThreadId: string | null;
+                            /** Format: uuid */
+                            supersededBy: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    factId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            ok: true;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    factId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        content?: string;
+                        tags?: {
+                            [key: string]: string | string[];
+                        };
+                        /** @enum {string} */
+                        scope?: "user" | "club";
+                        confidence?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            userId: string;
+                            /** @enum {string} */
+                            scope: "user" | "club";
+                            content: string;
+                            tags: {
+                                [key: string]: string | string[];
+                            };
+                            confidence: number;
+                            /** Format: uuid */
+                            sourceThreadId: string | null;
+                            /** Format: uuid */
+                            supersededBy: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/contact": {
         parameters: {
             query?: never;

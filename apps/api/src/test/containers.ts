@@ -43,7 +43,12 @@ export interface TestContext {
  * ```
  */
 export async function startTestContainer(): Promise<TestContext> {
-  const container = await new PostgreSqlContainer("postgres:16-alpine").start();
+  // pgvector/pgvector:pg16 = official Postgres 16 image with the vector
+  // extension pre-built. Used in place of postgres:16-alpine so Scout's
+  // scout_fact migration (CREATE EXTENSION vector) can run.
+  const container = await new PostgreSqlContainer(
+    "pgvector/pgvector:pg16",
+  ).start();
   const connectionString = container.getConnectionUri();
 
   const pool = new pg.Pool({ connectionString, max: 5 });

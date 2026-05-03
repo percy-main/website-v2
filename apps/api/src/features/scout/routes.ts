@@ -12,13 +12,28 @@ import { createApiClient } from "../play-cricket/api-client.ts";
 import { createScoutAgent } from "./agent.ts";
 import { requireScoutAccess } from "./auth.ts";
 import {
+  deleteFact,
+  FactNotFoundError,
+  getFact,
+  listFacts,
+  updateFact,
+} from "./facts/admin-service.ts";
+import { applyAutoRetrieval } from "./facts/auto-retrieve.ts";
+import { createVoyageClient } from "./facts/voyage.ts";
+import {
   accessResponseSchema,
   createThreadBodySchema,
   createThreadResponseSchema,
+  deleteFactResponseSchema,
   deleteThreadResponseSchema,
+  factIdParamSchema,
   getThreadResponseSchema,
+  listFactsQuerySchema,
+  listFactsResponseSchema,
   listThreadsResponseSchema,
   threadIdParamSchema,
+  updateFactBodySchema,
+  updateFactResponseSchema,
 } from "./schemas.ts";
 import {
   appendMessage,
@@ -234,7 +249,41 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       // Convert messages up front — execute() in createUIMessageStream is
       // synchronous and can't await, so the conversion has to be done before
       // the stream is built.
-      const modelMessages = await convertToModelMessages(incoming);
+      const modelMessagesRaw = await convertToModelMessages(incoming);
+
+      // Voyage is optional. When configured, run pre-turn fact retrieval
+      // and inject the <known-facts> block into the last user message
+      // before streamText sees it. Same client instance is passed to the
+      // agent so fact_retrieve / fact_record reuse it.
+      const voyage = app.config.VOYAGE_API_KEY
+        ? createVoyageClient({
+            apiKey: app.config.VOYAGE_API_KEY,
+            embedModel: app.config.VOYAGE_EMBED_MODEL,
+            rerankModel: app.config.VOYAGE_RERANK_MODEL,
+          })
+        : undefined;
+
+      let modelMessages = modelMessagesRaw;
+      let injectedFactsCount = 0;
+      if (voyage) {
+        try {
+          const result = await applyAutoRetrieval(
+            { db: app.db, voyage, userId: user.id },
+            incoming,
+            modelMessagesRaw,
+          );
+          modelMessages = result.messages;
+          injectedFactsCount = result.factsCount;
+        } catch (err) {
+          // Fact retrieval failure must not break the chat turn. Log and
+          // proceed with no injected facts — the agent still has its
+          // tools to recover.
+          app.log.error(
+            { err, threadId },
+            "scout: auto-retrieval failed; continuing without fact injection",
+          );
+        }
+      }
 
       // Token usage and Anthropic cache-control metadata are captured inside
       // execute() and read back in onFinish. We can't await result.usage /
@@ -288,6 +337,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
                 cacheReadTokens: cacheRead ?? 0,
                 cacheCreationTokens: usage.cacheCreation ?? 0,
                 cacheReadRatio,
+                injectedFactsCount,
               },
               "scout turn complete",
             );
@@ -307,6 +357,9 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             config: app.config,
             writer,
             logger: app.log,
+            voyage,
+            userId: user.id,
+            threadId,
           });
 
           const result = streamText({
@@ -369,6 +422,117 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
 
       // Return the raw reply so Fastify doesn't double-write a body.
       return reply;
+    },
+  );
+
+  // ── Fact admin ──
+  // Allowlist-gated CRUD over the scout_fact corpus. Lets the admin
+  // review agent-recorded knowledge and prune bad facts before they
+  // compound. Edits to `content` re-embed via Voyage; edits to scope/
+  // tags/confidence don't (no semantic change).
+  const list_ = listFacts(app.db);
+  const get_ = getFact(app.db);
+  const remove_ = deleteFact(app.db);
+
+  app.get(
+    "/scout/facts",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        querystring: listFactsQuerySchema,
+        response: { 200: listFactsResponseSchema },
+      },
+    },
+    async (request) => list_(request.query),
+  );
+
+  app.patch(
+    "/scout/facts/:factId",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: factIdParamSchema,
+        body: updateFactBodySchema,
+        response: { 200: updateFactResponseSchema },
+      },
+    },
+    async (request) => {
+      // updateFact needs Voyage to re-embed when content changes.
+      // Without an API key we can still allow metadata-only edits;
+      // refuse content edits with 503 so the admin gets a clear signal
+      // rather than a silent stale-vector bug.
+      if (!app.config.VOYAGE_API_KEY && request.body.content !== undefined) {
+        throw Object.assign(
+          new Error(
+            "Editing fact content requires VOYAGE_API_KEY (the embedding must be regenerated). Set the env var or edit metadata only.",
+          ),
+          { statusCode: 503 },
+        );
+      }
+      const voyage = app.config.VOYAGE_API_KEY
+        ? createVoyageClient({
+            apiKey: app.config.VOYAGE_API_KEY,
+            embedModel: app.config.VOYAGE_EMBED_MODEL,
+            rerankModel: app.config.VOYAGE_RERANK_MODEL,
+          })
+        : // updateFact only calls embed when content changed; the guard
+          // above guarantees we never reach voyage.embed without a key.
+          ({} as never);
+      try {
+        return await updateFact(app.db, voyage)(
+          request.params.factId,
+          request.body,
+        );
+      } catch (err) {
+        if (err instanceof FactNotFoundError) {
+          throw Object.assign(new Error("Fact not found"), { statusCode: 404 });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.delete(
+    "/scout/facts/:factId",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: factIdParamSchema,
+        response: { 200: deleteFactResponseSchema },
+      },
+    },
+    async (request) => {
+      try {
+        await remove_(request.params.factId);
+        return { ok: true as const };
+      } catch (err) {
+        if (err instanceof FactNotFoundError) {
+          throw Object.assign(new Error("Fact not found"), { statusCode: 404 });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // Single-fact getter — used by the admin UI for the edit drawer.
+  app.get(
+    "/scout/facts/:factId",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: factIdParamSchema,
+        response: { 200: updateFactResponseSchema },
+      },
+    },
+    async (request) => {
+      try {
+        return await get_(request.params.factId);
+      } catch (err) {
+        if (err instanceof FactNotFoundError) {
+          throw Object.assign(new Error("Fact not found"), { statusCode: 404 });
+        }
+        throw err;
+      }
     },
   );
 };
