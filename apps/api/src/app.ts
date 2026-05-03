@@ -2,7 +2,7 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
-import type { DB } from "@percy-main/db";
+import { createClient as createDbClient, type DB } from "@percy-main/db";
 import { createSend, type Email } from "@percy-main/email";
 import Fastify from "fastify";
 import {
@@ -51,6 +51,7 @@ import { treasurerRoutes } from "./features/treasurer/routes.ts";
 declare module "fastify" {
   interface FastifyInstance {
     db: Kysely<DB>;
+    dbReadonly: Kysely<DB> | null;
     config: Config;
     auth: Auth;
     send: (email: Email) => Promise<void>;
@@ -87,6 +88,19 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   // Decorate the instance so routes can access deps via `app.db` / `this.db`
   app.decorate("db", db);
   app.decorate("config", config);
+
+  // Optional read-only Kysely client for the Scout feature. Built from
+  // SCOUT_DB_URL (a libpq URL using the `scout_readonly` Postgres role created
+  // by migration 2026-05-03). Null when unset — Scout routes guard on this.
+  const dbReadonly = config.SCOUT_DB_URL
+    ? createDbClient(config.SCOUT_DB_URL).client
+    : null;
+  app.decorate("dbReadonly", dbReadonly);
+  if (dbReadonly) {
+    app.addHook("onClose", async () => {
+      await dbReadonly.destroy();
+    });
+  }
 
   // Create and decorate the email sender
   const send = createSend({
