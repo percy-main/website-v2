@@ -1,6 +1,106 @@
 import type { UIMessage } from "@ai-sdk/react";
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+const REMARK_PLUGINS = [remarkGfm];
+
+// Tailwind doesn't ship a typography plugin in this project, so we restyle
+// the elements react-markdown emits ourselves. Tables get the heaviest
+// treatment because Scout uses them constantly.
+const markdownComponents: Components = {
+  table: ({ children, ...rest }) => (
+    <div className="my-3 overflow-x-auto">
+      <table className="min-w-full border-collapse text-sm" {...rest}>
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children, ...rest }) => (
+    <thead className="border-b border-gray-300 bg-gray-50" {...rest}>
+      {children}
+    </thead>
+  ),
+  th: ({ children, ...rest }) => (
+    <th
+      className="border border-gray-200 px-2 py-1 text-left font-medium text-gray-700"
+      {...rest}
+    >
+      {children}
+    </th>
+  ),
+  td: ({ children, ...rest }) => (
+    <td className="border border-gray-200 px-2 py-1 align-top" {...rest}>
+      {children}
+    </td>
+  ),
+  tr: ({ children, ...rest }) => (
+    <tr className="even:bg-gray-50" {...rest}>
+      {children}
+    </tr>
+  ),
+  ul: ({ children, ...rest }) => (
+    <ul className="my-2 list-disc pl-5" {...rest}>
+      {children}
+    </ul>
+  ),
+  ol: ({ children, ...rest }) => (
+    <ol className="my-2 list-decimal pl-5" {...rest}>
+      {children}
+    </ol>
+  ),
+  li: ({ children, ...rest }) => (
+    <li className="my-0.5" {...rest}>
+      {children}
+    </li>
+  ),
+  p: ({ children, ...rest }) => (
+    <p className="my-2 first:mt-0 last:mb-0" {...rest}>
+      {children}
+    </p>
+  ),
+  h1: ({ children, ...rest }) => (
+    <h1 className="my-2 text-base font-semibold" {...rest}>
+      {children}
+    </h1>
+  ),
+  h2: ({ children, ...rest }) => (
+    <h2 className="my-2 text-sm font-semibold" {...rest}>
+      {children}
+    </h2>
+  ),
+  h3: ({ children, ...rest }) => (
+    <h3 className="my-2 text-sm font-semibold" {...rest}>
+      {children}
+    </h3>
+  ),
+  code: ({ children, ...rest }) => (
+    <code
+      className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.85em]"
+      {...rest}
+    >
+      {children}
+    </code>
+  ),
+  pre: ({ children, ...rest }) => (
+    <pre
+      className="my-2 overflow-x-auto rounded bg-gray-100 p-2 text-xs"
+      {...rest}
+    >
+      {children}
+    </pre>
+  ),
+  a: ({ children, ...rest }) => (
+    <a
+      className="text-blue-700 underline hover:text-blue-900"
+      target="_blank"
+      rel="noopener noreferrer"
+      {...rest}
+    >
+      {children}
+    </a>
+  ),
+};
 
 interface MessageViewProps {
   message: UIMessage;
@@ -34,8 +134,13 @@ type Part = UIMessage["parts"][number];
 function PartView({ part }: { part: Part }) {
   if (part.type === "text") {
     return (
-      <div className="prose prose-sm max-w-none">
-        <ReactMarkdown>{part.text}</ReactMarkdown>
+      <div className="text-sm leading-relaxed text-gray-900">
+        <ReactMarkdown
+          remarkPlugins={REMARK_PLUGINS}
+          components={markdownComponents}
+        >
+          {part.text}
+        </ReactMarkdown>
       </div>
     );
   }

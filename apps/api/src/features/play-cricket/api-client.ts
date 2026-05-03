@@ -80,6 +80,21 @@ export function createApiClient(config: PlayCricketApiConfig) {
         division_id: divisionId,
       });
     },
+
+    /**
+     * Fetch matches involving a specific club (any team, home or away). Used
+     * by Scout to scout opposition that Percy Main hasn't necessarily played
+     * — every match summary row from /matches.json carries home_club_id /
+     * away_club_id, so the agent can pick a club_id from a previous result
+     * and pivot to that club's full fixture list.
+     */
+    async getMatchesForClub(clubId: string, season: number) {
+      const json = await fetchPlayCricket(config, "/matches.json", {
+        club_id: clubId,
+        season: String(season),
+      });
+      return GetMatchSummaryResponse.parse(json);
+    },
   };
 }
 

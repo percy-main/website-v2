@@ -14,16 +14,6 @@ export function createPlayCricketTools(deps: PlayCricketToolDeps) {
   const { playCricket, cache } = deps;
 
   return {
-    pc_list_teams: tool({
-      description:
-        "List all Percy Main CC teams configured in Play Cricket (1st XI, 2nd XI, etc). Use this to discover team IDs before fetching matches or league tables.",
-      inputSchema: z.object({}),
-      execute: async () =>
-        cache.getOrSet("pc_list_teams", {}, 24 * HOUR, () =>
-          playCricket.getTeams(),
-        ),
-    }),
-
     pc_list_players: tool({
       description:
         "List all players associated with Percy Main CC in Play Cricket. Returns names and play_cricket_ids — use these to look up local member records.",
@@ -81,9 +71,32 @@ export function createPlayCricketTools(deps: PlayCricketToolDeps) {
         ),
     }),
 
+    pc_club_matches: tool({
+      description: `Fetch the full season's fixtures for ANY Play Cricket club, not just Percy Main — both home and away matches against every opponent. This is the right tool for scouting an opposition: it returns matches that opposition has played against everyone (not only against us).
+
+Workflow:
+  1. Call pc_match_summary(season) and find a recent match where Percy Main played the opposition.
+  2. Read home_club_id / away_club_id off that match — whichever isn't Percy Main is the opposition's club_id.
+  3. Call pc_club_matches(clubId, season) to see their full season.
+  4. Use pc_match_detail on individual matchIds for scorecards.
+
+Returns the same MatchSummary shape as pc_match_summary.`,
+      inputSchema: z.object({
+        clubId: z
+          .string()
+          .describe(
+            "Play Cricket club id (NOT site_id, NOT team_id). Find via home_club_id/away_club_id in match summary rows.",
+          ),
+        season: z.number().int(),
+      }),
+      execute: async ({ clubId, season }) =>
+        cache.getOrSet("pc_club_matches", { clubId, season }, 6 * HOUR, () =>
+          playCricket.getMatchesForClub(clubId, season),
+        ),
+    }),
+
     pc_find_opposition_matches: tool({
-      description:
-        "Find matches an opposition team has played in a season — fans out to fetch the season summary, filters matches involving the named team, then pulls full scorecards. Use to scout an upcoming opponent's recent batters and bowlers in one call.",
+      description: `Find matches the named opposition team has played against Percy Main in a given season — filters Percy Main's match summary by name, then pulls full scorecards. NOTE: this only sees matches involving Percy Main. To scout an opposition's matches against OTHER clubs, use pc_club_matches instead (look up their club_id from any of our matches against them, then fetch their full season).`,
       inputSchema: z.object({
         oppositionName: z
           .string()

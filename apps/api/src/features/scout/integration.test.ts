@@ -301,11 +301,11 @@ describe("Play Cricket tools (with stub client)", () => {
     const cache = createScoutCache(ctx.db);
     let calls = 0;
     const playCricket = {
-      getTeams: async () => {
+      getTeams: async () => ({ teams: [] }),
+      getPlayers: async () => {
         calls++;
-        return { teams: [{ id: "1", name: "Percy Main 1st XI" }] };
+        return { players: [{ member_id: 1, name: "Test Player" }] };
       },
-      getPlayers: async () => ({ players: [] }),
       getMatchDetail: async () => ({}),
       getMatchesSummary: async () => ({ matches: [] }),
       getLeagueTable: async () => ({ league_table: [] }),
@@ -313,8 +313,8 @@ describe("Play Cricket tools (with stub client)", () => {
 
     const tools = createPlayCricketTools({ playCricket, cache });
 
-    const a = await tools.pc_list_teams.execute!({}, opts);
-    const b = await tools.pc_list_teams.execute!({}, opts);
+    const a = await tools.pc_list_players.execute!({}, opts);
+    const b = await tools.pc_list_players.execute!({}, opts);
 
     expect(a).toEqual(b);
     expect(calls).toBe(1);

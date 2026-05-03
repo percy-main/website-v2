@@ -39,9 +39,14 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   });
   const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
 
+  // Anchor "today" so the model doesn't fall back to its training cutoff
+  // when picking a default season. Resolved per-request, not at module load.
+  const today = new Date();
+  const todayLine = `Today is ${today.toISOString().slice(0, 10)} (${today.getFullYear()} season). When the user asks about "this season" or doesn't specify a year, use ${today.getFullYear()}.`;
+
   return {
     model: anthropic(deps.config.SCOUT_MODEL_CHAT),
-    system: SCOUT_SYSTEM_PROMPT,
+    system: `${SCOUT_SYSTEM_PROMPT}\n\n${todayLine}`,
     tools: { ...playCricketTools, ...dbTools },
     maxSteps: deps.config.SCOUT_MAX_STEPS,
   };
