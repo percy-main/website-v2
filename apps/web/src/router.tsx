@@ -197,6 +197,17 @@ export const router = createBrowserRouter([
                 path: "matchday",
                 lazy: () => import("./pages/matchday/matchday-hub.js"),
               },
+              // Scout — alex-only AI cricket analyst (server-side allowlist
+              // enforced; route is mounted for everyone but returns 403 from
+              // the API for non-allowlisted users).
+              {
+                path: "scout",
+                lazy: () => import("./pages/scout/scout.js"),
+              },
+              {
+                path: "scout/:threadId",
+                lazy: () => import("./pages/scout/scout.js"),
+              },
             ],
           },
         ],
