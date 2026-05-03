@@ -236,13 +236,16 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       // the stream is built.
       const modelMessages = await convertToModelMessages(incoming);
 
-      // Token usage is captured inside execute() and read back in onFinish.
-      // We can't await result.usage from outside because `result` is local to
-      // the stream's execute closure.
+      // Token usage and Anthropic cache-control metadata are captured inside
+      // execute() and read back in onFinish. We can't await result.usage /
+      // result.providerMetadata from outside because `result` is local to the
+      // stream's execute closure.
       let usagePromise:
         | Promise<{
             inputTokens?: number;
             outputTokens?: number;
+            cacheRead?: number;
+            cacheCreation?: number;
           }>
         | undefined;
 
@@ -255,11 +258,39 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             await append(threadId, "assistant", responseMessage.parts, {
               input: usage.inputTokens,
               output: usage.outputTokens,
+              cacheRead: usage.cacheRead,
+              cacheCreation: usage.cacheCreation,
             });
             await bump(threadId);
             // Best-effort: rename the thread if it still has the
             // placeholder title. Failures don't break the chat turn.
             await generateTitle(threadId, firstUserText);
+
+            // Per-turn structured line for cost analysis. cacheRead /
+            // cacheCreation come from result.providerMetadata.anthropic;
+            // null/undefined means the Anthropic provider didn't report them
+            // this turn (tool-only step, or non-Anthropic model).
+            // cacheReadRatio answers "how much of the input was served from
+            // cache" — the headline number for whether prompt caching is
+            // firing across the multi-step agent loop.
+            const inputTokens = usage.inputTokens ?? 0;
+            const cacheRead = usage.cacheRead;
+            const cacheReadRatio =
+              inputTokens > 0 && cacheRead != null
+                ? Number((cacheRead / (inputTokens + cacheRead)).toFixed(3))
+                : null;
+            app.log.info(
+              {
+                event: "scout.turn",
+                threadId,
+                inputTokens,
+                outputTokens: usage.outputTokens ?? 0,
+                cacheReadTokens: cacheRead ?? 0,
+                cacheCreationTokens: usage.cacheCreation ?? 0,
+                cacheReadRatio,
+              },
+              "scout turn complete",
+            );
           } catch (err) {
             app.log.error(
               { err, threadId },
@@ -275,6 +306,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             playCricket,
             config: app.config,
             writer,
+            logger: app.log,
           });
 
           const result = streamText({
@@ -283,6 +315,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             tools: agent.tools,
             messages: modelMessages,
             stopWhen: stepCountIs(agent.maxSteps),
+            prepareStep: agent.prepareStep,
             onError: ({ error }) => {
               app.log.error(
                 { err: sanitizeError(error) },
@@ -290,10 +323,23 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               );
             },
           });
-          usagePromise = Promise.resolve(result.usage).then((u) => ({
-            inputTokens: u.inputTokens ?? undefined,
-            outputTokens: u.outputTokens ?? undefined,
-          }));
+          usagePromise = Promise.all([
+            result.usage,
+            result.providerMetadata,
+          ]).then(([u, providerMeta]) => {
+            const anthropicMeta = providerMeta?.anthropic as
+              | {
+                  cacheCreationInputTokens?: number;
+                  cacheReadInputTokens?: number;
+                }
+              | undefined;
+            return {
+              inputTokens: u.inputTokens ?? undefined,
+              outputTokens: u.outputTokens ?? undefined,
+              cacheRead: anthropicMeta?.cacheReadInputTokens,
+              cacheCreation: anthropicMeta?.cacheCreationInputTokens,
+            };
+          });
 
           // sendStart: false because createUIMessageStream emits its own start
           // chunk; merging streamText's would duplicate.

@@ -135,7 +135,10 @@ Rules:
 - Query must start with SELECT or WITH. INSERT/UPDATE/DELETE/DDL are rejected (and the role lacks the grants anyway).
 - Results are capped at ${ROW_CAP} rows; the response includes a "truncated" flag if the cap was hit.
 - Statement timeout is ${STATEMENT_TIMEOUT_SECONDS}s — long-running queries are rolled back.
-- Schema is PostgreSQL/public. Use db_list_tables for an overview first.`,
+- Schema is PostgreSQL/public. Use db_list_tables for an overview first.
+
+CRITICAL — match_date is text, not date:
+\`match_date\` columns (on match_performance_*, match_result, play_cricket_match_cache, etc.) are stored as text in dd/mm/yyyy format because that's how Play Cricket returns them. Lexicographic ordering is WRONG: "31/08/2013" sorts AFTER "07/06/2025". Always wrap in to_date(match_date, 'DD/MM/YYYY') for any ORDER BY, comparison, or BETWEEN. Example: ORDER BY to_date(match_date, 'DD/MM/YYYY') DESC.`,
       inputSchema: z.object({
         query: z.string().describe("A single SELECT or WITH statement."),
       }),

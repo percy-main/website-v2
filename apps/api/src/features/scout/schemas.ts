@@ -44,6 +44,8 @@ export const getThreadResponseSchema = z.object({
   usage: z.object({
     inputTokens: z.number().int().nonnegative(),
     outputTokens: z.number().int().nonnegative(),
+    cacheReadTokens: z.number().int().nonnegative(),
+    cacheCreationTokens: z.number().int().nonnegative(),
   }),
 });
 

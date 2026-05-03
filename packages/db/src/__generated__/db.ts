@@ -618,6 +618,8 @@ export interface ScoutMessage {
   parts: Json;
   role: string;
   thread_id: string;
+  token_cache_creation: number | null;
+  token_cache_read: number | null;
   token_input: number | null;
   token_output: number | null;
 }
