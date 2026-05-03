@@ -3,6 +3,7 @@ import {
   createVoyageClient,
   fromVectorLiteral,
   toVectorLiteral,
+  VoyageError,
 } from "./voyage.ts";
 
 // `vi.fn(async () => ...)` infers Mock<[], Promise<Response>>, which makes
@@ -116,13 +117,32 @@ describe("voyage client", () => {
     });
   });
 
-  it("surfaces non-2xx responses with status + body in the error message", async () => {
+  it("throws a sanitised VoyageError on non-2xx; raw provider body stays on .detail (not in .message)", async () => {
+    // Voyage's 429 body includes billing copy + dashboard URLs we must
+    // not surface to the model or user. The exposed Error.message is a
+    // short vendor-neutral phrase; the raw body is preserved on .detail
+    // for server-side logs only.
+    const billingCopy =
+      '{"detail":"You have not yet added your payment method ... https://dashboard.voyageai.com/"}';
     const fetchImpl = mockFetch(() =>
-      Promise.resolve(new Response("rate limited", { status: 429 })),
+      Promise.resolve(new Response(billingCopy, { status: 429 })),
     );
     const client = createVoyageClient({ apiKey: "k", fetchImpl });
 
-    await expect(client.embed("hi", "query")).rejects.toThrow(/HTTP 429/);
+    let caught: unknown;
+    try {
+      await client.embed("hi", "query");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(VoyageError);
+    const e = caught as VoyageError;
+    expect(e.status).toBe(429);
+    expect(e.endpoint).toBe("embed");
+    expect(e.message).not.toContain("dashboard.voyageai.com");
+    expect(e.message).not.toContain("payment method");
+    expect(e.message).toMatch(/rate-limited/i);
+    expect(e.detail).toContain("dashboard.voyageai.com");
   });
 
   it("short-circuits empty inputs without hitting the wire", async () => {

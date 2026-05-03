@@ -277,7 +277,9 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         } catch (err) {
           // Fact retrieval failure must not break the chat turn. Log and
           // proceed with no injected facts — the agent still has its
-          // tools to recover.
+          // tools to recover. Voyage errors carry structured detail
+          // (status, endpoint, raw body) on the error itself; pino picks
+          // them up automatically from the err field.
           app.log.error(
             { err, threadId },
             "scout: auto-retrieval failed; continuing without fact injection",

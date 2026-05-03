@@ -43,6 +43,7 @@ export function FactsAdminButton({ className }: FactsAdminButtonProps) {
   return (
     <>
       <Button
+        size="sm"
         variant="outline"
         className={className}
         onClick={() => setOpen(true)}

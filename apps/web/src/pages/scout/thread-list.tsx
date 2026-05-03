@@ -66,8 +66,13 @@ export function ThreadList() {
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-gray-50">
-      <div className="flex gap-2 border-b border-gray-200 p-3">
+      {/* h-12 matches ChatView's header (also h-12). Same fixed height
+          on both sides keeps the border-bottom divider continuous across
+          the sidebar/main split, regardless of the natural size of the
+          contents on either side. */}
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-gray-200 px-3">
         <Button
+          size="sm"
           className="flex-1"
           onClick={() => createMutation.mutate()}
           disabled={createMutation.isPending}

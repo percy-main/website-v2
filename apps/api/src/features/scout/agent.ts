@@ -78,6 +78,9 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
         // Same writer the chart tool uses — cite_fact emits
         // data-fact-citation parts inline with assistant prose.
         writer: deps.writer,
+        // Used to log raw Voyage error bodies server-side without
+        // surfacing them to the model.
+        logger: deps.logger,
       })
     : {};
 

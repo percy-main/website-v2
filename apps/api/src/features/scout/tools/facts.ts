@@ -1,5 +1,6 @@
 import type { DB } from "@percy-main/db";
 import { tool, type UIMessageStreamWriter } from "ai";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -10,7 +11,37 @@ import {
   retrieveFacts,
   type RetrievedFact,
 } from "../facts/service.ts";
-import type { VoyageClient } from "../facts/voyage.ts";
+import { VoyageError, type VoyageClient } from "../facts/voyage.ts";
+
+/**
+ * Wrap a fact-tool execute body so VoyageErrors degrade into a sanitised
+ * tool result instead of bubbling up. The raw provider response (which
+ * contains billing copy, dashboard URLs, account hints) is logged for
+ * the operator but never reaches the model or the user.
+ */
+async function withVoyageGuard<T>(
+  logger: FastifyBaseLogger | undefined,
+  toolName: string,
+  fn: () => Promise<T>,
+): Promise<T | { recorded: false; error: string }> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof VoyageError) {
+      logger?.error(
+        {
+          tool: toolName,
+          status: err.status,
+          endpoint: err.endpoint,
+          detail: err.detail,
+        },
+        "scout fact tool: voyage call failed",
+      );
+      return { recorded: false as const, error: err.message };
+    }
+    throw err;
+  }
+}
 
 /**
  * Scout's fact-RAG tools. Bound to the user_id of the caller so the
@@ -42,10 +73,16 @@ export interface FactToolDeps {
    * tests don't need to wire one.
    */
   writer?: UIMessageStreamWriter;
+  /**
+   * Optional — used to log raw Voyage error bodies server-side. Tool
+   * results stay sanitised regardless; this just controls whether the
+   * raw `detail` lands in pino for operator triage.
+   */
+  logger?: FastifyBaseLogger;
 }
 
 export function createFactTools(deps: FactToolDeps) {
-  const { db, voyage, userId, threadId, writer } = deps;
+  const { db, voyage, userId, threadId, writer, logger } = deps;
   const record = recordFact(db, voyage);
   const retrieve = retrieveFacts(db, voyage);
 
@@ -103,22 +140,23 @@ Confidence is 1–5: 5 = stated outright by the user as fact; 3 = reasonably sol
             "Self-assessed confidence, 1 (guess) to 5 (verbatim user fact).",
           ),
       }),
-      execute: async ({ content, tags, scope, confidence }) => {
-        const result = await record({
-          userId,
-          scope,
-          content,
-          tags,
-          confidence,
-          sourceThreadId: threadId,
-        });
-        return {
-          recorded: true as const,
-          id: result.id,
-          action: result.action,
-          supersededId: result.supersededId,
-        };
-      },
+      execute: ({ content, tags, scope, confidence }) =>
+        withVoyageGuard(logger, "fact_record", async () => {
+          const result = await record({
+            userId,
+            scope,
+            content,
+            tags,
+            confidence,
+            sourceThreadId: threadId,
+          });
+          return {
+            recorded: true as const,
+            id: result.id,
+            action: result.action,
+            supersededId: result.supersededId,
+          };
+        }),
     }),
 
     cite_fact: tool({
@@ -224,14 +262,15 @@ Useful when:
           .default(8)
           .describe("Max number of facts to return (default 8)."),
       }),
-      execute: async ({ query, tags, limit }) => {
-        const facts = await retrieve({ userId, query, tags, topK: limit });
-        return {
-          query,
-          count: facts.length,
-          facts: facts.map(serialiseFact),
-        };
-      },
+      execute: ({ query, tags, limit }) =>
+        withVoyageGuard(logger, "fact_retrieve", async () => {
+          const facts = await retrieve({ userId, query, tags, topK: limit });
+          return {
+            query,
+            count: facts.length,
+            facts: facts.map(serialiseFact),
+          };
+        }),
     }),
   };
 }

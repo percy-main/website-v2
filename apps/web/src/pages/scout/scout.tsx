@@ -134,8 +134,8 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
 
   return (
     <>
-      <header className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
-        <h2 className="truncate text-sm font-medium text-gray-700">
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-4">
+        <h2 className="my-0 truncate text-sm font-medium text-gray-700">
           {loaded.thread.title}
         </h2>
         <span className="text-xs text-gray-400">
