@@ -493,8 +493,8 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   );
 
   // ── Fact admin ──
-  // Allowlist-gated CRUD over the scout_fact corpus. Lets the admin
-  // review agent-recorded knowledge and prune bad facts before they
+  // Role-gated CRUD over the scout_fact corpus (admin/official). Lets
+  // them review agent-recorded knowledge and prune bad facts before they
   // compound. Edits to `content` re-embed via Voyage; edits to scope/
   // tags/confidence don't (no semantic change).
   const list_ = listFacts(app.db);

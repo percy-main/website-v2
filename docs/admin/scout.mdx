@@ -19,9 +19,9 @@ Each conversation is persisted as a thread so you can come back to the same scou
 
 ## Who can use it
 
-Scout is **gated to a hard-coded email allowlist** — set per environment via `SCOUT_ALLOWED_EMAILS`. Right now that's just the tech lead's address while we evaluate cost and quality. The Scout link in the members area is hidden for everyone else, and the API returns `403` to anyone not on the list, regardless of role.
+Scout is **gated to the `admin` and `official` roles**. The Scout link in the members area is hidden for everyone else, and the API returns `403` to anyone without one of those roles.
 
-To widen access, ask the tech lead to add an email to the `SCOUT_ALLOWED_EMAILS` value in AWS Secrets Manager and redeploy the API.
+To widen access to a specific user, give them the `admin` or `official` role in the admin panel — no redeploy required.
 
 ## What it can do well
 
