@@ -1,7 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
+import { format, parseISO } from "date-fns";
 import { useState } from "react";
+
+function formatMatchDate(iso: string): string {
+  const d = parseISO(iso);
+  return isNaN(d.getTime()) ? iso : format(d, "dd/MM/yyyy");
+}
 
 interface DebriefLauncherProps {
   /** Send a user message into the chat. The launcher hands the agent a
@@ -65,7 +71,7 @@ export function DebriefLauncher({ onLaunch }: DebriefLauncherProps) {
                   submit(
                     `Debriefing match ${m.id} — ${m.ourTeam} ${
                       m.homeAway === "home" ? "vs" : "at"
-                    } ${m.opposition} on ${m.matchDate}.`,
+                    } ${m.opposition} on ${formatMatchDate(m.matchDate)}.`,
                   )
                 }
                 className="block w-full rounded border border-amber-200 bg-white px-3 py-2 text-left text-sm text-gray-900 shadow-sm hover:border-amber-400 hover:bg-amber-100"
@@ -79,7 +85,7 @@ export function DebriefLauncher({ onLaunch }: DebriefLauncherProps) {
                     {m.opposition}
                   </span>
                   <span className="shrink-0 text-xs text-gray-500">
-                    {m.matchDate}
+                    {formatMatchDate(m.matchDate)}
                   </span>
                 </div>
                 {m.result && (

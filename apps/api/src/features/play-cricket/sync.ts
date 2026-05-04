@@ -237,6 +237,7 @@ async function storeBattingPerformances(
       .onConflict((oc) =>
         oc.columns(["match_id", "player_id"]).doUpdateSet({
           player_name: bat.batsman_name,
+          match_date: matchDate,
           runs: parseInt(bat.runs) || 0,
           balls: parseInt(bat.balls) || 0,
           fours: parseInt(bat.fours) || 0,
@@ -289,6 +290,7 @@ async function storeBowlingPerformances(
       .onConflict((oc) =>
         oc.columns(["match_id", "player_id"]).doUpdateSet({
           player_name: bowl.bowler_name,
+          match_date: matchDate,
           overs: bowl.overs,
           maidens: parseInt(bowl.maidens) || 0,
           runs: parseInt(bowl.runs) || 0,
@@ -330,6 +332,7 @@ async function storeFieldingPerformances(
       .onConflict((oc) =>
         oc.columns(["match_id", "player_id"]).doUpdateSet({
           player_name: agg.playerName,
+          match_date: matchDate,
           catches: agg.catches,
           run_outs: agg.runOuts,
           stumpings: agg.stumpings,
@@ -404,6 +407,10 @@ async function syncMatches(
         parseInt(mm) - 1,
         parseInt(dd),
       );
+      // Store as ISO YYYY-MM-DD so it sorts and compares correctly as text.
+      // The Play Cricket API emits DD/MM/YYYY which we don't keep on disk —
+      // every consumer downstream wants ISO.
+      const matchDateIso = `${yyyy}-${mm}-${dd}`;
 
       // Skip already-processed matches only when they're past the resync
       // window. Inside the window, re-fetch — all writes are idempotent
@@ -472,7 +479,7 @@ async function syncMatches(
             matchId,
             battingTeamId,
             match.competition_type ?? "",
-            match.match_date,
+            matchDateIso,
             season,
           );
         }
@@ -484,7 +491,7 @@ async function syncMatches(
             matchId,
             fieldingTeamId,
             match.competition_type ?? "",
-            match.match_date,
+            matchDateIso,
             season,
           );
 
@@ -498,7 +505,7 @@ async function syncMatches(
             matchId,
             fieldingTeamId,
             match.competition_type ?? "",
-            match.match_date,
+            matchDateIso,
             season,
           );
         }
@@ -523,7 +530,7 @@ async function syncMatches(
             result_description: detail.result_description ?? "",
             result_applied_to: detail.result_applied_to ?? "",
             competition_type: match.competition_type ?? "",
-            match_date: match.match_date,
+            match_date: matchDateIso,
             season,
           })
           .onConflict((oc) =>
@@ -531,6 +538,7 @@ async function syncMatches(
               result: matchResult,
               result_description: detail.result_description ?? "",
               result_applied_to: detail.result_applied_to ?? "",
+              match_date: matchDateIso,
             }),
           )
           .execute();

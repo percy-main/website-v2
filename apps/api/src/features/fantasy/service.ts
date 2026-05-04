@@ -787,21 +787,7 @@ async function getOwnershipData(
  * Used as a fallback when fantasy_player_score has no data (e.g. pre-season).
  * Matches v1's calculateSeasonPoints().
  */
-/**
- * Parse a match date string into a Date for gameweek filtering.
- * Handles DD/MM/YYYY (Play-Cricket sync format) and YYYY-MM-DD (ISO).
- */
 function parseMatchDateForFilter(dateStr: string): Date | null {
-  if (dateStr.includes("/")) {
-    const [dd, mm, yyyy] = dateStr.split("/");
-    return new Date(
-      Date.UTC(
-        parseInt(yyyy ?? "0"),
-        parseInt(mm ?? "1") - 1,
-        parseInt(dd ?? "1"),
-      ),
-    );
-  }
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? null : d;
 }

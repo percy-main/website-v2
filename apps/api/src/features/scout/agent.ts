@@ -175,9 +175,13 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
     year: "numeric",
   });
 
-  const todayLine = `Today is ${dayName} ${iso} (${ddmmyyyy} in dd/mm/yyyy, the format Play Cricket uses). The current season is ${today.getFullYear()}; default to it when the user doesn't specify a year.
+  const todayLine = `Today is ${dayName} ${iso}. The current season is ${today.getFullYear()}; default to it when the user doesn't specify a year.
 
-When asked about the "next" or "upcoming" match, filter match_date strictly GREATER THAN ${ddmmyyyy} — anything on or before today has already been played (or is being played now). Don't trust your gut on what day-of-week a date falls on; always compare against the iso date above.`;
+Date formats are split between sources:
+- The Play Cricket *API* (pc_* tools) emits dd/mm/yyyy — today is ${ddmmyyyy} in that format. Compare API match_date against ${ddmmyyyy} (string compare won't sort correctly across years/months, so for the API tools, just use exact-match or pass the value through unchanged).
+- Our *database* (db_run_sql, ask-db, debrief queries) stores match_date as ISO ${iso}-style. Lex order = chronological order; compare and order on the plain text.
+
+When asked about the "next" or "upcoming" match via the database, filter match_date > '${iso}' — anything on or before today has already been played (or is being played now). Don't trust your gut on what day-of-week a date falls on; always compare against the iso date above.`;
 
   const basePrompt =
     deps.mode === "debrief" ? SCOUT_DEBRIEF_SYSTEM_PROMPT : SCOUT_SYSTEM_PROMPT;

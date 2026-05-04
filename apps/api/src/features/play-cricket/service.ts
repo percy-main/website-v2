@@ -25,7 +25,19 @@ export function getMatchDetail(db: Kysely<DB>) {
 
     if (data === undefined) {
       data = await apiClient.getMatchDetail(matchId);
-      const dataRecord = data as Record<string, unknown>;
+
+      // The date lives on match_details[0] in the API response, not the
+      // top level. Normalise DD/MM/YYYY (Play Cricket's wire format) to
+      // ISO so this column matches the rest of our schema.
+      const detail = (
+        data as { match_details?: Array<{ match_date?: unknown }> }
+      ).match_details?.[0];
+      const rawDate =
+        typeof detail?.match_date === "string" ? detail.match_date : null;
+      const matchDateIso =
+        rawDate && /^\d{2}\/\d{2}\/\d{4}$/.test(rawDate)
+          ? `${rawDate.slice(6, 10)}-${rawDate.slice(3, 5)}-${rawDate.slice(0, 2)}`
+          : (rawDate ?? new Date().toISOString().split("T")[0]);
 
       // Upsert cache with raw Play Cricket response — enrichment happens
       // after this so member slug changes are picked up on the next read.
@@ -34,6 +46,7 @@ export function getMatchDetail(db: Kysely<DB>) {
           .updateTable("play_cricket_match_cache")
           .set({
             data: JSON.stringify(data),
+            match_date: matchDateIso,
             fetched_at: new Date().toISOString(),
           })
           .where("match_id", "=", matchId)
@@ -44,10 +57,7 @@ export function getMatchDetail(db: Kysely<DB>) {
           .values({
             match_id: matchId,
             data: JSON.stringify(data),
-            match_date:
-              (typeof dataRecord.match_date === "string"
-                ? dataRecord.match_date
-                : null) ?? new Date().toISOString().split("T")[0],
+            match_date: matchDateIso,
             fetched_at: new Date().toISOString(),
           })
           .execute();
