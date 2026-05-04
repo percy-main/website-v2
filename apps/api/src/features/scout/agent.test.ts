@@ -11,7 +11,7 @@ import { createScoutAgent } from "./agent.ts";
 // this regresses, every multi-step Scout turn pays full input rate again
 // for the accumulated tool results — the exact bug we shipped this for.
 
-function makeAgent() {
+function makeAgent(mode: "scouting" | "debrief" = "scouting") {
   // The agent only reaches its DB / writer during tool invocation; for
   // prepareStep tests we never invoke a tool, so empty stubs are safe.
   const stubDb = {} as Kysely<DB>;
@@ -29,6 +29,7 @@ function makeAgent() {
     config: stubConfig,
     writer: stubWriter,
     userId: "test-user",
+    mode,
   });
 }
 
@@ -87,5 +88,22 @@ describe("agent.prepareStep — cache-control breakpoint", () => {
     const agent = makeAgent();
     const { messages: out } = agent.prepareStep({ messages: [] });
     expect(out).toEqual([]);
+  });
+});
+
+describe("agent — mode-driven prompt + tool surface", () => {
+  it("uses the scouting prompt and registers chart_render but not ask_question", () => {
+    const agent = makeAgent("scouting");
+    expect(agent.system).toContain("ALWAYS try to answer from the local DB");
+    expect(agent.system).not.toContain("running a post-match DEBRIEF");
+    expect(agent.tools.chart_render).toBeDefined();
+    expect(agent.tools.ask_question).toBeUndefined();
+  });
+
+  it("uses the debrief prompt and registers ask_question but not chart_render", () => {
+    const agent = makeAgent("debrief");
+    expect(agent.system).toContain("running a post-match DEBRIEF");
+    expect(agent.tools.ask_question).toBeDefined();
+    expect(agent.tools.chart_render).toBeUndefined();
   });
 });

@@ -13,9 +13,12 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { FactsAdminButton } from "./facts-admin.js";
 
+type ScoutMode = "scouting" | "debrief";
+
 interface ThreadSummary {
   id: string;
   title: string;
+  mode: ScoutMode;
   updatedAt: string;
 }
 
@@ -34,10 +37,13 @@ export function ThreadList() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (mode: ScoutMode) =>
       callApi(
         api.POST("/api/scout/threads", {
-          body: { title: "New thread" },
+          body: {
+            title: mode === "debrief" ? "Match debrief" : "New thread",
+            mode,
+          },
         }),
       ),
     onSuccess: async (thread) => {
@@ -74,10 +80,20 @@ export function ThreadList() {
         <Button
           size="sm"
           className="flex-1"
-          onClick={() => createMutation.mutate()}
+          onClick={() => createMutation.mutate("scouting")}
           disabled={createMutation.isPending}
+          title="Free-form scouting chat"
         >
-          {createMutation.isPending ? "Creating…" : "New thread"}
+          {createMutation.isPending ? "Creating…" : "New scout"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => createMutation.mutate("debrief")}
+          disabled={createMutation.isPending}
+          title="Guided post-match debrief"
+        >
+          Debrief
         </Button>
         <FactsAdminButton />
       </div>
@@ -110,7 +126,14 @@ export function ThreadList() {
                       : "text-gray-700"
                   }`}
                 >
-                  <div className="truncate">{t.title}</div>
+                  <div className="flex items-center gap-1.5">
+                    {t.mode === "debrief" && (
+                      <span className="rounded bg-amber-100 px-1 py-0.5 text-[9px] font-semibold tracking-wide text-amber-800 uppercase">
+                        Debrief
+                      </span>
+                    )}
+                    <span className="truncate">{t.title}</span>
+                  </div>
                   <div className="truncate text-xs text-gray-400">
                     {new Date(t.updatedAt).toLocaleString()}
                   </div>

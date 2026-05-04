@@ -8866,6 +8866,8 @@ export interface paths {
                                 /** Format: uuid */
                                 id: string;
                                 title: string;
+                                /** @enum {string} */
+                                mode: "scouting" | "debrief";
                                 /** Format: date-time */
                                 createdAt: string;
                                 /** Format: date-time */
@@ -8889,6 +8891,11 @@ export interface paths {
                     "application/json": {
                         /** @default New thread */
                         title?: string;
+                        /**
+                         * @default scouting
+                         * @enum {string}
+                         */
+                        mode?: "scouting" | "debrief";
                     };
                 };
             };
@@ -8903,6 +8910,8 @@ export interface paths {
                             /** Format: uuid */
                             id: string;
                             title: string;
+                            /** @enum {string} */
+                            mode: "scouting" | "debrief";
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -8912,6 +8921,52 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scout/debrief/recent-matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            matches: {
+                                id: string;
+                                /** Format: date */
+                                matchDate: string;
+                                opposition: string;
+                                /** @enum {string} */
+                                homeAway: "home" | "away";
+                                ourTeam: string;
+                                result: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -8947,6 +9002,8 @@ export interface paths {
                                 /** Format: uuid */
                                 id: string;
                                 title: string;
+                                /** @enum {string} */
+                                mode: "scouting" | "debrief";
                                 /** Format: date-time */
                                 createdAt: string;
                                 /** Format: date-time */
@@ -9047,6 +9104,8 @@ export interface paths {
                                     [key: string]: string | string[];
                                 };
                                 confidence: number;
+                                /** @enum {string|null} */
+                                permanence: "permanent" | "seasonal" | "ephemeral" | null;
                                 /** Format: uuid */
                                 sourceThreadId: string | null;
                                 /** Format: uuid */
@@ -9105,6 +9164,8 @@ export interface paths {
                                 [key: string]: string | string[];
                             };
                             confidence: number;
+                            /** @enum {string|null} */
+                            permanence: "permanent" | "seasonal" | "ephemeral" | null;
                             /** Format: uuid */
                             sourceThreadId: string | null;
                             /** Format: uuid */
@@ -9166,6 +9227,8 @@ export interface paths {
                         /** @enum {string} */
                         scope?: "user" | "club";
                         confidence?: number;
+                        /** @enum {string|null} */
+                        permanence?: "permanent" | "seasonal" | "ephemeral" | null;
                     };
                 };
             };
@@ -9187,6 +9250,8 @@ export interface paths {
                                 [key: string]: string | string[];
                             };
                             confidence: number;
+                            /** @enum {string|null} */
+                            permanence: "permanent" | "seasonal" | "ephemeral" | null;
                             /** Format: uuid */
                             sourceThreadId: string | null;
                             /** Format: uuid */

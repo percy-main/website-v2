@@ -14,6 +14,7 @@ import {
   createThread,
   deleteThread,
   getThread,
+  listRecentDebriefMatches,
   listThreads,
   ThreadNotFoundError,
 } from "./service.ts";
@@ -296,8 +297,134 @@ describe("scout thread service (integration)", () => {
       ThreadNotFoundError,
     );
 
-    // Alice can still access her own
-    await expect(assertOwned(alice, aliceThread.id)).resolves.toBeUndefined();
+    // Alice can still access her own — assertThreadOwnership returns the
+    // mode so the streaming route can pick the right system prompt.
+    await expect(assertOwned(alice, aliceThread.id)).resolves.toEqual({
+      mode: "scouting",
+    });
+  });
+
+  it("persists mode on thread creation and surfaces it via list / get / assertOwnership", async () => {
+    const { userId } = await seedTestUser(ctx.db, { withMember: false });
+    const create = createThread(ctx.db);
+    const list = listThreads(ctx.db);
+    const get = getThread(ctx.db);
+    const assertOwned = assertThreadOwnership(ctx.db);
+
+    const debrief = await create(userId, "Debrief vs Mitford", "debrief");
+    const scouting = await create(userId, "Scout Tynemouth");
+
+    expect(debrief.mode).toBe("debrief");
+    expect(scouting.mode).toBe("scouting");
+
+    const threads = await list(userId);
+    expect(threads.find((t) => t.id === debrief.id)?.mode).toBe("debrief");
+    expect(threads.find((t) => t.id === scouting.id)?.mode).toBe("scouting");
+
+    const loaded = await get(userId, debrief.id);
+    expect(loaded.thread.mode).toBe("debrief");
+
+    await expect(assertOwned(userId, debrief.id)).resolves.toEqual({
+      mode: "debrief",
+    });
+  });
+});
+
+describe("listRecentDebriefMatches (integration)", () => {
+  it("returns Percy Main matches in the last 14 days, descending, with home/away derived from team-name prefix", async () => {
+    const now = new Date("2026-05-04T12:00:00Z");
+    const within = "2026-05-01"; // 3 days before now
+    const oldest = "2026-04-22"; // 12 days before now (in window)
+    const stale = "2026-04-15"; // 19 days before now (outside)
+
+    // Wipe + seed match_result rows directly. We don't need every column
+    // realistic — just enough for the listRecentDebriefMatches query +
+    // mapping to exercise its branches (home, away, oldest, stale-cutoff,
+    // non-Percy-Main row).
+    await ctx.db.deleteFrom("match_result").execute();
+    await ctx.db
+      .insertInto("match_result")
+      .values([
+        {
+          id: crypto.randomUUID(),
+          match_id: "1001",
+          match_date: within,
+          home_team_id: "h1",
+          away_team_id: "a1",
+          home_team_name: "Percy Main 1st XI",
+          away_team_name: "Mitford CC 1st XI",
+          result: "won",
+          result_description: "Won by 5 wickets",
+          result_applied_to: "h1",
+          competition_type: "League",
+          season: 2026,
+        },
+        {
+          id: crypto.randomUUID(),
+          match_id: "1002",
+          match_date: oldest,
+          home_team_id: "h2",
+          away_team_id: "a2",
+          home_team_name: "Tynemouth CC 2nd XI",
+          away_team_name: "Percy Main 2nd XI",
+          result: "lost",
+          result_description: "Lost by 30 runs",
+          result_applied_to: "h2",
+          competition_type: "League",
+          season: 2026,
+        },
+        {
+          id: crypto.randomUUID(),
+          match_id: "1003",
+          match_date: stale,
+          home_team_id: "h3",
+          away_team_id: "a3",
+          home_team_name: "Percy Main 1st XI",
+          away_team_name: "Northumberland CC",
+          result: "won",
+          result_description: "Won",
+          result_applied_to: "h3",
+          competition_type: "League",
+          season: 2026,
+        },
+        {
+          id: crypto.randomUUID(),
+          match_id: "1004",
+          match_date: within,
+          home_team_id: "h4",
+          away_team_id: "a4",
+          home_team_name: "Tynemouth CC 1st XI",
+          away_team_name: "Mitford CC 1st XI",
+          result: "won",
+          result_description: "Won by 50 runs",
+          result_applied_to: "h4",
+          competition_type: "League",
+          season: 2026,
+        },
+      ])
+      .execute();
+
+    const out = await listRecentDebriefMatches(ctx.db)(14, now);
+
+    // Two in-window Percy Main rows; the stale one and the non-Percy-Main
+    // row are excluded. Most-recent first.
+    expect(out.map((m) => m.id)).toEqual(["1001", "1002"]);
+
+    expect(out[0]).toMatchObject({
+      id: "1001",
+      matchDate: within,
+      opposition: "Mitford CC 1st XI",
+      homeAway: "home",
+      ourTeam: "Percy Main 1st XI",
+      result: "Won by 5 wickets",
+    });
+    expect(out[1]).toMatchObject({
+      id: "1002",
+      matchDate: oldest,
+      opposition: "Tynemouth CC 2nd XI",
+      homeAway: "away",
+      ourTeam: "Percy Main 2nd XI",
+    });
   });
 });
 

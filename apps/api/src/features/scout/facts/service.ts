@@ -25,6 +25,34 @@ export const factTagsSchema = z.record(
 );
 export type FactTags = z.infer<typeof factTagsSchema>;
 
+export type FactPermanence = "permanent" | "seasonal" | "ephemeral";
+
+/**
+ * Infer permanence from a fact's `topic` tag when the caller didn't set
+ * it explicitly. Conservative: anything not in the table stays NULL so
+ * the auto-retrieve "skip if known" rule won't suppress questions for
+ * facts whose shelf-life we don't know.
+ */
+const PERMANENCE_BY_TOPIC: Readonly<Record<string, FactPermanence>> = {
+  handedness: "permanent",
+  "bowling-style": "permanent",
+  position: "permanent",
+  ground: "seasonal",
+  scheduling: "seasonal",
+  rules: "seasonal",
+  kit: "seasonal",
+  weather: "ephemeral",
+  form: "ephemeral",
+  injury: "ephemeral",
+};
+
+export function inferPermanence(tags: FactTags): FactPermanence | null {
+  const raw = tags.topic;
+  const topic = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof topic !== "string") return null;
+  return PERMANENCE_BY_TOPIC[topic] ?? null;
+}
+
 // Cosine distance threshold below which a new fact is treated as a
 // near-duplicate of an existing one (i.e. we supersede instead of
 // inserting a fresh row). Empirically, voyage-4 cosine distance < 0.10
@@ -42,6 +70,13 @@ export interface RecordFactInput {
   content: string;
   tags?: FactTags;
   confidence?: number;
+  /**
+   * How long this fact stays useful. When omitted we infer from
+   * `tags.topic`; when no rule matches we leave it NULL so the agent
+   * doesn't silently skip a re-confirmation question on a fact whose
+   * decay rate we haven't classified.
+   */
+  permanence?: FactPermanence | null;
   sourceThreadId?: string;
   sourceMessageId?: string;
 }
@@ -59,6 +94,7 @@ export interface RetrievedFact {
   tags: FactTags;
   scope: FactScope;
   confidence: number;
+  permanence: FactPermanence | null;
   /** Voyage rerank score (higher = more relevant). */
   score: number;
   createdAt: Date;
@@ -76,6 +112,10 @@ export function recordFact(db: Kysely<DB>, voyage: VoyageClient) {
   return async (input: RecordFactInput): Promise<RecordedFact> => {
     const tags = input.tags ?? {};
     const confidence = input.confidence ?? 3;
+    // Explicit override (including explicit null to clear) wins; otherwise
+    // infer from tags.topic.
+    const permanence =
+      input.permanence === undefined ? inferPermanence(tags) : input.permanence;
 
     const embedding = await voyage.embed(input.content, "document");
     const vectorLiteral = toVectorLiteral(embedding);
@@ -109,8 +149,8 @@ export function recordFact(db: Kysely<DB>, voyage: VoyageClient) {
           CompiledQuery.raw(
             `INSERT INTO scout_fact
               (user_id, scope, content, tags, embedding, confidence,
-               source_thread_id, source_message_id)
-             VALUES ($1, $2, $3, $4::jsonb, $5::vector, $6, $7, $8)
+               permanence, source_thread_id, source_message_id)
+             VALUES ($1, $2, $3, $4::jsonb, $5::vector, $6, $7, $8, $9)
              RETURNING id`,
             [
               input.userId,
@@ -119,6 +159,7 @@ export function recordFact(db: Kysely<DB>, voyage: VoyageClient) {
               JSON.stringify(tags),
               vectorLiteral,
               confidence,
+              permanence,
               input.sourceThreadId ?? null,
               input.sourceMessageId ?? null,
             ],
@@ -145,8 +186,8 @@ export function recordFact(db: Kysely<DB>, voyage: VoyageClient) {
       CompiledQuery.raw(
         `INSERT INTO scout_fact
           (user_id, scope, content, tags, embedding, confidence,
-           source_thread_id, source_message_id)
-         VALUES ($1, $2, $3, $4::jsonb, $5::vector, $6, $7, $8)
+           permanence, source_thread_id, source_message_id)
+         VALUES ($1, $2, $3, $4::jsonb, $5::vector, $6, $7, $8, $9)
          RETURNING id`,
         [
           input.userId,
@@ -155,6 +196,7 @@ export function recordFact(db: Kysely<DB>, voyage: VoyageClient) {
           JSON.stringify(tags),
           vectorLiteral,
           confidence,
+          permanence,
           input.sourceThreadId ?? null,
           input.sourceMessageId ?? null,
         ],
@@ -185,7 +227,7 @@ export function retrieveFacts(db: Kysely<DB>, voyage: VoyageClient) {
     // (the row's author OR scope = club).
     const vectorRows = await db.executeQuery(
       CompiledQuery.raw(
-        `SELECT id, content, tags, scope, confidence, created_at
+        `SELECT id, content, tags, scope, confidence, permanence, created_at
          FROM scout_fact
          WHERE superseded_by IS NULL
            AND (user_id = $1 OR scope = 'club')
@@ -202,7 +244,7 @@ export function retrieveFacts(db: Kysely<DB>, voyage: VoyageClient) {
     // exact-name lookups that vector search can de-prioritise.
     const ftsRows = await db.executeQuery(
       CompiledQuery.raw(
-        `SELECT id, content, tags, scope, confidence, created_at
+        `SELECT id, content, tags, scope, confidence, permanence, created_at
          FROM scout_fact
          WHERE superseded_by IS NULL
            AND (user_id = $1 OR scope = 'club')
@@ -221,7 +263,7 @@ export function retrieveFacts(db: Kysely<DB>, voyage: VoyageClient) {
     if (hasTagFilter) {
       tagRows = await db.executeQuery(
         CompiledQuery.raw(
-          `SELECT id, content, tags, scope, confidence, created_at
+          `SELECT id, content, tags, scope, confidence, permanence, created_at
            FROM scout_fact
            WHERE superseded_by IS NULL
              AND (user_id = $1 OR scope = 'club')
@@ -238,6 +280,7 @@ export function retrieveFacts(db: Kysely<DB>, voyage: VoyageClient) {
       tags: FactTags;
       scope: FactScope;
       confidence: number;
+      permanence: FactPermanence | null;
       created_at: Date | string;
     }
 
@@ -273,6 +316,7 @@ export function retrieveFacts(db: Kysely<DB>, voyage: VoyageClient) {
         tags: row.tags,
         scope: row.scope,
         confidence: row.confidence,
+        permanence: row.permanence,
         score: r.score,
         createdAt:
           row.created_at instanceof Date
@@ -286,19 +330,41 @@ export function retrieveFacts(db: Kysely<DB>, voyage: VoyageClient) {
 /**
  * Convenience for routes / tests: format facts as the markdown block
  * Scout sees in-prompt. Each line carries the fact's id as a [fact:UUID]
- * marker so the model can hand it to cite_fact when grounding a claim.
+ * marker so the model can hand it to cite_fact when grounding a claim,
+ * plus the fact's permanence and age so the debrief flow can decide
+ * whether a recorded fact is still fresh enough to skip re-asking.
  * Kept here so the wire format lives next to the thing producing it.
+ *
+ * `now` is injectable so tests get deterministic age strings.
  */
-export function formatFactsBlock(facts: RetrievedFact[]): string {
+export function formatFactsBlock(
+  facts: RetrievedFact[],
+  now: Date = new Date(),
+): string {
   if (facts.length === 0) return "";
   const lines = facts.map((f) => {
     const tagPairs = Object.entries(f.tags)
       .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join("|") : v}`)
       .join(" ");
     const tagSuffix = tagPairs ? ` [${tagPairs}]` : "";
-    return `- [fact:${f.id}] ${f.content} (confidence ${f.confidence}/5${tagSuffix})`;
+    const meta: string[] = [`confidence ${f.confidence}/5`];
+    if (f.permanence) {
+      meta.push(`${f.permanence} · ${formatAge(f.createdAt, now)} old`);
+    }
+    return `- [fact:${f.id}] ${f.content} (${meta.join(" · ")}${tagSuffix})`;
   });
   return `<known-facts>\n${lines.join("\n")}\n</known-facts>`;
+}
+
+function formatAge(createdAt: Date, now: Date): string {
+  const ms = Math.max(0, now.getTime() - createdAt.getTime());
+  const days = Math.floor(ms / 86_400_000);
+  if (days < 1) return "<1d";
+  if (days < 30) return `${days}d`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo`;
+  const years = Math.floor(months / 12);
+  return `${years}y`;
 }
 
 // Exported solely for tests that want to inspect raw vectors written.
