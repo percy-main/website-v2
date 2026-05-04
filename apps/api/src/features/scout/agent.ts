@@ -16,6 +16,7 @@ import { createScoutCache } from "./tools/cache.ts";
 import { createChartTool } from "./tools/chart.ts";
 import { createDbTools } from "./tools/db.ts";
 import { createFactTools } from "./tools/facts.ts";
+import { createPlayCricketCitationTools } from "./tools/play-cricket-citations.ts";
 import { createPlayCricketTools } from "./tools/play-cricket.ts";
 import { createWeatherTools } from "./tools/weather.ts";
 
@@ -66,6 +67,12 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
   const weatherTools = createWeatherTools({ cache });
   const chartTools = createChartTool({ writer: deps.writer });
+  // Match / player-stats citation tools — companions to cite_fact. They
+  // don't need the DB or any external client, only the writer to stream
+  // data-*-citation parts to the FE alongside the assistant's prose.
+  const playCricketCitationTools = createPlayCricketCitationTools({
+    writer: deps.writer,
+  });
   // Fact tools only register when Voyage is configured. Auto-retrieval in
   // the route also short-circuits in that case, so a deployment without
   // VOYAGE_API_KEY behaves as if the RAG layer doesn't exist.
@@ -109,6 +116,7 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
       ...weatherTools,
       ...chartTools,
       ...factTools,
+      ...playCricketCitationTools,
     },
     maxSteps: deps.config.SCOUT_MAX_STEPS,
     prepareStep: ({ messages }) => ({
