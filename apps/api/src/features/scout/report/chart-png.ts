@@ -44,10 +44,15 @@ export function renderChartPng(
     },
   });
 
-  // Chart.js draws on construction with animation:false, but call render() to
-  // be safe — it's a no-op when nothing has changed.
-  chart.render();
-  const png = canvas.toBuffer("image/png");
-  chart.destroy();
-  return png;
+  // try/finally so a malformed spec or a toBuffer crash still tears down
+  // the Chart instance — Chart.js holds it in a global registry until
+  // destroy() runs, leaking canvas refs across requests otherwise.
+  try {
+    // Chart.js draws on construction with animation:false, but call render()
+    // to be safe — it's a no-op when nothing has changed.
+    chart.render();
+    return canvas.toBuffer("image/png");
+  } finally {
+    chart.destroy();
+  }
 }

@@ -47,9 +47,18 @@ export async function renderScoutReportPdf(
 
   // ScoutReportPdf returns a <Document>, but TS sees only the function
   // component's typed return, which doesn't structurally match
-  // ReactElement<DocumentProps>. Cast at the boundary.
-  const out = (await renderToBuffer(
+  // ReactElement<DocumentProps>. Cast the input at the boundary, then
+  // assert the runtime shape on the way out — @react-pdf's published
+  // types vary by version (Buffer vs ReadableStream) and a silent type
+  // mismatch would corrupt the S3 upload (zero-length writes, undefined
+  // .length on the Buffer).
+  const out = await renderToBuffer(
     doc as unknown as Parameters<typeof renderToBuffer>[0],
-  )) as unknown as Buffer;
+  );
+  if (!Buffer.isBuffer(out)) {
+    throw new Error(
+      `renderToBuffer returned a non-Buffer (${typeof out}); expected a Node Buffer. Check the installed @react-pdf/renderer version.`,
+    );
+  }
   return out;
 }

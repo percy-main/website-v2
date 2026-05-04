@@ -1,9 +1,9 @@
-import { api, callApi } from "@/lib/api-client";
 import type { UIMessage } from "@ai-sdk/react";
 import type { ChartSpec } from "@percy-main/shared";
 import React, { useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { downloadScoutReport } from "./download-report.ts";
 import { ScoutChart } from "./scout-chart.tsx";
 
 const REMARK_PLUGINS = [remarkGfm];
@@ -926,12 +926,7 @@ function ReportCard({ data }: { data: ReportData }) {
       // Resolve a fresh signed URL on click. URLs expire after 30 minutes,
       // so we don't bake one into the message — anyone scrolling back to an
       // old report a day later still gets a working download.
-      const result = await callApi(
-        api.GET("/api/scout/reports/{reportId}/download", {
-          params: { path: { reportId: data.reportId } },
-        }),
-      );
-      window.location.assign(result.url);
+      await downloadScoutReport(data.reportId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Download failed");
     } finally {

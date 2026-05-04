@@ -6,6 +6,7 @@ import {
 import { tool, type UIMessageStreamWriter } from "ai";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { ScoutReportStore } from "../../../lib/s3-scout-reports.ts";
 import { renderScoutReportPdf } from "../report/render.ts";
@@ -51,27 +52,14 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
       execute: async ({ report }: { report: ScoutReportPayload }) => {
         const startedAt = Date.now();
 
-        // Insert the row up-front so we have a stable id we can stream to
-        // the FE before the PDF is built. The id doubles as the S3 key
-        // suffix once the upload succeeds. The FE addresses the data-report
-        // part by this id and re-renders when we re-write it with the same
-        // id later — that's how the loading card flips to "ready".
-        const row = await db
-          .insertInto("scout_report")
-          .values({
-            user_id: userId,
-            thread_id: threadId,
-            title: report.title,
-            s3_key: "pending",
-            file_size_bytes: null,
-          })
-          .returning(["id", "title", "created_at"])
-          .executeTakeFirstOrThrow();
-
-        const createdAtIso =
-          row.created_at instanceof Date
-            ? row.created_at.toISOString()
-            : new Date(row.created_at).toISOString();
+        // Generate the id up-front so we can use it as the streaming part
+        // id (so the placeholder card and the ready card are addressable
+        // by the same id) AND as the eventual DB primary key once the row
+        // is inserted post-upload. No DB row exists during generation, so
+        // there's no half-state for the listing/download routes to trip
+        // over.
+        const reportId = randomUUID();
+        const createdAtIso = new Date().toISOString();
 
         // Stream the placeholder card immediately. PDF rendering is
         // synchronous and CPU-heavy (chart canvases + react-pdf layout) so
@@ -79,10 +67,10 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
         // ~10–30s of dead air on a real report.
         writer.write({
           type: "data-report",
-          id: row.id,
+          id: reportId,
           data: {
-            reportId: row.id,
-            title: row.title,
+            reportId,
+            title: report.title,
             fileSizeBytes: null,
             createdAt: createdAtIso,
             status: "generating",
@@ -91,32 +79,43 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
 
         try {
           const pdf = await renderScoutReportPdf(report);
+          const s3Key = await scoutReports.putReport(reportId, pdf);
 
-          let s3Key: string;
+          // Insert *after* the upload succeeds, with the explicit id we
+          // streamed to the FE. If the DB insert fails, clean up the S3
+          // object so we don't leak a paid-for orphan.
           try {
-            s3Key = await scoutReports.putReport(row.id, pdf);
-          } catch (uploadErr) {
             await db
-              .deleteFrom("scout_report")
-              .where("id", "=", row.id)
+              .insertInto("scout_report")
+              .values({
+                id: reportId,
+                user_id: userId,
+                thread_id: threadId,
+                title: report.title,
+                s3_key: s3Key,
+                file_size_bytes: pdf.length,
+              })
               .execute();
-            throw uploadErr;
+          } catch (insertErr) {
+            try {
+              await scoutReports.deleteReport(s3Key);
+            } catch (cleanupErr) {
+              logger?.warn(
+                { err: cleanupErr, s3Key },
+                "scout report S3 cleanup after DB insert failure also failed; lifecycle rule will sweep",
+              );
+            }
+            throw insertErr;
           }
-
-          await db
-            .updateTable("scout_report")
-            .set({ s3_key: s3Key, file_size_bytes: pdf.length })
-            .where("id", "=", row.id)
-            .execute();
 
           // Re-emit with the same id so the FE replaces the placeholder
           // card with the ready-to-download card in place.
           writer.write({
             type: "data-report",
-            id: row.id,
+            id: reportId,
             data: {
-              reportId: row.id,
-              title: row.title,
+              reportId,
+              title: report.title,
               fileSizeBytes: pdf.length,
               createdAt: createdAtIso,
               status: "ready",
@@ -124,13 +123,13 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
           });
 
           logger?.info(
-            { reportId: row.id, bytes: pdf.length, ms: Date.now() - startedAt },
+            { reportId, bytes: pdf.length, ms: Date.now() - startedAt },
             "scout_report_generated",
           );
 
           return {
             generated: true,
-            reportId: row.id,
+            reportId,
             fileSizeBytes: pdf.length,
           };
         } catch (err) {
@@ -138,10 +137,10 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
           // spinner with an error card rather than a stuck "Generating…".
           writer.write({
             type: "data-report",
-            id: row.id,
+            id: reportId,
             data: {
-              reportId: row.id,
-              title: row.title,
+              reportId,
+              title: report.title,
               fileSizeBytes: null,
               createdAt: createdAtIso,
               status: "failed",
@@ -149,11 +148,6 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
                 err instanceof Error ? err.message : "Unknown error",
             },
           });
-          // Drop the orphan row; we never uploaded a PDF for it.
-          await db
-            .deleteFrom("scout_report")
-            .where("id", "=", row.id)
-            .execute();
           logger?.error(
             { err, ms: Date.now() - startedAt },
             "scout_report_failed",

@@ -3,6 +3,7 @@ import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
+import { downloadScoutReport } from "./download-report.ts";
 
 const REPORTS_QUERY_KEY = ["scout", "reports"] as const;
 
@@ -83,12 +84,7 @@ function ReportListItem({ report }: { report: ReportRow }) {
     setError(null);
     setDownloading(true);
     try {
-      const result = await callApi(
-        api.GET("/api/scout/reports/{reportId}/download", {
-          params: { path: { reportId: report.id } },
-        }),
-      );
-      window.location.assign(result.url);
+      await downloadScoutReport(report.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Download failed");
     } finally {
