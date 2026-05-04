@@ -237,6 +237,7 @@ async function storeBattingPerformances(
       .onConflict((oc) =>
         oc.columns(["match_id", "player_id"]).doUpdateSet({
           player_name: bat.batsman_name,
+          match_date: matchDate,
           runs: parseInt(bat.runs) || 0,
           balls: parseInt(bat.balls) || 0,
           fours: parseInt(bat.fours) || 0,
@@ -289,6 +290,7 @@ async function storeBowlingPerformances(
       .onConflict((oc) =>
         oc.columns(["match_id", "player_id"]).doUpdateSet({
           player_name: bowl.bowler_name,
+          match_date: matchDate,
           overs: bowl.overs,
           maidens: parseInt(bowl.maidens) || 0,
           runs: parseInt(bowl.runs) || 0,
@@ -330,6 +332,7 @@ async function storeFieldingPerformances(
       .onConflict((oc) =>
         oc.columns(["match_id", "player_id"]).doUpdateSet({
           player_name: agg.playerName,
+          match_date: matchDate,
           catches: agg.catches,
           run_outs: agg.runOuts,
           stumpings: agg.stumpings,
@@ -535,6 +538,7 @@ async function syncMatches(
               result: matchResult,
               result_description: detail.result_description ?? "",
               result_applied_to: detail.result_applied_to ?? "",
+              match_date: matchDateIso,
             }),
           )
           .execute();
