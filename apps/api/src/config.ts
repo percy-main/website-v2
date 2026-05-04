@@ -94,15 +94,6 @@ const configSchema = z.object({
   SCOUT_MODEL_DB: z.string().default("claude-haiku-4-5-20251001"),
   SCOUT_DB_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(8),
   SCOUT_MAX_STEPS: z.coerce.number().int().positive().default(20),
-  SCOUT_ALLOWED_EMAILS: z
-    .string()
-    .default("alex@alexyoung.info,steve.knight@percymain.org")
-    .transform((v) =>
-      v
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    ),
   // Voyage AI (fact-RAG embeddings + reranking). Optional — Scout boots
   // without it and just skips the fact tools / auto-retrieval.
   VOYAGE_API_KEY: z.string().optional(),

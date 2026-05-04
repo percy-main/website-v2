@@ -197,9 +197,9 @@ export const router = createBrowserRouter([
                 path: "matchday",
                 lazy: () => import("./pages/matchday/matchday-hub.js"),
               },
-              // Scout — alex-only AI cricket analyst (server-side allowlist
-              // enforced; route is mounted for everyone but returns 403 from
-              // the API for non-allowlisted users).
+              // Scout — AI cricket analyst, gated to admin/official roles
+              // server-side. The route is mounted for everyone but the API
+              // returns 403 for users without the role.
               {
                 path: "scout",
                 lazy: () => import("./pages/scout/scout.js"),

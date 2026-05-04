@@ -81,7 +81,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   // ── Access probe ──
   // Always 200 so the FE can call this without a noisy 401 when nobody is
   // logged in — `{ allowed: false }` means "hide the link", regardless of
-  // whether the visitor is anonymous or authed-but-not-allowlisted.
+  // whether the visitor is anonymous or authed-but-not-roled.
   app.get(
     "/scout/access",
     {
@@ -96,9 +96,9 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       if (!session) {
         return { allowed: false, email: null };
       }
-      const email = session.user.email;
-      const allowed = app.config.SCOUT_ALLOWED_EMAILS.includes(email);
-      return { allowed, email };
+      const role = (session.user as { role?: string | null }).role ?? "user";
+      const allowed = role === "admin" || role === "official";
+      return { allowed, email: session.user.email };
     },
   );
 
@@ -493,8 +493,8 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   );
 
   // ── Fact admin ──
-  // Allowlist-gated CRUD over the scout_fact corpus. Lets the admin
-  // review agent-recorded knowledge and prune bad facts before they
+  // Role-gated CRUD over the scout_fact corpus (admin/official). Lets
+  // them review agent-recorded knowledge and prune bad facts before they
   // compound. Edits to `content` re-embed via Voyage; edits to scope/
   // tags/confidence don't (no semantic change).
   const list_ = listFacts(app.db);
