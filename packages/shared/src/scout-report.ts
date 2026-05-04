@@ -37,7 +37,7 @@ const playerSchema = z.object({
 
 const referenceSchema = z.object({
   label: z.string().min(1).describe("Short human label for the source."),
-  url: z.string().url(),
+  url: z.url(),
 });
 
 const reportChartSchema = z.object({
