@@ -48,6 +48,10 @@ const configSchema = z.object({
   S3_DOCUMENTS_PREFIX: z.string().default("documents"),
   S3_DOCUMENT_UPLOADS_BUCKET: z.string().min(1),
 
+  // S3 (Scout-generated PDF reports)
+  SCOUT_REPORTS_BUCKET: z.string().min(1),
+  SCOUT_REPORTS_PREFIX: z.string().default("reports"),
+
   // Observability (New Relic via OpenTelemetry)
   NEW_RELIC_LICENSE_KEY: z.string().optional(),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url().default("https://otlp.eu01.nr-data.net"),

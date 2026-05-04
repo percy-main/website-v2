@@ -148,3 +148,33 @@ export const recentDebriefMatchSchema = z.object({
 export const recentDebriefMatchesResponseSchema = z.object({
   matches: z.array(recentDebriefMatchSchema),
 });
+
+// ── Reports ──
+// AI-generated PDF scouting reports. Listed globally per-user (not scoped
+// to a thread) for the "Historical reports" tab.
+
+export const reportSummarySchema = z.object({
+  id: z.uuid(),
+  threadId: z.uuid(),
+  threadTitle: z.string().nullable(),
+  title: z.string(),
+  fileSizeBytes: z.number().int().nonnegative().nullable(),
+  createdAt: z.iso.datetime(),
+});
+
+export const listReportsResponseSchema = z.object({
+  reports: z.array(reportSummarySchema),
+});
+
+export const reportIdParamSchema = z.object({
+  reportId: z.uuid(),
+});
+
+export const reportDownloadResponseSchema = z.object({
+  url: z.url(),
+  expiresInSeconds: z.number().int().positive(),
+});
+
+export const deleteReportResponseSchema = z.object({
+  ok: z.literal(true),
+});

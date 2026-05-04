@@ -7,6 +7,7 @@ import { useParams, useSearchParams } from "react-router";
 import { Composer } from "./composer.js";
 import { DebriefLauncher } from "./debrief-launcher.js";
 import { MessageView } from "./message-view.js";
+import { ReportsView } from "./reports-view.js";
 import { ThreadList } from "./thread-list.js";
 import { useScoutChat } from "./use-scout-chat.js";
 
@@ -15,16 +16,86 @@ type ScoutMode = "scouting" | "debrief";
 export function Component() {
   useDocumentMeta("Scout");
   const { threadId } = useParams<{ threadId?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // URL-state per the project's URL-state convention. The reports tab is
+  // global (not per-thread) so it survives switching between threads.
+  const view = searchParams.get("view") === "reports" ? "reports" : "chat";
+
+  const setView = (next: "chat" | "reports") => {
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        if (next === "reports") sp.set("view", "reports");
+        else sp.delete("view");
+        return sp;
+      },
+      { replace: true },
+    );
+  };
 
   return (
     <div className="container mx-auto h-[calc(100vh-8rem)] px-0">
       <div className="flex h-full overflow-hidden rounded-lg border border-gray-200 bg-white">
         <ThreadList />
         <main className="flex flex-1 flex-col">
-          {threadId ? <ActiveThread threadId={threadId} /> : <EmptyState />}
+          <ScoutTabs view={view} setView={setView} />
+          {view === "reports" ? (
+            <ReportsView />
+          ) : threadId ? (
+            <ActiveThread threadId={threadId} />
+          ) : (
+            <EmptyState />
+          )}
         </main>
       </div>
     </div>
+  );
+}
+
+function ScoutTabs({
+  view,
+  setView,
+}: {
+  view: "chat" | "reports";
+  setView: (next: "chat" | "reports") => void;
+}) {
+  return (
+    <nav className="flex shrink-0 border-b border-gray-200 bg-gray-50">
+      <TabButton
+        active={view === "chat"}
+        onClick={() => setView("chat")}
+        label="Chat"
+      />
+      <TabButton
+        active={view === "reports"}
+        onClick={() => setView("reports")}
+        label="Reports"
+      />
+    </nav>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? "-mb-px border-b-2 border-blue-600 px-4 py-2 text-sm font-medium text-blue-700"
+          : "px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+      }
+    >
+      {label}
+    </button>
   );
 }
 
@@ -192,6 +263,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         initialDraft={draft}
         onDraftChange={setDraft}
         disabled={isStreaming}
+        showGenerateReport={!isDebrief}
         onSubmit={(text) => {
           void sendMessage({ text });
         }}

@@ -283,3 +283,82 @@ export function assertThreadOwnership(db: Kysely<DB>) {
     return { mode: row.mode as ScoutMode };
   };
 }
+
+// ── Reports ──
+
+export interface ReportSummary {
+  id: string;
+  threadId: string;
+  threadTitle: string | null;
+  title: string;
+  fileSizeBytes: number | null;
+  createdAt: string;
+}
+
+export class ReportNotFoundError extends Error {
+  constructor() {
+    super("Report not found");
+  }
+}
+
+export function listReports(db: Kysely<DB>) {
+  return async (userId: string): Promise<ReportSummary[]> => {
+    const rows = await db
+      .selectFrom("scout_report as r")
+      .leftJoin("scout_thread as t", "t.id", "r.thread_id")
+      .where("r.user_id", "=", userId)
+      .select([
+        "r.id",
+        "r.thread_id",
+        "t.title as thread_title",
+        "r.title",
+        "r.file_size_bytes",
+        "r.created_at",
+      ])
+      .orderBy("r.created_at", "desc")
+      .execute();
+
+    return rows.map((r) => ({
+      id: r.id,
+      threadId: r.thread_id,
+      threadTitle: r.thread_title ?? null,
+      title: r.title,
+      fileSizeBytes: r.file_size_bytes,
+      createdAt: toIso(r.created_at),
+    }));
+  };
+}
+
+export function getReportForDownload(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    reportId: string,
+  ): Promise<{ s3Key: string; title: string }> => {
+    const row = await db
+      .selectFrom("scout_report")
+      .where("id", "=", reportId)
+      .where("user_id", "=", userId)
+      .select(["s3_key", "title"])
+      .executeTakeFirst();
+    if (!row) throw new ReportNotFoundError();
+    return { s3Key: row.s3_key, title: row.title };
+  };
+}
+
+export function deleteReport(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    reportId: string,
+  ): Promise<{ s3Key: string }> => {
+    const row = await db
+      .selectFrom("scout_report")
+      .where("id", "=", reportId)
+      .where("user_id", "=", userId)
+      .select(["s3_key"])
+      .executeTakeFirst();
+    if (!row) throw new ReportNotFoundError();
+
+    await db.deleteFrom("scout_report").where("id", "=", reportId).execute();
+    return { s3Key: row.s3_key };
+  };
+}

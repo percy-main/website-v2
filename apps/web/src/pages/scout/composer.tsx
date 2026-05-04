@@ -1,11 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 
+const GENERATE_REPORT_PROMPT =
+  "Generate a scouting report PDF based on our conversation so far. Use the generate_report tool. Pull anything you still need (selection, opposition stats, weather, references) before calling it. Then save it.";
+
 interface ComposerProps {
   initialDraft?: string;
   onDraftChange?: (draft: string) => void;
   onSubmit: (text: string) => void;
   disabled?: boolean;
+  /** Show the "Generate report" button (scouting mode only). */
+  showGenerateReport?: boolean;
 }
 
 export function Composer({
@@ -13,6 +18,7 @@ export function Composer({
   onDraftChange,
   onSubmit,
   disabled,
+  showGenerateReport,
 }: ComposerProps) {
   const [value, setValue] = useState(initialDraft);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -28,6 +34,11 @@ export function Composer({
     onSubmit(trimmed);
     setValue("");
     onDraftChange?.("");
+  };
+
+  const submitGenerateReport = () => {
+    if (disabled) return;
+    onSubmit(GENERATE_REPORT_PROMPT);
   };
 
   return (
@@ -57,9 +68,22 @@ export function Composer({
           disabled={disabled}
           className="flex-1 resize-y rounded border border-gray-300 p-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50"
         />
-        <Button type="submit" disabled={Boolean(disabled) || !value.trim()}>
-          Send
-        </Button>
+        <div className="flex flex-col gap-2">
+          {showGenerateReport && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={submitGenerateReport}
+              disabled={Boolean(disabled)}
+              title="Ask Scout to compile a PDF scouting report based on this conversation"
+            >
+              Generate report
+            </Button>
+          )}
+          <Button type="submit" disabled={Boolean(disabled) || !value.trim()}>
+            Send
+          </Button>
+        </div>
       </div>
     </form>
   );

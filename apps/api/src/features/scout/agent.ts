@@ -9,6 +9,7 @@ import type {
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { Config } from "../../config.ts";
+import type { ScoutReportStore } from "../../lib/s3-scout-reports.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type { VoyageClient } from "./facts/voyage.ts";
 import type { ScoutMode } from "./schemas.ts";
@@ -21,6 +22,7 @@ import { createScoutCache } from "./tools/cache.ts";
 import { createChartTool } from "./tools/chart.ts";
 import { createDbTools } from "./tools/db.ts";
 import { createFactTools } from "./tools/facts.ts";
+import { createGenerateReportTool } from "./tools/generate-report.ts";
 import { createPlayCricketCitationTools } from "./tools/play-cricket-citations.ts";
 import { createPlayCricketTools } from "./tools/play-cricket.ts";
 import { createWeatherTools } from "./tools/weather.ts";
@@ -54,6 +56,9 @@ export interface ScoutAgentDeps {
   // toggles the ask_question / chart_render tool surface (debrief uses
   // ask_question and skips charts; scouting is the inverse).
   mode: ScoutMode;
+  // S3 store for the generate_report tool. Required in scouting mode (the
+  // only mode where the tool is registered); ignored in debrief.
+  scoutReports: ScoutReportStore;
 }
 
 export interface ScoutAgent {
@@ -79,6 +84,21 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   // interview — register chart_render only when in scouting mode.
   const chartTools =
     deps.mode === "scouting" ? createChartTool({ writer: deps.writer }) : {};
+  // generate_report builds a PDF and stores it in S3. Only relevant in
+  // scouting mode; the debrief flow surfaces a structured interview, not a
+  // pre-match document. threadId is required to file reports against the
+  // owning thread, so we only register the tool when one is present.
+  const reportTools =
+    deps.mode === "scouting" && deps.threadId
+      ? createGenerateReportTool({
+          db: deps.db,
+          scoutReports: deps.scoutReports,
+          writer: deps.writer,
+          userId: deps.userId,
+          threadId: deps.threadId,
+          logger: deps.logger,
+        })
+      : {};
   // ask_question is the inverse: only in debrief, where the agent walks
   // the captain through structured prompts via inline button cards.
   const askQuestionTools =
@@ -136,6 +156,7 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
       ...dbTools,
       ...weatherTools,
       ...chartTools,
+      ...reportTools,
       ...askQuestionTools,
       ...factTools,
       ...playCricketCitationTools,

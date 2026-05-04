@@ -17,6 +17,10 @@ import {
   createS3DocumentStore,
   type S3DocumentStore,
 } from "./lib/s3-documents.ts";
+import {
+  createScoutReportStore,
+  type ScoutReportStore,
+} from "./lib/s3-scout-reports.ts";
 import { createS3Uploader, type S3Uploader } from "./lib/s3-upload.ts";
 
 // Feature routes
@@ -58,6 +62,7 @@ declare module "fastify" {
     send: (email: Email) => Promise<void>;
     s3: S3Uploader;
     s3Documents: S3DocumentStore;
+    scoutReports: ScoutReportStore;
   }
 }
 
@@ -122,6 +127,10 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   // Create and decorate the S3 document store (policy documents)
   const s3Documents = createS3DocumentStore(config);
   app.decorate("s3Documents", s3Documents);
+
+  // Create and decorate the Scout report store (AI-generated PDFs)
+  const scoutReports = createScoutReportStore(config);
+  app.decorate("scoutReports", scoutReports);
 
   // Plugins
   await app.register(swagger, {

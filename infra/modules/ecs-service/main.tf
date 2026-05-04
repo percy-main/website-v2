@@ -112,6 +112,11 @@ variable "document_uploads_bucket_arn" {
   description = "ARN of the temporary document uploads bucket (browser-direct uploads)."
 }
 
+variable "scout_reports_bucket_arn" {
+  type        = string
+  description = "ARN of the S3 bucket for AI-generated Scout report PDFs."
+}
+
 # ------------------------------------------------------------------------------
 # Locals
 # ------------------------------------------------------------------------------
@@ -354,6 +359,29 @@ resource "aws_iam_role_policy" "task_s3_document_uploads" {
         Resource = [
           var.document_uploads_bucket_arn,
           "${var.document_uploads_bucket_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "task_s3_scout_reports" {
+  name = "${local.name_prefix}-task-s3-scout-reports"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          var.scout_reports_bucket_arn,
+          "${var.scout_reports_bucket_arn}/*"
         ]
       }
     ]
