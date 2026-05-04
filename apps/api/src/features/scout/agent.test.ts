@@ -19,6 +19,7 @@ function makeAgent(mode: "scouting" | "debrief" = "scouting") {
   const stubPlayCricket = {} as PlayCricketApiClient;
   const stubWriter = {} as UIMessageStreamWriter;
   const stubConfig = {
+    SCOUT_PROVIDER_CHAT: "anthropic",
     SCOUT_MODEL_CHAT: "claude-sonnet-4-6",
     SCOUT_MAX_STEPS: 20,
   } as Config;

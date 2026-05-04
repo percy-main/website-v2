@@ -75,7 +75,15 @@ const configSchema = z.object({
 
   // Scout (AI analyst — alex-only for now)
   ANTHROPIC_API_KEY: z.string().optional(),
+  DEEPSEEK_API_KEY: z.string().optional(),
   SCOUT_DB_URL: z.url().optional(),
+  // Provider/model are split so the chat agent and the title sub-agent can
+  // run on different vendors. Flip SCOUT_PROVIDER_CHAT=deepseek + set
+  // SCOUT_MODEL_CHAT to a deepseek model id (e.g. deepseek-chat) to swap.
+  SCOUT_PROVIDER_CHAT: z.enum(["anthropic", "deepseek"]).default("anthropic"),
+  SCOUT_PROVIDER_SUBAGENT: z
+    .enum(["anthropic", "deepseek"])
+    .default("anthropic"),
   SCOUT_MODEL_CHAT: z.string().default("claude-sonnet-4-6"),
   SCOUT_MODEL_SUBAGENT: z.string().default("claude-haiku-4-5-20251001"),
   SCOUT_MAX_STEPS: z.coerce.number().int().positive().default(20),

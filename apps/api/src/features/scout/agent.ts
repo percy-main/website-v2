@@ -1,4 +1,3 @@
-import { anthropic } from "@ai-sdk/anthropic";
 import type { DB } from "@percy-main/db";
 import type {
   LanguageModel,
@@ -12,6 +11,7 @@ import type { Config } from "../../config.ts";
 import type { ScoutReportStore } from "../../lib/s3-scout-reports.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type { VoyageClient } from "./facts/voyage.ts";
+import { resolveModel } from "./provider.ts";
 import type { ScoutMode } from "./schemas.ts";
 import {
   SCOUT_DEBRIEF_SYSTEM_PROMPT,
@@ -148,8 +148,13 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
   const basePrompt =
     deps.mode === "debrief" ? SCOUT_DEBRIEF_SYSTEM_PROMPT : SCOUT_SYSTEM_PROMPT;
 
+  const resolved = resolveModel(
+    deps.config.SCOUT_PROVIDER_CHAT,
+    deps.config.SCOUT_MODEL_CHAT,
+  );
+
   return {
-    model: anthropic(deps.config.SCOUT_MODEL_CHAT),
+    model: resolved.model,
     system: `${basePrompt}\n\n${todayLine}`,
     tools: {
       ...playCricketTools,
@@ -163,7 +168,9 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
     },
     maxSteps: deps.config.SCOUT_MAX_STEPS,
     prepareStep: ({ messages }) => ({
-      messages: addCacheControlToLastMessage(messages),
+      messages: resolved.supportsAnthropicCacheControl
+        ? addCacheControlToLastMessage(messages)
+        : messages,
     }),
   };
 }

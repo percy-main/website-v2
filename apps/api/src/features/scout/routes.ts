@@ -20,6 +20,7 @@ import {
 } from "./facts/admin-service.ts";
 import { applyAutoRetrieval } from "./facts/auto-retrieve.ts";
 import { createVoyageClient } from "./facts/voyage.ts";
+import { extractCacheUsage } from "./provider.ts";
 import {
   accessResponseSchema,
   createThreadBodySchema,
@@ -72,6 +73,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const reportDelete = deleteReport(app.db);
   const generateTitle = maybeGenerateTitle({
     db: app.db,
+    provider: app.config.SCOUT_PROVIDER_SUBAGENT,
     modelId: app.config.SCOUT_MODEL_SUBAGENT,
   });
 
@@ -349,12 +351,11 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             await generateTitle(threadId, firstUserText);
 
             // Per-turn structured line for cost analysis. cacheRead /
-            // cacheCreation come from result.providerMetadata.anthropic;
-            // null/undefined means the Anthropic provider didn't report them
-            // this turn (tool-only step, or non-Anthropic model).
-            // cacheReadRatio answers "how much of the input was served from
-            // cache" — the headline number for whether prompt caching is
-            // firing across the multi-step agent loop.
+            // cacheCreation are extracted by extractCacheUsage and shaped
+            // per-provider — Anthropic reports both via providerMetadata,
+            // DeepSeek reports cacheRead only via usage.cachedInputTokens
+            // and has no separate cache-creation event. Provider is tagged
+            // so cross-vendor cost analysis can split the data.
             const inputTokens = usage.inputTokens ?? 0;
             const cacheRead = usage.cacheRead;
             const cacheReadRatio =
@@ -365,6 +366,8 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               {
                 event: "scout.turn",
                 threadId,
+                provider: app.config.SCOUT_PROVIDER_CHAT,
+                model: app.config.SCOUT_MODEL_CHAT,
                 inputTokens,
                 outputTokens: usage.outputTokens ?? 0,
                 cacheReadTokens: cacheRead ?? 0,
@@ -415,17 +418,16 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             result.usage,
             result.providerMetadata,
           ]).then(([u, providerMeta]) => {
-            const anthropicMeta = providerMeta?.anthropic as
-              | {
-                  cacheCreationInputTokens?: number;
-                  cacheReadInputTokens?: number;
-                }
-              | undefined;
+            const cache = extractCacheUsage(
+              app.config.SCOUT_PROVIDER_CHAT,
+              u,
+              providerMeta,
+            );
             return {
               inputTokens: u.inputTokens ?? undefined,
               outputTokens: u.outputTokens ?? undefined,
-              cacheRead: anthropicMeta?.cacheReadInputTokens,
-              cacheCreation: anthropicMeta?.cacheCreationInputTokens,
+              cacheRead: cache.cacheRead,
+              cacheCreation: cache.cacheCreation,
             };
           });
 
@@ -434,10 +436,14 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           writer.merge(result.toUIMessageStream({ sendStart: false }));
         },
         onError: (error) => {
+          // Provider-side errors (auth, billing, rate limit, etc.) put the
+          // raw provider message on error.message — e.g. "Insufficient
+          // Balance" from DeepSeek or "invalid x-api-key" from Anthropic.
+          // Returning that to the FE leaks operational state of our account
+          // to anyone with Scout access, so we log the full sanitized error
+          // server-side and surface a generic string to the UI.
           app.log.error({ err: sanitizeError(error) }, "scout UI stream error");
-          return error instanceof Error
-            ? error.message
-            : "Scout stream failed.";
+          return "Scout failed to respond. Please try again.";
         },
       });
 

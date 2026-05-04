@@ -1,7 +1,7 @@
-import { anthropic } from "@ai-sdk/anthropic";
 import type { DB } from "@percy-main/db";
 import { generateText } from "ai";
 import type { Kysely } from "kysely";
+import { resolveModel, type ScoutProvider } from "./provider.ts";
 
 const TITLE_PROMPT =
   "Title this scouting query in 4 words or fewer. Reply with just the title — no quotes, no punctuation.";
@@ -10,16 +10,18 @@ const DEFAULT_TITLE = "New thread";
 
 export interface TitleDeps {
   db: Kysely<DB>;
+  provider: ScoutProvider;
   modelId: string;
 }
 
 /**
  * If the thread still has the placeholder title and we now have at least
- * one user message, ask Haiku for a 4-word title and overwrite it. Best
- * effort — failures are swallowed (the placeholder remains) so a title
- * gen blip can't break a chat turn.
+ * one user message, ask the configured sub-agent for a 4-word title and
+ * overwrite it. Best effort — failures are swallowed (the placeholder
+ * remains) so a title gen blip can't break a chat turn.
  */
 export function maybeGenerateTitle(deps: TitleDeps) {
+  const { model } = resolveModel(deps.provider, deps.modelId);
   return async (threadId: string, firstUserText: string): Promise<void> => {
     const thread = await deps.db
       .selectFrom("scout_thread")
@@ -32,7 +34,7 @@ export function maybeGenerateTitle(deps: TitleDeps) {
 
     try {
       const result = await generateText({
-        model: anthropic(deps.modelId),
+        model,
         prompt: `${TITLE_PROMPT}\n\nQuery: ${firstUserText.slice(0, 500)}`,
       });
       const title = result.text
