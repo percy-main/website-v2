@@ -1,6 +1,6 @@
 import type { UIMessage } from "@ai-sdk/react";
 import type { ChartSpec } from "@percy-main/shared";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { downloadScoutReport } from "./download-report.ts";
@@ -314,19 +314,23 @@ export function MessageView({
         className={`max-w-3xl rounded-lg px-4 py-3 ${
           isUser
             ? "bg-blue-100 text-gray-900"
-            : "border border-gray-200 bg-white text-gray-900"
+            : "w-full border border-gray-200 bg-white text-gray-900"
         }`}
       >
-        {renderParts(message.parts, citations.numberByKey).map((part, i) => (
-          <PartView
-            key={`${message.id}-${i}`}
-            part={part}
-            numberByKey={citations.numberByKey}
-            onChipClick={handleChipClick}
-            onAnswerQuestion={onAnswerQuestion}
-            isStreaming={isStreaming}
-          />
-        ))}
+        {(() => {
+          const rendered = renderParts(message.parts, citations.numberByKey);
+          return rendered.map((part, i) => (
+            <PartView
+              key={`${message.id}-${i}`}
+              part={part}
+              numberByKey={citations.numberByKey}
+              onChipClick={handleChipClick}
+              onAnswerQuestion={onAnswerQuestion}
+              isStreaming={isStreaming}
+              isLast={i === rendered.length - 1}
+            />
+          ));
+        })()}
         {!isUser && citations.ordered.length > 0 && (
           <SourcesPanel
             citations={citations.ordered}
@@ -473,12 +477,14 @@ function PartView({
   onChipClick,
   onAnswerQuestion,
   isStreaming,
+  isLast,
 }: {
   part: Part;
   numberByKey: Map<string, number>;
   onChipClick: (key: string) => void;
   onAnswerQuestion?: (text: string) => void;
   isStreaming?: boolean;
+  isLast?: boolean;
 }) {
   if (part.type === "text") {
     return (
@@ -494,11 +500,12 @@ function PartView({
   }
 
   if (part.type === "reasoning") {
+    // Active = the model is still streaming AND this is the trailing part of
+    // the message. Once any other part lands after it (text, tool, etc.) the
+    // bubble collapses to a "Thought for Xs" pill so the prose isn't pushed
+    // way down the page.
     return (
-      <details className="my-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
-        <summary className="cursor-pointer">reasoning</summary>
-        <div className="mt-1 font-mono whitespace-pre-wrap">{part.text}</div>
-      </details>
+      <ThoughtBubble text={part.text} active={!!isStreaming && !!isLast} />
     );
   }
 
@@ -556,6 +563,106 @@ function PartView({
 
   if (part.type === "step-start") return null;
   return null;
+}
+
+// ── ThoughtBubble (reasoning parts) ───────────────────────────────────────
+//
+// Active state: expanded body, monospace, sweeping gradient shimmer over the
+// text while the model is mid-thought. Headed by a thought-bubble icon and
+// "Thinking…" label.
+//
+// Settled state: collapses to a small pill ("Thought for Xs · click to
+// expand"). Click toggles the body open. Duration is measured client-side
+// from first render to the moment `active` flips false — the BE doesn't
+// emit timing for reasoning parts.
+function ThoughtBubble({ text, active }: { text: string; active: boolean }) {
+  // Earliest non-empty render is "thinking started". A reasoning part can
+  // render empty for a tick before the first chunk lands, so we wait for
+  // text.length > 0 to set the timestamp. Render body stays pure — the ref
+  // is set from a commit-phase effect to satisfy react-hooks/purity.
+  const startRef = useRef<number | null>(null);
+  const hasText = text.length > 0;
+  useEffect(() => {
+    if (hasText && startRef.current === null) {
+      startRef.current = Date.now();
+    }
+  }, [hasText]);
+
+  const [elapsedSec, setElapsedSec] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+
+  // Freeze elapsed when the bubble settles — flipping `active` false marks
+  // the end of the reasoning span. We don't update further so the pill stays
+  // stable across re-renders.
+  useEffect(() => {
+    if (!active && startRef.current != null && elapsedSec === null) {
+      setElapsedSec(
+        Math.max(1, Math.round((Date.now() - startRef.current) / 1000)),
+      );
+    }
+  }, [active, elapsedSec]);
+
+  if (active) {
+    return (
+      <div className="my-2 rounded border border-purple-200 bg-purple-50/50 px-3 py-2">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-purple-700">
+          <ThoughtIcon className="h-3.5 w-3.5" />
+          <span>Thinking…</span>
+        </div>
+        <div
+          className="animate-thought-shimmer bg-clip-text font-mono text-xs whitespace-pre-wrap text-transparent"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, #6b21a8 0%, #6b21a8 35%, #c084fc 50%, #6b21a8 65%, #6b21a8 100%)",
+            backgroundSize: "200% 100%",
+          }}
+        >
+          {text || " "}
+        </div>
+      </div>
+    );
+  }
+
+  // Settled: pill with optional expand.
+  return (
+    <div className="my-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100"
+      >
+        <ThoughtIcon className="h-3 w-3" />
+        <span>
+          {elapsedSec != null ? `Thought for ${elapsedSec}s` : "Thought"}
+        </span>
+        <span className="text-gray-400">{open ? "▾" : "▸"}</span>
+      </button>
+      {open && (
+        <div className="mt-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs whitespace-pre-wrap text-gray-600">
+          {text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThoughtIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 11a4 4 0 1 1 4 4H8a4 4 0 0 1 0-8 4 4 0 0 1 4-3 4 4 0 0 1 4 4" />
+      <circle cx="6" cy="19" r="1.5" />
+      <circle cx="3" cy="22" r="1" />
+    </svg>
+  );
 }
 
 // ── Sources panel + cards ─────────────────────────────────────────────────

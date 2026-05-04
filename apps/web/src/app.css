@@ -59,6 +59,11 @@
   /* Animation */
   --animate-caret-blink: caret-blink 1.25s ease-out infinite;
   --animate-cite-flash: cite-flash 1.6s ease-out 1;
+  /* Sweeping highlight across reasoning text while the model is still
+     "thinking". Runs only when the surrounding ThoughtBubble is in its
+     active state — settles to plain muted text once the next message
+     part arrives. */
+  --animate-thought-shimmer: thought-shimmer 2.4s linear infinite;
 
   @keyframes caret-blink {
     0%,
@@ -100,6 +105,15 @@
         0 0 0 2px rgb(59 130 246 / 0%),
         0 0 0 6px rgb(59 130 246 / 0%);
       border-color: rgb(229 231 235);
+    }
+  }
+
+  @keyframes thought-shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
     }
   }
 }
