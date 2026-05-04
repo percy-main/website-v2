@@ -81,7 +81,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   // ── Access probe ──
   // Always 200 so the FE can call this without a noisy 401 when nobody is
   // logged in — `{ allowed: false }` means "hide the link", regardless of
-  // whether the visitor is anonymous or authed-but-not-allowlisted.
+  // whether the visitor is anonymous or authed-but-not-roled.
   app.get(
     "/scout/access",
     {
@@ -96,9 +96,9 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       if (!session) {
         return { allowed: false, email: null };
       }
-      const email = session.user.email;
-      const allowed = app.config.SCOUT_ALLOWED_EMAILS.includes(email);
-      return { allowed, email };
+      const role = (session.user as { role?: string | null }).role ?? "user";
+      const allowed = role === "admin" || role === "official";
+      return { allowed, email: session.user.email };
     },
   );
 

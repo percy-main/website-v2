@@ -15,7 +15,8 @@ import { useState } from "react";
  * Fact corpus admin — list / search / edit / delete the agent's
  * recorded knowledge. Lives as a modal alongside the Scout chat (not in
  * the main admin area) because the corpus is Scout-specific and the
- * audience is the Scout-allowlisted user, not site admins.
+ * audience is whoever has Scout access (admin/official roles), not all
+ * site admins.
  *
  * Edits to `content` re-embed via Voyage; metadata-only edits skip
  * the embedding round-trip server-side.

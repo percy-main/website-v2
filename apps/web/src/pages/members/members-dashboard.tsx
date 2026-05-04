@@ -244,9 +244,10 @@ function AvailabilityBanner() {
 }
 
 /**
- * Renders the Scout dashboard link only when the server-side allowlist
- * permits the current user. Hidden for everyone else (cosmetic gate; the
- * real boundary is the API's requireScoutAccess preHandler).
+ * Renders the Scout dashboard link only when the current user has the
+ * admin or official role (resolved server-side via /scout/access).
+ * Hidden for everyone else (cosmetic gate; the real boundary is the
+ * API's requireScoutAccess preHandler).
  */
 function ScoutLink() {
   const access = useQuery({

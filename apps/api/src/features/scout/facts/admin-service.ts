@@ -10,7 +10,7 @@ import { toVectorLiteral, type VoyageClient } from "./voyage.ts";
 
 /**
  * Admin-side queries for the scout_fact corpus. Used by the
- * /scout/facts admin routes so the allowlisted user can review,
+ * /scout/facts admin routes so admin/official users can review,
  * edit, and delete recorded facts before bad ones compound.
  *
  * Edits that change `content` re-embed via Voyage so the vector stays

@@ -70,7 +70,7 @@ export const deleteThreadResponseSchema = z.object({
 });
 
 // ── Fact admin ──
-// Surface the scout_fact corpus to the allowlisted admin so they can
+// Surface the scout_fact corpus to admin/official users so they can
 // review, edit, and delete agent-recorded knowledge before it compounds
 // into bad outputs. The `embedding` column is intentionally omitted — it's
 // 1024 floats per row, useless to humans, and would balloon the response.
