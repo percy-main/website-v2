@@ -5,9 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { Composer } from "./composer.js";
+import { DebriefLauncher } from "./debrief-launcher.js";
 import { MessageView } from "./message-view.js";
 import { ThreadList } from "./thread-list.js";
 import { useScoutChat } from "./use-scout-chat.js";
+
+type ScoutMode = "scouting" | "debrief";
 
 export function Component() {
   useDocumentMeta("Scout");
@@ -33,8 +36,9 @@ function EmptyState() {
           Pick a thread, or start a new one.
         </div>
         <div>
-          Scout helps you scout opposition and plan dismissals using Play
-          Cricket data + our match history.
+          <strong>New scout</strong> for free-form opposition research, or{" "}
+          <strong>Debrief</strong> to walk through a recent match and grow the
+          fact corpus.
         </div>
       </div>
     </div>
@@ -76,7 +80,7 @@ function ActiveThread({ threadId }: { threadId: string }) {
 interface ChatViewProps {
   threadId: string;
   loaded: {
-    thread: { id: string; title: string };
+    thread: { id: string; title: string; mode: ScoutMode };
     messages: Array<{
       id: string;
       role: "user" | "assistant" | "tool" | "system";
@@ -131,12 +135,18 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
   }, [messages, status]);
 
   const isStreaming = status === "submitted" || status === "streaming";
+  const isDebrief = loaded.thread.mode === "debrief";
 
   return (
     <>
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-4">
-        <h2 className="my-0 truncate text-sm font-medium text-gray-700">
-          {loaded.thread.title}
+        <h2 className="my-0 flex items-center gap-2 truncate text-sm font-medium text-gray-700">
+          {isDebrief && (
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase">
+              Debrief
+            </span>
+          )}
+          <span className="truncate">{loaded.thread.title}</span>
         </h2>
         <span className="text-xs text-gray-400">
           {messages.length} message{messages.length === 1 ? "" : "s"}
@@ -150,13 +160,27 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         </span>
       </header>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2">
-        {messages.length === 0 && (
-          <div className="mt-8 text-center text-sm text-gray-400">
-            New thread. Ask a question to get started.
-          </div>
-        )}
+        {messages.length === 0 &&
+          (isDebrief ? (
+            <DebriefLauncher
+              onLaunch={(text) => {
+                void sendMessage({ text });
+              }}
+            />
+          ) : (
+            <div className="mt-8 text-center text-sm text-gray-400">
+              New thread. Ask a question to get started.
+            </div>
+          ))}
         {messages.map((m) => (
-          <MessageView key={m.id} message={m} />
+          <MessageView
+            key={m.id}
+            message={m}
+            onAnswerQuestion={(text) => {
+              void sendMessage({ text });
+            }}
+            isStreaming={isStreaming}
+          />
         ))}
         {error && (
           <div className="my-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">

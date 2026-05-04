@@ -1,9 +1,11 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
+import type { ScoutMode } from "./schemas.ts";
 
 export interface ThreadSummary {
   id: string;
   title: string;
+  mode: ScoutMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -29,13 +31,14 @@ export function listThreads(db: Kysely<DB>) {
     const rows = await db
       .selectFrom("scout_thread")
       .where("user_id", "=", userId)
-      .select(["id", "title", "created_at", "updated_at"])
+      .select(["id", "title", "mode", "created_at", "updated_at"])
       .orderBy("updated_at", "desc")
       .execute();
 
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
+      mode: r.mode as ScoutMode,
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),
     }));
@@ -43,16 +46,21 @@ export function listThreads(db: Kysely<DB>) {
 }
 
 export function createThread(db: Kysely<DB>) {
-  return async (userId: string, title: string): Promise<ThreadSummary> => {
+  return async (
+    userId: string,
+    title: string,
+    mode: ScoutMode = "scouting",
+  ): Promise<ThreadSummary> => {
     const row = await db
       .insertInto("scout_thread")
-      .values({ user_id: userId, title })
-      .returning(["id", "title", "created_at", "updated_at"])
+      .values({ user_id: userId, title, mode })
+      .returning(["id", "title", "mode", "created_at", "updated_at"])
       .executeTakeFirstOrThrow();
 
     return {
       id: row.id,
       title: row.title,
+      mode: row.mode as ScoutMode,
       createdAt: toIso(row.created_at),
       updatedAt: toIso(row.updated_at),
     };
@@ -79,7 +87,7 @@ export function getThread(db: Kysely<DB>) {
       .selectFrom("scout_thread")
       .where("id", "=", threadId)
       .where("user_id", "=", userId)
-      .select(["id", "title", "created_at", "updated_at"])
+      .select(["id", "title", "mode", "created_at", "updated_at"])
       .executeTakeFirst();
 
     if (!thread) throw new ThreadNotFoundError();
@@ -115,6 +123,7 @@ export function getThread(db: Kysely<DB>) {
       thread: {
         id: thread.id,
         title: thread.title,
+        mode: thread.mode as ScoutMode,
         createdAt: toIso(thread.created_at),
         updatedAt: toIso(thread.updated_at),
       },
@@ -193,19 +202,84 @@ export function bumpThreadUpdatedAt(db: Kysely<DB>) {
   };
 }
 
+export interface RecentDebriefMatch {
+  id: string;
+  matchDate: string;
+  opposition: string;
+  homeAway: "home" | "away";
+  ourTeam: string;
+  result: string | null;
+}
+
 /**
- * Verify a thread exists and is owned by the user. Used by the streaming
- * route, which can't use getThread (we don't want to load all messages just
- * to check ownership).
+ * Recent Percy Main matches (last 14 days, descending) used to populate
+ * the debrief launcher. We match by team-name prefix because the local
+ * MatchResult mirror doesn't carry club_ids — every Percy Main team
+ * starts with "Percy Main" (e.g. "Percy Main 1st XI", "Percy Main 2nd XI").
+ */
+export function listRecentDebriefMatches(db: Kysely<DB>) {
+  return async (
+    days = 14,
+    now: Date = new Date(),
+  ): Promise<RecentDebriefMatch[]> => {
+    const cutoff = new Date(now.getTime() - days * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const today = now.toISOString().slice(0, 10);
+
+    const rows = await db
+      .selectFrom("match_result")
+      .select([
+        "match_id",
+        "match_date",
+        "home_team_name",
+        "away_team_name",
+        "result",
+        "result_description",
+      ])
+      .where("match_date", ">=", cutoff)
+      .where("match_date", "<=", today)
+      .where((eb) =>
+        eb.or([
+          eb("home_team_name", "like", "Percy Main%"),
+          eb("away_team_name", "like", "Percy Main%"),
+        ]),
+      )
+      .orderBy("match_date", "desc")
+      .execute();
+
+    return rows.map((r) => {
+      const isHome = r.home_team_name.startsWith("Percy Main");
+      return {
+        id: r.match_id,
+        matchDate: r.match_date,
+        opposition: isHome ? r.away_team_name : r.home_team_name,
+        homeAway: isHome ? ("home" as const) : ("away" as const),
+        ourTeam: isHome ? r.home_team_name : r.away_team_name,
+        result: r.result_description || r.result || null,
+      };
+    });
+  };
+}
+
+/**
+ * Verify a thread exists and is owned by the user, returning its mode.
+ * Used by the streaming route, which can't use getThread (we don't want
+ * to load all messages just to check ownership) but does need the mode
+ * to pick the right system prompt + tool surface.
  */
 export function assertThreadOwnership(db: Kysely<DB>) {
-  return async (userId: string, threadId: string): Promise<void> => {
+  return async (
+    userId: string,
+    threadId: string,
+  ): Promise<{ mode: ScoutMode }> => {
     const row = await db
       .selectFrom("scout_thread")
       .where("id", "=", threadId)
       .where("user_id", "=", userId)
-      .select("id")
+      .select(["id", "mode"])
       .executeTakeFirst();
     if (!row) throw new ThreadNotFoundError();
+    return { mode: row.mode as ScoutMode };
   };
 }

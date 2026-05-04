@@ -11,7 +11,12 @@ import type { Kysely } from "kysely";
 import type { Config } from "../../config.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type { VoyageClient } from "./facts/voyage.ts";
-import { SCOUT_SYSTEM_PROMPT } from "./system-prompt.ts";
+import type { ScoutMode } from "./schemas.ts";
+import {
+  SCOUT_DEBRIEF_SYSTEM_PROMPT,
+  SCOUT_SYSTEM_PROMPT,
+} from "./system-prompt.ts";
+import { createAskQuestionTool } from "./tools/ask-question.ts";
 import { createScoutCache } from "./tools/cache.ts";
 import { createChartTool } from "./tools/chart.ts";
 import { createDbTools } from "./tools/db.ts";
@@ -45,6 +50,10 @@ export interface ScoutAgentDeps {
   voyage?: VoyageClient;
   userId: string;
   threadId?: string;
+  // Interaction mode — fixed at thread creation. Picks system prompt and
+  // toggles the ask_question / chart_render tool surface (debrief uses
+  // ask_question and skips charts; scouting is the inverse).
+  mode: ScoutMode;
 }
 
 export interface ScoutAgent {
@@ -66,7 +75,16 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   });
   const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
   const weatherTools = createWeatherTools({ cache });
-  const chartTools = createChartTool({ writer: deps.writer });
+  // Charts are useful in scouting answers but out of place in a debrief
+  // interview — register chart_render only when in scouting mode.
+  const chartTools =
+    deps.mode === "scouting" ? createChartTool({ writer: deps.writer }) : {};
+  // ask_question is the inverse: only in debrief, where the agent walks
+  // the captain through structured prompts via inline button cards.
+  const askQuestionTools =
+    deps.mode === "debrief"
+      ? createAskQuestionTool({ writer: deps.writer })
+      : {};
   // Match / player-stats citation tools — companions to cite_fact. They
   // don't need the DB or any external client, only the writer to stream
   // data-*-citation parts to the FE alongside the assistant's prose.
@@ -107,14 +125,18 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
 
 When asked about the "next" or "upcoming" match, filter match_date strictly GREATER THAN ${ddmmyyyy} — anything on or before today has already been played (or is being played now). Don't trust your gut on what day-of-week a date falls on; always compare against the iso date above.`;
 
+  const basePrompt =
+    deps.mode === "debrief" ? SCOUT_DEBRIEF_SYSTEM_PROMPT : SCOUT_SYSTEM_PROMPT;
+
   return {
     model: anthropic(deps.config.SCOUT_MODEL_CHAT),
-    system: `${SCOUT_SYSTEM_PROMPT}\n\n${todayLine}`,
+    system: `${basePrompt}\n\n${todayLine}`,
     tools: {
       ...playCricketTools,
       ...dbTools,
       ...weatherTools,
       ...chartTools,
+      ...askQuestionTools,
       ...factTools,
       ...playCricketCitationTools,
     },

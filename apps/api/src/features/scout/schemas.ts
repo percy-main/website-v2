@@ -9,9 +9,13 @@ export const threadIdParamSchema = z.object({
   threadId: z.uuid(),
 });
 
+export const scoutModeSchema = z.enum(["scouting", "debrief"]);
+export type ScoutMode = z.infer<typeof scoutModeSchema>;
+
 export const threadSummarySchema = z.object({
   id: z.uuid(),
   title: z.string(),
+  mode: scoutModeSchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -22,6 +26,7 @@ export const listThreadsResponseSchema = z.object({
 
 export const createThreadBodySchema = z.object({
   title: z.string().min(1).max(200).default("New thread"),
+  mode: scoutModeSchema.default("scouting"),
 });
 
 export const createThreadResponseSchema = threadSummarySchema;
@@ -69,6 +74,11 @@ const adminFactTagsSchema = z.record(
   z.union([z.string(), z.array(z.string())]),
 );
 
+export const factPermanenceSchema = z
+  .enum(["permanent", "seasonal", "ephemeral"])
+  .nullable();
+export type FactPermanence = z.infer<typeof factPermanenceSchema>;
+
 export const factAdminItemSchema = z.object({
   id: z.uuid(),
   userId: z.string(),
@@ -76,6 +86,7 @@ export const factAdminItemSchema = z.object({
   content: z.string(),
   tags: adminFactTagsSchema,
   confidence: z.number().int().min(1).max(5),
+  permanence: factPermanenceSchema,
   sourceThreadId: z.uuid().nullable(),
   supersededBy: z.uuid().nullable(),
   createdAt: z.iso.datetime(),
@@ -110,10 +121,30 @@ export const updateFactBodySchema = z.object({
   tags: adminFactTagsSchema.optional(),
   scope: adminFactScopeSchema.optional(),
   confidence: z.number().int().min(1).max(5).optional(),
+  // Allow explicit null to clear permanence back to "unknown"; omit the
+  // field entirely to leave it untouched.
+  permanence: factPermanenceSchema.optional(),
 });
 
 export const updateFactResponseSchema = factAdminItemSchema;
 
 export const deleteFactResponseSchema = z.object({
   ok: z.literal(true),
+});
+
+// ── Debrief mode ──
+// Recent Percy Main matches surfaced as launcher options when starting a
+// debrief thread. Last 14 days, descending. The FE renders these as
+// clickable cards alongside a free-text/URL fallback.
+export const recentDebriefMatchSchema = z.object({
+  id: z.string(),
+  matchDate: z.iso.date(),
+  opposition: z.string(),
+  homeAway: z.enum(["home", "away"]),
+  ourTeam: z.string(),
+  result: z.string().nullable(),
+});
+
+export const recentDebriefMatchesResponseSchema = z.object({
+  matches: z.array(recentDebriefMatchSchema),
 });

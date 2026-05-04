@@ -21,6 +21,8 @@ import { useState } from "react";
  * the embedding round-trip server-side.
  */
 
+type Permanence = "permanent" | "seasonal" | "ephemeral" | null;
+
 interface Fact {
   id: string;
   userId: string;
@@ -28,6 +30,7 @@ interface Fact {
   content: string;
   tags: Record<string, string | string[]>;
   confidence: number;
+  permanence: Permanence;
   sourceThreadId: string | null;
   supersededBy: string | null;
   createdAt: string;
@@ -200,7 +203,10 @@ function FactRow({
         <div className="text-sm text-gray-900">{fact.content}</div>
         <div className="mt-0.5 text-xs text-gray-500">
           {fact.scope === "user" ? "personal" : "club"} · confidence{" "}
-          {fact.confidence}/5
+          {fact.confidence}/5 ·{" "}
+          <span className="font-medium">
+            {fact.permanence ?? "permanence?"}
+          </span>
           {tagPairs ? ` · ${tagPairs}` : ""}
           {" · "}
           {new Date(fact.createdAt).toLocaleDateString()}
@@ -237,6 +243,9 @@ function FactEditDialog({
   const [content, setContent] = useState(fact?.content ?? "");
   const [scope, setScope] = useState<"user" | "club">(fact?.scope ?? "club");
   const [confidence, setConfidence] = useState<number>(fact?.confidence ?? 3);
+  const [permanence, setPermanence] = useState<Permanence>(
+    fact?.permanence ?? null,
+  );
   const [tagsText, setTagsText] = useState(
     fact ? JSON.stringify(fact.tags) : "{}",
   );
@@ -248,6 +257,7 @@ function FactEditDialog({
     setContent(fact.content);
     setScope(fact.scope);
     setConfidence(fact.confidence);
+    setPermanence(fact.permanence);
     setTagsText(JSON.stringify(fact.tags));
   });
 
@@ -267,6 +277,7 @@ function FactEditDialog({
             content: content !== fact.content ? content : undefined,
             scope: scope !== fact.scope ? scope : undefined,
             confidence: confidence !== fact.confidence ? confidence : undefined,
+            permanence: permanence !== fact.permanence ? permanence : undefined,
             tags: parsedTags,
           },
         }),
@@ -329,6 +340,22 @@ function FactEditDialog({
                 setConfidence(Math.max(1, Math.min(5, Number(e.target.value))))
               }
             />
+          </label>
+          <label className="flex flex-col text-xs text-gray-600">
+            Permanence
+            <select
+              className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+              value={permanence ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                setPermanence(v === "" ? null : (v as Permanence));
+              }}
+            >
+              <option value="">Unknown</option>
+              <option value="permanent">Permanent</option>
+              <option value="seasonal">Seasonal</option>
+              <option value="ephemeral">Ephemeral</option>
+            </select>
           </label>
         </div>
 

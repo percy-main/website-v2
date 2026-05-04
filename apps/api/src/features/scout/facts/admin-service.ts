@@ -30,6 +30,7 @@ const SELECT_COLS = [
   "content",
   "tags",
   "confidence",
+  "permanence",
   "source_thread_id",
   "superseded_by",
   "created_at",
@@ -43,6 +44,7 @@ interface Row {
   content: string;
   tags: unknown;
   confidence: number;
+  permanence: string | null;
   source_thread_id: string | null;
   superseded_by: string | null;
   created_at: Date | string;
@@ -57,6 +59,7 @@ function toItem(row: Row): AdminItem {
     content: row.content,
     tags: row.tags as AdminItem["tags"],
     confidence: row.confidence,
+    permanence: row.permanence as AdminItem["permanence"],
     sourceThreadId: row.source_thread_id,
     supersededBy: row.superseded_by,
     createdAt:
@@ -165,7 +168,14 @@ export function updateFact(db: Kysely<DB>, voyage: VoyageClient) {
       // with a raw embedding expression in one statement is messier than
       // a single CompiledQuery. Same parameterisation pattern as the
       // initial insert in service.ts.
+      //
+      // For COALESCE on permanence we use a sentinel string ('__keep__')
+      // because NULL is a meaningful value here ("clear permanence to
+      // unknown") and can't be distinguished from "leave alone" via
+      // COALESCE alone.
       const embedding = await voyage.embed(body.content, "document");
+      const permanenceParam =
+        body.permanence === undefined ? "__keep__" : body.permanence;
       await db.executeQuery(
         CompiledQuery.raw(
           `UPDATE scout_fact
@@ -174,14 +184,16 @@ export function updateFact(db: Kysely<DB>, voyage: VoyageClient) {
                tags = COALESCE($3::jsonb, tags),
                scope = COALESCE($4, scope),
                confidence = COALESCE($5, confidence),
+               permanence = CASE WHEN $6 = '__keep__' THEN permanence ELSE NULLIF($6, '__null__') END,
                updated_at = NOW()
-           WHERE id = $6`,
+           WHERE id = $7`,
           [
             body.content,
             toVectorLiteral(embedding),
             body.tags === undefined ? null : JSON.stringify(body.tags),
             body.scope ?? null,
             body.confidence ?? null,
+            permanenceParam ?? "__null__",
             factId,
           ],
         ),
@@ -203,6 +215,11 @@ export function updateFact(db: Kysely<DB>, voyage: VoyageClient) {
             // eslint-disable-next-line @typescript-eslint/non-nullable-type-assertion-style
             confidence: body.confidence as number,
           }),
+        )
+        .$if(body.permanence !== undefined, (q) =>
+          // body.permanence may be null (clear back to unknown) — both
+          // valid update values, distinct from `undefined` (leave alone).
+          q.set({ permanence: body.permanence as string | null }),
         )
         .set({ updated_at: new Date() })
         .where("id", "=", factId)

@@ -209,6 +209,20 @@ function buildMarkdownComponents(
 
 interface MessageViewProps {
   message: UIMessage;
+  /** Submit a reply on the user's behalf — used by the inline question
+   *  card (data-question parts) when the user picks an option or types a
+   *  free-text answer. Optional so user-message renders don't need to
+   *  pass it. */
+  onAnswerQuestion?: (text: string) => void;
+  /** Disables the question card while a stream is in flight, so old
+   *  questions don't fire double answers. */
+  isStreaming?: boolean;
+}
+
+interface QuestionData {
+  question: string;
+  options: Array<{ label: string; value: string }>;
+  allowFreeText: boolean;
 }
 
 // Walk parts once to assign each unique citation key a stable number
@@ -247,7 +261,11 @@ function partToCitation(part: UIMessage["parts"][number]): Citation | null {
   return null;
 }
 
-export function MessageView({ message }: MessageViewProps) {
+export function MessageView({
+  message,
+  onAnswerQuestion,
+  isStreaming,
+}: MessageViewProps) {
   const isUser = message.role === "user";
   const citations = isUser
     ? { numberByKey: new Map<string, number>(), ordered: [] as Citation[] }
@@ -293,6 +311,8 @@ export function MessageView({ message }: MessageViewProps) {
             part={part}
             numberByKey={citations.numberByKey}
             onChipClick={handleChipClick}
+            onAnswerQuestion={onAnswerQuestion}
+            isStreaming={isStreaming}
           />
         ))}
         {!isUser && citations.ordered.length > 0 && (
@@ -370,7 +390,8 @@ function renderParts(
     if (
       part.type === "tool-cite_fact" ||
       part.type === "tool-cite_match" ||
-      part.type === "tool-cite_player_stats"
+      part.type === "tool-cite_player_stats" ||
+      part.type === "tool-ask_question"
     ) {
       continue;
     }
@@ -473,10 +494,14 @@ function PartView({
   part,
   numberByKey,
   onChipClick,
+  onAnswerQuestion,
+  isStreaming,
 }: {
   part: Part;
   numberByKey: Map<string, number>;
   onChipClick: (key: string) => void;
+  onAnswerQuestion?: (text: string) => void;
+  isStreaming?: boolean;
 }) {
   if (part.type === "text") {
     return (
@@ -507,6 +532,17 @@ function PartView({
     return <ScoutChart spec={chartPart.data} />;
   }
 
+  if (part.type === "data-question") {
+    const qPart = part as { type: "data-question"; data: QuestionData };
+    return (
+      <QuestionCard
+        data={qPart.data}
+        onAnswer={onAnswerQuestion}
+        disabled={isStreaming}
+      />
+    );
+  }
+
   // Citation data parts that didn't get folded into a preceding text part
   // (rare — only when the model cites before any prose). Render a standalone
   // chip so the citation isn't lost.
@@ -526,7 +562,8 @@ function PartView({
     if (
       part.type === "tool-cite_fact" ||
       part.type === "tool-cite_match" ||
-      part.type === "tool-cite_player_stats"
+      part.type === "tool-cite_player_stats" ||
+      part.type === "tool-ask_question"
     ) {
       return null;
     }
@@ -740,6 +777,86 @@ function Pill({
 
 function capitalise(s: string): string {
   return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
+}
+
+// ── Inline question card (data-question) ─────────────────────────────────
+
+function QuestionCard({
+  data,
+  onAnswer,
+  disabled,
+}: {
+  data: QuestionData;
+  onAnswer?: (text: string) => void;
+  disabled?: boolean;
+}) {
+  // Lock the card once the user has answered, so a re-render driven by
+  // streaming a later message doesn't let them click twice.
+  const [answered, setAnswered] = useState<string | null>(null);
+  const [freeText, setFreeText] = useState("");
+
+  const submit = (text: string) => {
+    if (!onAnswer || disabled || answered !== null) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setAnswered(trimmed);
+    onAnswer(trimmed);
+  };
+
+  const isInteractive =
+    onAnswer !== undefined && !disabled && answered === null;
+
+  return (
+    <div className="my-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+      <div className="text-sm font-medium text-amber-900">{data.question}</div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {data.options.map((opt) => {
+          const picked = answered === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => submit(opt.value)}
+              disabled={!isInteractive}
+              className={
+                picked
+                  ? "rounded border border-amber-500 bg-amber-200 px-2.5 py-1 text-xs font-medium text-amber-900"
+                  : "rounded border border-amber-300 bg-white px-2.5 py-1 text-xs text-gray-800 hover:border-amber-500 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-amber-300 disabled:hover:bg-white"
+              }
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+      {data.allowFreeText && answered === null && (
+        <form
+          className="mt-2 flex gap-1.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit(freeText);
+            setFreeText("");
+          }}
+        >
+          <input
+            type="text"
+            value={freeText}
+            onChange={(e) => setFreeText(e.target.value)}
+            disabled={!isInteractive}
+            placeholder="Or type an answer"
+            className="flex-1 rounded border border-amber-300 bg-white px-2 py-1 text-xs focus:border-amber-500 focus:outline-none disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={!isInteractive || !freeText.trim()}
+            className="rounded bg-amber-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Send
+          </button>
+        </form>
+      )}
+    </div>
+  );
 }
 
 // ── Tool-call card (debug view for non-citation tools) ────────────────────

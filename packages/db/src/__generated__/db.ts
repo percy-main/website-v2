@@ -606,6 +606,7 @@ export interface ScoutFact {
   created_at: Generated<Timestamp>;
   embedding: string;
   id: Generated<string>;
+  permanence: string | null;
   scope: string;
   source_message_id: string | null;
   source_thread_id: string | null;
@@ -642,6 +643,7 @@ export interface ScoutMessage {
 export interface ScoutThread {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
+  mode: Generated<string>;
   title: string;
   updated_at: Generated<Timestamp>;
   user_id: string;

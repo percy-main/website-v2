@@ -137,6 +137,56 @@ describe("recordFact — write path with cosine dedup + supersession", () => {
     expect(row.scope).toBe("club");
     expect(row.confidence).toBe(5);
     expect(row.superseded_by).toBeNull();
+    // topic="ground" maps to permanence=seasonal; the inference fires
+    // when permanence isn't supplied explicitly.
+    expect(row.permanence).toBe("seasonal");
+  });
+
+  it("leaves permanence NULL when the topic isn't in the inference table", async () => {
+    const voyage = buildVoyageMock({
+      embeddings: new Map([["Random unclassified note", vec([0, 1])]]),
+    });
+    const result = await recordFact(
+      ctx.db,
+      voyage,
+    )({
+      userId,
+      scope: "club",
+      content: "Random unclassified note",
+      tags: { topic: "something-else" },
+    });
+    const row = await ctx.db
+      .selectFrom("scout_fact")
+      .where("id", "=", result.id)
+      .select("permanence")
+      .executeTakeFirstOrThrow();
+    expect(row.permanence).toBeNull();
+  });
+
+  it("respects an explicit permanence override over the topic-inferred default", async () => {
+    const voyage = buildVoyageMock({
+      embeddings: new Map([
+        ["Sightscreens at both ends at Mitford", vec([0, 1])],
+      ]),
+    });
+    const result = await recordFact(
+      ctx.db,
+      voyage,
+    )({
+      userId,
+      scope: "club",
+      // topic=ground would normally infer "seasonal" — caller forcing
+      // "permanent" wins.
+      content: "Sightscreens at both ends at Mitford",
+      tags: { topic: "ground" },
+      permanence: "permanent",
+    });
+    const row = await ctx.db
+      .selectFrom("scout_fact")
+      .where("id", "=", result.id)
+      .select("permanence")
+      .executeTakeFirstOrThrow();
+    expect(row.permanence).toBe("permanent");
   });
 
   it("supersedes a near-duplicate (cosine distance < 0.1) instead of inserting twice", async () => {
@@ -722,6 +772,7 @@ describe("formatFactsBlock", () => {
         tags: { team: "Mitford CC", topic: "ground" },
         scope: "club",
         confidence: 5,
+        permanence: "seasonal",
         score: 0.92,
         createdAt: new Date(),
       },

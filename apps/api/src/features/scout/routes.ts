@@ -31,6 +31,7 @@ import {
   listFactsQuerySchema,
   listFactsResponseSchema,
   listThreadsResponseSchema,
+  recentDebriefMatchesResponseSchema,
   threadIdParamSchema,
   updateFactBodySchema,
   updateFactResponseSchema,
@@ -42,6 +43,7 @@ import {
   createThread,
   deleteThread,
   getThread,
+  listRecentDebriefMatches,
   listThreads,
   ThreadNotFoundError,
 } from "./service.ts";
@@ -56,6 +58,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const append = appendMessage(app.db);
   const bump = bumpThreadUpdatedAt(app.db);
   const assertOwned = assertThreadOwnership(app.db);
+  const recentMatches = listRecentDebriefMatches(app.db);
   const generateTitle = maybeGenerateTitle({
     db: app.db,
     modelId: app.config.SCOUT_MODEL_SUBAGENT,
@@ -112,8 +115,23 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      return await create(user.id, request.body.title);
+      return await create(user.id, request.body.title, request.body.mode);
     },
+  );
+
+  // ── Debrief launcher ──
+  // Recent Percy Main matches (last 14d) so the FE can offer them as
+  // clickable cards when the captain starts a debrief thread. The
+  // free-text/URL fallback in the FE bypasses this entirely.
+  app.get(
+    "/scout/debrief/recent-matches",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        response: { 200: recentDebriefMatchesResponseSchema },
+      },
+    },
+    async () => ({ matches: await recentMatches() }),
   );
 
   app.get(
@@ -206,8 +224,10 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         });
       }
 
+      let threadMode: "scouting" | "debrief";
       try {
-        await assertOwned(user.id, threadId);
+        const owned = await assertOwned(user.id, threadId);
+        threadMode = owned.mode;
       } catch (err) {
         if (err instanceof ThreadNotFoundError) {
           throw Object.assign(new Error("Thread not found"), {
@@ -362,6 +382,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             voyage,
             userId: user.id,
             threadId,
+            mode: threadMode,
           });
 
           const result = streamText({
