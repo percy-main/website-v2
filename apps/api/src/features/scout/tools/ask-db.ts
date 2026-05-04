@@ -97,7 +97,7 @@ ${SCOUT_ALLOWED_TABLES.map((t) => `  - ${t}`).join("\n")}
 
 CRITICAL rules — apply on every query:
 
-1. **match_date is text in dd/mm/yyyy.** Lexicographic ordering is wrong ("31/08/2013" sorts after "07/06/2025"). Always use to_date(match_date, 'DD/MM/YYYY') for any ORDER BY, comparison, or BETWEEN.
+1. **match_date is text in ISO YYYY-MM-DD.** Lex order matches chronological order, so ORDER BY / WHERE / BETWEEN work on the plain text column. Compare against today as '${iso}' (or current_date::text). The Play Cricket *API* still returns dd/mm/yyyy — that only matters when you're reading tool output, not when querying our DB. Don't wrap match_date in to_date(...).
 
 2. **Aggregate in SQL, never in your head.** Counts, sums, averages, distributions, top-N — write a query that COMPUTES the answer. Pulling 200 rows back to count them is wasteful and inaccurate.
 

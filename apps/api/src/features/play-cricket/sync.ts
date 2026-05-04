@@ -404,6 +404,10 @@ async function syncMatches(
         parseInt(mm) - 1,
         parseInt(dd),
       );
+      // Store as ISO YYYY-MM-DD so it sorts and compares correctly as text.
+      // The Play Cricket API emits DD/MM/YYYY which we don't keep on disk —
+      // every consumer downstream wants ISO.
+      const matchDateIso = `${yyyy}-${mm}-${dd}`;
 
       // Skip already-processed matches only when they're past the resync
       // window. Inside the window, re-fetch — all writes are idempotent
@@ -472,7 +476,7 @@ async function syncMatches(
             matchId,
             battingTeamId,
             match.competition_type ?? "",
-            match.match_date,
+            matchDateIso,
             season,
           );
         }
@@ -484,7 +488,7 @@ async function syncMatches(
             matchId,
             fieldingTeamId,
             match.competition_type ?? "",
-            match.match_date,
+            matchDateIso,
             season,
           );
 
@@ -498,7 +502,7 @@ async function syncMatches(
             matchId,
             fieldingTeamId,
             match.competition_type ?? "",
-            match.match_date,
+            matchDateIso,
             season,
           );
         }
@@ -523,7 +527,7 @@ async function syncMatches(
             result_description: detail.result_description ?? "",
             result_applied_to: detail.result_applied_to ?? "",
             competition_type: match.competition_type ?? "",
-            match_date: match.match_date,
+            match_date: matchDateIso,
             season,
           })
           .onConflict((oc) =>

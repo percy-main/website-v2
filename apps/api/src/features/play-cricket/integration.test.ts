@@ -558,7 +558,9 @@ describe("play-cricket sync (integration)", () => {
   it("skips already-processed matches outside the resync window", async () => {
     const matchId = 55500 + Math.floor(Math.random() * 1000);
     // Dated well in the past so it falls outside the 7-day resync window.
-    const oldDate = "01/07/2024";
+    // The DB stores ISO; the API summary still emits dd/mm/yyyy.
+    const oldDateIso = "2024-07-01";
+    const oldDatePc = "01/07/2024";
 
     await ctx.db
       .insertInto("match_result")
@@ -569,7 +571,7 @@ describe("play-cricket sync (integration)", () => {
         away_team_id: OPPONENT_TEAM_ID,
         home_team_name: "Percy Main 1st XI",
         away_team_name: "Opposition 1st XI",
-        match_date: oldDate,
+        match_date: oldDateIso,
         season: 2024,
       })
       .execute();
@@ -577,7 +579,7 @@ describe("play-cricket sync (integration)", () => {
     const api = createMockApi({
       getMatchesSummary: vi
         .fn()
-        .mockResolvedValue({ matches: [makeMatchSummary(matchId, oldDate)] }),
+        .mockResolvedValue({ matches: [makeMatchSummary(matchId, oldDatePc)] }),
     });
 
     const sync = runSync(ctx.db, api);

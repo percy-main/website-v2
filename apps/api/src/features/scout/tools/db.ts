@@ -166,13 +166,13 @@ Aggregate-first patterns:
   SELECT player_name, runs, match_date
   FROM match_performance_batting
   WHERE runs >= 100
-  ORDER BY to_date(match_date, 'DD/MM/YYYY') DESC
+  ORDER BY match_date DESC
   LIMIT 1;
 
 When you DO need raw rows (e.g. quoting one specific innings in your reply), narrow with WHERE + ORDER BY + LIMIT, and SELECT only the columns you'll quote — do not SELECT *.
 
-CRITICAL — match_date is text, not date:
-\`match_date\` columns (on match_performance_*, match_result, play_cricket_match_cache, etc.) are stored as text in dd/mm/yyyy format because that's how Play Cricket returns them. Lexicographic ordering is WRONG: "31/08/2013" sorts AFTER "07/06/2025". Always wrap in to_date(match_date, 'DD/MM/YYYY') for any ORDER BY, comparison, or BETWEEN. Example: ORDER BY to_date(match_date, 'DD/MM/YYYY') DESC.`,
+NOTE — match_date is text in ISO YYYY-MM-DD:
+\`match_date\` on match_performance_*, match_result, play_cricket_match_cache, matchday, availability_fixture, etc. is stored as text in YYYY-MM-DD. Lexicographic order matches chronological order, so plain ORDER BY / WHERE / BETWEEN on the text column works. Compare against today as 'YYYY-MM-DD' (or current_date::text). Note: the Play Cricket *API* still returns DD/MM/YYYY — that only matters when you're inspecting tool output, not when querying our DB. Don't wrap match_date in to_date(...).`,
       inputSchema: z.object({
         query: z.string().describe("A single SELECT or WITH statement."),
       }),

@@ -39,15 +39,22 @@ export function getMatchDetail(db: Kysely<DB>) {
           .where("match_id", "=", matchId)
           .execute();
       } else {
+        // Normalise to ISO YYYY-MM-DD; Play Cricket emits DD/MM/YYYY but the
+        // rest of our schema (and ORDER BY semantics on TEXT) wants ISO.
+        const rawDate =
+          typeof dataRecord.match_date === "string"
+            ? dataRecord.match_date
+            : null;
+        const matchDateIso =
+          rawDate && /^\d{2}\/\d{2}\/\d{4}$/.test(rawDate)
+            ? `${rawDate.slice(6, 10)}-${rawDate.slice(3, 5)}-${rawDate.slice(0, 2)}`
+            : (rawDate ?? new Date().toISOString().split("T")[0]);
         await db
           .insertInto("play_cricket_match_cache")
           .values({
             match_id: matchId,
             data: JSON.stringify(data),
-            match_date:
-              (typeof dataRecord.match_date === "string"
-                ? dataRecord.match_date
-                : null) ?? new Date().toISOString().split("T")[0],
+            match_date: matchDateIso,
             fetched_at: new Date().toISOString(),
           })
           .execute();
