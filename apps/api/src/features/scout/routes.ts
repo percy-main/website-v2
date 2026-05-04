@@ -9,7 +9,7 @@ import {
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { getAuthSession } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
-import { createScoutAgent } from "./agent.ts";
+import { createScoutAgent, type ThinkingMode } from "./agent.ts";
 import { requireScoutAccess } from "./auth.ts";
 import {
   deleteFact,
@@ -250,13 +250,21 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         throw err;
       }
 
-      const body = request.body as { messages?: UIMessage[] } | undefined;
+      const body = request.body as
+        | { messages?: UIMessage[]; thinkingMode?: unknown }
+        | undefined;
       const incoming = body?.messages;
       if (!Array.isArray(incoming) || incoming.length === 0) {
         throw Object.assign(new Error("messages array is required"), {
           statusCode: 400,
         });
       }
+      // Per-turn reasoning toggle. Default "thinking" — current chat model
+      // (DeepSeek-v4-pro) reasons by default and most users expect that to
+      // remain the floor; the FE flips this to "fast" when the user opts out
+      // for a quick follow-up.
+      const thinkingMode: ThinkingMode =
+        body?.thinkingMode === "fast" ? "fast" : "thinking";
 
       const lastMessage = incoming[incoming.length - 1];
       if (lastMessage.role !== "user") {
@@ -398,6 +406,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             threadId,
             mode: threadMode,
             scoutReports: app.scoutReports,
+            thinkingMode,
           });
 
           const result = streamText({
@@ -407,6 +416,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             messages: modelMessages,
             stopWhen: stepCountIs(agent.maxSteps),
             prepareStep: agent.prepareStep,
+            providerOptions: agent.providerOptions,
             onError: ({ error }) => {
               app.log.error(
                 { err: sanitizeError(error) },

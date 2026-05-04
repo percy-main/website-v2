@@ -27,6 +27,20 @@ import { createPlayCricketCitationTools } from "./tools/play-cricket-citations.t
 import { createPlayCricketTools } from "./tools/play-cricket.ts";
 import { createWeatherTools } from "./tools/weather.ts";
 
+// streamText's providerOptions is typed as a deep alias not re-exported from
+// the public "ai" entrypoint (lives in @ai-sdk/provider as
+// SharedV3ProviderOptions). Inline the structural shape — the only thing we
+// ever build is one nested object keyed by provider id, so a JSONValue tree
+// is sufficient and avoids reaching into a transitive dep.
+type ScoutJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: ScoutJsonValue }
+  | ScoutJsonValue[];
+type ScoutProviderOptions = Record<string, Record<string, ScoutJsonValue>>;
+
 /**
  * Scout's agent config — model, system prompt, and the tool dictionary that
  * gets passed to AI SDK v6's streamText / generateText. We use AI SDK
@@ -59,7 +73,15 @@ export interface ScoutAgentDeps {
   // S3 store for the generate_report tool. Required in scouting mode (the
   // only mode where the tool is registered); ignored in debrief.
   scoutReports: ScoutReportStore;
+  // Per-turn reasoning toggle. "thinking" = chain-of-thought enabled (slower,
+  // better on multi-step queries); "fast" = thinking disabled (lower latency,
+  // best for follow-ups). Only DeepSeek currently honours this — Sonnet 4.6
+  // has no native thinking knob, so the flag is a no-op when chat provider
+  // is anthropic.
+  thinkingMode: ThinkingMode;
 }
+
+export type ThinkingMode = "thinking" | "fast";
 
 export interface ScoutAgent {
   model: LanguageModel;
@@ -69,6 +91,9 @@ export interface ScoutAgent {
   prepareStep: (args: { messages: ModelMessage[] }) => {
     messages: ModelMessage[];
   };
+  // Provider-specific options merged into streamText. Currently only used to
+  // toggle DeepSeek's thinking mode per turn; empty for anthropic runs.
+  providerOptions: ScoutProviderOptions;
 }
 
 export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
@@ -153,6 +178,21 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
     deps.config.SCOUT_MODEL_CHAT,
   );
 
+  // DeepSeek-v4-pro defaults to thinking-on. Sending an explicit
+  // { type: "disabled" } through providerOptions skips the chain-of-thought
+  // pass for fast follow-ups. Anthropic doesn't expose a knob like this on
+  // Sonnet 4.6, so we leave its options empty regardless of the toggle.
+  const providerOptions: ScoutProviderOptions =
+    resolved.provider === "deepseek"
+      ? {
+          deepseek: {
+            thinking: {
+              type: deps.thinkingMode === "fast" ? "disabled" : "enabled",
+            },
+          },
+        }
+      : {};
+
   return {
     model: resolved.model,
     system: `${basePrompt}\n\n${todayLine}`,
@@ -172,6 +212,7 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
         ? addCacheControlToLastMessage(messages)
         : messages,
     }),
+    providerOptions,
   };
 }
 

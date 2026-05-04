@@ -34,6 +34,7 @@ function makeAgent(mode: "scouting" | "debrief" = "scouting") {
     userId: "test-user",
     mode,
     scoutReports: stubScoutReports,
+    thinkingMode: "thinking",
   });
 }
 
