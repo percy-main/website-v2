@@ -19,6 +19,7 @@ export async function buildTestApp(db: Kysely<DB>, dialect: PostgresDialect) {
     S3_BUCKET: "test-bucket",
     S3_DOCUMENTS_BUCKET: "test-documents-bucket",
     S3_DOCUMENT_UPLOADS_BUCKET: "test-document-uploads-bucket",
+    SCOUT_REPORTS_BUCKET: "test-scout-reports-bucket",
   });
 
   return buildApp({ db, dialect, config });
