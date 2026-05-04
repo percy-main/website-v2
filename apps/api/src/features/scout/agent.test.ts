@@ -19,8 +19,12 @@ function makeAgent(mode: "scouting" | "debrief" = "scouting") {
   const stubPlayCricket = {} as PlayCricketApiClient;
   const stubWriter = {} as UIMessageStreamWriter;
   const stubConfig = {
+    SCOUT_PROVIDER_CHAT: "anthropic",
+    SCOUT_PROVIDER_DB: "anthropic",
     SCOUT_MODEL_CHAT: "claude-sonnet-4-6",
+    SCOUT_MODEL_DB: "claude-haiku-4-5-20251001",
     SCOUT_MAX_STEPS: 20,
+    SCOUT_DB_AGENT_MAX_STEPS: 8,
   } as Config;
   const stubScoutReports = {} as ScoutReportStore;
 
@@ -33,6 +37,7 @@ function makeAgent(mode: "scouting" | "debrief" = "scouting") {
     userId: "test-user",
     mode,
     scoutReports: stubScoutReports,
+    thinkingMode: "thinking",
   });
 }
 

@@ -9,7 +9,7 @@ import {
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { getAuthSession } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
-import { createScoutAgent } from "./agent.ts";
+import { createScoutAgent, type ThinkingMode } from "./agent.ts";
 import { requireScoutAccess } from "./auth.ts";
 import {
   deleteFact,
@@ -20,8 +20,10 @@ import {
 } from "./facts/admin-service.ts";
 import { applyAutoRetrieval } from "./facts/auto-retrieve.ts";
 import { createVoyageClient } from "./facts/voyage.ts";
+import { extractCacheUsage, type ScoutProvider } from "./provider.ts";
 import {
   accessResponseSchema,
+  chatRequestBodySchema,
   createThreadBodySchema,
   createThreadResponseSchema,
   deleteFactResponseSchema,
@@ -72,6 +74,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const reportDelete = deleteReport(app.db);
   const generateTitle = maybeGenerateTitle({
     db: app.db,
+    provider: app.config.SCOUT_PROVIDER_SUBAGENT,
     modelId: app.config.SCOUT_MODEL_SUBAGENT,
   });
 
@@ -204,6 +207,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       preHandler: [requireScoutAccess],
       schema: {
         params: threadIdParamSchema,
+        body: chatRequestBodySchema,
         hide: true,
       },
     },
@@ -211,9 +215,11 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       const { user } = getAuthSession(request);
       const { threadId } = request.params;
 
-      // Guard: Scout requires the readonly DB client and an Anthropic key.
-      // Both are optional in config so non-Scout deployments can boot, but
-      // hitting this route without them is a misconfiguration.
+      // Guard: Scout requires the readonly DB client and the API key for
+      // every provider this deployment is configured to use. Both are
+      // optional in config so non-Scout deployments can boot, but hitting
+      // this route without the keys for SCOUT_PROVIDER_CHAT /
+      // SCOUT_PROVIDER_SUBAGENT / SCOUT_PROVIDER_DB is a misconfiguration.
       const dbReadonly = app.dbReadonly;
       if (!dbReadonly) {
         throw Object.assign(
@@ -221,10 +227,26 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           { statusCode: 503 },
         );
       }
-      if (!app.config.ANTHROPIC_API_KEY) {
-        throw Object.assign(new Error("ANTHROPIC_API_KEY is not configured."), {
-          statusCode: 503,
-        });
+      const requiredProviders = new Set<ScoutProvider>([
+        app.config.SCOUT_PROVIDER_CHAT,
+        app.config.SCOUT_PROVIDER_SUBAGENT,
+        app.config.SCOUT_PROVIDER_DB,
+      ]);
+      if (requiredProviders.has("anthropic") && !app.config.ANTHROPIC_API_KEY) {
+        throw Object.assign(
+          new Error(
+            "ANTHROPIC_API_KEY is not configured but at least one Scout provider is set to anthropic.",
+          ),
+          { statusCode: 503 },
+        );
+      }
+      if (requiredProviders.has("deepseek") && !app.config.DEEPSEEK_API_KEY) {
+        throw Object.assign(
+          new Error(
+            "DEEPSEEK_API_KEY is not configured but at least one Scout provider is set to deepseek.",
+          ),
+          { statusCode: 503 },
+        );
       }
       if (
         !app.config.PLAY_CRICKET_API_TOKEN ||
@@ -248,13 +270,17 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         throw err;
       }
 
-      const body = request.body as { messages?: UIMessage[] } | undefined;
-      const incoming = body?.messages;
-      if (!Array.isArray(incoming) || incoming.length === 0) {
-        throw Object.assign(new Error("messages array is required"), {
-          statusCode: 400,
-        });
-      }
+      // request.body is now Zod-validated against chatRequestBodySchema —
+      // messages is guaranteed non-empty, thinkingMode is "thinking" |
+      // "fast" | undefined. Cast to UIMessage[] is the AI SDK contract; the
+      // schema kept its shape opaque on purpose.
+      const incoming = request.body.messages as UIMessage[];
+      // Per-turn reasoning toggle. Default "thinking" when the FE didn't
+      // send the field — current chat model (DeepSeek-v4-pro) reasons by
+      // default and most users expect that to remain the floor; the FE
+      // flips this to "fast" when the user opts out for a quick follow-up.
+      const thinkingMode: ThinkingMode =
+        request.body.thinkingMode ?? "thinking";
 
       const lastMessage = incoming[incoming.length - 1];
       if (lastMessage.role !== "user") {
@@ -349,12 +375,11 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             await generateTitle(threadId, firstUserText);
 
             // Per-turn structured line for cost analysis. cacheRead /
-            // cacheCreation come from result.providerMetadata.anthropic;
-            // null/undefined means the Anthropic provider didn't report them
-            // this turn (tool-only step, or non-Anthropic model).
-            // cacheReadRatio answers "how much of the input was served from
-            // cache" — the headline number for whether prompt caching is
-            // firing across the multi-step agent loop.
+            // cacheCreation are extracted by extractCacheUsage and shaped
+            // per-provider — Anthropic reports both via providerMetadata,
+            // DeepSeek reports cacheRead only via usage.cachedInputTokens
+            // and has no separate cache-creation event. Provider is tagged
+            // so cross-vendor cost analysis can split the data.
             const inputTokens = usage.inputTokens ?? 0;
             const cacheRead = usage.cacheRead;
             const cacheReadRatio =
@@ -365,6 +390,8 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               {
                 event: "scout.turn",
                 threadId,
+                provider: app.config.SCOUT_PROVIDER_CHAT,
+                model: app.config.SCOUT_MODEL_CHAT,
                 inputTokens,
                 outputTokens: usage.outputTokens ?? 0,
                 cacheReadTokens: cacheRead ?? 0,
@@ -395,6 +422,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             threadId,
             mode: threadMode,
             scoutReports: app.scoutReports,
+            thinkingMode,
           });
 
           const result = streamText({
@@ -404,6 +432,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             messages: modelMessages,
             stopWhen: stepCountIs(agent.maxSteps),
             prepareStep: agent.prepareStep,
+            providerOptions: agent.providerOptions,
             onError: ({ error }) => {
               app.log.error(
                 { err: sanitizeError(error) },
@@ -415,17 +444,16 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             result.usage,
             result.providerMetadata,
           ]).then(([u, providerMeta]) => {
-            const anthropicMeta = providerMeta?.anthropic as
-              | {
-                  cacheCreationInputTokens?: number;
-                  cacheReadInputTokens?: number;
-                }
-              | undefined;
+            const cache = extractCacheUsage(
+              app.config.SCOUT_PROVIDER_CHAT,
+              u,
+              providerMeta,
+            );
             return {
               inputTokens: u.inputTokens ?? undefined,
               outputTokens: u.outputTokens ?? undefined,
-              cacheRead: anthropicMeta?.cacheReadInputTokens,
-              cacheCreation: anthropicMeta?.cacheCreationInputTokens,
+              cacheRead: cache.cacheRead,
+              cacheCreation: cache.cacheCreation,
             };
           });
 
@@ -434,10 +462,14 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           writer.merge(result.toUIMessageStream({ sendStart: false }));
         },
         onError: (error) => {
+          // Provider-side errors (auth, billing, rate limit, etc.) put the
+          // raw provider message on error.message — e.g. "Insufficient
+          // Balance" from DeepSeek or "invalid x-api-key" from Anthropic.
+          // Returning that to the FE leaks operational state of our account
+          // to anyone with Scout access, so we log the full sanitized error
+          // server-side and surface a generic string to the UI.
           app.log.error({ err: sanitizeError(error) }, "scout UI stream error");
-          return error instanceof Error
-            ? error.message
-            : "Scout stream failed.";
+          return "Scout failed to respond. Please try again.";
         },
       });
 

@@ -4,7 +4,7 @@ import type { UIMessage } from "@ai-sdk/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "react-router";
-import { Composer } from "./composer.js";
+import { Composer, type ThinkingMode } from "./composer.js";
 import { DebriefLauncher } from "./debrief-launcher.js";
 import { MessageView } from "./message-view.js";
 import { ReportsView } from "./reports-view.js";
@@ -197,6 +197,28 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
     );
   };
 
+  // Per-turn reasoning mode. URL-state-backed so it survives reload and
+  // sticks per thread within a tab session. Default "thinking" — DeepSeek-
+  // v4-pro reasons by default and most prompts benefit from it; the toggle
+  // is for when the user wants a quick follow-up.
+  const thinkingMode: ThinkingMode =
+    searchParams.get("think") === "fast" ? "fast" : "thinking";
+  const setThinkingMode = (next: ThinkingMode) => {
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        if (next === "fast") sp.set("think", "fast");
+        else sp.delete("think");
+        return sp;
+      },
+      { replace: true },
+    );
+  };
+
+  const send = (text: string) => {
+    void sendMessage({ text }, { body: { thinkingMode } });
+  };
+
   // Auto-scroll to the bottom when new content arrives.
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -233,11 +255,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2">
         {messages.length === 0 &&
           (isDebrief ? (
-            <DebriefLauncher
-              onLaunch={(text) => {
-                void sendMessage({ text });
-              }}
-            />
+            <DebriefLauncher onLaunch={send} />
           ) : (
             <div className="mt-8 text-center text-sm text-gray-400">
               New thread. Ask a question to get started.
@@ -247,9 +265,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
           <MessageView
             key={m.id}
             message={m}
-            onAnswerQuestion={(text) => {
-              void sendMessage({ text });
-            }}
+            onAnswerQuestion={send}
             isStreaming={isStreaming}
           />
         ))}
@@ -264,9 +280,9 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         onDraftChange={setDraft}
         disabled={isStreaming}
         showGenerateReport={!isDebrief}
-        onSubmit={(text) => {
-          void sendMessage({ text });
-        }}
+        thinkingMode={thinkingMode}
+        onThinkingModeChange={setThinkingMode}
+        onSubmit={send}
       />
     </>
   );

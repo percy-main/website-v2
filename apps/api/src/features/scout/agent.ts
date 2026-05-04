@@ -1,4 +1,3 @@
-import { anthropic } from "@ai-sdk/anthropic";
 import type { DB } from "@percy-main/db";
 import type {
   LanguageModel,
@@ -12,20 +11,35 @@ import type { Config } from "../../config.ts";
 import type { ScoutReportStore } from "../../lib/s3-scout-reports.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type { VoyageClient } from "./facts/voyage.ts";
+import { resolveModel } from "./provider.ts";
 import type { ScoutMode } from "./schemas.ts";
 import {
   SCOUT_DEBRIEF_SYSTEM_PROMPT,
   SCOUT_SYSTEM_PROMPT,
 } from "./system-prompt.ts";
+import { createAskDbTool } from "./tools/ask-db.ts";
 import { createAskQuestionTool } from "./tools/ask-question.ts";
 import { createScoutCache } from "./tools/cache.ts";
 import { createChartTool } from "./tools/chart.ts";
-import { createDbTools } from "./tools/db.ts";
 import { createFactTools } from "./tools/facts.ts";
 import { createGenerateReportTool } from "./tools/generate-report.ts";
 import { createPlayCricketCitationTools } from "./tools/play-cricket-citations.ts";
 import { createPlayCricketTools } from "./tools/play-cricket.ts";
 import { createWeatherTools } from "./tools/weather.ts";
+
+// streamText's providerOptions is typed as a deep alias not re-exported from
+// the public "ai" entrypoint (lives in @ai-sdk/provider as
+// SharedV3ProviderOptions). Inline the structural shape — the only thing we
+// ever build is one nested object keyed by provider id, so a JSONValue tree
+// is sufficient and avoids reaching into a transitive dep.
+type ScoutJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: ScoutJsonValue }
+  | ScoutJsonValue[];
+type ScoutProviderOptions = Record<string, Record<string, ScoutJsonValue>>;
 
 /**
  * Scout's agent config — model, system prompt, and the tool dictionary that
@@ -59,7 +73,15 @@ export interface ScoutAgentDeps {
   // S3 store for the generate_report tool. Required in scouting mode (the
   // only mode where the tool is registered); ignored in debrief.
   scoutReports: ScoutReportStore;
+  // Per-turn reasoning toggle. "thinking" = chain-of-thought enabled (slower,
+  // better on multi-step queries); "fast" = thinking disabled (lower latency,
+  // best for follow-ups). Only DeepSeek currently honours this — Sonnet 4.6
+  // has no native thinking knob, so the flag is a no-op when chat provider
+  // is anthropic.
+  thinkingMode: ThinkingMode;
 }
+
+export type ThinkingMode = "thinking" | "fast";
 
 export interface ScoutAgent {
   model: LanguageModel;
@@ -69,6 +91,9 @@ export interface ScoutAgent {
   prepareStep: (args: { messages: ModelMessage[] }) => {
     messages: ModelMessage[];
   };
+  // Provider-specific options merged into streamText. Currently only used to
+  // toggle DeepSeek's thinking mode per turn; empty for anthropic runs.
+  providerOptions: ScoutProviderOptions;
 }
 
 export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
@@ -78,7 +103,16 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
     cache,
     logger: deps.logger,
   });
-  const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
+  // The main agent gets a single ask_db tool, not the raw SQL surface.
+  // Failed queries, schema dumps, and intermediate row samples stay inside
+  // the sub-agent's loop — see tools/ask-db.ts for the full rationale.
+  const dbTools = createAskDbTool({
+    dbReadonly: deps.dbReadonly,
+    provider: deps.config.SCOUT_PROVIDER_DB,
+    modelId: deps.config.SCOUT_MODEL_DB,
+    maxSteps: deps.config.SCOUT_DB_AGENT_MAX_STEPS,
+    logger: deps.logger,
+  });
   const weatherTools = createWeatherTools({ cache });
   // Charts are useful in scouting answers but out of place in a debrief
   // interview — register chart_render only when in scouting mode.
@@ -148,8 +182,28 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
   const basePrompt =
     deps.mode === "debrief" ? SCOUT_DEBRIEF_SYSTEM_PROMPT : SCOUT_SYSTEM_PROMPT;
 
+  const resolved = resolveModel(
+    deps.config.SCOUT_PROVIDER_CHAT,
+    deps.config.SCOUT_MODEL_CHAT,
+  );
+
+  // DeepSeek-v4-pro defaults to thinking-on. Sending an explicit
+  // { type: "disabled" } through providerOptions skips the chain-of-thought
+  // pass for fast follow-ups. Anthropic doesn't expose a knob like this on
+  // Sonnet 4.6, so we leave its options empty regardless of the toggle.
+  const providerOptions: ScoutProviderOptions =
+    resolved.provider === "deepseek"
+      ? {
+          deepseek: {
+            thinking: {
+              type: deps.thinkingMode === "fast" ? "disabled" : "enabled",
+            },
+          },
+        }
+      : {};
+
   return {
-    model: anthropic(deps.config.SCOUT_MODEL_CHAT),
+    model: resolved.model,
     system: `${basePrompt}\n\n${todayLine}`,
     tools: {
       ...playCricketTools,
@@ -163,8 +217,11 @@ When asked about the "next" or "upcoming" match, filter match_date strictly GREA
     },
     maxSteps: deps.config.SCOUT_MAX_STEPS,
     prepareStep: ({ messages }) => ({
-      messages: addCacheControlToLastMessage(messages),
+      messages: resolved.supportsAnthropicCacheControl
+        ? addCacheControlToLastMessage(messages)
+        : messages,
     }),
+    providerOptions,
   };
 }
 

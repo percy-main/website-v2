@@ -1,6 +1,6 @@
 import type { UIMessage } from "@ai-sdk/react";
 import type { ChartSpec } from "@percy-main/shared";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { downloadScoutReport } from "./download-report.ts";
@@ -314,19 +314,23 @@ export function MessageView({
         className={`max-w-3xl rounded-lg px-4 py-3 ${
           isUser
             ? "bg-blue-100 text-gray-900"
-            : "border border-gray-200 bg-white text-gray-900"
+            : "w-full border border-gray-200 bg-white text-gray-900"
         }`}
       >
-        {renderParts(message.parts, citations.numberByKey).map((part, i) => (
-          <PartView
-            key={`${message.id}-${i}`}
-            part={part}
-            numberByKey={citations.numberByKey}
-            onChipClick={handleChipClick}
-            onAnswerQuestion={onAnswerQuestion}
-            isStreaming={isStreaming}
-          />
-        ))}
+        {(() => {
+          const rendered = renderParts(message.parts, citations.numberByKey);
+          return rendered.map((part, i) => (
+            <PartView
+              key={`${message.id}-${i}`}
+              part={part}
+              numberByKey={citations.numberByKey}
+              onChipClick={handleChipClick}
+              onAnswerQuestion={onAnswerQuestion}
+              isStreaming={isStreaming}
+              isLast={i === rendered.length - 1}
+            />
+          ));
+        })()}
         {!isUser && citations.ordered.length > 0 && (
           <SourcesPanel
             citations={citations.ordered}
@@ -473,12 +477,14 @@ function PartView({
   onChipClick,
   onAnswerQuestion,
   isStreaming,
+  isLast,
 }: {
   part: Part;
   numberByKey: Map<string, number>;
   onChipClick: (key: string) => void;
   onAnswerQuestion?: (text: string) => void;
   isStreaming?: boolean;
+  isLast?: boolean;
 }) {
   if (part.type === "text") {
     return (
@@ -494,11 +500,12 @@ function PartView({
   }
 
   if (part.type === "reasoning") {
+    // Active = the model is still streaming AND this is the trailing part of
+    // the message. Once any other part lands after it (text, tool, etc.) the
+    // bubble collapses to a "Thought for Xs" pill so the prose isn't pushed
+    // way down the page.
     return (
-      <details className="my-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
-        <summary className="cursor-pointer">reasoning</summary>
-        <div className="mt-1 font-mono whitespace-pre-wrap">{part.text}</div>
-      </details>
+      <ThoughtBubble text={part.text} active={!!isStreaming && !!isLast} />
     );
   }
 
@@ -551,11 +558,118 @@ function PartView({
     ) {
       return null;
     }
+    // ask_db gets a dedicated card that handles both the in-progress state
+    // (rotating stages + shimmer) and the settled state (small blue pill with
+    // a database icon, click to expand the input/output JSON) — matches the
+    // ThoughtBubble's two-state pattern so the chat reads consistently.
+    if (part.type === "tool-ask_db") {
+      return <AskDbCard part={part} />;
+    }
     return <ToolPartView part={part} />;
   }
 
   if (part.type === "step-start") return null;
   return null;
+}
+
+// ── ThoughtBubble (reasoning parts) ───────────────────────────────────────
+//
+// Active state: expanded body, monospace, sweeping gradient shimmer over the
+// text while the model is mid-thought. Headed by a thought-bubble icon and
+// "Thinking…" label.
+//
+// Settled state: collapses to a small pill ("Thought for Xs · click to
+// expand"). Click toggles the body open. Duration is measured client-side
+// from first render to the moment `active` flips false — the BE doesn't
+// emit timing for reasoning parts.
+function ThoughtBubble({ text, active }: { text: string; active: boolean }) {
+  // Earliest non-empty render is "thinking started". A reasoning part can
+  // render empty for a tick before the first chunk lands, so we wait for
+  // text.length > 0 to set the timestamp. Render body stays pure — the ref
+  // is set from a commit-phase effect to satisfy react-hooks/purity.
+  const startRef = useRef<number | null>(null);
+  const hasText = text.length > 0;
+  useEffect(() => {
+    if (hasText && startRef.current === null) {
+      startRef.current = Date.now();
+    }
+  }, [hasText]);
+
+  const [elapsedSec, setElapsedSec] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+
+  // Freeze elapsed when the bubble settles — flipping `active` false marks
+  // the end of the reasoning span. We don't update further so the pill stays
+  // stable across re-renders.
+  useEffect(() => {
+    if (!active && startRef.current != null && elapsedSec === null) {
+      setElapsedSec(
+        Math.max(1, Math.round((Date.now() - startRef.current) / 1000)),
+      );
+    }
+  }, [active, elapsedSec]);
+
+  if (active) {
+    return (
+      <div className="my-2 rounded border border-purple-200 bg-purple-50/50 px-3 py-2">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-purple-700">
+          <ThoughtIcon className="h-3.5 w-3.5" />
+          <span>Thinking…</span>
+        </div>
+        <div
+          className="animate-thought-shimmer bg-clip-text font-mono text-xs whitespace-pre-wrap text-transparent"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, #6b21a8 0%, #6b21a8 35%, #c084fc 50%, #6b21a8 65%, #6b21a8 100%)",
+            backgroundSize: "200% 100%",
+          }}
+        >
+          {text || " "}
+        </div>
+      </div>
+    );
+  }
+
+  // Settled: pill with optional expand.
+  return (
+    <div className="my-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100"
+      >
+        <ThoughtIcon className="h-3 w-3" />
+        <span>
+          {elapsedSec != null ? `Thought for ${elapsedSec}s` : "Thought"}
+        </span>
+        <span className="text-gray-400">{open ? "▾" : "▸"}</span>
+      </button>
+      {open && (
+        <div className="mt-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs whitespace-pre-wrap text-gray-600">
+          {text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThoughtIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 11a4 4 0 1 1 4 4H8a4 4 0 0 1 0-8 4 4 0 0 1 4-3 4 4 0 0 1 4 4" />
+      <circle cx="6" cy="19" r="1.5" />
+      <circle cx="3" cy="22" r="1" />
+    </svg>
+  );
 }
 
 // ── Sources panel + cards ─────────────────────────────────────────────────
@@ -840,6 +954,150 @@ function QuestionCard({
         </form>
       )}
     </div>
+  );
+}
+
+// ── ask_db card (in-progress + settled) ──────────────────────────────────
+//
+// Sub-agent's tool loop typically takes 5–15 seconds (schema lookup → draft
+// SQL → run → maybe retry → summarise). The generic tool-card just shows
+// "·  ask_db ▸" for that whole window which feels dead.
+//
+// In-progress: rotating stage labels with the same shimmer effect the
+// ThoughtBubble uses. The labels are plausible-but-not-claimed — we don't
+// inspect the sub-agent's actual current step, we just keep the UI alive.
+//
+// Settled: collapses to a small blue pill ("Database query · Xs", or
+// "Database query failed" on error), matching the ThoughtBubble's settled
+// pill so the chat reads consistently. Click expands the input/output JSON
+// for inspection.
+const ASK_DB_STAGES = [
+  "Inspecting schema…",
+  "Drafting SQL query…",
+  "Running query…",
+  "Reading rows…",
+  "Summarising results…",
+];
+
+function AskDbCard({ part }: { part: Part }) {
+  const tool = part as unknown as ToolPart;
+  const isDone =
+    tool.state === "output-available" || tool.state === "output-error";
+  const isError = tool.state === "output-error";
+
+  const startRef = useRef<number | null>(null);
+  useEffect(() => {
+    startRef.current ??= Date.now();
+  }, []);
+
+  const [elapsedSec, setElapsedSec] = useState<number | null>(null);
+  useEffect(() => {
+    if (isDone && startRef.current != null && elapsedSec === null) {
+      setElapsedSec(
+        Math.max(1, Math.round((Date.now() - startRef.current) / 1000)),
+      );
+    }
+  }, [isDone, elapsedSec]);
+
+  const [stageIdx, setStageIdx] = useState(0);
+  useEffect(() => {
+    if (isDone) return undefined;
+    const id = setInterval(() => {
+      setStageIdx((i) => (i + 1) % ASK_DB_STAGES.length);
+    }, 1600);
+    return () => clearInterval(id);
+  }, [isDone]);
+
+  const [open, setOpen] = useState(false);
+
+  if (!isDone) {
+    return (
+      <div className="my-2 rounded border border-blue-200 bg-blue-50/50 px-3 py-2">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-blue-700">
+          <DatabaseIcon className="h-3.5 w-3.5" />
+          <span>Database query</span>
+        </div>
+        <div
+          className="animate-thought-shimmer bg-clip-text font-mono text-xs text-transparent"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, #1e40af 0%, #1e40af 35%, #93c5fd 50%, #1e40af 65%, #1e40af 100%)",
+            backgroundSize: "200% 100%",
+          }}
+        >
+          {ASK_DB_STAGES[stageIdx]}
+        </div>
+      </div>
+    );
+  }
+
+  const pillClass = isError
+    ? "inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs text-red-700 hover:bg-red-100"
+    : "inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700 hover:bg-blue-100";
+
+  return (
+    <div className="my-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={pillClass}
+      >
+        <DatabaseIcon className="h-3 w-3" />
+        <span>
+          {isError ? "Database query failed" : "Database query"}
+          {!isError && elapsedSec != null ? ` · ${elapsedSec}s` : ""}
+        </span>
+        <span className={isError ? "text-red-400" : "text-blue-400"}>
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-1 rounded border border-blue-200 bg-blue-50/30 p-2 text-xs">
+          {tool.input !== undefined && (
+            <details open>
+              <summary className="cursor-pointer text-blue-700">
+                question
+              </summary>
+              <pre className="mt-1 max-h-48 overflow-auto rounded bg-white p-1 font-mono text-[11px]">
+                {JSON.stringify(tool.input, null, 2)}
+              </pre>
+            </details>
+          )}
+          {tool.errorText && (
+            <div className="mt-1 rounded bg-red-50 p-1 text-red-700">
+              {tool.errorText}
+            </div>
+          )}
+          {tool.output !== undefined && (
+            <details>
+              <summary className="cursor-pointer text-blue-700">result</summary>
+              <pre className="mt-1 max-h-72 overflow-auto rounded bg-white p-1 font-mono text-[11px]">
+                {JSON.stringify(tool.output, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DatabaseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+      <path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6" />
+    </svg>
   );
 }
 
