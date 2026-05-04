@@ -29,8 +29,9 @@ export function getMatchDetail(db: Kysely<DB>) {
       // The date lives on match_details[0] in the API response, not the
       // top level. Normalise DD/MM/YYYY (Play Cricket's wire format) to
       // ISO so this column matches the rest of our schema.
-      const detail = (data as { match_details?: { match_date?: unknown }[] })
-        .match_details?.[0];
+      const detail = (
+        data as { match_details?: Array<{ match_date?: unknown }> }
+      ).match_details?.[0];
       const rawDate =
         typeof detail?.match_date === "string" ? detail.match_date : null;
       const matchDateIso =
