@@ -558,6 +558,13 @@ function PartView({
     ) {
       return null;
     }
+    // ask_db gets a dedicated card that handles both the in-progress state
+    // (rotating stages + shimmer) and the settled state (small blue pill with
+    // a database icon, click to expand the input/output JSON) — matches the
+    // ThoughtBubble's two-state pattern so the chat reads consistently.
+    if (part.type === "tool-ask_db") {
+      return <AskDbCard part={part} />;
+    }
     return <ToolPartView part={part} />;
   }
 
@@ -947,6 +954,150 @@ function QuestionCard({
         </form>
       )}
     </div>
+  );
+}
+
+// ── ask_db card (in-progress + settled) ──────────────────────────────────
+//
+// Sub-agent's tool loop typically takes 5–15 seconds (schema lookup → draft
+// SQL → run → maybe retry → summarise). The generic tool-card just shows
+// "·  ask_db ▸" for that whole window which feels dead.
+//
+// In-progress: rotating stage labels with the same shimmer effect the
+// ThoughtBubble uses. The labels are plausible-but-not-claimed — we don't
+// inspect the sub-agent's actual current step, we just keep the UI alive.
+//
+// Settled: collapses to a small blue pill ("Database query · Xs", or
+// "Database query failed" on error), matching the ThoughtBubble's settled
+// pill so the chat reads consistently. Click expands the input/output JSON
+// for inspection.
+const ASK_DB_STAGES = [
+  "Inspecting schema…",
+  "Drafting SQL query…",
+  "Running query…",
+  "Reading rows…",
+  "Summarising results…",
+];
+
+function AskDbCard({ part }: { part: Part }) {
+  const tool = part as unknown as ToolPart;
+  const isDone =
+    tool.state === "output-available" || tool.state === "output-error";
+  const isError = tool.state === "output-error";
+
+  const startRef = useRef<number | null>(null);
+  useEffect(() => {
+    startRef.current ??= Date.now();
+  }, []);
+
+  const [elapsedSec, setElapsedSec] = useState<number | null>(null);
+  useEffect(() => {
+    if (isDone && startRef.current != null && elapsedSec === null) {
+      setElapsedSec(
+        Math.max(1, Math.round((Date.now() - startRef.current) / 1000)),
+      );
+    }
+  }, [isDone, elapsedSec]);
+
+  const [stageIdx, setStageIdx] = useState(0);
+  useEffect(() => {
+    if (isDone) return undefined;
+    const id = setInterval(() => {
+      setStageIdx((i) => (i + 1) % ASK_DB_STAGES.length);
+    }, 1600);
+    return () => clearInterval(id);
+  }, [isDone]);
+
+  const [open, setOpen] = useState(false);
+
+  if (!isDone) {
+    return (
+      <div className="my-2 rounded border border-blue-200 bg-blue-50/50 px-3 py-2">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-blue-700">
+          <DatabaseIcon className="h-3.5 w-3.5" />
+          <span>Database query</span>
+        </div>
+        <div
+          className="animate-thought-shimmer bg-clip-text font-mono text-xs text-transparent"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, #1e40af 0%, #1e40af 35%, #93c5fd 50%, #1e40af 65%, #1e40af 100%)",
+            backgroundSize: "200% 100%",
+          }}
+        >
+          {ASK_DB_STAGES[stageIdx]}
+        </div>
+      </div>
+    );
+  }
+
+  const pillClass = isError
+    ? "inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs text-red-700 hover:bg-red-100"
+    : "inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700 hover:bg-blue-100";
+
+  return (
+    <div className="my-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={pillClass}
+      >
+        <DatabaseIcon className="h-3 w-3" />
+        <span>
+          {isError ? "Database query failed" : "Database query"}
+          {!isError && elapsedSec != null ? ` · ${elapsedSec}s` : ""}
+        </span>
+        <span className={isError ? "text-red-400" : "text-blue-400"}>
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-1 rounded border border-blue-200 bg-blue-50/30 p-2 text-xs">
+          {tool.input !== undefined && (
+            <details open>
+              <summary className="cursor-pointer text-blue-700">
+                question
+              </summary>
+              <pre className="mt-1 max-h-48 overflow-auto rounded bg-white p-1 font-mono text-[11px]">
+                {JSON.stringify(tool.input, null, 2)}
+              </pre>
+            </details>
+          )}
+          {tool.errorText && (
+            <div className="mt-1 rounded bg-red-50 p-1 text-red-700">
+              {tool.errorText}
+            </div>
+          )}
+          {tool.output !== undefined && (
+            <details>
+              <summary className="cursor-pointer text-blue-700">result</summary>
+              <pre className="mt-1 max-h-72 overflow-auto rounded bg-white p-1 font-mono text-[11px]">
+                {JSON.stringify(tool.output, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DatabaseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+      <path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6" />
+    </svg>
   );
 }
 

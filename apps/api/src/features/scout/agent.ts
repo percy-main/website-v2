@@ -17,10 +17,10 @@ import {
   SCOUT_DEBRIEF_SYSTEM_PROMPT,
   SCOUT_SYSTEM_PROMPT,
 } from "./system-prompt.ts";
+import { createAskDbTool } from "./tools/ask-db.ts";
 import { createAskQuestionTool } from "./tools/ask-question.ts";
 import { createScoutCache } from "./tools/cache.ts";
 import { createChartTool } from "./tools/chart.ts";
-import { createDbTools } from "./tools/db.ts";
 import { createFactTools } from "./tools/facts.ts";
 import { createGenerateReportTool } from "./tools/generate-report.ts";
 import { createPlayCricketCitationTools } from "./tools/play-cricket-citations.ts";
@@ -103,7 +103,16 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
     cache,
     logger: deps.logger,
   });
-  const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
+  // The main agent gets a single ask_db tool, not the raw SQL surface.
+  // Failed queries, schema dumps, and intermediate row samples stay inside
+  // the sub-agent's loop — see tools/ask-db.ts for the full rationale.
+  const dbTools = createAskDbTool({
+    dbReadonly: deps.dbReadonly,
+    provider: deps.config.SCOUT_PROVIDER_DB,
+    modelId: deps.config.SCOUT_MODEL_DB,
+    maxSteps: deps.config.SCOUT_DB_AGENT_MAX_STEPS,
+    logger: deps.logger,
+  });
   const weatherTools = createWeatherTools({ cache });
   // Charts are useful in scouting answers but out of place in a debrief
   // interview — register chart_render only when in scouting mode.

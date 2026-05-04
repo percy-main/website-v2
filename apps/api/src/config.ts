@@ -84,8 +84,15 @@ const configSchema = z.object({
   SCOUT_PROVIDER_SUBAGENT: z
     .enum(["anthropic", "deepseek"])
     .default("anthropic"),
+  // Provider/model for the DB sub-agent — runs the SQL loop behind the
+  // ask_db tool. Default Claude Haiku, which is strong at SQL and cheap.
+  // Independent from the chat agent so the main loop can run on a frontier
+  // model while DB queries stay on a cheap fast one.
+  SCOUT_PROVIDER_DB: z.enum(["anthropic", "deepseek"]).default("anthropic"),
   SCOUT_MODEL_CHAT: z.string().default("claude-sonnet-4-6"),
   SCOUT_MODEL_SUBAGENT: z.string().default("claude-haiku-4-5-20251001"),
+  SCOUT_MODEL_DB: z.string().default("claude-haiku-4-5-20251001"),
+  SCOUT_DB_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(8),
   SCOUT_MAX_STEPS: z.coerce.number().int().positive().default(20),
   SCOUT_ALLOWED_EMAILS: z
     .string()
