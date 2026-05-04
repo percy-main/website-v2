@@ -58,6 +58,7 @@
 
   /* Animation */
   --animate-caret-blink: caret-blink 1.25s ease-out infinite;
+  --animate-cite-flash: cite-flash 1.6s ease-out 1;
 
   @keyframes caret-blink {
     0%,
@@ -68,6 +69,37 @@
     20%,
     50% {
       opacity: 0;
+    }
+  }
+
+  /* Pulsing border + soft halo on a Source card after the user clicks an
+     inline [N] chip. Two short pulses, then settle back to the card's
+     resting state. Border colour matches blue-500 so it reads as an
+     intentional "selected" pop in both light and dark surfaces. */
+  @keyframes cite-flash {
+    0% {
+      box-shadow:
+        0 0 0 2px rgb(59 130 246 / 0%),
+        0 0 0 6px rgb(59 130 246 / 0%);
+      border-color: rgb(229 231 235);
+    }
+    20% {
+      box-shadow:
+        0 0 0 2px rgb(59 130 246 / 80%),
+        0 0 0 6px rgb(59 130 246 / 25%);
+      border-color: rgb(59 130 246);
+    }
+    60% {
+      box-shadow:
+        0 0 0 2px rgb(59 130 246 / 60%),
+        0 0 0 10px rgb(59 130 246 / 12%);
+      border-color: rgb(59 130 246);
+    }
+    100% {
+      box-shadow:
+        0 0 0 2px rgb(59 130 246 / 0%),
+        0 0 0 6px rgb(59 130 246 / 0%);
+      border-color: rgb(229 231 235);
     }
   }
 }
