@@ -25,13 +25,17 @@ import {
   createThreadBodySchema,
   createThreadResponseSchema,
   deleteFactResponseSchema,
+  deleteReportResponseSchema,
   deleteThreadResponseSchema,
   factIdParamSchema,
   getThreadResponseSchema,
   listFactsQuerySchema,
   listFactsResponseSchema,
+  listReportsResponseSchema,
   listThreadsResponseSchema,
   recentDebriefMatchesResponseSchema,
+  reportDownloadResponseSchema,
+  reportIdParamSchema,
   threadIdParamSchema,
   updateFactBodySchema,
   updateFactResponseSchema,
@@ -41,10 +45,14 @@ import {
   assertThreadOwnership,
   bumpThreadUpdatedAt,
   createThread,
+  deleteReport,
   deleteThread,
+  getReportForDownload,
   getThread,
   listRecentDebriefMatches,
+  listReports,
   listThreads,
+  ReportNotFoundError,
   ThreadNotFoundError,
 } from "./service.ts";
 import { maybeGenerateTitle } from "./title.ts";
@@ -59,6 +67,9 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const bump = bumpThreadUpdatedAt(app.db);
   const assertOwned = assertThreadOwnership(app.db);
   const recentMatches = listRecentDebriefMatches(app.db);
+  const reportsList = listReports(app.db);
+  const reportForDownload = getReportForDownload(app.db);
+  const reportDelete = deleteReport(app.db);
   const generateTitle = maybeGenerateTitle({
     db: app.db,
     modelId: app.config.SCOUT_MODEL_SUBAGENT,
@@ -383,6 +394,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             userId: user.id,
             threadId,
             mode: threadMode,
+            scoutReports: app.scoutReports,
           });
 
           const result = streamText({
@@ -553,6 +565,95 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       } catch (err) {
         if (err instanceof FactNotFoundError) {
           throw Object.assign(new Error("Fact not found"), { statusCode: 404 });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // ── Reports (Historical reports tab) ──
+  // Reports are user-private and listed globally across threads. Mode is
+  // not relevant — they live outside the chat lifecycle.
+
+  app.get(
+    "/scout/reports",
+    {
+      preHandler: [requireScoutAccess],
+      schema: { response: { 200: listReportsResponseSchema } },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const reports = await reportsList(user.id);
+      return { reports };
+    },
+  );
+
+  app.get(
+    "/scout/reports/:reportId/download",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: reportIdParamSchema,
+        response: { 200: reportDownloadResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      try {
+        const { s3Key, title } = await reportForDownload(
+          user.id,
+          request.params.reportId,
+        );
+        // Build a friendly filename from the report title — stripped of
+        // anything that might confuse a Content-Disposition header.
+        const safeTitle =
+          title.replace(/[^A-Za-z0-9 _.-]/g, "_").slice(0, 80) || "report";
+        const url = await app.scoutReports.getSignedReportUrl(
+          s3Key,
+          `${safeTitle}.pdf`,
+        );
+        return { url, expiresInSeconds: 30 * 60 };
+      } catch (err) {
+        if (err instanceof ReportNotFoundError) {
+          throw Object.assign(new Error("Report not found"), {
+            statusCode: 404,
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.delete(
+    "/scout/reports/:reportId",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: reportIdParamSchema,
+        response: { 200: deleteReportResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      try {
+        const { s3Key } = await reportDelete(user.id, request.params.reportId);
+        // Best-effort S3 cleanup. The bucket lifecycle rule will eventually
+        // sweep the object even if this fails, so we don't roll back the DB
+        // delete on a downstream error — the row is the source of truth.
+        try {
+          await app.scoutReports.deleteReport(s3Key);
+        } catch (s3Err) {
+          app.log.warn(
+            { err: s3Err, s3Key },
+            "scout report S3 delete failed; lifecycle rule will clean up",
+          );
+        }
+        return { ok: true as const };
+      } catch (err) {
+        if (err instanceof ReportNotFoundError) {
+          throw Object.assign(new Error("Report not found"), {
+            statusCode: 404,
+          });
         }
         throw err;
       }

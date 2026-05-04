@@ -31,3 +31,11 @@ export { stripeConfig, type StripeConfig } from "./stripe-config.ts";
 export { nameSimilarity, normalizeName } from "./name-similarity.ts";
 
 export { chartSpecSchema, type ChartSpec } from "./scout-chart.ts";
+
+export {
+  scoutReportPayloadSchema,
+  type ScoutReportChart,
+  type ScoutReportPayload,
+  type ScoutReportPlayer,
+  type ScoutReportReference,
+} from "./scout-report.ts";

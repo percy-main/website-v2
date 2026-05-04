@@ -640,6 +640,16 @@ export interface ScoutMessage {
   token_output: number | null;
 }
 
+export interface ScoutReport {
+  created_at: Generated<Timestamp>;
+  file_size_bytes: number | null;
+  id: Generated<string>;
+  s3_key: string;
+  thread_id: string;
+  title: string;
+  user_id: string;
+}
+
 export interface ScoutThread {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
@@ -751,6 +761,7 @@ export interface DB {
   scout_fact: ScoutFact;
   scout_member: ScoutMember;
   scout_message: ScoutMessage;
+  scout_report: ScoutReport;
   scout_thread: ScoutThread;
   scout_tool_cache: ScoutToolCache;
   session: Session;

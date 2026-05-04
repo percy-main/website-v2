@@ -3,6 +3,7 @@ import type { ChartSpec } from "@percy-main/shared";
 import React, { useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { downloadScoutReport } from "./download-report.ts";
 import { ScoutChart } from "./scout-chart.tsx";
 
 const REMARK_PLUGINS = [remarkGfm];
@@ -225,6 +226,17 @@ interface QuestionData {
   allowFreeText: boolean;
 }
 
+interface ReportData {
+  reportId: string;
+  title: string;
+  fileSizeBytes: number | null;
+  createdAt: string;
+  // Backend streams a placeholder ("generating") immediately, then re-emits
+  // with the same id flipped to "ready" or "failed" once the PDF is built.
+  status: "generating" | "ready" | "failed";
+  errorMessage?: string;
+}
+
 // Walk parts once to assign each unique citation key a stable number
 // (1, 2, 3, ...). Numbers are scoped to a single message — citations don't
 // carry across messages, since the sources panel is per-message.
@@ -294,7 +306,7 @@ export function MessageView({
 
   return (
     <div
-      className={`group flex ${isUser ? "justify-end" : "justify-start"} my-3`}
+      className={`flex ${isUser ? "justify-end" : "justify-start"} my-3`}
       data-message-id={message.id}
       data-scout-message
     >
@@ -323,43 +335,8 @@ export function MessageView({
             onFlashEnd={() => setFlashingKey(null)}
           />
         )}
-        {!isUser && (
-          <div className="mt-2 flex justify-end opacity-0 transition-opacity group-hover:opacity-100 print:hidden">
-            <ExportMessageButton messageId={message.id} />
-          </div>
-        )}
       </div>
     </div>
-  );
-}
-
-// Triggers the browser's Print → Save as PDF flow, scoped to a single
-// assistant message. The print stylesheet (in app.css) hides everything
-// except the message marked data-scout-printing.
-function ExportMessageButton({ messageId }: { messageId: string }) {
-  function handleExport() {
-    const target = document.querySelector(
-      `[data-message-id="${CSS.escape(messageId)}"]`,
-    );
-    if (!(target instanceof HTMLElement)) return;
-    target.setAttribute("data-scout-printing", "");
-    const cleanup = () => {
-      target.removeAttribute("data-scout-printing");
-      window.removeEventListener("afterprint", cleanup);
-    };
-    window.addEventListener("afterprint", cleanup);
-    window.print();
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={handleExport}
-      className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-      title="Save this message as PDF"
-    >
-      Export
-    </button>
   );
 }
 
@@ -543,6 +520,11 @@ function PartView({
     );
   }
 
+  if (part.type === "data-report") {
+    const rPart = part as { type: "data-report"; data: ReportData };
+    return <ReportCard data={rPart.data} />;
+  }
+
   // Citation data parts that didn't get folded into a preceding text part
   // (rare — only when the model cites before any prose). Render a standalone
   // chip so the citation isn't lost.
@@ -558,12 +540,14 @@ function PartView({
 
   if (part.type.startsWith("tool-")) {
     // Citation tool calls render as the inline [N] chip + the Sources card,
-    // not the generic tool-call box.
+    // not the generic tool-call box. generate_report is the same — the
+    // data-report card IS its UI; the tool-call payload is just noise.
     if (
       part.type === "tool-cite_fact" ||
       part.type === "tool-cite_match" ||
       part.type === "tool-cite_player_stats" ||
-      part.type === "tool-ask_question"
+      part.type === "tool-ask_question" ||
+      part.type === "tool-generate_report"
     ) {
       return null;
     }
@@ -926,5 +910,116 @@ function ToolPartView({ part }: { part: Part }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Generated report download card (data-report) ────────────────────────────
+
+function ReportCard({ data }: { data: ReportData }) {
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDownload = async () => {
+    setError(null);
+    setDownloading(true);
+    try {
+      // Resolve a fresh signed URL on click. URLs expire after 30 minutes,
+      // so we don't bake one into the message — anyone scrolling back to an
+      // old report a day later still gets a working download.
+      await downloadScoutReport(data.reportId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const generating = data.status === "generating";
+  const failed = data.status === "failed";
+
+  // Theme the card by state. Generating = neutral grey/spinner, ready =
+  // blue download CTA, failed = red.
+  const cardClass = failed
+    ? "border-red-200 bg-red-50"
+    : generating
+      ? "border-gray-200 bg-gray-50"
+      : "border-blue-200 bg-blue-50";
+  const badgeClass = failed
+    ? "bg-red-600"
+    : generating
+      ? "bg-gray-400"
+      : "bg-blue-600";
+
+  const sizeKb =
+    data.fileSizeBytes !== null
+      ? Math.max(1, Math.round(data.fileSizeBytes / 1024))
+      : null;
+
+  return (
+    <div
+      className={`my-3 flex items-center gap-3 rounded-lg border p-3 ${cardClass}`}
+    >
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded text-xs font-semibold text-white ${badgeClass}`}
+      >
+        {generating ? <Spinner /> : "PDF"}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium text-gray-900">
+          {data.title}
+        </div>
+        <div className="text-[11px] text-gray-600">
+          {generating ? (
+            <>Generating PDF — this can take 10–30 seconds…</>
+          ) : failed ? (
+            <>
+              Generation failed
+              {data.errorMessage ? `: ${data.errorMessage}` : "."}
+            </>
+          ) : (
+            <>Scouting report{sizeKb !== null && <> · {sizeKb} KB</>}</>
+          )}
+        </div>
+        {error && <div className="mt-1 text-[11px] text-red-700">{error}</div>}
+      </div>
+      {data.status === "ready" && (
+        <button
+          type="button"
+          onClick={() => {
+            void handleDownload();
+          }}
+          disabled={downloading}
+          className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
+        >
+          {downloading ? "Opening…" : "Download"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg
+      className="h-4 w-4 animate-spin text-white"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-90"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+      />
+    </svg>
   );
 }

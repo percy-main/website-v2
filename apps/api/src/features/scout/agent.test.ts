@@ -3,6 +3,7 @@ import type { ModelMessage, UIMessageStreamWriter } from "ai";
 import type { Kysely } from "kysely";
 import { describe, expect, it } from "vitest";
 import type { Config } from "../../config.ts";
+import type { ScoutReportStore } from "../../lib/s3-scout-reports.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import { createScoutAgent } from "./agent.ts";
 
@@ -21,6 +22,7 @@ function makeAgent(mode: "scouting" | "debrief" = "scouting") {
     SCOUT_MODEL_CHAT: "claude-sonnet-4-6",
     SCOUT_MAX_STEPS: 20,
   } as Config;
+  const stubScoutReports = {} as ScoutReportStore;
 
   return createScoutAgent({
     db: stubDb,
@@ -30,6 +32,7 @@ function makeAgent(mode: "scouting" | "debrief" = "scouting") {
     writer: stubWriter,
     userId: "test-user",
     mode,
+    scoutReports: stubScoutReports,
   });
 }
 

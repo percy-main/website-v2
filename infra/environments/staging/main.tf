@@ -94,6 +94,7 @@ module "ecs" {
 
   documents_bucket_arn        = module.documents_bucket.bucket_arn
   document_uploads_bucket_arn = module.document_uploads.bucket_arn
+  scout_reports_bucket_arn    = module.scout_reports.bucket_arn
 
   environment_variables = {
     NODE_ENV                   = "staging"
@@ -108,6 +109,7 @@ module "ecs" {
     S3_DOCUMENTS_BUCKET        = module.documents_bucket.bucket_name
     S3_DOCUMENTS_PREFIX        = "documents"
     S3_DOCUMENT_UPLOADS_BUCKET = module.document_uploads.bucket_name
+    SCOUT_REPORTS_BUCKET       = module.scout_reports.bucket_name
     AWS_REGION                 = "eu-west-2"
     # Cannot reference module.ecs.* outputs that depend on the task definition
     # here — that would cycle through the env-vars input. The cluster and family
@@ -165,6 +167,15 @@ module "document_uploads" {
   source      = "../../modules/document-uploads"
   environment = "staging"
   domain_name = "staging.${var.domain_name}"
+}
+
+# -----------------------------------------------------------------------------
+# Scout Reports Bucket — S3 (no CloudFront, signed URLs only)
+# -----------------------------------------------------------------------------
+
+module "scout_reports" {
+  source      = "../../modules/scout-reports"
+  environment = "staging"
 }
 
 # -----------------------------------------------------------------------------
