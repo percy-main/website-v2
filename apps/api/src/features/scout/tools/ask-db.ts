@@ -28,11 +28,13 @@ import { createDbTools, SCOUT_ALLOWED_TABLES } from "./db.ts";
  *   - **Bounded cost.** stopWhen: stepCountIs(N) caps each call. Most
  *     answers come back in 1–3 steps; the cap is a safety net.
  *
- * Output shape: text from the sub-agent's final response is the summary.
- * If the sub-agent's last db_run_sql call returned rows, we attach them so
- * the main agent can quote specific innings without re-querying. Aggregate
- * questions ("how many ducks?") get summary-only; row questions ("list
- * Smith's centuries") get rows.
+ * Output shape: rows are the answer. The text returned from the sub-agent's
+ * final response goes into `summary`, but it describes the *fetching
+ * process* — assumptions, filters, fallbacks, errors — NOT a narrative of
+ * the rows themselves. The main agent has the cricket context and is
+ * responsible for ranking, formatting, and editorialising; double-narrating
+ * here was both a token tax and a source of inconsistency between the two
+ * voices in the same reply.
  */
 
 interface SqlResult {
@@ -55,7 +57,7 @@ export function createAskDbTool(deps: AskDbToolDeps) {
 
   return {
     ask_db: tool({
-      description: `Answer a question from the Scout database. Pass a natural-language question; a SQL specialist runs the queries and returns a concise summary plus (when relevant) a small rows array.
+      description: `Answer a question from the Scout database. Pass a natural-language question; a SQL specialist runs the queries and returns the rows plus a short \`summary\` describing the FETCHING PROCESS (filters applied, assumptions made, errors), not a narrative of the data.
 
 Use this whenever you need data — players, matches, performances, availability, etc. Do NOT try to reason about SQL yourself; just ask the question. Examples:
 
@@ -64,7 +66,7 @@ Use this whenever you need data — players, matches, performances, availability
   - "What's our W/D/L record at home vs away in the last 3 seasons?"
   - "Which players are available for Saturday?"
 
-If the response includes \`rows\`, you may quote them directly in your reply. If it doesn't, the \`summary\` is the answer — don't ask again for "the data" unless you genuinely need raw rows for citation.`,
+The rows ARE the answer — read them, then format/rank/editorialise yourself with cricket context. The \`summary\` is metadata about the query (e.g. "Filtered to game_type=1 (1st XI) and season=2025"); use it to verify any assumptions match what the user actually wanted, but do not parrot it back to the user as if it were the answer. If \`rows\` is missing the \`summary\` describes why (no matches, ambiguous question, error).`,
       inputSchema: z.object({
         question: z
           .string()
@@ -84,9 +86,9 @@ If the response includes \`rows\`, you may quote them directly in your reply. If
           year: "numeric",
         });
 
-        const system = `You are a SQL specialist for the Percy Main CSC Scout database (PostgreSQL, public schema, read-only).
+        const system = `You are a SQL fetcher for the Percy Main CSC Scout database (PostgreSQL, public schema, read-only).
 
-Your job: answer the user's natural-language question by running SELECT queries and writing a CONCISE answer.
+Your job: run SELECT queries that ANSWER the question, and return the rows. A separate downstream agent reads your rows and writes the prose reply with cricket context — you do NOT write that prose yourself. Your final reply text is consumed as a short metadata note about the FETCHING PROCESS, not as a narrative of the data.
 
 Today is ${iso} (${ddmmyyyy} dd/mm/yyyy). Current season is ${today.getFullYear()}.
 
@@ -99,15 +101,24 @@ CRITICAL rules — apply on every query:
 
 2. **Aggregate in SQL, never in your head.** Counts, sums, averages, distributions, top-N — write a query that COMPUTES the answer. Pulling 200 rows back to count them is wasteful and inaccurate.
 
-3. **Rows or summary, not both unless asked.** If the question is "how many" / "what's the average" / "which player has most" → answer is one number or one row, summary string only. If the question is "list" / "show me" / "give me each" → return rows.
+3. **Right-shape the rows.** "How many" → one row, one count column. "Top N" → N rows ranked. "List X" → the matching rows. ORDER BY + LIMIT every time. Never SELECT * back; pick the columns the downstream agent will need.
 
-4. **Bound row results.** ORDER BY + LIMIT. Never SELECT * back; pick the columns you'll quote.
+4. **Stop when the rows are right.** After the final db_run_sql call has the answer rows, write your short metadata reply and STOP — don't keep poking. You have ${deps.maxSteps} steps total.
 
-5. **Stop when you have the answer.** After you can answer the question, write your reply and STOP — don't keep poking. You have ${deps.maxSteps} steps total.
+OUTPUT — what to write as your final reply:
 
-Output: write a one-or-two-sentence summary directly addressing the question. If the user explicitly wanted rows, your final db_run_sql result is what gets passed up — make sure it's the answer query, not a debug query.
+DO write (one short sentence, sometimes two):
+  - filters and assumptions you applied: "Filtered to game_type=1 (1st XI) and season=2025; min 10 wickets to exclude part-timers."
+  - schema choices when the user's question was ambiguous: "Used match_performance_bowling.average rather than recomputing — column is pre-aggregated by Play Cricket."
+  - failure path: "No rows for 'Bob Smith'; closest match in player_name is 'Robert Smith'." or "match_result has no game_type filter — returned all formats."
 
-If you cannot answer (table missing, ambiguous question, schema mismatch), say so plainly in one sentence — don't fabricate.`;
+DO NOT write:
+  - rankings, "highlights", or commentary on the rows ("Mashal leads with 34 wickets…")
+  - markdown tables of the rows (the downstream agent formats those)
+  - restating the question
+  - empty filler ("Here are the results.")
+
+If the rows are the entire answer (e.g. a count of 7), just say what filter you used — do NOT also say "the answer is 7", that's the rows' job.`;
 
         const startedAt = Date.now();
         let result;
@@ -180,7 +191,7 @@ If you cannot answer (table missing, ambiguous question, schema mismatch), say s
 
         if (lastSql) {
           return {
-            summary: summary || "Query returned the rows below.",
+            summary: summary || null,
             rows: lastSql.rows,
             columns: lastSql.columns,
             rowCount: lastSql.rowCount,

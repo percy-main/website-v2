@@ -40,10 +40,11 @@ export interface CacheUsage {
 }
 
 // Pulls cached-input / cache-creation token counts out of the provider-
-// specific metadata shape. Anthropic exposes both via providerMetadata.anthropic;
-// DeepSeek exposes a single cached-prefix count via the AI SDK's normalized
-// usage.cachedInputTokens (no separate "creation" event — caching is automatic
-// and free for the prefix-write side, only the cache-hit input is discounted).
+// specific metadata shape. Anthropic exposes both via
+// providerMetadata.anthropic; DeepSeek exposes a single cached-prefix count
+// via the AI SDK's normalised usage.inputTokenDetails.cacheReadTokens (no
+// separate "creation" event — caching is automatic and free for the
+// prefix-write side, only the cache-hit input is discounted).
 export function extractCacheUsage(
   provider: ScoutProvider,
   usage: LanguageModelUsage,

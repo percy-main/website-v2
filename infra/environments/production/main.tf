@@ -170,15 +170,19 @@ module "ecs" {
     PLAY_CRICKET_API_TOKEN = "${aws_secretsmanager_secret.app_secrets.arn}:PLAY_CRICKET_API_TOKEN::"
     SLACK_WEBHOOK_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SLACK_WEBHOOK_URL::"
 
-    # Scout (alex-only AI cricket analyst). All three keys must be
-    # populated in the app_secrets blob before this redeploys; the
-    # streaming route returns 503 cleanly if ANTHROPIC_API_KEY is
-    # missing, and Scout boots without VOYAGE_API_KEY but with no fact
-    # memory (fact_record / fact_retrieve / cite_fact tools omitted, no
+    # Scout (alex-only AI cricket analyst). All keys must be populated in
+    # the app_secrets blob before this redeploys; the streaming route
+    # returns 503 cleanly if the key for an active provider is missing,
+    # and Scout boots without VOYAGE_API_KEY but with no fact memory
+    # (fact_record / fact_retrieve / cite_fact tools omitted, no
     # auto-retrieval). SCOUT_DB_URL must use the scout_readonly role
     # (created NOLOGIN by migration 2026-05-03; password set out-of-band
-    # on the RDS instance).
+    # on the RDS instance). DEEPSEEK_API_KEY is wired so the SCOUT_PROVIDER_*
+    # env vars can be flipped to "deepseek" without a code change; the
+    # secret JSON key MUST exist in app_secrets (even if empty) before
+    # this task definition redeploys, or ECS will fail to start.
     ANTHROPIC_API_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:ANTHROPIC_API_KEY::"
+    DEEPSEEK_API_KEY  = "${aws_secretsmanager_secret.app_secrets.arn}:DEEPSEEK_API_KEY::"
     VOYAGE_API_KEY    = "${aws_secretsmanager_secret.app_secrets.arn}:VOYAGE_API_KEY::"
     SCOUT_DB_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SCOUT_DB_URL::"
 

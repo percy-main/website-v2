@@ -43,6 +43,17 @@ export const messageSchema = z.object({
   createdAt: z.iso.datetime(),
 });
 
+// Body for the streaming chat route. `messages` matches the AI SDK
+// UIMessage shape that useChat sends — too internal to model in Zod, so
+// kept as an opaque array. `thinkingMode` is the per-turn reasoning toggle
+// surfaced by the composer; defaults to "thinking" server-side when
+// omitted. Keeping the full body in the schema (rather than casting) so
+// the project's Zod-first invariant holds.
+export const chatRequestBodySchema = z.object({
+  messages: z.array(z.unknown()).min(1),
+  thinkingMode: z.enum(["thinking", "fast"]).optional(),
+});
+
 export const getThreadResponseSchema = z.object({
   thread: threadSummarySchema,
   messages: z.array(messageSchema),

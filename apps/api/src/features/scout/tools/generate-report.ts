@@ -33,14 +33,14 @@ export function createGenerateReportTool(deps: GenerateReportToolDeps) {
     generate_report: tool({
       description: `Generate a polished PDF scouting report based on the conversation so far, save it to durable storage, and surface a download card inline in the chat.
 
-Call this AT MOST ONCE per scouting session, only after you have gathered enough material — usually a mix of weather (weather_get), our players (db_run_sql / scout_member, match_performance_*), opposition (pc_match_summary, pc_player_stats), and any club facts (fact_retrieve). If you don't have enough information yet, gather more first; do not produce a stub report.
+Call this AT MOST ONCE per scouting session, only after you have gathered enough material — usually a mix of weather (weather_get), our players (ask_db for selection and match_performance_* aggregates), opposition (pc_match_summary, pc_player_stats), and any club facts (fact_retrieve). If you don't have enough information yet, gather more first; do not produce a stub report.
 
 Structure your payload to match the schema exactly:
 
 - title: include the team, opposition, and date.
 - intro: 1–2 paragraphs naming the match, format, opposition, why it matters.
 - weather: pass through the forecast you fetched. retrievedAt should be the timestamp from your weather_get call.
-- ourPlayers: every selected player you have data on. role + 1–3 sentence notes + key stats. Pull stats from match_performance_* / scout_member.
+- ourPlayers: every selected player you have data on. role + 1–3 sentence notes + key stats. Pull stats from ask_db (questions like "give me Smith's 2025 batting average and HS", "list this Saturday's selected XI with their season stats").
 - ourPlayersCharts: 0–4 charts (Chart.js v4 specs, same shape as chart_render).
 - theirPlayers / theirPlayersCharts: opposition equivalents.
 - tactics: toss call, batting/bowling order intentions, fielding plans, matchup-specific notes. Markdown allowed inside paragraphs but no headings.

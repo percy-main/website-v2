@@ -20,9 +20,10 @@ import {
 } from "./facts/admin-service.ts";
 import { applyAutoRetrieval } from "./facts/auto-retrieve.ts";
 import { createVoyageClient } from "./facts/voyage.ts";
-import { extractCacheUsage } from "./provider.ts";
+import { extractCacheUsage, type ScoutProvider } from "./provider.ts";
 import {
   accessResponseSchema,
+  chatRequestBodySchema,
   createThreadBodySchema,
   createThreadResponseSchema,
   deleteFactResponseSchema,
@@ -206,6 +207,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       preHandler: [requireScoutAccess],
       schema: {
         params: threadIdParamSchema,
+        body: chatRequestBodySchema,
         hide: true,
       },
     },
@@ -213,9 +215,11 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       const { user } = getAuthSession(request);
       const { threadId } = request.params;
 
-      // Guard: Scout requires the readonly DB client and an Anthropic key.
-      // Both are optional in config so non-Scout deployments can boot, but
-      // hitting this route without them is a misconfiguration.
+      // Guard: Scout requires the readonly DB client and the API key for
+      // every provider this deployment is configured to use. Both are
+      // optional in config so non-Scout deployments can boot, but hitting
+      // this route without the keys for SCOUT_PROVIDER_CHAT /
+      // SCOUT_PROVIDER_SUBAGENT / SCOUT_PROVIDER_DB is a misconfiguration.
       const dbReadonly = app.dbReadonly;
       if (!dbReadonly) {
         throw Object.assign(
@@ -223,10 +227,26 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           { statusCode: 503 },
         );
       }
-      if (!app.config.ANTHROPIC_API_KEY) {
-        throw Object.assign(new Error("ANTHROPIC_API_KEY is not configured."), {
-          statusCode: 503,
-        });
+      const requiredProviders = new Set<ScoutProvider>([
+        app.config.SCOUT_PROVIDER_CHAT,
+        app.config.SCOUT_PROVIDER_SUBAGENT,
+        app.config.SCOUT_PROVIDER_DB,
+      ]);
+      if (requiredProviders.has("anthropic") && !app.config.ANTHROPIC_API_KEY) {
+        throw Object.assign(
+          new Error(
+            "ANTHROPIC_API_KEY is not configured but at least one Scout provider is set to anthropic.",
+          ),
+          { statusCode: 503 },
+        );
+      }
+      if (requiredProviders.has("deepseek") && !app.config.DEEPSEEK_API_KEY) {
+        throw Object.assign(
+          new Error(
+            "DEEPSEEK_API_KEY is not configured but at least one Scout provider is set to deepseek.",
+          ),
+          { statusCode: 503 },
+        );
       }
       if (
         !app.config.PLAY_CRICKET_API_TOKEN ||
@@ -250,21 +270,17 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         throw err;
       }
 
-      const body = request.body as
-        | { messages?: UIMessage[]; thinkingMode?: unknown }
-        | undefined;
-      const incoming = body?.messages;
-      if (!Array.isArray(incoming) || incoming.length === 0) {
-        throw Object.assign(new Error("messages array is required"), {
-          statusCode: 400,
-        });
-      }
-      // Per-turn reasoning toggle. Default "thinking" — current chat model
-      // (DeepSeek-v4-pro) reasons by default and most users expect that to
-      // remain the floor; the FE flips this to "fast" when the user opts out
-      // for a quick follow-up.
+      // request.body is now Zod-validated against chatRequestBodySchema —
+      // messages is guaranteed non-empty, thinkingMode is "thinking" |
+      // "fast" | undefined. Cast to UIMessage[] is the AI SDK contract; the
+      // schema kept its shape opaque on purpose.
+      const incoming = request.body.messages as UIMessage[];
+      // Per-turn reasoning toggle. Default "thinking" when the FE didn't
+      // send the field — current chat model (DeepSeek-v4-pro) reasons by
+      // default and most users expect that to remain the floor; the FE
+      // flips this to "fast" when the user opts out for a quick follow-up.
       const thinkingMode: ThinkingMode =
-        body?.thinkingMode === "fast" ? "fast" : "thinking";
+        request.body.thinkingMode ?? "thinking";
 
       const lastMessage = incoming[incoming.length - 1];
       if (lastMessage.role !== "user") {
