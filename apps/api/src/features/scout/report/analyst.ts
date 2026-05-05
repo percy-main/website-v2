@@ -220,24 +220,31 @@ const ALWAYS_PRESENT_SECTIONS: readonly ClaimSection[] = [
  * confirms shape; this layer enforces the cross-field invariants Zod can't
  * express:
  *
- *   1. every claim resolves to real evidence (no fabricated ids)
- *   2. mechanics claims cite fact-typed evidence
+ *   1. every claim resolves to real evidence (no fabricated ids) — must-fix
+ *   2. mechanics claims cite fact-typed evidence — SOFT: ids are returned
+ *      in droppedClaimIds for the caller to filter, the request does NOT
+ *      fail. Saw this twice in prod (analyst tagged isMechanics:true on
+ *      pc_aggregate / weather-backed claims) — the right move is to drop
+ *      the [N] chip rather than blow up the whole report. Coverage credit
+ *      for the dropped claim's section is preserved, so the prose stays
+ *      in the report just without a citation chip pointing at unsupportable
+ *      evidence.
  *   3. each claim's text appears as a substring of the prose in its declared
- *      section (catches the "registered a claim that doesn't actually appear
- *      in the report" gap)
+ *      section — must-fix
  *   4. every section with non-trivial prose has at least one claim covering
- *      it (catches "wrote analytical prose but didn't register any claims
- *      for it" — the main grounding-contract loophole)
+ *      it — must-fix (catches "wrote analytical prose but didn't register
+ *      any claims for it" — the main grounding-contract loophole)
  *
- * Returns null on success, or a ValidationFailure with human-readable
- * details that get fed back to the analyst on the retry.
+ * Returns { failure, droppedClaimIds }. failure is null when only soft
+ * drops happened. The caller filters droppedClaimIds out of output.claims.
  */
 function validateClaims(
   output: AnalystOutput,
   evidence: EvidenceRecord[],
-): ValidationFailure | null {
+): { failure: ValidationFailure | null; droppedClaimIds: string[] } {
   const evidenceById = new Map(evidence.map((e) => [e.id, e]));
   const details: string[] = [];
+  const droppedClaimIds: string[] = [];
 
   // Pre-compute normalised prose per section once — coverage check below
   // reads the same map.
@@ -272,12 +279,11 @@ function validateClaims(
           r.record && MECHANICS_CAPABLE_CLAIM_TYPES.has(r.record.claimType),
       );
       if (!hasFact) {
-        const cited = resolved
-          .map((r) => `${r.id}=${r.record?.claimType ?? "?"}`)
-          .join(", ");
-        details.push(
-          `Claim "${claim.id}" is tagged isMechanics:true but is backed only by [${cited}] — at least one evidence with claimType "captain_fact" or "club_fact" is required for mechanics claims. Either tag isMechanics:false (if it's actually a tactical/output claim from stats), or omit the claim if the captain hasn't recorded a fact about it.`,
-        );
+        // Soft drop: caller will filter this claim from output.claims.
+        // The prose stays in the report (its section still gets coverage
+        // credit below); we just remove the [N] chip that pointed at
+        // evidence which can't actually back a mechanics claim.
+        droppedClaimIds.push(claim.id);
       }
     }
 
@@ -312,10 +318,13 @@ function validateClaims(
     }
   }
 
-  if (details.length === 0) return null;
+  if (details.length === 0) return { failure: null, droppedClaimIds };
   return {
-    reason: `${details.length} claim(s) failed validation`,
-    details,
+    failure: {
+      reason: `${details.length} claim(s) failed validation`,
+      details,
+    },
+    droppedClaimIds,
   };
 }
 
@@ -472,11 +481,32 @@ ${JSON.stringify(evidence, null, 2)}`;
         reason: `Schema validation error: ${parsed.error.message}`,
       };
     }
-    const claimError = validateClaims(parsed.data, evidence);
-    if (claimError) {
+    const { failure, droppedClaimIds } = validateClaims(parsed.data, evidence);
+    if (droppedClaimIds.length > 0) {
+      const droppedClaims = parsed.data.claims.filter((c) =>
+        droppedClaimIds.includes(c.id),
+      );
+      parsed.data.claims = parsed.data.claims.filter(
+        (c) => !droppedClaimIds.includes(c.id),
+      );
+      deps.logger?.warn(
+        {
+          matchId: scope.matchId,
+          droppedClaimIds,
+          droppedClaims: droppedClaims.map((c) => ({
+            id: c.id,
+            section: c.section,
+            text: c.text,
+            evidenceIds: c.evidenceIds,
+          })),
+        },
+        "scout_analyst_dropped_unsupported_mechanics_claims",
+      );
+    }
+    if (failure) {
       return {
         ok: false,
-        reason: `${claimError.reason}:\n- ${claimError.details.join("\n- ")}`,
+        reason: `${failure.reason}:\n- ${failure.details.join("\n- ")}`,
       };
     }
     return { ok: true, output: parsed.data };
