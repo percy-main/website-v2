@@ -44,6 +44,10 @@ export interface ResearchScoutReportDeps {
    *  generate_report tool wires this to a data-report writer so the FE can
    *  show fly-out tool-call chips during the researcher phase. */
   onStep?: (info: ResearcherStepInfo) => void;
+  /** Optional external cancellation signal — combined with the internal
+   *  timeout so a worker-level cancel (user clicked Stop on an in-flight
+   *  report) aborts the AI SDK loop. */
+  cancelSignal?: AbortSignal;
 }
 
 const RESEARCHER_PROMPT = `You are the RESEARCHER phase inside Scout — a cricket-analysis system for Percy Main CC, a Saturday-league side in the Northumberland and Tyneside Cricket League (NTCL).
@@ -211,8 +215,14 @@ Gather the evidence packet now. Emit each piece via record_evidence. Do not narr
       stopWhen: stepCountIs(deps.config.SCOUT_RESEARCHER_MAX_STEPS),
       // Hard wall-clock cap. Without this a slow DeepSeek thinking step holds
       // the whole flow open indefinitely (observed: a single step blocking
-      // for 4+ minutes with no visible progress).
-      abortSignal: AbortSignal.timeout(deps.config.SCOUT_RESEARCHER_TIMEOUT_MS),
+      // for 4+ minutes with no visible progress). Combined with cancelSignal
+      // so a worker-level user-cancel also aborts.
+      abortSignal: deps.cancelSignal
+        ? AbortSignal.any([
+            deps.cancelSignal,
+            AbortSignal.timeout(deps.config.SCOUT_RESEARCHER_TIMEOUT_MS),
+          ])
+        : AbortSignal.timeout(deps.config.SCOUT_RESEARCHER_TIMEOUT_MS),
       // Per-step log so we can see which step is wedged when one drags. Logs
       // step duration + tool-call names + accumulator size after the step.
       onStepFinish: ({ toolCalls, finishReason }) => {

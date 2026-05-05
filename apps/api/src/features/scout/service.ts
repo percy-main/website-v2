@@ -366,6 +366,7 @@ export function listReports(db: Kysely<DB>) {
       .selectFrom("scout_report as r")
       .leftJoin("scout_thread as t", "t.id", "r.thread_id")
       .where("r.user_id", "=", userId)
+      .where("r.status", "=", "ready")
       .select([
         "r.id",
         "r.thread_id",
@@ -397,9 +398,13 @@ export function getReportForDownload(db: Kysely<DB>) {
       .selectFrom("scout_report")
       .where("id", "=", reportId)
       .where("user_id", "=", userId)
+      .where("status", "=", "ready")
       .select(["s3_key", "title"])
       .executeTakeFirst();
-    if (!row) throw new ReportNotFoundError();
+    // Only ready rows have a non-null s3_key. The status filter above
+    // guarantees that, but the column is nullable in the schema, so we
+    // narrow with an explicit check to satisfy the return type.
+    if (!row || !row.s3_key) throw new ReportNotFoundError();
     return { s3Key: row.s3_key, title: row.title };
   };
 }
@@ -413,9 +418,10 @@ export function deleteReport(db: Kysely<DB>) {
       .selectFrom("scout_report")
       .where("id", "=", reportId)
       .where("user_id", "=", userId)
+      .where("status", "=", "ready")
       .select(["s3_key"])
       .executeTakeFirst();
-    if (!row) throw new ReportNotFoundError();
+    if (!row || !row.s3_key) throw new ReportNotFoundError();
 
     await db.deleteFrom("scout_report").where("id", "=", reportId).execute();
     return { s3Key: row.s3_key };
