@@ -1,8 +1,4 @@
 import type { DB } from "@percy-main/db";
-import {
-  scoutReportContentSchema,
-  type ScoutReportContent,
-} from "@percy-main/shared";
 import { generateText, stepCountIs } from "ai";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
@@ -15,7 +11,9 @@ import { createAskDbTool } from "../tools/ask-db.ts";
 import { createScoutCache } from "../tools/cache.ts";
 import { createFactTools } from "../tools/facts.ts";
 import { createPlayCricketTools } from "../tools/play-cricket.ts";
+import { createRecordEvidenceTool } from "../tools/record-evidence.ts";
 import { createWeatherTools } from "../tools/weather.ts";
+import { EvidenceAccumulator, type EvidenceRecord } from "./evidence.ts";
 
 export interface ResearchScoutReportParams {
   matchId: string;
@@ -37,104 +35,69 @@ export interface ResearchScoutReportDeps {
   logger?: FastifyBaseLogger;
 }
 
-const RESEARCHER_PROMPT = `You are the RESEARCHER sub-agent inside Scout — a cricket-analysis system for Percy Main CC, a Saturday-league side in the Northumberland and Tyneside Cricket League (NTCL).
+const RESEARCHER_PROMPT = `You are the RESEARCHER phase inside Scout — a cricket-analysis system for Percy Main CC, a Saturday-league side in the Northumberland and Tyneside Cricket League (NTCL).
 
-You are NOT a chat agent. You do not talk to a user. Your sole job is to compile a single JSON object — the section content for one scouting report — and stop. The orchestrating layer feeds you a match (id, ourTeam, opposition, date, optional competition + intent) and you return the JSON. There is no follow-up turn.
+Your single job: gather data about ONE upcoming match and emit it as a stream of EvidenceRecord entries via the record_evidence tool. You produce no narrative. You write no analysis. You make no tactical recommendations. The analyst phase that runs after you does ALL of that — your output is the raw evidence packet it works from.
 
-Output contract — read carefully:
-- Your final assistant message MUST be a single JSON object matching the schema below.
-- No prose before, no prose after. No markdown fences. Just the object.
-- All section text fields support inline markdown bold (**word**) and italic (_word_); headings, lists, links, and code do NOT render.
-- "Up The Main" is appended by the renderer — do NOT include it in the conclusion.
+Output channel:
+- The ONLY way evidence reaches the analyst is via record_evidence tool calls. Your final assistant text is discarded.
+- Call record_evidence repeatedly — once per atomic piece of data. Don't batch.
+- Every record needs sourceType, sourceRef, claimType, content, confidence, permanence. See the tool description for the full shape.
+- The accumulator dedupes on (sourceRef + content); you can re-emit safely.
 
-Schema (TypeScript shape):
+What to gather (in roughly this order):
 
-{
-  intro: string,                         // 1–2 paragraphs naming the match, format, opposition, why it matters
-  weather?: {                            // optional — omit if match is >7 days out (forecast unreliable)
-    summary: string,                     // plain-English forecast (temp, wind, rain probability, conditions)
-    retrievedAt: string,                 // timestamp from your weather_get call, e.g. "2026-05-04 09:23 BST"
-    source?: string                      // e.g. "Open-Meteo"
-  },
-  ourPlayers?: Player[],                 // selected XI/squad with stats — max 15
-  ourPlayersCharts?: Chart[],            // 0–4 charts for the "Our players" page
-  theirPlayers?: Player[],               // opposition key players — max 15
-  theirPlayersCharts?: Chart[],          // 0–4 charts for the "Their players" page
-  tossDecision: string,                  // 1–3 sentences on bat/bowl + why
-  overallStrategy: string,               // 1–3 sentences on the headline plan
-  keyMatchups: string,                   // bowler-vs-batter, batter-vs-bowler plans (own page)
-  tactics: string,                       // detailed batting/bowling order, fielding, phase plans (own page)
-  conclusion: string,                    // short close — do NOT include "Up The Main"
-  references: { label: string, url: string }[]   // every URL fetched while compiling — REQUIRED
-}
+1. Selection / our players. ask_db for "the selected XI for match <matchId> with their season batting averages, bowling figures, and last-6-innings scores". Emit one db_aggregate record per stat that matters (per-player avg, recent runs, wickets/economy). Emit a db_row for the team selection (one record listing the XI).
 
-Player = { name: string, role?: string, notes?: string, stats?: { label: string, value: string }[] (max 8) }
-Chart  = { caption: string, spec: <Chart.js v4 config> }   // see chart_render's tool description for the spec shape
+2. Opposition recent form. pc_match_summary or pc_site_results on the opposition's recent fixtures (use their site_id from pc_find_opposition_matches if you don't have it). Then pc_player_stats on the names that recur as top-scorers / wicket-takers. Emit one pc_match record per match's headline output and one pc_aggregate record per player's career stats. Where applicable, emit a dismissal_pattern record summarising how_out frequencies for the player ("5 of his 8 dismissals this season are bowled or LBW").
 
-Workflow — drive in this order:
-1. Selection / our players: ask_db for the selected XI for this match with their season averages, recent scores, headline aggregates. Pull what ourPlayers needs.
-2. Opposition: pc_match_summary on their recent fixtures (use their site_id from pc_find_opposition_matches if you don't have it). pc_player_stats on the names that recur as top-scorers / wicket-takers. pc_match_detail only when you need a specific scorecard line. Fold into theirPlayers.
-3. Weather: weather_get against the ground lat/lng from a pc_match_summary row for this fixture. Skip only if matchDate is >7 days from today.
-4. Facts: fact_retrieve for opposition / venue / scheduling facts. Use them in narrative. URLs of fact sources go in references.
-5. Synthesise: tossDecision, overallStrategy, keyMatchups, tactics, conclusion. Do NOT repeat tossDecision content inside tactics.
-6. Emit the JSON. Stop.
+3. Weather. weather_get against the ground lat/lng from a pc_match_summary row for this fixture. Skip if matchDate > 7 days from today (forecast unreliable). One weather record summarising the headline conditions.
+
+4. Facts. fact_retrieve for opposition / venue / scheduling / mechanics facts the captain or club has previously recorded. Emit a captain_fact or club_fact record per relevant fact (preserve scope — if the fact came back tagged scope=user, it's captain_fact; scope=club, it's club_fact).
+
+When to stop: when the gathering above is exhausted for this match. The model loop will also terminate at the configured step ceiling. There's no "I'm done" tool call — just stop emitting record_evidence calls and stop running tools.
+
+Hard rules — these are not negotiable:
+
+- DO NOT call record_evidence with content that contains analysis, recommendations, or tactical prose. content is one short factual sentence describing what the data says. Examples:
+  GOOD: "Dance took 5/27 in 8 overs for Newcastle 1st XI vs Tynemouth on 18 May 2026."
+  GOOD: "Captain has recorded: 'Mitford CC have no covers.'"
+  BAD:  "Dance is dangerous because his 5-for came from full straight bowling — bowl into him." (analysis + invented mechanics)
+  BAD:  "We should target their middle order with spin." (recommendation — analyst's job)
+
+- DO NOT invent mechanics. If pc_player_stats returns a wicket count, the content describes that count. It does NOT include line, length, movement, footwork, shot, field placement, glovework, or captaincy claims unless you got that info from fact_retrieve as a recorded fact.
+
+- DO NOT call fact_record (you're not interviewing anyone) or cite_fact / cite_match / cite_player_stats (those emit FE chips that don't apply here) or chart_render (chart synthesis is the analyst's job).
+
+- claimType MATTERS. The analyst's validator uses it to gate mechanics claims. Be honest:
+  * stats / scorecard data → db_aggregate, db_row, pc_aggregate, pc_match, dismissal_pattern
+  * fact_retrieve scope=user → captain_fact
+  * fact_retrieve scope=club → club_fact
+  * weather → weather
 
 ${GROUNDING_RULES}
 
-Sample / confidence: prioritise the current calendar year. If samples are thin, say so plainly in the relevant section and soften claims accordingly. HIGH = 8+ relevant innings/spells, MEDIUM = 4–7, LOW = 1–3, NONE = no scorecard data. Don't bury an answer under caveats — state the limit once and be useful.
-
-Tactical translations (only what the data licenses):
-- Frequent bowled/LBW → make them play straight, attack the stumps, keep it full enough to hit.
-- Frequent caught → catching pressure, force riskier scoring shots (don't invent where catches went).
-- Frequent stumpings → use slower bowling if available (don't claim they charge every ball).
-- Frequent run-outs → pressure the singles, keep the ring sharp.
-- Low strike rate → build dots, let pressure work.
-- Concentrated team runs → protect against the main threats, attack the rest.
-Don't overstate from thin samples.
-
-Charts: include 0–4 in ourPlayersCharts and 0–4 in theirPlayersCharts ONLY where a chart genuinely beats prose (recent form, distribution, head-to-head). The spec is a Chart.js v4 config wrapped in { caption, spec }; specs must have data.datasets[].data, no JS callbacks, ≤1000 total points across all datasets.
-
-Citations: do NOT use cite_fact / cite_match / cite_player_stats — they emit chat-side UI chips that don't apply here. Put every URL you fetched (scorecards, weather, fact sources, stats pages) in the references array instead.
-
-References array — REQUIRED, never empty if you ran any tool that returned a URL. Include scorecard URLs (https://percymain.play-cricket.com/website/results/<matchId>), player-stats URLs, weather forecast URLs, and any fact source URLs.
-
 ${IMPORTANT_CONTEXT}
 
-Final reminder: emit JSON ONLY in the final assistant message. No "Here is the report:". No fences. No epilogue. The orchestrator parses your message as JSON and fails if it's not a single object.
+Final reminder: the only output that survives this phase is record_evidence tool calls. No prose, no JSON. Gather, record, stop.
 `;
 
 /**
- * Extract a JSON object from a model response. The prompt forbids fences/prose
- * but models occasionally ignore that — strip ```json fences and grab the
- * outermost {...} as a fallback. If neither works, return the original string
- * and let JSON.parse throw.
- */
-function extractJson(raw: string): string {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
-  if (fenced) return fenced[1].trim();
-  const first = raw.indexOf("{");
-  const last = raw.lastIndexOf("}");
-  if (first !== -1 && last !== -1 && last > first) {
-    return raw.slice(first, last + 1);
-  }
-  return raw.trim();
-}
-
-/**
- * Compile the section content for a scout report. Runs an internal model loop
- * with the same data-gathering tools the main agent has (ask_db, pc_*,
- * weather_get, fact_retrieve), but without a UIMessageStreamWriter — the
- * loop's output never reaches the FE wire. Returns the validated JSON
- * content; the caller composes the full ScoutReportPayload by adding the
- * match identifiers.
+ * Phase 1 — gather evidence for a single match. Runs an internal model loop
+ * with the data tools (ask_db, pc_*, weather_get, fact_retrieve) plus the
+ * record_evidence tool. Returns the EvidenceRecord array the accumulator
+ * built up.
  *
- * Retries once on Zod validation failure, feeding the validation error back
- * to the model so it can fix its output. After two failures, throws.
+ * No FE writer is plumbed in: this loop's tool calls and assistant text never
+ * cross the SSE boundary. The user sees only the data-report placeholder
+ * card while this runs.
  */
 export async function researchScoutReport(
   deps: ResearchScoutReportDeps,
   params: ResearchScoutReportParams,
-): Promise<ScoutReportContent> {
+): Promise<EvidenceRecord[]> {
+  const accumulator = new EvidenceAccumulator();
+
   const cache = createScoutCache(deps.db);
   const playCricketTools = createPlayCricketTools({
     playCricket: deps.playCricket,
@@ -150,15 +113,10 @@ export async function researchScoutReport(
   });
   const weatherTools = createWeatherTools({ cache });
 
-  // Researcher gets fact_retrieve only. fact_record is for a chat / debrief
-  // interview where the user is dictating facts; cite_fact emits chat-side
-  // citation chips that don't apply in a non-streaming sub-agent. The
-  // researcher's URLs go in the JSON references array instead.
+  // Researcher gets fact_retrieve only — no fact_record (writes corpus, not
+  // researcher's job) and no cite_* (FE chips, irrelevant in this phase).
   let factRetrieveTool = {} as Record<string, unknown>;
   if (deps.voyage) {
-    // createFactTools wants a UIMessageStreamWriter (used by cite_fact). Pass
-    // a no-op writer; we never expose cite_fact to the researcher so the
-    // method is never invoked.
     const noopWriter = {
       write: () => {},
       merge: () => {},
@@ -175,16 +133,19 @@ export async function researchScoutReport(
     factRetrieveTool = { fact_retrieve: allFactTools.fact_retrieve };
   }
 
+  const recordEvidenceTool = createRecordEvidenceTool({ accumulator });
+
   const tools = {
     ...playCricketTools,
     ...dbTools,
     ...weatherTools,
     ...factRetrieveTool,
+    ...recordEvidenceTool,
   };
 
   const resolved = resolveModel(
-    deps.config.SCOUT_PROVIDER_CHAT,
-    deps.config.SCOUT_MODEL_CHAT,
+    deps.config.SCOUT_PROVIDER_RESEARCHER,
+    deps.config.SCOUT_MODEL_RESEARCHER,
   );
 
   const today = new Date();
@@ -196,49 +157,95 @@ export async function researchScoutReport(
     year: "numeric",
   });
 
-  const matchPromptBlock = `MATCH SCOPE — research only this match:
+  const promptBlock = `MATCH SCOPE — research only this match:
 - matchId: ${params.matchId}
 - ourTeam: ${params.ourTeam}
 - opposition: ${params.opposition}
 - homeAway: ${params.homeAway}
 - matchDate: ${params.matchDate}
 - competition: ${params.competition ?? "(not specified)"}
-- intent: ${params.intent ?? "(general scout)"}
+- intent: ${params.intent ?? "(general scout — gather a balanced packet)"}
 
-Today is ${todayDisplay} (${todayIso}). Treat the match window relative to today when picking the weather forecast horizon.`;
+Today is ${todayDisplay} (${todayIso}). Use this for relative-date filters and the weather-horizon decision.
 
-  const runOnce = async (extra: string): Promise<string> => {
-    const result = await generateText({
+Gather the evidence packet now. Emit each piece via record_evidence. Do not narrate, do not synthesize.`;
+
+  const startedAt = Date.now();
+  deps.logger?.info(
+    {
+      matchId: params.matchId,
+      maxSteps: deps.config.SCOUT_RESEARCHER_MAX_STEPS,
+      timeoutMs: deps.config.SCOUT_RESEARCHER_TIMEOUT_MS,
+    },
+    "scout_researcher_started",
+  );
+
+  let stepIndex = 0;
+  try {
+    await generateText({
       model: resolved.model,
       system: RESEARCHER_PROMPT,
-      prompt: matchPromptBlock + (extra ? `\n\n${extra}` : ""),
+      prompt: promptBlock,
       tools,
       stopWhen: stepCountIs(deps.config.SCOUT_RESEARCHER_MAX_STEPS),
+      // Hard wall-clock cap. Without this a slow DeepSeek thinking step holds
+      // the whole flow open indefinitely (observed: a single step blocking
+      // for 4+ minutes with no visible progress).
+      abortSignal: AbortSignal.timeout(deps.config.SCOUT_RESEARCHER_TIMEOUT_MS),
+      // Per-step log so we can see which step is wedged when one drags. Logs
+      // step duration + tool-call names + accumulator size after the step.
+      onStepFinish: ({ toolCalls, finishReason }) => {
+        stepIndex += 1;
+        deps.logger?.info(
+          {
+            matchId: params.matchId,
+            step: stepIndex,
+            toolCalls: toolCalls.map((c) => c.toolName),
+            finishReason,
+            recordsSoFar: accumulator.size(),
+            elapsedMs: Date.now() - startedAt,
+          },
+          "scout_researcher_step",
+        );
+      },
     });
-    return result.text;
-  };
-
-  const firstAttempt = await runOnce("");
-  const firstParsed = scoutReportContentSchema.safeParse(
-    JSON.parse(extractJson(firstAttempt)),
-  );
-  if (firstParsed.success) {
-    deps.logger?.info(
-      { matchId: params.matchId, attempt: 1 },
-      "scout_researcher_ok",
+  } catch (err) {
+    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    deps.logger?.error(
+      {
+        matchId: params.matchId,
+        err,
+        isTimeout,
+        stepsCompleted: stepIndex,
+        recordsSoFar: accumulator.size(),
+        elapsedMs: Date.now() - startedAt,
+      },
+      "scout_researcher_failed",
     );
-    return firstParsed.data;
+    if (isTimeout) {
+      throw new Error(
+        `Researcher phase timed out after ${deps.config.SCOUT_RESEARCHER_TIMEOUT_MS}ms (${stepIndex} steps completed, ${accumulator.size()} records gathered).`,
+      );
+    }
+    throw err;
   }
 
-  deps.logger?.warn(
-    { matchId: params.matchId, error: firstParsed.error.message },
-    "scout_researcher_validation_failed_retrying",
+  const evidence = accumulator.snapshot();
+  deps.logger?.info(
+    {
+      matchId: params.matchId,
+      records: evidence.length,
+      steps: stepIndex,
+      ms: Date.now() - startedAt,
+    },
+    "scout_researcher_done",
   );
 
-  const retryAttempt = await runOnce(
-    `Your previous output failed schema validation. Errors:\n${firstParsed.error.message}\n\nReturn corrected JSON ONLY — no prose, no fences.`,
-  );
-  // Throw on second-pass failure — the tool execute will catch and flip the
-  // data-report card to status: failed, surfacing a parse error to the FE.
-  return scoutReportContentSchema.parse(JSON.parse(extractJson(retryAttempt)));
+  if (evidence.length === 0) {
+    throw new Error(
+      "Researcher emitted no evidence records — cannot proceed to analyst phase.",
+    );
+  }
+
+  return evidence;
 }

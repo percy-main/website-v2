@@ -12,6 +12,7 @@ import type { Config } from "../../../config.ts";
 import type { ScoutReportStore } from "../../../lib/s3-scout-reports.ts";
 import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
 import type { VoyageClient } from "../facts/voyage.ts";
+import { analyseScoutEvidence } from "../report/analyst.ts";
 import { renderScoutReportPdf } from "../report/render.ts";
 import { researchScoutReport } from "../report/researcher.ts";
 
@@ -136,7 +137,8 @@ After this returns, a one-line confirmation is enough. Do NOT dump the report co
         });
 
         try {
-          const content = await researchScoutReport(
+          // Phase 1 — researcher: tool-enabled, gathers evidence packet.
+          const evidence = await researchScoutReport(
             {
               db,
               dbReadonly,
@@ -149,8 +151,17 @@ After this returns, a one-line confirmation is enough. Do NOT dump the report co
             input,
           );
 
+          // Phase 2 — analyst: no tools, synthesises content + claims registry
+          // from the evidence. Validators reject ungrounded mechanics claims;
+          // one retry is built in.
+          const analysed = await analyseScoutEvidence(
+            { config, logger },
+            input,
+            evidence,
+          );
+
           const payload: ScoutReportPayload = {
-            ...content,
+            ...analysed.content,
             match,
             matchDate: input.matchDate,
           };

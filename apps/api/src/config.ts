@@ -89,17 +89,50 @@ const configSchema = z.object({
   // Independent from the chat agent so the main loop can run on a frontier
   // model while DB queries stay on a cheap fast one.
   SCOUT_PROVIDER_DB: z.enum(["anthropic", "deepseek"]).default("anthropic"),
+  // Researcher phase (the loop behind generate_report). Independent from the
+  // chat agent so the researcher can run on a faster/cheaper model — its job
+  // is structured data extraction and tool-calling, not deep reasoning.
+  // Default DeepSeek flash so prod mirrors dev without needing a Terraform /
+  // env override; override via env when the researcher needs more horsepower.
+  SCOUT_PROVIDER_RESEARCHER: z
+    .enum(["anthropic", "deepseek"])
+    .default("deepseek"),
+  // Analyst phase. Reads the researcher's evidence packet (no tools) and
+  // emits the report content + claims registry. Default flash too — the job
+  // is mechanical synthesis (read evidence, populate template, attach claim
+  // citations), not deep reasoning, and the prompt carries a large evidence
+  // packet inline that v4-pro with thinking takes minutes to chew through.
+  SCOUT_PROVIDER_ANALYST: z.enum(["anthropic", "deepseek"]).default("deepseek"),
   SCOUT_MODEL_CHAT: z.string().default("claude-sonnet-4-6"),
   SCOUT_MODEL_SUBAGENT: z.string().default("claude-haiku-4-5-20251001"),
   SCOUT_MODEL_DB: z.string().default("claude-haiku-4-5-20251001"),
+  SCOUT_MODEL_RESEARCHER: z.string().default("deepseek-v4-flash"),
+  SCOUT_MODEL_ANALYST: z.string().default("deepseek-v4-flash"),
   SCOUT_DB_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(8),
   SCOUT_MAX_STEPS: z.coerce.number().int().positive().default(20),
-  // Researcher sub-agent (the loop behind generate_report). Compiles the full
-  // ScoutReportPayload by running ask_db / pc_* / weather_get / fact_retrieve.
-  // Higher than the chat ceiling because one report tends to need more tool
-  // calls (selection + opposition recent matches + per-player aggregates +
-  // weather + facts) than a chat turn.
-  SCOUT_RESEARCHER_MAX_STEPS: z.coerce.number().int().positive().default(50),
+  // Researcher phase (the loop behind generate_report). Gathers evidence via
+  // ask_db / pc_* / weather_get / fact_retrieve and emits records via the
+  // record_evidence tool. Default 30 — selection + 4-5 opposition matches +
+  // a few player aggregates + weather + facts, with one record_evidence per
+  // datum, rarely needs more.
+  SCOUT_RESEARCHER_MAX_STEPS: z.coerce.number().int().positive().default(30),
+  // Wall-clock caps per phase. DeepSeek can hold a single chat-completions
+  // request open for minutes; without timeouts one slow step locks the whole
+  // generate_report flow indefinitely. Researcher and analyst have different
+  // budgets because their work shape differs:
+  //
+  // - Researcher loops through ~30 small steps (one tool call per step). On
+  //   flash that's typically 3-9s/step → 90-270s total. 6 minutes is enough.
+  // - Analyst is a single generateText call but the prompt carries the full
+  //   evidence packet inline (often 15-25k tokens) and emits a structured
+  //   ScoutReportContent + claims registry. Even on flash the round trip can
+  //   run several minutes for a rich packet. 10 minutes for headroom.
+  SCOUT_RESEARCHER_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(360_000),
+  SCOUT_ANALYST_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
   // Voyage AI (fact-RAG embeddings + reranking). Optional — Scout boots
   // without it and just skips the fact tools / auto-retrieval.
   VOYAGE_API_KEY: z.string().optional(),
