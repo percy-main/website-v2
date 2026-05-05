@@ -12,6 +12,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { downloadScoutReport } from "./download-report.ts";
 import { ScoutChart } from "./scout-chart.tsx";
+import { useCancelReport, useReportDetail } from "./use-report-detail.ts";
 
 const REMARK_PLUGINS = [remarkGfm];
 
@@ -1212,30 +1213,50 @@ const PHASE_ICONS: Record<ReportPhaseName, string> = {
 const PHASE_ORDER: ReportPhaseName[] = ["researcher", "analyst", "render"];
 
 function ReportCard({ data }: { data: ReportData }) {
-  if (data.status === "generating") {
-    return <ReportPipelineCard data={data} />;
-  }
-  if (data.status === "failed") {
-    return <ReportFailedCard data={data} />;
-  }
-  return <ReportReadyCard data={data} />;
+  // Streamed `data` is just a marker — reportId + title + initial 'queued'
+  // status. The polling hook is authoritative; we only fall back to `data`
+  // while the first poll is in flight. Once any poll resolves, `live` wins
+  // even if the request later goes stale.
+  const { data: live } = useReportDetail(data.reportId);
+  const view: ReportData = live ?? data;
+  if (view.status === "ready") return <ReportReadyCard data={view} />;
+  if (view.status === "failed") return <ReportFailedCard data={view} />;
+  return <ReportPipelineCard data={view} />;
 }
 
 // ── Pipeline (generating) ───────────────────────────────────────────────────
 
 function ReportPipelineCard({ data }: { data: ReportData }) {
+  const cancel = useCancelReport(data.reportId);
+  const headlineLabel =
+    data.status === "queued"
+      ? "Queued — waiting to start"
+      : "Building scouting report";
+
   return (
     <div className="my-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate text-sm font-medium text-emerald-900">
-            Building scouting report
+            {headlineLabel}
           </div>
           <div className="truncate text-[11px] text-emerald-900/70">
             {data.title}
           </div>
         </div>
-        {data.startedAt != null && <GlobalElapsed startedAt={data.startedAt} />}
+        <div className="flex items-center gap-2">
+          {data.startedAt != null && (
+            <GlobalElapsed startedAt={data.startedAt} />
+          )}
+          <button
+            type="button"
+            onClick={() => cancel.mutate()}
+            disabled={cancel.isPending}
+            className="rounded border border-emerald-300 bg-white px-2 py-0.5 text-[11px] text-emerald-900 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {cancel.isPending ? "Cancelling…" : "Stop"}
+          </button>
+        </div>
       </div>
       <PipelineRow data={data} />
     </div>

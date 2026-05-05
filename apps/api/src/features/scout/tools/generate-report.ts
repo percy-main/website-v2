@@ -199,19 +199,17 @@ After this returns, a one-line confirmation is enough — say "Report queued —
         // /api/scout/reports/:id from this reportId alone, so the part
         // payload only needs the bare minimum that survives a thread
         // reload (reportId, title, createdAt, queued status).
+        // Minimal marker. Just enough to mount the FE pipeline card; the
+        // card immediately polls /api/scout/reports/:id for live state and
+        // ignores everything beyond reportId/title/createdAt here. Keeping
+        // the part small means a stale persisted snapshot (after a thread
+        // reload) doesn't get rendered as if it were authoritative.
         const initial: ReportData = {
           reportId,
           title: displayTitle,
           fileSizeBytes: null,
           createdAt: createdAtIso,
-          status: "generating",
-          startedAt: Date.now(),
-          phases: {
-            researcher: { state: "pending" },
-            analyst: { state: "pending" },
-            render: { state: "pending" },
-          },
-          recentToolCalls: [],
+          status: "queued",
         };
         writer.write({ type: "data-report", id: reportId, data: initial });
 
