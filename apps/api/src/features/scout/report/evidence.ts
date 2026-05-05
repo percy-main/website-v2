@@ -145,7 +145,7 @@ export const claimSectionSchema = z.enum([
 
 export type ClaimSection = z.infer<typeof claimSectionSchema>;
 
-export const ANALYTICAL_SECTIONS: ReadonlyArray<ClaimSection> = [
+export const ANALYTICAL_SECTIONS: readonly ClaimSection[] = [
   "intro",
   "tossDecision",
   "overallStrategy",

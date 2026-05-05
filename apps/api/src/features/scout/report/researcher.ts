@@ -128,9 +128,13 @@ export async function researchScoutReport(
   // researcher's job) and no cite_* (FE chips, irrelevant in this phase).
   let factRetrieveTool = {} as Record<string, unknown>;
   if (deps.voyage) {
+    // Researcher only ever uses fact_retrieve which doesn't touch the
+    // writer; the noop methods are present purely to satisfy the
+    // FactToolDeps shape required by createFactTools.
+    const noop = (): void => undefined;
     const noopWriter = {
-      write: () => {},
-      merge: () => {},
+      write: noop,
+      merge: noop,
       onError: undefined,
     } as never;
     const allFactTools = createFactTools({
@@ -244,6 +248,7 @@ Gather the evidence packet now. Emit each piece via record_evidence. Do not narr
     if (isTimeout) {
       throw new Error(
         `Researcher phase timed out after ${deps.config.SCOUT_RESEARCHER_TIMEOUT_MS}ms (${stepIndex} steps completed, ${accumulator.size()} records gathered).`,
+        { cause: err },
       );
     }
     throw err;

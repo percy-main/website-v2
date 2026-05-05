@@ -405,11 +405,11 @@ function Paragraph({ text }: { text: string }) {
   );
 }
 
-type InlineRun = {
+interface InlineRun {
   text: string;
   bold: boolean;
   italic: boolean;
-};
+}
 
 // Tiny inline-markdown tokenizer: handles **bold** and _italic_ (and the two
 // nested either way). Anything else passes through as plain text. Deliberately

@@ -141,8 +141,10 @@ ${IMPORTANT_CONTEXT}
 Final reminder: emit JSON ONLY in the final assistant message. The orchestrator parses your message as JSON and fails if it's not a single object matching the shape above. References should be an empty array; we fill them server-side from evidence sourceUrls.
 `;
 
+const FENCED_JSON_RE = /```(?:json)?\s*([\s\S]+?)\s*```/;
+
 function extractJson(raw: string): string {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+  const fenced = FENCED_JSON_RE.exec(raw);
   if (fenced) return fenced[1].trim();
   const first = raw.indexOf("{");
   const last = raw.lastIndexOf("}");
@@ -204,7 +206,7 @@ const normaliseForMatch = (s: string): string =>
 // If any of these have prose, they MUST have at least one claim covering
 // them. ourPlayers / theirPlayers are optional and only require coverage
 // when they hold non-trivial notes.
-const ALWAYS_PRESENT_SECTIONS: ReadonlyArray<ClaimSection> = [
+const ALWAYS_PRESENT_SECTIONS: readonly ClaimSection[] = [
   "intro",
   "tossDecision",
   "overallStrategy",
@@ -444,6 +446,7 @@ ${JSON.stringify(evidence, null, 2)}`;
       if (isTimeout) {
         throw new Error(
           `Analyst phase timed out after ${deps.config.SCOUT_ANALYST_TIMEOUT_MS}ms on attempt ${attempt}.`,
+          { cause: err },
         );
       }
       throw err;

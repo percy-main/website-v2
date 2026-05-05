@@ -20,6 +20,10 @@ if (!parentPort) {
   throw new Error("worker-entry must be loaded as a worker thread");
 }
 
+// Capture the narrowed reference so the closures below don't need non-null
+// assertions on every postMessage call.
+const port = parentPort;
+
 interface RenderRequest {
   id: number;
   payload: ScoutReportPayload;
@@ -43,7 +47,7 @@ interface RenderFailure {
   stack?: string;
 }
 
-parentPort.on("message", async (msg: RenderRequest) => {
+async function handleRenderRequest(msg: RenderRequest): Promise<void> {
   try {
     const ourCharts = (msg.payload.ourPlayersCharts ?? []).map((c, i) => ({
       id: String(i),
@@ -80,7 +84,7 @@ parentPort.on("message", async (msg: RenderRequest) => {
     // run to several MB and there's no reason to keep the worker's copy.
     // Node `Buffer.buffer` is always a regular ArrayBuffer (never Shared);
     // the cast satisfies the structured-clone Transferable typing.
-    parentPort!.postMessage(reply, [pdf.buffer as ArrayBuffer]);
+    port.postMessage(reply, [pdf.buffer as ArrayBuffer]);
   } catch (err) {
     const reply: RenderFailure = {
       id: msg.id,
@@ -88,6 +92,14 @@ parentPort.on("message", async (msg: RenderRequest) => {
       message: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
     };
-    parentPort!.postMessage(reply);
+    port.postMessage(reply);
   }
+}
+
+// Sync wrapper around the async handler — node:worker_threads `.on('message')`
+// expects a void-returning listener; passing an async function trips
+// no-misused-promises. handleRenderRequest never rejects (it catches into a
+// failure reply), so void-discarding the promise is safe.
+port.on("message", (msg: RenderRequest) => {
+  void handleRenderRequest(msg);
 });

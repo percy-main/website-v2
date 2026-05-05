@@ -44,6 +44,10 @@ export default tseslint.config(
       "**/__generated__/**",
       "**/*.config.*",
       "**/*.gen.d.ts",
+      // Plain ESM bootstrap files that aren't part of the TS project graph —
+      // tsc doesn't compile them and the typed-eslint project service can't
+      // load them, so skip linting entirely.
+      "**/*.mjs",
     ],
   },
 );
