@@ -202,6 +202,111 @@ function sectionProse(
 const normaliseForMatch = (s: string): string =>
   s.toLowerCase().replace(/\s+/g, " ").trim();
 
+/**
+ * Remove the sentence containing `phrase` from `prose`. Used when a claim
+ * is soft-dropped (mechanics rule violation): the claim's text would
+ * otherwise stay in the section's prose without a citation chip, shipping
+ * unsupportable mechanics advice in the PDF.
+ *
+ * Best-effort. We locate `phrase` case-insensitively, walk back to the
+ * previous sentence break (. ! ? \n) or string start, walk forward to the
+ * next sentence break (inclusive), and strip that range. Adjacent
+ * whitespace is collapsed and a leading/trailing newline run is normalised.
+ *
+ * Edge cases we don't try to be clever about:
+ *   - phrase spans multiple sentences (claim records are typically one
+ *     sentence per the prompt rules; if it spans, the whole span goes,
+ *     which is the right thing anyway).
+ *   - phrase wraps onto a section that we can't find via case-insensitive
+ *     substring (e.g. analyst paraphrased between content and claim.text).
+ *     The validator's substring check would already have failed in that
+ *     case, so we'd be on the must-fix retry path, not soft-drop.
+ */
+function excisePhraseFromString(prose: string, phrase: string): string {
+  const needle = phrase.trim();
+  if (!needle) return prose;
+  const idx = prose.toLowerCase().indexOf(needle.toLowerCase());
+  if (idx === -1) return prose;
+
+  let start = idx;
+  while (start > 0 && !/[.!?\n]/.test(prose[start - 1])) start--;
+  while (start < idx && /\s/.test(prose[start])) start++;
+
+  let end = idx + needle.length;
+  while (end < prose.length && !/[.!?\n]/.test(prose[end])) end++;
+  if (end < prose.length) end++;
+  while (end < prose.length && prose[end] === " ") end++;
+
+  return (prose.slice(0, start) + prose.slice(end))
+    .replace(/[ \t]+/g, " ")
+    .replace(/ +\n/g, "\n")
+    .replace(/\n +/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Return a copy of `content` with the dropped claim's `text` excised from
+ * its declared `section`. For string sections this is a single in-place
+ * removal; for player-array sections we map each player's notes through
+ * the same removal (the phrase will only match in one of them).
+ */
+function exciseClaimFromContent(
+  content: ScoutReportContent,
+  claim: ClaimRecord,
+): ScoutReportContent {
+  const exciseInPlayers = (
+    players: ScoutReportContent["ourPlayers"],
+  ): ScoutReportContent["ourPlayers"] =>
+    (players ?? []).map((p) => ({
+      ...p,
+      notes: p.notes ? excisePhraseFromString(p.notes, claim.text) : p.notes,
+    }));
+
+  switch (claim.section) {
+    case "intro":
+      return {
+        ...content,
+        intro: excisePhraseFromString(content.intro, claim.text),
+      };
+    case "tossDecision":
+      return {
+        ...content,
+        tossDecision: excisePhraseFromString(content.tossDecision, claim.text),
+      };
+    case "overallStrategy":
+      return {
+        ...content,
+        overallStrategy: excisePhraseFromString(
+          content.overallStrategy,
+          claim.text,
+        ),
+      };
+    case "keyMatchups":
+      return {
+        ...content,
+        keyMatchups: excisePhraseFromString(content.keyMatchups, claim.text),
+      };
+    case "tactics":
+      return {
+        ...content,
+        tactics: excisePhraseFromString(content.tactics, claim.text),
+      };
+    case "conclusion":
+      return {
+        ...content,
+        conclusion: excisePhraseFromString(content.conclusion, claim.text),
+      };
+    case "ourPlayers":
+      return { ...content, ourPlayers: exciseInPlayers(content.ourPlayers) };
+    case "theirPlayers":
+      return {
+        ...content,
+        theirPlayers: exciseInPlayers(content.theirPlayers),
+      };
+  }
+}
+
 // Sections always present in every report (required strings on the schema).
 // If any of these have prose, they MUST have at least one claim covering
 // them. ourPlayers / theirPlayers are optional and only require coverage
@@ -486,6 +591,16 @@ ${JSON.stringify(evidence, null, 2)}`;
       const droppedClaims = parsed.data.claims.filter((c) =>
         droppedClaimIds.includes(c.id),
       );
+      // Excise the dropped claim's text from its section's prose BEFORE
+      // we filter it out of claims — otherwise the unsupported sentence
+      // ships in the PDF without a citation chip. Each excise is in-place
+      // on a copy of content; iterate so multiple drops in the same
+      // section compose correctly.
+      let mutatedContent = parsed.data.content;
+      for (const claim of droppedClaims) {
+        mutatedContent = exciseClaimFromContent(mutatedContent, claim);
+      }
+      parsed.data.content = mutatedContent;
       parsed.data.claims = parsed.data.claims.filter(
         (c) => !droppedClaimIds.includes(c.id),
       );

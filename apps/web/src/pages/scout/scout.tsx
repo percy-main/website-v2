@@ -240,19 +240,30 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
   // research and analysis often complete server-side even after the
   // connection severs, so a refresh in a few minutes is usually the right
   // move.
+  //
+  // Walking newest→oldest, we track every reportId we've seen in a terminal
+  // state (ready / failed) so a stale "generating" snapshot for the same
+  // reportId emitted earlier in the stream doesn't get surfaced as
+  // in-flight.
   const inFlightReport = useMemo<ReportData | null>(() => {
+    const terminalReportIds = new Set<string>();
     for (let i = messages.length - 1; i >= 0; i--) {
       const parts = messages[i].parts ?? [];
       for (let j = parts.length - 1; j >= 0; j--) {
         const part = parts[j];
         if (
-          typeof part === "object" &&
-          part !== null &&
-          "type" in part &&
-          (part as { type: unknown }).type === "data-report"
+          typeof part !== "object" ||
+          part === null ||
+          !("type" in part) ||
+          (part as { type: unknown }).type !== "data-report"
         ) {
-          const data = (part as { data: ReportData }).data;
-          if (data.status === "generating") return data;
+          continue;
+        }
+        const data = (part as { data: ReportData }).data;
+        if (data.status === "generating") {
+          if (!terminalReportIds.has(data.reportId)) return data;
+        } else {
+          terminalReportIds.add(data.reportId);
         }
       }
     }
