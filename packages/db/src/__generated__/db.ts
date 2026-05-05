@@ -641,10 +641,22 @@ export interface ScoutMessage {
 }
 
 export interface ScoutReport {
+  cancel_requested: Generated<boolean>;
+  competition: string | null;
   created_at: Generated<Timestamp>;
+  error_message: string | null;
   file_size_bytes: number | null;
+  home_away: string | null;
   id: Generated<string>;
-  s3_key: string;
+  intent: string | null;
+  match_date: string | null;
+  match_id: string | null;
+  opposition: string | null;
+  our_team: string | null;
+  phases: Json | null;
+  s3_key: string | null;
+  started_at: Timestamp | null;
+  status: Generated<string>;
   thread_id: string;
   title: string;
   user_id: string;
