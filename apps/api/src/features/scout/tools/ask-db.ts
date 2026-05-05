@@ -291,19 +291,26 @@ If the rows are the entire answer (e.g. a count of 7), just say what filter you 
         // budget before executing anything. Surface this as a structured
         // error rather than echoing the planning text as `summary`, which
         // misled the caller into thinking "no rows" was a real answer.
+        // Mask any leaked table names before surfacing the planning text
+        // back to the outer agent — the no-SQL path is exactly where the
+        // model is most likely to spit "let me search in matchday and
+        // match_result" and we don't want that reaching the caller.
+        const { masked: maskedRawSummary, tablesFound: rawTablesFound } =
+          maskTableNames(rawSummary);
         deps.logger?.warn(
           {
             event: "scout.ask_db.no_sql_run",
             question,
             stepCount,
             rawSummary,
+            tablesFound: rawTablesFound,
             maxSteps: deps.maxSteps,
             lastFinishReason: lastStep?.finishReason,
           },
           "ask_db: sub-agent finished without running any SQL",
         );
         return {
-          error: `DB query helper finished without running SQL (in ${stepCount} step${stepCount === 1 ? "" : "s"} of ${deps.maxSteps}). Sub-agent's last note: ${rawSummary || "(empty)"}. Try a more specific question or wait for the next step.`,
+          error: `DB query helper finished without running SQL (in ${stepCount} step${stepCount === 1 ? "" : "s"} of ${deps.maxSteps}). Sub-agent's last note: ${maskedRawSummary || "(empty)"}. Try a more specific question or wait for the next step.`,
         };
       },
     }),

@@ -418,7 +418,7 @@ export function getReportForDownload(db: Kysely<DB>) {
     // Only ready rows have a non-null s3_key. The status filter above
     // guarantees that, but the column is nullable in the schema, so we
     // narrow with an explicit check to satisfy the return type.
-    if (!row || !row.s3_key) throw new ReportNotFoundError();
+    if (!row?.s3_key) throw new ReportNotFoundError();
     return { s3Key: row.s3_key, title: row.title };
   };
 }
@@ -435,7 +435,7 @@ export function deleteReport(db: Kysely<DB>) {
       .where("status", "=", "ready")
       .select(["s3_key"])
       .executeTakeFirst();
-    if (!row || !row.s3_key) throw new ReportNotFoundError();
+    if (!row?.s3_key) throw new ReportNotFoundError();
 
     await db.deleteFrom("scout_report").where("id", "=", reportId).execute();
     return { s3Key: row.s3_key };
@@ -459,12 +459,12 @@ export interface ReportDetail {
       summary?: { records?: number; claims?: number; bytes?: number };
     }
   >;
-  recentToolCalls?: {
+  recentToolCalls?: Array<{
     id: string;
     phase: "researcher" | "analyst" | "render";
     toolName: string;
     at: number;
-  }[];
+  }>;
 }
 
 interface PersistedProgressShape {
