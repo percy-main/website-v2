@@ -1172,4 +1172,3 @@ function ToolPartView({ part }: { part: Part }) {
     </div>
   );
 }
-
