@@ -7,21 +7,30 @@
  * the same Config schema as the API server, so the same SCOUT_* /
  * PLAY_CRICKET_* / VOYAGE_* / S3 settings apply unchanged.
  *
- * Wall-clock kill at 20 minutes — past that, DeepSeek's flash is presumed
- * stuck and we'd rather fail loudly than burn token budget indefinitely.
- * The scout_report row's status will already have been written to 'failed'
- * by runReport's progress flush before this fires (since it polls the DB
- * row); the kill is the last-resort backstop.
+ * Wall-clock kill is computed from the shared per-phase budgets plus a
+ * safety margin, so the kill never fires inside a phase that's still
+ * within its own timeout. If the per-phase timeouts work, runReport's
+ * progress flush already wrote 'failed' to the row before this fires;
+ * the kill is purely a last-resort backstop for orchestration that's
+ * stalled outside the phases (boot, DB connect, render).
  */
 
 import { createClient } from "@percy-main/db";
+import { REPORT_PHASE_BUDGETS_MS } from "@percy-main/shared";
 import { parseConfig } from "./config.ts";
 import { createApiClient } from "./features/play-cricket/api-client.ts";
 import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runReport } from "./features/scout/report/run-report.ts";
 import { createScoutReportStore } from "./lib/s3-scout-reports.ts";
 
-const HARD_KILL_MS = 20 * 60_000;
+// Sum of per-phase budgets + 90s margin for boot, DB connect, S3 upload,
+// and clean-up. Track the budgets so a researcher / analyst bump in
+// REPORT_PHASE_BUDGETS_MS never silently outgrows this kill.
+const HARD_KILL_MS =
+  REPORT_PHASE_BUDGETS_MS.researcher +
+  REPORT_PHASE_BUDGETS_MS.analyst +
+  REPORT_PHASE_BUDGETS_MS.render +
+  90_000;
 
 const REPORT_ID = process.env.REPORT_ID;
 if (!REPORT_ID) {
@@ -43,8 +52,8 @@ if (!config.SCOUT_DB_URL) {
 }
 
 // Hard backstop. unref() lets the process exit naturally if everything
-// finishes before the timer fires. The runReport pipeline already times
-// out per-phase (researcher 12m, analyst 20m), so this only fires if
+// finishes before the timer fires. runReport already times out per-phase
+// (researcher / analyst / render budgets), so this only fires if
 // something outside those budgets stalls.
 setTimeout(() => {
   console.error(

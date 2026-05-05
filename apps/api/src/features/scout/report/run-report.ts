@@ -99,13 +99,21 @@ export async function runReport(
 ): Promise<void> {
   const { db, logger } = deps;
 
-  const row = await db
-    .selectFrom("scout_report")
-    .select([
+  // Atomic claim. ECS RunTask is at-least-once, so two workers can pick up
+  // the same reportId at the same moment. The UPDATE ... WHERE status =
+  // 'queued' RETURNING ... pattern lets exactly one of them transition the
+  // row out of 'queued'; the loser sees an empty result and exits cleanly.
+  // Replaces an earlier read-then-update sequence that had a TOCTOU race.
+  const startedAt = Date.now();
+  const claimed = await db
+    .updateTable("scout_report")
+    .set({ status: "researching", started_at: new Date(startedAt) })
+    .where("id", "=", reportId)
+    .where("status", "=", "queued")
+    .returning([
       "id",
       "user_id",
       "thread_id",
-      "status",
       "match_id",
       "our_team",
       "opposition",
@@ -114,20 +122,26 @@ export async function runReport(
       "competition",
       "intent",
     ])
-    .where("id", "=", reportId)
     .executeTakeFirst();
 
-  if (!row) throw new ReportNotFoundError(reportId);
-  if (row.status !== "queued") {
-    // Re-launch on a row that's already running (or done/failed) is a no-op.
-    // ECS RunTask is at-least-once; we'd rather absorb a duplicate than
-    // double-charge the LLM budget.
+  if (!claimed) {
+    // Two cases collapse here: the row doesn't exist, or it does but
+    // someone else already claimed it / it's already finished. Both are
+    // no-op outcomes for this worker — the row, if any, isn't ours to run.
+    const existing = await db
+      .selectFrom("scout_report")
+      .select("status")
+      .where("id", "=", reportId)
+      .executeTakeFirst();
+    if (!existing) throw new ReportNotFoundError(reportId);
     logger?.warn(
-      { reportId, status: row.status },
-      "scout_report_worker_skip_non_queued",
+      { reportId, status: existing.status },
+      "scout_report_worker_skip_already_claimed_or_finished",
     );
     return;
   }
+
+  const row = claimed;
 
   if (
     !row.match_id ||
@@ -152,8 +166,6 @@ export async function runReport(
     competition: row.competition ?? undefined,
     intent: row.intent ?? undefined,
   };
-
-  const startedAt = Date.now();
   const abortController = new AbortController();
   const progress = initialProgress();
   let progressDirty = false;
@@ -204,11 +216,10 @@ export async function runReport(
   };
 
   try {
+    // status + started_at were already set by the atomic claim above; this
+    // first write only persists the initial `phases` snapshot.
     progress.phases.researcher = { state: "active", startedAt: Date.now() };
-    await writeProgress({
-      status: "researching",
-      started_at: new Date(startedAt),
-    });
+    await writeProgress();
 
     const evidence = await researchScoutReport(
       {
