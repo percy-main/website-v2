@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { api, callApi } from "@/lib/api-client";
+import type { ReportData } from "@percy-main/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link } from "react-router";
-import { downloadScoutReport } from "./download-report.ts";
+import { ReportCard } from "./report-card.tsx";
 
 const REPORTS_QUERY_KEY = ["scout", "reports"] as const;
 
@@ -24,9 +24,10 @@ export function ReportsView() {
   const reportsQuery = useQuery({
     queryKey: REPORTS_QUERY_KEY,
     queryFn: () => callApi(api.GET("/api/scout/reports")),
-    // While any row is in flight, poll the listing so an in-progress
-    // report's status updates without manual refresh. Once everything
-    // is settled we drop back to no polling.
+    // Listing-level poll catches new reports queued from other tabs and
+    // catches a queued→ready transition for rows that didn't have a card
+    // mounted (and so weren't being polled individually). Once everything
+    // is settled the polling stops.
     refetchInterval: (q) =>
       q.state.data?.reports.some(
         (r: ReportRow) => r.status === "queued" || r.status === "generating",
@@ -57,166 +58,99 @@ export function ReportsView() {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4">
-      <h2 className="mb-3 text-sm font-medium text-gray-700">
-        Historical reports
-      </h2>
+      <h2 className="mb-3 text-sm font-medium text-gray-700">Reports</h2>
       {reports.length === 0 ? (
         <div className="mt-12 text-center text-sm text-gray-500">
           No reports yet. In a scouting thread, click{" "}
           <strong>Generate report</strong> in the composer to create one.
         </div>
       ) : (
-        <ul className="divide-y divide-gray-200 rounded border border-gray-200 bg-white">
+        <div className="flex flex-col gap-1">
           {reports.map((r) => (
             <ReportListItem key={r.id} report={r} />
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
 }
 
 function ReportListItem({ report }: { report: ReportRow }) {
-  if (report.status !== "ready")
-    return <InFlightReportListItem report={report} />;
-  return <ReadyReportListItem report={report} />;
-}
-
-function InFlightReportListItem({ report }: { report: ReportRow }) {
-  const elapsed = report.startedAt
-    ? Math.max(0, Math.floor((Date.now() - report.startedAt) / 1000))
-    : null;
-  const elapsedLabel =
-    elapsed === null
-      ? "queued"
-      : elapsed < 60
-        ? `${elapsed}s`
-        : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+  // Construct a `ReportData`-shaped payload from the row. ReportCard polls
+  // /api/scout/reports/:id internally, so the per-card live state (phases,
+  // recentToolCalls, errorMessage) overrides this placeholder once the
+  // first poll resolves.
+  const placeholder: ReportData = {
+    reportId: report.id,
+    title: report.title,
+    fileSizeBytes: report.fileSizeBytes,
+    createdAt: report.createdAt,
+    status: report.status,
+    startedAt: report.startedAt ?? undefined,
+  };
   return (
-    <li className="flex items-center gap-3 px-3 py-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-emerald-600 text-[10px] font-semibold text-white">
-        …
-      </div>
-      <div className="min-w-0 flex-1">
-        <Link
-          to={`/scout/${report.threadId}`}
-          className="block truncate text-sm font-medium text-gray-900 hover:underline"
-        >
-          {report.title}
-        </Link>
-        <div className="text-[11px] text-gray-600">
-          {report.status === "queued" ? "Queued" : "Generating"} ·{" "}
-          {elapsedLabel}
-          {report.threadTitle && (
-            <>
-              {" · "}
-              <Link
-                to={`/scout/${report.threadId}`}
-                className="text-blue-700 hover:underline"
-              >
-                {report.threadTitle}
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-    </li>
+    <div>
+      <ReportCard data={placeholder} />
+      <ReportFooter report={report} />
+    </div>
   );
 }
 
-function ReadyReportListItem({ report }: { report: ReportRow }) {
-  const [downloading, setDownloading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const queryClient = useQueryClient();
+function ReportFooter({ report }: { report: ReportRow }) {
+  const created = new Date(report.createdAt);
+  return (
+    <div className="-mt-1 flex items-center justify-between gap-2 px-3 pb-2 text-[11px] text-gray-600">
+      <div className="min-w-0 truncate">
+        {created.toLocaleString(undefined, {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+        {report.threadTitle && (
+          <>
+            {" · "}
+            <Link
+              to={`/scout/${report.threadId}`}
+              className="text-blue-700 hover:underline"
+            >
+              {report.threadTitle}
+            </Link>
+          </>
+        )}
+      </div>
+      {report.status === "ready" && <DeleteReportButton reportId={report.id} />}
+    </div>
+  );
+}
 
+function DeleteReportButton({ reportId }: { reportId: string }) {
+  const queryClient = useQueryClient();
   const deleteMutation = useMutation({
     mutationFn: () =>
       callApi(
         api.DELETE("/api/scout/reports/{reportId}", {
-          params: { path: { reportId: report.id } },
+          params: { path: { reportId } },
         }),
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: REPORTS_QUERY_KEY });
     },
   });
-
-  const handleDownload = async () => {
-    setError(null);
-    setDownloading(true);
-    try {
-      await downloadScoutReport(report.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Download failed");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const handleDelete = () => {
-    if (!confirm(`Delete "${report.title}"? This cannot be undone.`)) return;
-    deleteMutation.mutate();
-  };
-
-  const sizeKb =
-    report.fileSizeBytes !== null
-      ? Math.max(1, Math.round(report.fileSizeBytes / 1024))
-      : null;
-  const created = new Date(report.createdAt);
-
   return (
-    <li className="flex items-center gap-3 px-3 py-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-blue-600 text-[10px] font-semibold text-white">
-        PDF
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-gray-900">
-          {report.title}
-        </div>
-        <div className="text-[11px] text-gray-600">
-          {created.toLocaleString(undefined, {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-          {sizeKb !== null && <> · {sizeKb} KB</>}
-          {report.threadTitle && (
-            <>
-              {" · "}
-              <Link
-                to={`/scout/${report.threadId}`}
-                className="text-blue-700 hover:underline"
-              >
-                {report.threadTitle}
-              </Link>
-            </>
-          )}
-        </div>
-        {error && <div className="mt-1 text-[11px] text-red-700">{error}</div>}
-      </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => {
-          void handleDownload();
-        }}
-        disabled={downloading}
-      >
-        {downloading ? "Opening…" : "Download"}
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={handleDelete}
-        disabled={deleteMutation.isPending}
-        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-      >
-        {deleteMutation.isPending ? "…" : "Delete"}
-      </Button>
-    </li>
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={() => {
+        if (!confirm("Delete this report? This cannot be undone.")) return;
+        deleteMutation.mutate();
+      }}
+      disabled={deleteMutation.isPending}
+      className="h-6 px-2 text-[11px] text-red-600 hover:bg-red-50 hover:text-red-700"
+    >
+      {deleteMutation.isPending ? "Deleting…" : "Delete"}
+    </Button>
   );
 }
