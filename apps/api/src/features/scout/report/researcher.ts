@@ -5,7 +5,7 @@ import type { Kysely } from "kysely";
 import type { Config } from "../../../config.ts";
 import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
 import type { VoyageClient } from "../facts/voyage.ts";
-import { resolveModel } from "../provider.ts";
+import { deepseekFastProviderOptions, resolveModel } from "../provider.ts";
 import { GROUNDING_RULES, IMPORTANT_CONTEXT } from "../system-prompt.ts";
 import { createAskDbTool } from "../tools/ask-db.ts";
 import { createAskPlayCricketTool } from "../tools/ask-play-cricket.ts";
@@ -83,6 +83,8 @@ Hard rules — these are not negotiable:
 - DO NOT invent mechanics. If ask_play_cricket returns a wicket count, the content describes that count. It does NOT include line, length, movement, footwork, shot, field placement, glovework, or captaincy claims unless you got that info from fact_retrieve as a recorded fact.
 
 - DO NOT call fact_record (you're not interviewing anyone) or cite_fact / cite_match / cite_player_stats (those emit FE chips that don't apply here) or chart_render (chart synthesis is the analyst's job).
+
+- ask_db is a black box. NEVER name tables, columns, or any database structure in your questions — those are implementation details of the SQL sub-agent. Phrase in cricket terms only (matches, players, seasons, teams, fixtures). "Find Percy Main's May 2026 fixtures" — NOT "select match_id, home_team from play_cricket_match_cache where ..." The sub-agent owns the schema; you own the question.
 
 - claimType MATTERS. The analyst's validator uses it to gate mechanics claims. Be honest:
   * stats / scorecard data → db_aggregate, db_row, pc_aggregate, pc_match, dismissal_pattern
@@ -213,6 +215,7 @@ Gather the evidence packet now. Emit each piece via record_evidence. Do not narr
       prompt: promptBlock,
       tools,
       stopWhen: stepCountIs(deps.config.SCOUT_RESEARCHER_MAX_STEPS),
+      providerOptions: deepseekFastProviderOptions(resolved.provider),
       // Hard wall-clock cap. Without this a slow DeepSeek thinking step holds
       // the whole flow open indefinitely (observed: a single step blocking
       // for 4+ minutes with no visible progress). Combined with cancelSignal

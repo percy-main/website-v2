@@ -115,7 +115,13 @@ const configSchema = z.object({
   SCOUT_MODEL_PC: z.string().default("claude-haiku-4-5-20251001"),
   SCOUT_MODEL_RESEARCHER: z.string().default("deepseek-v4-flash"),
   SCOUT_MODEL_ANALYST: z.string().default("deepseek-v4-flash"),
-  SCOUT_DB_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(8),
+  // ask_db sub-agent step cap. A typical question takes 3-5 steps:
+  // db_list_tables, 1-2 db_describe_table, 1-2 db_run_sql (often a first
+  // query returns 0 rows due to a wrong filter, prompting one refinement).
+  // Default 8 was tight enough to fire "ran out of steps mid-loop" warnings
+  // during normal researcher runs; 14 leaves real headroom without
+  // encouraging the model to keep poking indefinitely.
+  SCOUT_DB_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(14),
   // Most PC questions resolve in 1-3 calls (one fetch, sometimes a site_id
   // pivot beforehand). 6 leaves headroom for an opposition-scout chain
   // without inviting the sub-agent to keep poking.
@@ -143,6 +149,15 @@ const configSchema = z.object({
     .int()
     .positive()
     .default(REPORT_PHASE_BUDGETS_MS.analyst),
+  // Dev-only: clamp every researcher / sub-agent step cap to a tiny budget
+  // so end-to-end smoke runs locally in ~1-2 minutes instead of 10+. Reports
+  // produced under this flag will be thin (less evidence gathered) but the
+  // pipeline shape is identical, so it's the right loop for iterating on
+  // prompt / validator / rendering changes. Never enable in prod.
+  SCOUT_DEV_FAST: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   // Voyage AI (fact-RAG embeddings + reranking). Optional — Scout boots
   // without it and just skips the fact tools / auto-retrieval.
   VOYAGE_API_KEY: z.string().optional(),
@@ -164,9 +179,32 @@ const configSchema = z.object({
 export type Config = z.infer<typeof configSchema>;
 
 /**
+ * When SCOUT_DEV_FAST=true is set, clamp the researcher + sub-agent step
+ * caps to tiny values so a local smoke run finishes in ~1-2 min. Anything
+ * already smaller than the clamp is left alone (you can always go lower
+ * via the individual env vars). Timeouts are not clamped — step caps will
+ * stop the loops well before the wall-clock fires anyway.
+ */
+const DEV_FAST_STEP_CAPS = {
+  // Researcher is the long-running loop (multi-minute) — clamp it so a smoke
+  // run finishes fast. Sub-agents are short and bounded already; clamping
+  // them just makes them stop mid-loop with planning prose as their summary.
+  // Leave PC + DB sub-agents at their prod defaults.
+  SCOUT_RESEARCHER_MAX_STEPS: 6,
+} as const;
+
+/**
  * Parse and validate configuration from an environment object.
  * In production, pass process.env. In tests, pass a minimal object.
  */
 export function parseConfig(env: Record<string, string | undefined>): Config {
-  return configSchema.parse(env);
+  const config = configSchema.parse(env);
+  if (config.SCOUT_DEV_FAST) {
+    for (const [key, cap] of Object.entries(DEV_FAST_STEP_CAPS) as Array<
+      [keyof typeof DEV_FAST_STEP_CAPS, number]
+    >) {
+      if (config[key] > cap) config[key] = cap;
+    }
+  }
+  return config;
 }

@@ -4,7 +4,11 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { z } from "zod";
 import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
-import { resolveModel, type ScoutProvider } from "../provider.ts";
+import {
+  deepseekFastProviderOptions,
+  resolveModel,
+  type ScoutProvider,
+} from "../provider.ts";
 import { createScoutCache } from "./cache.ts";
 import { createPlayCricketTools } from "./play-cricket.ts";
 
@@ -34,6 +38,55 @@ import { createPlayCricketTools } from "./play-cricket.ts";
  * single record, nested) while keeping the output a few hundred tokens
  * instead of tens of thousands.
  */
+
+/**
+ * Pull a JSON blob out of the sub-agent's final reply, regardless of how
+ * chatty / fenced / sloppy it is. The sub-agent's prompt asks for naked
+ * JSON, but Sonnet/Haiku frequently wrap the object in conversational
+ * prose anyway ("Perfect! Here's the fixture: ```json {...} ``` The
+ * match is on..."). This function tolerates that without blowing up.
+ *
+ * Strategy:
+ *   1. Reply is a clean JSON object → use as-is. (extraction=naked)
+ *   2. Reply contains one or more ```json fenced blocks → use the LAST.
+ *      (extraction=fenced) The "last" rule mirrors how the model usually
+ *      iterates: earlier fences are scratch work, the final answer is
+ *      the last one before any closing prose.
+ *   3. Reply has matching '{' / '}' somewhere → take the substring
+ *      between them. (extraction=braces) Works for inlined JSON without
+ *      fences.
+ *   4. Otherwise → return the trimmed reply, let the caller's JSON.parse
+ *      throw and surface the parseFailed path.
+ *
+ * Exported for unit testing — keep it pure (no logger / no side effects).
+ */
+export function extractJsonCandidate(raw: string): {
+  candidate: string;
+  extraction: "naked" | "fenced" | "braces";
+} {
+  const fencedRe = /```(?:json)?\s*([\s\S]+?)\s*```/gi;
+  const fenceMatches = Array.from(raw.matchAll(fencedRe));
+  const trimmed = raw.trim();
+  if (
+    trimmed.startsWith("{") &&
+    trimmed.endsWith("}") &&
+    fenceMatches.length === 0
+  ) {
+    return { candidate: trimmed, extraction: "naked" };
+  }
+  if (fenceMatches.length > 0) {
+    return {
+      candidate: fenceMatches[fenceMatches.length - 1][1].trim(),
+      extraction: "fenced",
+    };
+  }
+  const first = raw.indexOf("{");
+  const last = raw.lastIndexOf("}");
+  if (first !== -1 && last > first) {
+    return { candidate: raw.slice(first, last + 1), extraction: "braces" };
+  }
+  return { candidate: trimmed, extraction: "naked" };
+}
 
 export interface AskPlayCricketToolDeps {
   playCricket: PlayCricketApiClient;
@@ -160,6 +213,7 @@ If the question is genuinely unanswerable (no data found, ambiguous input), emit
             prompt: question,
             tools,
             stopWhen: stepCountIs(deps.maxSteps),
+            providerOptions: deepseekFastProviderOptions(deps.provider),
           });
         } catch (err) {
           deps.logger?.error(
@@ -189,20 +243,22 @@ If the question is genuinely unanswerable (no data found, ambiguous input), emit
         }
 
         // Extract the JSON object from the sub-agent's reply. Models
-        // sometimes wrap in ```json fences despite the prompt — strip
-        // those, then JSON.parse. On failure, surface the raw text as
-        // `data` so the caller still gets *something* but with a parse
-        // warning the FE can show.
-        const stripped = raw
-          .replace(/^```(?:json)?\s*/i, "")
-          .replace(/\s*```\s*$/i, "")
-          .trim();
+        // routinely wrap the object in narrative prose ("Perfect! Here's
+        // the fixture: ```json {...} ``` The match is on...") despite
+        // the prompt asking for JSON only. Strategy:
+        //   1. If there's a ```json (or ```) fenced block anywhere in
+        //      the reply, take the LAST such block (the model's final
+        //      answer if it iterated).
+        //   2. Otherwise, take the largest substring from the first '{'
+        //      to the last '}'.
+        //   3. JSON.parse and continue.
+        const { candidate, extraction } = extractJsonCandidate(raw);
 
         let data: unknown = null;
         let note: string | undefined;
         let parseFailed = false;
         try {
-          const parsed = JSON.parse(stripped) as unknown;
+          const parsed = JSON.parse(candidate) as unknown;
           if (
             parsed != null &&
             typeof parsed === "object" &&
@@ -242,6 +298,7 @@ If the question is genuinely unanswerable (no data found, ambiguous input), emit
             outputChars: raw.length,
             pcCallNames,
             parseFailed,
+            extraction,
           },
           "scout: ask_play_cricket sub-agent done",
         );

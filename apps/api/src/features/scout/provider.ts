@@ -34,6 +34,37 @@ export function resolveModel(
   }
 }
 
+/**
+ * providerOptions block that disables DeepSeek's chain-of-thought for a
+ * single generateText call. Empty for any other provider — Anthropic has
+ * no equivalent toggle, and an empty object is a safe no-op for the AI SDK.
+ *
+ * Use this on every sub-agent that does structured tool-calling
+ * (ask_db, ask_play_cricket, the researcher loop, the analyst): the work
+ * is mechanical orchestration, not deep reasoning, and DeepSeek-flash with
+ * thinking enabled spends a multi-minute reasoning pass before its first
+ * tool call which is wasted budget for these tasks.
+ *
+ * The Record<string, Record<string, JsonValue>> shape mirrors the AI SDK's
+ * SharedV3ProviderOptions deep alias (not exported from the public "ai"
+ * entry) — using a JSON tree avoids reaching into a transitive dep.
+ */
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: JsonValue }
+  | JsonValue[];
+
+export function deepseekFastProviderOptions(
+  provider: ScoutProvider,
+): Record<string, Record<string, JsonValue>> {
+  return provider === "deepseek"
+    ? { deepseek: { thinking: { type: "disabled" } } }
+    : {};
+}
+
 export interface CacheUsage {
   cacheRead: number | undefined;
   cacheCreation: number | undefined;
