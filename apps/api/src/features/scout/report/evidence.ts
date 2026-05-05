@@ -126,6 +126,36 @@ export type EvidenceRecord = z.infer<typeof evidenceRecordSchema>;
 // id resolves to a real EvidenceRecord, (c) mechanics claims (isMechanics =
 // true) cite at least one evidence with claimType in MECHANICS_CAPABLE_CLAIM_TYPES.
 
+// Sections of ScoutReportContent that hold ANALYTICAL prose — every claim a
+// claim-eligible. ourPlayers / theirPlayers map to the `notes` field on each
+// player object (the analyst can scope a claim to "any of the player notes
+// in this section"; the validator searches across the array's notes). The
+// renderer fields outside this list (e.g. weather.summary, references) are
+// pure data passthrough and don't carry analytical claims.
+export const claimSectionSchema = z.enum([
+  "intro",
+  "tossDecision",
+  "overallStrategy",
+  "keyMatchups",
+  "tactics",
+  "conclusion",
+  "ourPlayers",
+  "theirPlayers",
+]);
+
+export type ClaimSection = z.infer<typeof claimSectionSchema>;
+
+export const ANALYTICAL_SECTIONS: ReadonlyArray<ClaimSection> = [
+  "intro",
+  "tossDecision",
+  "overallStrategy",
+  "keyMatchups",
+  "tactics",
+  "conclusion",
+  "ourPlayers",
+  "theirPlayers",
+];
+
 export const claimRecordSchema = z.object({
   id: z
     .string()
@@ -133,12 +163,15 @@ export const claimRecordSchema = z.object({
     .describe(
       "Stable id the analyst chooses — used to reference this claim in audit / future versions of the schema. Free-form, e.g. 'c1', 'their_player_dance_form'.",
     ),
+  section: claimSectionSchema.describe(
+    "Which section of ScoutReportContent this claim's `text` lives in. Validator checks the text appears as a substring of that section's prose, and that every section with non-trivial prose has at least one ClaimRecord covering it.",
+  ),
   text: z
     .string()
     .min(3)
     .max(600)
     .describe(
-      "Verbatim claim copied from the prose, so a reviewer can trace it. If you write 'Dance took 5 wickets last week (5/27 vs Newcastle)' in keyMatchups, register a ClaimRecord with this exact substring.",
+      "Verbatim claim copied from the prose. If you write 'Dance has been bowled or LBW in 5 of his last 8 dismissals — bowl straight at him' in keyMatchups, register a ClaimRecord with this exact substring (or a meaningful sub-phrase).",
     ),
   isMechanics: z
     .boolean()

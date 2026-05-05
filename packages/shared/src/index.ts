@@ -33,6 +33,7 @@ export { nameSimilarity, normalizeName } from "./name-similarity.ts";
 export { chartSpecSchema, type ChartSpec } from "./scout-chart.ts";
 
 export {
+  REPORT_PHASE_BUDGETS_MS,
   scoutReportContentSchema,
   scoutReportDisplayTitle,
   scoutReportPayloadSchema,

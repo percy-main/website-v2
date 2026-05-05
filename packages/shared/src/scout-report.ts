@@ -211,6 +211,26 @@ export interface ReportToolCallEvent {
   at: number;
 }
 
+// Per-phase wall-clock budgets — used as the BE's hard timeouts AND the FE's
+// active-phase countdowns. Single source of truth so the FE can never show
+// "over budget" red while the BE is still well within its timeout.
+//
+// - researcher: ~30 small steps on flash, 3-9s/step. 6 minutes is the typical
+//   ceiling for a comprehensive scout.
+// - analyst: one generateText call carrying the whole evidence packet
+//   inline. Even on flash a rich packet can run several minutes; 10 minutes
+//   for headroom.
+// - render: chart rasterisation + react-pdf layout in the worker. 10-30s
+//   typical; 30s gives a safe ceiling.
+export const REPORT_PHASE_BUDGETS_MS: Record<
+  "researcher" | "analyst" | "render",
+  number
+> = {
+  researcher: 360_000,
+  analyst: 600_000,
+  render: 30_000,
+};
+
 export interface ReportData {
   reportId: string;
   title: string;

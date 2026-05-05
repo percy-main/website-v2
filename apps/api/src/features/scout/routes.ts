@@ -245,10 +245,16 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           { statusCode: 503 },
         );
       }
+      // Researcher and analyst providers are checked even on chat / debrief
+      // sessions because the captain can call generate_report mid-session;
+      // failing fast at preflight beats failing inside execute() after the
+      // user has already seen a "generating" placeholder card.
       const requiredProviders = new Set<ScoutProvider>([
         app.config.SCOUT_PROVIDER_CHAT,
         app.config.SCOUT_PROVIDER_SUBAGENT,
         app.config.SCOUT_PROVIDER_DB,
+        app.config.SCOUT_PROVIDER_RESEARCHER,
+        app.config.SCOUT_PROVIDER_ANALYST,
       ]);
       if (requiredProviders.has("anthropic") && !app.config.ANTHROPIC_API_KEY) {
         throw Object.assign(

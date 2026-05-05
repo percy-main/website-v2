@@ -10,9 +10,11 @@ import type { Config } from "../../../config.ts";
 import { resolveModel } from "../provider.ts";
 import { GROUNDING_RULES, IMPORTANT_CONTEXT } from "../system-prompt.ts";
 import {
+  ANALYTICAL_SECTIONS,
   claimRecordSchema,
   MECHANICS_CAPABLE_CLAIM_TYPES,
   type ClaimRecord,
+  type ClaimSection,
   type EvidenceRecord,
 } from "./evidence.ts";
 
@@ -90,16 +92,25 @@ ClaimRecord shape (one entry per analytical sentence in content):
 
 {
   id: string,                          // your stable id, e.g. "c1", "their_dance_form"
-  text: string,                        // the claim verbatim from your prose, so a reviewer can locate it
+  section: "intro" | "tossDecision" | "overallStrategy" | "keyMatchups" | "tactics" | "conclusion" | "ourPlayers" | "theirPlayers",
+  text: string,                        // verbatim sub-phrase copied from the matching section's prose
   isMechanics: boolean,                // see "Mechanics rule" below
   evidenceIds: string[]                // ids of EvidenceRecords backing this claim — at least one
 }
+
+The validator parses your output, then for each ClaimRecord:
+  - looks up the prose for ClaimRecord.section in your content
+  - confirms ClaimRecord.text appears in that prose as a case-insensitive substring (whitespace is collapsed)
+  - confirms every evidenceId resolves to a real EvidenceRecord from the packet
+  - confirms isMechanics:true claims cite at least one captain_fact / club_fact
+
+Then it does a coverage pass: every section that contains analytical prose MUST have at least one ClaimRecord pointing at it. If you write tactical sentences in tactics but register no ClaimRecord with section:"tactics", validation fails.
 
 Hard rules — these are not negotiable:
 
 1. EVIDENCE-ONLY. You may only state things the evidence packet supports. If you cannot point to one or more EvidenceRecord ids that ground a claim, do not write the claim. The evidence packet is finite and may be thin — if it is, the report is thin. Do NOT fill gaps with general cricket knowledge or model priors.
 
-2. CLAIMS REGISTRY IS COMPLETE. Every analytical sentence in content (intro, tossDecision, overallStrategy, keyMatchups, tactics, conclusion, ourPlayers[].notes, theirPlayers[].notes) needs a corresponding ClaimRecord with at least one evidenceId. Captions, stat labels, names, and direct factual statements about the match scope (which match, which date, which competition) do NOT need ClaimRecords. Anything analytical does.
+2. CLAIMS REGISTRY IS COMPLETE AND SECTION-TAGGED. Every analytical sentence in content (intro, tossDecision, overallStrategy, keyMatchups, tactics, conclusion, and any non-empty ourPlayers[].notes / theirPlayers[].notes) needs a ClaimRecord with the correct section value. The text field must be a verbatim substring of that section's prose so the validator can locate it. Captions, stat labels, names, and direct factual statements about the match scope (which match, date, competition) do NOT need ClaimRecords. Anything analytical does.
 
 3. MECHANICS RULE. A claim is "mechanics" if it describes line, length, movement, swing, footwork, shot selection, field placement, captaincy, wicketkeeping, run-up, pace, or grip. For mechanics claims, isMechanics MUST be true, AND at least one cited evidence MUST have claimType "captain_fact" or "club_fact". Stats, scorecards, and dismissal patterns CANNOT back mechanics claims — those are evidence about output, not about how the player operates.
    GOOD: "Dance has been bowled or LBW in 5 of 8 dismissals — bowl straight at him." (NOT mechanics — tactical recommendation supported by dismissal_pattern.)
@@ -147,10 +158,74 @@ interface ValidationFailure {
 }
 
 /**
+ * Collect the analytical prose for one section, normalised for substring
+ * comparison. ourPlayers / theirPlayers map to the union of `notes` across
+ * all players in that section — the analyst can scope a claim to "ourPlayers"
+ * and the validator searches the combined notes string. Returns the empty
+ * string when the section has no analytical content (e.g. ourPlayers omitted
+ * entirely, or every player's notes is undefined) — coverage logic uses this
+ * to skip the section.
+ */
+function sectionProse(
+  content: ScoutReportContent,
+  section: ClaimSection,
+): string {
+  const join = (
+    players: ScoutReportContent["ourPlayers"] | undefined,
+  ): string =>
+    (players ?? [])
+      .map((p) => p.notes ?? "")
+      .filter((s) => s.length > 0)
+      .join(" \n ");
+  switch (section) {
+    case "intro":
+      return content.intro;
+    case "tossDecision":
+      return content.tossDecision;
+    case "overallStrategy":
+      return content.overallStrategy;
+    case "keyMatchups":
+      return content.keyMatchups;
+    case "tactics":
+      return content.tactics;
+    case "conclusion":
+      return content.conclusion;
+    case "ourPlayers":
+      return join(content.ourPlayers);
+    case "theirPlayers":
+      return join(content.theirPlayers);
+  }
+}
+
+const normaliseForMatch = (s: string): string =>
+  s.toLowerCase().replace(/\s+/g, " ").trim();
+
+// Sections always present in every report (required strings on the schema).
+// If any of these have prose, they MUST have at least one claim covering
+// them. ourPlayers / theirPlayers are optional and only require coverage
+// when they hold non-trivial notes.
+const ALWAYS_PRESENT_SECTIONS: ReadonlyArray<ClaimSection> = [
+  "intro",
+  "tossDecision",
+  "overallStrategy",
+  "keyMatchups",
+  "tactics",
+  "conclusion",
+];
+
+/**
  * Structural validators — run AFTER Zod-parsing the analyst output. Zod
  * confirms shape; this layer enforces the cross-field invariants Zod can't
- * express (every claim resolves to real evidence; mechanics claims have
- * fact-typed evidence).
+ * express:
+ *
+ *   1. every claim resolves to real evidence (no fabricated ids)
+ *   2. mechanics claims cite fact-typed evidence
+ *   3. each claim's text appears as a substring of the prose in its declared
+ *      section (catches the "registered a claim that doesn't actually appear
+ *      in the report" gap)
+ *   4. every section with non-trivial prose has at least one claim covering
+ *      it (catches "wrote analytical prose but didn't register any claims
+ *      for it" — the main grounding-contract loophole)
  *
  * Returns null on success, or a ValidationFailure with human-readable
  * details that get fed back to the analyst on the retry.
@@ -161,6 +236,20 @@ function validateClaims(
 ): ValidationFailure | null {
   const evidenceById = new Map(evidence.map((e) => [e.id, e]));
   const details: string[] = [];
+
+  // Pre-compute normalised prose per section once — coverage check below
+  // reads the same map.
+  const proseBySection = new Map<ClaimSection, string>();
+  for (const section of ANALYTICAL_SECTIONS) {
+    proseBySection.set(
+      section,
+      normaliseForMatch(sectionProse(output.content, section)),
+    );
+  }
+
+  // Track which sections have at least one claim — used for the coverage
+  // pass after the per-claim loop.
+  const sectionsWithClaim = new Set<ClaimSection>();
 
   for (const claim of output.claims) {
     const resolved = claim.evidenceIds.map((id) => ({
@@ -188,6 +277,36 @@ function validateClaims(
           `Claim "${claim.id}" is tagged isMechanics:true but is backed only by [${cited}] — at least one evidence with claimType "captain_fact" or "club_fact" is required for mechanics claims. Either tag isMechanics:false (if it's actually a tactical/output claim from stats), or omit the claim if the captain hasn't recorded a fact about it.`,
         );
       }
+    }
+
+    // Substring check: claim.text must appear in its declared section.
+    const sectionText = proseBySection.get(claim.section) ?? "";
+    const needle = normaliseForMatch(claim.text);
+    if (sectionText.length === 0) {
+      details.push(
+        `Claim "${claim.id}" declares section "${claim.section}" but that section has no prose in the report. Move the claim to a section that contains its text, or remove the claim.`,
+      );
+    } else if (needle.length > 0 && !sectionText.includes(needle)) {
+      details.push(
+        `Claim "${claim.id}" declares section "${claim.section}" but its text was not found in that section's prose. Either copy a verbatim sub-phrase into the claim's text, or move the claim to the correct section.`,
+      );
+    } else {
+      sectionsWithClaim.add(claim.section);
+    }
+  }
+
+  // Coverage pass: every section with non-trivial prose must have at least
+  // one valid claim covering it. Empty sections (ourPlayers / theirPlayers
+  // with no notes) are exempt.
+  for (const section of ANALYTICAL_SECTIONS) {
+    const prose = proseBySection.get(section) ?? "";
+    if (prose.length === 0) continue;
+    const required =
+      ALWAYS_PRESENT_SECTIONS.includes(section) || prose.length > 0;
+    if (required && !sectionsWithClaim.has(section)) {
+      details.push(
+        `Section "${section}" has analytical prose but no ClaimRecord covers it. Every analytical sentence MUST be backed by a registered claim — add at least one ClaimRecord with section:"${section}" pointing at the evidence that grounds it.`,
+      );
     }
   }
 

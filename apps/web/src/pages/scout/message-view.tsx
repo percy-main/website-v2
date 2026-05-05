@@ -1,10 +1,11 @@
 import type { UIMessage } from "@ai-sdk/react";
-import type {
-  ChartSpec,
-  ReportPhaseName,
-  ReportPhaseState,
-  ReportToolCallEvent,
-  ReportData as SharedReportData,
+import {
+  REPORT_PHASE_BUDGETS_MS,
+  type ChartSpec,
+  type ReportPhaseName,
+  type ReportPhaseState,
+  type ReportToolCallEvent,
+  type ReportData as SharedReportData,
 } from "@percy-main/shared";
 import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -1191,15 +1192,10 @@ function ToolPartView({ part }: { part: Part }) {
 // pipeline subcomponents are reused across generating/failed.
 
 // Wall-clock budgets used by the FE to render the active-phase countdown.
-// Researcher and analyst are the slow ones; render is just chart rasterisation
-// + react-pdf layout in the worker. These are display-only — the actual
-// hard timeouts live server-side (SCOUT_RESEARCHER_TIMEOUT_MS,
-// SCOUT_ANALYST_TIMEOUT_MS).
-const PHASE_BUDGETS_MS: Record<ReportPhaseName, number> = {
-  researcher: 5 * 60 * 1000,
-  analyst: 3 * 60 * 1000,
-  render: 10 * 1000,
-};
+// Sourced from REPORT_PHASE_BUDGETS_MS in @percy-main/shared so they match
+// the BE's hard timeouts (SCOUT_RESEARCHER_TIMEOUT_MS, SCOUT_ANALYST_TIMEOUT_MS)
+// — countdown never shows "over budget" while the BE still has headroom.
+const PHASE_BUDGETS_MS = REPORT_PHASE_BUDGETS_MS;
 
 const PHASE_LABELS: Record<ReportPhaseName, string> = {
   researcher: "Retrieve data",

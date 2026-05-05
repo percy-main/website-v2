@@ -1,3 +1,4 @@
+import { REPORT_PHASE_BUDGETS_MS } from "@percy-main/shared";
 import { z } from "zod";
 
 const configSchema = z.object({
@@ -118,21 +119,20 @@ const configSchema = z.object({
   SCOUT_RESEARCHER_MAX_STEPS: z.coerce.number().int().positive().default(30),
   // Wall-clock caps per phase. DeepSeek can hold a single chat-completions
   // request open for minutes; without timeouts one slow step locks the whole
-  // generate_report flow indefinitely. Researcher and analyst have different
-  // budgets because their work shape differs:
-  //
-  // - Researcher loops through ~30 small steps (one tool call per step). On
-  //   flash that's typically 3-9s/step → 90-270s total. 6 minutes is enough.
-  // - Analyst is a single generateText call but the prompt carries the full
-  //   evidence packet inline (often 15-25k tokens) and emits a structured
-  //   ScoutReportContent + claims registry. Even on flash the round trip can
-  //   run several minutes for a rich packet. 10 minutes for headroom.
+  // generate_report flow indefinitely. Defaults sourced from
+  // REPORT_PHASE_BUDGETS_MS in @percy-main/shared so the FE pipeline-card
+  // countdown uses the same numbers — never shows "over budget" while the
+  // BE still has headroom.
   SCOUT_RESEARCHER_TIMEOUT_MS: z.coerce
     .number()
     .int()
     .positive()
-    .default(360_000),
-  SCOUT_ANALYST_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
+    .default(REPORT_PHASE_BUDGETS_MS.researcher),
+  SCOUT_ANALYST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(REPORT_PHASE_BUDGETS_MS.analyst),
   // Voyage AI (fact-RAG embeddings + reranking). Optional — Scout boots
   // without it and just skips the fact tools / auto-retrieval.
   VOYAGE_API_KEY: z.string().optional(),

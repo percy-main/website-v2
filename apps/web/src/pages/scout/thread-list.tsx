@@ -90,6 +90,22 @@ export function ThreadList() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (threadId: string) =>
+      callApi(
+        api.DELETE("/api/scout/threads/{threadId}", {
+          params: { path: { threadId } },
+        }),
+      ),
+    onSuccess: async (_, threadId) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["scout", "threads"],
+      });
+      setPendingDelete(null);
+      if (threadId === activeThreadId) void navigate("/scout");
+    },
+  });
+
   return (
     <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-gray-50">
       {/* h-12 matches ChatView's header (also h-12). Same fixed height
@@ -173,34 +189,29 @@ export function ThreadList() {
               permanently deleted. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {deleteMutation.error && (
+            <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {deleteMutation.error instanceof Error
+                ? deleteMutation.error.message
+                : "Failed to delete thread"}
+            </div>
+          )}
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setPendingDelete(null)}
-              disabled={false}
+              disabled={deleteMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={() => {
-                if (pendingDelete) {
-                  void callApi(
-                    api.DELETE("/api/scout/threads/{threadId}", {
-                      params: { path: { threadId: pendingDelete.id } },
-                    }),
-                  ).then(async () => {
-                    await queryClient.invalidateQueries({
-                      queryKey: ["scout", "threads"],
-                    });
-                    if (pendingDelete.id === activeThreadId)
-                      void navigate("/scout");
-                    setPendingDelete(null);
-                  });
-                }
+                if (pendingDelete) deleteMutation.mutate(pendingDelete.id);
               }}
+              disabled={deleteMutation.isPending}
             >
-              Delete
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
