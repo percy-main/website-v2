@@ -1,6 +1,10 @@
 import type { DB } from "@percy-main/db";
 import {
   scoutReportDisplayTitle,
+  type ReportData,
+  type ReportPhaseName,
+  type ReportPhaseState,
+  type ReportToolCallEvent,
   type ScoutReportPayload,
 } from "@percy-main/shared";
 import { tool, type UIMessageStreamWriter } from "ai";
@@ -108,10 +112,8 @@ After this returns, a one-line confirmation is enough. Do NOT dump the report co
       execute: async (input: GenerateReportInput) => {
         const startedAt = Date.now();
 
-        // Construct the cover-page identifiers up front. These are derived
-        // from the tool input, not from the researcher's output, so we can
-        // also use them for the placeholder card title before the researcher
-        // has produced anything.
+        // Cover-page identifiers up front — derived from input, not from any
+        // model output, so we can label the placeholder card immediately.
         const match = `${input.ourTeam} ${input.homeAway === "home" ? "vs" : "at"} ${input.opposition}`;
         const displayTitle = scoutReportDisplayTitle({
           match,
@@ -121,23 +123,65 @@ After this returns, a one-line confirmation is enough. Do NOT dump the report co
         const reportId = randomUUID();
         const createdAtIso = new Date().toISOString();
 
-        // Stream the placeholder card immediately. Researcher loop + PDF
-        // render is 30–90s; without this the FE shows nothing until the tool
-        // result lands.
-        writer.write({
-          type: "data-report",
-          id: reportId,
-          data: {
-            reportId,
-            title: displayTitle,
-            fileSizeBytes: null,
-            createdAt: createdAtIso,
-            status: "generating",
-          },
+        // Per-phase state we mutate in place as the flow advances. Each
+        // mutation is followed by an emit() to push the snapshot to the FE.
+        const phases: Record<ReportPhaseName, ReportPhaseState> = {
+          researcher: { state: "pending" },
+          analyst: { state: "pending" },
+          render: { state: "pending" },
+        };
+        const recentToolCalls: ReportToolCallEvent[] = [];
+        const RECENT_CHIP_CAP = 6;
+
+        // Tool calls we expose to the FE as fly-out chips. record_evidence
+        // fires constantly during the researcher loop and is plumbing rather
+        // than narrative, so we filter it out. Other tools fire less often
+        // and are exactly what the captain wants to see flying past.
+        const CHIP_TOOL_ALLOWLIST = new Set([
+          "ask_db",
+          "weather_get",
+          "weather_geocode",
+          "fact_retrieve",
+          "pc_match_summary",
+          "pc_match_detail",
+          "pc_site_matches",
+          "pc_site_results",
+          "pc_player_stats",
+          "pc_find_opposition_matches",
+        ]);
+
+        const buildSnapshot = (
+          status: ReportData["status"],
+          extras: Partial<ReportData> = {},
+        ): ReportData => ({
+          reportId,
+          title: displayTitle,
+          fileSizeBytes: null,
+          createdAt: createdAtIso,
+          status,
+          startedAt,
+          phases: { ...phases },
+          recentToolCalls: recentToolCalls.slice(-RECENT_CHIP_CAP),
+          ...extras,
         });
 
+        const emit = (
+          status: ReportData["status"],
+          extras: Partial<ReportData> = {},
+        ) => {
+          writer.write({
+            type: "data-report",
+            id: reportId,
+            data: buildSnapshot(status, extras),
+          });
+        };
+
+        // Initial paint: researcher active, two phases pending.
+        phases.researcher = { state: "active", startedAt: Date.now() };
+        emit("generating");
+
         try {
-          // Phase 1 — researcher: tool-enabled, gathers evidence packet.
+          // ── Phase 1: researcher ────────────────────────────────────────
           const evidence = await researchScoutReport(
             {
               db,
@@ -147,19 +191,59 @@ After this returns, a one-line confirmation is enough. Do NOT dump the report co
               voyage,
               userId,
               logger,
+              onStep: ({ step, toolNames }) => {
+                let mutated = false;
+                toolNames.forEach((toolName, idx) => {
+                  if (!CHIP_TOOL_ALLOWLIST.has(toolName)) return;
+                  recentToolCalls.push({
+                    id: `researcher-${step}-${idx}`,
+                    phase: "researcher",
+                    toolName,
+                    at: Date.now(),
+                  });
+                  mutated = true;
+                });
+                if (mutated) emit("generating");
+              },
             },
             input,
           );
 
-          // Phase 2 — analyst: no tools, synthesises content + claims registry
-          // from the evidence. Validators reject ungrounded mechanics claims;
-          // one retry is built in.
+          phases.researcher = {
+            state: "done",
+            startedAt: phases.researcher.startedAt,
+            endedAt: Date.now(),
+            summary: { records: evidence.length },
+          };
+          phases.analyst = { state: "active", startedAt: Date.now() };
+          emit("generating");
+
+          // ── Phase 2: analyst ───────────────────────────────────────────
           const analysed = await analyseScoutEvidence(
-            { config, logger },
+            {
+              config,
+              logger,
+              onAttempt: ({ attempt, ms, ok }) => {
+                logger?.info(
+                  { reportId, attempt, ms, ok },
+                  "scout_report_analyst_attempt",
+                );
+              },
+            },
             input,
             evidence,
           );
 
+          phases.analyst = {
+            state: "done",
+            startedAt: phases.analyst.startedAt,
+            endedAt: Date.now(),
+            summary: { claims: analysed.claims.length },
+          };
+          phases.render = { state: "active", startedAt: Date.now() };
+          emit("generating");
+
+          // ── Phase 3: render + persist ─────────────────────────────────
           const payload: ScoutReportPayload = {
             ...analysed.content,
             match,
@@ -196,17 +280,14 @@ After this returns, a one-line confirmation is enough. Do NOT dump the report co
             throw insertErr;
           }
 
-          writer.write({
-            type: "data-report",
-            id: reportId,
-            data: {
-              reportId,
-              title: displayTitle,
-              fileSizeBytes: pdf.length,
-              createdAt: createdAtIso,
-              status: "ready",
-            },
-          });
+          phases.render = {
+            state: "done",
+            startedAt: phases.render.startedAt,
+            endedAt: Date.now(),
+            summary: { bytes: pdf.length },
+          };
+
+          emit("ready", { fileSizeBytes: pdf.length });
 
           logger?.info(
             { reportId, bytes: pdf.length, ms: Date.now() - startedAt },
@@ -219,18 +300,20 @@ After this returns, a one-line confirmation is enough. Do NOT dump the report co
             fileSizeBytes: pdf.length,
           };
         } catch (err) {
-          writer.write({
-            type: "data-report",
-            id: reportId,
-            data: {
-              reportId,
-              title: displayTitle,
-              fileSizeBytes: null,
-              createdAt: createdAtIso,
-              status: "failed",
-              errorMessage:
-                err instanceof Error ? err.message : "Unknown error",
-            },
+          // Mark whichever phase was active at failure time. The FE keeps the
+          // pipeline visible so the user sees which step broke.
+          const activePhase = (
+            ["render", "analyst", "researcher"] as const
+          ).find((p) => phases[p].state === "active");
+          if (activePhase) {
+            phases[activePhase] = {
+              state: "failed",
+              startedAt: phases[activePhase].startedAt,
+              endedAt: Date.now(),
+            };
+          }
+          emit("failed", {
+            errorMessage: err instanceof Error ? err.message : "Unknown error",
           });
           logger?.error(
             { err, ms: Date.now() - startedAt },

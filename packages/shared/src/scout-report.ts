@@ -178,3 +178,52 @@ export function scoutReportDisplayTitle(payload: {
 }): string {
   return `Scouting Report: ${payload.match} — ${payload.matchDate}`;
 }
+
+// ── data-report card payload ───────────────────────────────────────────────
+//
+// Shape of the data-report UI message part written by the generate_report
+// tool and consumed by the FE ReportCard. Single id-keyed part is replaced
+// repeatedly during generation as phases advance — the FE renders whatever
+// the latest snapshot says.
+
+export type ReportPhaseName = "researcher" | "analyst" | "render";
+
+export interface ReportPhaseState {
+  state: "pending" | "active" | "done" | "failed";
+  /** Date.now() when state moved to "active". */
+  startedAt?: number;
+  /** Date.now() when state moved to "done" or "failed". */
+  endedAt?: number;
+  /** Optional small summary for the done state. */
+  summary?: {
+    records?: number;
+    claims?: number;
+    bytes?: number;
+  };
+}
+
+export interface ReportToolCallEvent {
+  /** Stable key for React reconciliation — e.g. `${phase}-${step}-${idx}`. */
+  id: string;
+  phase: ReportPhaseName;
+  toolName: string;
+  /** Date.now() when the tool call was observed. */
+  at: number;
+}
+
+export interface ReportData {
+  reportId: string;
+  title: string;
+  fileSizeBytes: number | null;
+  createdAt: string;
+  status: "generating" | "ready" | "failed";
+  errorMessage?: string;
+  /** Date.now() at execute() top — used for global elapsed display. */
+  startedAt?: number;
+  /** Per-phase state. Only present while status === "generating" or after
+   *  completion (so the FE can render the "took Xm Ys" breakdown). */
+  phases?: Record<ReportPhaseName, ReportPhaseState>;
+  /** Recent tool calls during the active phase, capped server-side to the
+   *  last ~6. The FE renders each as a fly-out chip and lets old ones fade. */
+  recentToolCalls?: ReportToolCallEvent[];
+}

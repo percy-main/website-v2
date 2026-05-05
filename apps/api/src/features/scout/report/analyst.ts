@@ -26,9 +26,19 @@ export interface AnalystScope {
   intent?: string;
 }
 
+export interface AnalystAttemptInfo {
+  attempt: number;
+  ms: number;
+  ok: boolean;
+}
+
 export interface AnalystDeps {
   config: Config;
   logger?: FastifyBaseLogger;
+  /** Optional progress callback — fires after each generateText attempt
+   *  (1 on first try, 2 on validation retry). Used by the generate_report
+   *  tool to surface analyst progress in the data-report card. */
+  onAttempt?: (info: AnalystAttemptInfo) => void;
 }
 
 export interface AnalystOutput {
@@ -297,27 +307,21 @@ ${JSON.stringify(evidence, null, 2)}`;
         // the model's processing time scales with packet size.
         abortSignal: AbortSignal.timeout(deps.config.SCOUT_ANALYST_TIMEOUT_MS),
       });
+      const ms = Date.now() - stepStart;
       deps.logger?.info(
-        {
-          matchId: scope.matchId,
-          attempt,
-          ms: Date.now() - stepStart,
-        },
+        { matchId: scope.matchId, attempt, ms },
         "scout_analyst_step_done",
       );
+      deps.onAttempt?.({ attempt, ms, ok: true });
       return result.text;
     } catch (err) {
       const isTimeout = err instanceof Error && err.name === "TimeoutError";
+      const ms = Date.now() - stepStart;
       deps.logger?.error(
-        {
-          matchId: scope.matchId,
-          attempt,
-          err,
-          isTimeout,
-          ms: Date.now() - stepStart,
-        },
+        { matchId: scope.matchId, attempt, err, isTimeout, ms },
         "scout_analyst_step_failed",
       );
+      deps.onAttempt?.({ attempt, ms, ok: false });
       if (isTimeout) {
         throw new Error(
           `Analyst phase timed out after ${deps.config.SCOUT_ANALYST_TIMEOUT_MS}ms on attempt ${attempt}.`,

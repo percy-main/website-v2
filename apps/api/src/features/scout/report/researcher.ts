@@ -25,6 +25,13 @@ export interface ResearchScoutReportParams {
   intent?: string;
 }
 
+export interface ResearcherStepInfo {
+  step: number;
+  toolNames: string[];
+  recordsSoFar: number;
+  elapsedMs: number;
+}
+
 export interface ResearchScoutReportDeps {
   db: Kysely<DB>;
   dbReadonly: Kysely<DB>;
@@ -33,6 +40,10 @@ export interface ResearchScoutReportDeps {
   voyage?: VoyageClient;
   userId: string;
   logger?: FastifyBaseLogger;
+  /** Optional progress callback — fires after each agent step. The
+   *  generate_report tool wires this to a data-report writer so the FE can
+   *  show fly-out tool-call chips during the researcher phase. */
+  onStep?: (info: ResearcherStepInfo) => void;
 }
 
 const RESEARCHER_PROMPT = `You are the RESEARCHER phase inside Scout — a cricket-analysis system for Percy Main CC, a Saturday-league side in the Northumberland and Tyneside Cricket League (NTCL).
@@ -196,17 +207,25 @@ Gather the evidence packet now. Emit each piece via record_evidence. Do not narr
       // step duration + tool-call names + accumulator size after the step.
       onStepFinish: ({ toolCalls, finishReason }) => {
         stepIndex += 1;
+        const toolNames = toolCalls.map((c) => c.toolName);
+        const elapsedMs = Date.now() - startedAt;
         deps.logger?.info(
           {
             matchId: params.matchId,
             step: stepIndex,
-            toolCalls: toolCalls.map((c) => c.toolName),
+            toolCalls: toolNames,
             finishReason,
             recordsSoFar: accumulator.size(),
-            elapsedMs: Date.now() - startedAt,
+            elapsedMs,
           },
           "scout_researcher_step",
         );
+        deps.onStep?.({
+          step: stepIndex,
+          toolNames,
+          recordsSoFar: accumulator.size(),
+          elapsedMs,
+        });
       },
     });
   } catch (err) {
