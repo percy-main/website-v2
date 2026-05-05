@@ -48,11 +48,6 @@ export interface AnalystOutput {
   claims: ClaimRecord[];
 }
 
-const analystOutputSchema = z.object({
-  content: scoutReportContentSchema,
-  claims: z.array(claimRecordSchema).min(1),
-});
-
 const ANALYST_PROMPT = `You are the ANALYST phase inside Scout — a cricket-analysis system for Percy Main CC, a Saturday-league side in the Northumberland and Tyneside Cricket League (NTCL).
 
 You receive ONE match scope and a packet of EvidenceRecords gathered by the researcher phase. You produce the structured scouting report — section content plus a parallel registry of every analytical claim you make. You have NO tools. You cannot fetch more data. You synthesise from the evidence packet you were given, and nothing else.
@@ -579,13 +574,58 @@ ${JSON.stringify(evidence, null, 2)}`;
         reason: `JSON parse error: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
-    const parsed = analystOutputSchema.safeParse(json);
-    if (!parsed.success) {
+    // Strict-parse `content` (the report itself — every section matters)
+    // and best-effort each `claims[i]` independently. A single malformed
+    // claim (e.g. an unknown `section` value the model invented) drops
+    // that claim with a logged warning rather than failing the whole
+    // attempt, which would force a full retry and another run of the
+    // 1k-token prompt.
+    const looseSchema = z.object({
+      content: scoutReportContentSchema,
+      claims: z.array(z.unknown()).min(1),
+    });
+    const looseParsed = looseSchema.safeParse(json);
+    if (!looseParsed.success) {
       return {
         ok: false,
-        reason: `Schema validation error: ${parsed.error.message}`,
+        reason: `Schema validation error: ${looseParsed.error.message}`,
       };
     }
+
+    const validClaims: ClaimRecord[] = [];
+    const droppedShape: Array<{ index: number; reason: string }> = [];
+    looseParsed.data.claims.forEach((c, i) => {
+      const r = claimRecordSchema.safeParse(c);
+      if (r.success) {
+        validClaims.push(r.data);
+      } else {
+        droppedShape.push({ index: i, reason: r.error.message });
+      }
+    });
+
+    if (droppedShape.length > 0) {
+      deps.logger?.warn(
+        {
+          matchId: scope.matchId,
+          dropped: droppedShape.slice(0, 10),
+          totalDropped: droppedShape.length,
+          totalClaims: looseParsed.data.claims.length,
+        },
+        "scout_analyst_dropped_malformed_claims",
+      );
+    }
+
+    if (validClaims.length === 0) {
+      return {
+        ok: false,
+        reason: `All ${droppedShape.length} claims failed shape validation. First error: ${droppedShape[0]?.reason ?? "(none)"}`,
+      };
+    }
+
+    const parsed = {
+      success: true as const,
+      data: { content: looseParsed.data.content, claims: validClaims },
+    };
     const { failure, droppedClaimIds } = validateClaims(parsed.data, evidence);
     if (droppedClaimIds.length > 0) {
       const droppedClaims = parsed.data.claims.filter((c) =>

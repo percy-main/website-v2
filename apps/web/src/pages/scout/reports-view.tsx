@@ -99,7 +99,7 @@ function InFlightReportListItem({ report }: { report: ReportRow }) {
       </div>
       <div className="min-w-0 flex-1">
         <Link
-          to={`/scout/threads/${report.threadId}`}
+          to={`/scout/${report.threadId}`}
           className="block truncate text-sm font-medium text-gray-900 hover:underline"
         >
           {report.title}
@@ -111,7 +111,7 @@ function InFlightReportListItem({ report }: { report: ReportRow }) {
             <>
               {" · "}
               <Link
-                to={`/scout/threads/${report.threadId}`}
+                to={`/scout/${report.threadId}`}
                 className="text-blue-700 hover:underline"
               >
                 {report.threadTitle}
@@ -186,7 +186,7 @@ function ReadyReportListItem({ report }: { report: ReportRow }) {
             <>
               {" · "}
               <Link
-                to={`/scout/threads/${report.threadId}`}
+                to={`/scout/${report.threadId}`}
                 className="text-blue-700 hover:underline"
               >
                 {report.threadTitle}

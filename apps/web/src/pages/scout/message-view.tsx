@@ -1219,7 +1219,14 @@ function ReportCard({ data }: { data: ReportData }) {
   // even if the request later goes stale.
   const { data: live } = useReportDetail(data.reportId);
   const view: ReportData = live ?? data;
-  if (view.status === "ready") return <ReportReadyCard data={view} />;
+  // ReadyCard requires a non-null fileSizeBytes — if the streamed snapshot
+  // is stale (e.g. legacy "ready" placeholder from before the worker
+  // rewrite, or a row we cleared from the DB), fall through to the pipeline
+  // card so the user sees an honest in-flight indicator instead of a broken
+  // Download button.
+  if (view.status === "ready" && view.fileSizeBytes != null) {
+    return <ReportReadyCard data={view} />;
+  }
   if (view.status === "failed") return <ReportFailedCard data={view} />;
   return <ReportPipelineCard data={view} />;
 }
@@ -1232,21 +1239,29 @@ function ReportPipelineCard({ data }: { data: ReportData }) {
     data.status === "queued"
       ? "Queued — waiting to start"
       : "Building scouting report";
+  // Prefer the worker's started_at (set when researcher actually begins).
+  // Before the worker fires we fall back to createdAt — gives the user a
+  // ticking elapsed counter from the moment the row hit the DB rather
+  // than a frozen empty space.
+  const elapsedFrom = data.startedAt ?? Date.parse(data.createdAt);
 
   return (
     <div className="my-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-emerald-900">
-            {headlineLabel}
-          </div>
-          <div className="truncate text-[11px] text-emerald-900/70">
-            {data.title}
+        <div className="flex min-w-0 items-center gap-2">
+          <Spinner />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-emerald-900">
+              {headlineLabel}
+            </div>
+            <div className="truncate text-[11px] text-emerald-900/70">
+              {data.title}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {data.startedAt != null && (
-            <GlobalElapsed startedAt={data.startedAt} />
+          {Number.isFinite(elapsedFrom) && (
+            <GlobalElapsed startedAt={elapsedFrom} />
           )}
           <button
             type="button"
@@ -1500,6 +1515,32 @@ function ArrowGlyph() {
         <path d="M10 2v22m-6-6 6 6 6-6" />
       </svg>
     </>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg
+      className="h-4 w-4 shrink-0 animate-spin text-emerald-700"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeOpacity="0.25"
+        strokeWidth="3"
+      />
+      <path
+        d="M22 12a10 10 0 0 1-10 10"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
