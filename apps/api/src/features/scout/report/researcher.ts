@@ -8,9 +8,9 @@ import type { VoyageClient } from "../facts/voyage.ts";
 import { resolveModel } from "../provider.ts";
 import { GROUNDING_RULES, IMPORTANT_CONTEXT } from "../system-prompt.ts";
 import { createAskDbTool } from "../tools/ask-db.ts";
+import { createAskPlayCricketTool } from "../tools/ask-play-cricket.ts";
 import { createScoutCache } from "../tools/cache.ts";
 import { createFactTools } from "../tools/facts.ts";
-import { createPlayCricketTools } from "../tools/play-cricket.ts";
 import { createRecordEvidenceTool } from "../tools/record-evidence.ts";
 import { createWeatherTools } from "../tools/weather.ts";
 import { EvidenceAccumulator, type EvidenceRecord } from "./evidence.ts";
@@ -60,9 +60,9 @@ What to gather (in roughly this order):
 
 1. Selection / our players. ask_db for "the selected XI for match <matchId> with their season batting averages, bowling figures, and last-6-innings scores". Emit one db_aggregate record per stat that matters (per-player avg, recent runs, wickets/economy). Emit a db_row for the team selection (one record listing the XI).
 
-2. Opposition recent form. pc_match_summary or pc_site_results on the opposition's recent fixtures (use their site_id from pc_find_opposition_matches if you don't have it). Then pc_player_stats on the names that recur as top-scorers / wicket-takers. Emit one pc_match record per match's headline output and one pc_aggregate record per player's career stats. Where applicable, emit a dismissal_pattern record summarising how_out frequencies for the player ("5 of his 8 dismissals this season are bowled or LBW").
+2. Opposition recent form. ask_play_cricket for the opposition's recent fixtures with full scorecards — e.g. "Get scorecards for <Opposition>'s last 4-5 league matches in <season> on site_id <id>; I need every batter's name, runs, balls, how_out, and every bowler's overs/maidens/runs/wickets." That single call returns N pc_match_detail entries in \`calls\`, each with the full innings.bat[] and innings.bowl[] arrays. Emit one pc_match record per match's headline output. Then derive per-player aggregates yourself across those scorecards — total runs, average, total wickets, economy, dismissal-mode frequencies — and emit one pc_aggregate record per player whose career-across-these-matches is worth scouting (top scorers, leading wicket-takers). Where applicable, emit a dismissal_pattern record summarising how_out frequencies ("5 of his 8 dismissals this season are bowled or LBW").
 
-3. Weather. weather_get against the ground lat/lng from a pc_match_summary row for this fixture. Skip if matchDate > 7 days from today (forecast unreliable). One weather record summarising the headline conditions.
+3. Weather. ask_play_cricket "what's the ground latitude/longitude for match <matchId>" if you don't already have it, then weather_get with that lat/lng. Skip if matchDate > 7 days from today (forecast unreliable). One weather record summarising the headline conditions.
 
 4. Facts. fact_retrieve for opposition / venue / scheduling / mechanics facts the captain or club has previously recorded. Emit a captain_fact or club_fact record per relevant fact (preserve scope — if the fact came back tagged scope=user, it's captain_fact; scope=club, it's club_fact).
 
@@ -76,7 +76,7 @@ Hard rules — these are not negotiable:
   BAD:  "Dance is dangerous because his 5-for came from full straight bowling — bowl into him." (analysis + invented mechanics)
   BAD:  "We should target their middle order with spin." (recommendation — analyst's job)
 
-- DO NOT invent mechanics. If pc_player_stats returns a wicket count, the content describes that count. It does NOT include line, length, movement, footwork, shot, field placement, glovework, or captaincy claims unless you got that info from fact_retrieve as a recorded fact.
+- DO NOT invent mechanics. If ask_play_cricket returns a wicket count, the content describes that count. It does NOT include line, length, movement, footwork, shot, field placement, glovework, or captaincy claims unless you got that info from fact_retrieve as a recorded fact.
 
 - DO NOT call fact_record (you're not interviewing anyone) or cite_fact / cite_match / cite_player_stats (those emit FE chips that don't apply here) or chart_render (chart synthesis is the analyst's job).
 
@@ -110,9 +110,15 @@ export async function researchScoutReport(
   const accumulator = new EvidenceAccumulator();
 
   const cache = createScoutCache(deps.db);
-  const playCricketTools = createPlayCricketTools({
+  // Researcher uses the ask_* sub-agents for the same reason the chat agent
+  // does — projection mistakes and SQL/API loops stay out of this phase's
+  // context, leaving room for the evidence packet itself.
+  const playCricketTool = createAskPlayCricketTool({
     playCricket: deps.playCricket,
-    cache,
+    db: deps.db,
+    provider: deps.config.SCOUT_PROVIDER_PC,
+    modelId: deps.config.SCOUT_MODEL_PC,
+    maxSteps: deps.config.SCOUT_PC_AGENT_MAX_STEPS,
     logger: deps.logger,
   });
   const dbTools = createAskDbTool({
@@ -151,7 +157,7 @@ export async function researchScoutReport(
   const recordEvidenceTool = createRecordEvidenceTool({ accumulator });
 
   const tools = {
-    ...playCricketTools,
+    ...playCricketTool,
     ...dbTools,
     ...weatherTools,
     ...factRetrieveTool,

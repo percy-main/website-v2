@@ -202,6 +202,111 @@ function sectionProse(
 const normaliseForMatch = (s: string): string =>
   s.toLowerCase().replace(/\s+/g, " ").trim();
 
+/**
+ * Remove the sentence containing `phrase` from `prose`. Used when a claim
+ * is soft-dropped (mechanics rule violation): the claim's text would
+ * otherwise stay in the section's prose without a citation chip, shipping
+ * unsupportable mechanics advice in the PDF.
+ *
+ * Best-effort. We locate `phrase` case-insensitively, walk back to the
+ * previous sentence break (. ! ? \n) or string start, walk forward to the
+ * next sentence break (inclusive), and strip that range. Adjacent
+ * whitespace is collapsed and a leading/trailing newline run is normalised.
+ *
+ * Edge cases we don't try to be clever about:
+ *   - phrase spans multiple sentences (claim records are typically one
+ *     sentence per the prompt rules; if it spans, the whole span goes,
+ *     which is the right thing anyway).
+ *   - phrase wraps onto a section that we can't find via case-insensitive
+ *     substring (e.g. analyst paraphrased between content and claim.text).
+ *     The validator's substring check would already have failed in that
+ *     case, so we'd be on the must-fix retry path, not soft-drop.
+ */
+function excisePhraseFromString(prose: string, phrase: string): string {
+  const needle = phrase.trim();
+  if (!needle) return prose;
+  const idx = prose.toLowerCase().indexOf(needle.toLowerCase());
+  if (idx === -1) return prose;
+
+  let start = idx;
+  while (start > 0 && !/[.!?\n]/.test(prose[start - 1])) start--;
+  while (start < idx && /\s/.test(prose[start])) start++;
+
+  let end = idx + needle.length;
+  while (end < prose.length && !/[.!?\n]/.test(prose[end])) end++;
+  if (end < prose.length) end++;
+  while (end < prose.length && prose[end] === " ") end++;
+
+  return (prose.slice(0, start) + prose.slice(end))
+    .replace(/[ \t]+/g, " ")
+    .replace(/ +\n/g, "\n")
+    .replace(/\n +/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Return a copy of `content` with the dropped claim's `text` excised from
+ * its declared `section`. For string sections this is a single in-place
+ * removal; for player-array sections we map each player's notes through
+ * the same removal (the phrase will only match in one of them).
+ */
+function exciseClaimFromContent(
+  content: ScoutReportContent,
+  claim: ClaimRecord,
+): ScoutReportContent {
+  const exciseInPlayers = (
+    players: ScoutReportContent["ourPlayers"],
+  ): ScoutReportContent["ourPlayers"] =>
+    (players ?? []).map((p) => ({
+      ...p,
+      notes: p.notes ? excisePhraseFromString(p.notes, claim.text) : p.notes,
+    }));
+
+  switch (claim.section) {
+    case "intro":
+      return {
+        ...content,
+        intro: excisePhraseFromString(content.intro, claim.text),
+      };
+    case "tossDecision":
+      return {
+        ...content,
+        tossDecision: excisePhraseFromString(content.tossDecision, claim.text),
+      };
+    case "overallStrategy":
+      return {
+        ...content,
+        overallStrategy: excisePhraseFromString(
+          content.overallStrategy,
+          claim.text,
+        ),
+      };
+    case "keyMatchups":
+      return {
+        ...content,
+        keyMatchups: excisePhraseFromString(content.keyMatchups, claim.text),
+      };
+    case "tactics":
+      return {
+        ...content,
+        tactics: excisePhraseFromString(content.tactics, claim.text),
+      };
+    case "conclusion":
+      return {
+        ...content,
+        conclusion: excisePhraseFromString(content.conclusion, claim.text),
+      };
+    case "ourPlayers":
+      return { ...content, ourPlayers: exciseInPlayers(content.ourPlayers) };
+    case "theirPlayers":
+      return {
+        ...content,
+        theirPlayers: exciseInPlayers(content.theirPlayers),
+      };
+  }
+}
+
 // Sections always present in every report (required strings on the schema).
 // If any of these have prose, they MUST have at least one claim covering
 // them. ourPlayers / theirPlayers are optional and only require coverage
@@ -220,24 +325,31 @@ const ALWAYS_PRESENT_SECTIONS: readonly ClaimSection[] = [
  * confirms shape; this layer enforces the cross-field invariants Zod can't
  * express:
  *
- *   1. every claim resolves to real evidence (no fabricated ids)
- *   2. mechanics claims cite fact-typed evidence
+ *   1. every claim resolves to real evidence (no fabricated ids) — must-fix
+ *   2. mechanics claims cite fact-typed evidence — SOFT: ids are returned
+ *      in droppedClaimIds for the caller to filter, the request does NOT
+ *      fail. Saw this twice in prod (analyst tagged isMechanics:true on
+ *      pc_aggregate / weather-backed claims) — the right move is to drop
+ *      the [N] chip rather than blow up the whole report. Coverage credit
+ *      for the dropped claim's section is preserved, so the prose stays
+ *      in the report just without a citation chip pointing at unsupportable
+ *      evidence.
  *   3. each claim's text appears as a substring of the prose in its declared
- *      section (catches the "registered a claim that doesn't actually appear
- *      in the report" gap)
+ *      section — must-fix
  *   4. every section with non-trivial prose has at least one claim covering
- *      it (catches "wrote analytical prose but didn't register any claims
- *      for it" — the main grounding-contract loophole)
+ *      it — must-fix (catches "wrote analytical prose but didn't register
+ *      any claims for it" — the main grounding-contract loophole)
  *
- * Returns null on success, or a ValidationFailure with human-readable
- * details that get fed back to the analyst on the retry.
+ * Returns { failure, droppedClaimIds }. failure is null when only soft
+ * drops happened. The caller filters droppedClaimIds out of output.claims.
  */
 function validateClaims(
   output: AnalystOutput,
   evidence: EvidenceRecord[],
-): ValidationFailure | null {
+): { failure: ValidationFailure | null; droppedClaimIds: string[] } {
   const evidenceById = new Map(evidence.map((e) => [e.id, e]));
   const details: string[] = [];
+  const droppedClaimIds: string[] = [];
 
   // Pre-compute normalised prose per section once — coverage check below
   // reads the same map.
@@ -272,12 +384,11 @@ function validateClaims(
           r.record && MECHANICS_CAPABLE_CLAIM_TYPES.has(r.record.claimType),
       );
       if (!hasFact) {
-        const cited = resolved
-          .map((r) => `${r.id}=${r.record?.claimType ?? "?"}`)
-          .join(", ");
-        details.push(
-          `Claim "${claim.id}" is tagged isMechanics:true but is backed only by [${cited}] — at least one evidence with claimType "captain_fact" or "club_fact" is required for mechanics claims. Either tag isMechanics:false (if it's actually a tactical/output claim from stats), or omit the claim if the captain hasn't recorded a fact about it.`,
-        );
+        // Soft drop: caller will filter this claim from output.claims.
+        // The prose stays in the report (its section still gets coverage
+        // credit below); we just remove the [N] chip that pointed at
+        // evidence which can't actually back a mechanics claim.
+        droppedClaimIds.push(claim.id);
       }
     }
 
@@ -312,10 +423,13 @@ function validateClaims(
     }
   }
 
-  if (details.length === 0) return null;
+  if (details.length === 0) return { failure: null, droppedClaimIds };
   return {
-    reason: `${details.length} claim(s) failed validation`,
-    details,
+    failure: {
+      reason: `${details.length} claim(s) failed validation`,
+      details,
+    },
+    droppedClaimIds,
   };
 }
 
@@ -472,11 +586,42 @@ ${JSON.stringify(evidence, null, 2)}`;
         reason: `Schema validation error: ${parsed.error.message}`,
       };
     }
-    const claimError = validateClaims(parsed.data, evidence);
-    if (claimError) {
+    const { failure, droppedClaimIds } = validateClaims(parsed.data, evidence);
+    if (droppedClaimIds.length > 0) {
+      const droppedClaims = parsed.data.claims.filter((c) =>
+        droppedClaimIds.includes(c.id),
+      );
+      // Excise the dropped claim's text from its section's prose BEFORE
+      // we filter it out of claims — otherwise the unsupported sentence
+      // ships in the PDF without a citation chip. Each excise is in-place
+      // on a copy of content; iterate so multiple drops in the same
+      // section compose correctly.
+      let mutatedContent = parsed.data.content;
+      for (const claim of droppedClaims) {
+        mutatedContent = exciseClaimFromContent(mutatedContent, claim);
+      }
+      parsed.data.content = mutatedContent;
+      parsed.data.claims = parsed.data.claims.filter(
+        (c) => !droppedClaimIds.includes(c.id),
+      );
+      deps.logger?.warn(
+        {
+          matchId: scope.matchId,
+          droppedClaimIds,
+          droppedClaims: droppedClaims.map((c) => ({
+            id: c.id,
+            section: c.section,
+            text: c.text,
+            evidenceIds: c.evidenceIds,
+          })),
+        },
+        "scout_analyst_dropped_unsupported_mechanics_claims",
+      );
+    }
+    if (failure) {
       return {
         ok: false,
-        reason: `${claimError.reason}:\n- ${claimError.details.join("\n- ")}`,
+        reason: `${failure.reason}:\n- ${failure.details.join("\n- ")}`,
       };
     }
     return { ok: true, output: parsed.data };

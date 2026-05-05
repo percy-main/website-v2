@@ -41,7 +41,7 @@ const generateReportInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      "Play Cricket match id for this fixture. From the upcoming-fixtures launcher message, or from ask_db / pc_find_opposition_matches.",
+      "Play Cricket match id for this fixture. From the upcoming-fixtures launcher message, or from ask_db / ask_play_cricket.",
     ),
   ourTeam: z
     .string()
@@ -135,19 +135,16 @@ After this returns, a one-line confirmation is enough. Do NOT dump the report co
 
         // Tool calls we expose to the FE as fly-out chips. record_evidence
         // fires constantly during the researcher loop and is plumbing rather
-        // than narrative, so we filter it out. Other tools fire less often
-        // and are exactly what the captain wants to see flying past.
+        // than narrative, so we filter it out. The pc_* tools fire INSIDE
+        // the ask_play_cricket sub-agent and never reach this stream, so
+        // they're absent here — the user sees one ask_play_cricket chip per
+        // PC question instead of a fan-out of projection calls.
         const CHIP_TOOL_ALLOWLIST = new Set([
           "ask_db",
+          "ask_play_cricket",
           "weather_get",
           "weather_geocode",
           "fact_retrieve",
-          "pc_match_summary",
-          "pc_match_detail",
-          "pc_site_matches",
-          "pc_site_results",
-          "pc_player_stats",
-          "pc_find_opposition_matches",
         ]);
 
         const buildSnapshot = (
