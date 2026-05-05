@@ -39,6 +39,7 @@ import {
   reportDownloadResponseSchema,
   reportIdParamSchema,
   threadIdParamSchema,
+  upcomingScoutMatchesResponseSchema,
   updateFactBodySchema,
   updateFactResponseSchema,
 } from "./schemas.ts";
@@ -54,6 +55,7 @@ import {
   listRecentDebriefMatches,
   listReports,
   listThreads,
+  listUpcomingScoutMatches,
   ReportNotFoundError,
   ThreadNotFoundError,
 } from "./service.ts";
@@ -69,6 +71,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const bump = bumpThreadUpdatedAt(app.db);
   const assertOwned = assertThreadOwnership(app.db);
   const recentMatches = listRecentDebriefMatches(app.db);
+  const upcomingMatches = listUpcomingScoutMatches(app.db);
   const reportsList = listReports(app.db);
   const reportForDownload = getReportForDownload(app.db);
   const reportDelete = deleteReport(app.db);
@@ -146,6 +149,21 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async () => ({ matches: await recentMatches() }),
+  );
+
+  // ── Scout launcher ──
+  // Upcoming Percy Main fixtures (next 14d) so the FE can offer them as
+  // clickable cards when the captain starts a focused scout thread. Free-text
+  // fallback in the FE handles "match not in availability_fixture yet".
+  app.get(
+    "/scout/upcoming-matches",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        response: { 200: upcomingScoutMatchesResponseSchema },
+      },
+    },
+    async () => ({ matches: await upcomingMatches() }),
   );
 
   app.get(
@@ -227,10 +245,16 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           { statusCode: 503 },
         );
       }
+      // Researcher and analyst providers are checked even on chat / debrief
+      // sessions because the captain can call generate_report mid-session;
+      // failing fast at preflight beats failing inside execute() after the
+      // user has already seen a "generating" placeholder card.
       const requiredProviders = new Set<ScoutProvider>([
         app.config.SCOUT_PROVIDER_CHAT,
         app.config.SCOUT_PROVIDER_SUBAGENT,
         app.config.SCOUT_PROVIDER_DB,
+        app.config.SCOUT_PROVIDER_RESEARCHER,
+        app.config.SCOUT_PROVIDER_ANALYST,
       ]);
       if (requiredProviders.has("anthropic") && !app.config.ANTHROPIC_API_KEY) {
         throw Object.assign(
@@ -257,7 +281,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         });
       }
 
-      let threadMode: "scouting" | "debrief";
+      let threadMode: "chat" | "debrief" | "scout";
       try {
         const owned = await assertOwned(user.id, threadId);
         threadMode = owned.mode;

@@ -15461,8 +15461,9 @@
                           "mode": {
                             "type": "string",
                             "enum": [
-                              "scouting",
-                              "debrief"
+                              "chat",
+                              "debrief",
+                              "scout"
                             ]
                           },
                           "createdAt": {
@@ -15512,11 +15513,12 @@
                     "maxLength": 200
                   },
                   "mode": {
-                    "default": "scouting",
+                    "default": "chat",
                     "type": "string",
                     "enum": [
-                      "scouting",
-                      "debrief"
+                      "chat",
+                      "debrief",
+                      "scout"
                     ]
                   }
                 }
@@ -15543,8 +15545,9 @@
                     "mode": {
                       "type": "string",
                       "enum": [
-                        "scouting",
-                        "debrief"
+                        "chat",
+                        "debrief",
+                        "scout"
                       ]
                     },
                     "createdAt": {
@@ -15637,6 +15640,75 @@
         }
       }
     },
+    "/api/scout/upcoming-matches": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "matches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "matchDate": {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          "matchTime": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "opposition": {
+                            "type": "string"
+                          },
+                          "homeAway": {
+                            "type": "string",
+                            "enum": [
+                              "home",
+                              "away"
+                            ]
+                          },
+                          "ourTeam": {
+                            "type": "string"
+                          },
+                          "competition": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "matchDate",
+                          "matchTime",
+                          "opposition",
+                          "homeAway",
+                          "ourTeam",
+                          "competition"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "matches"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/scout/threads/{threadId}": {
       "get": {
         "parameters": [
@@ -15673,8 +15745,9 @@
                         "mode": {
                           "type": "string",
                           "enum": [
-                            "scouting",
-                            "debrief"
+                            "chat",
+                            "debrief",
+                            "scout"
                           ]
                         },
                         "createdAt": {

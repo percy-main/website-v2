@@ -1,3 +1,4 @@
+import { REPORT_PHASE_BUDGETS_MS } from "@percy-main/shared";
 import { z } from "zod";
 
 const configSchema = z.object({
@@ -89,11 +90,49 @@ const configSchema = z.object({
   // Independent from the chat agent so the main loop can run on a frontier
   // model while DB queries stay on a cheap fast one.
   SCOUT_PROVIDER_DB: z.enum(["anthropic", "deepseek"]).default("anthropic"),
+  // Researcher phase (the loop behind generate_report). Independent from the
+  // chat agent so the researcher can run on a faster/cheaper model — its job
+  // is structured data extraction and tool-calling, not deep reasoning.
+  // Default DeepSeek flash so prod mirrors dev without needing a Terraform /
+  // env override; override via env when the researcher needs more horsepower.
+  SCOUT_PROVIDER_RESEARCHER: z
+    .enum(["anthropic", "deepseek"])
+    .default("deepseek"),
+  // Analyst phase. Reads the researcher's evidence packet (no tools) and
+  // emits the report content + claims registry. Default flash too — the job
+  // is mechanical synthesis (read evidence, populate template, attach claim
+  // citations), not deep reasoning, and the prompt carries a large evidence
+  // packet inline that v4-pro with thinking takes minutes to chew through.
+  SCOUT_PROVIDER_ANALYST: z.enum(["anthropic", "deepseek"]).default("deepseek"),
   SCOUT_MODEL_CHAT: z.string().default("claude-sonnet-4-6"),
   SCOUT_MODEL_SUBAGENT: z.string().default("claude-haiku-4-5-20251001"),
   SCOUT_MODEL_DB: z.string().default("claude-haiku-4-5-20251001"),
+  SCOUT_MODEL_RESEARCHER: z.string().default("deepseek-v4-flash"),
+  SCOUT_MODEL_ANALYST: z.string().default("deepseek-v4-flash"),
   SCOUT_DB_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(8),
   SCOUT_MAX_STEPS: z.coerce.number().int().positive().default(20),
+  // Researcher phase (the loop behind generate_report). Gathers evidence via
+  // ask_db / pc_* / weather_get / fact_retrieve and emits records via the
+  // record_evidence tool. Default 30 — selection + 4-5 opposition matches +
+  // a few player aggregates + weather + facts, with one record_evidence per
+  // datum, rarely needs more.
+  SCOUT_RESEARCHER_MAX_STEPS: z.coerce.number().int().positive().default(30),
+  // Wall-clock caps per phase. DeepSeek can hold a single chat-completions
+  // request open for minutes; without timeouts one slow step locks the whole
+  // generate_report flow indefinitely. Defaults sourced from
+  // REPORT_PHASE_BUDGETS_MS in @percy-main/shared so the FE pipeline-card
+  // countdown uses the same numbers — never shows "over budget" while the
+  // BE still has headroom.
+  SCOUT_RESEARCHER_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(REPORT_PHASE_BUDGETS_MS.researcher),
+  SCOUT_ANALYST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(REPORT_PHASE_BUDGETS_MS.analyst),
   // Voyage AI (fact-RAG embeddings + reranking). Optional — Scout boots
   // without it and just skips the fact tools / auto-retrieval.
   VOYAGE_API_KEY: z.string().optional(),

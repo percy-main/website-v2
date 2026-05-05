@@ -1,6 +1,10 @@
 import type { DB } from "@percy-main/db";
 import {
-  scoutReportPayloadSchema,
+  scoutReportDisplayTitle,
+  type ReportData,
+  type ReportPhaseName,
+  type ReportPhaseState,
+  type ReportToolCallEvent,
   type ScoutReportPayload,
 } from "@percy-main/shared";
 import { tool, type UIMessageStreamWriter } from "ai";
@@ -8,11 +12,23 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import type { Config } from "../../../config.ts";
 import type { ScoutReportStore } from "../../../lib/s3-scout-reports.ts";
+import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
+import type { VoyageClient } from "../facts/voyage.ts";
+import { analyseScoutEvidence } from "../report/analyst.ts";
 import { renderScoutReportPdf } from "../report/render.ts";
+import { researchScoutReport } from "../report/researcher.ts";
 
 export interface GenerateReportToolDeps {
   db: Kysely<DB>;
+  // Researcher needs the read-only DB pool for ask_db, the play-cricket client
+  // for pc_*, the model config to resolve its provider, and optional voyage
+  // for fact_retrieve. All threaded through from the agent factory.
+  dbReadonly: Kysely<DB>;
+  playCricket: PlayCricketApiClient;
+  config: Config;
+  voyage?: VoyageClient;
   scoutReports: ScoutReportStore;
   writer: UIMessageStreamWriter;
   userId: string;
@@ -20,65 +36,221 @@ export interface GenerateReportToolDeps {
   logger?: FastifyBaseLogger;
 }
 
-// Anthropic requires the top-level input_schema to be an object. Wrap the
-// payload so JSON-schema generation produces { properties: { report: {...} } }.
 const generateReportInputSchema = z.object({
-  report: scoutReportPayloadSchema,
+  matchId: z
+    .string()
+    .min(1)
+    .describe(
+      "Play Cricket match id for this fixture. From the upcoming-fixtures launcher message, or from ask_db / pc_find_opposition_matches.",
+    ),
+  ourTeam: z
+    .string()
+    .min(1)
+    .describe("Our team name, e.g. 'Percy Main 1st XI'."),
+  opposition: z
+    .string()
+    .min(1)
+    .describe("Opposition team name, e.g. 'Tynemouth 1st XI'."),
+  homeAway: z
+    .enum(["home", "away"])
+    .describe("'home' if we host, 'away' if we travel."),
+  matchDate: z
+    .string()
+    .min(1)
+    .describe(
+      "Display-formatted match date for the PDF cover, e.g. '10 May 2026'. Verbatim — already formatted.",
+    ),
+  competition: z
+    .string()
+    .optional()
+    .describe(
+      "Competition / league name, e.g. 'NTCL Division 1' or 'Thomas Wilson League Cup'. Optional.",
+    ),
+  intent: z
+    .string()
+    .optional()
+    .describe(
+      "Optional one-line scouting angle if the captain has a specific focus ('opposition's left-arm seamer', 'how do they handle spin'). Researcher uses this as a steer.",
+    ),
 });
 
+type GenerateReportInput = z.infer<typeof generateReportInputSchema>;
+
 export function createGenerateReportTool(deps: GenerateReportToolDeps) {
-  const { db, scoutReports, writer, userId, threadId, logger } = deps;
+  const {
+    db,
+    dbReadonly,
+    playCricket,
+    config,
+    voyage,
+    scoutReports,
+    writer,
+    userId,
+    threadId,
+    logger,
+  } = deps;
 
   return {
     generate_report: tool({
-      description: `Generate a polished PDF scouting report based on the conversation so far, save it to durable storage, and surface a download card inline in the chat.
+      description: `Generate a polished PDF scouting report for a specific upcoming match, save it to durable storage, and surface a download card inline in the chat.
 
-Call this AT MOST ONCE per scouting session, only after you have gathered enough material — usually a mix of weather (weather_get), our players (ask_db for selection and match_performance_* aggregates), opposition (pc_match_summary, pc_player_stats), and any club facts (fact_retrieve). If you don't have enough information yet, gather more first; do not produce a stub report.
+Call this AT MOST ONCE per session. The input is just the match identifiers — NOT the report content. A researcher sub-agent runs behind this tool and gathers everything (selection, opposition stats, weather, facts) itself; do not stream stats or analysis into these args.
 
-Structure your payload to match the schema exactly:
+Required:
+- matchId: the Play Cricket match id (from the upcoming-fixtures launcher message, or from ask_db on availability_fixture).
+- ourTeam: our team name, e.g. 'Percy Main 1st XI'.
+- opposition: opposition team name.
+- homeAway: 'home' or 'away'.
+- matchDate: display-formatted date, e.g. '10 May 2026'.
 
-- title: include the team, opposition, and date.
-- intro: 1–2 paragraphs naming the match, format, opposition, why it matters.
-- weather: pass through the forecast you fetched. retrievedAt should be the timestamp from your weather_get call.
-- ourPlayers: every selected player you have data on. role + 1–3 sentence notes + key stats. Pull stats from ask_db (questions like "give me Smith's 2025 batting average and HS", "list this Saturday's selected XI with their season stats").
-- ourPlayersCharts: 0–4 charts (Chart.js v4 specs, same shape as chart_render).
-- theirPlayers / theirPlayersCharts: opposition equivalents.
-- tactics: toss call, batting/bowling order intentions, fielding plans, matchup-specific notes. Markdown allowed inside paragraphs but no headings.
-- conclusion: short, encouraging close. Do NOT include "Up The Main" — the renderer appends it.
-- references: every URL you fetched while building this. Required, not optional. Include scorecard URLs, weather URLs, fact source URLs.
+Optional:
+- competition: league or cup name if you know it.
+- intent: a one-line scouting angle if the captain has a specific focus (otherwise omit and the researcher does a balanced report).
 
-The PDF is uploaded to S3 and a download card streams back to the user. After this tool returns, do NOT also dump the report content as prose — the user has the PDF. A one-line confirmation is enough.`,
+After this returns, a one-line confirmation is enough. Do NOT dump the report content — the user has the PDF.`,
       inputSchema: generateReportInputSchema,
-      execute: async ({ report }: { report: ScoutReportPayload }) => {
+      execute: async (input: GenerateReportInput) => {
         const startedAt = Date.now();
 
-        // Generate the id up-front so we can use it as the streaming part
-        // id (so the placeholder card and the ready card are addressable
-        // by the same id) AND as the eventual DB primary key once the row
-        // is inserted post-upload. No DB row exists during generation, so
-        // there's no half-state for the listing/download routes to trip
-        // over.
+        // Cover-page identifiers up front — derived from input, not from any
+        // model output, so we can label the placeholder card immediately.
+        const match = `${input.ourTeam} ${input.homeAway === "home" ? "vs" : "at"} ${input.opposition}`;
+        const displayTitle = scoutReportDisplayTitle({
+          match,
+          matchDate: input.matchDate,
+        });
+
         const reportId = randomUUID();
         const createdAtIso = new Date().toISOString();
 
-        // Stream the placeholder card immediately. PDF rendering is
-        // synchronous and CPU-heavy (chart canvases + react-pdf layout) so
-        // without this the FE shows nothing until the tool result lands —
-        // ~10–30s of dead air on a real report.
-        writer.write({
-          type: "data-report",
-          id: reportId,
-          data: {
-            reportId,
-            title: report.title,
-            fileSizeBytes: null,
-            createdAt: createdAtIso,
-            status: "generating",
-          },
+        // Per-phase state we mutate in place as the flow advances. Each
+        // mutation is followed by an emit() to push the snapshot to the FE.
+        const phases: Record<ReportPhaseName, ReportPhaseState> = {
+          researcher: { state: "pending" },
+          analyst: { state: "pending" },
+          render: { state: "pending" },
+        };
+        const recentToolCalls: ReportToolCallEvent[] = [];
+        const RECENT_CHIP_CAP = 6;
+
+        // Tool calls we expose to the FE as fly-out chips. record_evidence
+        // fires constantly during the researcher loop and is plumbing rather
+        // than narrative, so we filter it out. Other tools fire less often
+        // and are exactly what the captain wants to see flying past.
+        const CHIP_TOOL_ALLOWLIST = new Set([
+          "ask_db",
+          "weather_get",
+          "weather_geocode",
+          "fact_retrieve",
+          "pc_match_summary",
+          "pc_match_detail",
+          "pc_site_matches",
+          "pc_site_results",
+          "pc_player_stats",
+          "pc_find_opposition_matches",
+        ]);
+
+        const buildSnapshot = (
+          status: ReportData["status"],
+          extras: Partial<ReportData> = {},
+        ): ReportData => ({
+          reportId,
+          title: displayTitle,
+          fileSizeBytes: null,
+          createdAt: createdAtIso,
+          status,
+          startedAt,
+          phases: { ...phases },
+          recentToolCalls: recentToolCalls.slice(-RECENT_CHIP_CAP),
+          ...extras,
         });
 
+        const emit = (
+          status: ReportData["status"],
+          extras: Partial<ReportData> = {},
+        ) => {
+          writer.write({
+            type: "data-report",
+            id: reportId,
+            data: buildSnapshot(status, extras),
+          });
+        };
+
+        // Initial paint: researcher active, two phases pending.
+        phases.researcher = { state: "active", startedAt: Date.now() };
+        emit("generating");
+
         try {
-          const pdf = await renderScoutReportPdf(report);
+          // ── Phase 1: researcher ────────────────────────────────────────
+          const evidence = await researchScoutReport(
+            {
+              db,
+              dbReadonly,
+              playCricket,
+              config,
+              voyage,
+              userId,
+              logger,
+              onStep: ({ step, toolNames }) => {
+                let mutated = false;
+                toolNames.forEach((toolName, idx) => {
+                  if (!CHIP_TOOL_ALLOWLIST.has(toolName)) return;
+                  recentToolCalls.push({
+                    id: `researcher-${step}-${idx}`,
+                    phase: "researcher",
+                    toolName,
+                    at: Date.now(),
+                  });
+                  mutated = true;
+                });
+                if (mutated) emit("generating");
+              },
+            },
+            input,
+          );
+
+          phases.researcher = {
+            state: "done",
+            startedAt: phases.researcher.startedAt,
+            endedAt: Date.now(),
+            summary: { records: evidence.length },
+          };
+          phases.analyst = { state: "active", startedAt: Date.now() };
+          emit("generating");
+
+          // ── Phase 2: analyst ───────────────────────────────────────────
+          const analysed = await analyseScoutEvidence(
+            {
+              config,
+              logger,
+              onAttempt: ({ attempt, ms, ok }) => {
+                logger?.info(
+                  { reportId, attempt, ms, ok },
+                  "scout_report_analyst_attempt",
+                );
+              },
+            },
+            input,
+            evidence,
+          );
+
+          phases.analyst = {
+            state: "done",
+            startedAt: phases.analyst.startedAt,
+            endedAt: Date.now(),
+            summary: { claims: analysed.claims.length },
+          };
+          phases.render = { state: "active", startedAt: Date.now() };
+          emit("generating");
+
+          // ── Phase 3: render + persist ─────────────────────────────────
+          const payload: ScoutReportPayload = {
+            ...analysed.content,
+            match,
+            matchDate: input.matchDate,
+          };
+
+          const pdf = await renderScoutReportPdf(payload);
           const s3Key = await scoutReports.putReport(reportId, pdf);
 
           // Insert *after* the upload succeeds, with the explicit id we
@@ -91,7 +263,7 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
                 id: reportId,
                 user_id: userId,
                 thread_id: threadId,
-                title: report.title,
+                title: displayTitle,
                 s3_key: s3Key,
                 file_size_bytes: pdf.length,
               })
@@ -108,19 +280,14 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
             throw insertErr;
           }
 
-          // Re-emit with the same id so the FE replaces the placeholder
-          // card with the ready-to-download card in place.
-          writer.write({
-            type: "data-report",
-            id: reportId,
-            data: {
-              reportId,
-              title: report.title,
-              fileSizeBytes: pdf.length,
-              createdAt: createdAtIso,
-              status: "ready",
-            },
-          });
+          phases.render = {
+            state: "done",
+            startedAt: phases.render.startedAt,
+            endedAt: Date.now(),
+            summary: { bytes: pdf.length },
+          };
+
+          emit("ready", { fileSizeBytes: pdf.length });
 
           logger?.info(
             { reportId, bytes: pdf.length, ms: Date.now() - startedAt },
@@ -133,20 +300,20 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
             fileSizeBytes: pdf.length,
           };
         } catch (err) {
-          // Flip the placeholder to a failure state so the FE replaces the
-          // spinner with an error card rather than a stuck "Generating…".
-          writer.write({
-            type: "data-report",
-            id: reportId,
-            data: {
-              reportId,
-              title: report.title,
-              fileSizeBytes: null,
-              createdAt: createdAtIso,
-              status: "failed",
-              errorMessage:
-                err instanceof Error ? err.message : "Unknown error",
-            },
+          // Mark whichever phase was active at failure time. The FE keeps the
+          // pipeline visible so the user sees which step broke.
+          const activePhase = (
+            ["render", "analyst", "researcher"] as const
+          ).find((p) => phases[p].state === "active");
+          if (activePhase) {
+            phases[activePhase] = {
+              state: "failed",
+              startedAt: phases[activePhase].startedAt,
+              endedAt: Date.now(),
+            };
+          }
+          emit("failed", {
+            errorMessage: err instanceof Error ? err.message : "Unknown error",
           });
           logger?.error(
             { err, ms: Date.now() - startedAt },

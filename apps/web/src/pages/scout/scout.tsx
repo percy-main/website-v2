@@ -8,10 +8,11 @@ import { Composer, type ThinkingMode } from "./composer.js";
 import { DebriefLauncher } from "./debrief-launcher.js";
 import { MessageView } from "./message-view.js";
 import { ReportsView } from "./reports-view.js";
+import { ScoutLauncher } from "./scout-launcher.js";
 import { ThreadList } from "./thread-list.js";
 import { useScoutChat } from "./use-scout-chat.js";
 
-type ScoutMode = "scouting" | "debrief";
+type ScoutMode = "chat" | "debrief" | "scout";
 
 export function Component() {
   useDocumentMeta("Scout");
@@ -107,9 +108,9 @@ function EmptyState() {
           Pick a thread, or start a new one.
         </div>
         <div>
-          <strong>New scout</strong> for free-form opposition research, or{" "}
-          <strong>Debrief</strong> to walk through a recent match and grow the
-          fact corpus.
+          <strong>Chat</strong> for free-form opposition research,{" "}
+          <strong>Debrief</strong> to walk through a recent match, or{" "}
+          <strong>Scout</strong> to build a report PDF for an upcoming fixture.
         </div>
       </div>
     </div>
@@ -228,15 +229,20 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
   }, [messages, status]);
 
   const isStreaming = status === "submitted" || status === "streaming";
-  const isDebrief = loaded.thread.mode === "debrief";
+  const mode = loaded.thread.mode;
 
   return (
     <>
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-4">
         <h2 className="my-0 flex items-center gap-2 truncate text-sm font-medium text-gray-700">
-          {isDebrief && (
+          {mode === "debrief" && (
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase">
               Debrief
+            </span>
+          )}
+          {mode === "scout" && (
+            <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-emerald-800 uppercase">
+              Scout
             </span>
           )}
           <span className="truncate">{loaded.thread.title}</span>
@@ -254,8 +260,10 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
       </header>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2">
         {messages.length === 0 &&
-          (isDebrief ? (
+          (mode === "debrief" ? (
             <DebriefLauncher onLaunch={send} />
+          ) : mode === "scout" ? (
+            <ScoutLauncher onLaunch={send} />
           ) : (
             <div className="mt-8 text-center text-sm text-gray-400">
               New thread. Ask a question to get started.
@@ -279,7 +287,6 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         initialDraft={draft}
         onDraftChange={setDraft}
         disabled={isStreaming}
-        showGenerateReport={!isDebrief}
         thinkingMode={thinkingMode}
         onThinkingModeChange={setThinkingMode}
         onSubmit={send}

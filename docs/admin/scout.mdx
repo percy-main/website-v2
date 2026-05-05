@@ -7,15 +7,26 @@
 
 ## Overview
 
-Scout is a chat interface at [`/scout`](/scout) that pairs an Anthropic Claude model with several tool sets:
+Scout is a chat interface at [`/scout`](/scout) that pairs a chat model with several tool sets:
 
 - **Play Cricket API** — fixtures, scorecards, league tables, and per-club season views (any club, not just Percy Main).
 - **Read-only club database** — our own match performances, availability, matchdays, and the redacted `scout_member` view.
 - **Weather** — Open-Meteo for matchday forecasts and historical conditions on any ground.
 - **Charts** — inline Chart.js renders for trends, comparisons, distributions.
 - **Fact memory (RAG)** — a persistent knowledge corpus Scout writes to and reads from across conversations. Captures the things you can't derive from data: ground quirks ("Mitford have no covers"), scheduling rules ("Saturday games start at 1pm"), opposition reputations, and personal preferences.
+- **PDF report generation** — focused single-match scout produces a polished PDF via a researcher → analyst → render pipeline (see [Reports](#reports) below).
 
 Each conversation is persisted as a thread so you can come back to the same scouting session, share insights with co-captains, and keep an audit trail of how decisions were reached.
+
+## Modes
+
+Scout has three thread modes, picked from the dropdown next to **New** in the sidebar:
+
+- **Chat** _(default)_ — free-form scouting research. Ask questions, drill into stats, prototype tactical ideas. Full tool surface; no particular output goal.
+- **Debrief** — post-match interview that walks through 3–5 interesting candidates from a recent fixture and records each answer as a fact. Grows the corpus that future Chat / Scout sessions draw on. Uses inline answer-button cards (powered by `ask_question`) so it feels like a conversation rather than a form.
+- **Scout** — focused single-match scout. Launched from a card showing your upcoming Percy Main fixtures (next 14 days, sourced from `availability_fixture`). Picking a fixture kicks off a researcher → analyst → render pipeline that produces a PDF scouting report for that match. See [Reports](#reports).
+
+Mode is fixed at thread creation and shown as a small badge in the sidebar (amber for Debrief, emerald for Scout). The agent's tool surface and system prompt are picked by mode; chart rendering is enabled in Chat / Scout but disabled in Debrief, for example.
 
 ## Who can use it
 
@@ -29,7 +40,9 @@ To widen access to a specific user, give them the `admin` or `official` role in 
 - **Pull league tables.** "Where are we in Division 4 North?" — full table with points, played, won.
 - **Scout an opposition's recent form.** "Look at Morpeth 2nd XI this season" — pulls their fixtures against everyone (not just us), then drills into individual scorecards. See [Limitations](#limitations) below for what the data does and doesn't cover.
 - **Cross-reference our own data.** Anything in `availability_*`, `matchday`, `match_performance_*`, or `play_cricket_*` is fair game via the database tools.
-- **Ad-hoc SQL.** When the curated tools can't express what you want, Scout can write read-only queries against the `scout_readonly` Postgres role.
+- **Ask the database in plain English.** Behind the scenes a sub-agent translates your question into SQL, runs it against the read-only role, and returns rows + a short metadata note — you don't see the SQL unless you click the card to expand it.
+- **Generate a polished PDF report for an upcoming match.** From Scout mode (see [Reports](#reports)), pick a fixture from the launcher and Scout drives the entire flow end-to-end — selection, opposition stats, weather, key matchups, tactics — and uploads the PDF to durable storage. Historical reports are listed under the Reports tab.
+- **Run a post-match debrief.** From Debrief mode, click a recent fixture and Scout walks through 3–5 interesting candidates, recording each answer as a fact for future sessions to draw on.
 - **Remember what you tell it.** State a domain fact ("Mitford have no covers") or a personal preference ("I hate facing spin") and Scout records it. On every subsequent turn — in any thread — the most relevant facts are auto-retrieved and injected as context, so you don't have to repeat yourself.
 - **Cite its sources.** When Scout grounds a claim in a recorded fact, it emits a numbered citation chip inline; a Sources panel beneath the reply lists the underlying facts so you can verify what came from where.
 
@@ -51,7 +64,9 @@ It does **not** expose:
 - pitch conditions
 - player handedness or bowling style (RHB vs LHB, off-spin vs leg-spin, etc.)
 
-The system prompt forbids Scout from inventing this kind of detail, and asks it to **cite the underlying number after every concrete claim** so you can sanity-check. If you see a tactical claim like "vulnerable to short balls" with no number behind it, that's a hallucination — flag it to the tech lead so the prompt can be tightened further.
+The system prompt forbids Scout from inventing this kind of detail, and asks it to **cite the underlying number after every concrete claim** so you can sanity-check. If you see a tactical claim like "vulnerable to short balls" with no number behind it in chat-mode prose, that's a hallucination — flag it to the tech lead so the prompt can be tightened further.
+
+For PDF reports the validator catches these structurally — a mechanics claim must cite a captain-recorded fact, and unsupported tactical prose fails coverage. But Chat mode's safety net is only the prompt + your eye on the citations, so be sceptical there.
 
 Scout will also tell you when scorecard data simply isn't available yet (often the case for fixtures that finished within the last 48 hours — opposition scorers haven't uploaded). Don't take "data unavailable" as a sign of a Scout bug; it usually means Play Cricket itself doesn't have the data yet.
 
@@ -71,13 +86,38 @@ The ad-hoc SQL tool also blocks anything that isn't a `SELECT` or `WITH`, sets a
 ## Using Scout
 
 1. Click **Scout** in the members area, or navigate to [`/scout`](/scout) directly.
-2. Click **New thread** in the left sidebar to start a fresh conversation.
-3. Type a question, then either click **Send** or press **Cmd/Ctrl + Enter**.
-4. Watch the streamed response. Tool calls (Play Cricket lookups, SQL queries) appear as collapsible cards — click to see the input and the raw output.
-5. Continue the conversation in the same thread for follow-ups; Scout sees the full thread history.
-6. Hover a thread in the sidebar and click the **×** to delete it (with confirmation).
+2. In the left sidebar, the split-button at the top creates a new thread. The main button creates one in the active mode (label updates as you change selection); the chevron opens a dropdown to switch between **Chat**, **Debrief**, and **Scout** before clicking.
+3. Depending on the mode:
+   - **Chat** opens an empty thread. Type a question and send.
+   - **Debrief** opens a launcher card showing Percy Main's matches from the last 14 days. Click one to start the interview, or paste a Play Cricket scorecard URL.
+   - **Scout** opens a launcher card showing Percy Main's upcoming fixtures (next 14 days). Click one to kick off the report-gen pipeline, or describe a match in the free-text box if it isn't in the launcher list yet.
+4. Type into the composer and either click **Send** or press **Cmd/Ctrl + Enter**. The toggle in the composer's button column switches between **Thinking** and **Fast** mode (DeepSeek only — Anthropic ignores the toggle).
+5. Watch the streamed response. Tool calls (Play Cricket lookups, SQL queries) appear as collapsible cards — click to see the input and the raw output.
+6. Continue the conversation in the same thread for follow-ups; Scout sees the full thread history.
+7. Hover a thread in the sidebar and click the **×** to delete it (with confirmation).
 
 Threads auto-rename themselves with a 4-word summary after the first turn — you don't need to title them yourself.
+
+## Reports
+
+Scout mode produces a structured PDF for one named fixture. The flow runs in three internal phases — visualised as a sequenced pipeline card in the chat (Retrieve data → Analyse data → Build report) with tool-call chips flying off the active step:
+
+1. **Researcher** _(tool-enabled)_ — gathers data via `ask_db` / `pc_*` / `weather_get` / `fact_retrieve` and emits structured `EvidenceRecord`s through the `record_evidence` tool. No prose, no analysis, no recommendations. Default model: DeepSeek-v4-flash.
+2. **Analyst** _(no tools)_ — reads the evidence packet and produces the report content + a parallel `ClaimRecord` registry that ties every analytical sentence back to one or more evidence ids. Default model: DeepSeek-v4-flash with thinking off (the packet is finite — CoT adds latency without upside).
+3. **Render** — `@react-pdf/renderer` + Chart.js running inside a `node:worker_threads` worker (so the Fastify event loop stays responsive during the 10–30s render). Logo + colours mirror the FE theme tokens.
+
+A validator runs after the analyst before anything is rendered:
+
+- Every `claim.evidenceIds` must resolve to a real `EvidenceRecord.id` from the packet.
+- **Mechanics claims** (anything about line, length, movement, swing, footwork, shot, glovework, captaincy) must cite at least one `captain_fact` or `club_fact`. Stats and scorecard data alone are NOT enough — those are evidence about output, not how a player operates.
+- Each `claim.text` must appear as a substring of the section it claims to belong to.
+- Every section that contains analytical prose must have at least one `ClaimRecord` covering it. The analyst can't write tactical paragraphs that nothing in the registry vouches for.
+
+A claim that fails any of these is sent back to the analyst once with the validation errors verbatim; second failure flips the report card to **failed** with a useful error. References on the PDF are auto-derived from evidence `sourceUrl`s — the analyst doesn't author them, so they can't be fabricated.
+
+Generated PDFs land in S3 and are listed under the **Reports** tab regardless of which thread spawned them. Click a report to download a fresh signed URL (URLs expire after 30 minutes, so a link in an old message is regenerated on click).
+
+Phase wall-clock budgets are exposed via `SCOUT_RESEARCHER_TIMEOUT_MS` (6 min default) and `SCOUT_ANALYST_TIMEOUT_MS` (10 min default). The pipeline card's countdown reads the same constants from `@percy-main/shared`'s `REPORT_PHASE_BUDGETS_MS` — the FE never shows "over budget" red while the BE still has headroom.
 
 ## Fact memory
 
@@ -136,28 +176,43 @@ For both: copy the thread URL and message the tech lead. The system prompt and t
 
 ## Cost
 
-Scout uses Anthropic Claude Sonnet 4.6 for chat, Claude Haiku 4.5 for thread title generation, and Voyage `voyage-4` + `rerank-2.5` for fact retrieval. A typical scouting conversation costs cents on Anthropic; Voyage is on a 200M-token free tier (≈ 200k turns of fact retrieval) and is effectively free at our usage. The thread header shows token usage in development builds; if you want a per-environment usage report, ask the tech lead.
+Scout supports Anthropic Claude and DeepSeek interchangeably. The provider/model is configurable per phase via `SCOUT_PROVIDER_*` and `SCOUT_MODEL_*` env vars — chat, subagent (thread title generation), DB sub-agent, researcher, and analyst can each run on a different provider/model. Voyage `voyage-4` + `rerank-2.5` handle fact embeddings + reranking regardless of the chat provider; Voyage is on a 200M-token free tier (≈ 200k turns of fact retrieval) and is effectively free at our usage.
 
-Three mechanisms keep cost down:
+The defaults that ship with the codebase aim for low cost:
+
+- Researcher and analyst default to `deepseek-v4-flash` — structured extraction and synthesis, not deep reasoning.
+- DB sub-agent defaults to `claude-haiku-4-5` — strong at SQL, cheap.
+- Chat / subagent default to Anthropic models, but the production env (`apps/api/.env`) overrides chat to `deepseek-v4-pro`.
+
+A typical chat conversation costs single-digit cents; a full report-gen pass (researcher + analyst + render) costs a few cents at our prompt sizes. The thread header shows token usage in development builds; if you want a per-environment usage report, ask the tech lead.
+
+Cost is kept down by:
 
 - **DB-first by default** — the system prompt instructs Scout to try the local DB before reaching for Play Cricket. The DB already mirrors Play Cricket data for matches Percy Main was in, so anything about us or about an opponent's record against us is answered with a SQL aggregate (one row of numbers in context) rather than a raw scorecard (kilobytes per match). Play Cricket is reserved for opposition's form against other clubs, league tables for divisions we're not in, and very-recent fixtures the local mirror hasn't synced.
-- **Field projection on Play Cricket tools** — the heavy tools (`pc_match_summary`, `pc_match_detail`, `pc_site_matches`, `pc_site_results`, `pc_find_opposition_matches`) require a `fields` argument listing the dot-notation paths the model wants back (e.g. `matches[].id`, `match_details[].innings[].runs`). The raw API payload is cached server-side, then projected per call — so different field selections of the same match share the underlying fetch, and Sonnet only ever sees the bytes it asked for.
-- **Anthropic prompt caching** — every model step marks the most recent message with an ephemeral cache breakpoint. Within a multi-step agent loop, this means tool results from earlier steps are read from cache (~10% of normal input cost) on every subsequent step, instead of paid at full rate each time.
+- **Field projection on Play Cricket tools** — the heavy tools (`pc_match_summary`, `pc_match_detail`, `pc_site_matches`, `pc_site_results`, `pc_find_opposition_matches`) require a `fields` argument listing the dot-notation paths the model wants back (e.g. `matches[].id`, `match_details[].innings[].runs`). The raw API payload is cached server-side, then projected per call — so different field selections of the same match share the underlying fetch, and the model only ever sees the bytes it asked for.
+- **Anthropic prompt caching / DeepSeek prefix caching** — Anthropic runs mark the most recent message with an ephemeral cache breakpoint per step; DeepSeek does prefix caching automatically. Within a multi-step agent loop, tool results from earlier steps come back at cache rates on every subsequent step.
+- **Tiny `generate_report` tool input** — the model only sends the match identifiers (`matchId`, `ourTeam`, `opposition`, `matchDate`, etc.) when invoking report generation. The researcher does all the gathering internally, so the giant structured payload that used to stream char-by-char as `tool-input-delta` events to the FE doesn't exist anymore.
 
 ### Knowing if it's working
 
-Two structured log lines per turn make this measurable in CloudWatch:
+Structured log lines make this measurable in CloudWatch:
 
 - `scout.turn` — emitted once per chat turn with `{inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, cacheReadRatio}`. The ratio is the headline number for whether prompt caching is firing — if it's near zero across a multi-step turn, the breakpoint isn't doing its job. Cache-token totals are also persisted on each `scout_message` row for offline analysis.
 - `scout.tool.payload` — emitted per heavy Play Cricket tool call with `{tool, fields, rawBytes, projectedBytes, ratio}`. Lets you see how aggressively projection is shrinking each fetch.
+- `scout_researcher_started` / `scout_researcher_step` / `scout_researcher_done` / `scout_researcher_failed` — researcher-phase visibility for report generation. The per-step line includes step index, tool names called, accumulator size, and elapsed ms; useful when one step appears wedged.
+- `scout_analyst_started` / `scout_analyst_step_done` / `scout_analyst_step_failed` — analyst-phase visibility, fires per attempt (1 on first try, 2 on validation retry).
+- `scout_report_generated` / `scout_report_failed` — terminal lines from `generate_report`, with bytes + total ms on success or err + ms on failure.
 
 ## How it works (for the curious)
 
 - Frontend: React + `@ai-sdk/react`'s `useChat` hook, streaming via SSE.
-- Backend: Fastify route piping the AI SDK v6 `streamText` response directly into the HTTP reply.
-- Persistence: thread metadata, messages (as AI SDK UIMessage parts), a TTL'd cache for Play Cricket responses, and the fact corpus live in `scout_thread`, `scout_message`, `scout_tool_cache`, and `scout_fact`.
-- Models: Anthropic API directly (not Bedrock). Voyage AI for fact embeddings + reranking.
-- Cache control: `prepareStep` on `streamText` walks the message list and tags the last entry with `providerOptions.anthropic.cacheControl: { type: "ephemeral" }` before each step (see [`apps/api/src/features/scout/agent.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/agent.ts)). The Play Cricket tool projection lives in [`apps/api/src/features/scout/tools/projector.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/tools/projector.ts).
+- Backend: Fastify route piping the AI SDK `streamText` response directly into the HTTP reply.
+- Persistence: thread metadata, messages (as AI SDK UIMessage parts), a TTL'd cache for Play Cricket responses, the fact corpus, and generated reports live in `scout_thread`, `scout_message`, `scout_tool_cache`, `scout_fact`, and `scout_report`.
+- Models: Anthropic API directly (not Bedrock) and DeepSeek API. Voyage AI for fact embeddings + reranking. Per-phase provider/model knobs let chat, subagent, DB sub-agent, researcher, and analyst run on different vendors / sizes simultaneously.
+- Cache control: `prepareStep` on `streamText` walks the message list and tags the last entry with `providerOptions.anthropic.cacheControl: { type: "ephemeral" }` before each step (Anthropic only — DeepSeek auto-prefix-caches). See [`apps/api/src/features/scout/agent.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/agent.ts). The Play Cricket tool projection lives in [`apps/api/src/features/scout/tools/projector.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/tools/projector.ts).
+- Report generation pipeline: researcher / analyst / render are independent phases ([`apps/api/src/features/scout/report/`](https://github.com/percy-main/website-v2/tree/main/apps/api/src/features/scout/report)). The researcher emits `EvidenceRecord`s through the `record_evidence` tool ([`evidence.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/report/evidence.ts), [`tools/record-evidence.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/tools/record-evidence.ts)). The analyst's claim-coverage / mechanics-rule validators live in [`analyst.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/report/analyst.ts).
+- PDF rendering: `@react-pdf/renderer` + Chart.js + `@napi-rs/canvas` execute inside a `node:worker_threads` worker so the API event loop stays responsive for other requests during the 10–30s render. Dev path uses a `worker-bootstrap.mjs` shim that programmatically registers the tsx ESM loader (it doesn't auto-register inside workers); prod loads the compiled `worker-entry.js` directly. See [`render.ts`](https://github.com/percy-main/website-v2/blob/main/apps/api/src/features/scout/report/render.ts).
+- Phase budgets: single source of truth in `REPORT_PHASE_BUDGETS_MS` ([`packages/shared/src/scout-report.ts`](https://github.com/percy-main/website-v2/blob/main/packages/shared/src/scout-report.ts)). BE config and FE pipeline-card countdown both read from there.
 - Fact RAG: `pgvector` extension with HNSW (cosine) + GIN (tags) + GIN (FTS) indexes. Hybrid retrieval ∪ rerank lives in [`apps/api/src/features/scout/facts/`](https://github.com/percy-main/website-v2/tree/main/apps/api/src/features/scout/facts).
 
 Source lives under [`apps/api/src/features/scout/`](https://github.com/percy-main/website-v2/tree/main/apps/api/src/features/scout) and [`apps/web/src/pages/scout/`](https://github.com/percy-main/website-v2/tree/main/apps/web/src/pages/scout).

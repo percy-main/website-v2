@@ -300,7 +300,7 @@ describe("scout thread service (integration)", () => {
     // Alice can still access her own — assertThreadOwnership returns the
     // mode so the streaming route can pick the right system prompt.
     await expect(assertOwned(alice, aliceThread.id)).resolves.toEqual({
-      mode: "scouting",
+      mode: "chat",
     });
   });
 
@@ -312,14 +312,17 @@ describe("scout thread service (integration)", () => {
     const assertOwned = assertThreadOwnership(ctx.db);
 
     const debrief = await create(userId, "Debrief vs Mitford", "debrief");
-    const scouting = await create(userId, "Scout Tynemouth");
+    const chat = await create(userId, "Free-form chat about Tynemouth");
+    const scout = await create(userId, "Scout Tynemouth", "scout");
 
     expect(debrief.mode).toBe("debrief");
-    expect(scouting.mode).toBe("scouting");
+    expect(chat.mode).toBe("chat");
+    expect(scout.mode).toBe("scout");
 
     const threads = await list(userId);
     expect(threads.find((t) => t.id === debrief.id)?.mode).toBe("debrief");
-    expect(threads.find((t) => t.id === scouting.id)?.mode).toBe("scouting");
+    expect(threads.find((t) => t.id === chat.id)?.mode).toBe("chat");
+    expect(threads.find((t) => t.id === scout.id)?.mode).toBe("scout");
 
     const loaded = await get(userId, debrief.id);
     expect(loaded.thread.mode).toBe("debrief");

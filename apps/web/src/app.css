@@ -64,6 +64,15 @@
      active state — settles to plain muted text once the next message
      part arrives. */
   --animate-thought-shimmer: thought-shimmer 2.4s linear infinite;
+  /* Tool-call chip flying out of the active phase box in the report-gen
+     pipeline card: enters from below the box, drifts upward, fades out.
+     2.5s total — short enough that a torrent of tool calls never piles up
+     visually, long enough that the captain can read the tool name. */
+  --animate-chip-fly: chip-fly 2.5s ease-out forwards;
+  /* Soft horizontal pulse on the connector arrow leading INTO the active
+     phase. Drops opacity + grows a touch on each beat so the eye is drawn
+     to the next step. */
+  --animate-arrow-pulse: arrow-pulse 1.6s ease-in-out infinite;
 
   @keyframes caret-blink {
     0%,
@@ -114,6 +123,37 @@
     }
     100% {
       background-position: -200% 0;
+    }
+  }
+
+  @keyframes chip-fly {
+    0% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    10% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    60% {
+      opacity: 1;
+      transform: translateY(-12px);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-24px);
+    }
+  }
+
+  @keyframes arrow-pulse {
+    0%,
+    100% {
+      opacity: 0.4;
+      transform: scaleX(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scaleX(1.05);
     }
   }
 }

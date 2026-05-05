@@ -15,6 +15,7 @@ import { resolveModel } from "./provider.ts";
 import type { ScoutMode } from "./schemas.ts";
 import {
   SCOUT_DEBRIEF_SYSTEM_PROMPT,
+  SCOUT_FOCUSED_SYSTEM_PROMPT,
   SCOUT_SYSTEM_PROMPT,
 } from "./system-prompt.ts";
 import { createAskDbTool } from "./tools/ask-db.ts";
@@ -114,18 +115,29 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
     logger: deps.logger,
   });
   const weatherTools = createWeatherTools({ cache });
-  // Charts are useful in scouting answers but out of place in a debrief
-  // interview — register chart_render only when in scouting mode.
+  // Charts are useful in chat / scout answers but out of place in a debrief
+  // interview — register chart_render for the two scouting-shaped modes only.
   const chartTools =
-    deps.mode === "scouting" ? createChartTool({ writer: deps.writer }) : {};
-  // generate_report builds a PDF and stores it in S3. Only relevant in
-  // scouting mode; the debrief flow surfaces a structured interview, not a
-  // pre-match document. threadId is required to file reports against the
-  // owning thread, so we only register the tool when one is present.
+    deps.mode === "chat" || deps.mode === "scout"
+      ? createChartTool({ writer: deps.writer })
+      : {};
+  // generate_report builds a PDF and stores it in S3. Relevant in chat (the
+  // captain may ask) and scout (the focused mode self-triggers the tool); not
+  // in debrief, which surfaces a structured interview rather than a document.
+  // threadId is required to file reports against the owning thread, so we
+  // only register the tool when one is present.
+  //
+  // The tool runs a researcher sub-agent INTERNALLY to compile the report
+  // payload — the main agent never has to stream the structured JSON itself.
+  // We pass the researcher its own dependencies (model + tool surface) here.
   const reportTools =
-    deps.mode === "scouting" && deps.threadId
+    (deps.mode === "chat" || deps.mode === "scout") && deps.threadId
       ? createGenerateReportTool({
           db: deps.db,
+          dbReadonly: deps.dbReadonly,
+          playCricket: deps.playCricket,
+          config: deps.config,
+          voyage: deps.voyage,
           scoutReports: deps.scoutReports,
           writer: deps.writer,
           userId: deps.userId,
@@ -184,7 +196,11 @@ Date formats are split between sources:
 When asked about the "next" or "upcoming" match via the database, filter match_date > '${iso}' — anything on or before today has already been played (or is being played now). Don't trust your gut on what day-of-week a date falls on; always compare against the iso date above.`;
 
   const basePrompt =
-    deps.mode === "debrief" ? SCOUT_DEBRIEF_SYSTEM_PROMPT : SCOUT_SYSTEM_PROMPT;
+    deps.mode === "debrief"
+      ? SCOUT_DEBRIEF_SYSTEM_PROMPT
+      : deps.mode === "scout"
+        ? SCOUT_FOCUSED_SYSTEM_PROMPT
+        : SCOUT_SYSTEM_PROMPT;
 
   const resolved = resolveModel(
     deps.config.SCOUT_PROVIDER_CHAT,
