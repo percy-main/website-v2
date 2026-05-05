@@ -23,6 +23,7 @@ import { createVoyageClient } from "./facts/voyage.ts";
 import { extractCacheUsage, type ScoutProvider } from "./provider.ts";
 import {
   accessResponseSchema,
+  cancelReportResponseSchema,
   chatRequestBodySchema,
   createThreadBodySchema,
   createThreadResponseSchema,
@@ -36,6 +37,7 @@ import {
   listReportsResponseSchema,
   listThreadsResponseSchema,
   recentDebriefMatchesResponseSchema,
+  reportDetailResponseSchema,
   reportDownloadResponseSchema,
   reportIdParamSchema,
   threadIdParamSchema,
@@ -47,9 +49,11 @@ import {
   appendMessage,
   assertThreadOwnership,
   bumpThreadUpdatedAt,
+  cancelReport,
   createThread,
   deleteReport,
   deleteThread,
+  getReportDetail,
   getReportForDownload,
   getThread,
   listRecentDebriefMatches,
@@ -75,6 +79,8 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const reportsList = listReports(app.db);
   const reportForDownload = getReportForDownload(app.db);
   const reportDelete = deleteReport(app.db);
+  const reportDetail = getReportDetail(app.db);
+  const reportCancel = cancelReport(app.db);
   const generateTitle = maybeGenerateTitle({
     db: app.db,
     provider: app.config.SCOUT_PROVIDER_SUBAGENT,
@@ -656,6 +662,57 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       const { user } = getAuthSession(request);
       const reports = await reportsList(user.id);
       return { reports };
+    },
+  );
+
+  // Single-report polling endpoint. The FE pipeline card hits this every
+  // ~5s while the report is in flight to drive the live phase + tool-chip
+  // state. Once status is 'ready' or 'failed' the FE stops polling.
+  app.get(
+    "/scout/reports/:reportId",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: reportIdParamSchema,
+        response: { 200: reportDetailResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const detail = await reportDetail(user.id, request.params.reportId);
+      if (!detail) {
+        throw Object.assign(new Error("Report not found"), { statusCode: 404 });
+      }
+      return detail;
+    },
+  );
+
+  // User-initiated cancel from the pipeline card's stop button. Sets the
+  // row's cancel_requested flag — the worker's flush picks it up at the
+  // next poll (≤1.5s during researcher; immediately at phase boundaries
+  // for analyst/render).
+  app.post(
+    "/scout/reports/:reportId/cancel",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: reportIdParamSchema,
+        response: { 200: cancelReportResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      try {
+        const result = await reportCancel(user.id, request.params.reportId);
+        return { ok: true as const, alreadyComplete: result.alreadyComplete };
+      } catch (err) {
+        if (err instanceof ReportNotFoundError) {
+          throw Object.assign(new Error("Report not found"), {
+            statusCode: 404,
+          });
+        }
+        throw err;
+      }
     },
   );
 

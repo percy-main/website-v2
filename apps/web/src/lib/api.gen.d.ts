@@ -9361,6 +9361,161 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scout/reports/{reportId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    reportId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            reportId: string;
+                            title: string;
+                            fileSizeBytes: number | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string} */
+                            status: "queued" | "generating" | "ready" | "failed";
+                            errorMessage?: string;
+                            startedAt?: number;
+                            phases?: {
+                                researcher: {
+                                    /** @enum {string} */
+                                    state: "pending" | "active" | "done" | "failed";
+                                    startedAt?: number;
+                                    endedAt?: number;
+                                    summary?: {
+                                        records?: number;
+                                        claims?: number;
+                                        bytes?: number;
+                                    };
+                                };
+                                analyst: {
+                                    /** @enum {string} */
+                                    state: "pending" | "active" | "done" | "failed";
+                                    startedAt?: number;
+                                    endedAt?: number;
+                                    summary?: {
+                                        records?: number;
+                                        claims?: number;
+                                        bytes?: number;
+                                    };
+                                };
+                                render: {
+                                    /** @enum {string} */
+                                    state: "pending" | "active" | "done" | "failed";
+                                    startedAt?: number;
+                                    endedAt?: number;
+                                    summary?: {
+                                        records?: number;
+                                        claims?: number;
+                                        bytes?: number;
+                                    };
+                                };
+                            };
+                            recentToolCalls?: {
+                                id: string;
+                                /** @enum {string} */
+                                phase: "researcher" | "analyst" | "render";
+                                toolName: string;
+                                at: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    reportId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            ok: true;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scout/reports/{reportId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    reportId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            ok: true;
+                            alreadyComplete: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/scout/reports/{reportId}/download": {
         parameters: {
             query?: never;
@@ -9397,46 +9552,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/scout/reports/{reportId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    reportId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            ok: true;
-                        };
-                    };
-                };
-            };
-        };
         options?: never;
         head?: never;
         patch?: never;

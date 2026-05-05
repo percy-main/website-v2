@@ -16460,6 +16460,320 @@
         }
       }
     },
+    "/api/scout/reports/{reportId}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "reportId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reportId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "fileSizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "generating",
+                        "ready",
+                        "failed"
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "phases": {
+                      "type": "object",
+                      "properties": {
+                        "researcher": {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "active",
+                                "done",
+                                "failed"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "number"
+                            },
+                            "endedAt": {
+                              "type": "number"
+                            },
+                            "summary": {
+                              "type": "object",
+                              "properties": {
+                                "records": {
+                                  "type": "number"
+                                },
+                                "claims": {
+                                  "type": "number"
+                                },
+                                "bytes": {
+                                  "type": "number"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "state"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "analyst": {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "active",
+                                "done",
+                                "failed"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "number"
+                            },
+                            "endedAt": {
+                              "type": "number"
+                            },
+                            "summary": {
+                              "type": "object",
+                              "properties": {
+                                "records": {
+                                  "type": "number"
+                                },
+                                "claims": {
+                                  "type": "number"
+                                },
+                                "bytes": {
+                                  "type": "number"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "state"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "render": {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "active",
+                                "done",
+                                "failed"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "number"
+                            },
+                            "endedAt": {
+                              "type": "number"
+                            },
+                            "summary": {
+                              "type": "object",
+                              "properties": {
+                                "records": {
+                                  "type": "number"
+                                },
+                                "claims": {
+                                  "type": "number"
+                                },
+                                "bytes": {
+                                  "type": "number"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "state"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "researcher",
+                        "analyst",
+                        "render"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "recentToolCalls": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "phase": {
+                            "type": "string",
+                            "enum": [
+                              "researcher",
+                              "analyst",
+                              "render"
+                            ]
+                          },
+                          "toolName": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "phase",
+                          "toolName",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "reportId",
+                    "title",
+                    "fileSizeBytes",
+                    "createdAt",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "reportId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scout/reports/{reportId}/cancel": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "reportId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "alreadyComplete": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "alreadyComplete"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/scout/reports/{reportId}/download": {
       "get": {
         "parameters": [
@@ -16495,46 +16809,6 @@
                   "required": [
                     "url",
                     "expiresInSeconds"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/scout/reports/{reportId}": {
-      "delete": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-            },
-            "in": "path",
-            "name": "reportId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    }
-                  },
-                  "required": [
-                    "ok"
                   ],
                   "additionalProperties": false
                 }

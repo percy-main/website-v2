@@ -215,3 +215,51 @@ export const reportDownloadResponseSchema = z.object({
 export const deleteReportResponseSchema = z.object({
   ok: z.literal(true),
 });
+
+const reportPhaseStateSchema = z.object({
+  state: z.enum(["pending", "active", "done", "failed"]),
+  startedAt: z.number().optional(),
+  endedAt: z.number().optional(),
+  summary: z
+    .object({
+      records: z.number().optional(),
+      claims: z.number().optional(),
+      bytes: z.number().optional(),
+    })
+    .optional(),
+});
+
+const reportToolCallEventSchema = z.object({
+  id: z.string(),
+  phase: z.enum(["researcher", "analyst", "render"]),
+  toolName: z.string(),
+  at: z.number(),
+});
+
+// Single-report response shape for the FE polling hook. Mirrors
+// `ReportData` from @percy-main/shared. The FE re-uses that interface
+// via the OpenAPI-generated types.
+export const reportDetailResponseSchema = z.object({
+  reportId: z.uuid(),
+  title: z.string(),
+  fileSizeBytes: z.number().int().nonnegative().nullable(),
+  createdAt: z.iso.datetime(),
+  status: z.enum(["queued", "generating", "ready", "failed"]),
+  errorMessage: z.string().optional(),
+  startedAt: z.number().optional(),
+  phases: z
+    .object({
+      researcher: reportPhaseStateSchema,
+      analyst: reportPhaseStateSchema,
+      render: reportPhaseStateSchema,
+    })
+    .optional(),
+  recentToolCalls: z.array(reportToolCallEventSchema).optional(),
+});
+
+export const cancelReportResponseSchema = z.object({
+  ok: z.literal(true),
+  /** True if the report had already reached a terminal state — the cancel
+   *  was a no-op. The FE uses this to suppress a pointless toast. */
+  alreadyComplete: z.boolean(),
+});

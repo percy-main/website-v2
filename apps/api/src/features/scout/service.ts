@@ -427,3 +427,112 @@ export function deleteReport(db: Kysely<DB>) {
     return { s3Key: row.s3_key };
   };
 }
+
+export interface ReportDetail {
+  reportId: string;
+  title: string;
+  fileSizeBytes: number | null;
+  createdAt: string;
+  status: "queued" | "generating" | "ready" | "failed";
+  errorMessage?: string;
+  startedAt?: number;
+  phases?: Record<
+    "researcher" | "analyst" | "render",
+    {
+      state: "pending" | "active" | "done" | "failed";
+      startedAt?: number;
+      endedAt?: number;
+      summary?: { records?: number; claims?: number; bytes?: number };
+    }
+  >;
+  recentToolCalls?: {
+    id: string;
+    phase: "researcher" | "analyst" | "render";
+    toolName: string;
+    at: number;
+  }[];
+}
+
+interface PersistedProgressShape {
+  phases: ReportDetail["phases"];
+  recentToolCalls: ReportDetail["recentToolCalls"];
+}
+
+const dbStatusToFeStatus = (status: string): ReportDetail["status"] => {
+  if (status === "ready" || status === "failed" || status === "queued") {
+    return status;
+  }
+  // researching / analysing / rendering all surface as 'generating'; the
+  // phase JSONB carries the granular state for the pipeline card.
+  return "generating";
+};
+
+export function getReportDetail(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    reportId: string,
+  ): Promise<ReportDetail | null> => {
+    const row = await db
+      .selectFrom("scout_report")
+      .where("id", "=", reportId)
+      .where("user_id", "=", userId)
+      .select([
+        "id",
+        "title",
+        "file_size_bytes",
+        "created_at",
+        "status",
+        "error_message",
+        "started_at",
+        "phases",
+      ])
+      .executeTakeFirst();
+    if (!row) return null;
+
+    // phases JSONB persists the worker's `{ phases, recentToolCalls }`
+    // shape. Treat as opaque if it doesn't parse — the FE tolerates a
+    // missing pipeline section.
+    const progress =
+      row.phases && typeof row.phases === "object" && !Array.isArray(row.phases)
+        ? (row.phases as unknown as PersistedProgressShape)
+        : null;
+
+    return {
+      reportId: row.id,
+      title: row.title,
+      fileSizeBytes: row.file_size_bytes,
+      createdAt: toIso(row.created_at),
+      status: dbStatusToFeStatus(row.status),
+      errorMessage: row.error_message ?? undefined,
+      startedAt: row.started_at ? row.started_at.getTime() : undefined,
+      phases: progress?.phases,
+      recentToolCalls: progress?.recentToolCalls,
+    };
+  };
+}
+
+export function cancelReport(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    reportId: string,
+  ): Promise<{ alreadyComplete: boolean }> => {
+    const row = await db
+      .selectFrom("scout_report")
+      .where("id", "=", reportId)
+      .where("user_id", "=", userId)
+      .select(["status"])
+      .executeTakeFirst();
+    if (!row) throw new ReportNotFoundError();
+    if (row.status === "ready" || row.status === "failed") {
+      return { alreadyComplete: true };
+    }
+    // Worker's flush picks this up at the next poll (≤1.5s) and aborts the
+    // researcher loop; between-phase checks catch it for analyst/render.
+    await db
+      .updateTable("scout_report")
+      .set({ cancel_requested: true })
+      .where("id", "=", reportId)
+      .execute();
+    return { alreadyComplete: false };
+  };
+}
