@@ -7,7 +7,7 @@ import { generateText } from "ai";
 import type { FastifyBaseLogger } from "fastify";
 import { z } from "zod";
 import type { Config } from "../../../config.ts";
-import { resolveModel } from "../provider.ts";
+import { deepseekFastProviderOptions, resolveModel } from "../provider.ts";
 import { GROUNDING_RULES, IMPORTANT_CONTEXT } from "../system-prompt.ts";
 import {
   ANALYTICAL_SECTIONS,
@@ -47,11 +47,6 @@ export interface AnalystOutput {
   content: ScoutReportContent;
   claims: ClaimRecord[];
 }
-
-const analystOutputSchema = z.object({
-  content: scoutReportContentSchema,
-  claims: z.array(claimRecordSchema).min(1),
-});
 
 const ANALYST_PROMPT = `You are the ANALYST phase inside Scout — a cricket-analysis system for Percy Main CC, a Saturday-league side in the Northumberland and Tyneside Cricket League (NTCL).
 
@@ -98,19 +93,18 @@ ClaimRecord shape (one entry per analytical sentence in content):
   evidenceIds: string[]                // ids of EvidenceRecords backing this claim — at least one
 }
 
-The validator parses your output, then for each ClaimRecord:
-  - looks up the prose for ClaimRecord.section in your content
-  - confirms ClaimRecord.text appears in that prose as a case-insensitive substring (whitespace is collapsed)
-  - confirms every evidenceId resolves to a real EvidenceRecord from the packet
-  - confirms isMechanics:true claims cite at least one captain_fact / club_fact
+The validator parses your output and, for each ClaimRecord:
+  - confirms every evidenceId resolves to a real EvidenceRecord from the packet (fabricated ids are stripped; if none survive, the claim is dropped)
+  - confirms isMechanics:true claims cite at least one captain_fact / club_fact (otherwise the claim is dropped and its sentence is excised from the prose)
+  - searches your prose for ClaimRecord.text and auto-corrects ClaimRecord.section to wherever the text actually appears — getting 'section' exactly right is helpful but not required, as long as the text is somewhere in the report. Claims whose text isn't a substring of any section are dropped.
 
-Then it does a coverage pass: every section that contains analytical prose MUST have at least one ClaimRecord pointing at it. If you write tactical sentences in tactics but register no ClaimRecord with section:"tactics", validation fails.
+The validator soft-drops individual claims rather than failing the whole report, so a small number of imperfect claims don't kill an otherwise good run. The retry path only triggers if the JSON is malformed or every claim drops. Aim to satisfy the rules anyway — soft-dropped claims still cost you grounding.
 
 Hard rules — these are not negotiable:
 
 1. EVIDENCE-ONLY. You may only state things the evidence packet supports. If you cannot point to one or more EvidenceRecord ids that ground a claim, do not write the claim. The evidence packet is finite and may be thin — if it is, the report is thin. Do NOT fill gaps with general cricket knowledge or model priors.
 
-2. CLAIMS REGISTRY IS COMPLETE AND SECTION-TAGGED. Every analytical sentence in content (intro, tossDecision, overallStrategy, keyMatchups, tactics, conclusion, and any non-empty ourPlayers[].notes / theirPlayers[].notes) needs a ClaimRecord with the correct section value. The text field must be a verbatim substring of that section's prose so the validator can locate it. Captions, stat labels, names, and direct factual statements about the match scope (which match, date, competition) do NOT need ClaimRecords. Anything analytical does.
+2. CLAIMS REGISTRY IS COMPLETE. Every analytical sentence in content (intro, tossDecision, overallStrategy, keyMatchups, tactics, conclusion, and any non-empty ourPlayers[].notes / theirPlayers[].notes) needs a ClaimRecord. The text field must be (or contain) a verbatim substring of the prose so the validator can locate it. The section field is a hint — the validator auto-corrects it — but please tag it accurately as a sanity check on yourself. Captions, stat labels, names, and direct factual statements about the match scope (which match, date, competition) do NOT need ClaimRecords. Anything analytical does.
 
 3. MECHANICS RULE. A claim is "mechanics" if it describes line, length, movement, swing, footwork, shot selection, field placement, captaincy, wicketkeeping, run-up, pace, or grip. For mechanics claims, isMechanics MUST be true, AND at least one cited evidence MUST have claimType "captain_fact" or "club_fact". Stats, scorecards, and dismissal patterns CANNOT back mechanics claims — those are evidence about output, not about how the player operates.
    GOOD: "Dance has been bowled or LBW in 5 of 8 dismissals — bowl straight at him." (NOT mechanics — tactical recommendation supported by dismissal_pattern.)
@@ -154,9 +148,29 @@ function extractJson(raw: string): string {
   return raw.trim();
 }
 
-interface ValidationFailure {
-  reason: string;
-  details: string[];
+type ClaimDropReason =
+  | "no_evidence" // every cited evidenceId was fabricated
+  | "mechanics_unsupported" // mechanics:true but no captain_fact / club_fact backed it
+  | "text_not_found"; // claim.text isn't a substring of any section's prose
+
+export interface ClaimDrop {
+  claim: ClaimRecord;
+  reason: ClaimDropReason;
+  /** The section we located the text in, if any. None for `text_not_found`. */
+  locatedIn: ClaimSection | null;
+}
+
+export interface ValidationResult {
+  /** Claims that survived validation. Auto-corrected: `section` is rewritten
+   *  to where the text actually lives, and fabricated evidenceIds are
+   *  stripped (provided at least one valid id remains). */
+  claims: ClaimRecord[];
+  /** Claims dropped during validation. Caller excises prose for drops with
+   *  a non-null locatedIn so unsupported sentences don't ship. */
+  drops: ClaimDrop[];
+  /** Sections that had analytical prose but no surviving claim covering them.
+   *  Logged as a warning — does not fail the report. */
+  uncovered: ClaimSection[];
 }
 
 /**
@@ -307,6 +321,24 @@ function exciseClaimFromContent(
   }
 }
 
+/**
+ * One-line summary of a drop list for log + error messages. Counts by reason
+ * so the log line is greppable without exploding for every claim.
+ */
+function summariseDrops(drops: ClaimDrop[]): string {
+  if (drops.length === 0) return "(none)";
+  const counts: Record<ClaimDropReason, number> = {
+    no_evidence: 0,
+    mechanics_unsupported: 0,
+    text_not_found: 0,
+  };
+  for (const d of drops) counts[d.reason]++;
+  return Object.entries(counts)
+    .filter(([, n]) => n > 0)
+    .map(([reason, n]) => `${reason}=${n}`)
+    .join(", ");
+}
+
 // Sections always present in every report (required strings on the schema).
 // If any of these have prose, they MUST have at least one claim covering
 // them. ourPlayers / theirPlayers are optional and only require coverage
@@ -321,38 +353,73 @@ const ALWAYS_PRESENT_SECTIONS: readonly ClaimSection[] = [
 ];
 
 /**
- * Structural validators — run AFTER Zod-parsing the analyst output. Zod
- * confirms shape; this layer enforces the cross-field invariants Zod can't
- * express:
+ * Search every analytical section for `claim.text`. Returns the section in
+ * which the text appears (preferring the model-declared one when it matches,
+ * for stability), or `null` if the text isn't a substring of any section's
+ * prose.
  *
- *   1. every claim resolves to real evidence (no fabricated ids) — must-fix
- *   2. mechanics claims cite fact-typed evidence — SOFT: ids are returned
- *      in droppedClaimIds for the caller to filter, the request does NOT
- *      fail. Saw this twice in prod (analyst tagged isMechanics:true on
- *      pc_aggregate / weather-backed claims) — the right move is to drop
- *      the [N] chip rather than blow up the whole report. Coverage credit
- *      for the dropped claim's section is preserved, so the prose stays
- *      in the report just without a citation chip pointing at unsupportable
- *      evidence.
- *   3. each claim's text appears as a substring of the prose in its declared
- *      section — must-fix
- *   4. every section with non-trivial prose has at least one claim covering
- *      it — must-fix (catches "wrote analytical prose but didn't register
- *      any claims for it" — the main grounding-contract loophole)
- *
- * Returns { failure, droppedClaimIds }. failure is null when only soft
- * drops happened. The caller filters droppedClaimIds out of output.claims.
+ * The model's `claim.section` is treated as a hint, not a contract — we've
+ * seen the analyst tag claims with sections it never actually wrote prose
+ * into (e.g. "ourPlayers" when ourPlayers is omitted entirely). Auto-locating
+ * the actual section is more robust than asking the model to be perfect.
  */
-function validateClaims(
+function locateClaimSection(
+  claim: ClaimRecord,
+  proseBySection: Map<ClaimSection, string>,
+): ClaimSection | null {
+  const needle = normaliseForMatch(claim.text);
+  if (needle.length === 0) return null;
+
+  // Cheap path: trust the model's tag if it's actually correct.
+  const declared = proseBySection.get(claim.section);
+  if (declared && declared.length > 0 && declared.includes(needle)) {
+    return claim.section;
+  }
+
+  // Otherwise scan every section in canonical order. First match wins.
+  // In practice claim text is one sentence and unlikely to appear in two
+  // sections; if it does, the canonical-order tiebreak is deterministic.
+  for (const section of ANALYTICAL_SECTIONS) {
+    if (section === claim.section) continue;
+    const prose = proseBySection.get(section);
+    if (prose && prose.length > 0 && prose.includes(needle)) return section;
+  }
+  return null;
+}
+
+/**
+ * Structural validator — runs AFTER Zod-parsing the analyst output. Zod
+ * confirms shape; this layer enforces the cross-field invariants Zod can't
+ * express, but treats individual claims as droppable rather than blowing
+ * up the whole report.
+ *
+ * Per-claim rules:
+ *   1. Every cited evidenceId resolves to a real EvidenceRecord. Fabricated
+ *      ids are stripped; the claim survives if at least one resolves. If
+ *      every cited id is fabricated, the claim is dropped.
+ *   2. Mechanics claims (isMechanics:true) must cite at least one
+ *      captain_fact / club_fact. Otherwise dropped — the prose was
+ *      already sitting under unsupportable mechanics advice and the
+ *      caller excises it.
+ *   3. claim.text must appear as a substring of SOME section's prose.
+ *      We auto-correct claim.section to where the text actually lives,
+ *      so the model's section tag is a hint not a hard contract.
+ *
+ * Coverage (every section with prose has at least one claim) is downgraded
+ * to a warning — the model can game it anyway by adding a cheap claim
+ * per section, and forcing a retry on coverage rarely improves grounding.
+ *
+ * Hard failure surfaces only at the call site, when zero claims survive.
+ */
+export function validateClaims(
   output: AnalystOutput,
   evidence: EvidenceRecord[],
-): { failure: ValidationFailure | null; droppedClaimIds: string[] } {
+): ValidationResult {
   const evidenceById = new Map(evidence.map((e) => [e.id, e]));
-  const details: string[] = [];
-  const droppedClaimIds: string[] = [];
+  const claims: ClaimRecord[] = [];
+  const drops: ClaimDrop[] = [];
+  const sectionsWithClaim = new Set<ClaimSection>();
 
-  // Pre-compute normalised prose per section once — coverage check below
-  // reads the same map.
   const proseBySection = new Map<ClaimSection, string>();
   for (const section of ANALYTICAL_SECTIONS) {
     proseBySection.set(
@@ -361,76 +428,61 @@ function validateClaims(
     );
   }
 
-  // Track which sections have at least one claim — used for the coverage
-  // pass after the per-claim loop.
-  const sectionsWithClaim = new Set<ClaimSection>();
-
   for (const claim of output.claims) {
-    const resolved = claim.evidenceIds.map((id) => ({
-      id,
-      record: evidenceById.get(id),
-    }));
-    const missing = resolved.filter((r) => !r.record).map((r) => r.id);
-    if (missing.length > 0) {
-      details.push(
-        `Claim "${claim.id}" cites unknown evidence ids: [${missing.join(", ")}]. Every evidenceId must match an existing EvidenceRecord.id from the packet.`,
-      );
+    const validEvidenceIds = claim.evidenceIds.filter((id) =>
+      evidenceById.has(id),
+    );
+    const locatedIn = locateClaimSection(claim, proseBySection);
+
+    if (validEvidenceIds.length === 0) {
+      drops.push({ claim, reason: "no_evidence", locatedIn });
+      continue;
+    }
+
+    if (locatedIn === null) {
+      drops.push({ claim, reason: "text_not_found", locatedIn: null });
       continue;
     }
 
     if (claim.isMechanics) {
-      const hasFact = resolved.some(
-        (r) =>
-          r.record && MECHANICS_CAPABLE_CLAIM_TYPES.has(r.record.claimType),
-      );
+      const hasFact = validEvidenceIds.some((id) => {
+        const record = evidenceById.get(id);
+        return record
+          ? MECHANICS_CAPABLE_CLAIM_TYPES.has(record.claimType)
+          : false;
+      });
       if (!hasFact) {
-        // Soft drop: caller will filter this claim from output.claims.
-        // The prose stays in the report (its section still gets coverage
-        // credit below); we just remove the [N] chip that pointed at
-        // evidence which can't actually back a mechanics claim.
-        droppedClaimIds.push(claim.id);
+        drops.push({ claim, reason: "mechanics_unsupported", locatedIn });
+        continue;
       }
     }
 
-    // Substring check: claim.text must appear in its declared section.
-    const sectionText = proseBySection.get(claim.section) ?? "";
-    const needle = normaliseForMatch(claim.text);
-    if (sectionText.length === 0) {
-      details.push(
-        `Claim "${claim.id}" declares section "${claim.section}" but that section has no prose in the report. Move the claim to a section that contains its text, or remove the claim.`,
-      );
-    } else if (needle.length > 0 && !sectionText.includes(needle)) {
-      details.push(
-        `Claim "${claim.id}" declares section "${claim.section}" but its text was not found in that section's prose. Either copy a verbatim sub-phrase into the claim's text, or move the claim to the correct section.`,
-      );
-    } else {
-      sectionsWithClaim.add(claim.section);
-    }
+    claims.push({
+      ...claim,
+      section: locatedIn,
+      evidenceIds: validEvidenceIds,
+    });
+    sectionsWithClaim.add(locatedIn);
   }
 
-  // Coverage pass: every section with non-trivial prose must have at least
-  // one valid claim covering it. Empty sections (ourPlayers / theirPlayers
-  // with no notes) are exempt.
+  const uncovered: ClaimSection[] = [];
   for (const section of ANALYTICAL_SECTIONS) {
     const prose = proseBySection.get(section) ?? "";
     if (prose.length === 0) continue;
-    const required =
-      ALWAYS_PRESENT_SECTIONS.includes(section) || prose.length > 0;
-    if (required && !sectionsWithClaim.has(section)) {
-      details.push(
-        `Section "${section}" has analytical prose but no ClaimRecord covers it. Every analytical sentence MUST be backed by a registered claim — add at least one ClaimRecord with section:"${section}" pointing at the evidence that grounds it.`,
-      );
+    if (
+      ALWAYS_PRESENT_SECTIONS.includes(section) &&
+      !sectionsWithClaim.has(section)
+    ) {
+      uncovered.push(section);
+    } else if (!sectionsWithClaim.has(section)) {
+      // Optional sections (ourPlayers, theirPlayers) with prose but no
+      // claim — still worth flagging so it shows up in telemetry, just
+      // not as a hard error.
+      uncovered.push(section);
     }
   }
 
-  if (details.length === 0) return { failure: null, droppedClaimIds };
-  return {
-    failure: {
-      reason: `${details.length} claim(s) failed validation`,
-      details,
-    },
-    droppedClaimIds,
-  };
+  return { claims, drops, uncovered };
 }
 
 function deriveReferences(evidence: EvidenceRecord[]): ScoutReportReference[] {
@@ -477,26 +529,8 @@ export async function analyseScoutEvidence(
   // Analyst gets the entire evidence packet up front — there's nothing to
   // discover or plan iteratively. Disable DeepSeek's thinking mode so we
   // skip a multi-minute reasoning pass that adds little for a
-  // structured-extraction task. Anthropic has no equivalent toggle, so the
-  // providerOptions block is empty when provider !== deepseek.
-  //
-  // Mirrors the type pattern in agent.ts — generateText's providerOptions
-  // is typed as a deep alias (SharedV3ProviderOptions) not exported from the
-  // public "ai" entrypoint. A JSONValue-tree shape is sufficient and avoids
-  // reaching into a transitive dep.
-  type JsonValue =
-    | string
-    | number
-    | boolean
-    | null
-    | { [key: string]: JsonValue }
-    | JsonValue[];
-  const providerOptions: Record<
-    string,
-    Record<string, JsonValue>
-  > = resolved.provider === "deepseek"
-    ? { deepseek: { thinking: { type: "disabled" } } }
-    : {};
+  // structured-extraction task.
+  const providerOptions = deepseekFastProviderOptions(resolved.provider);
 
   const today = new Date();
   const todayDisplay = today.toLocaleDateString("en-GB", {
@@ -579,52 +613,112 @@ ${JSON.stringify(evidence, null, 2)}`;
         reason: `JSON parse error: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
-    const parsed = analystOutputSchema.safeParse(json);
-    if (!parsed.success) {
+    // Strict-parse `content` (the report itself — every section matters)
+    // and best-effort each `claims[i]` independently. A single malformed
+    // claim (e.g. an unknown `section` value the model invented) drops
+    // that claim with a logged warning rather than failing the whole
+    // attempt, which would force a full retry and another run of the
+    // 1k-token prompt.
+    const looseSchema = z.object({
+      content: scoutReportContentSchema,
+      claims: z.array(z.unknown()).min(1),
+    });
+    const looseParsed = looseSchema.safeParse(json);
+    if (!looseParsed.success) {
       return {
         ok: false,
-        reason: `Schema validation error: ${parsed.error.message}`,
+        reason: `Schema validation error: ${looseParsed.error.message}`,
       };
     }
-    const { failure, droppedClaimIds } = validateClaims(parsed.data, evidence);
-    if (droppedClaimIds.length > 0) {
-      const droppedClaims = parsed.data.claims.filter((c) =>
-        droppedClaimIds.includes(c.id),
-      );
-      // Excise the dropped claim's text from its section's prose BEFORE
-      // we filter it out of claims — otherwise the unsupported sentence
-      // ships in the PDF without a citation chip. Each excise is in-place
-      // on a copy of content; iterate so multiple drops in the same
-      // section compose correctly.
-      let mutatedContent = parsed.data.content;
-      for (const claim of droppedClaims) {
-        mutatedContent = exciseClaimFromContent(mutatedContent, claim);
+
+    const validClaims: ClaimRecord[] = [];
+    const droppedShape: Array<{ index: number; reason: string }> = [];
+    looseParsed.data.claims.forEach((c, i) => {
+      const r = claimRecordSchema.safeParse(c);
+      if (r.success) {
+        validClaims.push(r.data);
+      } else {
+        droppedShape.push({ index: i, reason: r.error.message });
       }
-      parsed.data.content = mutatedContent;
-      parsed.data.claims = parsed.data.claims.filter(
-        (c) => !droppedClaimIds.includes(c.id),
-      );
+    });
+
+    if (droppedShape.length > 0) {
       deps.logger?.warn(
         {
           matchId: scope.matchId,
-          droppedClaimIds,
-          droppedClaims: droppedClaims.map((c) => ({
-            id: c.id,
-            section: c.section,
-            text: c.text,
-            evidenceIds: c.evidenceIds,
-          })),
+          dropped: droppedShape.slice(0, 10),
+          totalDropped: droppedShape.length,
+          totalClaims: looseParsed.data.claims.length,
         },
-        "scout_analyst_dropped_unsupported_mechanics_claims",
+        "scout_analyst_dropped_malformed_claims",
       );
     }
-    if (failure) {
+
+    if (validClaims.length === 0) {
       return {
         ok: false,
-        reason: `${failure.reason}:\n- ${failure.details.join("\n- ")}`,
+        reason: `All ${droppedShape.length} claims failed shape validation. First error: ${droppedShape[0]?.reason ?? "(none)"}`,
       };
     }
-    return { ok: true, output: parsed.data };
+
+    const result = validateClaims(
+      { content: looseParsed.data.content, claims: validClaims },
+      evidence,
+    );
+
+    if (result.claims.length === 0) {
+      return {
+        ok: false,
+        reason: `All ${validClaims.length} claims dropped during validation: ${summariseDrops(result.drops)}`,
+      };
+    }
+
+    // Excise prose for any drop where we located the text. Mechanics drops
+    // and no-evidence drops both ship unsupportable sentences; pulling them
+    // out of the prose stops them from showing up in the PDF without a
+    // citation chip pointing at real evidence. text_not_found drops have
+    // no excisable target by definition (the text wasn't anywhere) — they
+    // shed only the registry entry.
+    let mutatedContent = looseParsed.data.content;
+    for (const drop of result.drops) {
+      if (drop.locatedIn !== null) {
+        mutatedContent = exciseClaimFromContent(mutatedContent, {
+          ...drop.claim,
+          section: drop.locatedIn,
+        });
+      }
+    }
+
+    if (result.drops.length > 0) {
+      deps.logger?.warn(
+        {
+          matchId: scope.matchId,
+          drops: result.drops.map((d) => ({
+            id: d.claim.id,
+            reason: d.reason,
+            declaredSection: d.claim.section,
+            locatedIn: d.locatedIn,
+            text: d.claim.text,
+            evidenceIds: d.claim.evidenceIds,
+          })),
+        },
+        "scout_analyst_dropped_claims",
+      );
+    }
+    if (result.uncovered.length > 0) {
+      deps.logger?.warn(
+        {
+          matchId: scope.matchId,
+          uncovered: result.uncovered,
+        },
+        "scout_analyst_uncovered_sections",
+      );
+    }
+
+    return {
+      ok: true,
+      output: { content: mutatedContent, claims: result.claims },
+    };
   };
 
   const startedAt = Date.now();

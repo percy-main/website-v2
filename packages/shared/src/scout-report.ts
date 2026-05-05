@@ -238,7 +238,7 @@ export interface ReportData {
   title: string;
   fileSizeBytes: number | null;
   createdAt: string;
-  status: "generating" | "ready" | "failed";
+  status: "queued" | "generating" | "ready" | "failed";
   errorMessage?: string;
   /** Date.now() at execute() top — used for global elapsed display. */
   startedAt?: number;

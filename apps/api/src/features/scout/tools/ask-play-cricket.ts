@@ -4,7 +4,11 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { z } from "zod";
 import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
-import { resolveModel, type ScoutProvider } from "../provider.ts";
+import {
+  deepseekFastProviderOptions,
+  resolveModel,
+  type ScoutProvider,
+} from "../provider.ts";
 import { createScoutCache } from "./cache.ts";
 import { createPlayCricketTools } from "./play-cricket.ts";
 
@@ -14,37 +18,74 @@ import { createPlayCricketTools } from "./play-cricket.ts";
  * Same rationale as ask_db (see tools/ask-db.ts): wrap a multi-step external
  * fetcher in its own short-context sub-agent so failed tool calls, dense
  * field-path projections, and the site_id/club_id chain never reach the main
- * chat. Specifically the things the main agent kept tripping on:
+ * chat.
  *
- *   - Projection paths. Each pc_* tool description carries dozens of
- *     dot-notation field paths; over-fetching costs tokens, under-fetching
- *     costs a retry. The sub-agent narrows by trial without polluting chat.
- *   - The status-vs-match_date trap. Played matches stay status="New"
- *     forever; the rule "use match_date vs today" lived in every tool
- *     description and the main agent still got it wrong sometimes.
- *   - The site_id/club_id pivot for opposition scouting (find a Percy Main
- *     vs X match → read X's club_id off it → pass as siteId to
- *     pc_site_matches). Two-call lookup chain that's pure plumbing.
+ * Output shape: { data: unknown, note?: string }. The sub-agent runs
+ * whatever pc_* calls it needs internally, then SYNTHESISES the gathered
+ * data into a structured JSON object whose shape matches the caller's
+ * question (one record / array of rows / nested scorecard / etc.). The
+ * tool parses the sub-agent's final reply as JSON and surfaces it as
+ * `data`. An optional `note` carries one-line caveats (filters used,
+ * fields unavailable, etc.) — never narrative.
  *
- * Scope vs ask_db: ask_db answers anything our local mirror knows
- * (Percy Main matches past or future, our players, opposition stats in the
- * context of how they've done against us). ask_play_cricket is for
- * everything else — opposition's matches against OTHER clubs, league tables
- * for divisions we're not in, fixtures the local mirror hasn't synced.
+ * Earlier shapes:
+ *   - calls[] of every raw pc_* tool result — dumped 50+ fixture rows
+ *     when the question was "find one match".
+ *   - { answer: string } — forced complex tabular questions through prose,
+ *     which the caller then re-parsed.
  *
- * Output shape: { summary, calls: [{ toolName, output }, ...] }. `calls` is
- * EVERY pc_* data tool result the sub-agent produced, in call order — not
- * just the last one. This matters because PC questions are often plural
- * ("scorecards for these three matches" → three pc_match_detail calls); the
- * earlier "return only the last call" shape ate 2/3 of the answer and made
- * the main agent re-ask question by question. `summary` describes the
- * FETCHING process, not the data — same convention as ask_db.summary. The
- * downstream agent has the cricket context and is responsible for narrative.
+ * Structured JSON gives the sub-agent freedom to pick the shape (rows,
+ * single record, nested) while keeping the output a few hundred tokens
+ * instead of tens of thousands.
  */
 
-interface PcCall {
-  toolName: string;
-  output: unknown;
+/**
+ * Pull a JSON blob out of the sub-agent's final reply, regardless of how
+ * chatty / fenced / sloppy it is. The sub-agent's prompt asks for naked
+ * JSON, but Sonnet/Haiku frequently wrap the object in conversational
+ * prose anyway ("Perfect! Here's the fixture: ```json {...} ``` The
+ * match is on..."). This function tolerates that without blowing up.
+ *
+ * Strategy:
+ *   1. Reply is a clean JSON object → use as-is. (extraction=naked)
+ *   2. Reply contains one or more ```json fenced blocks → use the LAST.
+ *      (extraction=fenced) The "last" rule mirrors how the model usually
+ *      iterates: earlier fences are scratch work, the final answer is
+ *      the last one before any closing prose.
+ *   3. Reply has matching '{' / '}' somewhere → take the substring
+ *      between them. (extraction=braces) Works for inlined JSON without
+ *      fences.
+ *   4. Otherwise → return the trimmed reply, let the caller's JSON.parse
+ *      throw and surface the parseFailed path.
+ *
+ * Exported for unit testing — keep it pure (no logger / no side effects).
+ */
+export function extractJsonCandidate(raw: string): {
+  candidate: string;
+  extraction: "naked" | "fenced" | "braces";
+} {
+  const fencedRe = /```(?:json)?\s*([\s\S]+?)\s*```/gi;
+  const fenceMatches = Array.from(raw.matchAll(fencedRe));
+  const trimmed = raw.trim();
+  if (
+    trimmed.startsWith("{") &&
+    trimmed.endsWith("}") &&
+    fenceMatches.length === 0
+  ) {
+    return { candidate: trimmed, extraction: "naked" };
+  }
+  if (fenceMatches.length > 0) {
+    return {
+      candidate: fenceMatches[fenceMatches.length - 1][1].trim(),
+      extraction: "fenced",
+    };
+  }
+  const first = raw.indexOf("{");
+  const last = raw.lastIndexOf("}");
+  if (first !== -1 && last > first) {
+    return { candidate: raw.slice(first, last + 1), extraction: "braces" };
+  }
+  return { candidate: trimmed, extraction: "naked" };
 }
 
 export interface AskPlayCricketToolDeps {
@@ -56,22 +97,12 @@ export interface AskPlayCricketToolDeps {
   logger?: FastifyBaseLogger;
 }
 
-const PC_DATA_TOOL_NAMES = new Set([
-  "pc_list_players",
-  "pc_match_summary",
-  "pc_match_detail",
-  "pc_league_table",
-  "pc_site_matches",
-  "pc_site_results",
-  "pc_find_opposition_matches",
-]);
-
 export function createAskPlayCricketTool(deps: AskPlayCricketToolDeps) {
   const { model } = resolveModel(deps.provider, deps.modelId);
 
   return {
     ask_play_cricket: tool({
-      description: `Answer a question from the Play Cricket public API. Pass a natural-language question; a Play Cricket specialist sub-agent runs the API calls and returns a short \`summary\` plus a \`calls\` array containing the projected payload from EVERY pc_* call it made.
+      description: `Answer a question from the Play Cricket public API. Pass a natural-language question; a specialist sub-agent runs the API calls and returns a structured JSON object: \`{ data, note? }\`. \`data\` is the synthesised answer in whatever JSON shape best fits the question (single record, array of rows, nested scorecard); \`note\` is an optional one-line caveat.
 
 Use this when the answer needs Play Cricket data NOT in our local DB mirror — typically:
   - Opposition's matches against OTHER clubs (their full season, not just vs us).
@@ -81,14 +112,21 @@ Use this when the answer needs Play Cricket data NOT in our local DB mirror — 
 
 Examples (each ONE call to ask_play_cricket, not many):
   - "Find Newcastle CC's last 5 league results in 2025."
-  - "Get scorecards for these three matches: 7262903, 7262908, 7262912 — every batter's name, runs, balls, how out, and player_id." (returns three pc_match_detail entries in \`calls\`)
+    → data is an array of 5 result rows.
+  - "Get scorecards for matches 7262903, 7262908, 7262912 — batters' name/runs/balls/how_out and bowlers' overs/wickets/runs."
+    → data is an array of 3 match objects, each with batting and bowling arrays.
+  - "Find Percy Main's fixture vs Morpeth on 9 May 2026 — match_id, teams, competition, home/away."
+    → data is one fixture object.
   - "Who's on Backworth CC's roster — names and play_cricket_ids."
+    → data is an array of player objects.
 
-BATCH related questions into one call. The sub-agent will happily make several pc_* calls and return them all in \`calls\` — that's exactly what it's for. Calling ask_play_cricket once per match wastes the sub-agent's batching ability and runs up its setup cost N times.
+ASK SPECIFICALLY for the fields you need — the sub-agent shapes \`data\` to match. Naming fields in the question ("name, runs, balls, how_out") drives the projection used; vague questions get vague shapes.
+
+BATCH related questions into one call where it makes sense — "scorecards for these three matches" works, asking three times wastes the sub-agent's setup cost.
 
 DEFAULT TO ask_db FIRST. The local DB mirrors Play Cricket data for matches Percy Main has played in. Only call ask_play_cricket when ask_db cannot answer — i.e. you need data that doesn't involve a Percy Main fixture, or ask_db's summary said the data isn't there yet.
 
-The sub-agent has no chat context — be specific (club name, season, team/XI, format). \`calls\` is an array of \`{ toolName, output }\` entries, in call order. matchIds and playerIds you'll pass to cite_match / cite_player_stats are in those outputs (sub-agent is required to project them). \`summary\` is metadata about the FETCHING PROCESS (filters applied, the site_id path taken) — read it to verify assumptions and to spot caveats like "player_id only present in roster, not innings.bat[]", but do NOT parrot it back to the user.`,
+The sub-agent has no chat context — be specific (club name, season, team/XI, format). \`data\` always carries identifying IDs (match.id, player_id, club_id) so you can cite via cite_match / cite_player_stats afterwards.`,
       inputSchema: z.object({
         question: z
           .string()
@@ -113,9 +151,7 @@ The sub-agent has no chat context — be specific (club name, season, team/XI, f
           year: "numeric",
         });
 
-        const system = `You are a Play Cricket API fetcher for Percy Main CSC's Scout system. You call the pc_* tools and return raw projected data. A separate downstream agent reads your data and writes the prose reply with cricket context — you do NOT write that prose yourself. Your final reply text is consumed as a short metadata note about the FETCHING PROCESS, not as a narrative of the data.
-
-The downstream agent receives EVERY pc_* call you make, in order — not just the last one. So if a question asks for N matches' scorecards, call pc_match_detail N times and the downstream agent gets all N. Don't try to compress multiple matches into one call.
+        const system = `You are a Play Cricket API fetcher for Percy Main CSC's Scout system. You call the pc_* tools to gather data, then SYNTHESISE it into a structured JSON object that answers the caller's question. The caller does NOT see your raw tool outputs — only the JSON you emit as your final reply.
 
 Today is ${iso} (${ddmmyyyy} dd/mm/yyyy). Current season is ${today.getFullYear()}. The Play Cricket API emits match_date in dd/mm/yyyy — pass values through unchanged.
 
@@ -130,31 +166,43 @@ Tools available:
 
 Each tool's description carries the available field-path projections — read them. Ask for the narrowest projection that answers the question; the underlying API response is cached, so widening on a second call costs nothing at the API boundary.
 
-CRITICAL rules — apply on every call:
+CRITICAL rules:
 
-1. **ALWAYS include identifying IDs in the projection.** matches[].id / match_details[].id / players[].player_id (and home_club_id / away_club_id when relevant). The downstream agent uses these IDs to cite sources via cite_match / cite_player_stats — without them no citation can be rendered.
+1. **ALWAYS include identifying IDs in your projections AND in your final JSON.** matches[].id / match_details[].id / players[].player_id (and home_club_id / away_club_id when relevant). The caller needs these to cite via cite_match / cite_player_stats.
 
-2. **status is unreliable for played-vs-not-played.** Many played matches retain status "New" indefinitely. To decide whether a match was played, use match_date vs today (${ddmmyyyy}). To confirm a result actually exists, prefer pc_site_results or check that innings are populated in pc_match_detail.
+2. **status is unreliable for played-vs-not-played.** Many played matches retain status "New" indefinitely. Use match_date vs today (${ddmmyyyy}). To confirm a result, prefer pc_site_results or check that innings are populated in pc_match_detail.
 
 3. **site_id == club_id.** To scout opposition X: find a Percy Main vs X match via pc_match_summary, read X's club_id off the row (home_club_id or away_club_id, whichever isn't 134), pass it as siteId to pc_site_matches / pc_site_results.
 
-4. **Stop when the data is right.** After the final pc_* call has the answer payload, write your short metadata reply and STOP — don't keep poking. You have ${deps.maxSteps} steps total.
+4. **Stop when the data is right.** After the final pc_* call has the answer payload, emit JSON and STOP — don't keep poking. You have ${deps.maxSteps} steps total.
 
-OUTPUT — what to write as your final reply (one short sentence, sometimes two):
+OUTPUT FORMAT — your final assistant message is a single JSON object, nothing else:
 
-DO write:
-  - filters and assumptions: "Filtered to game_type=League and season=2025; took the 5 most-recent fixtures."
-  - schema choices: "Used pc_site_results (cheaper than per-match detail) — only innings totals were needed."
-  - the lookup path for opposition: "Found Newcastle's club_id=152 from Percy Main's 2nd XI fixture on 14/06/2025; pulled their season fixtures from there."
-  - failure path: "No Backworth fixtures returned for 2025; their site_id may have changed." or "API returned an empty matches array."
+{
+  "data": <the answer, in whatever JSON shape best fits the question>,
+  "note": <optional one-line caveat string, omit if none>
+}
 
-DO NOT write:
-  - the data itself or any narrative of it (the downstream agent formats and editorialises)
-  - markdown tables of matches or players
-  - restating the question
-  - empty filler ("Here are the results.")
+NO prose before or after, NO markdown fences, NO comments — just the JSON object.
 
-If the data IS the entire answer (e.g. one league table), just say what filter/lookup you used.`;
+Shape \`data\` to match the question:
+  - "Find the fixture vs Morpeth on 9 May" → data is one fixture object: { id, match_date, ourTeam, opposition, competition, homeAway, ground }.
+  - "Get scorecards for matches A, B, C" → data is an array of 3 match objects, each with { id, match_date, batting: [...], bowling: [...] }.
+  - "List Backworth's 2025 fixtures" → data is an array of fixture rows.
+  - "League table for division X" → data is an array of standing rows: { team, P, W, L, Pts }.
+
+DO:
+  - Pick concise field names suited to the question (matchId or id, runs, balls, how_out — not the full API field paths).
+  - Include ONLY rows the question asked for. If pc_match_summary returned 80 fixtures, filter to the one(s) the caller wanted.
+  - Carry IDs through every record. matchId / playerId / clubId are non-negotiable.
+  - Use \`note\` for filters/caveats: "Filtered season=2026 game_type=League." / "API ground_name empty — coords unavailable." / "10 of 11 fixtures had populated scorecards; one match TBC."
+
+DO NOT:
+  - Wrap data in arbitrary keys like { "results": [...] }. Just put the array directly in \`data\`.
+  - Editorialise or write narrative cricket prose — the caller does that.
+  - Dump every pc_* tool output verbatim — synthesise.
+
+If the question is genuinely unanswerable (no data found, ambiguous input), emit { "data": null, "note": "<one-sentence reason>" }.`;
 
         const startedAt = Date.now();
         let result;
@@ -165,6 +213,7 @@ If the data IS the entire answer (e.g. one league table), just say what filter/l
             prompt: question,
             tools,
             stopWhen: stepCountIs(deps.maxSteps),
+            providerOptions: deepseekFastProviderOptions(deps.provider),
           });
         } catch (err) {
           deps.logger?.error(
@@ -177,25 +226,64 @@ If the data IS the entire answer (e.g. one league table), just say what filter/l
           };
         }
 
-        // Collect EVERY pc_* tool result in call order. Earlier shape
-        // returned only the last call, which silently dropped 2/3 of the
-        // answer when a question covered multiple matches. Done inline
-        // because generateText's `steps` is typed against the specific
-        // ToolSet passed in, and a helper would either need to be generic
-        // or use an unsafe cast.
-        const calls: PcCall[] = [];
+        const elapsedMs = Date.now() - startedAt;
+        const stepCount = result.steps.length;
+        const raw = result.text.trim();
+
+        // Diagnostic only — count which pc_* tools fired so we can spot a
+        // sub-agent that's over- or under-fetching. The data itself is not
+        // surfaced; the synthesised JSON is the only output.
+        const pcCallNames: string[] = [];
         for (const step of result.steps) {
           for (const part of step.content) {
-            if (
-              part.type === "tool-result" &&
-              PC_DATA_TOOL_NAMES.has(part.toolName)
-            ) {
-              calls.push({ toolName: part.toolName, output: part.output });
+            if (part.type === "tool-result") {
+              pcCallNames.push(part.toolName);
             }
           }
         }
-        const elapsedMs = Date.now() - startedAt;
-        const stepCount = result.steps.length;
+
+        // Extract the JSON object from the sub-agent's reply. Models
+        // routinely wrap the object in narrative prose ("Perfect! Here's
+        // the fixture: ```json {...} ``` The match is on...") despite
+        // the prompt asking for JSON only. Strategy:
+        //   1. If there's a ```json (or ```) fenced block anywhere in
+        //      the reply, take the LAST such block (the model's final
+        //      answer if it iterated).
+        //   2. Otherwise, take the largest substring from the first '{'
+        //      to the last '}'.
+        //   3. JSON.parse and continue.
+        const { candidate, extraction } = extractJsonCandidate(raw);
+
+        let data: unknown = null;
+        let note: string | undefined;
+        let parseFailed = false;
+        try {
+          const parsed = JSON.parse(candidate) as unknown;
+          if (
+            parsed != null &&
+            typeof parsed === "object" &&
+            "data" in parsed
+          ) {
+            const obj = parsed as { data: unknown; note?: unknown };
+            data = obj.data;
+            note = typeof obj.note === "string" ? obj.note : undefined;
+          } else {
+            // Sub-agent emitted naked JSON without the {data, note}
+            // envelope. Treat the whole thing as data — cheaper than
+            // failing.
+            data = parsed;
+          }
+        } catch {
+          parseFailed = true;
+          deps.logger?.warn(
+            {
+              event: "scout.ask_play_cricket.parse_failed",
+              question,
+              rawSample: raw.slice(0, 200),
+            },
+            "ask_play_cricket: sub-agent reply was not JSON; surfacing as text",
+          );
+        }
 
         deps.logger?.info(
           {
@@ -207,24 +295,29 @@ If the data IS the entire answer (e.g. one league table), just say what filter/l
             elapsedMs,
             inputTokens: result.usage.inputTokens ?? 0,
             outputTokens: result.usage.outputTokens ?? 0,
-            callCount: calls.length,
-            toolNames: calls.map((c) => c.toolName),
+            outputChars: raw.length,
+            pcCallNames,
+            parseFailed,
+            extraction,
           },
           "scout: ask_play_cricket sub-agent done",
         );
 
-        const summary = result.text.trim();
-        if (!summary && calls.length === 0) {
+        if (parseFailed) {
+          return {
+            data: null,
+            note: `Sub-agent reply was not valid JSON. Raw text: ${raw.slice(0, 500)}`,
+          };
+        }
+
+        if (!raw) {
           return {
             error:
               "Play Cricket query helper returned no answer. The question may be ambiguous; try rephrasing.",
           };
         }
 
-        return {
-          summary: summary || null,
-          calls,
-        };
+        return note ? { data, note } : { data };
       },
     }),
   };

@@ -352,6 +352,11 @@ export interface ReportSummary {
   title: string;
   fileSizeBytes: number | null;
   createdAt: string;
+  status: "queued" | "generating" | "ready" | "failed";
+  /** Date.now() value when the worker started running. Null for queued
+   *  rows; set as soon as the researcher phase begins. The FE uses this
+   *  to render an elapsed-time indicator on in-flight rows. */
+  startedAt: number | null;
 }
 
 export class ReportNotFoundError extends Error {
@@ -362,10 +367,16 @@ export class ReportNotFoundError extends Error {
 
 export function listReports(db: Kysely<DB>) {
   return async (userId: string): Promise<ReportSummary[]> => {
+    // Includes in-flight rows (queued / researching / analysing / rendering)
+    // so the Reports tab can act as a recovery surface — click an in-flight
+    // row to navigate back to its source thread, where the pipeline card
+    // resumes from the row's live state. Failed rows stay hidden; the user
+    // is expected to retry from chat rather than browse old failures.
     const rows = await db
       .selectFrom("scout_report as r")
       .leftJoin("scout_thread as t", "t.id", "r.thread_id")
       .where("r.user_id", "=", userId)
+      .where("r.status", "!=", "failed")
       .select([
         "r.id",
         "r.thread_id",
@@ -373,6 +384,8 @@ export function listReports(db: Kysely<DB>) {
         "r.title",
         "r.file_size_bytes",
         "r.created_at",
+        "r.status",
+        "r.started_at",
       ])
       .orderBy("r.created_at", "desc")
       .execute();
@@ -384,6 +397,8 @@ export function listReports(db: Kysely<DB>) {
       title: r.title,
       fileSizeBytes: r.file_size_bytes,
       createdAt: toIso(r.created_at),
+      status: dbStatusToFeStatus(r.status),
+      startedAt: r.started_at ? r.started_at.getTime() : null,
     }));
   };
 }
@@ -397,9 +412,13 @@ export function getReportForDownload(db: Kysely<DB>) {
       .selectFrom("scout_report")
       .where("id", "=", reportId)
       .where("user_id", "=", userId)
+      .where("status", "=", "ready")
       .select(["s3_key", "title"])
       .executeTakeFirst();
-    if (!row) throw new ReportNotFoundError();
+    // Only ready rows have a non-null s3_key. The status filter above
+    // guarantees that, but the column is nullable in the schema, so we
+    // narrow with an explicit check to satisfy the return type.
+    if (!row?.s3_key) throw new ReportNotFoundError();
     return { s3Key: row.s3_key, title: row.title };
   };
 }
@@ -413,11 +432,121 @@ export function deleteReport(db: Kysely<DB>) {
       .selectFrom("scout_report")
       .where("id", "=", reportId)
       .where("user_id", "=", userId)
+      .where("status", "=", "ready")
       .select(["s3_key"])
       .executeTakeFirst();
-    if (!row) throw new ReportNotFoundError();
+    if (!row?.s3_key) throw new ReportNotFoundError();
 
     await db.deleteFrom("scout_report").where("id", "=", reportId).execute();
     return { s3Key: row.s3_key };
+  };
+}
+
+export interface ReportDetail {
+  reportId: string;
+  title: string;
+  fileSizeBytes: number | null;
+  createdAt: string;
+  status: "queued" | "generating" | "ready" | "failed";
+  errorMessage?: string;
+  startedAt?: number;
+  phases?: Record<
+    "researcher" | "analyst" | "render",
+    {
+      state: "pending" | "active" | "done" | "failed";
+      startedAt?: number;
+      endedAt?: number;
+      summary?: { records?: number; claims?: number; bytes?: number };
+    }
+  >;
+  recentToolCalls?: Array<{
+    id: string;
+    phase: "researcher" | "analyst" | "render";
+    toolName: string;
+    at: number;
+  }>;
+}
+
+interface PersistedProgressShape {
+  phases: ReportDetail["phases"];
+  recentToolCalls: ReportDetail["recentToolCalls"];
+}
+
+const dbStatusToFeStatus = (status: string): ReportDetail["status"] => {
+  if (status === "ready" || status === "failed" || status === "queued") {
+    return status;
+  }
+  // researching / analysing / rendering all surface as 'generating'; the
+  // phase JSONB carries the granular state for the pipeline card.
+  return "generating";
+};
+
+export function getReportDetail(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    reportId: string,
+  ): Promise<ReportDetail | null> => {
+    const row = await db
+      .selectFrom("scout_report")
+      .where("id", "=", reportId)
+      .where("user_id", "=", userId)
+      .select([
+        "id",
+        "title",
+        "file_size_bytes",
+        "created_at",
+        "status",
+        "error_message",
+        "started_at",
+        "phases",
+      ])
+      .executeTakeFirst();
+    if (!row) return null;
+
+    // phases JSONB persists the worker's `{ phases, recentToolCalls }`
+    // shape. Treat as opaque if it doesn't parse — the FE tolerates a
+    // missing pipeline section.
+    const progress =
+      row.phases && typeof row.phases === "object" && !Array.isArray(row.phases)
+        ? (row.phases as unknown as PersistedProgressShape)
+        : null;
+
+    return {
+      reportId: row.id,
+      title: row.title,
+      fileSizeBytes: row.file_size_bytes,
+      createdAt: toIso(row.created_at),
+      status: dbStatusToFeStatus(row.status),
+      errorMessage: row.error_message ?? undefined,
+      startedAt: row.started_at ? row.started_at.getTime() : undefined,
+      phases: progress?.phases,
+      recentToolCalls: progress?.recentToolCalls,
+    };
+  };
+}
+
+export function cancelReport(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    reportId: string,
+  ): Promise<{ alreadyComplete: boolean }> => {
+    const row = await db
+      .selectFrom("scout_report")
+      .where("id", "=", reportId)
+      .where("user_id", "=", userId)
+      .select(["status"])
+      .executeTakeFirst();
+    if (!row) throw new ReportNotFoundError();
+    if (row.status === "ready" || row.status === "failed") {
+      return { alreadyComplete: true };
+    }
+    // Worker's flush picks this up at the next poll (≤1.5s) and aborts the
+    // researcher loop; between-phase checks catch it for analyst/render.
+    await db
+      .updateTable("scout_report")
+      .set({ cancel_requested: true })
+      .where("id", "=", reportId)
+      .execute();
+    return { alreadyComplete: false };
   };
 }

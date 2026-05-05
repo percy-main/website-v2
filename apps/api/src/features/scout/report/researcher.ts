@@ -5,7 +5,7 @@ import type { Kysely } from "kysely";
 import type { Config } from "../../../config.ts";
 import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
 import type { VoyageClient } from "../facts/voyage.ts";
-import { resolveModel } from "../provider.ts";
+import { deepseekFastProviderOptions, resolveModel } from "../provider.ts";
 import { GROUNDING_RULES, IMPORTANT_CONTEXT } from "../system-prompt.ts";
 import { createAskDbTool } from "../tools/ask-db.ts";
 import { createAskPlayCricketTool } from "../tools/ask-play-cricket.ts";
@@ -44,6 +44,10 @@ export interface ResearchScoutReportDeps {
    *  generate_report tool wires this to a data-report writer so the FE can
    *  show fly-out tool-call chips during the researcher phase. */
   onStep?: (info: ResearcherStepInfo) => void;
+  /** Optional external cancellation signal — combined with the internal
+   *  timeout so a worker-level cancel (user clicked Stop on an in-flight
+   *  report) aborts the AI SDK loop. */
+  cancelSignal?: AbortSignal;
 }
 
 const RESEARCHER_PROMPT = `You are the RESEARCHER phase inside Scout — a cricket-analysis system for Percy Main CC, a Saturday-league side in the Northumberland and Tyneside Cricket League (NTCL).
@@ -60,7 +64,7 @@ What to gather (in roughly this order):
 
 1. Selection / our players. ask_db for "the selected XI for match <matchId> with their season batting averages, bowling figures, and last-6-innings scores". Emit one db_aggregate record per stat that matters (per-player avg, recent runs, wickets/economy). Emit a db_row for the team selection (one record listing the XI).
 
-2. Opposition recent form. ask_play_cricket for the opposition's recent fixtures with full scorecards — e.g. "Get scorecards for <Opposition>'s last 4-5 league matches in <season> on site_id <id>; I need every batter's name, runs, balls, how_out, and every bowler's overs/maidens/runs/wickets." That single call returns N pc_match_detail entries in \`calls\`, each with the full innings.bat[] and innings.bowl[] arrays. Emit one pc_match record per match's headline output. Then derive per-player aggregates yourself across those scorecards — total runs, average, total wickets, economy, dismissal-mode frequencies — and emit one pc_aggregate record per player whose career-across-these-matches is worth scouting (top scorers, leading wicket-takers). Where applicable, emit a dismissal_pattern record summarising how_out frequencies ("5 of his 8 dismissals this season are bowled or LBW").
+2. Opposition recent form. ask_play_cricket for the opposition's recent fixtures with full scorecards — e.g. "Get scorecards for <Opposition>'s last 4-5 league matches in <season> on site_id <id>; I need every batter's name, runs, balls, how_out, and every bowler's overs/maidens/runs/wickets." That single call returns synthesised JSON in \`data\` — typically an array of match objects with \`id\` (matchId), \`match_date\`, \`batting\`, and \`bowling\` arrays. Emit one pc_match record per match's headline output. Then derive per-player aggregates yourself across those scorecards — total runs, average, total wickets, economy, dismissal-mode frequencies — and emit one pc_aggregate record per player whose career-across-these-matches is worth scouting (top scorers, leading wicket-takers). Where applicable, emit a dismissal_pattern record summarising how_out frequencies ("5 of his 8 dismissals this season are bowled or LBW").
 
 3. Weather. ask_play_cricket "what's the ground latitude/longitude for match <matchId>" if you don't already have it, then weather_get with that lat/lng. Skip if matchDate > 7 days from today (forecast unreliable). One weather record summarising the headline conditions.
 
@@ -79,6 +83,8 @@ Hard rules — these are not negotiable:
 - DO NOT invent mechanics. If ask_play_cricket returns a wicket count, the content describes that count. It does NOT include line, length, movement, footwork, shot, field placement, glovework, or captaincy claims unless you got that info from fact_retrieve as a recorded fact.
 
 - DO NOT call fact_record (you're not interviewing anyone) or cite_fact / cite_match / cite_player_stats (those emit FE chips that don't apply here) or chart_render (chart synthesis is the analyst's job).
+
+- ask_db is a black box. NEVER name tables, columns, or any database structure in your questions — those are implementation details of the SQL sub-agent. Phrase in cricket terms only (matches, players, seasons, teams, fixtures). "Find Percy Main's May 2026 fixtures" — NOT "select match_id, home_team from play_cricket_match_cache where ..." The sub-agent owns the schema; you own the question.
 
 - claimType MATTERS. The analyst's validator uses it to gate mechanics claims. Be honest:
   * stats / scorecard data → db_aggregate, db_row, pc_aggregate, pc_match, dismissal_pattern
@@ -209,10 +215,17 @@ Gather the evidence packet now. Emit each piece via record_evidence. Do not narr
       prompt: promptBlock,
       tools,
       stopWhen: stepCountIs(deps.config.SCOUT_RESEARCHER_MAX_STEPS),
+      providerOptions: deepseekFastProviderOptions(resolved.provider),
       // Hard wall-clock cap. Without this a slow DeepSeek thinking step holds
       // the whole flow open indefinitely (observed: a single step blocking
-      // for 4+ minutes with no visible progress).
-      abortSignal: AbortSignal.timeout(deps.config.SCOUT_RESEARCHER_TIMEOUT_MS),
+      // for 4+ minutes with no visible progress). Combined with cancelSignal
+      // so a worker-level user-cancel also aborts.
+      abortSignal: deps.cancelSignal
+        ? AbortSignal.any([
+            deps.cancelSignal,
+            AbortSignal.timeout(deps.config.SCOUT_RESEARCHER_TIMEOUT_MS),
+          ])
+        : AbortSignal.timeout(deps.config.SCOUT_RESEARCHER_TIMEOUT_MS),
       // Per-step log so we can see which step is wedged when one drags. Logs
       // step duration + tool-call names + accumulator size after the step.
       onStepFinish: ({ toolCalls, finishReason }) => {

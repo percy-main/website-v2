@@ -95,6 +95,15 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   app.decorate("db", db);
   app.decorate("config", config);
 
+  if (config.SCOUT_DEV_FAST) {
+    app.log.warn(
+      {
+        SCOUT_RESEARCHER_MAX_STEPS: config.SCOUT_RESEARCHER_MAX_STEPS,
+      },
+      "scout_dev_fast_enabled — researcher loop clamped; reports will be thin",
+    );
+  }
+
   // Optional read-only Kysely client for the Scout feature. Built from
   // SCOUT_DB_URL (a libpq URL using the `scout_readonly` Postgres role created
   // by migration 2026-05-03). Null when unset — Scout routes guard on this.
