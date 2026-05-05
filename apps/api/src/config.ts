@@ -94,6 +94,12 @@ const configSchema = z.object({
   SCOUT_MODEL_DB: z.string().default("claude-haiku-4-5-20251001"),
   SCOUT_DB_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(8),
   SCOUT_MAX_STEPS: z.coerce.number().int().positive().default(20),
+  // Researcher sub-agent (the loop behind generate_report). Compiles the full
+  // ScoutReportPayload by running ask_db / pc_* / weather_get / fact_retrieve.
+  // Higher than the chat ceiling because one report tends to need more tool
+  // calls (selection + opposition recent matches + per-player aggregates +
+  // weather + facts) than a chat turn.
+  SCOUT_RESEARCHER_MAX_STEPS: z.coerce.number().int().positive().default(50),
   // Voyage AI (fact-RAG embeddings + reranking). Optional — Scout boots
   // without it and just skips the fact tools / auto-retrieval.
   VOYAGE_API_KEY: z.string().optional(),

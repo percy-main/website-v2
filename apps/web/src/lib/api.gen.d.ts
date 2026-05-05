@@ -8867,7 +8867,7 @@ export interface paths {
                                 id: string;
                                 title: string;
                                 /** @enum {string} */
-                                mode: "scouting" | "debrief";
+                                mode: "chat" | "debrief" | "scout";
                                 /** Format: date-time */
                                 createdAt: string;
                                 /** Format: date-time */
@@ -8892,10 +8892,10 @@ export interface paths {
                         /** @default New thread */
                         title?: string;
                         /**
-                         * @default scouting
+                         * @default chat
                          * @enum {string}
                          */
-                        mode?: "scouting" | "debrief";
+                        mode?: "chat" | "debrief" | "scout";
                     };
                 };
             };
@@ -8911,7 +8911,7 @@ export interface paths {
                             id: string;
                             title: string;
                             /** @enum {string} */
-                            mode: "scouting" | "debrief";
+                            mode: "chat" | "debrief" | "scout";
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -8973,6 +8973,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scout/upcoming-matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            matches: {
+                                id: string;
+                                /** Format: date */
+                                matchDate: string;
+                                matchTime: string | null;
+                                opposition: string;
+                                /** @enum {string} */
+                                homeAway: "home" | "away";
+                                ourTeam: string;
+                                competition: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/scout/threads/{threadId}": {
         parameters: {
             query?: never;
@@ -9003,7 +9050,7 @@ export interface paths {
                                 id: string;
                                 title: string;
                                 /** @enum {string} */
-                                mode: "scouting" | "debrief";
+                                mode: "chat" | "debrief" | "scout";
                                 /** Format: date-time */
                                 createdAt: string;
                                 /** Format: date-time */

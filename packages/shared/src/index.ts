@@ -33,8 +33,11 @@ export { nameSimilarity, normalizeName } from "./name-similarity.ts";
 export { chartSpecSchema, type ChartSpec } from "./scout-chart.ts";
 
 export {
+  scoutReportContentSchema,
+  scoutReportDisplayTitle,
   scoutReportPayloadSchema,
   type ScoutReportChart,
+  type ScoutReportContent,
   type ScoutReportPayload,
   type ScoutReportPlayer,
   type ScoutReportReference,

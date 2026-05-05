@@ -1,9 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 
-const GENERATE_REPORT_PROMPT =
-  "Generate a scouting report PDF based on our conversation so far. Use the generate_report tool. Pull anything you still need (selection, opposition stats, weather, references) before calling it. Then save it.";
-
 export type ThinkingMode = "thinking" | "fast";
 
 interface ComposerProps {
@@ -11,8 +8,6 @@ interface ComposerProps {
   onDraftChange?: (draft: string) => void;
   onSubmit: (text: string) => void;
   disabled?: boolean;
-  /** Show the "Generate report" button (scouting mode only). */
-  showGenerateReport?: boolean;
   /** Per-turn reasoning toggle. Controlled by the parent so it can survive
    *  thread switches and be sent on the next message body. */
   thinkingMode: ThinkingMode;
@@ -24,7 +19,6 @@ export function Composer({
   onDraftChange,
   onSubmit,
   disabled,
-  showGenerateReport,
   thinkingMode,
   onThinkingModeChange,
 }: ComposerProps) {
@@ -42,11 +36,6 @@ export function Composer({
     onSubmit(trimmed);
     setValue("");
     onDraftChange?.("");
-  };
-
-  const submitGenerateReport = () => {
-    if (disabled) return;
-    onSubmit(GENERATE_REPORT_PROMPT);
   };
 
   return (
@@ -82,17 +71,6 @@ export function Composer({
             onChange={onThinkingModeChange}
             disabled={disabled}
           />
-          {showGenerateReport && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={submitGenerateReport}
-              disabled={Boolean(disabled)}
-              title="Ask Scout to compile a PDF scouting report based on this conversation"
-            >
-              Generate report
-            </Button>
-          )}
           <Button type="submit" disabled={Boolean(disabled) || !value.trim()}>
             Send
           </Button>

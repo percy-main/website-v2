@@ -1,12 +1,17 @@
 import { z } from "zod";
 import { chartSpecSchema } from "./scout-chart.ts";
 
-// Schema for the structured payload the agent passes to the
-// generate_report tool. The renderer turns this into a PDF.
+// Two related schemas:
 //
-// Kept deliberately section-shaped (rather than free-form markdown) so the
-// PDF layout is predictable: every report has the same headed sections,
-// charts always render where charts go, and references always come last.
+// - scoutReportContentSchema: what the researcher sub-agent produces. Section
+//   content only — the bits that need data gathering + synthesis.
+// - scoutReportPayloadSchema: what the renderer consumes. Content plus the
+//   match identifiers (which come from the generate_report tool input, not
+//   the model — they're known up front).
+//
+// title is intentionally NOT in the schema. It's derived from match +
+// matchDate via scoutReportDisplayTitle() — single source of truth, no
+// duplication, no chance of the model fabricating a third variant.
 
 const playerStatBlockSchema = z.object({
   label: z
@@ -48,20 +53,13 @@ const reportChartSchema = z.object({
   spec: chartSpecSchema,
 });
 
-export const scoutReportPayloadSchema = z.object({
-  title: z
-    .string()
-    .min(3)
-    .max(160)
-    .describe(
-      "Report title, e.g. 'Scouting Report: Percy Main 1st XI v Tynemouth, 10 May 2026'.",
-    ),
+export const scoutReportContentSchema = z.object({
   intro: z
     .string()
     .min(20)
     .max(800)
     .describe(
-      "1–2 paragraphs covering scope: which match, format, opposition, why it matters.",
+      "1–2 paragraphs covering scope: which match, format, opposition, why it matters. Appears on the overview (first) page.",
     ),
   weather: z
     .object({
@@ -105,11 +103,31 @@ export const scoutReportPayloadSchema = z.object({
       "Opposition key players, sourced from Play Cricket recent matches.",
     ),
   theirPlayersCharts: z.array(reportChartSchema).max(4).optional(),
+  tossDecision: z
+    .string()
+    .min(10)
+    .max(800)
+    .describe(
+      "1–3 sentences on the toss call: bat/bowl preference and why (weather, pitch, opposition strengths). Appears on the overview (first) page. Markdown bold/italic allowed.",
+    ),
+  overallStrategy: z
+    .string()
+    .min(10)
+    .max(800)
+    .describe(
+      "1–3 sentences on the headline plan: what we're trying to do across the day. Appears on the overview (first) page. Markdown bold/italic allowed.",
+    ),
+  keyMatchups: z
+    .string()
+    .min(10)
+    .describe(
+      "Match-up plans (our bowlers vs their threats, our batters vs their key bowlers). Gets its own page between Their Players and Tactics. Markdown bold/italic allowed; use blank lines for paragraph breaks.",
+    ),
   tactics: z
     .string()
     .min(20)
     .describe(
-      "Toss call, batting/bowling order, fielding plans, matchup-specific tactics. Markdown allowed.",
+      "Detailed batting/bowling order, fielding plans, phase-by-phase plans. Toss decision and overall strategy live in their own fields — keep them out of here. Gets its own page. Markdown bold/italic allowed.",
     ),
   conclusion: z
     .string()
@@ -121,11 +139,42 @@ export const scoutReportPayloadSchema = z.object({
     .array(referenceSchema)
     .max(40)
     .describe(
-      "Every URL the agent fetched while building the report (scorecards, weather, stats). Required.",
+      "Every URL fetched while building the report (scorecards, weather, stats). Required.",
     ),
 });
 
+export const scoutReportPayloadSchema = scoutReportContentSchema.extend({
+  match: z
+    .string()
+    .min(3)
+    .max(160)
+    .describe(
+      "Match line for the PDF cover, e.g. 'Percy Main 1st XI v Tynemouth 1st XI'. No 'Scouting Report' prefix, no date — those are placed by the renderer.",
+    ),
+  matchDate: z
+    .string()
+    .min(3)
+    .max(40)
+    .describe(
+      "Display-formatted match date for the PDF cover, e.g. '10 May 2026'. Already formatted — the renderer prints it verbatim under the match line.",
+    ),
+});
+
+export type ScoutReportContent = z.infer<typeof scoutReportContentSchema>;
 export type ScoutReportPayload = z.infer<typeof scoutReportPayloadSchema>;
 export type ScoutReportPlayer = z.infer<typeof playerSchema>;
 export type ScoutReportChart = z.infer<typeof reportChartSchema>;
 export type ScoutReportReference = z.infer<typeof referenceSchema>;
+
+/**
+ * Single source of truth for the report's display title — used as the thread
+ * title, the data-report card label, the scout_report.title DB column, and
+ * the PDF Document metadata. Always derived from match + matchDate so the
+ * model can't fabricate a third variant that drifts.
+ */
+export function scoutReportDisplayTitle(payload: {
+  match: string;
+  matchDate: string;
+}): string {
+  return `Scouting Report: ${payload.match} — ${payload.matchDate}`;
+}

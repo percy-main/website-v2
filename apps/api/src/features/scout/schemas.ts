@@ -9,7 +9,13 @@ export const threadIdParamSchema = z.object({
   threadId: z.uuid(),
 });
 
-export const scoutModeSchema = z.enum(["scouting", "debrief"]);
+// Scout interaction modes:
+// - chat: free-form research conversation (was "scouting" pre-rename).
+// - debrief: guided post-match interview, ask_question-driven.
+// - scout: focused single-match scout, kicked off from the upcoming-fixtures
+//   launcher. Same tool surface as chat, dedicated system prompt that drives
+//   toward generate_report.
+export const scoutModeSchema = z.enum(["chat", "debrief", "scout"]);
 export type ScoutMode = z.infer<typeof scoutModeSchema>;
 
 export const threadSummarySchema = z.object({
@@ -26,7 +32,7 @@ export const listThreadsResponseSchema = z.object({
 
 export const createThreadBodySchema = z.object({
   title: z.string().min(1).max(200).default("New thread"),
-  mode: scoutModeSchema.default("scouting"),
+  mode: scoutModeSchema.default("chat"),
 });
 
 export const createThreadResponseSchema = threadSummarySchema;
@@ -158,6 +164,26 @@ export const recentDebriefMatchSchema = z.object({
 
 export const recentDebriefMatchesResponseSchema = z.object({
   matches: z.array(recentDebriefMatchSchema),
+});
+
+// ── Scout mode ──
+// Upcoming Percy Main fixtures surfaced as launcher options when starting a
+// scout (focused single-match) thread. Next 14 days, ascending. Sourced from
+// availability_fixture (the local table populated when the captain creates an
+// availability request) joined to play_cricket_team for the team name.
+export const upcomingScoutMatchSchema = z.object({
+  // Play Cricket match id — same identifier the pc_* tools accept.
+  id: z.string(),
+  matchDate: z.iso.date(),
+  matchTime: z.string().nullable(),
+  opposition: z.string(),
+  homeAway: z.enum(["home", "away"]),
+  ourTeam: z.string(),
+  competition: z.string().nullable(),
+});
+
+export const upcomingScoutMatchesResponseSchema = z.object({
+  matches: z.array(upcomingScoutMatchSchema),
 });
 
 // ── Reports ──

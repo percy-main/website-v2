@@ -12,7 +12,7 @@ import { createScoutAgent } from "./agent.ts";
 // this regresses, every multi-step Scout turn pays full input rate again
 // for the accumulated tool results — the exact bug we shipped this for.
 
-function makeAgent(mode: "scouting" | "debrief" = "scouting") {
+function makeAgent(mode: "chat" | "debrief" | "scout" = "chat") {
   // The agent only reaches its DB / writer during tool invocation; for
   // prepareStep tests we never invoke a tool, so empty stubs are safe.
   const stubDb = {} as Kysely<DB>;
@@ -100,15 +100,23 @@ describe("agent.prepareStep — cache-control breakpoint", () => {
 });
 
 describe("agent — mode-driven prompt + tool surface", () => {
-  it("uses the scouting prompt and registers chart_render but not ask_question", () => {
-    const agent = makeAgent("scouting");
+  it("chat mode uses the free-form prompt and registers chart_render but not ask_question", () => {
+    const agent = makeAgent("chat");
     expect(agent.system).toContain("ALWAYS try to answer from the local DB");
     expect(agent.system).not.toContain("running a post-match DEBRIEF");
+    expect(agent.system).not.toContain("FOCUSED single-match");
     expect(agent.tools.chart_render).toBeDefined();
     expect(agent.tools.ask_question).toBeUndefined();
   });
 
-  it("uses the debrief prompt and registers ask_question but not chart_render", () => {
+  it("scout mode uses the focused prompt and still registers chart_render", () => {
+    const agent = makeAgent("scout");
+    expect(agent.system).toContain("FOCUSED single-match");
+    expect(agent.tools.chart_render).toBeDefined();
+    expect(agent.tools.ask_question).toBeUndefined();
+  });
+
+  it("debrief mode uses the debrief prompt and registers ask_question but not chart_render", () => {
     const agent = makeAgent("debrief");
     expect(agent.system).toContain("running a post-match DEBRIEF");
     expect(agent.tools.ask_question).toBeDefined();

@@ -49,7 +49,7 @@ export function createThread(db: Kysely<DB>) {
   return async (
     userId: string,
     title: string,
-    mode: ScoutMode = "scouting",
+    mode: ScoutMode = "chat",
   ): Promise<ThreadSummary> => {
     const row = await db
       .insertInto("scout_thread")
@@ -259,6 +259,65 @@ export function listRecentDebriefMatches(db: Kysely<DB>) {
         result: r.result_description || r.result || null,
       };
     });
+  };
+}
+
+export interface UpcomingScoutMatch {
+  id: string;
+  matchDate: string;
+  matchTime: string | null;
+  opposition: string;
+  homeAway: "home" | "away";
+  ourTeam: string;
+  competition: string | null;
+}
+
+/**
+ * Upcoming Percy Main fixtures (next `days` days, today inclusive, ascending)
+ * used to populate the scout-mode launcher. Sourced from availability_fixture,
+ * joined to play_cricket_team for the human-readable team name.
+ *
+ * Fixtures only land in availability_fixture once the captain creates an
+ * availability request for them — that's the same lifecycle the existing
+ * matchday flow assumes, so any fixture worth scouting is in this table.
+ */
+export function listUpcomingScoutMatches(db: Kysely<DB>) {
+  return async (
+    days = 14,
+    now: Date = new Date(),
+  ): Promise<UpcomingScoutMatch[]> => {
+    const today = now.toISOString().slice(0, 10);
+    const end = new Date(now.getTime() + days * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+
+    const rows = await db
+      .selectFrom("availability_fixture as af")
+      .innerJoin("play_cricket_team as t", "t.id", "af.play_cricket_team_id")
+      .select([
+        "af.play_cricket_match_id as match_id",
+        "af.match_date",
+        "af.match_time",
+        "af.opposition",
+        "af.is_home",
+        "af.competition_name",
+        "t.name as our_team",
+      ])
+      .where("af.match_date", ">=", today)
+      .where("af.match_date", "<=", end)
+      .orderBy("af.match_date", "asc")
+      .orderBy("af.match_time", "asc")
+      .execute();
+
+    return rows.map((r) => ({
+      id: r.match_id,
+      matchDate: r.match_date,
+      matchTime: r.match_time,
+      opposition: r.opposition,
+      homeAway: r.is_home ? "home" : "away",
+      ourTeam: r.our_team,
+      competition: r.competition_name,
+    }));
   };
 }
 

@@ -319,6 +319,10 @@ export function MessageView({
       >
         {(() => {
           const rendered = renderParts(message.parts, citations.numberByKey);
+          // Once a data-report part exists in this message, the
+          // tool-generate_report placeholder is suppressed — the report card
+          // becomes the canonical UI for the operation.
+          const hasReportPart = rendered.some((p) => p.type === "data-report");
           return rendered.map((part, i) => (
             <PartView
               key={`${message.id}-${i}`}
@@ -328,6 +332,7 @@ export function MessageView({
               onAnswerQuestion={onAnswerQuestion}
               isStreaming={isStreaming}
               isLast={i === rendered.length - 1}
+              hasReportPart={hasReportPart}
             />
           ));
         })()}
@@ -478,6 +483,7 @@ function PartView({
   onAnswerQuestion,
   isStreaming,
   isLast,
+  hasReportPart,
 }: {
   part: Part;
   numberByKey: Map<string, number>;
@@ -485,6 +491,7 @@ function PartView({
   onAnswerQuestion?: (text: string) => void;
   isStreaming?: boolean;
   isLast?: boolean;
+  hasReportPart?: boolean;
 }) {
   if (part.type === "text") {
     return (
@@ -553,9 +560,25 @@ function PartView({
       part.type === "tool-cite_fact" ||
       part.type === "tool-cite_match" ||
       part.type === "tool-cite_player_stats" ||
-      part.type === "tool-ask_question" ||
-      part.type === "tool-generate_report"
+      part.type === "tool-ask_question"
     ) {
+      return null;
+    }
+    // generate_report has a long input-streaming phase (the model dictates the
+    // entire structured payload character-by-character — typically 30–60s).
+    // Render an in-progress placeholder during that window so the user isn't
+    // staring at dead air. Once the data-report card lands (placed by execute()
+    // via writer.write), the placeholder steps aside and the report card
+    // becomes the canonical UI.
+    if (part.type === "tool-generate_report") {
+      const tool = part as unknown as ToolPart;
+      if (hasReportPart) return null;
+      if (
+        tool.state === "input-streaming" ||
+        tool.state === "input-available"
+      ) {
+        return <GenerateReportPlaceholder />;
+      }
       return null;
     }
     // ask_db gets a dedicated card that handles both the in-progress state
@@ -1167,6 +1190,55 @@ function ToolPartView({ part }: { part: Part }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Pre-execute placeholder (tool-input-streaming for generate_report) ─────
+//
+// The model authors the full structured ScoutReportPayload as tool-input,
+// streamed character-by-character. With charts + players + tactics + refs
+// that runs to ~30–60s of dead air before execute() even fires. This card
+// fills the gap; it disappears once the data-report card lands as a sibling.
+
+const REPORT_DRAFT_STAGES: ReadonlyArray<string> = [
+  "Drafting introduction…",
+  "Compiling our players…",
+  "Compiling opposition…",
+  "Drafting key matchups…",
+  "Writing tactics…",
+  "Assembling references…",
+];
+
+function GenerateReportPlaceholder() {
+  const [stageIdx, setStageIdx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStageIdx((i) => (i + 1) % REPORT_DRAFT_STAGES.length);
+    }, 1800);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="my-3 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-emerald-600 text-xs font-semibold text-white">
+        <Spinner />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-emerald-900">
+          Building scouting report
+        </div>
+        <div
+          className="animate-thought-shimmer bg-clip-text font-mono text-[11px] text-transparent"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, #065f46 0%, #065f46 35%, #6ee7b7 50%, #065f46 65%, #065f46 100%)",
+            backgroundSize: "200% 100%",
+          }}
+        >
+          {REPORT_DRAFT_STAGES[stageIdx]}
+        </div>
+      </div>
     </div>
   );
 }

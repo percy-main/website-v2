@@ -1,6 +1,6 @@
 import type { DB } from "@percy-main/db";
 import {
-  scoutReportPayloadSchema,
+  scoutReportDisplayTitle,
   type ScoutReportPayload,
 } from "@percy-main/shared";
 import { tool, type UIMessageStreamWriter } from "ai";
@@ -8,11 +8,22 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import type { Config } from "../../../config.ts";
 import type { ScoutReportStore } from "../../../lib/s3-scout-reports.ts";
+import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
+import type { VoyageClient } from "../facts/voyage.ts";
 import { renderScoutReportPdf } from "../report/render.ts";
+import { researchScoutReport } from "../report/researcher.ts";
 
 export interface GenerateReportToolDeps {
   db: Kysely<DB>;
+  // Researcher needs the read-only DB pool for ask_db, the play-cricket client
+  // for pc_*, the model config to resolve its provider, and optional voyage
+  // for fact_retrieve. All threaded through from the agent factory.
+  dbReadonly: Kysely<DB>;
+  playCricket: PlayCricketApiClient;
+  config: Config;
+  voyage?: VoyageClient;
   scoutReports: ScoutReportStore;
   writer: UIMessageStreamWriter;
   userId: string;
@@ -20,57 +31,104 @@ export interface GenerateReportToolDeps {
   logger?: FastifyBaseLogger;
 }
 
-// Anthropic requires the top-level input_schema to be an object. Wrap the
-// payload so JSON-schema generation produces { properties: { report: {...} } }.
 const generateReportInputSchema = z.object({
-  report: scoutReportPayloadSchema,
+  matchId: z
+    .string()
+    .min(1)
+    .describe(
+      "Play Cricket match id for this fixture. From the upcoming-fixtures launcher message, or from ask_db / pc_find_opposition_matches.",
+    ),
+  ourTeam: z
+    .string()
+    .min(1)
+    .describe("Our team name, e.g. 'Percy Main 1st XI'."),
+  opposition: z
+    .string()
+    .min(1)
+    .describe("Opposition team name, e.g. 'Tynemouth 1st XI'."),
+  homeAway: z
+    .enum(["home", "away"])
+    .describe("'home' if we host, 'away' if we travel."),
+  matchDate: z
+    .string()
+    .min(1)
+    .describe(
+      "Display-formatted match date for the PDF cover, e.g. '10 May 2026'. Verbatim — already formatted.",
+    ),
+  competition: z
+    .string()
+    .optional()
+    .describe(
+      "Competition / league name, e.g. 'NTCL Division 1' or 'Thomas Wilson League Cup'. Optional.",
+    ),
+  intent: z
+    .string()
+    .optional()
+    .describe(
+      "Optional one-line scouting angle if the captain has a specific focus ('opposition's left-arm seamer', 'how do they handle spin'). Researcher uses this as a steer.",
+    ),
 });
 
+type GenerateReportInput = z.infer<typeof generateReportInputSchema>;
+
 export function createGenerateReportTool(deps: GenerateReportToolDeps) {
-  const { db, scoutReports, writer, userId, threadId, logger } = deps;
+  const {
+    db,
+    dbReadonly,
+    playCricket,
+    config,
+    voyage,
+    scoutReports,
+    writer,
+    userId,
+    threadId,
+    logger,
+  } = deps;
 
   return {
     generate_report: tool({
-      description: `Generate a polished PDF scouting report based on the conversation so far, save it to durable storage, and surface a download card inline in the chat.
+      description: `Generate a polished PDF scouting report for a specific upcoming match, save it to durable storage, and surface a download card inline in the chat.
 
-Call this AT MOST ONCE per scouting session, only after you have gathered enough material — usually a mix of weather (weather_get), our players (ask_db for selection and match_performance_* aggregates), opposition (pc_match_summary, pc_player_stats), and any club facts (fact_retrieve). If you don't have enough information yet, gather more first; do not produce a stub report.
+Call this AT MOST ONCE per session. The input is just the match identifiers — NOT the report content. A researcher sub-agent runs behind this tool and gathers everything (selection, opposition stats, weather, facts) itself; do not stream stats or analysis into these args.
 
-Structure your payload to match the schema exactly:
+Required:
+- matchId: the Play Cricket match id (from the upcoming-fixtures launcher message, or from ask_db on availability_fixture).
+- ourTeam: our team name, e.g. 'Percy Main 1st XI'.
+- opposition: opposition team name.
+- homeAway: 'home' or 'away'.
+- matchDate: display-formatted date, e.g. '10 May 2026'.
 
-- title: include the team, opposition, and date.
-- intro: 1–2 paragraphs naming the match, format, opposition, why it matters.
-- weather: pass through the forecast you fetched. retrievedAt should be the timestamp from your weather_get call.
-- ourPlayers: every selected player you have data on. role + 1–3 sentence notes + key stats. Pull stats from ask_db (questions like "give me Smith's 2025 batting average and HS", "list this Saturday's selected XI with their season stats").
-- ourPlayersCharts: 0–4 charts (Chart.js v4 specs, same shape as chart_render).
-- theirPlayers / theirPlayersCharts: opposition equivalents.
-- tactics: toss call, batting/bowling order intentions, fielding plans, matchup-specific notes. Markdown allowed inside paragraphs but no headings.
-- conclusion: short, encouraging close. Do NOT include "Up The Main" — the renderer appends it.
-- references: every URL you fetched while building this. Required, not optional. Include scorecard URLs, weather URLs, fact source URLs.
+Optional:
+- competition: league or cup name if you know it.
+- intent: a one-line scouting angle if the captain has a specific focus (otherwise omit and the researcher does a balanced report).
 
-The PDF is uploaded to S3 and a download card streams back to the user. After this tool returns, do NOT also dump the report content as prose — the user has the PDF. A one-line confirmation is enough.`,
+After this returns, a one-line confirmation is enough. Do NOT dump the report content — the user has the PDF.`,
       inputSchema: generateReportInputSchema,
-      execute: async ({ report }: { report: ScoutReportPayload }) => {
+      execute: async (input: GenerateReportInput) => {
         const startedAt = Date.now();
 
-        // Generate the id up-front so we can use it as the streaming part
-        // id (so the placeholder card and the ready card are addressable
-        // by the same id) AND as the eventual DB primary key once the row
-        // is inserted post-upload. No DB row exists during generation, so
-        // there's no half-state for the listing/download routes to trip
-        // over.
+        // Construct the cover-page identifiers up front. These are derived
+        // from the tool input, not from the researcher's output, so we can
+        // also use them for the placeholder card title before the researcher
+        // has produced anything.
+        const match = `${input.ourTeam} ${input.homeAway === "home" ? "vs" : "at"} ${input.opposition}`;
+        const displayTitle = scoutReportDisplayTitle({
+          match,
+          matchDate: input.matchDate,
+        });
+
         const reportId = randomUUID();
         const createdAtIso = new Date().toISOString();
 
-        // Stream the placeholder card immediately. PDF rendering is
-        // synchronous and CPU-heavy (chart canvases + react-pdf layout) so
-        // without this the FE shows nothing until the tool result lands —
-        // ~10–30s of dead air on a real report.
+        // Stream the placeholder card immediately. Researcher loop + PDF
+        // render is 30–90s; without this the FE shows nothing until the tool
+        // result lands.
         writer.write({
           type: "data-report",
           id: reportId,
           data: {
             reportId,
-            title: report.title,
+            title: displayTitle,
             fileSizeBytes: null,
             createdAt: createdAtIso,
             status: "generating",
@@ -78,7 +136,26 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
         });
 
         try {
-          const pdf = await renderScoutReportPdf(report);
+          const content = await researchScoutReport(
+            {
+              db,
+              dbReadonly,
+              playCricket,
+              config,
+              voyage,
+              userId,
+              logger,
+            },
+            input,
+          );
+
+          const payload: ScoutReportPayload = {
+            ...content,
+            match,
+            matchDate: input.matchDate,
+          };
+
+          const pdf = await renderScoutReportPdf(payload);
           const s3Key = await scoutReports.putReport(reportId, pdf);
 
           // Insert *after* the upload succeeds, with the explicit id we
@@ -91,7 +168,7 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
                 id: reportId,
                 user_id: userId,
                 thread_id: threadId,
-                title: report.title,
+                title: displayTitle,
                 s3_key: s3Key,
                 file_size_bytes: pdf.length,
               })
@@ -108,14 +185,12 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
             throw insertErr;
           }
 
-          // Re-emit with the same id so the FE replaces the placeholder
-          // card with the ready-to-download card in place.
           writer.write({
             type: "data-report",
             id: reportId,
             data: {
               reportId,
-              title: report.title,
+              title: displayTitle,
               fileSizeBytes: pdf.length,
               createdAt: createdAtIso,
               status: "ready",
@@ -133,14 +208,12 @@ The PDF is uploaded to S3 and a download card streams back to the user. After th
             fileSizeBytes: pdf.length,
           };
         } catch (err) {
-          // Flip the placeholder to a failure state so the FE replaces the
-          // spinner with an error card rather than a stuck "Generating…".
           writer.write({
             type: "data-report",
             id: reportId,
             data: {
               reportId,
-              title: report.title,
+              title: displayTitle,
               fileSizeBytes: null,
               createdAt: createdAtIso,
               status: "failed",

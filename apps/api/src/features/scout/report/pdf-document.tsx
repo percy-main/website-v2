@@ -1,8 +1,9 @@
-import type {
-  ScoutReportChart,
-  ScoutReportPayload,
-  ScoutReportPlayer,
-  ScoutReportReference,
+import {
+  scoutReportDisplayTitle,
+  type ScoutReportChart,
+  type ScoutReportPayload,
+  type ScoutReportPlayer,
+  type ScoutReportReference,
 } from "@percy-main/shared";
 import {
   Document,
@@ -14,15 +15,16 @@ import {
 } from "@react-pdf/renderer";
 import React from "react";
 
-// Layout constants. The default Helvetica is bundled with the PDF spec so
-// no font registration is needed — keeps the renderer hermetic.
+// FE-anchored palette — sourced from apps/web/src/app.css `@theme` tokens.
+// Keeping the PDF visually grounded in the same colours the website uses.
 const COLOURS = {
-  navy: "#1E3A8C",
-  red: "#C94434",
-  text: "#1F2937",
-  muted: "#4B5563",
-  rule: "#D1D5DB",
-  panel: "#F3F4F6",
+  primary: "#1b3d2f", // --color-primary (club green)
+  primaryLight: "#2d4a3e", // --color-primary-light
+  cta: "#c2410c", // --color-cta (orange)
+  text: "#1f2937",
+  muted: "#4b5563",
+  rule: "#e5e7eb", // --color-border
+  panel: "#f9fafb", // --color-surface-raised
 };
 
 const styles = StyleSheet.create({
@@ -39,14 +41,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingBottom: 8,
-    marginBottom: 14,
+    marginBottom: 18,
     borderBottomWidth: 2,
-    borderBottomColor: COLOURS.navy,
+    borderBottomColor: COLOURS.primary,
     borderBottomStyle: "solid",
   },
   headerLogo: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     marginRight: 12,
   },
   headerTextBlock: {
@@ -54,29 +56,49 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   headerClub: {
-    fontSize: 14,
-    color: COLOURS.navy,
+    fontSize: 12,
+    color: COLOURS.primary,
     fontFamily: "Helvetica-Bold",
   },
   headerSubtitle: {
-    fontSize: 9,
+    fontSize: 8,
     color: COLOURS.muted,
+    marginTop: 1,
   },
   headerDate: {
-    fontSize: 9,
+    fontSize: 8,
     color: COLOURS.muted,
     textAlign: "right",
   },
-  title: {
-    fontSize: 18,
+  titleBlock: {
+    marginBottom: 18,
+  },
+  titleMatch: {
+    fontSize: 20,
     fontFamily: "Helvetica-Bold",
-    color: COLOURS.navy,
+    color: COLOURS.primary,
+    lineHeight: 1.2,
+  },
+  titleDate: {
+    fontSize: 12,
+    fontFamily: "Helvetica",
+    color: COLOURS.muted,
+    marginTop: 4,
+  },
+  pageHeading: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    color: COLOURS.primary,
     marginBottom: 12,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: COLOURS.primary,
+    borderBottomStyle: "solid",
   },
   sectionHeading: {
     fontSize: 12,
     fontFamily: "Helvetica-Bold",
-    color: COLOURS.navy,
+    color: COLOURS.primary,
     marginTop: 14,
     marginBottom: 6,
     paddingBottom: 2,
@@ -91,6 +113,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLOURS.panel,
     padding: 8,
     borderRadius: 3,
+    borderLeftWidth: 3,
+    borderLeftColor: COLOURS.primary,
+    borderLeftStyle: "solid",
   },
   weatherSummary: {
     marginBottom: 4,
@@ -118,6 +143,7 @@ const styles = StyleSheet.create({
   playerName: {
     fontFamily: "Helvetica-Bold",
     fontSize: 11,
+    color: COLOURS.primary,
   },
   playerRole: {
     fontSize: 9,
@@ -156,18 +182,18 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   signOff: {
-    marginTop: 10,
+    marginTop: 14,
     fontFamily: "Helvetica-Bold",
-    color: COLOURS.red,
-    fontSize: 12,
+    color: COLOURS.cta,
+    fontSize: 14,
   },
   refRow: {
     flexDirection: "row",
-    marginBottom: 2,
-    fontSize: 8,
+    marginBottom: 4,
+    fontSize: 9,
   },
   refIndex: {
-    width: 18,
+    width: 22,
     color: COLOURS.muted,
   },
   refLabel: {
@@ -175,7 +201,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   refUrl: {
-    color: COLOURS.navy,
+    color: COLOURS.primary,
     flexShrink: 1,
   },
   pageNumber: {
@@ -215,15 +241,21 @@ export function ScoutReportPdf({
   logoPng,
   generatedAt,
 }: ScoutReportPdfProps) {
+  const hasOurPlayers = (payload.ourPlayers ?? []).length > 0;
+  const hasTheirPlayers = (payload.theirPlayers ?? []).length > 0;
+
   return (
     <Document
-      title={payload.title}
+      title={scoutReportDisplayTitle(payload)}
       author="Percy Main CSC — Scout"
       subject="Scouting report"
     >
-      <Page size="A4" style={styles.page}>
-        <Header logoPng={logoPng} generatedAt={generatedAt} />
-        <Text style={styles.title}>{payload.title}</Text>
+      {/* Page 1 — Overview */}
+      <ReportPage logoPng={logoPng} generatedAt={generatedAt}>
+        <View style={styles.titleBlock}>
+          <Text style={styles.titleMatch}>{payload.match}</Text>
+          <Text style={styles.titleDate}>{payload.matchDate}</Text>
+        </View>
 
         <Section heading="Introduction">
           <Paragraph text={payload.intro} />
@@ -243,50 +275,84 @@ export function ScoutReportPdf({
           </Section>
         ) : null}
 
-        {payload.ourPlayers && payload.ourPlayers.length > 0 ? (
-          <PlayerSection
-            heading="Our players"
-            players={payload.ourPlayers}
+        <Section heading="Toss decision">
+          <Paragraph text={payload.tossDecision} />
+        </Section>
+
+        <Section heading="Overall strategy">
+          <Paragraph text={payload.overallStrategy} />
+        </Section>
+      </ReportPage>
+
+      {hasOurPlayers ? (
+        <ReportPage logoPng={logoPng} generatedAt={generatedAt}>
+          <Text style={styles.pageHeading}>Our players</Text>
+          <PlayerList
+            players={payload.ourPlayers ?? []}
             charts={payload.ourPlayersCharts}
             chartImages={ourCharts}
           />
-        ) : null}
+        </ReportPage>
+      ) : null}
 
-        {payload.theirPlayers && payload.theirPlayers.length > 0 ? (
-          <PlayerSection
-            heading="Their players"
-            players={payload.theirPlayers}
+      {hasTheirPlayers ? (
+        <ReportPage logoPng={logoPng} generatedAt={generatedAt}>
+          <Text style={styles.pageHeading}>Their players</Text>
+          <PlayerList
+            players={payload.theirPlayers ?? []}
             charts={payload.theirPlayersCharts}
             chartImages={theirCharts}
           />
-        ) : null}
+        </ReportPage>
+      ) : null}
 
-        <Section heading="Tactics">
-          <Paragraph text={payload.tactics} />
-        </Section>
+      <ReportPage logoPng={logoPng} generatedAt={generatedAt}>
+        <Text style={styles.pageHeading}>Key matchups</Text>
+        <Paragraph text={payload.keyMatchups} />
+      </ReportPage>
 
-        <Section heading="Conclusion">
-          <Paragraph text={payload.conclusion} />
-          <Text style={styles.signOff}>Up The Main</Text>
-        </Section>
+      <ReportPage logoPng={logoPng} generatedAt={generatedAt}>
+        <Text style={styles.pageHeading}>Tactics</Text>
+        <Paragraph text={payload.tactics} />
+      </ReportPage>
 
-        {payload.references.length > 0 ? (
-          <Section heading="References">
-            {payload.references.map((ref, i) => (
-              <ReferenceRow key={i} index={i + 1} reference={ref} />
-            ))}
-          </Section>
-        ) : null}
+      <ReportPage logoPng={logoPng} generatedAt={generatedAt}>
+        <Text style={styles.pageHeading}>Conclusion</Text>
+        <Paragraph text={payload.conclusion} />
+        <Text style={styles.signOff}>Up The Main</Text>
+      </ReportPage>
 
-        <Text
-          style={styles.pageNumber}
-          render={({ pageNumber, totalPages }) =>
-            `${pageNumber} / ${totalPages}`
-          }
-          fixed
-        />
-      </Page>
+      {payload.references.length > 0 ? (
+        <ReportPage logoPng={logoPng} generatedAt={generatedAt}>
+          <Text style={styles.pageHeading}>References</Text>
+          {payload.references.map((ref, i) => (
+            <ReferenceRow key={i} index={i + 1} reference={ref} />
+          ))}
+        </ReportPage>
+      ) : null}
     </Document>
+  );
+}
+
+function ReportPage({
+  logoPng,
+  generatedAt,
+  children,
+}: {
+  logoPng: Buffer;
+  generatedAt: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Page size="A4" style={styles.page}>
+      <Header logoPng={logoPng} generatedAt={generatedAt} />
+      {children}
+      <Text
+        style={styles.pageNumber}
+        render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+        fixed
+      />
+    </Page>
   );
 }
 
@@ -326,33 +392,95 @@ function Section({
 
 function Paragraph({ text }: { text: string }) {
   // Split on blank lines so the model can use paragraph breaks naturally.
-  // We don't render full markdown — this PDF is structured by sections, not
-  // by inline formatting.
+  // Inline markdown is handled inside InlineMarkdown — bold and italic only.
   const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
   return (
     <View>
       {paragraphs.map((p, i) => (
         <Text key={i} style={styles.bodyParagraph}>
-          {p.trim()}
+          <InlineMarkdown text={p.trim()} />
         </Text>
       ))}
     </View>
   );
 }
 
-function PlayerSection({
-  heading,
+type InlineRun = {
+  text: string;
+  bold: boolean;
+  italic: boolean;
+};
+
+// Tiny inline-markdown tokenizer: handles **bold** and _italic_ (and the two
+// nested either way). Anything else passes through as plain text. Deliberately
+// simple — the structural sections do the heavy lifting; this just rescues
+// emphasis the model emits inside paragraphs.
+function tokenizeInline(text: string): InlineRun[] {
+  const runs: InlineRun[] = [];
+  let i = 0;
+  let bold = false;
+  let italic = false;
+  let buf = "";
+  const flush = () => {
+    if (buf.length > 0) {
+      runs.push({ text: buf, bold, italic });
+      buf = "";
+    }
+  };
+  while (i < text.length) {
+    if (text.startsWith("**", i)) {
+      flush();
+      bold = !bold;
+      i += 2;
+      continue;
+    }
+    if (text[i] === "_") {
+      flush();
+      italic = !italic;
+      i += 1;
+      continue;
+    }
+    buf += text[i];
+    i += 1;
+  }
+  flush();
+  return runs;
+}
+
+function fontFamilyFor(bold: boolean, italic: boolean): string {
+  if (bold && italic) return "Helvetica-BoldOblique";
+  if (bold) return "Helvetica-Bold";
+  if (italic) return "Helvetica-Oblique";
+  return "Helvetica";
+}
+
+function InlineMarkdown({ text }: { text: string }) {
+  const runs = tokenizeInline(text);
+  return (
+    <>
+      {runs.map((run, i) => (
+        <Text
+          key={i}
+          style={{ fontFamily: fontFamilyFor(run.bold, run.italic) }}
+        >
+          {run.text}
+        </Text>
+      ))}
+    </>
+  );
+}
+
+function PlayerList({
   players,
   charts,
   chartImages,
 }: {
-  heading: string;
   players: ScoutReportPlayer[];
   charts: ScoutReportChart[] | undefined;
   chartImages: ChartImageSource[];
 }) {
   return (
-    <Section heading={heading}>
+    <>
       {players.map((p, i) => (
         <PlayerCard
           key={i}
@@ -370,7 +498,7 @@ function PlayerSection({
           </View>
         );
       })}
-    </Section>
+    </>
   );
 }
 
@@ -390,7 +518,9 @@ function PlayerCard({
         ) : null}
       </View>
       {player.notes ? (
-        <Text style={styles.playerNotes}>{player.notes}</Text>
+        <Text style={styles.playerNotes}>
+          <InlineMarkdown text={player.notes} />
+        </Text>
       ) : null}
       {player.stats && player.stats.length > 0 ? (
         <View style={styles.statRow}>
