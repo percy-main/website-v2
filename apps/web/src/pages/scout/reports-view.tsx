@@ -14,12 +14,25 @@ interface ReportRow {
   title: string;
   fileSizeBytes: number | null;
   createdAt: string;
+  status: "queued" | "generating" | "ready" | "failed";
+  startedAt: number | null;
 }
+
+const IN_FLIGHT_POLL_MS = 10_000;
 
 export function ReportsView() {
   const reportsQuery = useQuery({
     queryKey: REPORTS_QUERY_KEY,
     queryFn: () => callApi(api.GET("/api/scout/reports")),
+    // While any row is in flight, poll the listing so an in-progress
+    // report's status updates without manual refresh. Once everything
+    // is settled we drop back to no polling.
+    refetchInterval: (q) =>
+      q.state.data?.reports.some(
+        (r: ReportRow) => r.status === "queued" || r.status === "generating",
+      )
+        ? IN_FLIGHT_POLL_MS
+        : false,
   });
 
   if (reportsQuery.isLoading) {
@@ -64,6 +77,54 @@ export function ReportsView() {
 }
 
 function ReportListItem({ report }: { report: ReportRow }) {
+  if (report.status !== "ready")
+    return <InFlightReportListItem report={report} />;
+  return <ReadyReportListItem report={report} />;
+}
+
+function InFlightReportListItem({ report }: { report: ReportRow }) {
+  const elapsed = report.startedAt
+    ? Math.max(0, Math.floor((Date.now() - report.startedAt) / 1000))
+    : null;
+  const elapsedLabel =
+    elapsed === null
+      ? "queued"
+      : elapsed < 60
+        ? `${elapsed}s`
+        : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+  return (
+    <li className="flex items-center gap-3 px-3 py-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-emerald-600 text-[10px] font-semibold text-white">
+        …
+      </div>
+      <div className="min-w-0 flex-1">
+        <Link
+          to={`/scout/threads/${report.threadId}`}
+          className="block truncate text-sm font-medium text-gray-900 hover:underline"
+        >
+          {report.title}
+        </Link>
+        <div className="text-[11px] text-gray-600">
+          {report.status === "queued" ? "Queued" : "Generating"} ·{" "}
+          {elapsedLabel}
+          {report.threadTitle && (
+            <>
+              {" · "}
+              <Link
+                to={`/scout/threads/${report.threadId}`}
+                className="text-blue-700 hover:underline"
+              >
+                {report.threadTitle}
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function ReadyReportListItem({ report }: { report: ReportRow }) {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();

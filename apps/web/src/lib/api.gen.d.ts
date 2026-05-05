@@ -9347,6 +9347,9 @@ export interface paths {
                                 fileSizeBytes: number | null;
                                 /** Format: date-time */
                                 createdAt: string;
+                                /** @enum {string} */
+                                status: "queued" | "generating" | "ready" | "failed";
+                                startedAt: number | null;
                             }[];
                         };
                     };

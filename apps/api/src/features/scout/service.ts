@@ -352,6 +352,11 @@ export interface ReportSummary {
   title: string;
   fileSizeBytes: number | null;
   createdAt: string;
+  status: "queued" | "generating" | "ready" | "failed";
+  /** Date.now() value when the worker started running. Null for queued
+   *  rows; set as soon as the researcher phase begins. The FE uses this
+   *  to render an elapsed-time indicator on in-flight rows. */
+  startedAt: number | null;
 }
 
 export class ReportNotFoundError extends Error {
@@ -362,11 +367,16 @@ export class ReportNotFoundError extends Error {
 
 export function listReports(db: Kysely<DB>) {
   return async (userId: string): Promise<ReportSummary[]> => {
+    // Includes in-flight rows (queued / researching / analysing / rendering)
+    // so the Reports tab can act as a recovery surface — click an in-flight
+    // row to navigate back to its source thread, where the pipeline card
+    // resumes from the row's live state. Failed rows stay hidden; the user
+    // is expected to retry from chat rather than browse old failures.
     const rows = await db
       .selectFrom("scout_report as r")
       .leftJoin("scout_thread as t", "t.id", "r.thread_id")
       .where("r.user_id", "=", userId)
-      .where("r.status", "=", "ready")
+      .where("r.status", "!=", "failed")
       .select([
         "r.id",
         "r.thread_id",
@@ -374,6 +384,8 @@ export function listReports(db: Kysely<DB>) {
         "r.title",
         "r.file_size_bytes",
         "r.created_at",
+        "r.status",
+        "r.started_at",
       ])
       .orderBy("r.created_at", "desc")
       .execute();
@@ -385,6 +397,8 @@ export function listReports(db: Kysely<DB>) {
       title: r.title,
       fileSizeBytes: r.file_size_bytes,
       createdAt: toIso(r.created_at),
+      status: dbStatusToFeStatus(r.status),
+      startedAt: r.started_at ? r.started_at.getTime() : null,
     }));
   };
 }

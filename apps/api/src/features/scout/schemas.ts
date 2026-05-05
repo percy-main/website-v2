@@ -197,6 +197,8 @@ export const reportSummarySchema = z.object({
   title: z.string(),
   fileSizeBytes: z.number().int().nonnegative().nullable(),
   createdAt: z.iso.datetime(),
+  status: z.enum(["queued", "generating", "ready", "failed"]),
+  startedAt: z.number().nullable(),
 });
 
 export const listReportsResponseSchema = z.object({
