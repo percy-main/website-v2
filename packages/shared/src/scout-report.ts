@@ -215,19 +215,21 @@ export interface ReportToolCallEvent {
 // active-phase countdowns. Single source of truth so the FE can never show
 // "over budget" red while the BE is still well within its timeout.
 //
-// - researcher: ~30 small steps on flash, 3-9s/step. 6 minutes is the typical
-//   ceiling for a comprehensive scout.
+// - researcher: 30+ small steps on flash, 3-9s/step. Comprehensive scouts
+//   regularly take 8-15 minutes when the model walks several seasons of
+//   opposition matches. 12 minutes is the practical ceiling that cuts off
+//   genuinely-stuck steps without timing out useful long runs.
 // - analyst: one generateText call carrying the whole evidence packet
-//   inline. Even on flash a rich packet can run several minutes; 10 minutes
-//   for headroom.
+//   inline. Rich packets (50+ records) can run 10+ minutes even on flash;
+//   20 minutes for headroom.
 // - render: chart rasterisation + react-pdf layout in the worker. 10-30s
 //   typical; 30s gives a safe ceiling.
 export const REPORT_PHASE_BUDGETS_MS: Record<
   "researcher" | "analyst" | "render",
   number
 > = {
-  researcher: 360_000,
-  analyst: 600_000,
+  researcher: 720_000,
+  analyst: 1_200_000,
   render: 30_000,
 };
 
