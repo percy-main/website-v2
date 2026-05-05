@@ -1,6 +1,7 @@
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import type { UIMessage } from "@ai-sdk/react";
+import type { ReportData } from "@percy-main/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "react-router";
@@ -231,6 +232,33 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
   const isStreaming = status === "submitted" || status === "streaming";
   const mode = loaded.thread.mode;
 
+  // When the chat connection drops mid-report, useChat surfaces a generic
+  // "network error" with no useful info. The report's pipeline card stays
+  // pinned at "generating" because the BE's emit("failed", ...) never made
+  // it across the wire. Detect the in-flight report from the messages we
+  // DO have and render a banner that points the user at the Reports tab —
+  // research and analysis often complete server-side even after the
+  // connection severs, so a refresh in a few minutes is usually the right
+  // move.
+  const inFlightReport = useMemo<ReportData | null>(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const parts = messages[i].parts ?? [];
+      for (let j = parts.length - 1; j >= 0; j--) {
+        const part = parts[j];
+        if (
+          typeof part === "object" &&
+          part !== null &&
+          "type" in part &&
+          (part as { type: unknown }).type === "data-report"
+        ) {
+          const data = (part as { data: ReportData }).data;
+          if (data.status === "generating") return data;
+        }
+      }
+    }
+    return null;
+  }, [messages]);
+
   return (
     <>
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-4">
@@ -279,7 +307,39 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         ))}
         {error && (
           <div className="my-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error.message}
+            {inFlightReport ? (
+              <div className="space-y-1">
+                <div className="font-medium">
+                  Connection to Scout dropped while a report was generating.
+                </div>
+                <div>
+                  The researcher and analyst phases often keep running
+                  server-side even after the chat disconnects. Check the{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchParams(
+                        (prev) => {
+                          const sp = new URLSearchParams(prev);
+                          sp.set("view", "reports");
+                          return sp;
+                        },
+                        { replace: true },
+                      );
+                    }}
+                    className="underline hover:text-red-900"
+                  >
+                    Reports tab
+                  </button>{" "}
+                  in a few minutes — if the report finished, it'll be there.
+                </div>
+                <div className="text-[11px] text-red-600/80">
+                  Original error: {error.message}
+                </div>
+              </div>
+            ) : (
+              error.message
+            )}
           </div>
         )}
       </div>
