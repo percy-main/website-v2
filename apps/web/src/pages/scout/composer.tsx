@@ -7,7 +7,12 @@ interface ComposerProps {
   initialDraft?: string;
   onDraftChange?: (draft: string) => void;
   onSubmit: (text: string) => void;
-  disabled?: boolean;
+  /** Abort the in-flight assistant turn. Wired from useChat's `stop`. */
+  onStop: () => void;
+  /** True while the assistant turn is submitting / streaming. Disables the
+   *  textarea and thinking toggle, and switches the right-hand button from
+   *  Send → Stop. */
+  isStreaming?: boolean;
   /** Per-turn reasoning toggle. Controlled by the parent so it can survive
    *  thread switches and be sent on the next message body. */
   thinkingMode: ThinkingMode;
@@ -18,7 +23,8 @@ export function Composer({
   initialDraft = "",
   onDraftChange,
   onSubmit,
-  disabled,
+  onStop,
+  isStreaming,
   thinkingMode,
   onThinkingModeChange,
 }: ComposerProps) {
@@ -32,7 +38,7 @@ export function Composer({
 
   const submit = () => {
     const trimmed = value.trim();
-    if (!trimmed || disabled) return;
+    if (!trimmed || isStreaming) return;
     onSubmit(trimmed);
     setValue("");
     onDraftChange?.("");
@@ -62,21 +68,46 @@ export function Composer({
           }}
           placeholder="Ask Scout… (Cmd/Ctrl+Enter to send)"
           rows={3}
-          disabled={disabled}
+          disabled={isStreaming}
           className="flex-1 resize-y rounded border border-gray-300 p-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50"
         />
         <div className="flex flex-col gap-2">
           <ThinkingModeToggle
             mode={thinkingMode}
             onChange={onThinkingModeChange}
-            disabled={disabled}
+            disabled={isStreaming}
           />
-          <Button type="submit" disabled={Boolean(disabled) || !value.trim()}>
-            Send
-          </Button>
+          {isStreaming ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={onStop}
+              title="Stop the in-flight turn. The partial assistant message stays in the thread."
+            >
+              <StopIcon className="mr-1 h-3.5 w-3.5" />
+              Stop
+            </Button>
+          ) : (
+            <Button type="submit" disabled={!value.trim()}>
+              Send
+            </Button>
+          )}
         </div>
       </div>
     </form>
+  );
+}
+
+function StopIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <rect x="6" y="6" width="12" height="12" rx="1.5" />
+    </svg>
   );
 }
 

@@ -179,7 +179,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
     [loaded.messages],
   );
 
-  const { messages, sendMessage, status, error } = useScoutChat({
+  const { messages, sendMessage, status, error, stop } = useScoutChat({
     threadId,
     initialMessages,
   });
@@ -346,10 +346,11 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
       <Composer
         initialDraft={draft}
         onDraftChange={setDraft}
-        disabled={isStreaming}
+        isStreaming={isStreaming}
         thinkingMode={thinkingMode}
         onThinkingModeChange={setThinkingMode}
         onSubmit={send}
+        onStop={() => void stop()}
       />
     </>
   );

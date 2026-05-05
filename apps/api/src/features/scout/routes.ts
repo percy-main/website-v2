@@ -384,9 +384,17 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       const stream = createUIMessageStream({
         originalMessages: incoming,
         onFinish: async ({ responseMessage, isAborted }) => {
-          if (isAborted || !responseMessage) return;
+          // Persist on abort too — partial parts (any prose / tool calls /
+          // pipeline-card snapshots that streamed before the disconnect) are
+          // already on responseMessage. Earlier we skipped this branch and
+          // the whole assistant turn vanished when the user navigated away
+          // mid-report; surfacing the partial state at least keeps the
+          // pipeline card visible on revisit so the user knows what was
+          // running. usagePromise may not have resolved on abort — fall back
+          // to undefined fields rather than blocking forever.
+          if (!responseMessage) return;
           try {
-            const usage = (await usagePromise) ?? {};
+            const usage = isAborted ? {} : ((await usagePromise) ?? {});
             await append(threadId, "assistant", responseMessage.parts, {
               input: usage.inputTokens,
               output: usage.outputTokens,
@@ -394,6 +402,13 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               cacheCreation: usage.cacheCreation,
             });
             await bump(threadId);
+            if (isAborted) {
+              app.log.warn(
+                { event: "scout.turn_aborted", threadId },
+                "scout turn aborted; persisted partial assistant message",
+              );
+              return;
+            }
             // Best-effort: rename the thread if it still has the
             // placeholder title. Failures don't break the chat turn.
             await generateTitle(threadId, firstUserText);
