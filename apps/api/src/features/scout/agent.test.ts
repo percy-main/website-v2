@@ -21,10 +21,13 @@ function makeAgent(mode: "chat" | "debrief" | "scout" = "chat") {
   const stubConfig = {
     SCOUT_PROVIDER_CHAT: "anthropic",
     SCOUT_PROVIDER_DB: "anthropic",
+    SCOUT_PROVIDER_PC: "anthropic",
     SCOUT_MODEL_CHAT: "claude-sonnet-4-6",
     SCOUT_MODEL_DB: "claude-haiku-4-5-20251001",
+    SCOUT_MODEL_PC: "claude-haiku-4-5-20251001",
     SCOUT_MAX_STEPS: 20,
     SCOUT_DB_AGENT_MAX_STEPS: 8,
+    SCOUT_PC_AGENT_MAX_STEPS: 6,
   } as Config;
   const stubScoutReports = {} as ScoutReportStore;
 
