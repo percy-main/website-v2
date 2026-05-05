@@ -1,30 +1,18 @@
 import type { DB } from "@percy-main/db";
-import {
-  scoutReportDisplayTitle,
-  type ReportData,
-  type ReportPhaseName,
-  type ReportPhaseState,
-  type ReportToolCallEvent,
-  type ScoutReportPayload,
-} from "@percy-main/shared";
+import { scoutReportDisplayTitle, type ReportData } from "@percy-main/shared";
 import { tool, type UIMessageStreamWriter } from "ai";
 import type { FastifyBaseLogger } from "fastify";
-import type { Kysely } from "kysely";
+import { type Kysely } from "kysely";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Config } from "../../../config.ts";
 import type { ScoutReportStore } from "../../../lib/s3-scout-reports.ts";
 import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
 import type { VoyageClient } from "../facts/voyage.ts";
-import { analyseScoutEvidence } from "../report/analyst.ts";
-import { renderScoutReportPdf } from "../report/render.ts";
-import { researchScoutReport } from "../report/researcher.ts";
+import { launchScoutReport } from "../report/launch.ts";
 
 export interface GenerateReportToolDeps {
   db: Kysely<DB>;
-  // Researcher needs the read-only DB pool for ask_db, the play-cricket client
-  // for pc_*, the model config to resolve its provider, and optional voyage
-  // for fact_retrieve. All threaded through from the agent factory.
   dbReadonly: Kysely<DB>;
   playCricket: PlayCricketApiClient;
   config: Config;
@@ -76,6 +64,19 @@ const generateReportInputSchema = z.object({
 
 type GenerateReportInput = z.infer<typeof generateReportInputSchema>;
 
+/** Cap on simultaneously in-flight reports across the whole service. Above
+ *  this, the tool surfaces ServiceBusyError and the agent tells the user to
+ *  try again shortly. Picked to keep DeepSeek token spend bounded if a stuck
+ *  report sits in researching/analysing. */
+const MAX_INFLIGHT_REPORTS = 5;
+
+export class ServiceBusyError extends Error {
+  constructor() {
+    super("Scout is busy generating other reports — try again shortly");
+    this.name = "ServiceBusyError";
+  }
+}
+
 export function createGenerateReportTool(deps: GenerateReportToolDeps) {
   const {
     db,
@@ -92,9 +93,9 @@ export function createGenerateReportTool(deps: GenerateReportToolDeps) {
 
   return {
     generate_report: tool({
-      description: `Generate a polished PDF scouting report for a specific upcoming match, save it to durable storage, and surface a download card inline in the chat.
+      description: `Queue a polished PDF scouting report for a specific upcoming match. The report runs in the background — typically 10–20 minutes — and the user is notified when ready.
 
-Call this AT MOST ONCE per session. The input is just the match identifiers — NOT the report content. A researcher sub-agent runs behind this tool and gathers everything (selection, opposition stats, weather, facts) itself; do not stream stats or analysis into these args.
+Call this AT MOST ONCE per session. The input is just the match identifiers — NOT the report content. A researcher sub-agent runs behind the scenes and gathers everything (selection, opposition stats, weather, facts) itself; do not stream stats or analysis into these args.
 
 Required:
 - matchId: the Play Cricket match id (from the upcoming-fixtures launcher message, or from ask_db on availability_fixture).
@@ -107,217 +108,118 @@ Optional:
 - competition: league or cup name if you know it.
 - intent: a one-line scouting angle if the captain has a specific focus (otherwise omit and the researcher does a balanced report).
 
-After this returns, a one-line confirmation is enough. Do NOT dump the report content — the user has the PDF.`,
+After this returns, a one-line confirmation is enough — say "Report queued — it'll appear in the Reports tab when ready." Do NOT stream stats or analysis afterwards.`,
       inputSchema: generateReportInputSchema,
       execute: async (input: GenerateReportInput) => {
-        const startedAt = Date.now();
-
-        // Cover-page identifiers up front — derived from input, not from any
-        // model output, so we can label the placeholder card immediately.
+        const reportId = randomUUID();
         const match = `${input.ourTeam} ${input.homeAway === "home" ? "vs" : "at"} ${input.opposition}`;
         const displayTitle = scoutReportDisplayTitle({
           match,
           matchDate: input.matchDate,
         });
-
-        const reportId = randomUUID();
         const createdAtIso = new Date().toISOString();
 
-        // Per-phase state we mutate in place as the flow advances. Each
-        // mutation is followed by an emit() to push the snapshot to the FE.
-        const phases: Record<ReportPhaseName, ReportPhaseState> = {
-          researcher: { state: "pending" },
-          analyst: { state: "pending" },
-          render: { state: "pending" },
-        };
-        const recentToolCalls: ReportToolCallEvent[] = [];
-        const RECENT_CHIP_CAP = 6;
-
-        // Tool calls we expose to the FE as fly-out chips. record_evidence
-        // fires constantly during the researcher loop and is plumbing rather
-        // than narrative, so we filter it out. The pc_* tools fire INSIDE
-        // the ask_play_cricket sub-agent and never reach this stream, so
-        // they're absent here — the user sees one ask_play_cricket chip per
-        // PC question instead of a fan-out of projection calls.
-        const CHIP_TOOL_ALLOWLIST = new Set([
-          "ask_db",
-          "ask_play_cricket",
-          "weather_get",
-          "weather_geocode",
-          "fact_retrieve",
-        ]);
-
-        const buildSnapshot = (
-          status: ReportData["status"],
-          extras: Partial<ReportData> = {},
-        ): ReportData => ({
-          reportId,
-          title: displayTitle,
-          fileSizeBytes: null,
-          createdAt: createdAtIso,
-          status,
-          startedAt,
-          phases: { ...phases },
-          recentToolCalls: recentToolCalls.slice(-RECENT_CHIP_CAP),
-          ...extras,
-        });
-
-        const emit = (
-          status: ReportData["status"],
-          extras: Partial<ReportData> = {},
-        ) => {
-          writer.write({
-            type: "data-report",
-            id: reportId,
-            data: buildSnapshot(status, extras),
-          });
-        };
-
-        // Initial paint: researcher active, two phases pending.
-        phases.researcher = { state: "active", startedAt: Date.now() };
-        emit("generating");
-
+        // Concurrency gate + insert in one transaction. Default READ
+        // COMMITTED isolation means two simultaneous calls could each see
+        // the count under the cap and both insert, briefly overshooting
+        // by one. At single-digit reports/week this is irrelevant; if it
+        // ever matters we'd add SELECT FOR UPDATE on a sentinel row.
         try {
-          // ── Phase 1: researcher ────────────────────────────────────────
-          const evidence = await researchScoutReport(
-            {
-              db,
-              dbReadonly,
-              playCricket,
-              config,
-              voyage,
-              userId,
-              logger,
-              onStep: ({ step, toolNames }) => {
-                let mutated = false;
-                toolNames.forEach((toolName, idx) => {
-                  if (!CHIP_TOOL_ALLOWLIST.has(toolName)) return;
-                  recentToolCalls.push({
-                    id: `researcher-${step}-${idx}`,
-                    phase: "researcher",
-                    toolName,
-                    at: Date.now(),
-                  });
-                  mutated = true;
-                });
-                if (mutated) emit("generating");
-              },
-            },
-            input,
-          );
-
-          phases.researcher = {
-            state: "done",
-            startedAt: phases.researcher.startedAt,
-            endedAt: Date.now(),
-            summary: { records: evidence.length },
-          };
-          phases.analyst = { state: "active", startedAt: Date.now() };
-          emit("generating");
-
-          // ── Phase 2: analyst ───────────────────────────────────────────
-          const analysed = await analyseScoutEvidence(
-            {
-              config,
-              logger,
-              onAttempt: ({ attempt, ms, ok }) => {
-                logger?.info(
-                  { reportId, attempt, ms, ok },
-                  "scout_report_analyst_attempt",
-                );
-              },
-            },
-            input,
-            evidence,
-          );
-
-          phases.analyst = {
-            state: "done",
-            startedAt: phases.analyst.startedAt,
-            endedAt: Date.now(),
-            summary: { claims: analysed.claims.length },
-          };
-          phases.render = { state: "active", startedAt: Date.now() };
-          emit("generating");
-
-          // ── Phase 3: render + persist ─────────────────────────────────
-          const payload: ScoutReportPayload = {
-            ...analysed.content,
-            match,
-            matchDate: input.matchDate,
-          };
-
-          const pdf = await renderScoutReportPdf(payload);
-          const s3Key = await scoutReports.putReport(reportId, pdf);
-
-          // Insert *after* the upload succeeds, with the explicit id we
-          // streamed to the FE. If the DB insert fails, clean up the S3
-          // object so we don't leak a paid-for orphan.
-          try {
-            await db
+          await db.transaction().execute(async (trx) => {
+            const inflight = await trx
+              .selectFrom("scout_report")
+              .where("status", "not in", ["ready", "failed"])
+              .select(({ fn }) => fn.countAll<string>().as("c"))
+              .executeTakeFirstOrThrow();
+            if (Number(inflight.c) >= MAX_INFLIGHT_REPORTS) {
+              throw new ServiceBusyError();
+            }
+            await trx
               .insertInto("scout_report")
               .values({
                 id: reportId,
                 user_id: userId,
                 thread_id: threadId,
                 title: displayTitle,
-                s3_key: s3Key,
-                file_size_bytes: pdf.length,
+                status: "queued",
+                match_id: input.matchId,
+                our_team: input.ourTeam,
+                opposition: input.opposition,
+                match_date: input.matchDate,
+                home_away: input.homeAway,
+                competition: input.competition ?? null,
+                intent: input.intent ?? null,
               })
               .execute();
-          } catch (insertErr) {
-            try {
-              await scoutReports.deleteReport(s3Key);
-            } catch (cleanupErr) {
-              logger?.warn(
-                { err: cleanupErr, s3Key },
-                "scout report S3 cleanup after DB insert failure also failed; lifecycle rule will sweep",
-              );
-            }
-            throw insertErr;
-          }
-
-          phases.render = {
-            state: "done",
-            startedAt: phases.render.startedAt,
-            endedAt: Date.now(),
-            summary: { bytes: pdf.length },
-          };
-
-          emit("ready", { fileSizeBytes: pdf.length });
-
-          logger?.info(
-            { reportId, bytes: pdf.length, ms: Date.now() - startedAt },
-            "scout_report_generated",
-          );
-
-          return {
-            generated: true,
-            reportId,
-            fileSizeBytes: pdf.length,
-          };
-        } catch (err) {
-          // Mark whichever phase was active at failure time. The FE keeps the
-          // pipeline visible so the user sees which step broke.
-          const activePhase = (
-            ["render", "analyst", "researcher"] as const
-          ).find((p) => phases[p].state === "active");
-          if (activePhase) {
-            phases[activePhase] = {
-              state: "failed",
-              startedAt: phases[activePhase].startedAt,
-              endedAt: Date.now(),
-            };
-          }
-          emit("failed", {
-            errorMessage: err instanceof Error ? err.message : "Unknown error",
           });
-          logger?.error(
-            { err, ms: Date.now() - startedAt },
-            "scout_report_failed",
-          );
+        } catch (err) {
+          if (err instanceof ServiceBusyError) {
+            logger?.warn(
+              { reportId, userId, threadId },
+              "scout_report_capacity_gate_rejected",
+            );
+          }
           throw err;
         }
+
+        // Kick off the worker. ECS in prod, in-process in dev — either way
+        // returns immediately; the row is the source of truth for progress.
+        try {
+          await launchScoutReport({
+            config,
+            inProcessDeps: {
+              db,
+              dbReadonly,
+              playCricket,
+              config,
+              voyage,
+              scoutReports,
+              logger,
+            },
+            reportId,
+          });
+        } catch (launchErr) {
+          // Roll back the gate row so the slot frees up immediately. Without
+          // this a launch failure permanently leaves a 'queued' row counting
+          // toward the cap until an operator clears it.
+          await db
+            .deleteFrom("scout_report")
+            .where("id", "=", reportId)
+            .execute()
+            .catch((dbErr: unknown) => {
+              logger?.error(
+                { err: dbErr, reportId },
+                "scout_report_gate_rollback_failed",
+              );
+            });
+          throw launchErr;
+        }
+
+        // Marker for the assistant message — the FE polls
+        // /api/scout/reports/:id from this reportId alone, so the part
+        // payload only needs the bare minimum that survives a thread
+        // reload (reportId, title, createdAt, queued status).
+        const initial: ReportData = {
+          reportId,
+          title: displayTitle,
+          fileSizeBytes: null,
+          createdAt: createdAtIso,
+          status: "generating",
+          startedAt: Date.now(),
+          phases: {
+            researcher: { state: "pending" },
+            analyst: { state: "pending" },
+            render: { state: "pending" },
+          },
+          recentToolCalls: [],
+        };
+        writer.write({ type: "data-report", id: reportId, data: initial });
+
+        return {
+          generated: false,
+          status: "queued" as const,
+          reportId,
+        };
       },
     }),
   };
