@@ -106,7 +106,6 @@ const configSchema = z.object({
     .int()
     .positive()
     .default(25 * 1024 * 1024),
-  SCOUT_KB_MAX_PDF_PAGES: z.coerce.number().int().positive().default(200),
   // Chunking knobs. 600/100 is a starting guess — bench retrieval
   // quality on a handful of representative docs before locking it in.
   SCOUT_KB_CHUNK_TARGET_TOKENS: z.coerce.number().int().positive().default(600),

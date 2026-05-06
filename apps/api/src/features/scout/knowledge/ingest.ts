@@ -3,7 +3,7 @@ import type { LanguageModel } from "ai";
 import { CompiledQuery, type Kysely } from "kysely";
 import { toVectorLiteral, type VoyageClient } from "../facts/voyage.ts";
 import { captionImage, ImageCaptionError } from "./image.ts";
-import { type ExtractedPage, extractPdfPages, PdfExtractError } from "./pdf.ts";
+import { extractPdfText, PdfExtractError } from "./pdf.ts";
 
 /**
  * KB document ingestion: extract text, chunk, embed, write rows.
@@ -21,11 +21,13 @@ export type DocumentKind = "pdf" | "image" | "text";
 export interface IngestOptions {
   db: Kysely<DB>;
   voyage: VoyageClient;
-  /** Anthropic Haiku used to caption KB images. Same model the chat
-   *  attachments deriver runs on; KB just uses a longer prompt. */
+  /** Anthropic Haiku — used both to caption KB images and to extract
+   *  text from PDFs. Same model the Track 1 chat-attachment deriver
+   *  runs on; KB just uses longer prompts. PDF extraction via Haiku
+   *  is the simpler path than pulling in a JS PDF parser, at the cost
+   *  of per-page granularity (chunks lose page_start / page_end). */
   imageCaptionModel: LanguageModel;
   imageCaptionMaxTokens: number;
-  maxPdfPages: number;
   chunkTargetTokens: number;
   chunkOverlapTokens: number;
   embedBatchSize: number;
@@ -115,12 +117,20 @@ export async function ingestDocument(
   });
 
   return {
-    pageCount: input.kind === "pdf" ? pages.length : null,
+    // page_count stays NULL across all kinds — we don't have a
+    // reliable per-page count without a JS PDF parser, and surfacing
+    // a fake page count for PDFs would mislead the admin UI.
+    pageCount: null,
     chunkCount: chunks.length,
   };
 }
 
-interface PageLike extends ExtractedPage {}
+interface PageLike {
+  /** Always 0 — the chunker treats null/0 page numbers as "no PDF
+   *  page tracking" and emits null page_start / page_end. */
+  pageNumber: number;
+  text: string;
+}
 
 async function extractPages(
   opts: IngestOptions,
@@ -129,9 +139,12 @@ async function extractPages(
   switch (input.kind) {
     case "pdf": {
       try {
-        return await extractPdfPages(input.bytes, {
-          maxPages: opts.maxPdfPages,
-        });
+        const text = await extractPdfText(
+          opts.imageCaptionModel,
+          opts.imageCaptionMaxTokens,
+          { bytes: input.bytes },
+        );
+        return [{ pageNumber: 0, text }];
       } catch (err) {
         if (err instanceof PdfExtractError)
           throw new IngestError(err.message, err);
@@ -145,10 +158,7 @@ async function extractPages(
           opts.imageCaptionMaxTokens,
           { bytes: input.bytes, contentType: input.contentType },
         );
-        // Single synthetic page so the chunker has a uniform input
-        // shape across kinds. page_start / page_end stay NULL on
-        // image chunks (handled in chunkPages).
-        return [{ pageNumber: 1, text: caption }];
+        return [{ pageNumber: 0, text: caption }];
       } catch (err) {
         if (err instanceof ImageCaptionError) {
           throw new IngestError(err.message, err);
@@ -158,7 +168,7 @@ async function extractPages(
     }
     case "text": {
       const text = input.bytes.toString("utf8").trim();
-      return [{ pageNumber: 1, text }];
+      return [{ pageNumber: 0, text }];
     }
   }
 }

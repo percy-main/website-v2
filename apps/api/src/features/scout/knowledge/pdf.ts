@@ -1,30 +1,23 @@
 /**
- * PDF text extraction for the KB ingestion pipeline. Uses pdfjs-dist's
- * Node-compatible entry to walk pages and pull their text content.
+ * PDF text extraction for the KB ingestion pipeline.
  *
- * We extract per page rather than as a single blob so chunks can carry
- * `page_start` / `page_end` metadata. That lets `cite_kb` quote chapter
- * + page in the agent UI rather than just "from doc Foo".
- *
- * pdfjs-dist 5.x assumes a browser environment — at minimum it expects
- * DOMMatrix, ImageData, and Path2D on the global. We polyfill them
- * from @napi-rs/canvas (already a transitive of @react-pdf/renderer)
- * before the pdfjs import so the bundle resolves at module load.
- * The polyfills are idempotent: if some other module installed them
- * first, we leave the existing values alone.
+ * Track 1's chat-attachment deriver already extracts PDF text via
+ * Haiku (see attachments/derive.ts). We reuse the same approach here:
+ * the model returns the document's transcribed text, the chunker
+ * paragraph-packs it, and we embed the chunks. Trade-off: we lose
+ * per-page page numbers on chunks, so cite_kb chips show document
+ * title only (no "page 4–5" range). Adding pdfjs-dist would buy that
+ * back at the cost of a heavyweight dependency that pulls in DOM
+ * globals and a Promise.try assumption — not worth it for v1, and
+ * the citation chip already shows enough for an admin to navigate
+ * the original PDF via its signed URL.
  */
 
-import "./pdf-polyfills.ts";
+import { generateText, type LanguageModel } from "ai";
 
-import * as pdfjsLib from "pdfjs-dist";
+const KB_PDF_PROMPT = `You will be shown a PDF uploaded to a cricket-club knowledge base. Transcribe the readable text verbatim — preserve names, numbers, headings, lists, and tabular structure where you can. After the transcription, add a short factual summary (3–5 sentences) of what the document is and what it contains. Do not interpret or speculate beyond what is on the page.
 
-export interface ExtractedPage {
-  /** 1-based page number, matching pdfjs convention. */
-  pageNumber: number;
-  /** Page text, with line breaks between text items. Empty string when
-   *  the page is image-only (scanned PDF — out of scope for v1). */
-  text: string;
-}
+Aim to keep the transcription faithful enough that downstream search will surface this document for any question whose answer is written on its pages.`;
 
 export class PdfExtractError extends Error {
   constructor(
@@ -36,66 +29,47 @@ export class PdfExtractError extends Error {
   }
 }
 
+export interface ExtractPdfInput {
+  bytes: Buffer;
+}
+
 /**
- * Extract text from every page of a PDF buffer. Throws PdfExtractError
- * when the PDF is encrypted, unparseable, or exceeds `maxPages`.
- *
- * pdfjs is verbose at info level; the worker pipes stdout/stderr to
- * CloudWatch already so we don't suppress it explicitly.
+ * Extract a PDF's text via Haiku. Returns a single text blob — the
+ * chunker handles paragraph packing. Page-level granularity is not
+ * available; chunks emitted from this path will carry NULL
+ * page_start / page_end.
  */
-export async function extractPdfPages(
-  bytes: Buffer,
-  opts: { maxPages: number },
-): Promise<ExtractedPage[]> {
-  let doc: pdfjsLib.PDFDocumentProxy;
+export async function extractPdfText(
+  model: LanguageModel,
+  maxOutputTokens: number,
+  input: ExtractPdfInput,
+): Promise<string> {
+  let result;
   try {
-    // pdfjs's Node entry takes a Uint8Array — copy out of the Buffer
-    // rather than aliasing, so pdfjs's internal slicing can't mutate
-    // shared memory.
-    const data = new Uint8Array(bytes);
-    const loadingTask = pdfjsLib.getDocument({
-      data,
-      // Don't try to render fonts (we only need text content, not
-      // pixel-perfect rendering) and don't fetch standard fonts via
-      // the Fetch API — the worker shouldn't make outbound calls
-      // during text extraction.
-      disableFontFace: true,
-      useWorkerFetch: false,
-      // 0 = errors only. pdfjs is chatty at default verbosity.
-      verbosity: 0,
+    result = await generateText({
+      model,
+      maxOutputTokens,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: KB_PDF_PROMPT },
+            {
+              type: "file",
+              data: input.bytes,
+              mediaType: "application/pdf",
+            },
+          ],
+        },
+      ],
     });
-    doc = await loadingTask.promise;
   } catch (err) {
-    throw new PdfExtractError("Failed to load PDF document", err);
+    throw new PdfExtractError("Failed to extract PDF via Haiku", err);
   }
 
-  if (doc.numPages > opts.maxPages) {
-    await doc.destroy();
-    throw new PdfExtractError(
-      `PDF has ${doc.numPages} pages, exceeds limit of ${opts.maxPages}`,
-    );
+  const text = result.text.trim();
+  if (!text) {
+    throw new PdfExtractError("Haiku returned empty text for PDF");
   }
-
-  const pages: ExtractedPage[] = [];
-  try {
-    for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
-      const page = await doc.getPage(pageNumber);
-      const textContent = await page.getTextContent();
-      const text = textContent.items
-        .map((item) => ("str" in item ? item.str : ""))
-        .join(" ")
-        .replace(/[ \t]+/g, " ")
-        .trim();
-      pages.push({ pageNumber, text });
-      // pdfjs caches per-page resources internally; cleanup releases
-      // them so a 200-page PDF doesn't keep the whole document in
-      // memory. Worker is short-lived but we still want predictable
-      // peak RSS.
-      page.cleanup();
-    }
-  } finally {
-    await doc.destroy();
-  }
-
-  return pages;
+  return text;
 }

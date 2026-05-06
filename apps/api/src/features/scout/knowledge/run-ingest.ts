@@ -85,7 +85,6 @@ export async function runIngest(
         voyage,
         imageCaptionModel: deps.imageCaptionModel,
         imageCaptionMaxTokens: config.SCOUT_ATTACHMENT_DERIVE_MAX_TOKENS,
-        maxPdfPages: config.SCOUT_KB_MAX_PDF_PAGES,
         chunkTargetTokens: config.SCOUT_KB_CHUNK_TARGET_TOKENS,
         chunkOverlapTokens: config.SCOUT_KB_CHUNK_OVERLAP_TOKENS,
         embedBatchSize: config.SCOUT_KB_EMBED_BATCH_SIZE,
