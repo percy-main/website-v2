@@ -10,6 +10,8 @@ const baseEnv = {
   S3_DOCUMENTS_BUCKET: "x",
   S3_DOCUMENT_UPLOADS_BUCKET: "x",
   SCOUT_REPORTS_BUCKET: "x",
+  SCOUT_ATTACHMENT_UPLOADS_BUCKET: "x",
+  SCOUT_ATTACHMENTS_BUCKET: "x",
 };
 
 describe("parseConfig — defaults", () => {

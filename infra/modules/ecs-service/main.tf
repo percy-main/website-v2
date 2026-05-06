@@ -117,6 +117,16 @@ variable "scout_reports_bucket_arn" {
   description = "ARN of the S3 bucket for AI-generated Scout report PDFs."
 }
 
+variable "scout_attachment_uploads_bucket_arn" {
+  type        = string
+  description = "ARN of the temporary scout attachment uploads bucket (browser-direct uploads)."
+}
+
+variable "scout_attachments_bucket_arn" {
+  type        = string
+  description = "ARN of the permanent scout attachments bucket (committed image / PDF originals)."
+}
+
 # ------------------------------------------------------------------------------
 # Locals
 # ------------------------------------------------------------------------------
@@ -382,6 +392,52 @@ resource "aws_iam_role_policy" "task_s3_scout_reports" {
         Resource = [
           var.scout_reports_bucket_arn,
           "${var.scout_reports_bucket_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "task_s3_scout_attachment_uploads" {
+  name = "${local.name_prefix}-task-s3-scout-attachment-uploads"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          var.scout_attachment_uploads_bucket_arn,
+          "${var.scout_attachment_uploads_bucket_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "task_s3_scout_attachments" {
+  name = "${local.name_prefix}-task-s3-scout-attachments"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          var.scout_attachments_bucket_arn,
+          "${var.scout_attachments_bucket_arn}/*"
         ]
       }
     ]

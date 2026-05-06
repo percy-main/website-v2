@@ -129,25 +129,30 @@ module "ecs" {
   ses_identity_arn         = local.shared.ses_identity_arn
   newrelic_license_key_arn = "${aws_secretsmanager_secret.app_secrets.arn}:NEW_RELIC_LICENSE_KEY::"
 
-  documents_bucket_arn        = module.documents_bucket.bucket_arn
-  document_uploads_bucket_arn = module.document_uploads.bucket_arn
-  scout_reports_bucket_arn    = module.scout_reports.bucket_arn
+  documents_bucket_arn                = module.documents_bucket.bucket_arn
+  document_uploads_bucket_arn         = module.document_uploads.bucket_arn
+  scout_reports_bucket_arn            = module.scout_reports.bucket_arn
+  scout_attachment_uploads_bucket_arn = module.scout_attachment_uploads.bucket_arn
+  scout_attachments_bucket_arn        = module.scout_attachments_bucket.bucket_arn
 
   environment_variables = {
-    NODE_ENV                   = "production"
-    PORT                       = "3000"
-    HOST                       = "0.0.0.0"
-    LOG_LEVEL                  = "info"
-    EMAIL_PROVIDER             = "ses"
-    SES_REGION                 = "eu-west-2"
-    S3_BUCKET                  = "percy-main-production-uploads"
-    S3_REGION                  = "eu-west-2"
-    S3_RECEIPT_PREFIX          = "receipts"
-    S3_DOCUMENTS_BUCKET        = module.documents_bucket.bucket_name
-    S3_DOCUMENTS_PREFIX        = "documents"
-    S3_DOCUMENT_UPLOADS_BUCKET = module.document_uploads.bucket_name
-    SCOUT_REPORTS_BUCKET       = module.scout_reports.bucket_name
-    AWS_REGION                 = "eu-west-2"
+    NODE_ENV                        = "production"
+    PORT                            = "3000"
+    HOST                            = "0.0.0.0"
+    LOG_LEVEL                       = "info"
+    EMAIL_PROVIDER                  = "ses"
+    SES_REGION                      = "eu-west-2"
+    S3_BUCKET                       = "percy-main-production-uploads"
+    S3_REGION                       = "eu-west-2"
+    S3_RECEIPT_PREFIX               = "receipts"
+    S3_DOCUMENTS_BUCKET             = module.documents_bucket.bucket_name
+    S3_DOCUMENTS_PREFIX             = "documents"
+    S3_DOCUMENT_UPLOADS_BUCKET      = module.document_uploads.bucket_name
+    SCOUT_REPORTS_BUCKET            = module.scout_reports.bucket_name
+    SCOUT_ATTACHMENT_UPLOADS_BUCKET = module.scout_attachment_uploads.bucket_name
+    SCOUT_ATTACHMENTS_BUCKET        = module.scout_attachments_bucket.bucket_name
+    SCOUT_ATTACHMENTS_PREFIX        = "scout/attachments"
+    AWS_REGION                      = "eu-west-2"
     # Cannot reference module.ecs.* outputs that depend on the task definition
     # here — that would cycle through the env-vars input. The cluster and family
     # names are deterministic from the environment, so inline them.
@@ -228,6 +233,21 @@ module "document_uploads" {
 
 module "scout_reports" {
   source      = "../../modules/scout-reports"
+  environment = "production"
+}
+
+# ---------------------------------------------------------------------------
+# Scout Attachment Buckets — uploads (24h lifecycle, CORS PUT) + permanent
+# ---------------------------------------------------------------------------
+
+module "scout_attachment_uploads" {
+  source      = "../../modules/scout-attachment-uploads"
+  environment = "production"
+  domain_name = var.domain_name
+}
+
+module "scout_attachments_bucket" {
+  source      = "../../modules/scout-attachments-bucket"
   environment = "production"
 }
 

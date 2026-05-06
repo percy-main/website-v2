@@ -15,6 +15,7 @@ export interface PersistedMessage {
   role: "user" | "assistant" | "tool" | "system";
   parts: unknown[];
   createdAt: string;
+  attachmentIds: string[];
 }
 
 export class ThreadNotFoundError extends Error {
@@ -104,6 +105,7 @@ export function getThread(db: Kysely<DB>) {
         "token_output",
         "token_cache_read",
         "token_cache_creation",
+        "attachment_ids",
       ])
       .orderBy("created_at", "asc")
       .execute();
@@ -132,6 +134,7 @@ export function getThread(db: Kysely<DB>) {
         role: m.role as PersistedMessage["role"],
         parts: Array.isArray(m.parts) ? (m.parts as unknown[]) : [m.parts],
         createdAt: toIso(m.created_at),
+        attachmentIds: m.attachment_ids ?? [],
       })),
       usage: {
         inputTokens,
@@ -168,6 +171,7 @@ export function appendMessage(db: Kysely<DB>) {
       cacheRead?: number;
       cacheCreation?: number;
     },
+    attachmentIds?: string[],
   ): Promise<PersistedMessage> => {
     const row = await db
       .insertInto("scout_message")
@@ -179,8 +183,10 @@ export function appendMessage(db: Kysely<DB>) {
         token_output: tokens?.output ?? null,
         token_cache_read: tokens?.cacheRead ?? null,
         token_cache_creation: tokens?.cacheCreation ?? null,
+        attachment_ids:
+          attachmentIds && attachmentIds.length > 0 ? attachmentIds : null,
       })
-      .returning(["id", "role", "parts", "created_at"])
+      .returning(["id", "role", "parts", "created_at", "attachment_ids"])
       .executeTakeFirstOrThrow();
 
     return {
@@ -188,6 +194,7 @@ export function appendMessage(db: Kysely<DB>) {
       role: row.role as PersistedMessage["role"],
       parts: Array.isArray(row.parts) ? (row.parts as unknown[]) : [row.parts],
       createdAt: toIso(row.created_at),
+      attachmentIds: row.attachment_ids ?? [],
     };
   };
 }

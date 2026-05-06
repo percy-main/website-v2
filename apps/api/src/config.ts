@@ -52,6 +52,44 @@ const configSchema = z.object({
   SCOUT_REPORTS_BUCKET: z.string().min(1),
   SCOUT_REPORTS_PREFIX: z.string().default("reports"),
 
+  // S3 (Scout chat attachments — image / PDF originals + browser uploads)
+  SCOUT_ATTACHMENT_UPLOADS_BUCKET: z.string().min(1),
+  SCOUT_ATTACHMENTS_BUCKET: z.string().min(1),
+  SCOUT_ATTACHMENTS_PREFIX: z.string().default("scout/attachments"),
+  SCOUT_ATTACHMENT_MAX_IMAGE_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10 * 1024 * 1024),
+  SCOUT_ATTACHMENT_MAX_PDF_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10 * 1024 * 1024),
+  SCOUT_ATTACHMENT_DERIVE_MAX_TOKENS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(1500),
+  SCOUT_ATTACHMENT_DERIVED_TEXT_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(256_000),
+  SCOUT_ATTACHMENT_UPLOAD_URL_EXPIRY_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(900),
+  // Anthropic-only — image / PDF input is on Anthropic regardless of
+  // SCOUT_PROVIDER_CHAT, so the deriver gets a dedicated model id rather
+  // than reusing SCOUT_MODEL_SUBAGENT (which tracks the sub-agent provider
+  // and may be a deepseek id when the captain is running everything on DS).
+  SCOUT_ATTACHMENT_DERIVE_MODEL: z
+    .string()
+    .default("claude-haiku-4-5-20251001"),
+  SCOUT_ATTACHMENT_MAX_PER_TURN: z.coerce.number().int().positive().default(4),
+
   // Observability (New Relic via OpenTelemetry)
   NEW_RELIC_LICENSE_KEY: z.string().optional(),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url().default("https://otlp.eu01.nr-data.net"),

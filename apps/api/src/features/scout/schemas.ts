@@ -47,6 +47,9 @@ export const messageSchema = z.object({
   role: z.enum(["user", "assistant", "tool", "system"]),
   parts: z.array(z.unknown()),
   createdAt: z.iso.datetime(),
+  // Track 1: attachment ids the user pinned to this user-turn. Empty for
+  // assistant turns and historical user turns that pre-date the feature.
+  attachmentIds: z.array(z.uuid()).default([]),
 });
 
 // Body for the streaming chat route. `messages` matches the AI SDK
@@ -58,6 +61,14 @@ export const messageSchema = z.object({
 export const chatRequestBodySchema = z.object({
   messages: z.array(z.unknown()).min(1),
   thinkingMode: z.enum(["thinking", "fast"]).optional(),
+  /**
+   * Attachment ids the user pinned to this turn. The route loads each
+   * (verifying thread ownership + state = 'ready') and injects derived
+   * text into the last user message via a <chat-attachments> block.
+   * Persisted on the user-turn row so chat-history rendering can show
+   * the attachments alongside the message.
+   */
+  attachmentIds: z.array(z.uuid()).max(20).optional(),
 });
 
 export const getThreadResponseSchema = z.object({
@@ -236,4 +247,80 @@ export const cancelReportResponseSchema = z.object({
   /** True if the report had already reached a terminal state — the cancel
    *  was a no-op. The FE uses this to suppress a pointless toast. */
   alreadyComplete: z.boolean(),
+});
+
+// ── Attachments (Track 1) ──
+// Per-thread image / PDF uploads. Three-step flow: mint → browser PUTs to
+// uploads bucket → commit (downloads, derives via Haiku, copies to permanent
+// bucket). The persisted user message references attachment ids; the chat
+// route injects derived text into the model prompt.
+
+export const attachmentKindSchema = z.enum(["image", "pdf"]);
+export type AttachmentKind = z.infer<typeof attachmentKindSchema>;
+
+export const attachmentProcessingStateSchema = z.enum([
+  "awaiting-upload",
+  "processing",
+  "ready",
+  "failed",
+]);
+
+export const attachmentIdParamSchema = z.object({
+  threadId: z.uuid(),
+  attachmentId: z.uuid(),
+});
+
+// Allow-list aligned with what Anthropic accepts as image / document input.
+// PDFs only on the file side; everything else is treated as image kind.
+const attachmentContentTypeSchema = z.enum([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+]);
+
+export const attachmentMintBodySchema = z.object({
+  filename: z.string().min(1).max(255),
+  contentType: attachmentContentTypeSchema,
+  // Browser-side declared size. Verified at commit against S3 HEAD.
+  sizeBytes: z.number().int().positive(),
+});
+
+export const attachmentMintResponseSchema = z.object({
+  id: z.uuid(),
+  kind: attachmentKindSchema,
+  filename: z.string(),
+  sizeBytes: z.number().int().positive(),
+  uploadUrl: z.url(),
+  uploadUrlExpiresInSeconds: z.number().int().positive(),
+  pendingKey: z.string(),
+  processingState: attachmentProcessingStateSchema,
+});
+
+export const attachmentCommitResponseSchema = z.object({
+  id: z.uuid(),
+  kind: attachmentKindSchema,
+  filename: z.string(),
+  sizeBytes: z.number().int().positive(),
+  processingState: attachmentProcessingStateSchema,
+  derivedText: z.string().nullable(),
+  processingError: z.string().nullable(),
+});
+
+export const attachmentDetailResponseSchema = z.object({
+  id: z.uuid(),
+  kind: attachmentKindSchema,
+  filename: z.string(),
+  contentType: z.string(),
+  sizeBytes: z.number().int().positive(),
+  processingState: attachmentProcessingStateSchema,
+  derivedText: z.string().nullable(),
+  processingError: z.string().nullable(),
+  signedUrl: z.url().nullable(),
+  signedUrlExpiresInSeconds: z.number().int().positive(),
+});
+
+export const attachmentDeleteResponseSchema = z.object({
+  ok: z.literal(true),
 });

@@ -276,7 +276,7 @@ resource "aws_cloudfront_origin_access_control" "s3" {
 resource "aws_cloudfront_function" "spa_rewrite" {
   name    = "${var.environment}-percy-main-spa-rewrite"
   runtime = "cloudfront-js-2.0"
-  code    = templatefile("${path.module}/spa-rewrite.js", {
+  code = templatefile("${path.module}/spa-rewrite.js", {
     api_base_url = var.api_base_url
   })
 }

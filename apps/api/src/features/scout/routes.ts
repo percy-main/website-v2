@@ -10,6 +10,21 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { getAuthSession } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import { createScoutAgent, type ThinkingMode } from "./agent.ts";
+import { deriveAttachment } from "./attachments/derive.ts";
+import {
+  appendBlockToLastUserMessage,
+  AttachmentInvalidStateError,
+  AttachmentMissingError,
+  AttachmentNotFoundError,
+  AttachmentSizeMismatchError,
+  AttachmentSizeTooLargeError,
+  commitAttachment,
+  deleteAttachment,
+  formatAttachmentsBlock,
+  getAttachment,
+  loadReadyAttachmentsForTurn,
+  mintAttachment,
+} from "./attachments/service.ts";
 import { requireScoutAccess } from "./auth.ts";
 import {
   deleteFact,
@@ -23,6 +38,12 @@ import { createVoyageClient } from "./facts/voyage.ts";
 import { extractCacheUsage, type ScoutProvider } from "./provider.ts";
 import {
   accessResponseSchema,
+  attachmentCommitResponseSchema,
+  attachmentDeleteResponseSchema,
+  attachmentDetailResponseSchema,
+  attachmentIdParamSchema,
+  attachmentMintBodySchema,
+  attachmentMintResponseSchema,
   cancelReportResponseSchema,
   chatRequestBodySchema,
   createThreadBodySchema,
@@ -86,6 +107,31 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
     provider: app.config.SCOUT_PROVIDER_SUBAGENT,
     modelId: app.config.SCOUT_MODEL_SUBAGENT,
   });
+
+  // ── Attachments (Track 1) ──
+  // Always uses Anthropic Haiku for the deriver — image / PDF input
+  // requires Anthropic regardless of SCOUT_PROVIDER_CHAT. The mint route
+  // pre-flights ANTHROPIC_API_KEY so users see a 503 before they upload
+  // bytes that we'd then refuse to process.
+  const attachmentDeps = {
+    db: app.db,
+    store: app.scoutAttachments,
+    derive: deriveAttachment({
+      db: app.db,
+      modelId: app.config.SCOUT_ATTACHMENT_DERIVE_MODEL,
+      maxOutputTokens: app.config.SCOUT_ATTACHMENT_DERIVE_MAX_TOKENS,
+      derivedTextMaxBytes: app.config.SCOUT_ATTACHMENT_DERIVED_TEXT_MAX_BYTES,
+    }),
+    maxImageBytes: app.config.SCOUT_ATTACHMENT_MAX_IMAGE_BYTES,
+    maxPdfBytes: app.config.SCOUT_ATTACHMENT_MAX_PDF_BYTES,
+    uploadUrlExpirySeconds:
+      app.config.SCOUT_ATTACHMENT_UPLOAD_URL_EXPIRY_SECONDS,
+  };
+  const mintAtt = mintAttachment(attachmentDeps);
+  const commitAtt = commitAttachment(attachmentDeps);
+  const getAtt = getAttachment(attachmentDeps);
+  const deleteAtt = deleteAttachment(attachmentDeps);
+  const loadAttForTurn = loadReadyAttachmentsForTurn(attachmentDeps);
 
   // ── Access probe ──
   // Always 200 so the FE can call this without a noisy 401 when nobody is
@@ -318,9 +364,32 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         });
       }
 
+      // Track 1: load attachment summaries upfront. If the FE sent an id we
+      // can't find (deleted, not ready, wrong owner), drop it silently —
+      // safer than 4xx-ing a chat turn over a stale chip. Only ready rows
+      // come back; the turn-level cap is enforced by the schema.
+      const requestedAttachmentIds = request.body.attachmentIds ?? [];
+      const turnAttachments =
+        requestedAttachmentIds.length > 0
+          ? await loadAttForTurn({
+              threadId,
+              userId: user.id,
+              attachmentIds: requestedAttachmentIds,
+            })
+          : [];
+      const turnAttachmentIds = turnAttachments.map((a) => a.id);
+
       // Persist the new user message before the model runs — if streaming
-      // fails we still want a record of what was asked.
-      await append(threadId, "user", lastMessage.parts);
+      // fails we still want a record of what was asked. attachment_ids
+      // lives on its own column so AI SDK replay (which reads `parts`
+      // verbatim) stays clean.
+      await append(
+        threadId,
+        "user",
+        lastMessage.parts,
+        undefined,
+        turnAttachmentIds,
+      );
 
       const playCricket = createApiClient({
         apiToken: app.config.PLAY_CRICKET_API_TOKEN,
@@ -371,6 +440,14 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             "scout: auto-retrieval failed; continuing without fact injection",
           );
         }
+      }
+
+      // Track 1: append the <chat-attachments> block AFTER auto-retrieval
+      // so both blocks operate on the same base array. The cache-control
+      // breakpoint stays on the last message regardless.
+      if (turnAttachments.length > 0) {
+        const block = formatAttachmentsBlock(turnAttachments);
+        modelMessages = appendBlockToLastUserMessage(modelMessages, block);
       }
 
       // Token usage and Anthropic cache-control metadata are captured inside
@@ -533,6 +610,188 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
 
       // Return the raw reply so Fastify doesn't double-write a body.
       return reply;
+    },
+  );
+
+  // ── Attachments (paste / drop / upload) ──
+  // Three round-trip flow: mint → browser PUTs to uploads bucket → commit.
+  // Mint pre-flights ANTHROPIC_API_KEY so users see a 503 before paying
+  // upload bandwidth on a request we'd refuse at commit anyway.
+
+  app.post(
+    "/scout/threads/:threadId/attachments",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: threadIdParamSchema,
+        body: attachmentMintBodySchema,
+        response: { 201: attachmentMintResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      if (!app.config.ANTHROPIC_API_KEY) {
+        throw Object.assign(
+          new Error(
+            "ANTHROPIC_API_KEY is not configured; chat attachments require Anthropic Haiku regardless of SCOUT_PROVIDER_CHAT.",
+          ),
+          { statusCode: 503 },
+        );
+      }
+
+      const { user } = getAuthSession(request);
+      const { threadId } = request.params;
+      try {
+        await assertOwned(user.id, threadId);
+      } catch (err) {
+        if (err instanceof ThreadNotFoundError) {
+          throw Object.assign(new Error("Thread not found"), {
+            statusCode: 404,
+          });
+        }
+        throw err;
+      }
+
+      try {
+        const result = await mintAtt({
+          threadId,
+          userId: user.id,
+          filename: request.body.filename,
+          contentType: request.body.contentType,
+          sizeBytes: request.body.sizeBytes,
+        });
+        reply.code(201);
+        return result;
+      } catch (err) {
+        if (err instanceof AttachmentSizeTooLargeError) {
+          throw Object.assign(
+            new Error(
+              `${err.contentType} exceeds the ${err.limit}-byte limit (got ${err.sizeBytes}).`,
+            ),
+            { statusCode: 413 },
+          );
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/scout/threads/:threadId/attachments/:attachmentId/commit",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: attachmentIdParamSchema,
+        response: { 200: attachmentCommitResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { threadId, attachmentId } = request.params;
+      try {
+        const summary = await commitAtt({
+          threadId,
+          userId: user.id,
+          attachmentId,
+        });
+        return summary;
+      } catch (err) {
+        if (err instanceof AttachmentNotFoundError) {
+          throw Object.assign(new Error("Attachment not found"), {
+            statusCode: 404,
+          });
+        }
+        if (err instanceof AttachmentMissingError) {
+          throw Object.assign(
+            new Error(
+              "Pending upload not found. The presigned URL may have expired — re-upload from scratch.",
+            ),
+            { statusCode: 409 },
+          );
+        }
+        if (err instanceof AttachmentSizeMismatchError) {
+          throw Object.assign(
+            new Error(
+              `Uploaded size ${err.actual} does not match declared size ${err.declared}.`,
+            ),
+            { statusCode: 422 },
+          );
+        }
+        if (err instanceof AttachmentInvalidStateError) {
+          throw Object.assign(
+            new Error(`Attachment is in ${err.state} state; cannot commit.`),
+            { statusCode: 409 },
+          );
+        }
+        // Derive failures, S3 transport failures, and anything else go up
+        // as 500. The service has already flipped the row to 'failed' and
+        // populated processing_error, so the FE can show a chip with a
+        // retry option.
+        app.log.error(
+          { err, threadId, attachmentId },
+          "scout: attachment commit failed",
+        );
+        throw err;
+      }
+    },
+  );
+
+  app.get(
+    "/scout/threads/:threadId/attachments/:attachmentId",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: attachmentIdParamSchema,
+        response: { 200: attachmentDetailResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { threadId, attachmentId } = request.params;
+      try {
+        const { summary, signedUrl } = await getAtt({
+          threadId,
+          userId: user.id,
+          attachmentId,
+        });
+        return {
+          ...summary,
+          signedUrl,
+          signedUrlExpiresInSeconds: 30 * 60,
+        };
+      } catch (err) {
+        if (err instanceof AttachmentNotFoundError) {
+          throw Object.assign(new Error("Attachment not found"), {
+            statusCode: 404,
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.delete(
+    "/scout/threads/:threadId/attachments/:attachmentId",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: attachmentIdParamSchema,
+        response: { 200: attachmentDeleteResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const { threadId, attachmentId } = request.params;
+      try {
+        await deleteAtt({ threadId, userId: user.id, attachmentId });
+        return { ok: true as const };
+      } catch (err) {
+        if (err instanceof AttachmentNotFoundError) {
+          throw Object.assign(new Error("Attachment not found"), {
+            statusCode: 404,
+          });
+        }
+        throw err;
+      }
     },
   );
 
