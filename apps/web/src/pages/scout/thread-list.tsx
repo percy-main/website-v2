@@ -18,8 +18,6 @@ import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { FactsAdminButton } from "./facts-admin.js";
-import { KnowledgeAdminButton } from "./knowledge-admin.js";
 
 type ScoutMode = "chat" | "debrief" | "scout";
 
@@ -120,8 +118,6 @@ export function ThreadList() {
           onCreate={() => createMutation.mutate(activeMode)}
           pending={createMutation.isPending}
         />
-        <FactsAdminButton />
-        <KnowledgeAdminButton />
       </div>
       <div className="flex-1 overflow-y-auto">
         {threadsQuery.isLoading && (

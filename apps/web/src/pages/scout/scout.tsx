@@ -9,6 +9,8 @@ import { MessageAttachments } from "./attachments/message-attachments.js";
 import { useAttachmentUpload } from "./attachments/use-attachment-upload.js";
 import { Composer, type ThinkingMode } from "./composer.js";
 import { DebriefLauncher } from "./debrief-launcher.js";
+import { FactsAdminView } from "./facts-admin.js";
+import { KnowledgeAdminView } from "./knowledge-admin.js";
 import { MessageView } from "./message-view.js";
 import { ReportsView } from "./reports-view.js";
 import { ScoutLauncher } from "./scout-launcher.js";
@@ -16,21 +18,29 @@ import { ThreadList } from "./thread-list.js";
 import { useScoutChat } from "./use-scout-chat.js";
 
 type ScoutMode = "chat" | "debrief" | "scout";
+type ScoutView = "chat" | "reports" | "facts" | "knowledge";
+
+const VIEW_FROM_PARAM: Record<string, ScoutView> = {
+  reports: "reports",
+  facts: "facts",
+  knowledge: "knowledge",
+};
 
 export function Component() {
   useDocumentMeta("Scout");
   const { threadId } = useParams<{ threadId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  // URL-state per the project's URL-state convention. The reports tab is
-  // global (not per-thread) so it survives switching between threads.
-  const view = searchParams.get("view") === "reports" ? "reports" : "chat";
+  // URL-state per the project's URL-state convention. The non-chat tabs
+  // are global (not per-thread) so they survive switching between threads.
+  const viewParam = searchParams.get("view") ?? "";
+  const view: ScoutView = VIEW_FROM_PARAM[viewParam] ?? "chat";
 
-  const setView = (next: "chat" | "reports") => {
+  const setView = (next: ScoutView) => {
     setSearchParams(
       (prev) => {
         const sp = new URLSearchParams(prev);
-        if (next === "reports") sp.set("view", "reports");
-        else sp.delete("view");
+        if (next === "chat") sp.delete("view");
+        else sp.set("view", next);
         return sp;
       },
       { replace: true },
@@ -45,6 +55,10 @@ export function Component() {
           <ScoutTabs view={view} setView={setView} />
           {view === "reports" ? (
             <ReportsView />
+          ) : view === "facts" ? (
+            <FactsAdminView />
+          ) : view === "knowledge" ? (
+            <KnowledgeAdminView />
           ) : threadId ? (
             <ActiveThread threadId={threadId} />
           ) : (
@@ -60,8 +74,8 @@ function ScoutTabs({
   view,
   setView,
 }: {
-  view: "chat" | "reports";
-  setView: (next: "chat" | "reports") => void;
+  view: ScoutView;
+  setView: (next: ScoutView) => void;
 }) {
   return (
     <nav className="flex shrink-0 border-b border-gray-200 bg-gray-50">
@@ -74,6 +88,16 @@ function ScoutTabs({
         active={view === "reports"}
         onClick={() => setView("reports")}
         label="Reports"
+      />
+      <TabButton
+        active={view === "facts"}
+        onClick={() => setView("facts")}
+        label="Facts"
+      />
+      <TabButton
+        active={view === "knowledge"}
+        onClick={() => setView("knowledge")}
+        label="Knowledge"
       />
     </nav>
   );
