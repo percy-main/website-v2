@@ -578,6 +578,147 @@ export function searchChunks(deps: KbDeps) {
   };
 }
 
+// ── Bridge from Track 1 attachments ──
+//
+// Promote a chat attachment into the KB. Bytes already live in the
+// attachments bucket; we server-side `CopyObject` them into the KB
+// permanent bucket and skip the uploads bucket entirely. Hash dedup
+// against the unique partial index — if an identical doc is already
+// in the KB the bridge surfaces it via KbDuplicateContentError so the
+// caller can show "already saved" rather than create a second row.
+
+const ATTACHMENT_KIND_TO_KB_KIND: Record<string, DocumentKind> = {
+  image: "image",
+  pdf: "pdf",
+};
+
+const ATTACHMENT_EXT_FOR_CONTENT_TYPE: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+export interface AttachmentRowSnapshot {
+  id: string;
+  threadId: string;
+  userId: string;
+  kind: string;
+  contentType: string;
+  filename: string;
+  sizeBytes: number;
+  s3Key: string;
+  contentHash: string;
+  processingState: string;
+}
+
+export class KbAttachmentNotReadyError extends Error {
+  constructor(public readonly state: string) {
+    super(
+      `Attachment is in ${state} state; only ready attachments can be saved to the KB.`,
+    );
+  }
+}
+
+export interface SaveAttachmentToKbInput {
+  attachment: AttachmentRowSnapshot;
+  /** Bucket name of the source object — typically SCOUT_ATTACHMENTS_BUCKET. */
+  sourceBucket: string;
+  uploadedBy: string;
+  title?: string;
+  description?: string;
+  tags?: FactTags;
+}
+
+export interface SaveAttachmentToKbResult {
+  documentId: string;
+  status: DocumentStatus;
+}
+
+export function saveAttachmentToKb(deps: KbDeps) {
+  return async (
+    input: SaveAttachmentToKbInput,
+  ): Promise<SaveAttachmentToKbResult> => {
+    const { attachment, sourceBucket } = input;
+
+    if (attachment.processingState !== "ready") {
+      throw new KbAttachmentNotReadyError(attachment.processingState);
+    }
+    if (attachment.sizeBytes > deps.maxDocumentBytes) {
+      throw new KbSizeTooLargeError(
+        attachment.sizeBytes,
+        deps.maxDocumentBytes,
+      );
+    }
+
+    const kbKind = ATTACHMENT_KIND_TO_KB_KIND[attachment.kind];
+    const ext = ATTACHMENT_EXT_FOR_CONTENT_TYPE[attachment.contentType];
+    if (!kbKind || !ext) {
+      throw new KbUnsupportedContentTypeError(attachment.contentType);
+    }
+
+    // Dedup before the copy so we don't push bytes for nothing.
+    const existing = await deps.db
+      .selectFrom("scout_kb_document")
+      .where("content_hash", "=", attachment.contentHash)
+      .select(["id"])
+      .executeTakeFirst();
+    if (existing) {
+      throw new KbDuplicateContentError(existing.id);
+    }
+
+    const tags = input.tags ?? {};
+    const title = (input.title ?? attachment.filename).slice(0, 255);
+
+    // Insert first so we have a stable id for the destination key.
+    // status='queued' from the start — bytes already exist; there's
+    // no awaiting-upload phase.
+    const row = await deps.db
+      .insertInto("scout_kb_document")
+      .values({
+        uploaded_by: input.uploadedBy,
+        title,
+        description: input.description ?? null,
+        kind: kbKind,
+        filename: attachment.filename,
+        content_type: attachment.contentType,
+        size_bytes: attachment.sizeBytes,
+        content_hash: attachment.contentHash,
+        tags: JSON.stringify(tags),
+        status: "queued" satisfies DocumentStatus,
+      })
+      .returning(["id"])
+      .executeTakeFirstOrThrow();
+
+    try {
+      const permanentKey = await deps.store.copyFromExternal(
+        sourceBucket,
+        attachment.s3Key,
+        row.id,
+        ext,
+        attachment.contentType,
+      );
+      await deps.db
+        .updateTable("scout_kb_document")
+        .set({ s3_key: permanentKey, updated_at: new Date() })
+        .where("id", "=", row.id)
+        .execute();
+    } catch (err) {
+      // Roll the row back so the bridge endpoint is idempotent — a
+      // retry can re-attempt the copy without colliding on the
+      // unique-hash index.
+      await deps.db
+        .deleteFrom("scout_kb_document")
+        .where("id", "=", row.id)
+        .execute();
+      throw err;
+    }
+
+    return { documentId: row.id, status: "queued" };
+  };
+}
+
 // ── Internals ──
 
 interface RawRow {

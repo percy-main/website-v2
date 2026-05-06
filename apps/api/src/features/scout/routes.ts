@@ -41,6 +41,7 @@ import {
   deleteDocument,
   type DocumentRow,
   getDocument,
+  KbAttachmentNotReadyError,
   KbDocumentInvalidStateError,
   KbDocumentNotFoundError,
   KbDuplicateContentError,
@@ -52,6 +53,7 @@ import {
   mintDocument,
   patchDocument,
   reingestDocument,
+  saveAttachmentToKb,
 } from "./knowledge/service.ts";
 import {
   extractCacheUsage,
@@ -86,6 +88,8 @@ import {
   kbMintResponseSchema,
   kbPatchBodySchema,
   kbReingestResponseSchema,
+  kbSaveFromAttachmentBodySchema,
+  kbSaveFromAttachmentResponseSchema,
   listFactsQuerySchema,
   listFactsResponseSchema,
   listReportsResponseSchema,
@@ -193,6 +197,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const kbPatch = patchDocument(kbDeps);
   const kbDelete = deleteDocument(kbDeps);
   const kbReingest = reingestDocument(kbDeps);
+  const kbBridge = saveAttachmentToKb(kbDeps);
 
   // Image captioning during KB ingest — Anthropic-only regardless of
   // SCOUT_PROVIDER_CHAT, same as Track 1's deriver. Resolved once at
@@ -1424,6 +1429,142 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             ),
             { statusCode: 409 },
           );
+        }
+        throw err;
+      }
+    },
+  );
+
+  // ── Track 1 → KB bridge ──
+  // Promote a chat attachment into the KB. Bytes already live in the
+  // attachments bucket; service-side CopyObject lifts them across.
+  app.post(
+    "/scout/threads/:threadId/attachments/:attachmentId/save-to-kb",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: attachmentIdParamSchema,
+        body: kbSaveFromAttachmentBodySchema,
+        response: { 201: kbSaveFromAttachmentResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      if (!kbVoyage || !kbImageCaptionModel) {
+        throw Object.assign(
+          new Error(
+            "KB ingest requires VOYAGE_API_KEY and ANTHROPIC_API_KEY to be configured.",
+          ),
+          { statusCode: 503 },
+        );
+      }
+
+      const { user } = getAuthSession(request);
+      const { threadId, attachmentId } = request.params;
+
+      // Reuse the existing attachment ownership check — user must own
+      // the thread the attachment belongs to.
+      try {
+        await assertOwned(user.id, threadId);
+      } catch (err) {
+        if (err instanceof ThreadNotFoundError) {
+          throw Object.assign(new Error("Thread not found"), {
+            statusCode: 404,
+          });
+        }
+        throw err;
+      }
+
+      const attachment = await app.db
+        .selectFrom("scout_attachment")
+        .where("id", "=", attachmentId)
+        .where("thread_id", "=", threadId)
+        .where("user_id", "=", user.id)
+        .selectAll()
+        .executeTakeFirst();
+      if (!attachment) {
+        throw Object.assign(new Error("Attachment not found"), {
+          statusCode: 404,
+        });
+      }
+      if (
+        !attachment.s3_key ||
+        !attachment.content_hash ||
+        attachment.processing_state !== "ready"
+      ) {
+        throw Object.assign(
+          new Error(
+            `Attachment is in ${attachment.processing_state} state; only ready attachments can be saved to the KB.`,
+          ),
+          { statusCode: 409 },
+        );
+      }
+
+      try {
+        const result = await kbBridge({
+          attachment: {
+            id: attachment.id,
+            threadId: attachment.thread_id,
+            userId: attachment.user_id,
+            kind: attachment.kind,
+            contentType: attachment.content_type,
+            filename: attachment.filename,
+            sizeBytes: attachment.size_bytes,
+            s3Key: attachment.s3_key,
+            contentHash: attachment.content_hash,
+            processingState: attachment.processing_state,
+          },
+          sourceBucket: app.config.SCOUT_ATTACHMENTS_BUCKET,
+          uploadedBy: user.id,
+          title: request.body.title,
+          description: request.body.description,
+          tags: request.body.tags,
+        });
+
+        try {
+          await launchScoutKbIngest({
+            config: app.config,
+            inProcessDeps: {
+              db: app.db,
+              voyage: kbVoyage,
+              imageCaptionModel: kbImageCaptionModel,
+              scoutKnowledgeBase: app.scoutKnowledgeBase,
+              config: app.config,
+              logger: app.log,
+            },
+            documentId: result.documentId,
+          });
+        } catch (launchErr) {
+          app.log.error(
+            { err: launchErr, documentId: result.documentId },
+            "scout KB bridge worker launch failed",
+          );
+          throw Object.assign(
+            new Error(
+              "Saved to KB but worker launch failed; trigger reingest from the KB admin.",
+            ),
+            { statusCode: 500 },
+          );
+        }
+
+        reply.code(201);
+        return result;
+      } catch (err) {
+        if (err instanceof KbAttachmentNotReadyError) {
+          throw Object.assign(new Error(err.message), { statusCode: 409 });
+        }
+        if (err instanceof KbDuplicateContentError) {
+          throw Object.assign(
+            new Error(
+              `An identical document is already in the KB (id=${err.existingDocumentId}).`,
+            ),
+            { statusCode: 409 },
+          );
+        }
+        if (err instanceof KbSizeTooLargeError) {
+          throw Object.assign(new Error(err.message), { statusCode: 413 });
+        }
+        if (err instanceof KbUnsupportedContentTypeError) {
+          throw Object.assign(new Error(err.message), { statusCode: 415 });
         }
         throw err;
       }
