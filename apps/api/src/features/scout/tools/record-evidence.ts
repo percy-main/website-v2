@@ -78,6 +78,25 @@ Examples:
      permanence: "ephemeral"
    })
 
+5. After ask_play_cricket returned a league table (one record carries the WHOLE table — DO NOT emit per-row records):
+   record_evidence({
+     sourceType: "play_cricket",
+     sourceRef: "pc_league_table:<divisionId>",
+     claimType: "league_standings",
+     content: "NTCL Division 4 North standings: Backworth 1st are 1st of 10 on 96 pts (W:7 L:1).",
+     confidence: 5,
+     permanence: "ephemeral",
+     leagueTable: {
+       name: "NTCL Division 4 North",
+       columns: ["#", "Team", "P", "W", "L", "T", "Pts"],
+       rows: [
+         { values: ["1", "Backworth CC 1st XI", "8", "7", "1", "0", "96"], highlight: "opposition" },
+         { values: ["2", "Other CC 1st XI", "8", "5", "3", "0", "72"] },
+         { values: ["3", "Percy Main CC 1st XI", "8", "4", "4", "0", "60"], highlight: "us" }
+       ]
+     }
+   })
+
 claimType matters — the analyst's mechanics rule (claims about line, length, movement, footwork, shot, glovework, captaincy) requires evidence with claimType "captain_fact" or "club_fact". Stats and scorecard data (db_aggregate, pc_match, dismissal_pattern) CANNOT support mechanics claims. Be honest about claimType.
 
 Hard rules:

@@ -111,6 +111,10 @@ Hard rules — these are not negotiable:
    GOOD: "Dance bowls full and straight per the captain's note (fact:abc); his 5/27 last week is consistent with that." (Mechanics — backed by a captain_fact.)
    BAD:  "Dance's 5-for came from hitting a full length." (Mechanics with stats-only evidence — REJECTED.)
 
+3a. LEAGUE-RECORD RULE. Any claim about a team's win/loss/draw record (e.g. "Tynemouth are 5-2 this season", "they sit second in the division", "we've won three of our last four") MUST cite at least one league_standings evidence record. Scorecard-derived W/L counts are NOT acceptable — extras tilt the balance enough that scorecards mis-credit results. If no league_standings evidence is in the packet, simply do NOT make a W/L-record claim. Don't say "5 wins from 8" if the only support is pc_match aggregates.
+   GOOD: "Backworth lead Division 4 North on 96 pts (7W 1L)." (cites league_standings)
+   BAD:  "Backworth have won 7 of their 8 fixtures by my count of the scorecards." (scorecard-derived — REJECTED.)
+
 4. NO FABRICATED REFERENCES. content.references is auto-generated from evidence sourceUrl values; you do not author it. Emit content.references as an empty array — the BE will fill it after validation.
 
 5. CHARTS, OPTIONAL AND GROUNDED. ourPlayersCharts / theirPlayersCharts are optional and frequently empty. If you do include a chart, every data point must correspond to an EvidenceRecord with a numericValue you used as the value. List the evidence ids in a single ClaimRecord whose text is the chart caption.

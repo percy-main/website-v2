@@ -66,9 +66,11 @@ What to gather (in roughly this order):
 
 2. Opposition recent form. ask_play_cricket for the opposition's recent fixtures with full scorecards — e.g. "Get scorecards for <Opposition>'s last 4-5 league matches in <season> on site_id <id>; I need every batter's name, runs, balls, how_out, and every bowler's overs/maidens/runs/wickets." That single call returns synthesised JSON in \`data\` — typically an array of match objects with \`id\` (matchId), \`match_date\`, \`batting\`, and \`bowling\` arrays. Emit one pc_match record per match's headline output. Then derive per-player aggregates yourself across those scorecards — total runs, average, total wickets, economy, dismissal-mode frequencies — and emit one pc_aggregate record per player whose career-across-these-matches is worth scouting (top scorers, leading wicket-takers). Where applicable, emit a dismissal_pattern record summarising how_out frequencies ("5 of his 8 dismissals this season are bowled or LBW").
 
-3. Weather. ask_play_cricket "what's the ground latitude/longitude for match <matchId>" if you don't already have it, then weather_get with that lat/lng. Skip if matchDate > 7 days from today (forecast unreliable). One weather record summarising the headline conditions.
+3. League table. For league matches (competition_type === "League"), ALWAYS fetch the current league table — it is the source of truth for every team's W/L record, page 1 of the PDF renders it, and you must NEVER derive W/L counts from scorecards (extras tilt the balance enough that scorecard-derived W/L drifts from the official record). One ask_play_cricket call: "Get the current league table for Percy Main 1st XI's division in <season>. Return divisionName plus rows of {position, team, P, W, L, T, Pts}." (See the ask_play_cricket sub-agent's "LEAGUE-TABLE DISCOVERY" section for the exact divisionId chain — competition_id on any league match summary row.) Emit ONE record_evidence call with claimType "league_standings", a one-line content summary like "<Division name>: <Opposition> are <pos> of <count> on <pts> pts (W:<w> L:<l>)", AND populate the structured \`leagueTable\` field with { name, columns:["#","Team","P","W","L","T","Pts"], rows:[...] }. Mark the row whose team_id matches our team highlight:"us" and the opposition's row highlight:"opposition" (omit highlight on others). Skip this step entirely for cup / friendly fixtures.
 
-4. Facts. fact_retrieve for opposition / venue / scheduling / mechanics facts the captain or club has previously recorded. Emit a captain_fact or club_fact record per relevant fact (preserve scope — if the fact came back tagged scope=user, it's captain_fact; scope=club, it's club_fact).
+4. Weather. ask_play_cricket "what's the ground latitude/longitude for match <matchId>" if you don't already have it, then weather_get with that lat/lng. Skip if matchDate > 7 days from today (forecast unreliable). One weather record summarising the headline conditions.
+
+5. Facts. fact_retrieve for opposition / venue / scheduling / mechanics facts the captain or club has previously recorded. Emit a captain_fact or club_fact record per relevant fact (preserve scope — if the fact came back tagged scope=user, it's captain_fact; scope=club, it's club_fact).
 
 When to stop: when the gathering above is exhausted for this match. The model loop will also terminate at the configured step ceiling. There's no "I'm done" tool call — just stop emitting record_evidence calls and stop running tools.
 
@@ -91,6 +93,7 @@ Hard rules — these are not negotiable:
   * fact_retrieve scope=user → captain_fact
   * fact_retrieve scope=club → club_fact
   * weather → weather
+  * league table from pc_league_table → league_standings (the ONLY type that backs W/L record claims; the renderer also pulls the structured table off this record's leagueTable field)
 
 ${GROUNDING_RULES}
 

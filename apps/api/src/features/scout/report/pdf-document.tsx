@@ -1,5 +1,6 @@
 import {
   scoutReportDisplayTitle,
+  type ScoutLeagueTable,
   type ScoutReportChart,
   type ScoutReportPayload,
   type ScoutReportPlayer,
@@ -123,6 +124,55 @@ const styles = StyleSheet.create({
   weatherMeta: {
     fontSize: 8,
     color: COLOURS.muted,
+  },
+  // ── League table ────────────────────────────────────────────────────────
+  leagueTableCaption: {
+    fontSize: 8,
+    color: COLOURS.muted,
+    marginTop: 4,
+  },
+  leagueTableWrapper: {
+    borderWidth: 1,
+    borderColor: COLOURS.rule,
+    borderStyle: "solid",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  leagueTableHeaderRow: {
+    flexDirection: "row",
+    backgroundColor: COLOURS.primary,
+  },
+  leagueTableHeaderCell: {
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    fontFamily: "Helvetica-Bold",
+    fontSize: 9,
+    color: "#ffffff",
+  },
+  leagueTableRow: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: COLOURS.rule,
+    borderTopStyle: "solid",
+  },
+  leagueTableRowHighlightUs: {
+    backgroundColor: "#e6efe9", // faint primary tint
+  },
+  leagueTableRowHighlightOpposition: {
+    backgroundColor: "#fbe9dc", // faint cta tint
+  },
+  leagueTableCell: {
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    fontSize: 9,
+  },
+  leagueTableCellNumeric: {
+    textAlign: "right",
+  },
+  // Highlight bold for "us" / "opposition" rows so the team name stands out
+  // even at small sizes.
+  leagueTableCellBold: {
+    fontFamily: "Helvetica-Bold",
   },
   playerCard: {
     marginBottom: 8,
@@ -250,7 +300,9 @@ export function ScoutReportPdf({
       author="Percy Main CSC — Scout"
       subject="Scouting report"
     >
-      {/* Page 1 — Overview */}
+      {/* Page 1 — Overview. Toss decision and Overall strategy live on the
+          Tactics page; their slot here is taken by the league table when
+          one is present (cup matches drop the section entirely). */}
       <ReportPage logoPng={logoPng} generatedAt={generatedAt}>
         <View style={styles.titleBlock}>
           <Text style={styles.titleMatch}>{payload.match}</Text>
@@ -275,13 +327,11 @@ export function ScoutReportPdf({
           </Section>
         ) : null}
 
-        <Section heading="Toss decision">
-          <Paragraph text={payload.tossDecision} />
-        </Section>
-
-        <Section heading="Overall strategy">
-          <Paragraph text={payload.overallStrategy} />
-        </Section>
+        {payload.leagueTable ? (
+          <Section heading="League table">
+            <LeagueTableView table={payload.leagueTable} />
+          </Section>
+        ) : null}
       </ReportPage>
 
       {hasOurPlayers ? (
@@ -313,7 +363,15 @@ export function ScoutReportPdf({
 
       <ReportPage logoPng={logoPng} generatedAt={generatedAt}>
         <Text style={styles.pageHeading}>Tactics</Text>
-        <Paragraph text={payload.tactics} />
+        <Section heading="Toss decision">
+          <Paragraph text={payload.tossDecision} />
+        </Section>
+        <Section heading="Overall strategy">
+          <Paragraph text={payload.overallStrategy} />
+        </Section>
+        <Section heading="Plan">
+          <Paragraph text={payload.tactics} />
+        </Section>
       </ReportPage>
 
       <ReportPage logoPng={logoPng} generatedAt={generatedAt}>
@@ -467,6 +525,85 @@ function InlineMarkdown({ text }: { text: string }) {
         </Text>
       ))}
     </>
+  );
+}
+
+// Heuristic: cells beyond column index 1 (i.e. the "Team" name column at
+// position 1) are numeric counts (P, W, L, T, Pts, etc.) and right-align
+// better. Column 0 is the position number — also numeric — and column 1 is
+// the team name (left-aligned). Distribute remaining horizontal space across
+// the cells so wider tables don't overflow the page.
+function leagueColumnWidth(index: number, total: number): string {
+  if (total === 0) return "100%";
+  // Position column compact, Team column gets the slack, numeric columns
+  // share the remainder evenly.
+  const positionWeight = 1;
+  const teamWeight = 5;
+  const numericWeight = 1;
+  const numericCount = Math.max(0, total - 2);
+  const totalWeight =
+    positionWeight + teamWeight + numericWeight * numericCount || 1;
+  const weight =
+    index === 0 ? positionWeight : index === 1 ? teamWeight : numericWeight;
+  return `${(weight / totalWeight) * 100}%`;
+}
+
+function LeagueTableView({ table }: { table: ScoutLeagueTable }) {
+  return (
+    <View>
+      <View style={styles.leagueTableWrapper}>
+        <View style={styles.leagueTableHeaderRow}>
+          {table.columns.map((col, i) => (
+            <Text
+              key={i}
+              style={[
+                styles.leagueTableHeaderCell,
+                { width: leagueColumnWidth(i, table.columns.length) },
+                i >= 2 ? styles.leagueTableCellNumeric : {},
+              ]}
+            >
+              {col}
+            </Text>
+          ))}
+        </View>
+        {table.rows.map((row, ri) => {
+          const highlightStyle =
+            row.highlight === "us"
+              ? styles.leagueTableRowHighlightUs
+              : row.highlight === "opposition"
+                ? styles.leagueTableRowHighlightOpposition
+                : null;
+          const bold = row.highlight !== undefined;
+          return (
+            <View
+              key={ri}
+              style={[
+                styles.leagueTableRow,
+                ...(highlightStyle ? [highlightStyle] : []),
+              ]}
+              wrap={false}
+            >
+              {row.values.map((value, ci) => (
+                <Text
+                  key={ci}
+                  style={[
+                    styles.leagueTableCell,
+                    { width: leagueColumnWidth(ci, table.columns.length) },
+                    ci >= 2 ? styles.leagueTableCellNumeric : {},
+                    bold ? styles.leagueTableCellBold : {},
+                  ]}
+                >
+                  {value}
+                </Text>
+              ))}
+            </View>
+          );
+        })}
+      </View>
+      {table.name ? (
+        <Text style={styles.leagueTableCaption}>{table.name}</Text>
+      ) : null}
+    </View>
   );
 }
 

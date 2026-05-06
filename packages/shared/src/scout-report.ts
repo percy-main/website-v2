@@ -53,6 +53,45 @@ const reportChartSchema = z.object({
   spec: chartSpecSchema,
 });
 
+// Structured league table — the renderer's source of truth for W/L records.
+// Populated server-side from a `league_standings` evidence record after the
+// analyst phase, NOT authored by the model. Kept out of scoutReportContent so
+// the analyst doesn't get a chance to fabricate it.
+export const scoutLeagueTableSchema = z.object({
+  name: z
+    .string()
+    .optional()
+    .describe(
+      "Division / league name as it appears in Play Cricket, e.g. 'NTCL Premier Division'.",
+    ),
+  columns: z
+    .array(z.string().min(1))
+    .min(1)
+    .describe(
+      "Column headers in display order, e.g. ['#', 'Team', 'P', 'W', 'L', 'T', 'Pts'].",
+    ),
+  rows: z
+    .array(
+      z.object({
+        values: z
+          .array(z.string())
+          .min(1)
+          .describe(
+            "Row cell values in the same order as `columns`. All stringified — '0' for empty counts.",
+          ),
+        highlight: z
+          .enum(["us", "opposition"])
+          .optional()
+          .describe(
+            "Tints the row in the PDF: 'us' = club green, 'opposition' = CTA orange. Omit otherwise.",
+          ),
+      }),
+    )
+    .min(1),
+});
+
+export type ScoutLeagueTable = z.infer<typeof scoutLeagueTableSchema>;
+
 export const scoutReportContentSchema = z.object({
   intro: z
     .string()
@@ -157,6 +196,11 @@ export const scoutReportPayloadSchema = scoutReportContentSchema.extend({
     .max(40)
     .describe(
       "Display-formatted match date for the PDF cover, e.g. '10 May 2026'. Already formatted — the renderer prints it verbatim under the match line.",
+    ),
+  leagueTable: scoutLeagueTableSchema
+    .optional()
+    .describe(
+      "Optional structured league table rendered on page 1. Set by the pipeline from a league_standings evidence record after the analyst phase — not authored by the model. Absent for cup matches or when no table evidence was gathered.",
     ),
 });
 

@@ -3,6 +3,7 @@ import {
   type ReportPhaseName,
   type ReportPhaseState,
   type ReportToolCallEvent,
+  type ScoutLeagueTable,
   type ScoutReportPayload,
 } from "@percy-main/shared";
 import type { FastifyBaseLogger } from "fastify";
@@ -12,8 +13,24 @@ import type { ScoutReportStore } from "../../../lib/s3-scout-reports.ts";
 import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
 import type { VoyageClient } from "../facts/voyage.ts";
 import { analyseScoutEvidence } from "./analyst.ts";
+import type { EvidenceRecord } from "./evidence.ts";
 import { renderScoutReportPdf } from "./render.ts";
 import { researchScoutReport } from "./researcher.ts";
+
+/**
+ * Pull the structured league table off the first league_standings evidence
+ * record. Returns undefined for cup matches (researcher emits no such record)
+ * or when the researcher emitted league_standings without populating the
+ * structured field — better to drop the table than ship something half-built.
+ *
+ * Exported for unit testing.
+ */
+export function extractLeagueTable(
+  evidence: EvidenceRecord[],
+): ScoutLeagueTable | undefined {
+  const record = evidence.find((e) => e.claimType === "league_standings");
+  return record?.leagueTable;
+}
 
 export interface RunReportDeps {
   /** Main read/write pool — used for scout_report orchestration UPDATEs and
@@ -293,10 +310,12 @@ export async function runReport(
     await writeProgress({ status: "rendering" });
 
     const match = `${params.ourTeam} ${params.homeAway === "home" ? "vs" : "at"} ${params.opposition}`;
+    const leagueTable = extractLeagueTable(evidence);
     const payload: ScoutReportPayload = {
       ...analysed.content,
       match,
       matchDate: params.matchDate,
+      ...(leagueTable ? { leagueTable } : {}),
     };
     const pdf = await renderScoutReportPdf(payload);
     const s3Key = await deps.scoutReports.putReport(reportId, pdf);

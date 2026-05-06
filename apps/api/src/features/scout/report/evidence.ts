@@ -1,3 +1,4 @@
+import { scoutLeagueTableSchema } from "@percy-main/shared";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
@@ -8,6 +9,11 @@ import { z } from "zod";
 // outputs, no synthesis, no narrative). Each record is one atomic, citable
 // piece of evidence — analyst cites by id, validators check that mechanics
 // claims are backed by fact-typed evidence.
+
+// Re-export the structured league-table schema. league_standings evidence
+// records carry one of these on their `leagueTable` field; the runReport
+// pipeline picks it up post-analyst and injects it into the PDF payload.
+export const evidenceLeagueTableSchema = scoutLeagueTableSchema;
 
 export const evidenceSourceTypeSchema = z.enum([
   "db",
@@ -34,6 +40,12 @@ export const evidenceClaimTypeSchema = z.enum([
   "captain_fact",
   // fact_retrieve result, scope=club — anyone at the club has recorded it.
   "club_fact",
+  // Division standings — the source of truth for ANY team's W/L record.
+  // Scorecards mis-credit results when extras tilt the balance, so the
+  // researcher must NEVER derive W/L counts from match scores; only this
+  // claim type backs them. The structured table travels on the record's
+  // `leagueTable` field for the renderer to pick up post-analyst.
+  "league_standings",
 ]);
 
 export const evidencePermanenceSchema = z.enum([
@@ -50,6 +62,12 @@ export type EvidenceClaimType = z.infer<typeof evidenceClaimTypeSchema>;
 // the same source of truth.
 export const MECHANICS_CAPABLE_CLAIM_TYPES: ReadonlySet<EvidenceClaimType> =
   new Set(["captain_fact", "club_fact"]);
+
+// W/L-record-allowed claim types. Win/loss/draw counts derived from
+// scorecards mis-credit results when extras tilt the balance — only the
+// official league standings are reliable. Mirrors the mechanics gate.
+export const LEAGUE_RECORD_CAPABLE_CLAIM_TYPES: ReadonlySet<EvidenceClaimType> =
+  new Set(["league_standings"]);
 
 // What the researcher's record_evidence tool ACCEPTS. The id + retrievedAt
 // are filled server-side, so the model doesn't supply them.
@@ -107,6 +125,11 @@ export const evidenceRecordInputSchema = z.object({
   permanence: evidencePermanenceSchema.describe(
     "permanent = handedness, bowling style; seasonal = ground covers, scheduling; ephemeral = weather, recent form, injuries.",
   ),
+  leagueTable: evidenceLeagueTableSchema
+    .optional()
+    .describe(
+      "Required ONLY when claimType === 'league_standings'. Carries the structured division table so the runReport pipeline can render it on page 1 of the PDF without round-tripping through the analyst. Use the EXACT W/L/T/Pts numbers from the official league table — never recompute from scorecards.",
+    ),
 });
 
 export type EvidenceRecordInput = z.infer<typeof evidenceRecordInputSchema>;

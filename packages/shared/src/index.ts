@@ -34,6 +34,7 @@ export { chartSpecSchema, type ChartSpec } from "./scout-chart.ts";
 
 export {
   REPORT_PHASE_BUDGETS_MS,
+  scoutLeagueTableSchema,
   scoutReportContentSchema,
   scoutReportDisplayTitle,
   scoutReportPayloadSchema,
@@ -41,6 +42,7 @@ export {
   type ReportPhaseName,
   type ReportPhaseState,
   type ReportToolCallEvent,
+  type ScoutLeagueTable,
   type ScoutReportChart,
   type ScoutReportContent,
   type ScoutReportPayload,

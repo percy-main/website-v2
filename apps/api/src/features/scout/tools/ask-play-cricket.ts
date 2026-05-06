@@ -159,10 +159,15 @@ Tools available:
   - pc_list_players                                      — Percy Main's player roster.
   - pc_match_summary(season, fields)                     — Percy Main's matches in a season.
   - pc_match_detail(matchId, fields)                     — full scorecard for one match.
-  - pc_league_table(divisionId)                          — current standings.
+  - pc_league_table(divisionId)                          — current standings for a division.
   - pc_site_matches(siteId, season, teamId?, fields)     — ANY club's fixtures. site_id == club_id; Percy Main's is 134.
   - pc_site_results(siteId, season, fields)              — ANY club's PLAYED matches with innings totals (cheaper than N pc_match_detail).
   - pc_find_opposition_matches(oppositionName, season, limit?, fields) — Percy Main fixtures against a named opposition with full scorecards.
+
+LEAGUE-TABLE DISCOVERY: divisionId for pc_league_table === competition_id on any league match-summary row. For "current league table for Percy Main 1st XI's division", do this in TWO calls, no more:
+  1. pc_match_summary(season, ["matches[].competition_id", "matches[].competition_name", "matches[].competition_type", "matches[].home_team_id", "matches[].home_team_name", "matches[].away_team_id", "matches[].away_team_name"]) and read competition_id off any row where home_team_id or away_team_id is the team's id and competition_type === "League". (Always project the matching *_name fields alongside the *_id fields — see the "never infer names" rule.)
+  2. pc_league_table(divisionId=<that competition_id>).
+For another club's division: pc_site_matches(siteId=<their clubId>, season, teamId?, [...same fields...]) instead of pc_match_summary. Do NOT brute-force-search for division names.
 
 Each tool's description carries the available field-path projections — read them. Ask for the narrowest projection that answers the question; the underlying API response is cached, so widening on a second call costs nothing at the API boundary.
 
@@ -170,11 +175,13 @@ CRITICAL rules:
 
 1. **ALWAYS include identifying IDs in your projections AND in your final JSON.** matches[].id / match_details[].id / players[].player_id (and home_club_id / away_club_id when relevant). The caller needs these to cite via cite_match / cite_player_stats.
 
-2. **status is unreliable for played-vs-not-played.** Many played matches retain status "New" indefinitely. Use match_date vs today (${ddmmyyyy}). To confirm a result, prefer pc_site_results or check that innings are populated in pc_match_detail.
+2. **NEVER infer or invent NAMES from numeric ids.** team_ids, club_ids, player_ids are NUMBERS — they cannot be turned into names without the API. If you project home_team_id, ALSO project home_team_name on the SAME call (and same for home_club_id/home_club_name, away_team_id/away_team_name, away_club_id/away_club_name, player_id/player_name). Whenever any \`*_id\` field appears in your output, the matching \`*_name\` field MUST be in the underlying tool projection — pulled straight from the API, never invented, never inferred from "it's probably X". If a name field is empty in the API, surface it as empty (and say so in \`note\`) — do not guess. Caveats like "names inferred from team_ids" are FORBIDDEN; if you would write that, you projected the wrong fields — go back and re-project including the names.
 
-3. **site_id == club_id.** To scout opposition X: find a Percy Main vs X match via pc_match_summary, read X's club_id off the row (home_club_id or away_club_id, whichever isn't 134), pass it as siteId to pc_site_matches / pc_site_results.
+3. **status is unreliable for played-vs-not-played.** Many played matches retain status "New" indefinitely. Use match_date vs today (${ddmmyyyy}). To confirm a result, prefer pc_site_results or check that innings are populated in pc_match_detail.
 
-4. **Stop when the data is right.** After the final pc_* call has the answer payload, emit JSON and STOP — don't keep poking. You have ${deps.maxSteps} steps total.
+4. **site_id == club_id.** To scout opposition X: find a Percy Main vs X match via pc_match_summary, read X's club_id off the row (home_club_id or away_club_id, whichever isn't 134), pass it as siteId to pc_site_matches / pc_site_results.
+
+5. **Stop when the data is right.** After the final pc_* call has the answer payload, emit JSON and STOP — don't keep poking. You have ${deps.maxSteps} steps total.
 
 OUTPUT FORMAT — your final assistant message is a single JSON object, nothing else:
 
