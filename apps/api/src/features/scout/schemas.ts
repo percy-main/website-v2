@@ -324,3 +324,125 @@ export const attachmentDetailResponseSchema = z.object({
 export const attachmentDeleteResponseSchema = z.object({
   ok: z.literal(true),
 });
+
+// ── Knowledge base (Track 2) ──
+// Admin-uploaded reference documents (PDFs / images / text) the agent
+// retrieves chunks from via knowledge_search. CRUD is admin-only,
+// uploads use the same three-step flow as attachments (mint → PUT →
+// commit) but the worker that ingests is one-shot ECS, not in the
+// API request lifecycle.
+
+export const kbDocumentKindSchema = z.enum(["pdf", "image", "text"]);
+export type KbDocumentKind = z.infer<typeof kbDocumentKindSchema>;
+
+export const kbDocumentStatusSchema = z.enum([
+  "awaiting-upload",
+  "queued",
+  "ingesting",
+  "ready",
+  "failed",
+]);
+
+export const kbDocumentIdParamSchema = z.object({
+  id: z.uuid(),
+});
+
+const kbContentTypeSchema = z.enum([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "text/plain",
+  "text/markdown",
+]);
+
+// Tags use the same shape as scout_fact (key → string|string[]). Lets
+// retrieval scope by team/topic/season exactly as the fact corpus does.
+const kbTagsSchema = z.record(
+  z.string().min(1).max(64),
+  z.union([z.string().max(256), z.array(z.string().max(256)).max(20)]),
+);
+
+export const kbDocumentSummarySchema = z.object({
+  id: z.uuid(),
+  uploadedBy: z.string().nullable(),
+  title: z.string(),
+  description: z.string().nullable(),
+  kind: kbDocumentKindSchema,
+  filename: z.string(),
+  contentType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  status: kbDocumentStatusSchema,
+  errorMessage: z.string().nullable(),
+  pageCount: z.number().int().nonnegative().nullable(),
+  chunkCount: z.number().int().nonnegative(),
+  tags: kbTagsSchema,
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const kbDocumentListResponseSchema = z.object({
+  documents: z.array(kbDocumentSummarySchema),
+});
+
+export const kbDocumentListQuerySchema = z.object({
+  search: z.string().trim().min(1).max(100).optional(),
+});
+
+export const kbDocumentDetailResponseSchema = z.object({
+  document: kbDocumentSummarySchema,
+  signedUrl: z.url().nullable(),
+  signedUrlExpiresInSeconds: z.number().int().positive(),
+});
+
+export const kbMintBodySchema = z.object({
+  filename: z.string().min(1).max(255),
+  contentType: kbContentTypeSchema,
+  sizeBytes: z.number().int().positive(),
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  tags: kbTagsSchema.optional(),
+});
+
+export const kbMintResponseSchema = z.object({
+  id: z.uuid(),
+  kind: kbDocumentKindSchema,
+  uploadUrl: z.url(),
+  uploadUrlExpiresInSeconds: z.number().int().positive(),
+  pendingKey: z.string(),
+  status: kbDocumentStatusSchema,
+});
+
+export const kbCommitResponseSchema = z.object({
+  id: z.uuid(),
+  status: kbDocumentStatusSchema,
+});
+
+export const kbPatchBodySchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  // null clears the description; undefined leaves it alone.
+  description: z.string().max(2000).nullable().optional(),
+  tags: kbTagsSchema.optional(),
+});
+
+export const kbReingestResponseSchema = z.object({
+  id: z.uuid(),
+  status: kbDocumentStatusSchema,
+});
+
+export const kbDeleteResponseSchema = z.object({
+  ok: z.literal(true),
+});
+
+// Bridge from Track 1 chat attachments → KB.
+export const kbSaveFromAttachmentBodySchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  tags: kbTagsSchema.optional(),
+});
+
+export const kbSaveFromAttachmentResponseSchema = z.object({
+  documentId: z.uuid(),
+  status: kbDocumentStatusSchema,
+});

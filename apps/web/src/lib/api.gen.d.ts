@@ -9706,6 +9706,339 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scout/knowledge/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    search?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            documents: {
+                                /** Format: uuid */
+                                id: string;
+                                uploadedBy: string | null;
+                                title: string;
+                                description: string | null;
+                                /** @enum {string} */
+                                kind: "pdf" | "image" | "text";
+                                filename: string;
+                                contentType: string;
+                                sizeBytes: number;
+                                /** @enum {string} */
+                                status: "awaiting-upload" | "queued" | "ingesting" | "ready" | "failed";
+                                errorMessage: string | null;
+                                pageCount: number | null;
+                                chunkCount: number;
+                                tags: {
+                                    [key: string]: string | string[];
+                                };
+                                /** Format: date-time */
+                                createdAt: string;
+                                /** Format: date-time */
+                                updatedAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        filename: string;
+                        /** @enum {string} */
+                        contentType: "application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/gif" | "text/plain" | "text/markdown";
+                        sizeBytes: number;
+                        title?: string;
+                        description?: string;
+                        tags?: {
+                            [key: string]: string | string[];
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            kind: "pdf" | "image" | "text";
+                            /** Format: uri */
+                            uploadUrl: string;
+                            uploadUrlExpiresInSeconds: number;
+                            pendingKey: string;
+                            /** @enum {string} */
+                            status: "awaiting-upload" | "queued" | "ingesting" | "ready" | "failed";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scout/knowledge/documents/{id}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            status: "awaiting-upload" | "queued" | "ingesting" | "ready" | "failed";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scout/knowledge/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            document: {
+                                /** Format: uuid */
+                                id: string;
+                                uploadedBy: string | null;
+                                title: string;
+                                description: string | null;
+                                /** @enum {string} */
+                                kind: "pdf" | "image" | "text";
+                                filename: string;
+                                contentType: string;
+                                sizeBytes: number;
+                                /** @enum {string} */
+                                status: "awaiting-upload" | "queued" | "ingesting" | "ready" | "failed";
+                                errorMessage: string | null;
+                                pageCount: number | null;
+                                chunkCount: number;
+                                tags: {
+                                    [key: string]: string | string[];
+                                };
+                                /** Format: date-time */
+                                createdAt: string;
+                                /** Format: date-time */
+                                updatedAt: string;
+                            };
+                            /** Format: uri */
+                            signedUrl: string | null;
+                            signedUrlExpiresInSeconds: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            ok: true;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        title?: string;
+                        description?: string | null;
+                        tags?: {
+                            [key: string]: string | string[];
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            uploadedBy: string | null;
+                            title: string;
+                            description: string | null;
+                            /** @enum {string} */
+                            kind: "pdf" | "image" | "text";
+                            filename: string;
+                            contentType: string;
+                            sizeBytes: number;
+                            /** @enum {string} */
+                            status: "awaiting-upload" | "queued" | "ingesting" | "ready" | "failed";
+                            errorMessage: string | null;
+                            pageCount: number | null;
+                            chunkCount: number;
+                            tags: {
+                                [key: string]: string | string[];
+                            };
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/scout/knowledge/documents/{id}/reingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            status: "awaiting-upload" | "queued" | "ingesting" | "ready" | "failed";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/contact": {
         parameters: {
             query?: never;

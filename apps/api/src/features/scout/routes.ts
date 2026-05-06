@@ -35,7 +35,29 @@ import {
 } from "./facts/admin-service.ts";
 import { applyAutoRetrieval } from "./facts/auto-retrieve.ts";
 import { createVoyageClient } from "./facts/voyage.ts";
-import { extractCacheUsage, type ScoutProvider } from "./provider.ts";
+import { launchScoutKbIngest } from "./knowledge/launch.ts";
+import {
+  commitDocument,
+  deleteDocument,
+  type DocumentRow,
+  getDocument,
+  KbDocumentInvalidStateError,
+  KbDocumentNotFoundError,
+  KbDuplicateContentError,
+  KbSizeTooLargeError,
+  KbUnsupportedContentTypeError,
+  KbUploadMissingError,
+  KbUploadSizeMismatchError,
+  listDocuments,
+  mintDocument,
+  patchDocument,
+  reingestDocument,
+} from "./knowledge/service.ts";
+import {
+  extractCacheUsage,
+  resolveModel,
+  type ScoutProvider,
+} from "./provider.ts";
 import {
   accessResponseSchema,
   attachmentCommitResponseSchema,
@@ -53,6 +75,17 @@ import {
   deleteThreadResponseSchema,
   factIdParamSchema,
   getThreadResponseSchema,
+  kbCommitResponseSchema,
+  kbDeleteResponseSchema,
+  kbDocumentDetailResponseSchema,
+  kbDocumentIdParamSchema,
+  kbDocumentListQuerySchema,
+  kbDocumentListResponseSchema,
+  kbDocumentSummarySchema,
+  kbMintBodySchema,
+  kbMintResponseSchema,
+  kbPatchBodySchema,
+  kbReingestResponseSchema,
   listFactsQuerySchema,
   listFactsResponseSchema,
   listReportsResponseSchema,
@@ -132,6 +165,41 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const getAtt = getAttachment(attachmentDeps);
   const deleteAtt = deleteAttachment(attachmentDeps);
   const loadAttForTurn = loadReadyAttachmentsForTurn(attachmentDeps);
+
+  // ── Knowledge base (Track 2) ──
+  // Voyage is required for ingest (chunks need embeddings). When
+  // VOYAGE_API_KEY is unset we still register the routes — list / get
+  // / delete / mint / commit all work — but commit will queue rows
+  // that the worker eventually fails on, so the route surface gates
+  // ingest-launching paths on having a Voyage client.
+  const kbVoyage = app.config.VOYAGE_API_KEY
+    ? createVoyageClient({
+        apiKey: app.config.VOYAGE_API_KEY,
+        embedModel: app.config.VOYAGE_EMBED_MODEL,
+        rerankModel: app.config.VOYAGE_RERANK_MODEL,
+      })
+    : undefined;
+  const kbDeps = {
+    db: app.db,
+    store: app.scoutKnowledgeBase,
+    voyage: kbVoyage,
+    maxDocumentBytes: app.config.SCOUT_KB_MAX_DOCUMENT_BYTES,
+    uploadUrlExpirySeconds: app.config.SCOUT_KB_UPLOAD_URL_EXPIRY_SECONDS,
+  };
+  const kbList = listDocuments(kbDeps);
+  const kbGet = getDocument(kbDeps);
+  const kbMint = mintDocument(kbDeps);
+  const kbCommit = commitDocument(kbDeps);
+  const kbPatch = patchDocument(kbDeps);
+  const kbDelete = deleteDocument(kbDeps);
+  const kbReingest = reingestDocument(kbDeps);
+
+  // Image captioning during KB ingest — Anthropic-only regardless of
+  // SCOUT_PROVIDER_CHAT, same as Track 1's deriver. Resolved once at
+  // boot so each commit doesn't pay the model lookup cost.
+  const kbImageCaptionModel = app.config.ANTHROPIC_API_KEY
+    ? resolveModel("anthropic", app.config.SCOUT_ATTACHMENT_DERIVE_MODEL).model
+    : null;
 
   // ── Access probe ──
   // Always 200 so the FE can call this without a noisy 401 when nobody is
@@ -1057,7 +1125,333 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       }
     },
   );
+
+  // ── Knowledge base routes ──
+  // All gated behind requireScoutAccess. The mint route additionally
+  // pre-flights ANTHROPIC_API_KEY + VOYAGE_API_KEY because ingest
+  // depends on both — admins should see a 503 before paying upload
+  // bandwidth on a doc the worker would refuse to process.
+
+  app.get(
+    "/scout/knowledge/documents",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        querystring: kbDocumentListQuerySchema,
+        response: { 200: kbDocumentListResponseSchema },
+      },
+    },
+    async (request) => {
+      const { search } = request.query;
+      const docs = await kbList({ search });
+      return { documents: docs.map(toDocumentSummary) };
+    },
+  );
+
+  app.post(
+    "/scout/knowledge/documents",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        body: kbMintBodySchema,
+        response: { 201: kbMintResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      if (!kbVoyage) {
+        throw Object.assign(
+          new Error(
+            "VOYAGE_API_KEY is not configured; KB ingest requires embeddings.",
+          ),
+          { statusCode: 503 },
+        );
+      }
+      if (
+        !kbImageCaptionModel &&
+        request.body.contentType.startsWith("image/")
+      ) {
+        throw Object.assign(
+          new Error(
+            "ANTHROPIC_API_KEY is not configured; KB image ingest requires Anthropic Haiku for captioning.",
+          ),
+          { statusCode: 503 },
+        );
+      }
+
+      const { user } = getAuthSession(request);
+      try {
+        const result = await kbMint({
+          uploadedBy: user.id,
+          filename: request.body.filename,
+          contentType: request.body.contentType,
+          sizeBytes: request.body.sizeBytes,
+          title: request.body.title,
+          description: request.body.description,
+          tags: request.body.tags,
+        });
+        reply.code(201);
+        return result;
+      } catch (err) {
+        if (err instanceof KbUnsupportedContentTypeError) {
+          throw Object.assign(new Error(err.message), { statusCode: 415 });
+        }
+        if (err instanceof KbSizeTooLargeError) {
+          throw Object.assign(new Error(err.message), { statusCode: 413 });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/scout/knowledge/documents/:id/commit",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: kbDocumentIdParamSchema,
+        response: { 200: kbCommitResponseSchema },
+      },
+    },
+    async (request) => {
+      if (!kbVoyage || !kbImageCaptionModel) {
+        throw Object.assign(
+          new Error(
+            "KB ingest requires VOYAGE_API_KEY and ANTHROPIC_API_KEY to be configured.",
+          ),
+          { statusCode: 503 },
+        );
+      }
+
+      const { id } = request.params;
+      try {
+        const result = await kbCommit(id);
+        // Launch the ingestion worker after the row is in 'queued'.
+        // Errors here surface as 500 — the row is in 'queued' so a
+        // future operator action can re-launch via the reingest
+        // endpoint without re-uploading.
+        try {
+          await launchScoutKbIngest({
+            config: app.config,
+            inProcessDeps: {
+              db: app.db,
+              voyage: kbVoyage,
+              imageCaptionModel: kbImageCaptionModel,
+              scoutKnowledgeBase: app.scoutKnowledgeBase,
+              config: app.config,
+              logger: app.log,
+            },
+            documentId: id,
+          });
+        } catch (launchErr) {
+          app.log.error(
+            { err: launchErr, documentId: id },
+            "scout KB worker launch failed",
+          );
+          throw Object.assign(
+            new Error(
+              "Document committed but worker launch failed. Re-trigger via /reingest.",
+            ),
+            { statusCode: 500 },
+          );
+        }
+        return { id: result.id, status: result.status };
+      } catch (err) {
+        if (err instanceof KbDocumentNotFoundError) {
+          throw Object.assign(new Error(err.message), { statusCode: 404 });
+        }
+        if (err instanceof KbUploadMissingError) {
+          throw Object.assign(
+            new Error(
+              "Pending upload not found. The presigned URL may have expired — re-upload from scratch.",
+            ),
+            { statusCode: 409 },
+          );
+        }
+        if (err instanceof KbUploadSizeMismatchError) {
+          throw Object.assign(new Error(err.message), { statusCode: 422 });
+        }
+        if (err instanceof KbDocumentInvalidStateError) {
+          throw Object.assign(
+            new Error(`Document is in ${err.state} state; cannot commit.`),
+            { statusCode: 409 },
+          );
+        }
+        if (err instanceof KbDuplicateContentError) {
+          throw Object.assign(
+            new Error(
+              `An identical document is already in the KB (id=${err.existingDocumentId}).`,
+            ),
+            { statusCode: 409 },
+          );
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.get(
+    "/scout/knowledge/documents/:id",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: kbDocumentIdParamSchema,
+        response: { 200: kbDocumentDetailResponseSchema },
+      },
+    },
+    async (request) => {
+      const { id } = request.params;
+      try {
+        const { document, signedUrl } = await kbGet(id);
+        return {
+          document: toDocumentSummary(document),
+          signedUrl,
+          signedUrlExpiresInSeconds: 30 * 60,
+        };
+      } catch (err) {
+        if (err instanceof KbDocumentNotFoundError) {
+          throw Object.assign(new Error(err.message), { statusCode: 404 });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.patch(
+    "/scout/knowledge/documents/:id",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: kbDocumentIdParamSchema,
+        body: kbPatchBodySchema,
+        response: { 200: kbDocumentSummarySchema },
+      },
+    },
+    async (request) => {
+      const { id } = request.params;
+      try {
+        const updated = await kbPatch(id, {
+          title: request.body.title,
+          description: request.body.description,
+          tags: request.body.tags,
+        });
+        return toDocumentSummary(updated);
+      } catch (err) {
+        if (err instanceof KbDocumentNotFoundError) {
+          throw Object.assign(new Error(err.message), { statusCode: 404 });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.delete(
+    "/scout/knowledge/documents/:id",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: kbDocumentIdParamSchema,
+        response: { 200: kbDeleteResponseSchema },
+      },
+    },
+    async (request) => {
+      const { id } = request.params;
+      try {
+        await kbDelete(id);
+        return { ok: true as const };
+      } catch (err) {
+        if (err instanceof KbDocumentNotFoundError) {
+          throw Object.assign(new Error(err.message), { statusCode: 404 });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/scout/knowledge/documents/:id/reingest",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: kbDocumentIdParamSchema,
+        response: { 200: kbReingestResponseSchema },
+      },
+    },
+    async (request) => {
+      if (!kbVoyage || !kbImageCaptionModel) {
+        throw Object.assign(
+          new Error(
+            "KB ingest requires VOYAGE_API_KEY and ANTHROPIC_API_KEY to be configured.",
+          ),
+          { statusCode: 503 },
+        );
+      }
+      const { id } = request.params;
+      try {
+        const result = await kbReingest(id);
+        try {
+          await launchScoutKbIngest({
+            config: app.config,
+            inProcessDeps: {
+              db: app.db,
+              voyage: kbVoyage,
+              imageCaptionModel: kbImageCaptionModel,
+              scoutKnowledgeBase: app.scoutKnowledgeBase,
+              config: app.config,
+              logger: app.log,
+            },
+            documentId: id,
+          });
+        } catch (launchErr) {
+          app.log.error(
+            { err: launchErr, documentId: id },
+            "scout KB reingest worker launch failed",
+          );
+          throw Object.assign(
+            new Error("Reingest queued but worker launch failed."),
+            { statusCode: 500 },
+          );
+        }
+        return result;
+      } catch (err) {
+        if (err instanceof KbDocumentNotFoundError) {
+          throw Object.assign(new Error(err.message), { statusCode: 404 });
+        }
+        if (err instanceof KbDocumentInvalidStateError) {
+          throw Object.assign(
+            new Error(
+              `Document is in ${err.state} state; cannot reingest (must be committed at least once).`,
+            ),
+            { statusCode: 409 },
+          );
+        }
+        throw err;
+      }
+    },
+  );
 };
+
+// Format service-side DocumentRow into the wire shape declared by the
+// schema. Service has Date objects + structured tags; schema expects
+// ISO strings.
+function toDocumentSummary(row: DocumentRow) {
+  return {
+    id: row.id,
+    uploadedBy: row.uploadedBy,
+    title: row.title,
+    description: row.description,
+    kind: row.kind,
+    filename: row.filename,
+    contentType: row.contentType,
+    sizeBytes: row.sizeBytes,
+    status: row.status,
+    errorMessage: row.errorMessage,
+    pageCount: row.pageCount,
+    chunkCount: row.chunkCount,
+    tags: row.tags,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
 
 // AI SDK errors (most importantly Anthropic's APICallError) carry the entire
 // request body — including the conversation history — as own properties.
