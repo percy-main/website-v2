@@ -109,6 +109,8 @@ Recommended workflow (interleave freely):
 
 When you've called every required-section tool and you're done, just stop calling tools and emit a final short text. The loop ends and the pipeline assembles the report from your tool calls.
 
+There is no retry — if you finish without calling all of set_intro / set_toss_decision / set_overall_strategy / set_key_matchups / set_tactics / set_conclusion, the report fails. Likewise the assembled content must satisfy the shared schema (max 15 add_our_player / add_their_player calls each, max 4 chart_render calls per section, intro >= 20 chars, etc.); exceeding those caps fails the report. Stay within the limits.
+
 Hard rules:
 
 - NEVER infer or invent NAMES from numeric ids. team_ids, club_ids, player_ids, competition_ids are NUMBERS. When you project an *_id field, pair it with the matching *_name on the SAME pc_* call.
@@ -312,29 +314,30 @@ Build the report now via the tool surface above. Stop calling tools when you've 
 
   const startedAt = Date.now();
   await runOnce("", 1);
-  let assembled = accumulator.toContent();
+  const assembled = accumulator.toContent();
 
   if (!assembled.ok) {
-    deps.logger?.warn(
-      {
-        matchId: params.matchId,
-        missing: assembled.missing,
-      },
-      "scout_report_agent_missing_sections_retrying",
-    );
-    const missingList = assembled.missing
-      .map((s) => `set_${s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}`)
-      .join(", ");
-    await runOnce(
-      `Required sections not yet written: ${assembled.missing.join(", ")}. Call ${missingList} now (no further data gathering needed; write each section with what you already know) and then stop.`,
-      2,
-    );
-    assembled = accumulator.toContent();
-    if (!assembled.ok) {
+    // No retry path. A 30-min loop that didn't call set_intro doesn't get
+    // saved by a re-prompt without context — and passing the prior call's
+    // messages forward makes the prompt + tool-result context expensive
+    // for a long-tail recovery. Hard-fail loud; runReport persists the
+    // message to scout_report.error_message so the captain sees it.
+    if (assembled.reason === "missing") {
+      deps.logger?.error(
+        { matchId: params.matchId, missing: assembled.missing },
+        "scout_report_agent_missing_sections",
+      );
       throw new Error(
-        `Report agent did not write all required sections after retry: missing ${assembled.missing.join(", ")}.`,
+        `Report agent finished without calling required sections: ${assembled.missing.join(", ")}.`,
       );
     }
+    deps.logger?.error(
+      { matchId: params.matchId, schemaError: assembled.message },
+      "scout_report_agent_schema_invalid",
+    );
+    throw new Error(
+      `Report agent emitted content that failed shared-schema validation: ${assembled.message}`,
+    );
   }
 
   deps.logger?.info(

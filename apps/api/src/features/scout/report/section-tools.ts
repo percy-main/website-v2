@@ -1,6 +1,7 @@
 import {
   chartSpecSchema,
   scoutLeagueTableSchema,
+  scoutReportContentSchema,
   type ChartSpec,
   type ScoutLeagueTable,
   type ScoutReportChart,
@@ -10,6 +11,20 @@ import {
 import { tool } from "ai";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+
+/**
+ * toContent() return shape. Three outcomes:
+ *  - ok:true with the assembled content
+ *  - ok:false reason:"missing"      — required set_* calls weren't made
+ *  - ok:false reason:"schema"       — sections set, but the assembled
+ *      object failed shared-schema validation (e.g. > 15 add_*_player
+ *      calls, intro under 20 chars, > 4 charts in a section). The
+ *      message names the specific constraint that failed.
+ */
+export type ToContentResult =
+  | { ok: true; content: ScoutReportContent }
+  | { ok: false; reason: "missing"; missing: string[] }
+  | { ok: false; reason: "schema"; message: string };
 
 /**
  * Tool-driven report output.
@@ -146,19 +161,15 @@ export class ReportContentAccumulator {
   }
 
   /**
-   * Assemble the ScoutReportContent. Returns the missing required-section
-   * names if any are still empty — the agent loop's retry path uses this
-   * to feed back which set_* calls the model still owes us.
+   * Assemble the ScoutReportContent. Two failure modes:
+   *  - Required set_* calls weren't made → reason:"missing", names them.
+   *  - Sections set but the assembled object fails shared-schema validation
+   *    (length caps, min lengths, etc.) → reason:"schema", names the
+   *    constraint. This is a guardrail: zod limits like .max(15) on
+   *    players are not enforced at the per-tool boundary, so a runaway
+   *    add_their_player loop would otherwise reach the renderer.
    */
-  toContent():
-    | {
-        ok: true;
-        content: ScoutReportContent;
-      }
-    | {
-        ok: false;
-        missing: string[];
-      } {
+  toContent(): ToContentResult {
     const missing: string[] = [];
     const intro = this._intro;
     const tossDecision = this._tossDecision;
@@ -180,10 +191,10 @@ export class ReportContentAccumulator {
       !tactics ||
       !conclusion
     ) {
-      return { ok: false, missing };
+      return { ok: false, reason: "missing", missing };
     }
 
-    const content: ScoutReportContent = {
+    const candidate: ScoutReportContent = {
       intro,
       tossDecision,
       overallStrategy,
@@ -204,7 +215,12 @@ export class ReportContentAccumulator {
       // Server-side overrides this from the citation accumulator after the run.
       references: [],
     };
-    return { ok: true, content };
+
+    const parsed = scoutReportContentSchema.safeParse(candidate);
+    if (!parsed.success) {
+      return { ok: false, reason: "schema", message: parsed.error.message };
+    }
+    return { ok: true, content: parsed.data };
   }
 }
 

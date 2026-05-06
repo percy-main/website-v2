@@ -199,7 +199,7 @@ Date formats are split between sources:
 - The Play Cricket API (queried via the pc_* tools) emits match_date in dd/mm/yyyy — today is ${ddmmyyyy} in that format. Pass dd/mm/yyyy values back through unchanged.
 - Our database (queried via ask_db) stores match_date as ISO ${iso}-style. Lex order = chronological order.
 
-When asked about the "next" or "upcoming" Percy Main match, the answer is in the local DB — ask_db with match_date > '${iso}'. Anything on or before today has already been played (or is being played now). Don't trust your gut on what day-of-week a date falls on; always compare against the iso date above.`;
+When asked about the "next" or "upcoming" match for ANY club (Percy Main or opposition), call pc_match_summary / pc_site_matches with match_date filtered against today (${iso}). The local DB only carries fixtures for matches that already have a synced scorecard, so it's not the right source for upcoming-fixture questions. Don't trust your gut on what day-of-week a date falls on; always compare against the iso date above.`;
 
   const basePrompt =
     deps.mode === "debrief"

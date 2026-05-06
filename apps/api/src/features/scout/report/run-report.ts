@@ -156,6 +156,24 @@ export async function runReport(
     void flush();
   }, FLUSH_INTERVAL_MS);
 
+  /**
+   * Re-read cancel_requested between phases. The agent loop honours the
+   * AbortController via cancelSignal, but render / S3 / final-update are
+   * non-cancellable from the AI SDK's perspective — without these checks,
+   * a captain hitting Stop during the 10–30s render still produces a
+   * "ready" PDF. Throws ReportCancelledError, which the outer catch
+   * classifies as a clean cancel rather than a failure.
+   */
+  const checkCancel = async (): Promise<void> => {
+    if (abortController.signal.aborted) throw new ReportCancelledError();
+    const r = await db
+      .selectFrom("scout_report")
+      .select("cancel_requested")
+      .where("id", "=", reportId)
+      .executeTakeFirst();
+    if (r?.cancel_requested) throw new ReportCancelledError();
+  };
+
   try {
     const { content, chartSpecs } = await runReportAgent(
       {
@@ -171,6 +189,8 @@ export async function runReport(
       params,
       citations,
     );
+
+    await checkCancel();
 
     // Server-side fills references from the citations gathered during the run.
     // accumulator.toContent() already initialises references to []; we overwrite
@@ -190,6 +210,11 @@ export async function runReport(
       .execute();
 
     const pdf = await renderScoutReportPdf(payload, chartSpecs);
+    // Last cancel checkpoint before we commit to S3. After the put, a
+    // cancel that arrives mid-flight has to clean up the orphan; the
+    // outer catch handles that via the existing s3 cleanup path on the
+    // failed-update branch.
+    await checkCancel();
     const s3Key = await deps.scoutReports.putReport(reportId, pdf);
 
     try {
