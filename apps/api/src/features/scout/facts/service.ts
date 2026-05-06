@@ -79,6 +79,14 @@ export interface RecordFactInput {
   permanence?: FactPermanence | null;
   sourceThreadId?: string;
   sourceMessageId?: string;
+  /**
+   * KB chunk that grounded this fact, if any. Populated when the agent
+   * derives a fact from a knowledge_search result rather than from
+   * something the user said. The schema FK is ON DELETE SET NULL so
+   * re-ingesting the source doc clears stale pointers without losing
+   * the fact itself.
+   */
+  sourceKbChunkId?: string | null;
 }
 
 export interface RecordedFact {
@@ -149,8 +157,9 @@ export function recordFact(db: Kysely<DB>, voyage: VoyageClient) {
           CompiledQuery.raw(
             `INSERT INTO scout_fact
               (user_id, scope, content, tags, embedding, confidence,
-               permanence, source_thread_id, source_message_id)
-             VALUES ($1, $2, $3, $4::jsonb, $5::vector, $6, $7, $8, $9)
+               permanence, source_thread_id, source_message_id,
+               source_kb_chunk_id)
+             VALUES ($1, $2, $3, $4::jsonb, $5::vector, $6, $7, $8, $9, $10)
              RETURNING id`,
             [
               input.userId,
@@ -162,6 +171,7 @@ export function recordFact(db: Kysely<DB>, voyage: VoyageClient) {
               permanence,
               input.sourceThreadId ?? null,
               input.sourceMessageId ?? null,
+              input.sourceKbChunkId ?? null,
             ],
           ),
         );
@@ -186,8 +196,9 @@ export function recordFact(db: Kysely<DB>, voyage: VoyageClient) {
       CompiledQuery.raw(
         `INSERT INTO scout_fact
           (user_id, scope, content, tags, embedding, confidence,
-           permanence, source_thread_id, source_message_id)
-         VALUES ($1, $2, $3, $4::jsonb, $5::vector, $6, $7, $8, $9)
+           permanence, source_thread_id, source_message_id,
+           source_kb_chunk_id)
+         VALUES ($1, $2, $3, $4::jsonb, $5::vector, $6, $7, $8, $9, $10)
          RETURNING id`,
         [
           input.userId,
@@ -199,6 +210,7 @@ export function recordFact(db: Kysely<DB>, voyage: VoyageClient) {
           permanence,
           input.sourceThreadId ?? null,
           input.sourceMessageId ?? null,
+          input.sourceKbChunkId ?? null,
         ],
       ),
     );

@@ -13,14 +13,16 @@ const REMARK_PLUGINS = [remarkGfm];
 
 // ── Citation model ────────────────────────────────────────────────────────
 //
-// Three citation kinds share one numbering + sources panel: facts (RAG
-// corpus), Play Cricket matches, and Play Cricket player aggregate stats.
-// They use different streaming part types but render through a single
-// per-citation-key map so the inline chips and the sources panel agree on
-// numbering. Keys identify a citation uniquely within a message:
+// Four citation kinds share one numbering + sources panel: facts (RAG
+// corpus), Play Cricket matches, Play Cricket player aggregate stats,
+// and KB chunks (admin-uploaded reference docs). They use different
+// streaming part types but render through a single per-citation-key
+// map so the inline chips and the sources panel agree on numbering.
+// Keys identify a citation uniquely within a message:
 //   fact          → f:<factId>
 //   match         → m:<matchId>
 //   player_stats  → p:<playerId>:<statType>
+//   kb            → k:<chunkId>
 //
 // `[[CITE:<key>]]` markers spliced into text parts get swapped for chips
 // at render time. We keep the marker format permissive (any non-]
@@ -35,6 +37,17 @@ interface FactCitation {
   tags: Record<string, string | string[]>;
   scope: "user" | "club";
   confidence: number;
+}
+
+interface KbCitation {
+  kind: "kb";
+  chunkId: string;
+  documentId: string;
+  documentTitle: string;
+  claim: string;
+  content: string;
+  pageStart: number | null;
+  pageEnd: number | null;
 }
 
 interface MatchCitation {
@@ -61,7 +74,7 @@ interface PlayerStatsCitation {
   clubId?: string;
 }
 
-type Citation = FactCitation | MatchCitation | PlayerStatsCitation;
+type Citation = FactCitation | MatchCitation | PlayerStatsCitation | KbCitation;
 
 const PERCY_MAIN_HOSTNAME = "percymain.play-cricket.com";
 const PERCY_MAIN_CLUB_ID = "134";
@@ -74,6 +87,8 @@ function citationKey(c: Citation): string {
       return `m:${c.matchId}`;
     case "player_stats":
       return `p:${c.playerId}:${c.statType}`;
+    case "kb":
+      return `k:${c.chunkId}`;
   }
 }
 
@@ -269,6 +284,10 @@ function partToCitation(part: UIMessage["parts"][number]): Citation | null {
     const data = (part as { data: Omit<PlayerStatsCitation, "kind"> }).data;
     return { kind: "player_stats", ...data };
   }
+  if (part.type === "data-kb-citation") {
+    const data = (part as { data: Omit<KbCitation, "kind"> }).data;
+    return { kind: "kb", ...data };
+  }
   return null;
 }
 
@@ -371,6 +390,7 @@ function renderParts(
       part.type === "tool-cite_fact" ||
       part.type === "tool-cite_match" ||
       part.type === "tool-cite_player_stats" ||
+      part.type === "tool-cite_kb" ||
       part.type === "tool-ask_question"
     ) {
       continue;
@@ -750,6 +770,37 @@ function SourceCard({
       {citation.kind === "player_stats" && (
         <PlayerStatsCardBody citation={citation} />
       )}
+      {citation.kind === "kb" && <KbCardBody citation={citation} />}
+    </div>
+  );
+}
+
+function KbCardBody({ citation: c }: { citation: KbCitation }) {
+  const pageRange =
+    c.pageStart !== null && c.pageEnd !== null
+      ? c.pageStart === c.pageEnd
+        ? `p. ${c.pageStart}`
+        : `pp. ${c.pageStart}–${c.pageEnd}`
+      : null;
+  // Surface the chunk content as a short excerpt — the full chunk is
+  // potentially long. Truncate at ~280 chars; the admin "Knowledge"
+  // tab is the path to the full source.
+  const excerpt =
+    c.content.length > 280
+      ? `${c.content.slice(0, 280).trimEnd()}…`
+      : c.content;
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-1.5">
+        <Pill tone="purple">Knowledge</Pill>
+        {pageRange && (
+          <span className="text-[10px] text-gray-500">{pageRange}</span>
+        )}
+      </div>
+      <div className="font-medium text-gray-900">{c.documentTitle}</div>
+      <div className="mt-1 text-[11px] leading-relaxed text-gray-600 italic">
+        {excerpt}
+      </div>
     </div>
   );
 }

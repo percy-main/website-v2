@@ -127,6 +127,16 @@ variable "scout_attachments_bucket_arn" {
   description = "ARN of the permanent scout attachments bucket (committed image / PDF originals)."
 }
 
+variable "scout_kb_uploads_bucket_arn" {
+  type        = string
+  description = "ARN of the temporary scout knowledge-base uploads bucket (browser-direct uploads of admin-supplied reference docs)."
+}
+
+variable "scout_kb_bucket_arn" {
+  type        = string
+  description = "ARN of the permanent scout knowledge-base bucket (committed reference docs)."
+}
+
 # ------------------------------------------------------------------------------
 # Locals
 # ------------------------------------------------------------------------------
@@ -438,6 +448,52 @@ resource "aws_iam_role_policy" "task_s3_scout_attachments" {
         Resource = [
           var.scout_attachments_bucket_arn,
           "${var.scout_attachments_bucket_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "task_s3_scout_kb_uploads" {
+  name = "${local.name_prefix}-task-s3-scout-kb-uploads"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          var.scout_kb_uploads_bucket_arn,
+          "${var.scout_kb_uploads_bucket_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "task_s3_scout_kb" {
+  name = "${local.name_prefix}-task-s3-scout-kb"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          var.scout_kb_bucket_arn,
+          "${var.scout_kb_bucket_arn}/*"
         ]
       }
     ]

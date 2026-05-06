@@ -8,6 +8,7 @@ import type {
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { Config } from "../../config.ts";
+import type { S3KnowledgeBaseStore } from "../../lib/s3-knowledge-base.ts";
 import type { ScoutReportStore } from "../../lib/s3-scout-reports.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type { VoyageClient } from "./facts/voyage.ts";
@@ -24,6 +25,7 @@ import { createScoutCache } from "./tools/cache.ts";
 import { createChartTool } from "./tools/chart.ts";
 import { createFactTools } from "./tools/facts.ts";
 import { createGenerateReportTool } from "./tools/generate-report.ts";
+import { createKnowledgeTools } from "./tools/knowledge.ts";
 import { createPlayCricketCitationTools } from "./tools/play-cricket-citations.ts";
 import { createPlayCricketTools } from "./tools/play-cricket.ts";
 import { createWeatherTools } from "./tools/weather.ts";
@@ -74,6 +76,10 @@ export interface ScoutAgentDeps {
   // S3 store for the generate_report tool. Required in scouting mode (the
   // only mode where the tool is registered); ignored in debrief.
   scoutReports: ScoutReportStore;
+  // S3 store for the knowledge base. Optional — when absent (or when
+  // VOYAGE_API_KEY is unset), the knowledge_search / cite_kb tools
+  // are simply not registered.
+  scoutKnowledgeBase?: S3KnowledgeBaseStore;
   // Per-turn reasoning toggle. "thinking" = chain-of-thought enabled (slower,
   // better on multi-step queries); "fast" = thinking disabled (lower latency,
   // best for follow-ups). Only DeepSeek currently honours this — Sonnet 4.6
@@ -181,6 +187,23 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
       })
     : {};
 
+  // KB tools share Voyage with the fact tools. They additionally need
+  // the S3 KB store decoration so cite_kb / knowledge_search can
+  // resolve chunks back to their parent document. Same gating: when
+  // VOYAGE_API_KEY is unset, the agent runs without KB at all.
+  const knowledgeTools =
+    deps.voyage && deps.scoutKnowledgeBase
+      ? createKnowledgeTools({
+          db: deps.db,
+          voyage: deps.voyage,
+          store: deps.scoutKnowledgeBase,
+          userId: deps.userId,
+          threadId: deps.threadId,
+          writer: deps.writer,
+          logger: deps.logger,
+        })
+      : {};
+
   // Anchor "today" so the model doesn't fall back to its training cutoff
   // when picking a default season AND so it filters past/future matches
   // correctly. Resolved per-request, not at module load.
@@ -239,6 +262,7 @@ When asked about the "next" or "upcoming" match for ANY club (Percy Main or oppo
       ...reportTools,
       ...askQuestionTools,
       ...factTools,
+      ...knowledgeTools,
       ...playCricketCitationTools,
     },
     maxSteps: deps.config.SCOUT_MAX_STEPS,

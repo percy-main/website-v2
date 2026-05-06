@@ -22,6 +22,21 @@ export async function buildTestApp(db: Kysely<DB>, dialect: PostgresDialect) {
     SCOUT_REPORTS_BUCKET: "test-scout-reports-bucket",
     SCOUT_ATTACHMENT_UPLOADS_BUCKET: "test-scout-attachment-uploads-bucket",
     SCOUT_ATTACHMENTS_BUCKET: "test-scout-attachments-bucket",
+    SCOUT_KB_UPLOADS_BUCKET: "test-scout-kb-uploads-bucket",
+    SCOUT_KB_BUCKET: "test-scout-kb-bucket",
+    // Models are required (no in-code defaults). Pin to the production
+    // values so tests exercise the real model ids.
+    SCOUT_PROVIDER_CHAT: "deepseek",
+    SCOUT_PROVIDER_SUBAGENT: "deepseek",
+    SCOUT_PROVIDER_DB: "anthropic",
+    SCOUT_PROVIDER_REPORT: "deepseek",
+    SCOUT_MODEL_CHAT: "deepseek-v4-pro",
+    SCOUT_MODEL_SUBAGENT: "deepseek-v4-pro",
+    SCOUT_MODEL_DB: "claude-haiku-4-5-20251001",
+    SCOUT_MODEL_REPORT: "deepseek-v4",
+    SCOUT_ATTACHMENT_DERIVE_MODEL: "claude-haiku-4-5-20251001",
+    VOYAGE_EMBED_MODEL: "voyage-4",
+    VOYAGE_RERANK_MODEL: "rerank-2.5",
   });
 
   return buildApp({ db, dialect, config });

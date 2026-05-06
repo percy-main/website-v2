@@ -23,6 +23,10 @@ type AdminItem = z.infer<typeof factAdminItemSchema>;
 type ListQuery = z.infer<typeof listFactsQuerySchema>;
 type UpdateBody = z.infer<typeof updateFactBodySchema>;
 
+// Note: source_kb_chunk_id and the joined kb_document_* fields are
+// pulled in via a manual join below; SELECT_COLS only carries the
+// fact's own columns so they can be used unchanged in the simpler
+// getFact / count paths.
 const SELECT_COLS = [
   "id",
   "user_id",
@@ -32,6 +36,7 @@ const SELECT_COLS = [
   "confidence",
   "permanence",
   "source_thread_id",
+  "source_kb_chunk_id",
   "superseded_by",
   "created_at",
   "updated_at",
@@ -46,9 +51,15 @@ interface Row {
   confidence: number;
   permanence: string | null;
   source_thread_id: string | null;
+  source_kb_chunk_id: string | null;
   superseded_by: string | null;
   created_at: Date | string;
   updated_at: Date | string;
+  // Optional join columns — only populated by the list query path
+  // (which joins to scout_kb_chunk + scout_kb_document so the admin
+  // UI can show "From document" links without a second roundtrip).
+  kb_document_id?: string | null;
+  kb_document_title?: string | null;
 }
 
 function toItem(row: Row): AdminItem {
@@ -61,6 +72,11 @@ function toItem(row: Row): AdminItem {
     confidence: row.confidence,
     permanence: row.permanence as AdminItem["permanence"],
     sourceThreadId: row.source_thread_id,
+    sourceKbChunkId: row.source_kb_chunk_id,
+    sourceKbDocument:
+      row.kb_document_id && row.kb_document_title
+        ? { id: row.kb_document_id, title: row.kb_document_title }
+        : null,
     supersededBy: row.superseded_by,
     createdAt:
       row.created_at instanceof Date
@@ -83,19 +99,46 @@ export function listFacts(db: Kysely<DB>) {
   return async (
     params: ListQuery,
   ): Promise<{ facts: AdminItem[]; total: number }> => {
-    let query = db.selectFrom("scout_fact").select([...SELECT_COLS]);
+    let query = db
+      .selectFrom("scout_fact")
+      .leftJoin(
+        "scout_kb_chunk",
+        "scout_kb_chunk.id",
+        "scout_fact.source_kb_chunk_id",
+      )
+      .leftJoin(
+        "scout_kb_document",
+        "scout_kb_document.id",
+        "scout_kb_chunk.document_id",
+      )
+      .select([
+        "scout_fact.id",
+        "scout_fact.user_id",
+        "scout_fact.scope",
+        "scout_fact.content",
+        "scout_fact.tags",
+        "scout_fact.confidence",
+        "scout_fact.permanence",
+        "scout_fact.source_thread_id",
+        "scout_fact.source_kb_chunk_id",
+        "scout_fact.superseded_by",
+        "scout_fact.created_at",
+        "scout_fact.updated_at",
+        "scout_kb_document.id as kb_document_id",
+        "scout_kb_document.title as kb_document_title",
+      ]);
 
     if (!params.includeSuperseded) {
-      query = query.where("superseded_by", "is", null);
+      query = query.where("scout_fact.superseded_by", "is", null);
     }
     if (params.scope) {
-      query = query.where("scope", "=", params.scope);
+      query = query.where("scout_fact.scope", "=", params.scope);
     }
     if (params.q) {
       // websearch_to_tsquery handles typed queries gracefully (quotes,
       // negation). Same operator used in retrieveFacts.
       query = query.where(
-        sql<SqlBool>`to_tsvector('english', content) @@ websearch_to_tsquery('english', ${params.q})`,
+        sql<SqlBool>`to_tsvector('english', scout_fact.content) @@ websearch_to_tsquery('english', ${params.q})`,
       );
     }
     if (params.tag) {
@@ -106,14 +149,14 @@ export function listFacts(db: Kysely<DB>) {
         const key = params.tag.slice(0, idx);
         const value = params.tag.slice(idx + 1);
         query = query.where(
-          sql<SqlBool>`tags @> ${JSON.stringify({ [key]: value })}::jsonb`,
+          sql<SqlBool>`scout_fact.tags @> ${JSON.stringify({ [key]: value })}::jsonb`,
         );
       }
     }
 
     const offset = (params.page - 1) * params.pageSize;
     const rows = (await query
-      .orderBy("created_at", "desc")
+      .orderBy("scout_fact.created_at", "desc")
       .limit(params.pageSize)
       .offset(offset)
       .execute()) as unknown as Row[];

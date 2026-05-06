@@ -97,6 +97,8 @@ module "ecs" {
   scout_reports_bucket_arn            = module.scout_reports.bucket_arn
   scout_attachment_uploads_bucket_arn = module.scout_attachment_uploads.bucket_arn
   scout_attachments_bucket_arn        = module.scout_attachments_bucket.bucket_arn
+  scout_kb_uploads_bucket_arn         = module.scout_kb_uploads.bucket_arn
+  scout_kb_bucket_arn                 = module.scout_kb_bucket.bucket_arn
 
   environment_variables = {
     NODE_ENV                        = "staging"
@@ -115,7 +117,25 @@ module "ecs" {
     SCOUT_ATTACHMENT_UPLOADS_BUCKET = module.scout_attachment_uploads.bucket_name
     SCOUT_ATTACHMENTS_BUCKET        = module.scout_attachments_bucket.bucket_name
     SCOUT_ATTACHMENTS_PREFIX        = "scout/attachments"
-    AWS_REGION                      = "eu-west-2"
+    SCOUT_KB_UPLOADS_BUCKET         = module.scout_kb_uploads.bucket_name
+    SCOUT_KB_BUCKET                 = module.scout_kb_bucket.bucket_name
+    SCOUT_KB_PREFIX                 = "scout/knowledge"
+    # Scout model config — required, no in-code defaults. Mirror local
+    # dev so staging behaves the same. Production tracks staging
+    # exactly except SCOUT_MODEL_REPORT, which uses deepseek-v4 (not
+    # flash) to favour quality over latency on report runs.
+    SCOUT_PROVIDER_CHAT           = "deepseek"
+    SCOUT_PROVIDER_SUBAGENT       = "deepseek"
+    SCOUT_PROVIDER_DB             = "anthropic"
+    SCOUT_PROVIDER_REPORT         = "deepseek"
+    SCOUT_MODEL_CHAT              = "deepseek-v4-pro"
+    SCOUT_MODEL_SUBAGENT          = "deepseek-v4-pro"
+    SCOUT_MODEL_DB                = "claude-haiku-4-5-20251001"
+    SCOUT_MODEL_REPORT            = "deepseek-v4-flash"
+    SCOUT_ATTACHMENT_DERIVE_MODEL = "claude-haiku-4-5-20251001"
+    VOYAGE_EMBED_MODEL            = "voyage-4"
+    VOYAGE_RERANK_MODEL           = "rerank-2.5"
+    AWS_REGION                    = "eu-west-2"
     # Cannot reference module.ecs.* outputs that depend on the task definition
     # here — that would cycle through the env-vars input. The cluster and family
     # names are deterministic from the environment, so inline them.
@@ -200,6 +220,21 @@ module "scout_attachment_uploads" {
 
 module "scout_attachments_bucket" {
   source      = "../../modules/scout-attachments-bucket"
+  environment = "staging"
+}
+
+# -----------------------------------------------------------------------------
+# Scout KB Buckets — uploads (24h lifecycle, CORS PUT) + permanent
+# -----------------------------------------------------------------------------
+
+module "scout_kb_uploads" {
+  source      = "../../modules/scout-kb-uploads"
+  environment = "staging"
+  domain_name = "staging.${var.domain_name}"
+}
+
+module "scout_kb_bucket" {
+  source      = "../../modules/scout-kb-bucket"
   environment = "staging"
 }
 

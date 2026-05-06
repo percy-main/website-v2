@@ -18,6 +18,10 @@ import {
   type S3DocumentStore,
 } from "./lib/s3-documents.ts";
 import {
+  createS3KnowledgeBaseStore,
+  type S3KnowledgeBaseStore,
+} from "./lib/s3-knowledge-base.ts";
+import {
   createScoutAttachmentStore,
   type ScoutAttachmentStore,
 } from "./lib/s3-scout-attachments.ts";
@@ -68,6 +72,7 @@ declare module "fastify" {
     s3Documents: S3DocumentStore;
     scoutReports: ScoutReportStore;
     scoutAttachments: ScoutAttachmentStore;
+    scoutKnowledgeBase: S3KnowledgeBaseStore;
   }
 }
 
@@ -146,6 +151,11 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   // Create and decorate the Scout attachment store (chat image / PDF originals)
   const scoutAttachments = createScoutAttachmentStore(config);
   app.decorate("scoutAttachments", scoutAttachments);
+
+  // Create and decorate the Scout knowledge base store (admin-uploaded
+  // reference docs that the agent retrieves chunks from)
+  const scoutKnowledgeBase = createS3KnowledgeBaseStore(config);
+  app.decorate("scoutKnowledgeBase", scoutKnowledgeBase);
 
   // Plugins
   await app.register(swagger, {

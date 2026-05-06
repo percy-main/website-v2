@@ -12,6 +12,19 @@ const baseEnv = {
   SCOUT_REPORTS_BUCKET: "x",
   SCOUT_ATTACHMENT_UPLOADS_BUCKET: "x",
   SCOUT_ATTACHMENTS_BUCKET: "x",
+  SCOUT_KB_UPLOADS_BUCKET: "x",
+  SCOUT_KB_BUCKET: "x",
+  SCOUT_PROVIDER_CHAT: "deepseek",
+  SCOUT_PROVIDER_SUBAGENT: "deepseek",
+  SCOUT_PROVIDER_DB: "anthropic",
+  SCOUT_PROVIDER_REPORT: "deepseek",
+  SCOUT_MODEL_CHAT: "deepseek-v4-pro",
+  SCOUT_MODEL_SUBAGENT: "deepseek-v4-pro",
+  SCOUT_MODEL_DB: "claude-haiku-4-5-20251001",
+  SCOUT_MODEL_REPORT: "deepseek-v4",
+  SCOUT_ATTACHMENT_DERIVE_MODEL: "claude-haiku-4-5-20251001",
+  VOYAGE_EMBED_MODEL: "voyage-4",
+  VOYAGE_RERANK_MODEL: "rerank-2.5",
 };
 
 describe("parseConfig — defaults", () => {
@@ -34,5 +47,25 @@ describe("parseConfig — defaults", () => {
       parseConfig({ ...baseEnv, SCOUT_DEV_FAST: "true" }).SCOUT_DEV_FAST,
     ).toBe(true);
     expect(parseConfig(baseEnv).SCOUT_DEV_FAST).toBe(false);
+  });
+});
+
+describe("parseConfig — required model config", () => {
+  it("rejects missing SCOUT_MODEL_CHAT", () => {
+    const env = { ...baseEnv } as Record<string, string | undefined>;
+    delete env.SCOUT_MODEL_CHAT;
+    expect(() => parseConfig(env)).toThrow();
+  });
+
+  it("rejects missing SCOUT_PROVIDER_REPORT", () => {
+    const env = { ...baseEnv } as Record<string, string | undefined>;
+    delete env.SCOUT_PROVIDER_REPORT;
+    expect(() => parseConfig(env)).toThrow();
+  });
+
+  it("rejects missing VOYAGE_EMBED_MODEL", () => {
+    const env = { ...baseEnv } as Record<string, string | undefined>;
+    delete env.VOYAGE_EMBED_MODEL;
+    expect(() => parseConfig(env)).toThrow();
   });
 });

@@ -8,63 +8,34 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 /**
  * Fact corpus admin — list / search / edit / delete the agent's
- * recorded knowledge. Lives as a modal alongside the Scout chat (not in
- * the main admin area) because the corpus is Scout-specific and the
- * audience is whoever has Scout access (admin/official roles), not all
- * site admins.
+ * recorded knowledge. Surfaces as a Scout tab (not in the main admin
+ * area) because the corpus is Scout-specific and the audience is
+ * whoever has Scout access (admin/official roles), not all site
+ * admins.
  *
  * Edits to `content` re-embed via Voyage; metadata-only edits skip
  * the embedding round-trip server-side.
  */
 
-type Permanence = "permanent" | "seasonal" | "ephemeral" | null;
+// Sourced from the generated OpenAPI types — no parallel hand-written
+// interface to drift.
+type Fact = NonNullable<
+  paths["/api/scout/facts"]["get"]["responses"][200]["content"]["application/json"]["facts"]
+>[number];
+type Permanence = Fact["permanence"];
 
-interface Fact {
-  id: string;
-  userId: string;
-  scope: "user" | "club";
-  content: string;
-  tags: Record<string, string | string[]>;
-  confidence: number;
-  permanence: Permanence;
-  sourceThreadId: string | null;
-  supersededBy: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface FactsAdminButtonProps {
-  className?: string;
-}
-
-export function FactsAdminButton({ className }: FactsAdminButtonProps) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Button
-        size="sm"
-        variant="outline"
-        className={className}
-        onClick={() => setOpen(true)}
-      >
-        Facts
-      </Button>
-      <FactsAdminModal open={open} onOpenChange={setOpen} />
-    </>
-  );
-}
-
-interface ModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-function FactsAdminModal({ open, onOpenChange }: ModalProps) {
+/**
+ * Tab body for the Scout fact corpus. The parent (Scout page tabs)
+ * owns mounting; we drive our own filter state + URL search params
+ * so deep-links land on the right rows.
+ */
+export function FactsAdminView() {
   const [scope, setScope] = useState<"" | "user" | "club">("");
   const [q, setQ] = useState("");
   const [tag, setTag] = useState("");
@@ -73,7 +44,6 @@ function FactsAdminModal({ open, onOpenChange }: ModalProps) {
 
   const factsQuery = useQuery({
     queryKey: ["scout", "facts", { scope, q, tag }],
-    enabled: open,
     queryFn: () =>
       callApi(
         api.GET("/api/scout/facts", {
@@ -91,98 +61,90 @@ function FactsAdminModal({ open, onOpenChange }: ModalProps) {
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Scout fact corpus</DialogTitle>
-          <DialogDescription>
-            Review, edit, and prune knowledge Scout has recorded. Editing
-            content regenerates the embedding so retrieval stays in sync.
-          </DialogDescription>
-        </DialogHeader>
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="border-b border-gray-200 px-4 py-3">
+        <h2 className="text-sm font-medium text-gray-700">Scout fact corpus</h2>
+        <p className="mt-0.5 text-xs text-gray-500">
+          Review, edit, and prune knowledge Scout has recorded. Editing content
+          regenerates the embedding so retrieval stays in sync.
+        </p>
+      </div>
 
-        <div className="flex flex-wrap items-end gap-2 border-b border-gray-200 pb-3">
-          <label className="flex flex-col text-xs text-gray-600">
-            Scope
-            <select
-              className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
-              value={scope}
-              onChange={(e) => setScope(e.target.value as "" | "user" | "club")}
-            >
-              <option value="">All</option>
-              <option value="club">Club</option>
-              <option value="user">Personal</option>
-            </select>
-          </label>
-          <label className="flex flex-1 flex-col text-xs text-gray-600">
-            Search
-            <input
-              className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
-              placeholder="full-text query (e.g. 'covers')"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-1 flex-col text-xs text-gray-600">
-            Tag
-            <input
-              className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
-              placeholder="key:value (e.g. team:Mitford CC)"
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
-            />
-          </label>
-        </div>
+      <div className="flex flex-wrap items-end gap-2 border-b border-gray-200 px-4 py-3">
+        <label className="flex flex-col text-xs text-gray-600">
+          Scope
+          <select
+            className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            value={scope}
+            onChange={(e) => setScope(e.target.value as "" | "user" | "club")}
+          >
+            <option value="">All</option>
+            <option value="club">Club</option>
+            <option value="user">Personal</option>
+          </select>
+        </label>
+        <label className="flex flex-1 flex-col text-xs text-gray-600">
+          Search
+          <input
+            className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            placeholder="full-text query (e.g. 'covers')"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </label>
+        <label className="flex flex-1 flex-col text-xs text-gray-600">
+          Tag
+          <input
+            className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            placeholder="key:value (e.g. team:Mitford CC)"
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+          />
+        </label>
+      </div>
 
-        <div className="max-h-[55vh] overflow-y-auto">
-          {factsQuery.isLoading && (
-            <div className="p-3 text-sm text-gray-500">Loading…</div>
-          )}
-          {factsQuery.error && (
-            <div className="p-3 text-sm text-red-600">
-              {factsQuery.error instanceof Error
-                ? factsQuery.error.message
-                : "Failed to load facts"}
+      <div className="flex-1 overflow-y-auto px-4 py-2">
+        {factsQuery.isLoading && (
+          <div className="p-3 text-sm text-gray-500">Loading…</div>
+        )}
+        {factsQuery.error && (
+          <div className="p-3 text-sm text-red-600">
+            {factsQuery.error instanceof Error
+              ? factsQuery.error.message
+              : "Failed to load facts"}
+          </div>
+        )}
+        {factsQuery.data && (
+          <>
+            <div className="px-1 pt-1 pb-1 text-xs text-gray-500">
+              {factsQuery.data.total} fact
+              {factsQuery.data.total === 1 ? "" : "s"} total
             </div>
-          )}
-          {factsQuery.data && (
-            <>
-              <div className="px-1 pt-2 pb-1 text-xs text-gray-500">
-                {factsQuery.data.total} fact
-                {factsQuery.data.total === 1 ? "" : "s"} total
+            <ul className="divide-y divide-gray-100">
+              {factsQuery.data.facts.map((f) => (
+                <FactRow
+                  key={f.id}
+                  fact={f}
+                  onEdit={() => setEditing(f)}
+                  onDelete={() => setPendingDelete(f)}
+                />
+              ))}
+            </ul>
+            {factsQuery.data.facts.length === 0 && (
+              <div className="p-3 text-sm text-gray-500">
+                No facts match the current filters.
               </div>
-              <ul className="divide-y divide-gray-100">
-                {factsQuery.data.facts.map((f) => (
-                  <FactRow
-                    key={f.id}
-                    fact={f as Fact}
-                    onEdit={() => setEditing(f as Fact)}
-                    onDelete={() => setPendingDelete(f as Fact)}
-                  />
-                ))}
-              </ul>
-              {factsQuery.data.facts.length === 0 && (
-                <div className="p-3 text-sm text-gray-500">
-                  No facts match the current filters.
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+            )}
+          </>
+        )}
+      </div>
 
       <FactEditDialog fact={editing} onClose={() => setEditing(null)} />
       <FactDeleteDialog
         fact={pendingDelete}
         onClose={() => setPendingDelete(null)}
       />
-    </Dialog>
+    </div>
   );
 }
 
@@ -212,6 +174,12 @@ function FactRow({
           {" · "}
           {new Date(fact.createdAt).toLocaleDateString()}
         </div>
+        {fact.sourceKbDocument && (
+          <div className="mt-0.5 text-[11px] text-gray-500">
+            From document:{" "}
+            <span className="text-gray-700">{fact.sourceKbDocument.title}</span>
+          </div>
+        )}
       </div>
       <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100">
         <button

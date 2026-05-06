@@ -141,6 +141,26 @@ fact_retrieve: only when auto-retrieval missed something you need (everything ta
 
 Confidence: 5 = stated by the user; 3 = solid inference; 1 = guess. Be conservative.`;
 
+const KNOWLEDGE_BASE_RULES = `Knowledge base (knowledge_search / cite_kb):
+A separate corpus from fact memory: persistent club documents — league handbooks, codes of conduct, ground booking guides, set-piece diagrams, photographed pages — that admins have uploaded. Chunks are larger and more numerous than facts, so unlike facts there is NO pre-turn auto-retrieval; you call knowledge_search yourself when a question warrants it.
+
+Facts vs KB:
+- Facts are short declarative sentences ("Mitford have no covers"). One fact per call to fact_record.
+- KB is multi-paragraph reference material — handbook pages, rule extracts, official memos. You read it via knowledge_search; you do NOT re-record KB content as facts. If a chunk contains a fact you'd otherwise want to remember, leave it in the KB and cite it via cite_kb instead.
+
+When to call knowledge_search:
+- The user asks about a rule, policy, or procedure that's likely written down (league regs, junior code of conduct, ground booking, fixture protocol, code violations).
+- You're about to answer a "how do we usually..." or "what does the handbook say..." question.
+- The user references a document admins have uploaded.
+- Tags scope retrieval the same way as facts. {topic:"rules"} or {team:"Mitford CC"} narrows; values must match exactly.
+
+When NOT to call:
+- Player form / ground conditions / personal preferences — those are facts (use fact_retrieve / <known-facts>).
+- Live data (Play-Cricket fixtures, scorecards) — use pc_* tools.
+- You've already retrieved a chunk for the same query in this turn.
+
+cite_kb grounds claims sourced from a knowledge_search result. Pass the chunkId from the result and the verbatim claim. Don't invent chunkIds. The cited chunk shows up as a numbered chip with its document title and page range, just like cite_fact / cite_match.`;
+
 const CHART_RULES = `Charts (chart_render):
 Sometimes a chart is just clearer than prose or a table. The chart_render tool accepts native Chart.js v4 spec — see the tool's own description for the supported types and worked examples for each. Use it when a chart adds something prose can't.
 
@@ -175,6 +195,8 @@ ${WEATHER_RULES}
 ${CITATION_RULES}
 
 ${FACT_MEMORY_RULES}
+
+${KNOWLEDGE_BASE_RULES}
 
 ${CHART_RULES}
 
@@ -215,6 +237,8 @@ ${WEATHER_RULES}
 ${CITATION_RULES}
 
 ${FACT_MEMORY_RULES}
+
+${KNOWLEDGE_BASE_RULES}
 
 ${CHART_RULES}
 
