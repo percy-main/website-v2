@@ -85,9 +85,7 @@ const configSchema = z.object({
   // SCOUT_PROVIDER_CHAT, so the deriver gets a dedicated model id rather
   // than reusing SCOUT_MODEL_SUBAGENT (which tracks the sub-agent provider
   // and may be a deepseek id when the captain is running everything on DS).
-  SCOUT_ATTACHMENT_DERIVE_MODEL: z
-    .string()
-    .default("claude-haiku-4-5-20251001"),
+  SCOUT_ATTACHMENT_DERIVE_MODEL: z.string().min(1),
   SCOUT_ATTACHMENT_MAX_PER_TURN: z.coerce.number().int().positive().default(4),
 
   // S3 (Scout knowledge base — admin-uploaded PDFs / images / text the
@@ -154,27 +152,18 @@ const configSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   DEEPSEEK_API_KEY: z.string().optional(),
   SCOUT_DB_URL: z.url().optional(),
-  // Provider/model are split so the chat agent and the title sub-agent can
-  // run on different vendors. Flip SCOUT_PROVIDER_CHAT=deepseek + set
-  // SCOUT_MODEL_CHAT to a deepseek model id (e.g. deepseek-chat) to swap.
-  SCOUT_PROVIDER_CHAT: z.enum(["anthropic", "deepseek"]).default("anthropic"),
-  SCOUT_PROVIDER_SUBAGENT: z
-    .enum(["anthropic", "deepseek"])
-    .default("anthropic"),
-  // Provider/model for the DB sub-agent — runs the SQL loop behind the
-  // ask_db tool. Default Claude Haiku, which is strong at SQL and cheap.
-  // Independent from the chat agent so the main loop can run on a frontier
-  // model while DB queries stay on a cheap fast one.
-  SCOUT_PROVIDER_DB: z.enum(["anthropic", "deepseek"]).default("anthropic"),
-  // Report agent (the loop behind generate_report). One agent now —
-  // gathering and synthesis interleave, no separate researcher / analyst
-  // phases. Default DeepSeek flash so prod mirrors dev; override when the
-  // agent needs more horsepower for a particular fixture.
-  SCOUT_PROVIDER_REPORT: z.enum(["anthropic", "deepseek"]).default("deepseek"),
-  SCOUT_MODEL_CHAT: z.string().default("claude-sonnet-4-6"),
-  SCOUT_MODEL_SUBAGENT: z.string().default("claude-haiku-4-5-20251001"),
-  SCOUT_MODEL_DB: z.string().default("claude-haiku-4-5-20251001"),
-  SCOUT_MODEL_REPORT: z.string().default("deepseek-v4-flash"),
+  // Provider + model id for each Scout agent surface. All required and
+  // explicit — no in-code defaults — so prod / staging / local config
+  // stays the single source of truth and a wrong-by-default deployment
+  // can't paper over a missing env var.
+  SCOUT_PROVIDER_CHAT: z.enum(["anthropic", "deepseek"]),
+  SCOUT_PROVIDER_SUBAGENT: z.enum(["anthropic", "deepseek"]),
+  SCOUT_PROVIDER_DB: z.enum(["anthropic", "deepseek"]),
+  SCOUT_PROVIDER_REPORT: z.enum(["anthropic", "deepseek"]),
+  SCOUT_MODEL_CHAT: z.string().min(1),
+  SCOUT_MODEL_SUBAGENT: z.string().min(1),
+  SCOUT_MODEL_DB: z.string().min(1),
+  SCOUT_MODEL_REPORT: z.string().min(1),
   // ask_db sub-agent step cap. A typical question takes 3-5 steps:
   // db_list_tables, 1-2 db_describe_table, 1-2 db_run_sql (often a first
   // query returns 0 rows due to a wrong filter, prompting one refinement).
@@ -204,11 +193,14 @@ const configSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
-  // Voyage AI (fact-RAG embeddings + reranking). Optional — Scout boots
-  // without it and just skips the fact tools / auto-retrieval.
+  // Voyage AI (fact-RAG embeddings + reranking). API key is optional —
+  // Scout boots without it and just skips the fact tools and KB
+  // retrieval. Model ids are required and must be set explicitly so a
+  // wrong-by-default deployment can't mismatch the embedding stored in
+  // pgvector with the model used to query it.
   VOYAGE_API_KEY: z.string().optional(),
-  VOYAGE_EMBED_MODEL: z.string().default("voyage-4"),
-  VOYAGE_RERANK_MODEL: z.string().default("rerank-2.5"),
+  VOYAGE_EMBED_MODEL: z.string().min(1),
+  VOYAGE_RERANK_MODEL: z.string().min(1),
 
   // Sync task launch (admin "Sync now" button → ECS RunTask)
   AWS_REGION: z.string().default("eu-west-2"),
