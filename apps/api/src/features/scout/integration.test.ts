@@ -518,16 +518,17 @@ describe("scout thread sharing (integration)", () => {
 });
 
 describe("listRecentDebriefMatches (integration)", () => {
-  it("returns Percy Main matches in the last 14 days, descending, with home/away derived from team-name prefix", async () => {
+  it("returns matches identified by club_id in the last 14 days, descending, joining club_name + team_name for display", async () => {
+    const SITE_ID = "134";
     const now = new Date("2026-05-04T12:00:00Z");
     const within = "2026-05-01"; // 3 days before now
     const oldest = "2026-04-22"; // 12 days before now (in window)
     const stale = "2026-04-15"; // 19 days before now (outside)
 
-    // Wipe + seed match_result rows directly. We don't need every column
-    // realistic — just enough for the listRecentDebriefMatches query +
-    // mapping to exercise its branches (home, away, oldest, stale-cutoff,
-    // non-Percy-Main row).
+    // Wipe + seed match_result rows directly. PC stores team names bare
+    // ("1st XI", "2nd XI") for both sides; club_id is the only reliable
+    // disambiguator. Each fixture exercises a branch: home, away, stale,
+    // non-ours, and a legacy NULL-club_id row that the filter must skip.
     await ctx.db.deleteFrom("match_result").execute();
     await ctx.db
       .insertInto("match_result")
@@ -538,8 +539,12 @@ describe("listRecentDebriefMatches (integration)", () => {
           match_date: within,
           home_team_id: "h1",
           away_team_id: "a1",
-          home_team_name: "Percy Main 1st XI",
-          away_team_name: "Mitford CC 1st XI",
+          home_team_name: "1st XI",
+          away_team_name: "1st XI",
+          home_club_id: SITE_ID,
+          home_club_name: "Percy Main",
+          away_club_id: "201",
+          away_club_name: "Mitford CC",
           result: "won",
           result_description: "Won by 5 wickets",
           result_applied_to: "h1",
@@ -552,8 +557,12 @@ describe("listRecentDebriefMatches (integration)", () => {
           match_date: oldest,
           home_team_id: "h2",
           away_team_id: "a2",
-          home_team_name: "Tynemouth CC 2nd XI",
-          away_team_name: "Percy Main 2nd XI",
+          home_team_name: "2nd XI",
+          away_team_name: "2nd XI",
+          home_club_id: "202",
+          home_club_name: "Tynemouth CC",
+          away_club_id: SITE_ID,
+          away_club_name: "Percy Main",
           result: "lost",
           result_description: "Lost by 30 runs",
           result_applied_to: "h2",
@@ -566,8 +575,12 @@ describe("listRecentDebriefMatches (integration)", () => {
           match_date: stale,
           home_team_id: "h3",
           away_team_id: "a3",
-          home_team_name: "Percy Main 1st XI",
-          away_team_name: "Northumberland CC",
+          home_team_name: "1st XI",
+          away_team_name: "1st XI",
+          home_club_id: SITE_ID,
+          home_club_name: "Percy Main",
+          away_club_id: "203",
+          away_club_name: "Northumberland CC",
           result: "won",
           result_description: "Won",
           result_applied_to: "h3",
@@ -580,21 +593,42 @@ describe("listRecentDebriefMatches (integration)", () => {
           match_date: within,
           home_team_id: "h4",
           away_team_id: "a4",
-          home_team_name: "Tynemouth CC 1st XI",
-          away_team_name: "Mitford CC 1st XI",
+          home_team_name: "1st XI",
+          away_team_name: "1st XI",
+          home_club_id: "202",
+          home_club_name: "Tynemouth CC",
+          away_club_id: "201",
+          away_club_name: "Mitford CC",
           result: "won",
           result_description: "Won by 50 runs",
           result_applied_to: "h4",
           competition_type: "League",
           season: 2026,
         },
+        {
+          // Legacy row written before the migration: club_id columns NULL.
+          // The launcher's club_id equality filter must skip it cleanly.
+          id: crypto.randomUUID(),
+          match_id: "1005",
+          match_date: within,
+          home_team_id: "h5",
+          away_team_id: "a5",
+          home_team_name: "3rd XI",
+          away_team_name: "3rd XI",
+          result: "won",
+          result_description: "Won",
+          result_applied_to: "h5",
+          competition_type: "League",
+          season: 2026,
+        },
       ])
       .execute();
 
-    const out = await listRecentDebriefMatches(ctx.db)(14, now);
+    const out = await listRecentDebriefMatches(ctx.db, SITE_ID)(14, now);
 
-    // Two in-window Percy Main rows; the stale one and the non-Percy-Main
-    // row are excluded. Most-recent first.
+    // Only 1001 (home) and 1002 (away) match: in-window AND our club_id is
+    // home or away. 1003 is stale, 1004 is two other clubs, 1005 is legacy
+    // NULL club_id. Most-recent first.
     expect(out.map((m) => m.id)).toEqual(["1001", "1002"]);
 
     expect(out[0]).toMatchObject({
