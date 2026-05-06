@@ -36,12 +36,6 @@ if (!config.VOYAGE_API_KEY) {
   );
   process.exit(1);
 }
-if (!config.ANTHROPIC_API_KEY) {
-  console.error(
-    "Missing required env var: ANTHROPIC_API_KEY (KB image captioning is Anthropic-only)",
-  );
-  process.exit(1);
-}
 
 const { client: db } = createClient(config.DATABASE_URL);
 const voyage = createVoyageClient({
@@ -49,20 +43,20 @@ const voyage = createVoyageClient({
   embedModel: config.VOYAGE_EMBED_MODEL,
   rerankModel: config.VOYAGE_RERANK_MODEL,
 });
-// Image captioning is Anthropic-only regardless of SCOUT_PROVIDER_*.
-// Reuse the chat-attachment derive model id — same prompt-shape, same
-// token budget, just a longer prompt for KB use.
-const { model: imageCaptionModel } = resolveModel(
-  "anthropic",
-  config.SCOUT_ATTACHMENT_DERIVE_MODEL,
-);
+// Anthropic-backed Haiku used for image captioning + PDF extraction.
+// Optional — text/markdown documents only need Voyage. runIngest
+// fails the row with a clear error if it gets here for an image/pdf
+// without Anthropic.
+const anthropicModel = config.ANTHROPIC_API_KEY
+  ? resolveModel("anthropic", config.SCOUT_ATTACHMENT_DERIVE_MODEL).model
+  : null;
 const scoutKnowledgeBase = createS3KnowledgeBaseStore(config);
 
 console.log(`scout_kb_worker_started documentId=${DOCUMENT_ID}`);
 
 try {
   await runIngest(
-    { db, voyage, imageCaptionModel, scoutKnowledgeBase, config },
+    { db, voyage, anthropicModel, scoutKnowledgeBase, config },
     DOCUMENT_ID,
   );
   console.log(`scout_kb_worker_done documentId=${DOCUMENT_ID}`);

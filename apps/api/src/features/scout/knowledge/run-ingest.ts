@@ -21,7 +21,11 @@ import { type DocumentKind, IngestError, ingestDocument } from "./ingest.ts";
 export interface RunIngestDeps {
   db: Kysely<DB>;
   voyage: VoyageClient;
-  imageCaptionModel: LanguageModel;
+  /** Anthropic-backed model used for image captioning + PDF text
+   *  extraction. Optional — when null, ingestion fails for image and
+   *  pdf kinds, but text/markdown documents still work (they need
+   *  only Voyage embeddings). */
+  anthropicModel: LanguageModel | null;
   scoutKnowledgeBase: S3KnowledgeBaseStore;
   config: Config;
   logger?: FastifyBaseLogger;
@@ -76,22 +80,38 @@ export async function runIngest(
   }
 
   try {
+    const kind = claimed.kind as DocumentKind;
+
+    // Anthropic is required for image + pdf kinds (caption / extract).
+    // For text/markdown the bytes are pass-through, so a deployment
+    // without ANTHROPIC_API_KEY can still ingest those.
+    if ((kind === "image" || kind === "pdf") && !deps.anthropicModel) {
+      throw new IngestError(
+        `${kind} ingestion requires ANTHROPIC_API_KEY to be configured.`,
+      );
+    }
+
     const bytes = await scoutKnowledgeBase.getDocument(claimed.s3_key);
     const tags = (claimed.tags ?? {}) as Record<string, string | string[]>;
+
+    // Pass a sentinel non-null model when we know it's not used —
+    // ingest.ts only dereferences it on the matching kind branch.
+    const anthropicModel = deps.anthropicModel as LanguageModel;
 
     const result = await ingestDocument(
       {
         db,
         voyage,
-        imageCaptionModel: deps.imageCaptionModel,
+        imageCaptionModel: anthropicModel,
         imageCaptionMaxTokens: config.SCOUT_ATTACHMENT_DERIVE_MAX_TOKENS,
+        pdfExtractModel: anthropicModel,
         chunkTargetTokens: config.SCOUT_KB_CHUNK_TARGET_TOKENS,
         chunkOverlapTokens: config.SCOUT_KB_CHUNK_OVERLAP_TOKENS,
         embedBatchSize: config.SCOUT_KB_EMBED_BATCH_SIZE,
       },
       {
         documentId,
-        kind: claimed.kind as DocumentKind,
+        kind,
         contentType: claimed.content_type,
         bytes,
         tags,

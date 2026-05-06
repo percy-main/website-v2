@@ -338,10 +338,11 @@ export const attachmentDeleteResponseSchema = z.object({
 
 // ── Knowledge base (Track 2) ──
 // Admin-uploaded reference documents (PDFs / images / text) the agent
-// retrieves chunks from via knowledge_search. CRUD is admin-only,
-// uploads use the same three-step flow as attachments (mint → PUT →
-// commit) but the worker that ingests is one-shot ECS, not in the
-// API request lifecycle.
+// retrieves chunks from via knowledge_search. CRUD is gated by
+// requireScoutAccess (admin + official roles, same as the rest of
+// Scout); uploads use the same three-step flow as attachments
+// (mint → PUT → commit) but the worker that ingests is one-shot
+// ECS, not in the API request lifecycle.
 
 export const kbDocumentKindSchema = z.enum(["pdf", "image", "text"]);
 export type KbDocumentKind = z.infer<typeof kbDocumentKindSchema>;

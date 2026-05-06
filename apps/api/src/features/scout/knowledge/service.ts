@@ -439,7 +439,14 @@ export function reingestDocument(deps: KbDeps) {
       throw new KbDocumentInvalidStateError(row.status as DocumentStatus);
     }
 
-    await deps.db
+    // Only re-queue from terminal states. If the row is already
+    // 'queued' or 'ingesting' a worker either has it or is about to;
+    // requeueing now would race a second worker against the first
+    // (both would WIN the atomic claim because the loser sees status
+    // back at 'queued'). Conditional UPDATE so two concurrent
+    // reingest callers can't race each other either — exactly one
+    // flips the row.
+    const updated = await deps.db
       .updateTable("scout_kb_document")
       .set({
         status: "queued" satisfies DocumentStatus,
@@ -447,7 +454,15 @@ export function reingestDocument(deps: KbDeps) {
         updated_at: new Date(),
       })
       .where("id", "=", id)
-      .execute();
+      .where("status", "in", [
+        "ready" satisfies DocumentStatus,
+        "failed" satisfies DocumentStatus,
+      ])
+      .executeTakeFirst();
+
+    if (Number(updated.numUpdatedRows) === 0) {
+      throw new KbDocumentInvalidStateError(row.status as DocumentStatus);
+    }
 
     return { id, status: "queued" };
   };

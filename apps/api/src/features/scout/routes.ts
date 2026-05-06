@@ -199,12 +199,19 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const kbReingest = reingestDocument(kbDeps);
   const kbBridge = saveAttachmentToKb(kbDeps);
 
-  // Image captioning during KB ingest — Anthropic-only regardless of
-  // SCOUT_PROVIDER_CHAT, same as Track 1's deriver. Resolved once at
-  // boot so each commit doesn't pay the model lookup cost.
-  const kbImageCaptionModel = app.config.ANTHROPIC_API_KEY
+  // Anthropic-backed Haiku used for KB image captioning + PDF
+  // extraction. Resolved once at boot so each commit doesn't pay the
+  // model lookup cost. Optional: text/markdown KB ingestion needs
+  // only Voyage, so a deployment without ANTHROPIC_API_KEY can still
+  // ingest those kinds. The route layer gates per-content-type below;
+  // the worker re-checks the same way.
+  const kbAnthropicModel = app.config.ANTHROPIC_API_KEY
     ? resolveModel("anthropic", app.config.SCOUT_ATTACHMENT_DERIVE_MODEL).model
     : null;
+
+  // Content types that can ingest without Anthropic (pass-through bytes).
+  const kbContentTypeNeedsAnthropic = (contentType: string): boolean =>
+    contentType === "application/pdf" || contentType.startsWith("image/");
 
   // ── Access probe ──
   // Always 200 so the FE can call this without a noisy 401 when nobody is
@@ -1173,12 +1180,12 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         );
       }
       if (
-        !kbImageCaptionModel &&
-        request.body.contentType.startsWith("image/")
+        !kbAnthropicModel &&
+        kbContentTypeNeedsAnthropic(request.body.contentType)
       ) {
         throw Object.assign(
           new Error(
-            "ANTHROPIC_API_KEY is not configured; KB image ingest requires Anthropic Haiku for captioning.",
+            "ANTHROPIC_API_KEY is not configured; KB ingest of PDFs and images requires Anthropic Haiku.",
           ),
           { statusCode: 503 },
         );
@@ -1219,10 +1226,10 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      if (!kbVoyage || !kbImageCaptionModel) {
+      if (!kbVoyage) {
         throw Object.assign(
           new Error(
-            "KB ingest requires VOYAGE_API_KEY and ANTHROPIC_API_KEY to be configured.",
+            "VOYAGE_API_KEY is not configured; KB ingest requires embeddings.",
           ),
           { statusCode: 503 },
         );
@@ -1234,14 +1241,16 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         // Launch the ingestion worker after the row is in 'queued'.
         // Errors here surface as 500 — the row is in 'queued' so a
         // future operator action can re-launch via the reingest
-        // endpoint without re-uploading.
+        // endpoint without re-uploading. The worker re-validates that
+        // Anthropic is available for image/pdf documents and fails
+        // the row with a clear error if not.
         try {
           await launchScoutKbIngest({
             config: app.config,
             inProcessDeps: {
               db: app.db,
               voyage: kbVoyage,
-              imageCaptionModel: kbImageCaptionModel,
+              anthropicModel: kbAnthropicModel,
               scoutKnowledgeBase: app.scoutKnowledgeBase,
               config: app.config,
               logger: app.log,
@@ -1383,10 +1392,10 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      if (!kbVoyage || !kbImageCaptionModel) {
+      if (!kbVoyage) {
         throw Object.assign(
           new Error(
-            "KB ingest requires VOYAGE_API_KEY and ANTHROPIC_API_KEY to be configured.",
+            "VOYAGE_API_KEY is not configured; KB ingest requires embeddings.",
           ),
           { statusCode: 503 },
         );
@@ -1400,7 +1409,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             inProcessDeps: {
               db: app.db,
               voyage: kbVoyage,
-              imageCaptionModel: kbImageCaptionModel,
+              anthropicModel: kbAnthropicModel,
               scoutKnowledgeBase: app.scoutKnowledgeBase,
               config: app.config,
               logger: app.log,
@@ -1424,9 +1433,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         }
         if (err instanceof KbDocumentInvalidStateError) {
           throw Object.assign(
-            new Error(
-              `Document is in ${err.state} state; cannot reingest (must be committed at least once).`,
-            ),
+            new Error(`Document is in ${err.state} state; cannot reingest.`),
             { statusCode: 409 },
           );
         }
@@ -1449,10 +1456,13 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      if (!kbVoyage || !kbImageCaptionModel) {
+      // Track 1 attachments are always image or pdf (the only kinds
+      // Track 1 allows), so the bridge always needs Anthropic for
+      // captioning / extraction in addition to Voyage for embeds.
+      if (!kbVoyage || !kbAnthropicModel) {
         throw Object.assign(
           new Error(
-            "KB ingest requires VOYAGE_API_KEY and ANTHROPIC_API_KEY to be configured.",
+            "KB ingest of chat attachments requires VOYAGE_API_KEY and ANTHROPIC_API_KEY to be configured.",
           ),
           { statusCode: 503 },
         );
@@ -1526,7 +1536,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             inProcessDeps: {
               db: app.db,
               voyage: kbVoyage,
-              imageCaptionModel: kbImageCaptionModel,
+              anthropicModel: kbAnthropicModel,
               scoutKnowledgeBase: app.scoutKnowledgeBase,
               config: app.config,
               logger: app.log,

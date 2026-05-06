@@ -38,17 +38,22 @@ export interface ExtractPdfInput {
  * chunker handles paragraph packing. Page-level granularity is not
  * available; chunks emitted from this path will carry NULL
  * page_start / page_end.
+ *
+ * No `maxOutputTokens` cap — Track 1's chat-derive prompt is bounded
+ * because chips render in a chat bubble, but KB ingestion needs the
+ * full transcription to land in the chunk store. The real ceiling on
+ * how much we transcribe is set by SCOUT_KB_MAX_DOCUMENT_BYTES at
+ * upload time; if a PDF fits under that cap we want all of it
+ * indexed.
  */
 export async function extractPdfText(
   model: LanguageModel,
-  maxOutputTokens: number,
   input: ExtractPdfInput,
 ): Promise<string> {
   let result;
   try {
     result = await generateText({
       model,
-      maxOutputTokens,
       messages: [
         {
           role: "user",

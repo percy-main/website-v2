@@ -21,13 +21,14 @@ export type DocumentKind = "pdf" | "image" | "text";
 export interface IngestOptions {
   db: Kysely<DB>;
   voyage: VoyageClient;
-  /** Anthropic Haiku — used both to caption KB images and to extract
-   *  text from PDFs. Same model the Track 1 chat-attachment deriver
-   *  runs on; KB just uses longer prompts. PDF extraction via Haiku
-   *  is the simpler path than pulling in a JS PDF parser, at the cost
-   *  of per-page granularity (chunks lose page_start / page_end). */
+  /** Anthropic Haiku — captions KB images. Capped output: a 12-line
+   *  description is plenty for a single image. */
   imageCaptionModel: LanguageModel;
   imageCaptionMaxTokens: number;
+  /** Anthropic Haiku — transcribes KB PDFs. No output cap; we want
+   *  the full transcription in the chunk store. The real ceiling on
+   *  payload size is SCOUT_KB_MAX_DOCUMENT_BYTES at upload time. */
+  pdfExtractModel: LanguageModel;
   chunkTargetTokens: number;
   chunkOverlapTokens: number;
   embedBatchSize: number;
@@ -139,11 +140,9 @@ async function extractPages(
   switch (input.kind) {
     case "pdf": {
       try {
-        const text = await extractPdfText(
-          opts.imageCaptionModel,
-          opts.imageCaptionMaxTokens,
-          { bytes: input.bytes },
-        );
+        const text = await extractPdfText(opts.pdfExtractModel, {
+          bytes: input.bytes,
+        });
         return [{ pageNumber: 0, text }];
       } catch (err) {
         if (err instanceof PdfExtractError)
