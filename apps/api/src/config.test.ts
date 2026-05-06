@@ -12,27 +12,25 @@ const baseEnv = {
   SCOUT_REPORTS_BUCKET: "x",
 };
 
-describe("parseConfig — SCOUT_DEV_FAST", () => {
-  it("leaves step caps at their defaults when unset", () => {
+describe("parseConfig — defaults", () => {
+  it("uses sensible defaults for the report agent budget", () => {
     const config = parseConfig(baseEnv);
-    expect(config.SCOUT_RESEARCHER_MAX_STEPS).toBe(30);
-    expect(config.SCOUT_PC_AGENT_MAX_STEPS).toBe(6);
+    expect(config.SCOUT_REPORT_TIMEOUT_MS).toBe(1_800_000);
     expect(config.SCOUT_DB_AGENT_MAX_STEPS).toBe(14);
   });
 
-  it("clamps the researcher loop when SCOUT_DEV_FAST=true; leaves sub-agents at prod defaults", () => {
-    const config = parseConfig({ ...baseEnv, SCOUT_DEV_FAST: "true" });
-    expect(config.SCOUT_RESEARCHER_MAX_STEPS).toBe(6);
-    expect(config.SCOUT_PC_AGENT_MAX_STEPS).toBe(6);
-    expect(config.SCOUT_DB_AGENT_MAX_STEPS).toBe(14);
-  });
-
-  it("respects an explicit env override smaller than the dev-fast clamp", () => {
+  it("respects an explicit SCOUT_REPORT_TIMEOUT_MS env override", () => {
     const config = parseConfig({
       ...baseEnv,
-      SCOUT_DEV_FAST: "true",
-      SCOUT_RESEARCHER_MAX_STEPS: "3",
+      SCOUT_REPORT_TIMEOUT_MS: "120000",
     });
-    expect(config.SCOUT_RESEARCHER_MAX_STEPS).toBe(3);
+    expect(config.SCOUT_REPORT_TIMEOUT_MS).toBe(120_000);
+  });
+
+  it("parses SCOUT_DEV_FAST as boolean (no-op flag retained for env stability)", () => {
+    expect(
+      parseConfig({ ...baseEnv, SCOUT_DEV_FAST: "true" }).SCOUT_DEV_FAST,
+    ).toBe(true);
+    expect(parseConfig(baseEnv).SCOUT_DEV_FAST).toBe(false);
   });
 });

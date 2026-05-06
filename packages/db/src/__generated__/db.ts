@@ -653,7 +653,6 @@ export interface ScoutReport {
   match_id: string | null;
   opposition: string | null;
   our_team: string | null;
-  phases: Json | null;
   s3_key: string | null;
   started_at: Timestamp | null;
   status: Generated<string>;

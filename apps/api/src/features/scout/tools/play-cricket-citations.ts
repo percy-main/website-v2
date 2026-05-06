@@ -1,33 +1,29 @@
 import { tool, type UIMessageStreamWriter } from "ai";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import type { CitationAccumulator } from "../report/citation-accumulator.ts";
 
 /**
  * Citation primitives for Play Cricket data — companions to cite_fact.
  *
- * cite_match: when a claim is grounded in a specific match (e.g. "we beat
- * Backworth by 47 runs in the 1st XI fixture on 26 April"), the model calls
- * cite_match with the Play Cricket match id and a few display-only fields
- * (date, teams, ground). The FE renders an inline [N] chip and a card in the
- * Sources panel that deep-links to /website/results/<matchId> on Play Cricket.
+ * Two consumers, two delivery channels:
+ *  - Chat mode passes a `writer`; cite_match / cite_player_stats stream
+ *    data-*-citation parts to the FE for inline [N] chips + Sources panel.
+ *  - Report mode passes a `CitationAccumulator`; the same calls capture
+ *    URLs server-side for the PDF's references page.
  *
- * cite_player_stats: when a claim is grounded in aggregate player stats
- * (e.g. "Smith averages 12.3 across 18 innings against us this season"),
- * the model calls cite_player_stats with the Play Cricket player id, the
- * stat type (batting/bowling/fielding), and any narrowing fields it has
- * (season, team, game type). The FE links to the appropriate
- * /player_stats/<type>/<playerId>?... page.
- *
- * Both tools require a UIMessageStreamWriter — they emit data-* parts the
- * frontend keys off, the same wiring chart_render and cite_fact use. When
- * no writer is provided (unit tests), the validation still runs and a
- * payload is returned, but no part is streamed.
+ * Both deps are optional. When neither is wired up (unit tests), the call
+ * still validates input and returns a payload, but nothing is recorded.
  */
 
 const PERCY_MAIN_CLUB_ID = "134";
 
 export interface PlayCricketCitationToolDeps {
   writer?: UIMessageStreamWriter;
+  /** Per-run accumulator used in report mode to capture URLs for the
+   *  references page. Distinct from the writer (chat-mode FE chips); both
+   *  may be supplied, or just one, or neither. */
+  accumulator?: CitationAccumulator;
 }
 
 const claim = z
@@ -41,11 +37,11 @@ const claim = z
 export function createPlayCricketCitationTools(
   deps: PlayCricketCitationToolDeps,
 ) {
-  const { writer } = deps;
+  const { writer, accumulator } = deps;
 
   return {
     cite_match: tool({
-      description: `Attach a citation to a claim grounded in a specific Play Cricket match — past or upcoming. Call this immediately after the sentence the citation supports, with the matchId you got from ask_play_cricket's returned \`data\` payload (single record id, or matchId/id fields on rows in an array), or from ask_db (the local mirror). The frontend renders an inline [N] chip and a card linking to the match's page on percymain.play-cricket.com.
+      description: `Attach a citation to a claim grounded in a specific Play Cricket match — past or upcoming. Call this immediately after the sentence the citation supports, with the matchId you got from a pc_* tool response (matches[].id, match_details[].id) or from ask_db (the local mirror). The frontend renders an inline [N] chip and a card linking to the match's page on percymain.play-cricket.com.
 
 When to call:
 - You stated something specific about a single match: "We beat Backworth by 47 runs on 26/04/2025" → cite_match with that matchId.
@@ -63,7 +59,7 @@ One call per cited match. The same matchId can appear multiple times if the resp
           .string()
           .min(1)
           .describe(
-            "Play Cricket match id, exactly as it appears in ask_play_cricket's `data` payload (matchId/id fields) or in ask_db rows. Numeric string, e.g. '7262912'.",
+            "Play Cricket match id, exactly as it appears in pc_* responses (matches[].id, match_details[].id) or in ask_db rows. Numeric string, e.g. '7262912'.",
           ),
         claim,
         matchDate: z
@@ -104,6 +100,17 @@ One call per cited match. The same matchId can appear multiple times if the resp
             data: input,
           });
         }
+        if (accumulator) {
+          accumulator.recordMatch({
+            matchId: input.matchId,
+            matchDate: input.matchDate,
+            homeTeam: input.homeTeam,
+            awayTeam: input.awayTeam,
+            groundName: input.groundName,
+            competition: input.competition,
+            result: input.result,
+          });
+        }
         return {
           cited: true as const,
           citationId,
@@ -131,12 +138,14 @@ statType MUST match what you're claiming — picking "batting" for a bowling-fig
           .string()
           .min(1)
           .describe(
-            "Play Cricket player_id (a.k.a. member_id). Numeric string, e.g. '6577518'. Ask ask_play_cricket for a club's roster (names + play_cricket_ids) if you only have a name.",
+            "Play Cricket player_id (a.k.a. member_id). Numeric string, e.g. '6577518'. Use pc_list_players (or pc_match_detail's players block on a recent fixture) for a club's roster if you only have a name.",
           ),
         playerName: z
           .string()
-          .optional()
-          .describe("Display name for the source card."),
+          .min(1)
+          .describe(
+            "Display name for the source card / references page. REQUIRED — pass the player's actual name (the one alongside player_id in the API response). Never pass a numeric id here.",
+          ),
         statType: z
           .enum(["batting", "bowling", "fielding"])
           .describe(
@@ -171,6 +180,16 @@ statType MUST match what you're claiming — picking "batting" for a bowling-fig
             type: "data-player-stats-citation",
             id: citationId,
             data: { ...input, clubId: PERCY_MAIN_CLUB_ID },
+          });
+        }
+        if (accumulator) {
+          accumulator.recordPlayerStats({
+            playerId: input.playerId,
+            playerName: input.playerName,
+            statType: input.statType,
+            season: input.season,
+            teamId: input.teamId,
+            gameType: input.gameType,
           });
         }
         return {

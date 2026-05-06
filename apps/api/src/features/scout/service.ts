@@ -450,34 +450,15 @@ export interface ReportDetail {
   status: "queued" | "generating" | "ready" | "failed";
   errorMessage?: string;
   startedAt?: number;
-  phases?: Record<
-    "researcher" | "analyst" | "render",
-    {
-      state: "pending" | "active" | "done" | "failed";
-      startedAt?: number;
-      endedAt?: number;
-      summary?: { records?: number; claims?: number; bytes?: number };
-    }
-  >;
-  recentToolCalls?: Array<{
-    id: string;
-    phase: "researcher" | "analyst" | "render";
-    toolName: string;
-    at: number;
-  }>;
-}
-
-interface PersistedProgressShape {
-  phases: ReportDetail["phases"];
-  recentToolCalls: ReportDetail["recentToolCalls"];
 }
 
 const dbStatusToFeStatus = (status: string): ReportDetail["status"] => {
   if (status === "ready" || status === "failed" || status === "queued") {
     return status;
   }
-  // researching / analysing / rendering all surface as 'generating'; the
-  // phase JSONB carries the granular state for the pipeline card.
+  // generating / rendering both surface as 'generating' to the FE — the
+  // user just sees one loading box; the BE-side distinction is for ops/log
+  // grepping only.
   return "generating";
 };
 
@@ -498,18 +479,9 @@ export function getReportDetail(db: Kysely<DB>) {
         "status",
         "error_message",
         "started_at",
-        "phases",
       ])
       .executeTakeFirst();
     if (!row) return null;
-
-    // phases JSONB persists the worker's `{ phases, recentToolCalls }`
-    // shape. Treat as opaque if it doesn't parse — the FE tolerates a
-    // missing pipeline section.
-    const progress =
-      row.phases && typeof row.phases === "object" && !Array.isArray(row.phases)
-        ? (row.phases as unknown as PersistedProgressShape)
-        : null;
 
     return {
       reportId: row.id,
@@ -519,8 +491,6 @@ export function getReportDetail(db: Kysely<DB>) {
       status: dbStatusToFeStatus(row.status),
       errorMessage: row.error_message ?? undefined,
       startedAt: row.started_at ? row.started_at.getTime() : undefined,
-      phases: progress?.phases,
-      recentToolCalls: progress?.recentToolCalls,
     };
   };
 }

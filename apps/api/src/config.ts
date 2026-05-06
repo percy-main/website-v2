@@ -1,4 +1,3 @@
-import { REPORT_PHASE_BUDGETS_MS } from "@percy-main/shared";
 import { z } from "zod";
 
 const configSchema = z.object({
@@ -90,31 +89,15 @@ const configSchema = z.object({
   // Independent from the chat agent so the main loop can run on a frontier
   // model while DB queries stay on a cheap fast one.
   SCOUT_PROVIDER_DB: z.enum(["anthropic", "deepseek"]).default("anthropic"),
-  // Provider/model for the Play Cricket sub-agent — runs the pc_* loop
-  // behind the ask_play_cricket tool. Same rationale as SCOUT_PROVIDER_DB:
-  // Haiku is fast and good at picking the right pc_* tool / projection,
-  // and isolating the loop keeps failed projections out of the main chat.
-  SCOUT_PROVIDER_PC: z.enum(["anthropic", "deepseek"]).default("anthropic"),
-  // Researcher phase (the loop behind generate_report). Independent from the
-  // chat agent so the researcher can run on a faster/cheaper model — its job
-  // is structured data extraction and tool-calling, not deep reasoning.
-  // Default DeepSeek flash so prod mirrors dev without needing a Terraform /
-  // env override; override via env when the researcher needs more horsepower.
-  SCOUT_PROVIDER_RESEARCHER: z
-    .enum(["anthropic", "deepseek"])
-    .default("deepseek"),
-  // Analyst phase. Reads the researcher's evidence packet (no tools) and
-  // emits the report content + claims registry. Default flash too — the job
-  // is mechanical synthesis (read evidence, populate template, attach claim
-  // citations), not deep reasoning, and the prompt carries a large evidence
-  // packet inline that v4-pro with thinking takes minutes to chew through.
-  SCOUT_PROVIDER_ANALYST: z.enum(["anthropic", "deepseek"]).default("deepseek"),
+  // Report agent (the loop behind generate_report). One agent now —
+  // gathering and synthesis interleave, no separate researcher / analyst
+  // phases. Default DeepSeek flash so prod mirrors dev; override when the
+  // agent needs more horsepower for a particular fixture.
+  SCOUT_PROVIDER_REPORT: z.enum(["anthropic", "deepseek"]).default("deepseek"),
   SCOUT_MODEL_CHAT: z.string().default("claude-sonnet-4-6"),
   SCOUT_MODEL_SUBAGENT: z.string().default("claude-haiku-4-5-20251001"),
   SCOUT_MODEL_DB: z.string().default("claude-haiku-4-5-20251001"),
-  SCOUT_MODEL_PC: z.string().default("claude-haiku-4-5-20251001"),
-  SCOUT_MODEL_RESEARCHER: z.string().default("deepseek-v4-flash"),
-  SCOUT_MODEL_ANALYST: z.string().default("deepseek-v4-flash"),
+  SCOUT_MODEL_REPORT: z.string().default("deepseek-v4-flash"),
   // ask_db sub-agent step cap. A typical question takes 3-5 steps:
   // db_list_tables, 1-2 db_describe_table, 1-2 db_run_sql (often a first
   // query returns 0 rows due to a wrong filter, prompting one refinement).
@@ -122,38 +105,24 @@ const configSchema = z.object({
   // during normal researcher runs; 14 leaves real headroom without
   // encouraging the model to keep poking indefinitely.
   SCOUT_DB_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(14),
-  // Most PC questions resolve in 1-3 calls (one fetch, sometimes a site_id
-  // pivot beforehand). 6 leaves headroom for an opposition-scout chain
-  // without inviting the sub-agent to keep poking.
-  SCOUT_PC_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(6),
   SCOUT_MAX_STEPS: z.coerce.number().int().positive().default(20),
-  // Researcher phase (the loop behind generate_report). Gathers evidence via
-  // ask_db / pc_* / weather_get / fact_retrieve and emits records via the
-  // record_evidence tool. Default 30 — selection + 4-5 opposition matches +
-  // a few player aggregates + weather + facts, with one record_evidence per
-  // datum, rarely needs more.
-  SCOUT_RESEARCHER_MAX_STEPS: z.coerce.number().int().positive().default(30),
-  // Wall-clock caps per phase. DeepSeek can hold a single chat-completions
-  // request open for minutes; without timeouts one slow step locks the whole
-  // generate_report flow indefinitely. Defaults sourced from
-  // REPORT_PHASE_BUDGETS_MS in @percy-main/shared so the FE pipeline-card
-  // countdown uses the same numbers — never shows "over budget" while the
-  // BE still has headroom.
-  SCOUT_RESEARCHER_TIMEOUT_MS: z.coerce
+  // Report agent step ceiling (the loop behind generate_report). Gathers
+  // Wall-clock cap on the report agent. DeepSeek can hold a single
+  // chat-completions request open for minutes; without a timeout one slow
+  // step locks the whole generate_report flow indefinitely. The agent
+  // loop has no step cap (just a 500-step sanity backstop in code) — this
+  // wall-clock budget is the real cost ceiling. 30 minutes covers a long
+  // opposition walk + drafts + refinement; longer than that and something
+  // is wedged.
+  SCOUT_REPORT_TIMEOUT_MS: z.coerce
     .number()
     .int()
     .positive()
-    .default(REPORT_PHASE_BUDGETS_MS.researcher),
-  SCOUT_ANALYST_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(REPORT_PHASE_BUDGETS_MS.analyst),
-  // Dev-only: clamp every researcher / sub-agent step cap to a tiny budget
-  // so end-to-end smoke runs locally in ~1-2 minutes instead of 10+. Reports
-  // produced under this flag will be thin (less evidence gathered) but the
-  // pipeline shape is identical, so it's the right loop for iterating on
-  // prompt / validator / rendering changes. Never enable in prod.
+    .default(1_800_000),
+  // Dev-only flag, kept for parity with older scripts. The report agent
+  // no longer has a step cap to clamp; flipping this on is currently a
+  // no-op but the env var stays so SCOUT_DEV_FAST=true scripts don't
+  // start failing zod validation. Never enable in prod.
   SCOUT_DEV_FAST: z
     .enum(["true", "false"])
     .default("false")
@@ -179,32 +148,9 @@ const configSchema = z.object({
 export type Config = z.infer<typeof configSchema>;
 
 /**
- * When SCOUT_DEV_FAST=true is set, clamp the researcher + sub-agent step
- * caps to tiny values so a local smoke run finishes in ~1-2 min. Anything
- * already smaller than the clamp is left alone (you can always go lower
- * via the individual env vars). Timeouts are not clamped — step caps will
- * stop the loops well before the wall-clock fires anyway.
- */
-const DEV_FAST_STEP_CAPS = {
-  // Researcher is the long-running loop (multi-minute) — clamp it so a smoke
-  // run finishes fast. Sub-agents are short and bounded already; clamping
-  // them just makes them stop mid-loop with planning prose as their summary.
-  // Leave PC + DB sub-agents at their prod defaults.
-  SCOUT_RESEARCHER_MAX_STEPS: 6,
-} as const;
-
-/**
  * Parse and validate configuration from an environment object.
  * In production, pass process.env. In tests, pass a minimal object.
  */
 export function parseConfig(env: Record<string, string | undefined>): Config {
-  const config = configSchema.parse(env);
-  if (config.SCOUT_DEV_FAST) {
-    for (const [key, cap] of Object.entries(DEV_FAST_STEP_CAPS) as Array<
-      [keyof typeof DEV_FAST_STEP_CAPS, number]
-    >) {
-      if (config[key] > cap) config[key] = cap;
-    }
-  }
-  return config;
+  return configSchema.parse(env);
 }

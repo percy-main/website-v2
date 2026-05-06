@@ -97,10 +97,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
 
   if (config.SCOUT_DEV_FAST) {
     app.log.warn(
-      {
-        SCOUT_RESEARCHER_MAX_STEPS: config.SCOUT_RESEARCHER_MAX_STEPS,
-      },
-      "scout_dev_fast_enabled — researcher loop clamped; reports will be thin",
+      "scout_dev_fast_enabled — currently a no-op (the report agent has no step cap to clamp); flag retained for env-var stability",
     );
   }
 

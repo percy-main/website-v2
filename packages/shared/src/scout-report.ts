@@ -1,13 +1,9 @@
 import { z } from "zod";
-import { chartSpecSchema } from "./scout-chart.ts";
 
-// Two related schemas:
-//
-// - scoutReportContentSchema: what the researcher sub-agent produces. Section
-//   content only — the bits that need data gathering + synthesis.
-// - scoutReportPayloadSchema: what the renderer consumes. Content plus the
-//   match identifiers (which come from the generate_report tool input, not
-//   the model — they're known up front).
+// scoutReportContentSchema is the structured output the report agent returns
+// at the end of its run — every section the PDF renders, plus the league
+// table when applicable. scoutReportPayloadSchema extends it with the match
+// identifiers known up front (passed to the agent, not authored by it).
 //
 // title is intentionally NOT in the schema. It's derived from match +
 // matchDate via scoutReportDisplayTitle() — single source of truth, no
@@ -45,13 +41,61 @@ const referenceSchema = z.object({
   url: z.url(),
 });
 
+// Charts reference a server-side accumulated Chart.js spec by id. The agent
+// calls the chart_render tool (report mode) which stores the spec and returns
+// a chartId; the model then references that id here. Keeps the JSON output
+// compact — full Chart.js configs can be 1-2KB each and don't need to ride
+// inside the structured-content payload.
 const reportChartSchema = z.object({
   caption: z
     .string()
     .min(1)
     .describe("One-line caption explaining what the chart shows."),
-  spec: chartSpecSchema,
+  chartId: z
+    .string()
+    .min(1)
+    .describe(
+      "ID returned by the chart_render tool. The renderer looks up the spec by this id and rasterises it into the PDF.",
+    ),
 });
+
+// Structured league table — the renderer's source of truth for W/L records.
+// The model emits this directly in its ScoutReportContent JSON when it has
+// fetched standings via pc_league_table. Absent for cup / friendly matches.
+export const scoutLeagueTableSchema = z.object({
+  name: z
+    .string()
+    .optional()
+    .describe(
+      "Division / league name as it appears in Play Cricket, e.g. 'NTCL Premier Division'.",
+    ),
+  columns: z
+    .array(z.string().min(1))
+    .min(1)
+    .describe(
+      "Column headers in display order, e.g. ['#', 'Team', 'P', 'W', 'L', 'T', 'Pts'].",
+    ),
+  rows: z
+    .array(
+      z.object({
+        values: z
+          .array(z.string())
+          .min(1)
+          .describe(
+            "Row cell values in the same order as `columns`. All stringified — '0' for empty counts.",
+          ),
+        highlight: z
+          .enum(["us", "opposition"])
+          .optional()
+          .describe(
+            "Tints the row in the PDF: 'us' = club green, 'opposition' = CTA orange. Omit otherwise.",
+          ),
+      }),
+    )
+    .min(1),
+});
+
+export type ScoutLeagueTable = z.infer<typeof scoutLeagueTableSchema>;
 
 export const scoutReportContentSchema = z.object({
   intro: z
@@ -81,6 +125,11 @@ export const scoutReportContentSchema = z.object({
         .describe("Source label, e.g. 'Open-Meteo'."),
     })
     .optional(),
+  leagueTable: scoutLeagueTableSchema
+    .optional()
+    .describe(
+      "Structured division standings rendered on page 1 of the PDF. Populate from a pc_league_table response when the fixture is a league match. Omit for cup / friendly matches.",
+    ),
   ourPlayers: z
     .array(playerSchema)
     .max(15)
@@ -93,7 +142,7 @@ export const scoutReportContentSchema = z.object({
     .max(4)
     .optional()
     .describe(
-      "Charts in the 'Our Players' section, e.g. season averages, recent form.",
+      "Charts in the 'Our Players' section, e.g. season averages, recent form. Each entry references a chartId returned by the chart_render tool.",
     ),
   theirPlayers: z
     .array(playerSchema)
@@ -108,14 +157,14 @@ export const scoutReportContentSchema = z.object({
     .min(10)
     .max(800)
     .describe(
-      "1–3 sentences on the toss call: bat/bowl preference and why (weather, pitch, opposition strengths). Appears on the overview (first) page. Markdown bold/italic allowed.",
+      "1–3 sentences on the toss call: bat/bowl preference and why (weather, pitch, opposition strengths). Markdown bold/italic allowed.",
     ),
   overallStrategy: z
     .string()
     .min(10)
     .max(800)
     .describe(
-      "1–3 sentences on the headline plan: what we're trying to do across the day. Appears on the overview (first) page. Markdown bold/italic allowed.",
+      "1–3 sentences on the headline plan: what we're trying to do across the day. Markdown bold/italic allowed.",
     ),
   keyMatchups: z
     .string()
@@ -139,7 +188,7 @@ export const scoutReportContentSchema = z.object({
     .array(referenceSchema)
     .max(40)
     .describe(
-      "Every URL fetched while building the report (scorecards, weather, stats). Required.",
+      "Filled by the runReport pipeline from cite_* tool invocations during the run. Emit an empty array — server-side overrides whatever you put here.",
     ),
 });
 
@@ -182,56 +231,9 @@ export function scoutReportDisplayTitle(payload: {
 // ── data-report card payload ───────────────────────────────────────────────
 //
 // Shape of the data-report UI message part written by the generate_report
-// tool and consumed by the FE ReportCard. Single id-keyed part is replaced
-// repeatedly during generation as phases advance — the FE renders whatever
-// the latest snapshot says.
-
-export type ReportPhaseName = "researcher" | "analyst" | "render";
-
-export interface ReportPhaseState {
-  state: "pending" | "active" | "done" | "failed";
-  /** Date.now() when state moved to "active". */
-  startedAt?: number;
-  /** Date.now() when state moved to "done" or "failed". */
-  endedAt?: number;
-  /** Optional small summary for the done state. */
-  summary?: {
-    records?: number;
-    claims?: number;
-    bytes?: number;
-  };
-}
-
-export interface ReportToolCallEvent {
-  /** Stable key for React reconciliation — e.g. `${phase}-${step}-${idx}`. */
-  id: string;
-  phase: ReportPhaseName;
-  toolName: string;
-  /** Date.now() when the tool call was observed. */
-  at: number;
-}
-
-// Per-phase wall-clock budgets — used as the BE's hard timeouts AND the FE's
-// active-phase countdowns. Single source of truth so the FE can never show
-// "over budget" red while the BE is still well within its timeout.
-//
-// - researcher: 30+ small steps on flash, 3-9s/step. Comprehensive scouts
-//   regularly take 8-15 minutes when the model walks several seasons of
-//   opposition matches. 12 minutes is the practical ceiling that cuts off
-//   genuinely-stuck steps without timing out useful long runs.
-// - analyst: one generateText call carrying the whole evidence packet
-//   inline. Rich packets (50+ records) can run 10+ minutes even on flash;
-//   20 minutes for headroom.
-// - render: chart rasterisation + react-pdf layout in the worker. 10-30s
-//   typical; 30s gives a safe ceiling.
-export const REPORT_PHASE_BUDGETS_MS: Record<
-  "researcher" | "analyst" | "render",
-  number
-> = {
-  researcher: 720_000,
-  analyst: 1_200_000,
-  render: 30_000,
-};
+// tool and consumed by the FE ReportCard. The card polls /scout/reports/:id
+// for live state — `status` and `startedAt` drive the loading UI; the rest
+// is fixed at insert time.
 
 export interface ReportData {
   reportId: string;
@@ -240,12 +242,7 @@ export interface ReportData {
   createdAt: string;
   status: "queued" | "generating" | "ready" | "failed";
   errorMessage?: string;
-  /** Date.now() at execute() top — used for global elapsed display. */
+  /** Date.now() at execute() top — used for the elapsed-time counter on the
+   *  loading card. */
   startedAt?: number;
-  /** Per-phase state. Only present while status === "generating" or after
-   *  completion (so the FE can render the "took Xm Ys" breakdown). */
-  phases?: Record<ReportPhaseName, ReportPhaseState>;
-  /** Recent tool calls during the active phase, capped server-side to the
-   *  last ~6. The FE renders each as a fly-out chip and lets old ones fade. */
-  recentToolCalls?: ReportToolCallEvent[];
 }

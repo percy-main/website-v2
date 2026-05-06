@@ -78,13 +78,17 @@ Available field paths (pass any subset via \`fields\`):
   matches[].match_time
   matches[].ground_name
   matches[].competition_name    — league/cup name
+  matches[].competition_id      — Play Cricket division id; PASS THIS to pc_league_table for league matches
   matches[].league_name
-  matches[].competition_type
+  matches[].league_id
+  matches[].competition_type    — "League", "Cup", "Friendly", etc.
   matches[].game_type           — "T20", "Limited Overs", etc.
   matches[].home_club_name, matches[].home_club_id, matches[].home_team_name, matches[].home_team_id
   matches[].away_club_name, matches[].away_club_id, matches[].away_team_name, matches[].away_team_id
 
 CRITICAL — do NOT use status to decide whether a match was played. Many played matches in Play Cricket retain status "New" indefinitely (clubs often never flip it to "Result"). To determine whether a match was played, use match_date vs today: a date in the past with no cancellation/abandonment marker means it was almost certainly played, regardless of status. To confirm a result actually exists for a match, call pc_match_detail and check whether innings are populated, or use pc_site_results (which only returns played matches).
+
+LEAGUE-TABLE WORKFLOW: pc_league_table needs a divisionId. The divisionId IS competition_id from a match summary row whose competition_type === "League". To find the right divisionId for a team's league: pull pc_match_summary for the season, filter to one row where the team is involved AND competition_type === "League", read competition_id off that row, pass it to pc_league_table.
 
 Tip: when finding the next/last fixture, prefer ["matches[].id", "matches[].match_date", "matches[].home_team_name", "matches[].away_team_name"] and filter by date relative to today.`,
       inputSchema: z.object({
@@ -155,13 +159,19 @@ Ask for the narrowest set that answers the question — e.g. for innings totals 
     }),
 
     pc_league_table: tool({
-      description:
-        "Fetch the current league table for a Play Cricket division. Returns positions, played, points. Use to gauge form/standing of an upcoming opposition.",
+      description: `Fetch the current league table for a Play Cricket division. Returns the division name, headings, and one row per team with position, played, won, lost, drawn, and points.
+
+How to find divisionId: it is the SAME number as \`competition_id\` on any pc_match_summary row whose competition_type === "League". Workflow:
+  1. pc_match_summary(season) projecting ["matches[].competition_id", "matches[].competition_type", "matches[].home_team_id", "matches[].away_team_id"].
+  2. Find one row where the team you care about is home or away AND competition_type === "League".
+  3. Pass that row's competition_id as divisionId here.
+
+For ANY club's league (not just Percy Main's), use pc_site_matches(siteId=clubId, season) the same way — its rows also carry competition_id per league fixture.`,
       inputSchema: z.object({
         divisionId: z
           .string()
           .describe(
-            "Play Cricket division id. Often discoverable via match summaries.",
+            "Play Cricket division id (same value as competition_id on a league match summary row).",
           ),
       }),
       execute: async ({ divisionId }) =>
