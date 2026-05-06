@@ -22,6 +22,8 @@ export async function buildTestApp(db: Kysely<DB>, dialect: PostgresDialect) {
     SCOUT_REPORTS_BUCKET: "test-scout-reports-bucket",
     SCOUT_ATTACHMENT_UPLOADS_BUCKET: "test-scout-attachment-uploads-bucket",
     SCOUT_ATTACHMENTS_BUCKET: "test-scout-attachments-bucket",
+    SCOUT_KB_UPLOADS_BUCKET: "test-scout-kb-uploads-bucket",
+    SCOUT_KB_BUCKET: "test-scout-kb-bucket",
   });
 
   return buildApp({ db, dialect, config });

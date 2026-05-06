@@ -12,6 +12,8 @@ const baseEnv = {
   SCOUT_REPORTS_BUCKET: "x",
   SCOUT_ATTACHMENT_UPLOADS_BUCKET: "x",
   SCOUT_ATTACHMENTS_BUCKET: "x",
+  SCOUT_KB_UPLOADS_BUCKET: "x",
+  SCOUT_KB_BUCKET: "x",
 };
 
 describe("parseConfig — defaults", () => {

@@ -90,6 +90,46 @@ const configSchema = z.object({
     .default("claude-haiku-4-5-20251001"),
   SCOUT_ATTACHMENT_MAX_PER_TURN: z.coerce.number().int().positive().default(4),
 
+  // S3 (Scout knowledge base — admin-uploaded PDFs / images / text the
+  // agent retrieves chunks from via knowledge_search). Two buckets,
+  // mirroring the attachments pattern: a 24h-lifecycle uploads bucket
+  // for browser-direct PUTs and a permanent bucket the worker copies
+  // committed bytes into.
+  SCOUT_KB_UPLOADS_BUCKET: z.string().min(1),
+  SCOUT_KB_BUCKET: z.string().min(1),
+  SCOUT_KB_PREFIX: z.string().default("scout/knowledge"),
+  // Hard cap on a single document. PDFs and images both gate on this
+  // single value — the practical ceiling is dictated by Voyage embed
+  // throughput on the worker, not the upload itself.
+  SCOUT_KB_MAX_DOCUMENT_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(25 * 1024 * 1024),
+  SCOUT_KB_MAX_PDF_PAGES: z.coerce.number().int().positive().default(200),
+  // Chunking knobs. 600/100 is a starting guess — bench retrieval
+  // quality on a handful of representative docs before locking it in.
+  SCOUT_KB_CHUNK_TARGET_TOKENS: z.coerce.number().int().positive().default(600),
+  SCOUT_KB_CHUNK_OVERLAP_TOKENS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(100),
+  SCOUT_KB_EMBED_BATCH_SIZE: z.coerce.number().int().positive().default(64),
+  SCOUT_KB_UPLOAD_URL_EXPIRY_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(900),
+  // The KB ingestion worker reuses the API task definition + cluster /
+  // subnets / security group from SYNC_ECS_*, just like the report
+  // worker — only the container command + per-task env override differ.
+  // The plan called for a dedicated SCOUT_KB_WORKER_TASK_DEFINITION,
+  // but since the report worker already shares SYNC_ECS_TASK_DEFINITION
+  // with the sync task and that has held up fine, we follow the same
+  // pattern here. If KB ingest ever needs different CPU / memory we'll
+  // split task definitions then.
+
   // Observability (New Relic via OpenTelemetry)
   NEW_RELIC_LICENSE_KEY: z.string().optional(),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url().default("https://otlp.eu01.nr-data.net"),
