@@ -69,16 +69,25 @@ export class CitationAccumulator {
   // Keyed by URL so different cite calls for the same match/player de-dupe.
   private byUrl = new Map<string, ScoutReportReference>();
 
+  /**
+   * Insert-or-upgrade. The agent commonly cites the same URL multiple times
+   * across a run — once early with thin metadata (just a matchId) and again
+   * later after fetching the scorecard. Keeping the longer label means the
+   * references page reads "Backworth CC v Percy Main CC (02/05/2026)"
+   * instead of getting stuck on "Match 7262912" from the first cite.
+   */
+  private upsert(url: string, label: string): void {
+    const existing = this.byUrl.get(url);
+    if (existing && existing.label.length >= label.length) return;
+    this.byUrl.set(url, { url, label });
+  }
+
   recordMatch(input: MatchCitationInput): void {
-    const url = buildMatchUrl(input);
-    if (this.byUrl.has(url)) return;
-    this.byUrl.set(url, { url, label: matchLabel(input) });
+    this.upsert(buildMatchUrl(input), matchLabel(input));
   }
 
   recordPlayerStats(input: PlayerStatsCitationInput): void {
-    const url = buildPlayerStatsUrl(input);
-    if (this.byUrl.has(url)) return;
-    this.byUrl.set(url, { url, label: playerStatsLabel(input) });
+    this.upsert(buildPlayerStatsUrl(input), playerStatsLabel(input));
   }
 
   snapshot(): ScoutReportReference[] {

@@ -95,7 +95,7 @@ export function createGenerateReportTool(deps: GenerateReportToolDeps) {
     generate_report: tool({
       description: `Queue a polished PDF scouting report for a specific upcoming match. The report runs in the background — typically 10–20 minutes — and the user is notified when ready.
 
-Call this AT MOST ONCE per session. The input is just the match identifiers — NOT the report content. A researcher sub-agent runs behind the scenes and gathers everything (selection, opposition stats, weather, facts) itself; do not stream stats or analysis into these args.
+Call this AT MOST ONCE per session. The input is just the match identifiers — NOT the report content. The queued job gathers everything (selection, opposition stats, weather, facts) itself; do not stream stats or analysis into these args.
 
 Required:
 - matchId: the Play Cricket match id (from the upcoming-fixtures launcher message, or from ask_db on availability_fixture).
@@ -106,7 +106,7 @@ Required:
 
 Optional:
 - competition: league or cup name if you know it.
-- intent: a one-line scouting angle if the captain has a specific focus (otherwise omit and the researcher does a balanced report).
+- intent: a one-line scouting angle if the captain has a specific focus (otherwise omit and the report covers a balanced packet).
 
 After this returns, a one-line confirmation is enough — say "Report queued — it'll appear in the Reports tab when ready." Do NOT stream stats or analysis afterwards.`,
       inputSchema: generateReportInputSchema,

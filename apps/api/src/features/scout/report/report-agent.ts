@@ -281,17 +281,25 @@ Build the report now via the tool surface above. Stop calling tools when you've 
       );
     } catch (err) {
       const isTimeout = err instanceof Error && err.name === "TimeoutError";
-      deps.logger?.error(
-        {
-          matchId: params.matchId,
-          attempt,
-          err,
-          isTimeout,
-          stepsCompleted: stepIndex,
-          elapsedMs: Date.now() - stepStart,
-        },
-        "scout_report_agent_step_failed",
-      );
+      // User-initiated Stop sets `cancelSignal.aborted` from the outer
+      // poller. AbortError lands in here too — treat both as cancellation
+      // and log at INFO so ops doesn't see a phantom error every time the
+      // captain hits Stop during a retry.
+      const isCancelled = deps.cancelSignal?.aborted ?? false;
+      const logFields = {
+        matchId: params.matchId,
+        attempt,
+        err,
+        isTimeout,
+        isCancelled,
+        stepsCompleted: stepIndex,
+        elapsedMs: Date.now() - stepStart,
+      };
+      if (isCancelled) {
+        deps.logger?.info(logFields, "scout_report_agent_step_cancelled");
+      } else {
+        deps.logger?.error(logFields, "scout_report_agent_step_failed");
+      }
       if (isTimeout) {
         throw new Error(
           `Report agent timed out after ${deps.config.SCOUT_REPORT_TIMEOUT_MS}ms on attempt ${attempt} (${stepIndex} steps).`,

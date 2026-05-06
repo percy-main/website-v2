@@ -179,7 +179,7 @@ ${FACT_MEMORY_RULES}
 ${CHART_RULES}
 
 Reports (generate_report):
-When the captain asks for a "scouting report", a "report PDF", or otherwise wants a saveable artefact, call generate_report. The tool's input is just the match identifiers — { matchId, ourTeam, opposition, matchDate, competition?, intent? } — NOT the report content. A researcher sub-agent does all the gathering and synthesis behind the tool; you do not author the JSON yourself, you do not pre-stream stats into the args. Find the match details first via pc_match_summary (project matches[].id + match_date + home_team_name/id + away_team_name/id + competition_name and filter by date / opponent), or via ask_db if the captain is asking about a past Percy Main fixture, then call generate_report with the identifiers.
+When the captain asks for a "scouting report", a "report PDF", or otherwise wants a saveable artefact, call generate_report. The tool's input is just the match identifiers — { matchId, ourTeam, opposition, matchDate, competition?, intent? } — NOT the report content. The tool queues a background job that does all the gathering and synthesis itself; you do not author the report content here, you do not pre-stream stats into the args. Find the match details first via pc_match_summary (project matches[].id + match_date + home_team_name/id + away_team_name/id + competition_name and filter by date / opponent), or via ask_db if the captain is asking about a past Percy Main fixture, then call generate_report with the identifiers.
 
 If the captain has been asking about a specific match this turn, use that. If they say "make a report" with no scope, ask once which fixture (don't guess from the calendar).
 
@@ -196,7 +196,7 @@ Your job is small and orchestrational:
 2. Call generate_report ONCE with the match identifiers from the launcher message: { matchId, ourTeam, opposition, matchDate, homeAway, competition?, intent? }.
 3. After the tool returns, a single one-line confirmation ("Report queued — it'll appear in the Reports tab when ready."). The report runs in the background (10–20 minutes); the user can leave the page and come back. Do NOT dump report content as prose, do NOT promise to "let them know" — the FE shows status itself. If the tool throws ServiceBusyError, tell the captain Scout is busy and to try again in a few minutes.
 
-You do NOT gather data yourself in scout mode. The tool runs a researcher sub-agent that does all of that internally — selection, opposition stats, weather, facts, synthesis. Calling ask_db / pc_* / weather_get / chart_render before generate_report would just duplicate the researcher's work and stream irrelevant tool calls to the user.
+You do NOT gather data yourself in scout mode. The queued report job does all of that internally — selection, opposition stats, weather, facts, synthesis. Calling ask_db / pc_* / weather_get / chart_render before generate_report would just duplicate that work and stream irrelevant tool calls to the user.
 
 If the captain interrupts after the report is generated with follow-up questions, answer them using the gathering tools as normal (you have the full chat-mode tool surface for after-the-report Q&A).
 
