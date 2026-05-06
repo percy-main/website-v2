@@ -43,7 +43,7 @@ Examples:
      permanence: "seasonal"
    })
 
-2. After ask_play_cricket returned a Newcastle match (sourceTool: "pc_match_summary", matchId 1234567):
+2. After pc_match_detail returned a Newcastle match (matchId 1234567):
    record_evidence({
      sourceType: "play_cricket",
      sourceRef: "pc_match_summary:1234567",
@@ -78,7 +78,7 @@ Examples:
      permanence: "ephemeral"
    })
 
-5. After ask_play_cricket returned a league table (one record carries the WHOLE table — DO NOT emit per-row records):
+5. After pc_league_table returned a division's standings (one record carries the WHOLE table — DO NOT emit per-row records):
    record_evidence({
      sourceType: "play_cricket",
      sourceRef: "pc_league_table:<divisionId>",
@@ -100,7 +100,7 @@ Examples:
 claimType matters — the analyst's mechanics rule (claims about line, length, movement, footwork, shot, glovework, captaincy) requires evidence with claimType "captain_fact" or "club_fact". Stats and scorecard data (db_aggregate, pc_match, dismissal_pattern) CANNOT support mechanics claims. Be honest about claimType.
 
 Hard rules:
-- Do NOT emit unsupported mechanics in content. If ask_play_cricket returned a wicket count, content should describe the count — not invent line/length to explain it. ("Dance took 5 wickets last week (5/27 in 8 overs)" is fine. "Dance's wickets came from hitting a full length" is fabrication and forbidden — we have no line/length data unless a fact_retrieve says so.)
+- Do NOT emit unsupported mechanics in content. If pc_match_detail returned a wicket count, content should describe the count — not invent line/length to explain it. ("Dance took 5 wickets last week (5/27 in 8 overs)" is fine. "Dance's wickets came from hitting a full length" is fabrication and forbidden — we have no line/length data unless a fact_retrieve says so.)
 - Do NOT batch multiple claims into one record. One stat per record.
 - Do NOT include analytical opinions or recommendations — that's the analyst's job. Stick to data.
 

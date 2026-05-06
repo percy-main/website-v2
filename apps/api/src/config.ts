@@ -90,11 +90,6 @@ const configSchema = z.object({
   // Independent from the chat agent so the main loop can run on a frontier
   // model while DB queries stay on a cheap fast one.
   SCOUT_PROVIDER_DB: z.enum(["anthropic", "deepseek"]).default("anthropic"),
-  // Provider/model for the Play Cricket sub-agent — runs the pc_* loop
-  // behind the ask_play_cricket tool. Same rationale as SCOUT_PROVIDER_DB:
-  // Haiku is fast and good at picking the right pc_* tool / projection,
-  // and isolating the loop keeps failed projections out of the main chat.
-  SCOUT_PROVIDER_PC: z.enum(["anthropic", "deepseek"]).default("anthropic"),
   // Researcher phase (the loop behind generate_report). Independent from the
   // chat agent so the researcher can run on a faster/cheaper model — its job
   // is structured data extraction and tool-calling, not deep reasoning.
@@ -112,7 +107,6 @@ const configSchema = z.object({
   SCOUT_MODEL_CHAT: z.string().default("claude-sonnet-4-6"),
   SCOUT_MODEL_SUBAGENT: z.string().default("claude-haiku-4-5-20251001"),
   SCOUT_MODEL_DB: z.string().default("claude-haiku-4-5-20251001"),
-  SCOUT_MODEL_PC: z.string().default("claude-haiku-4-5-20251001"),
   SCOUT_MODEL_RESEARCHER: z.string().default("deepseek-v4-flash"),
   SCOUT_MODEL_ANALYST: z.string().default("deepseek-v4-flash"),
   // ask_db sub-agent step cap. A typical question takes 3-5 steps:
@@ -122,10 +116,6 @@ const configSchema = z.object({
   // during normal researcher runs; 14 leaves real headroom without
   // encouraging the model to keep poking indefinitely.
   SCOUT_DB_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(14),
-  // Most PC questions resolve in 1-3 calls (one fetch, sometimes a site_id
-  // pivot beforehand). 6 leaves headroom for an opposition-scout chain
-  // without inviting the sub-agent to keep poking.
-  SCOUT_PC_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(6),
   SCOUT_MAX_STEPS: z.coerce.number().int().positive().default(20),
   // Researcher phase (the loop behind generate_report). Gathers evidence via
   // ask_db / pc_* / weather_get / fact_retrieve and emits records via the

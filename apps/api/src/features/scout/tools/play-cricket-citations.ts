@@ -45,7 +45,7 @@ export function createPlayCricketCitationTools(
 
   return {
     cite_match: tool({
-      description: `Attach a citation to a claim grounded in a specific Play Cricket match — past or upcoming. Call this immediately after the sentence the citation supports, with the matchId you got from ask_play_cricket's returned \`data\` payload (single record id, or matchId/id fields on rows in an array), or from ask_db (the local mirror). The frontend renders an inline [N] chip and a card linking to the match's page on percymain.play-cricket.com.
+      description: `Attach a citation to a claim grounded in a specific Play Cricket match — past or upcoming. Call this immediately after the sentence the citation supports, with the matchId you got from a pc_* tool response (matches[].id, match_details[].id) or from ask_db (the local mirror). The frontend renders an inline [N] chip and a card linking to the match's page on percymain.play-cricket.com.
 
 When to call:
 - You stated something specific about a single match: "We beat Backworth by 47 runs on 26/04/2025" → cite_match with that matchId.
@@ -63,7 +63,7 @@ One call per cited match. The same matchId can appear multiple times if the resp
           .string()
           .min(1)
           .describe(
-            "Play Cricket match id, exactly as it appears in ask_play_cricket's `data` payload (matchId/id fields) or in ask_db rows. Numeric string, e.g. '7262912'.",
+            "Play Cricket match id, exactly as it appears in pc_* responses (matches[].id, match_details[].id) or in ask_db rows. Numeric string, e.g. '7262912'.",
           ),
         claim,
         matchDate: z
@@ -131,7 +131,7 @@ statType MUST match what you're claiming — picking "batting" for a bowling-fig
           .string()
           .min(1)
           .describe(
-            "Play Cricket player_id (a.k.a. member_id). Numeric string, e.g. '6577518'. Ask ask_play_cricket for a club's roster (names + play_cricket_ids) if you only have a name.",
+            "Play Cricket player_id (a.k.a. member_id). Numeric string, e.g. '6577518'. Use pc_list_players (or pc_match_detail's players block on a recent fixture) for a club's roster if you only have a name.",
           ),
         playerName: z
           .string()

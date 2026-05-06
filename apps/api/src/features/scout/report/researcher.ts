@@ -8,9 +8,9 @@ import type { VoyageClient } from "../facts/voyage.ts";
 import { deepseekFastProviderOptions, resolveModel } from "../provider.ts";
 import { GROUNDING_RULES, IMPORTANT_CONTEXT } from "../system-prompt.ts";
 import { createAskDbTool } from "../tools/ask-db.ts";
-import { createAskPlayCricketTool } from "../tools/ask-play-cricket.ts";
 import { createScoutCache } from "../tools/cache.ts";
 import { createFactTools } from "../tools/facts.ts";
+import { createPlayCricketTools } from "../tools/play-cricket.ts";
 import { createRecordEvidenceTool } from "../tools/record-evidence.ts";
 import { createWeatherTools } from "../tools/weather.ts";
 import { EvidenceAccumulator, type EvidenceRecord } from "./evidence.ts";
@@ -60,15 +60,25 @@ Output channel:
 - Every record needs sourceType, sourceRef, claimType, content, confidence, permanence. See the tool description for the full shape.
 - The accumulator dedupes on (sourceRef + content); you can re-emit safely.
 
+Tools available:
+- ask_db — natural-language question to the local DB (selection, our internal scheduling, played-match scorecards we were involved in).
+- pc_match_summary, pc_match_detail, pc_league_table, pc_site_matches, pc_site_results, pc_find_opposition_matches, pc_list_players — Play Cricket public API. Each takes a \`fields\` projection list (see the tool description for the available paths). ALWAYS request narrow projections — pulling whole rows wastes tokens. ALWAYS pair every \`*_id\` projection with its matching \`*_name\` partner; never invent or infer names from numeric ids.
+- weather_get / weather_geocode — open-meteo forecast for ground lat/lng.
+- fact_retrieve — recorded captain/club facts.
+- record_evidence — your sole output channel.
+
 What to gather (in roughly this order):
 
 1. Selection / our players. ask_db for "the selected XI for match <matchId> with their season batting averages, bowling figures, and last-6-innings scores". Emit one db_aggregate record per stat that matters (per-player avg, recent runs, wickets/economy). Emit a db_row for the team selection (one record listing the XI).
 
-2. Opposition recent form. ask_play_cricket for the opposition's recent fixtures with full scorecards — e.g. "Get scorecards for <Opposition>'s last 4-5 league matches in <season> on site_id <id>; I need every batter's name, runs, balls, how_out, and every bowler's overs/maidens/runs/wickets." That single call returns synthesised JSON in \`data\` — typically an array of match objects with \`id\` (matchId), \`match_date\`, \`batting\`, and \`bowling\` arrays. Emit one pc_match record per match's headline output. Then derive per-player aggregates yourself across those scorecards — total runs, average, total wickets, economy, dismissal-mode frequencies — and emit one pc_aggregate record per player whose career-across-these-matches is worth scouting (top scorers, leading wicket-takers). Where applicable, emit a dismissal_pattern record summarising how_out frequencies ("5 of his 8 dismissals this season are bowled or LBW").
+2. Opposition recent form. Use the pc_* tools directly. Typical chain: pc_match_summary(season) projecting matches[].id + match_date + home_team_name/id + away_team_name/id to find a Percy Main vs <Opposition> row, read the opposition's club_id off it, then pc_site_results(siteId=<their clubId>, season) for their last 4-5 played matches with innings totals, and pc_match_detail(matchId) for full scorecards on the matches you want detailed batter/bowler lines from. Emit one pc_match record per match's headline output. Then derive per-player aggregates yourself across those scorecards — total runs, average, total wickets, economy, dismissal-mode frequencies — and emit one pc_aggregate record per player whose career-across-these-matches is worth scouting (top scorers, leading wicket-takers). Where applicable, emit a dismissal_pattern record summarising how_out frequencies ("5 of his 8 dismissals this season are bowled or LBW").
 
-3. League table. For league matches (competition_type === "League"), ALWAYS fetch the current league table — it is the source of truth for every team's W/L record, page 1 of the PDF renders it, and you must NEVER derive W/L counts from scorecards (extras tilt the balance enough that scorecard-derived W/L drifts from the official record). One ask_play_cricket call: "Get the current league table for Percy Main 1st XI's division in <season>. Return divisionName plus rows of {position, team, P, W, L, T, Pts}." (See the ask_play_cricket sub-agent's "LEAGUE-TABLE DISCOVERY" section for the exact divisionId chain — competition_id on any league match summary row.) Emit ONE record_evidence call with claimType "league_standings", a one-line content summary like "<Division name>: <Opposition> are <pos> of <count> on <pts> pts (W:<w> L:<l>)", AND populate the structured \`leagueTable\` field with { name, columns:["#","Team","P","W","L","T","Pts"], rows:[...] }. Mark the row whose team_id matches our team highlight:"us" and the opposition's row highlight:"opposition" (omit highlight on others). Skip this step entirely for cup / friendly fixtures.
+3. League table. For league matches (competition_type === "League"), ALWAYS fetch the current league table — it is the source of truth for every team's W/L record, page 1 of the PDF renders it, and you must NEVER derive W/L counts from scorecards (extras tilt the balance enough that scorecard-derived W/L drifts from the official record). Discovery chain (two pc_* calls, no more):
+  a. pc_match_summary(season, ["matches[].competition_id", "matches[].competition_name", "matches[].competition_type", "matches[].home_team_id", "matches[].home_team_name", "matches[].away_team_id", "matches[].away_team_name"]) — find a row where our team_id is home or away AND competition_type === "League". competition_id on that row IS the divisionId.
+  b. pc_league_table(divisionId=<that competition_id>).
+Emit ONE record_evidence call with claimType "league_standings", a one-line content summary like "<Division name>: <Opposition> are <pos> of <count> on <pts> pts (W:<w> L:<l>)", AND populate the structured \`leagueTable\` field with { name, columns:["#","Team","P","W","L","T","Pts"], rows:[...] }. Mark the row whose team_id matches our team highlight:"us" and the opposition's row highlight:"opposition" (omit highlight on others). Skip this step entirely for cup / friendly fixtures.
 
-4. Weather. ask_play_cricket "what's the ground latitude/longitude for match <matchId>" if you don't already have it, then weather_get with that lat/lng. Skip if matchDate > 7 days from today (forecast unreliable). One weather record summarising the headline conditions.
+4. Weather. If you don't already have ground lat/lng, pc_match_detail(matchId, ["match_details[].ground_latitude", "match_details[].ground_longitude", "match_details[].ground_name"]) — or pc_match_summary's matches[].ground_latitude/longitude on the row for this match. Then weather_get with that lat/lng. Skip if matchDate > 7 days from today (forecast unreliable). One weather record summarising the headline conditions.
 
 5. Facts. fact_retrieve for opposition / venue / scheduling / mechanics facts the captain or club has previously recorded. Emit a captain_fact or club_fact record per relevant fact (preserve scope — if the fact came back tagged scope=user, it's captain_fact; scope=club, it's club_fact).
 
@@ -82,11 +92,13 @@ Hard rules — these are not negotiable:
   BAD:  "Dance is dangerous because his 5-for came from full straight bowling — bowl into him." (analysis + invented mechanics)
   BAD:  "We should target their middle order with spin." (recommendation — analyst's job)
 
-- DO NOT invent mechanics. If ask_play_cricket returns a wicket count, the content describes that count. It does NOT include line, length, movement, footwork, shot, field placement, glovework, or captaincy claims unless you got that info from fact_retrieve as a recorded fact.
+- DO NOT invent mechanics. If pc_match_detail returns a wicket count, the content describes that count. It does NOT include line, length, movement, footwork, shot, field placement, glovework, or captaincy claims unless you got that info from fact_retrieve as a recorded fact.
 
 - DO NOT call fact_record (you're not interviewing anyone) or cite_fact / cite_match / cite_player_stats (those emit FE chips that don't apply here) or chart_render (chart synthesis is the analyst's job).
 
 - ask_db is a black box. NEVER name tables, columns, or any database structure in your questions — those are implementation details of the SQL sub-agent. Phrase in cricket terms only (matches, players, seasons, teams, fixtures). "Find Percy Main's May 2026 fixtures" — NOT "select match_id, home_team from play_cricket_match_cache where ..." The sub-agent owns the schema; you own the question.
+
+- NEVER infer or invent names from numeric ids. team_ids, club_ids, player_ids, competition_ids are NUMBERS. Whenever you project an \`*_id\` field, also project the matching \`*_name\` field on the SAME pc_* call and read the name from the API response. If a name comes back empty, surface it as empty in evidence content rather than guessing.
 
 - claimType MATTERS. The analyst's validator uses it to gate mechanics claims. Be honest:
   * stats / scorecard data → db_aggregate, db_row, pc_aggregate, pc_match, dismissal_pattern
@@ -119,15 +131,14 @@ export async function researchScoutReport(
   const accumulator = new EvidenceAccumulator();
 
   const cache = createScoutCache(deps.db);
-  // Researcher uses the ask_* sub-agents for the same reason the chat agent
-  // does — projection mistakes and SQL/API loops stay out of this phase's
-  // context, leaving room for the evidence packet itself.
-  const playCricketTool = createAskPlayCricketTool({
+  // Raw pc_* tools share the cache with weather_get so a multi-step chain
+  // (match_summary → site_results → match_detail) only hits the API once
+  // per (tool, args). The wrapping ask_play_cricket sub-agent was dropped —
+  // its job was projection-picking, which the researcher's main loop does
+  // directly now.
+  const playCricketTools = createPlayCricketTools({
     playCricket: deps.playCricket,
-    db: deps.db,
-    provider: deps.config.SCOUT_PROVIDER_PC,
-    modelId: deps.config.SCOUT_MODEL_PC,
-    maxSteps: deps.config.SCOUT_PC_AGENT_MAX_STEPS,
+    cache,
     logger: deps.logger,
   });
   const dbTools = createAskDbTool({
@@ -166,7 +177,7 @@ export async function researchScoutReport(
   const recordEvidenceTool = createRecordEvidenceTool({ accumulator });
 
   const tools = {
-    ...playCricketTool,
+    ...playCricketTools,
     ...dbTools,
     ...weatherTools,
     ...factRetrieveTool,

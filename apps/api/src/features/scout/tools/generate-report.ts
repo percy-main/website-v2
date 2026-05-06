@@ -29,7 +29,7 @@ const generateReportInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      "Play Cricket match id for this fixture. From the upcoming-fixtures launcher message, or from ask_db / ask_play_cricket.",
+      "Play Cricket match id for this fixture. From the upcoming-fixtures launcher message, or from ask_db / pc_match_summary.",
     ),
   ourTeam: z
     .string()

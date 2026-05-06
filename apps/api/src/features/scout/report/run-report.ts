@@ -70,15 +70,19 @@ export class ReportNotRunnableError extends Error {
 const RECENT_CHIP_CAP = 6;
 const FLUSH_INTERVAL_MS = 1500;
 
-// Tool calls we surface to the FE as fly-out chips. Mirrors the allowlist
-// that previously lived inline in generate_report.execute. record_evidence
-// fires constantly during the researcher loop and is plumbing rather than
-// narrative; the pc_* tools fire INSIDE the ask_play_cricket sub-agent and
-// never reach this loop's onStep, so the user sees one ask_play_cricket
-// chip per PC question instead of a fan-out of projection calls.
+// Tool calls we surface to the FE as fly-out chips. record_evidence fires
+// constantly during the researcher loop and is plumbing rather than narrative.
+// The pc_* tools now run directly in the researcher loop (no ask_play_cricket
+// sub-agent wrapping them), so each call is a real research step worth showing.
 const CHIP_TOOL_ALLOWLIST = new Set([
   "ask_db",
-  "ask_play_cricket",
+  "pc_match_summary",
+  "pc_match_detail",
+  "pc_league_table",
+  "pc_site_matches",
+  "pc_site_results",
+  "pc_find_opposition_matches",
+  "pc_list_players",
   "weather_get",
   "weather_geocode",
   "fact_retrieve",

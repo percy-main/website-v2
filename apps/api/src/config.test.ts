@@ -16,14 +16,12 @@ describe("parseConfig — SCOUT_DEV_FAST", () => {
   it("leaves step caps at their defaults when unset", () => {
     const config = parseConfig(baseEnv);
     expect(config.SCOUT_RESEARCHER_MAX_STEPS).toBe(30);
-    expect(config.SCOUT_PC_AGENT_MAX_STEPS).toBe(6);
     expect(config.SCOUT_DB_AGENT_MAX_STEPS).toBe(14);
   });
 
   it("clamps the researcher loop when SCOUT_DEV_FAST=true; leaves sub-agents at prod defaults", () => {
     const config = parseConfig({ ...baseEnv, SCOUT_DEV_FAST: "true" });
     expect(config.SCOUT_RESEARCHER_MAX_STEPS).toBe(6);
-    expect(config.SCOUT_PC_AGENT_MAX_STEPS).toBe(6);
     expect(config.SCOUT_DB_AGENT_MAX_STEPS).toBe(14);
   });
 
