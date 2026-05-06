@@ -1,9 +1,15 @@
-import type { ScoutReportPayload } from "@percy-main/shared";
+import type { ChartSpec, ScoutReportPayload } from "@percy-main/shared";
 import { format } from "date-fns";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker, type WorkerOptions } from "node:worker_threads";
+
+// Charts referenced from payload.ourPlayersCharts / theirPlayersCharts by
+// chartId. Specs come from the report agent's chart_render tool calls and
+// are passed to the worker for rasterisation. Plain object so the chartSpecs
+// map serialises cleanly across the structured-clone boundary.
+export type ChartSpecsByChartId = Record<string, ChartSpec>;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(__dirname, "..", "..", "..", "assets");
@@ -35,6 +41,7 @@ const workerOptions: WorkerOptions = {};
 interface PendingJob {
   id: number;
   payload: ScoutReportPayload;
+  chartSpecs: ChartSpecsByChartId;
   generatedAt: string;
   resolve: (buf: Buffer) => void;
   reject: (err: Error) => void;
@@ -140,6 +147,7 @@ function pump(): void {
   ensureWorker().postMessage({
     id: next.id,
     payload: next.payload,
+    chartSpecs: next.chartSpecs,
     generatedAt: next.generatedAt,
     logoPng: new Uint8Array(logoPng),
   });
@@ -153,15 +161,22 @@ function pump(): void {
  * event loop stays responsive during the 10–30s per render. From the
  * caller's POV this is just an async function returning a Buffer; the
  * queueing + worker lifecycle is invisible.
+ *
+ * `chartSpecs` is a Record<chartId, ChartSpec> populated by the report
+ * agent's chart_render tool calls. Each chartId referenced from
+ * payload.ourPlayersCharts / theirPlayersCharts must resolve here; entries
+ * not referenced by the payload are ignored.
  */
 export async function renderScoutReportPdf(
   payload: ScoutReportPayload,
+  chartSpecs: ChartSpecsByChartId,
 ): Promise<Buffer> {
   const generatedAt = format(new Date(), "d MMM yyyy, HH:mm");
   return new Promise<Buffer>((resolve, reject) => {
     queue.push({
       id: nextId++,
       payload,
+      chartSpecs,
       generatedAt,
       resolve,
       reject,

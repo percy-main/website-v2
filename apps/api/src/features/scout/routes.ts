@@ -259,8 +259,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         app.config.SCOUT_PROVIDER_CHAT,
         app.config.SCOUT_PROVIDER_SUBAGENT,
         app.config.SCOUT_PROVIDER_DB,
-        app.config.SCOUT_PROVIDER_RESEARCHER,
-        app.config.SCOUT_PROVIDER_ANALYST,
+        app.config.SCOUT_PROVIDER_REPORT,
       ]);
       if (requiredProviders.has("anthropic") && !app.config.ANTHROPIC_API_KEY) {
         throw Object.assign(

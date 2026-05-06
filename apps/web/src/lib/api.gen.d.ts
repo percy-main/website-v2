@@ -9399,48 +9399,6 @@ export interface paths {
                             status: "queued" | "generating" | "ready" | "failed";
                             errorMessage?: string;
                             startedAt?: number;
-                            phases?: {
-                                researcher: {
-                                    /** @enum {string} */
-                                    state: "pending" | "active" | "done" | "failed";
-                                    startedAt?: number;
-                                    endedAt?: number;
-                                    summary?: {
-                                        records?: number;
-                                        claims?: number;
-                                        bytes?: number;
-                                    };
-                                };
-                                analyst: {
-                                    /** @enum {string} */
-                                    state: "pending" | "active" | "done" | "failed";
-                                    startedAt?: number;
-                                    endedAt?: number;
-                                    summary?: {
-                                        records?: number;
-                                        claims?: number;
-                                        bytes?: number;
-                                    };
-                                };
-                                render: {
-                                    /** @enum {string} */
-                                    state: "pending" | "active" | "done" | "failed";
-                                    startedAt?: number;
-                                    endedAt?: number;
-                                    summary?: {
-                                        records?: number;
-                                        claims?: number;
-                                        bytes?: number;
-                                    };
-                                };
-                            };
-                            recentToolCalls?: {
-                                id: string;
-                                /** @enum {string} */
-                                phase: "researcher" | "analyst" | "render";
-                                toolName: string;
-                                at: number;
-                            }[];
                         };
                     };
                 };

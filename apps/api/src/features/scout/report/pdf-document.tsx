@@ -239,20 +239,24 @@ const styles = StyleSheet.create({
   },
   refRow: {
     flexDirection: "row",
-    marginBottom: 4,
+    marginBottom: 8,
     fontSize: 9,
   },
   refIndex: {
     width: 22,
     color: COLOURS.muted,
   },
+  refBody: {
+    flex: 1,
+    flexDirection: "column",
+  },
   refLabel: {
     fontFamily: "Helvetica-Bold",
-    marginRight: 4,
   },
   refUrl: {
-    color: COLOURS.primary,
-    flexShrink: 1,
+    color: COLOURS.muted,
+    fontSize: 8,
+    marginTop: 1,
   },
   pageNumber: {
     position: "absolute",
@@ -626,7 +630,7 @@ function PlayerList({
         />
       ))}
       {charts?.map((c, i) => {
-        const image = chartImages.find((img) => img.id === String(i));
+        const image = chartImages.find((img) => img.id === c.chartId);
         if (!image) return null;
         return (
           <View key={i} style={styles.chartBlock} wrap={false}>
@@ -683,8 +687,10 @@ function ReferenceRow({
   return (
     <View style={styles.refRow} wrap={false}>
       <Text style={styles.refIndex}>[{index}]</Text>
-      <Text style={styles.refLabel}>{reference.label}</Text>
-      <Text style={styles.refUrl}>{reference.url}</Text>
+      <View style={styles.refBody}>
+        <Text style={styles.refLabel}>{reference.label}</Text>
+        <Text style={styles.refUrl}>{reference.url}</Text>
+      </View>
     </View>
   );
 }

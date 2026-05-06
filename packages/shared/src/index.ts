@@ -33,15 +33,11 @@ export { nameSimilarity, normalizeName } from "./name-similarity.ts";
 export { chartSpecSchema, type ChartSpec } from "./scout-chart.ts";
 
 export {
-  REPORT_PHASE_BUDGETS_MS,
   scoutLeagueTableSchema,
   scoutReportContentSchema,
   scoutReportDisplayTitle,
   scoutReportPayloadSchema,
   type ReportData,
-  type ReportPhaseName,
-  type ReportPhaseState,
-  type ReportToolCallEvent,
   type ScoutLeagueTable,
   type ScoutReportChart,
   type ScoutReportContent,

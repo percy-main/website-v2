@@ -7,30 +7,21 @@
  * the same Config schema as the API server, so the same SCOUT_* /
  * PLAY_CRICKET_* / VOYAGE_* / S3 settings apply unchanged.
  *
- * Wall-clock kill is computed from the shared per-phase budgets plus a
- * safety margin, so the kill never fires inside a phase that's still
- * within its own timeout. If the per-phase timeouts work, runReport's
- * progress flush already wrote 'failed' to the row before this fires;
- * the kill is purely a last-resort backstop for orchestration that's
- * stalled outside the phases (boot, DB connect, render).
+ * Wall-clock kill is the report agent's own timeout plus a 90s margin for
+ * boot, DB connect, render, and S3 upload. If the agent's internal timeout
+ * fires first, runReport already wrote 'failed' to the row before the
+ * hard kill triggers; this is a last-resort backstop for orchestration
+ * stalled outside the agent loop.
  */
 
 import { createClient } from "@percy-main/db";
-import { REPORT_PHASE_BUDGETS_MS } from "@percy-main/shared";
 import { parseConfig } from "./config.ts";
 import { createApiClient } from "./features/play-cricket/api-client.ts";
 import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runReport } from "./features/scout/report/run-report.ts";
 import { createScoutReportStore } from "./lib/s3-scout-reports.ts";
 
-// Sum of per-phase budgets + 90s margin for boot, DB connect, S3 upload,
-// and clean-up. Track the budgets so a researcher / analyst bump in
-// REPORT_PHASE_BUDGETS_MS never silently outgrows this kill.
-const HARD_KILL_MS =
-  REPORT_PHASE_BUDGETS_MS.researcher +
-  REPORT_PHASE_BUDGETS_MS.analyst +
-  REPORT_PHASE_BUDGETS_MS.render +
-  90_000;
+const RENDER_MARGIN_MS = 90_000;
 
 const REPORT_ID = process.env.REPORT_ID;
 if (!REPORT_ID) {
@@ -52,9 +43,10 @@ if (!config.SCOUT_DB_URL) {
 }
 
 // Hard backstop. unref() lets the process exit naturally if everything
-// finishes before the timer fires. runReport already times out per-phase
-// (researcher / analyst / render budgets), so this only fires if
-// something outside those budgets stalls.
+// finishes before the timer fires. runReport's own AbortSignal already
+// fires at SCOUT_REPORT_TIMEOUT_MS, so this only fires if something
+// outside the agent loop (boot, DB connect, render, S3 upload) stalls.
+const HARD_KILL_MS = config.SCOUT_REPORT_TIMEOUT_MS + RENDER_MARGIN_MS;
 setTimeout(() => {
   console.error(
     `scout_report_worker_wall_clock_kill reportId=${REPORT_ID} after ${HARD_KILL_MS}ms`,
