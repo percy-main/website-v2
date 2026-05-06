@@ -366,9 +366,21 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
 
       // Track 1: load attachment summaries upfront. If the FE sent an id we
       // can't find (deleted, not ready, wrong owner), drop it silently —
-      // safer than 4xx-ing a chat turn over a stale chip. Only ready rows
-      // come back; the turn-level cap is enforced by the schema.
+      // safer than 4xx-ing a chat turn over a stale chip. Cap enforcement
+      // happens here against the env-driven config rather than the static
+      // schema so ops can tune it without a redeploy; the schema's coarse
+      // `.max()` is a hard floor against pathological payloads only.
       const requestedAttachmentIds = request.body.attachmentIds ?? [];
+      if (
+        requestedAttachmentIds.length > app.config.SCOUT_ATTACHMENT_MAX_PER_TURN
+      ) {
+        throw Object.assign(
+          new Error(
+            `Too many attachments for one turn: limit is ${app.config.SCOUT_ATTACHMENT_MAX_PER_TURN}.`,
+          ),
+          { statusCode: 400 },
+        );
+      }
       const turnAttachments =
         requestedAttachmentIds.length > 0
           ? await loadAttForTurn({
