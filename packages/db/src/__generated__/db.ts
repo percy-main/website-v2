@@ -633,12 +633,46 @@ export interface ScoutFact {
   id: Generated<string>;
   permanence: string | null;
   scope: string;
+  source_kb_chunk_id: string | null;
   source_message_id: string | null;
   source_thread_id: string | null;
   superseded_by: string | null;
   tags: Generated<Json>;
   updated_at: Generated<Timestamp>;
   user_id: string;
+}
+
+export interface ScoutKbChunk {
+  chunk_index: number;
+  content: string;
+  created_at: Generated<Timestamp>;
+  document_id: string;
+  embedding: string;
+  id: Generated<string>;
+  page_end: number | null;
+  page_start: number | null;
+  tags: Generated<Json>;
+}
+
+export interface ScoutKbDocument {
+  chunk_count: Generated<number>;
+  content_hash: string | null;
+  content_type: string;
+  created_at: Generated<Timestamp>;
+  description: string | null;
+  error_message: string | null;
+  filename: string;
+  id: Generated<string>;
+  kind: string;
+  page_count: number | null;
+  pending_key: string | null;
+  s3_key: string | null;
+  size_bytes: number;
+  status: string;
+  tags: Generated<Json>;
+  title: string;
+  updated_at: Generated<Timestamp>;
+  uploaded_by: string | null;
 }
 
 export interface ScoutMember {
@@ -798,6 +832,8 @@ export interface DB {
   scout_attachment: ScoutAttachment;
   scout_attachment_cache: ScoutAttachmentCache;
   scout_fact: ScoutFact;
+  scout_kb_chunk: ScoutKbChunk;
+  scout_kb_document: ScoutKbDocument;
   scout_member: ScoutMember;
   scout_message: ScoutMessage;
   scout_report: ScoutReport;
