@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -24,31 +25,12 @@ import { useState } from "react";
  * directly. Status badges poll while any row is in queued / ingesting.
  */
 
-type DocumentStatus =
-  | "awaiting-upload"
-  | "queued"
-  | "ingesting"
-  | "ready"
-  | "failed";
-type DocumentKind = "pdf" | "image" | "text";
-
-interface KbDocument {
-  id: string;
-  uploadedBy: string | null;
-  title: string;
-  description: string | null;
-  kind: DocumentKind;
-  filename: string;
-  contentType: string;
-  sizeBytes: number;
-  status: DocumentStatus;
-  errorMessage: string | null;
-  pageCount: number | null;
-  chunkCount: number;
-  tags: Record<string, string | string[]>;
-  createdAt: string;
-  updatedAt: string;
-}
+// Sourced from the generated OpenAPI types so the wire shape stays
+// authoritative — no parallel hand-written interface to drift.
+type KbDocument = NonNullable<
+  paths["/api/scout/knowledge/documents"]["get"]["responses"][200]["content"]["application/json"]["documents"]
+>[number];
+type DocumentStatus = KbDocument["status"];
 
 const ACCEPTED_TYPES = [
   "application/pdf",
@@ -179,9 +161,9 @@ export function KnowledgeAdminView() {
                 {docsQuery.data.documents.map((doc) => (
                   <DocumentRow
                     key={doc.id}
-                    doc={doc as KbDocument}
+                    doc={doc}
                     onReingest={() => reingest.mutate(doc.id)}
-                    onDelete={() => setPendingDelete(doc as KbDocument)}
+                    onDelete={() => setPendingDelete(doc)}
                   />
                 ))}
               </tbody>

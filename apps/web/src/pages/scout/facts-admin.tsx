@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -22,23 +23,12 @@ import { useState } from "react";
  * the embedding round-trip server-side.
  */
 
-type Permanence = "permanent" | "seasonal" | "ephemeral" | null;
-
-interface Fact {
-  id: string;
-  userId: string;
-  scope: "user" | "club";
-  content: string;
-  tags: Record<string, string | string[]>;
-  confidence: number;
-  permanence: Permanence;
-  sourceThreadId: string | null;
-  sourceKbChunkId: string | null;
-  sourceKbDocument: { id: string; title: string } | null;
-  supersededBy: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+// Sourced from the generated OpenAPI types — no parallel hand-written
+// interface to drift.
+type Fact = NonNullable<
+  paths["/api/scout/facts"]["get"]["responses"][200]["content"]["application/json"]["facts"]
+>[number];
+type Permanence = Fact["permanence"];
 
 /**
  * Tab body for the Scout fact corpus. The parent (Scout page tabs)
@@ -134,9 +124,9 @@ export function FactsAdminView() {
               {factsQuery.data.facts.map((f) => (
                 <FactRow
                   key={f.id}
-                  fact={f as Fact}
-                  onEdit={() => setEditing(f as Fact)}
-                  onDelete={() => setPendingDelete(f as Fact)}
+                  fact={f}
+                  onEdit={() => setEditing(f)}
+                  onDelete={() => setPendingDelete(f)}
                 />
               ))}
             </ul>
