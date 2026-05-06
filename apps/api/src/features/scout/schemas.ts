@@ -116,6 +116,17 @@ export const factAdminItemSchema = z.object({
   confidence: z.number().int().min(1).max(5),
   permanence: factPermanenceSchema,
   sourceThreadId: z.uuid().nullable(),
+  // KB provenance — populated when the fact was derived from a
+  // knowledge_search chunk this turn. Null otherwise. The admin UI
+  // surfaces a "From document" link so admins can trace facts back
+  // to their source.
+  sourceKbChunkId: z.uuid().nullable(),
+  sourceKbDocument: z
+    .object({
+      id: z.uuid(),
+      title: z.string(),
+    })
+    .nullable(),
   supersededBy: z.uuid().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

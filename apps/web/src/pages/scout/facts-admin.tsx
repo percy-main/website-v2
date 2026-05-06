@@ -33,6 +33,8 @@ interface Fact {
   confidence: number;
   permanence: Permanence;
   sourceThreadId: string | null;
+  sourceKbChunkId: string | null;
+  sourceKbDocument: { id: string; title: string } | null;
   supersededBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -212,6 +214,12 @@ function FactRow({
           {" · "}
           {new Date(fact.createdAt).toLocaleDateString()}
         </div>
+        {fact.sourceKbDocument && (
+          <div className="mt-0.5 text-[11px] text-gray-500">
+            From document:{" "}
+            <span className="text-gray-700">{fact.sourceKbDocument.title}</span>
+          </div>
+        )}
       </div>
       <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100">
         <button

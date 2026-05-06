@@ -9344,6 +9344,13 @@ export interface paths {
                                 /** Format: uuid */
                                 sourceThreadId: string | null;
                                 /** Format: uuid */
+                                sourceKbChunkId: string | null;
+                                sourceKbDocument: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    title: string;
+                                } | null;
+                                /** Format: uuid */
                                 supersededBy: string | null;
                                 /** Format: date-time */
                                 createdAt: string;
@@ -9403,6 +9410,13 @@ export interface paths {
                             permanence: "permanent" | "seasonal" | "ephemeral" | null;
                             /** Format: uuid */
                             sourceThreadId: string | null;
+                            /** Format: uuid */
+                            sourceKbChunkId: string | null;
+                            sourceKbDocument: {
+                                /** Format: uuid */
+                                id: string;
+                                title: string;
+                            } | null;
                             /** Format: uuid */
                             supersededBy: string | null;
                             /** Format: date-time */
@@ -9489,6 +9503,13 @@ export interface paths {
                             permanence: "permanent" | "seasonal" | "ephemeral" | null;
                             /** Format: uuid */
                             sourceThreadId: string | null;
+                            /** Format: uuid */
+                            sourceKbChunkId: string | null;
+                            sourceKbDocument: {
+                                /** Format: uuid */
+                                id: string;
+                                title: string;
+                            } | null;
                             /** Format: uuid */
                             supersededBy: string | null;
                             /** Format: date-time */

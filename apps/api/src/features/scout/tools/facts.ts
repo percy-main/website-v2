@@ -139,8 +139,14 @@ Confidence is 1–5: 5 = stated outright by the user as fact; 3 = reasonably sol
           .describe(
             "Self-assessed confidence, 1 (guess) to 5 (verbatim user fact).",
           ),
+        sourceKbChunkId: z
+          .uuid()
+          .optional()
+          .describe(
+            "Optional: the chunk id from a knowledge_search result that grounds this fact. Pass when the fact you're recording is a one-line summary of something you read in the KB this turn — never invent ids, only pass ids that came back from knowledge_search.",
+          ),
       }),
-      execute: ({ content, tags, scope, confidence }) =>
+      execute: ({ content, tags, scope, confidence, sourceKbChunkId }) =>
         withVoyageGuard(logger, "fact_record", async () => {
           const result = await record({
             userId,
@@ -149,6 +155,7 @@ Confidence is 1–5: 5 = stated outright by the user as fact; 3 = reasonably sol
             tags,
             confidence,
             sourceThreadId: threadId,
+            sourceKbChunkId,
           });
           return {
             recorded: true as const,
