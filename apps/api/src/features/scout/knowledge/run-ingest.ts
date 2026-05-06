@@ -80,38 +80,25 @@ export async function runIngest(
   }
 
   try {
-    const kind = claimed.kind as DocumentKind;
-
-    // Anthropic is required for image + pdf kinds (caption / extract).
-    // For text/markdown the bytes are pass-through, so a deployment
-    // without ANTHROPIC_API_KEY can still ingest those.
-    if ((kind === "image" || kind === "pdf") && !deps.anthropicModel) {
-      throw new IngestError(
-        `${kind} ingestion requires ANTHROPIC_API_KEY to be configured.`,
-      );
-    }
-
     const bytes = await scoutKnowledgeBase.getDocument(claimed.s3_key);
     const tags = (claimed.tags ?? {}) as Record<string, string | string[]>;
 
-    // Pass a sentinel non-null model when we know it's not used —
-    // ingest.ts only dereferences it on the matching kind branch.
-    const anthropicModel = deps.anthropicModel as LanguageModel;
-
+    // anthropicModel may be null when ANTHROPIC_API_KEY isn't set;
+    // ingest.ts throws IngestError for image/pdf kinds in that case
+    // and lets text-only docs through.
     const result = await ingestDocument(
       {
         db,
         voyage,
-        imageCaptionModel: anthropicModel,
+        anthropicModel: deps.anthropicModel,
         imageCaptionMaxTokens: config.SCOUT_ATTACHMENT_DERIVE_MAX_TOKENS,
-        pdfExtractModel: anthropicModel,
         chunkTargetTokens: config.SCOUT_KB_CHUNK_TARGET_TOKENS,
         chunkOverlapTokens: config.SCOUT_KB_CHUNK_OVERLAP_TOKENS,
         embedBatchSize: config.SCOUT_KB_EMBED_BATCH_SIZE,
       },
       {
         documentId,
-        kind,
+        kind: claimed.kind as DocumentKind,
         contentType: claimed.content_type,
         bytes,
         tags,

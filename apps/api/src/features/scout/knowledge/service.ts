@@ -141,7 +141,7 @@ export function listDocuments(deps: KbDeps) {
       .selectAll()
       .orderBy("created_at", "desc");
 
-    if (input.search && input.search.trim()) {
+    if (input.search?.trim()) {
       const term = `%${input.search.trim().toLowerCase()}%`;
       query = query.where((eb) =>
         eb.or([

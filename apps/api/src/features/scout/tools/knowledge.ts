@@ -130,7 +130,6 @@ Use cite_kb to ground each claim that comes from a returned chunk; otherwise the
 Pass the chunkId from a knowledge_search result, plus the verbatim claim you're making in your prose. Don't invent chunkIds — only cite ids you've seen in a result this turn.`,
       inputSchema: z.object({
         chunkId: z
-          .string()
           .uuid()
           .describe("The chunk id from a knowledge_search result."),
         claim: z

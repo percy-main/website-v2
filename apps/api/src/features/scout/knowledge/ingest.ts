@@ -21,14 +21,15 @@ export type DocumentKind = "pdf" | "image" | "text";
 export interface IngestOptions {
   db: Kysely<DB>;
   voyage: VoyageClient;
-  /** Anthropic Haiku — captions KB images. Capped output: a 12-line
-   *  description is plenty for a single image. */
-  imageCaptionModel: LanguageModel;
+  /** Anthropic Haiku — captions KB images and transcribes KB PDFs.
+   *  Optional: text/markdown ingestion only needs Voyage embeddings,
+   *  so a deployment without ANTHROPIC_API_KEY can still ingest those
+   *  kinds. The image/pdf branches throw IngestError if the model
+   *  isn't configured. */
+  anthropicModel: LanguageModel | null;
+  /** Image caption output cap — a 12-line description is plenty.
+   *  PDF transcription is uncapped (the upload-byte cap bounds it). */
   imageCaptionMaxTokens: number;
-  /** Anthropic Haiku — transcribes KB PDFs. No output cap; we want
-   *  the full transcription in the chunk store. The real ceiling on
-   *  payload size is SCOUT_KB_MAX_DOCUMENT_BYTES at upload time. */
-  pdfExtractModel: LanguageModel;
   chunkTargetTokens: number;
   chunkOverlapTokens: number;
   embedBatchSize: number;
@@ -139,8 +140,13 @@ async function extractPages(
 ): Promise<PageLike[]> {
   switch (input.kind) {
     case "pdf": {
+      if (!opts.anthropicModel) {
+        throw new IngestError(
+          "PDF ingestion requires ANTHROPIC_API_KEY to be configured.",
+        );
+      }
       try {
-        const text = await extractPdfText(opts.pdfExtractModel, {
+        const text = await extractPdfText(opts.anthropicModel, {
           bytes: input.bytes,
         });
         return [{ pageNumber: 0, text }];
@@ -151,9 +157,14 @@ async function extractPages(
       }
     }
     case "image": {
+      if (!opts.anthropicModel) {
+        throw new IngestError(
+          "Image ingestion requires ANTHROPIC_API_KEY to be configured.",
+        );
+      }
       try {
         const caption = await captionImage(
-          opts.imageCaptionModel,
+          opts.anthropicModel,
           opts.imageCaptionMaxTokens,
           { bytes: input.bytes, contentType: input.contentType },
         );
@@ -340,7 +351,7 @@ async function embedChunks(
   opts: IngestOptions,
   chunks: ChunkRecord[],
 ): Promise<number[][]> {
-  const result: number[][] = new Array(chunks.length);
+  const result: number[][] = new Array<number[]>(chunks.length);
   for (let i = 0; i < chunks.length; i += opts.embedBatchSize) {
     const batch = chunks.slice(i, i + opts.embedBatchSize);
     const vectors = await opts.voyage.embedBatch(
