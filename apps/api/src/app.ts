@@ -18,6 +18,10 @@ import {
   type S3DocumentStore,
 } from "./lib/s3-documents.ts";
 import {
+  createScoutAttachmentStore,
+  type ScoutAttachmentStore,
+} from "./lib/s3-scout-attachments.ts";
+import {
   createScoutReportStore,
   type ScoutReportStore,
 } from "./lib/s3-scout-reports.ts";
@@ -63,6 +67,7 @@ declare module "fastify" {
     s3: S3Uploader;
     s3Documents: S3DocumentStore;
     scoutReports: ScoutReportStore;
+    scoutAttachments: ScoutAttachmentStore;
   }
 }
 
@@ -137,6 +142,10 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   // Create and decorate the Scout report store (AI-generated PDFs)
   const scoutReports = createScoutReportStore(config);
   app.decorate("scoutReports", scoutReports);
+
+  // Create and decorate the Scout attachment store (chat image / PDF originals)
+  const scoutAttachments = createScoutAttachmentStore(config);
+  app.decorate("scoutAttachments", scoutAttachments);
 
   // Plugins
   await app.register(swagger, {

@@ -3,8 +3,10 @@ import { api, callApi } from "@/lib/api-client";
 import type { UIMessage } from "@ai-sdk/react";
 import type { ReportData } from "@percy-main/shared";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
+import { MessageAttachments } from "./attachments/message-attachments.js";
+import { useAttachmentUpload } from "./attachments/use-attachment-upload.js";
 import { Composer, type ThinkingMode } from "./composer.js";
 import { DebriefLauncher } from "./debrief-launcher.js";
 import { MessageView } from "./message-view.js";
@@ -158,6 +160,7 @@ interface ChatViewProps {
       id: string;
       role: "user" | "assistant" | "tool" | "system";
       parts: unknown[];
+      attachmentIds: string[];
     }>;
     usage: { inputTokens: number; outputTokens: number };
   };
@@ -178,11 +181,44 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         ),
     [loaded.messages],
   );
+  // Historical attachment ids by message id. Live messages (still streaming
+  // / not yet refetched) won't appear here — that's fine; the user just
+  // sees thumbnails on the next thread reload.
+  const attachmentIdsByMessage = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const m of loaded.messages) {
+      if (m.attachmentIds.length > 0) map.set(m.id, m.attachmentIds);
+    }
+    return map;
+  }, [loaded.messages]);
 
   const { messages, sendMessage, status, error, stop } = useScoutChat({
     threadId,
     initialMessages,
   });
+
+  // Per-turn attachment chips (paste / drop / + button). Cap of 4 mirrors
+  // the BE schema; the hook drops anything over silently rather than
+  // mid-upload-rejecting.
+  const {
+    attachments: turnAttachments,
+    upload: uploadAttachment,
+    remove: removeAttachment,
+    clear: clearAttachments,
+    readyIds: attachmentIds,
+    isUploading: isUploadingAttachments,
+  } = useAttachmentUpload({ threadId, maxPerTurn: 4 });
+
+  // Live binding of attachment ids to the user-turn message id we generate
+  // and pass to useChat. Keeps the chip visible mid-session — without this
+  // the thumbnail vanishes the moment we clear the composer because
+  // attachmentIdsByMessage only knows about server-loaded messages.
+  // Survives across re-renders but is wiped on thread switch (component
+  // unmount); persistence is handled by the BE attachment_ids column,
+  // which lights up attachmentIdsByMessage on the next thread load.
+  const [liveAttachmentMap, setLiveAttachmentMap] = useState<
+    Map<string, string[]>
+  >(new Map());
 
   // Composer draft persisted in URL searchParams per project convention.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -218,7 +254,31 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
   };
 
   const send = (text: string) => {
-    void sendMessage({ text }, { body: { thinkingMode } });
+    // Mint our own message id so the live attachment map can be keyed off
+    // the same id useChat uses. crypto.randomUUID is available in every
+    // browser we target.
+    const messageId = crypto.randomUUID();
+    if (attachmentIds.length > 0) {
+      const ids = attachmentIds;
+      setLiveAttachmentMap((prev) => {
+        const next = new Map(prev);
+        next.set(messageId, ids);
+        return next;
+      });
+    }
+    void sendMessage(
+      { id: messageId, role: "user", parts: [{ type: "text", text }] },
+      {
+        body: {
+          thinkingMode,
+          // Only send ids of fully-committed attachments. The Composer
+          // disables Send while any chip is uploading/processing, so this
+          // is the full intended set.
+          ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+        },
+      },
+    );
+    clearAttachments();
   };
 
   // Auto-scroll to the bottom when new content arrives.
@@ -308,14 +368,24 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
               New thread. Ask a question to get started.
             </div>
           ))}
-        {messages.map((m) => (
-          <MessageView
-            key={m.id}
-            message={m}
-            onAnswerQuestion={send}
-            isStreaming={isStreaming}
-          />
-        ))}
+        {messages.map((m) => {
+          const ids =
+            attachmentIdsByMessage.get(m.id) ??
+            liveAttachmentMap.get(m.id) ??
+            [];
+          return (
+            <div key={m.id}>
+              {ids.length > 0 && (
+                <MessageAttachments threadId={threadId} attachmentIds={ids} />
+              )}
+              <MessageView
+                message={m}
+                onAnswerQuestion={send}
+                isStreaming={isStreaming}
+              />
+            </div>
+          );
+        })}
         {error && (
           <div className="my-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {inFlightReport ? (
@@ -362,6 +432,10 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         onThinkingModeChange={setThinkingMode}
         onSubmit={send}
         onStop={() => void stop()}
+        attachments={turnAttachments}
+        onUploadFile={(file) => void uploadAttachment(file)}
+        onRemoveAttachment={removeAttachment}
+        isUploadingAttachments={isUploadingAttachments}
       />
     </>
   );

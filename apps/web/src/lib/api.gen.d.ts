@@ -9064,6 +9064,8 @@ export interface paths {
                                 parts: unknown[];
                                 /** Format: date-time */
                                 createdAt: string;
+                                /** @default [] */
+                                attachmentIds: string[];
                             }[];
                             usage: {
                                 inputTokens: number;
@@ -9084,6 +9086,192 @@ export interface paths {
                 header?: never;
                 path: {
                     threadId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            ok: true;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scout/threads/{threadId}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    threadId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        filename: string;
+                        /** @enum {string} */
+                        contentType: "image/png" | "image/jpeg" | "image/webp" | "image/gif" | "application/pdf";
+                        sizeBytes: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            kind: "image" | "pdf";
+                            filename: string;
+                            sizeBytes: number;
+                            /** Format: uri */
+                            uploadUrl: string;
+                            uploadUrlExpiresInSeconds: number;
+                            pendingKey: string;
+                            /** @enum {string} */
+                            processingState: "awaiting-upload" | "processing" | "ready" | "failed";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scout/threads/{threadId}/attachments/{attachmentId}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    threadId: string;
+                    attachmentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            kind: "image" | "pdf";
+                            filename: string;
+                            sizeBytes: number;
+                            /** @enum {string} */
+                            processingState: "awaiting-upload" | "processing" | "ready" | "failed";
+                            derivedText: string | null;
+                            processingError: string | null;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scout/threads/{threadId}/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    threadId: string;
+                    attachmentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            kind: "image" | "pdf";
+                            filename: string;
+                            contentType: string;
+                            sizeBytes: number;
+                            /** @enum {string} */
+                            processingState: "awaiting-upload" | "processing" | "ready" | "failed";
+                            derivedText: string | null;
+                            processingError: string | null;
+                            /** Format: uri */
+                            signedUrl: string | null;
+                            signedUrlExpiresInSeconds: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    threadId: string;
+                    attachmentId: string;
                 };
                 cookie?: never;
             };

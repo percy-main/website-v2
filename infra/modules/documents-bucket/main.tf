@@ -68,7 +68,7 @@ resource "aws_s3_bucket_object_lock_configuration" "documents" {
 
   rule {
     default_retention {
-      mode = "COMPLIANCE"
+      mode  = "COMPLIANCE"
       years = 7
     }
   }

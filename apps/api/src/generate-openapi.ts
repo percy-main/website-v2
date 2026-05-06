@@ -17,6 +17,8 @@ const config = parseConfig({
   S3_DOCUMENTS_BUCKET: "placeholder",
   S3_DOCUMENT_UPLOADS_BUCKET: "placeholder",
   SCOUT_REPORTS_BUCKET: "placeholder",
+  SCOUT_ATTACHMENT_UPLOADS_BUCKET: "placeholder",
+  SCOUT_ATTACHMENTS_BUCKET: "placeholder",
   NODE_ENV: "development",
   LOG_LEVEL: "error",
   PLAY_CRICKET_API_TOKEN: "placeholder",

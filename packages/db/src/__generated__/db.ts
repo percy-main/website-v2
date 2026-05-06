@@ -600,6 +600,31 @@ export interface PlayerSponsorship {
   stripe_payment_intent_id: string | null;
 }
 
+export interface ScoutAttachment {
+  content_hash: string | null;
+  content_type: string;
+  created_at: Generated<Timestamp>;
+  derived_text: string | null;
+  filename: string;
+  id: Generated<string>;
+  kind: string;
+  pending_key: string | null;
+  processing_error: string | null;
+  processing_state: string;
+  s3_key: string | null;
+  size_bytes: number;
+  thread_id: string;
+  user_id: string;
+}
+
+export interface ScoutAttachmentCache {
+  content_hash: string;
+  created_at: Generated<Timestamp>;
+  derived_text: string;
+  kind: string;
+  source: string;
+}
+
 export interface ScoutFact {
   confidence: Generated<number>;
   content: string;
@@ -629,6 +654,7 @@ export interface ScoutMember {
 }
 
 export interface ScoutMessage {
+  attachment_ids: string[] | null;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   parts: Json;
@@ -769,6 +795,8 @@ export interface DB {
   play_cricket_sync_log: PlayCricketSyncLog;
   play_cricket_team: PlayCricketTeam;
   player_sponsorship: PlayerSponsorship;
+  scout_attachment: ScoutAttachment;
+  scout_attachment_cache: ScoutAttachmentCache;
   scout_fact: ScoutFact;
   scout_member: ScoutMember;
   scout_message: ScoutMessage;

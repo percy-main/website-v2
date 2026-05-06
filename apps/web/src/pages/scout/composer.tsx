@@ -1,5 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
+import { AttachmentPreview } from "./attachments/attachment-preview.js";
+import {
+  ATTACHMENT_ACCEPT_ATTR,
+  isAcceptedAttachment,
+  type PendingAttachment,
+} from "./attachments/use-attachment-upload.js";
 
 export type ThinkingMode = "thinking" | "fast";
 
@@ -17,6 +23,13 @@ interface ComposerProps {
    *  thread switches and be sent on the next message body. */
   thinkingMode: ThinkingMode;
   onThinkingModeChange: (mode: ThinkingMode) => void;
+  /** Per-turn attachment chips. Controlled by the parent so they reset
+   *  on send and across thread switches. */
+  attachments: PendingAttachment[];
+  onUploadFile: (file: File) => void;
+  onRemoveAttachment: (localId: string) => void;
+  /** True while any chip is uploading or processing. Disables Send. */
+  isUploadingAttachments: boolean;
 }
 
 export function Composer({
@@ -27,9 +40,15 @@ export function Composer({
   isStreaming,
   thinkingMode,
   onThinkingModeChange,
+  attachments,
+  onUploadFile,
+  onRemoveAttachment,
+  isUploadingAttachments,
 }: ComposerProps) {
   const [value, setValue] = useState(initialDraft);
+  const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Re-sync when the controlling URL changes (e.g. switching threads).
   useEffect(() => {
@@ -38,10 +57,17 @@ export function Composer({
 
   const submit = () => {
     const trimmed = value.trim();
-    if (!trimmed || isStreaming) return;
+    if (!trimmed || isStreaming || isUploadingAttachments) return;
     onSubmit(trimmed);
     setValue("");
     onDraftChange?.("");
+  };
+
+  const handleFiles = (files: FileList | File[] | null | undefined) => {
+    if (!files) return;
+    for (const file of Array.from(files)) {
+      if (isAcceptedAttachment(file)) onUploadFile(file);
+    }
   };
 
   return (
@@ -51,8 +77,38 @@ export function Composer({
         e.preventDefault();
         submit();
       }}
+      onDragOver={(e) => {
+        // Only react to drags carrying files.
+        if (Array.from(e.dataTransfer.types).includes("Files")) {
+          e.preventDefault();
+          setIsDragging(true);
+        }
+      }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+        e.preventDefault();
+        setIsDragging(false);
+        handleFiles(e.dataTransfer.files);
+      }}
     >
-      <div className="flex items-end gap-2">
+      {attachments.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {attachments.map((a) => (
+            <AttachmentPreview
+              key={a.localId}
+              attachment={a}
+              onRemove={onRemoveAttachment}
+            />
+          ))}
+        </div>
+      )}
+      <div
+        className={
+          "flex items-end gap-2 rounded transition-colors " +
+          (isDragging ? "bg-blue-50 ring-2 ring-blue-300 ring-offset-1" : "")
+        }
+      >
         <textarea
           ref={textareaRef}
           value={value}
@@ -66,7 +122,19 @@ export function Composer({
               submit();
             }
           }}
-          placeholder="Ask Scout… (Cmd/Ctrl+Enter to send)"
+          onPaste={(e) => {
+            const files = Array.from(e.clipboardData.files);
+            const accepted = files.filter(isAcceptedAttachment);
+            if (accepted.length > 0) {
+              e.preventDefault();
+              handleFiles(accepted);
+            }
+          }}
+          placeholder={
+            isDragging
+              ? "Drop image or PDF to attach"
+              : "Ask Scout… (Cmd/Ctrl+Enter to send · paste or drop image/PDF)"
+          }
           rows={3}
           disabled={isStreaming}
           className="flex-1 resize-y rounded border border-gray-300 p-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50"
@@ -76,6 +144,28 @@ export function Composer({
             mode={thinkingMode}
             onChange={onThinkingModeChange}
             disabled={isStreaming}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isStreaming}
+            title="Attach an image or PDF (max 10 MB)"
+            className="inline-flex items-center justify-center gap-1.5 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+          >
+            <PaperclipIcon className="h-3.5 w-3.5" />
+            Attach
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ATTACHMENT_ACCEPT_ATTR}
+            multiple
+            hidden
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              // Reset so picking the same file twice in a row still fires.
+              e.target.value = "";
+            }}
           />
           {isStreaming ? (
             <Button
@@ -88,13 +178,38 @@ export function Composer({
               Stop
             </Button>
           ) : (
-            <Button type="submit" disabled={!value.trim()}>
+            <Button
+              type="submit"
+              disabled={!value.trim() || isUploadingAttachments}
+              title={
+                isUploadingAttachments
+                  ? "Wait for attachments to finish processing"
+                  : undefined
+              }
+            >
               Send
             </Button>
           )}
         </div>
       </div>
     </form>
+  );
+}
+
+function PaperclipIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.49-8.48a4 4 0 0 1 5.66 5.65l-8.49 8.49a2 2 0 1 1-2.83-2.83l7.07-7.07" />
+    </svg>
   );
 }
 
