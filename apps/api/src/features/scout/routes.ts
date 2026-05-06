@@ -623,6 +623,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             threadId,
             mode: threadMode,
             scoutReports: app.scoutReports,
+            scoutKnowledgeBase: app.scoutKnowledgeBase,
             thinkingMode,
           });
 

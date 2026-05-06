@@ -43,20 +43,22 @@ function buildSanitisedMessage(
   status: number,
   endpoint: "embed" | "rerank",
 ): string {
-  // Map common HTTP statuses to short, vendor-neutral phrasing. Anything
-  // unmapped falls back to a generic "service unavailable" so we never
-  // surface raw provider responses (billing URLs, internal hints, etc.)
-  // through the tool result chain.
+  // Map common HTTP statuses to short, vendor-neutral phrasing.
+  // We use "Vector search" / "Vector rerank" rather than "Fact memory"
+  // because the same Voyage client now backs both fact retrieval and
+  // KB chunk retrieval — surfacing "Fact memory..." in a knowledge_search
+  // result would be misleading.
+  const noun = endpoint === "embed" ? "Vector search" : "Vector rerank";
   if (status === 429) {
-    return `Fact memory ${endpoint} is rate-limited right now. Try again in a moment.`;
+    return `${noun} is rate-limited right now. Try again in a moment.`;
   }
   if (status === 401 || status === 403) {
-    return `Fact memory ${endpoint} is misconfigured (auth rejected). Ask the tech lead to check the Voyage API key.`;
+    return `${noun} is misconfigured (auth rejected). Ask the tech lead to check the Voyage API key.`;
   }
   if (status >= 500) {
-    return `Fact memory ${endpoint} provider is having an issue (HTTP ${status}). Try again shortly.`;
+    return `${noun} provider is having an issue (HTTP ${status}). Try again shortly.`;
   }
-  return `Fact memory ${endpoint} failed (HTTP ${status}).`;
+  return `${noun} failed (HTTP ${status}).`;
 }
 
 // Voyage rejects requests over their per-call payload caps long before
