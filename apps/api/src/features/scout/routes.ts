@@ -92,13 +92,18 @@ import {
   kbSaveFromAttachmentResponseSchema,
   listFactsQuerySchema,
   listFactsResponseSchema,
+  listOfficialsResponseSchema,
   listReportsResponseSchema,
+  listShareesResponseSchema,
   listThreadsResponseSchema,
   recentDebriefMatchesResponseSchema,
   reportDetailResponseSchema,
   reportDownloadResponseSchema,
   reportIdParamSchema,
+  shareThreadBodySchema,
+  shareThreadResponseSchema,
   threadIdParamSchema,
+  unshareUserParamSchema,
   upcomingScoutMatchesResponseSchema,
   updateFactBodySchema,
   updateFactResponseSchema,
@@ -114,12 +119,18 @@ import {
   getReportDetail,
   getReportForDownload,
   getThread,
+  listOfficials,
   listRecentDebriefMatches,
   listReports,
+  listSharees,
   listThreads,
   listUpcomingScoutMatches,
   ReportNotFoundError,
+  ShareForbiddenError,
+  ShareInvalidRecipientError,
+  shareThread,
   ThreadNotFoundError,
+  unshareThread,
 } from "./service.ts";
 import { maybeGenerateTitle } from "./title.ts";
 
@@ -132,6 +143,10 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const append = appendMessage(app.db);
   const bump = bumpThreadUpdatedAt(app.db);
   const assertOwned = assertThreadOwnership(app.db);
+  const officials = listOfficials(app.db);
+  const sharees = listSharees(app.db);
+  const share = shareThread(app.db);
+  const unshare = unshareThread(app.db);
   const recentMatches = listRecentDebriefMatches(app.db);
   const upcomingMatches = listUpcomingScoutMatches(app.db);
   const reportsList = listReports(app.db);
@@ -340,6 +355,128 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         if (err instanceof ThreadNotFoundError) {
           throw Object.assign(new Error("Thread not found"), {
             statusCode: 404,
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // ── Thread sharing ──
+  // Owner-only management of read-only access grants. Recipients see the
+  // thread in their list with a "Shared by X" badge and can read messages
+  // but cannot post — write paths still gate on assertThreadOwnership.
+
+  // Source for the share modal's picker. Listed for any caller with
+  // Scout access; sharing semantics are still enforced on the share POST.
+  app.get(
+    "/scout/officials",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        response: { 200: listOfficialsResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      return { officials: await officials(user.id) };
+    },
+  );
+
+  app.get(
+    "/scout/threads/:threadId/shares",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: threadIdParamSchema,
+        response: { 200: listShareesResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      try {
+        return { sharees: await sharees(user.id, request.params.threadId) };
+      } catch (err) {
+        if (err instanceof ThreadNotFoundError) {
+          throw Object.assign(new Error("Thread not found"), {
+            statusCode: 404,
+          });
+        }
+        if (err instanceof ShareForbiddenError) {
+          throw Object.assign(new Error("Only the thread owner can manage sharing"), {
+            statusCode: 403,
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/scout/threads/:threadId/shares",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: threadIdParamSchema,
+        body: shareThreadBodySchema,
+        response: { 200: shareThreadResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      try {
+        const updated = await share(
+          user.id,
+          request.params.threadId,
+          request.body.userIds,
+        );
+        return { sharees: updated };
+      } catch (err) {
+        if (err instanceof ThreadNotFoundError) {
+          throw Object.assign(new Error("Thread not found"), {
+            statusCode: 404,
+          });
+        }
+        if (err instanceof ShareForbiddenError) {
+          throw Object.assign(new Error("Only the thread owner can manage sharing"), {
+            statusCode: 403,
+          });
+        }
+        if (err instanceof ShareInvalidRecipientError) {
+          throw Object.assign(new Error(err.message), { statusCode: 400 });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.delete(
+    "/scout/threads/:threadId/shares/:userId",
+    {
+      preHandler: [requireScoutAccess],
+      schema: {
+        params: unshareUserParamSchema,
+        response: { 200: shareThreadResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      try {
+        const updated = await unshare(
+          user.id,
+          request.params.threadId,
+          request.params.userId,
+        );
+        return { sharees: updated };
+      } catch (err) {
+        if (err instanceof ThreadNotFoundError) {
+          throw Object.assign(new Error("Thread not found"), {
+            statusCode: 404,
+          });
+        }
+        if (err instanceof ShareForbiddenError) {
+          throw Object.assign(new Error("Only the thread owner can manage sharing"), {
+            statusCode: 403,
           });
         }
         throw err;

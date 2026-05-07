@@ -26,6 +26,8 @@ interface ThreadSummary {
   title: string;
   mode: ScoutMode;
   updatedAt: string;
+  sharedBy: { id: string; name: string; email: string } | null;
+  sharedByMe: boolean;
 }
 
 const MODE_OPTIONS: ReadonlyArray<{
@@ -150,23 +152,47 @@ export function ThreadList() {
                 >
                   <div className="flex items-center gap-1.5">
                     <ModeBadge mode={t.mode} />
+                    {t.sharedBy && (
+                      <span
+                        className="text-violet-600"
+                        title={`Shared by ${t.sharedBy.name}`}
+                        aria-label={`Shared by ${t.sharedBy.name}`}
+                      >
+                        <ShareGlyph className="h-3 w-3" />
+                      </span>
+                    )}
+                    {t.sharedByMe && !t.sharedBy && (
+                      <span
+                        className="text-blue-600"
+                        title="You've shared this thread"
+                        aria-label="Shared by you"
+                      >
+                        <ShareGlyph className="h-3 w-3" />
+                      </span>
+                    )}
                     <span className="truncate">{t.title}</span>
                   </div>
                   <div className="truncate text-xs text-gray-400">
+                    {t.sharedBy ? `Shared by ${t.sharedBy.name} · ` : ""}
                     {new Date(t.updatedAt).toLocaleString()}
                   </div>
                 </Link>
-                <button
-                  type="button"
-                  aria-label={`Delete ${t.title}`}
-                  className="absolute top-2 right-2 rounded p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-red-700"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setPendingDelete(t);
-                  }}
-                >
-                  ×
-                </button>
+                {/* Recipients can't delete a shared-with-me thread; the BE
+                    would 404 anyway, but hiding the button keeps the UX
+                    obvious. */}
+                {!t.sharedBy && (
+                  <button
+                    type="button"
+                    aria-label={`Delete ${t.title}`}
+                    className="absolute top-2 right-2 rounded p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-red-700"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPendingDelete(t);
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
               </li>
             );
           })}
@@ -296,6 +322,27 @@ function NewThreadSplitButton({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+function ShareGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.25}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
   );
 }
 

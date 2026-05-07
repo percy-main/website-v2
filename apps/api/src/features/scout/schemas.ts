@@ -18,12 +18,27 @@ export const threadIdParamSchema = z.object({
 export const scoutModeSchema = z.enum(["chat", "debrief", "scout"]);
 export type ScoutMode = z.infer<typeof scoutModeSchema>;
 
+// Identity surfaced in sharing responses. We don't expose the avatar /
+// emailVerified flag — the share modal and "shared by" header only need
+// name + email, and the id is what every mutation keys off.
+export const shareActorSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+});
+
 export const threadSummarySchema = z.object({
   id: z.uuid(),
   title: z.string(),
   mode: scoutModeSchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  /** Owner identity when the current viewer is a recipient of a share;
+   *  null when the viewer owns the thread. */
+  sharedBy: shareActorSchema.nullable(),
+  /** True only on threads the viewer owns AND has shared. Used by the
+   *  list view to render a small share-icon next to the title. */
+  sharedByMe: z.boolean(),
 });
 
 export const listThreadsResponseSchema = z.object({
@@ -457,4 +472,29 @@ export const kbSaveFromAttachmentBodySchema = z.object({
 export const kbSaveFromAttachmentResponseSchema = z.object({
   documentId: z.uuid(),
   status: kbDocumentStatusSchema,
+});
+
+// ── Thread sharing ──
+
+export const listOfficialsResponseSchema = z.object({
+  officials: z.array(shareActorSchema),
+});
+
+export const shareThreadBodySchema = z.object({
+  // Cap the bulk add to keep accidental "share with the whole club"
+  // mistakes contained. 25 is well above the realistic ceiling (~12
+  // captains and a handful of officials) and small enough to round-trip
+  // synchronously without batching.
+  userIds: z.array(z.string()).min(1).max(25),
+});
+
+export const listShareesResponseSchema = z.object({
+  sharees: z.array(shareActorSchema),
+});
+
+export const shareThreadResponseSchema = listShareesResponseSchema;
+
+export const unshareUserParamSchema = z.object({
+  threadId: z.uuid(),
+  userId: z.string(),
 });

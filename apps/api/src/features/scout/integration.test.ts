@@ -14,9 +14,15 @@ import {
   createThread,
   deleteThread,
   getThread,
+  listOfficials,
   listRecentDebriefMatches,
+  listSharees,
   listThreads,
+  ShareForbiddenError,
+  ShareInvalidRecipientError,
+  shareThread,
   ThreadNotFoundError,
+  unshareThread,
 } from "./service.ts";
 import { createScoutCache } from "./tools/cache.ts";
 import { createDbTools } from "./tools/db.ts";
@@ -330,6 +336,184 @@ describe("scout thread service (integration)", () => {
     await expect(assertOwned(userId, debrief.id)).resolves.toEqual({
       mode: "debrief",
     });
+  });
+});
+
+describe("scout thread sharing (integration)", () => {
+  it("listOfficials returns admins and officials excluding the current user, ordered by name", async () => {
+    const { userId: viewer } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+      name: "Zara Owner",
+    });
+    const { userId: alice } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+      name: "Alice Official",
+    });
+    const { userId: bob } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "admin",
+      name: "Bob Admin",
+    });
+    // Plain user (no role) — must NOT appear in the picker.
+    await seedTestUser(ctx.db, {
+      withMember: false,
+      role: null as unknown as string,
+      name: "Charlie Civilian",
+    });
+
+    const officials = await listOfficials(ctx.db)(viewer);
+    const ids = officials.map((o) => o.id);
+    expect(ids).toContain(alice);
+    expect(ids).toContain(bob);
+    expect(ids).not.toContain(viewer);
+    // Alphabetical by name
+    const aIdx = officials.findIndex((o) => o.id === alice);
+    const bIdx = officials.findIndex((o) => o.id === bob);
+    expect(aIdx).toBeLessThan(bIdx);
+  });
+
+  it("share + getThread: a recipient can read the shared thread and sees sharedBy populated", async () => {
+    const { userId: owner, name: ownerName } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+      name: "Owner Person",
+    });
+    const { userId: recipient } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+
+    const thread = await createThread(ctx.db)(owner, "Shared scout thread");
+    await shareThread(ctx.db)(owner, thread.id, [recipient]);
+
+    const ownerView = await getThread(ctx.db)(owner, thread.id);
+    expect(ownerView.thread.sharedBy).toBeNull();
+    expect(ownerView.thread.sharedByMe).toBe(true);
+
+    const recipientView = await getThread(ctx.db)(recipient, thread.id);
+    expect(recipientView.thread.sharedBy?.id).toBe(owner);
+    expect(recipientView.thread.sharedBy?.name).toBe(ownerName);
+    expect(recipientView.thread.sharedByMe).toBe(false);
+  });
+
+  it("listThreads merges owned + shared, with sharedBy / sharedByMe set per row", async () => {
+    const { userId: alice } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+    const { userId: bob } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+
+    const aliceThread = await createThread(ctx.db)(alice, "Alice's analysis");
+    const bobsShared = await createThread(ctx.db)(bob, "Bob's plan");
+    await shareThread(ctx.db)(bob, bobsShared.id, [alice]);
+
+    const aliceList = await listThreads(ctx.db)(alice);
+    const own = aliceList.find((t) => t.id === aliceThread.id);
+    const shared = aliceList.find((t) => t.id === bobsShared.id);
+    expect(own?.sharedByMe).toBe(false); // owns it but hasn't shared
+    expect(own?.sharedBy).toBeNull();
+    expect(shared?.sharedBy?.id).toBe(bob);
+    expect(shared?.sharedByMe).toBe(false);
+
+    // Alice now shares her own thread with Bob → sharedByMe flips for her.
+    await shareThread(ctx.db)(alice, aliceThread.id, [bob]);
+    const aliceListAfter = await listThreads(ctx.db)(alice);
+    expect(
+      aliceListAfter.find((t) => t.id === aliceThread.id)?.sharedByMe,
+    ).toBe(true);
+  });
+
+  it("share + unshare are idempotent (no duplicate rows; unshare twice is fine)", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+    const { userId: rec } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+
+    const thread = await createThread(ctx.db)(owner, "Idempotent thread");
+    await shareThread(ctx.db)(owner, thread.id, [rec]);
+    await shareThread(ctx.db)(owner, thread.id, [rec]); // re-share, no-op
+    const sharees = await listSharees(ctx.db)(owner, thread.id);
+    expect(sharees.map((s) => s.id)).toEqual([rec]);
+
+    await unshareThread(ctx.db)(owner, thread.id, rec);
+    await unshareThread(ctx.db)(owner, thread.id, rec); // unshare twice, no-op
+    expect(await listSharees(ctx.db)(owner, thread.id)).toEqual([]);
+  });
+
+  it("share + unshare refuse to run for a non-owner (ShareForbiddenError)", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+    const { userId: imposter } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "admin",
+    });
+    const { userId: target } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+
+    const thread = await createThread(ctx.db)(owner, "Locked");
+    await expect(
+      shareThread(ctx.db)(imposter, thread.id, [target]),
+    ).rejects.toBeInstanceOf(ShareForbiddenError);
+    await expect(
+      unshareThread(ctx.db)(imposter, thread.id, target),
+    ).rejects.toBeInstanceOf(ShareForbiddenError);
+  });
+
+  it("share rejects recipients without admin/official role", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+    const { userId: civilian } = await seedTestUser(ctx.db, {
+      withMember: false,
+      // explicit no role — `null` is the default for plain users
+      role: null as unknown as string,
+    });
+
+    const thread = await createThread(ctx.db)(owner, "Restricted");
+    await expect(
+      shareThread(ctx.db)(owner, thread.id, [civilian]),
+    ).rejects.toBeInstanceOf(ShareInvalidRecipientError);
+  });
+
+  it("share rejects sharing with self", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+    const thread = await createThread(ctx.db)(owner, "Solo");
+    await expect(
+      shareThread(ctx.db)(owner, thread.id, [owner]),
+    ).rejects.toBeInstanceOf(ShareInvalidRecipientError);
+  });
+
+  it("a non-shared, non-owner user cannot read the thread (404 via ThreadNotFoundError)", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+    const { userId: stranger } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
+    const thread = await createThread(ctx.db)(owner, "Private");
+
+    await expect(
+      getThread(ctx.db)(stranger, thread.id),
+    ).rejects.toBeInstanceOf(ThreadNotFoundError);
   });
 });
 

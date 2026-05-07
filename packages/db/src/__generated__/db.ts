@@ -782,6 +782,14 @@ export interface ScoutThread {
   user_id: string;
 }
 
+export interface ScoutThreadShare {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  shared_by_user_id: string;
+  shared_with_user_id: string;
+  thread_id: string;
+}
+
 export interface ScoutToolCache {
   cache_key: string;
   created_at: Generated<Timestamp>;
@@ -893,6 +901,7 @@ export interface DB {
   scout_message: ScoutMessage;
   scout_report: ScoutReport;
   scout_thread: ScoutThread;
+  scout_thread_share: ScoutThreadShare;
   scout_tool_cache: ScoutToolCache;
   session: Session;
   team_official: TeamOfficial;
