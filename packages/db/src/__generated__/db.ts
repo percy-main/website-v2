@@ -385,6 +385,34 @@ export interface MarketingOutbox {
   succeeded_at: string | null;
 }
 
+export interface MatchBall {
+  ball_no: number;
+  ball_no_disp: number;
+  ball_offset_seconds: number | null;
+  ball_spot_x: number | null;
+  ball_spot_y: number | null;
+  ball_time_utc: Timestamp | null;
+  batter_ns_rv_id: number | null;
+  batter_rv_id: number | null;
+  bowler_rv_id: number | null;
+  created_at: Generated<Timestamp>;
+  dismissed_batter_rv_id: number | null;
+  extras_type: string | null;
+  highlight_events: Generated<Json>;
+  id: Generated<string>;
+  innings_number: number;
+  l_desc: string;
+  match_id: string;
+  over_no: number;
+  runs_bat: number;
+  runs_extra: number;
+  rv_match_id: string;
+  rv_result_id: string;
+  s_desc: string;
+  shot_angle: number | null;
+  shot_length: number | null;
+}
+
 export interface Matchday {
   competition_type: string | null;
   confirmed_at: string | null;
@@ -513,6 +541,21 @@ export interface MatchResult {
   season: number;
 }
 
+export interface MatchStream {
+  created_at: Generated<Timestamp>;
+  description: string | null;
+  frogbox_stream_id: string;
+  id: Generated<string>;
+  match_id: string;
+  publish_status_id: number | null;
+  recording_started_utc: Timestamp | null;
+  rv_match_id: string;
+  rv_stream_id: number;
+  start_utc: Timestamp | null;
+  stream_provider_id: number;
+  video_id: string;
+}
+
 export interface Member {
   address: string | null;
   deleted_at: string | null;
@@ -598,6 +641,15 @@ export interface PlayerSponsorship {
   sponsor_phone: string | null;
   sponsor_website: string | null;
   stripe_payment_intent_id: string | null;
+}
+
+export interface RvPlayerMapping {
+  created_at: Generated<Timestamp>;
+  last_seen_match_date: string;
+  pc_player_id: string;
+  player_name: string;
+  rv_player_id: number;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface ScoutAttachment {
@@ -814,11 +866,13 @@ export interface DB {
   lead: Lead;
   marketing_event: MarketingEvent;
   marketing_outbox: MarketingOutbox;
+  match_ball: MatchBall;
   match_fee_rate: MatchFeeRate;
   match_performance_batting: MatchPerformanceBatting;
   match_performance_bowling: MatchPerformanceBowling;
   match_performance_fielding: MatchPerformanceFielding;
   match_result: MatchResult;
+  match_stream: MatchStream;
   matchday: Matchday;
   matchday_expense: MatchdayExpense;
   matchday_player: MatchdayPlayer;
@@ -829,6 +883,7 @@ export interface DB {
   play_cricket_sync_log: PlayCricketSyncLog;
   play_cricket_team: PlayCricketTeam;
   player_sponsorship: PlayerSponsorship;
+  rv_player_mapping: RvPlayerMapping;
   scout_attachment: ScoutAttachment;
   scout_attachment_cache: ScoutAttachmentCache;
   scout_fact: ScoutFact;
