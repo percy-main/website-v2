@@ -144,7 +144,12 @@ async function upsertMatchStreams(
   );
   if (usable.length === 0) return 0;
 
-  const rows = usable.map((s) => ({
+  // Dedupe by rv_stream_id (the unique constraint) so a freak RV response
+  // with the same id twice can't trip "cannot affect row a second time".
+  const dedupedStreams = new Map<number, (typeof usable)[number]>();
+  for (const s of usable) dedupedStreams.set(s.id, s);
+
+  const rows = Array.from(dedupedStreams.values()).map((s) => ({
     match_id: pcMatchId,
     rv_match_id: rvMatchId,
     rv_stream_id: s.id,
@@ -193,7 +198,20 @@ async function upsertBalls(
 ): Promise<number> {
   if (balls.length === 0) return 0;
 
-  const rows = balls.map((b) => {
+  // Dedupe within the batch on the same natural key Postgres uses for the
+  // unique constraint. Postgres rejects an INSERT … ON CONFLICT DO UPDATE
+  // statement that targets the same conflict row twice ("cannot affect
+  // row a second time"), so even though every row in `balls` *should* be
+  // unique within an innings, we collapse defensively. Last-write-wins —
+  // RV occasionally emits revised rows and the latest is the corrected
+  // value.
+  const dedupedBalls = new Map<string, RvBall>();
+  for (const b of balls) {
+    const key = `${String(b.innings_number)}:${String(b.over_no)}:${String(b.ball_no)}`;
+    dedupedBalls.set(key, b);
+  }
+
+  const rows = Array.from(dedupedBalls.values()).map((b) => {
     const ballTime = parseMsDate(b.ball_time);
     const offsetSeconds =
       ballTime != null && ctx.anchorMs != null
@@ -246,7 +264,6 @@ async function upsertBalls(
         // The natural-key columns themselves are excluded (they're how
         // we found the row in the first place).
         match_id: (eb) => eb.ref("excluded.match_id"),
-        over_no: (eb) => eb.ref("excluded.over_no"),
         ball_no_disp: (eb) => eb.ref("excluded.ball_no_disp"),
         batter_rv_id: (eb) => eb.ref("excluded.batter_rv_id"),
         batter_ns_rv_id: (eb) => eb.ref("excluded.batter_ns_rv_id"),

@@ -129,7 +129,7 @@ CRITICAL — schema gotchas specific to BBB:
 
 1. **Player ids on match_ball are RV-native ints, not Play Cricket text ids.** Columns: batter_rv_id, batter_ns_rv_id, bowler_rv_id, dismissed_batter_rv_id. To filter by a player you know by name or PC id, join via rv_player_mapping.rv_player_id ↔ match_ball.{batter,bowler,...}_rv_id; rv_player_mapping.pc_player_id then joins to scout_member.play_cricket_id. Doing it the other way round (joining scout_member directly to match_ball) WILL NOT WORK — there's no shared id type.
 
-2. **ball_no includes extras; ball_no_disp does not.** Use ball_no for chronological ordering inside an innings (it's the natural key). Use ball_no_disp when reporting "the 7th legal delivery of the over". Both are 1-based per innings.
+2. **ball_no resets PER OVER (1-based, includes extras); over_no is 0-based per innings.** Chronological ordering within an innings is ORDER BY over_no, ball_no — ball_no alone is NOT unique across the innings. ball_no_disp is the legal-deliveries-only sibling (also per-over) — use it when reporting "the 7th legal delivery of the over".
 
 3. **Dismissal mode is NOT in match_ball.** RV's ball feed only flags "dismissed" via dismissed_batter_rv_id; how_out (caught/bowled/lbw/run-out/etc.) lives in match_performance_batting for OUR players only. To filter dismissals by mode: join match_performance_batting on (match_id, player_id = rv_player_mapping.pc_player_id). For OPPOSITION batters, mode is unavailable — return rows with how_out IS NULL and note this in the summary.
 
