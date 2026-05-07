@@ -10,6 +10,8 @@ import {
 } from "./api-schemas.ts";
 
 import type { PlayCricketApiClient } from "./api-client.ts";
+import type { RvClient } from "./rv-client.ts";
+import { ingestRvDataForMatch } from "./rv-ingest.ts";
 
 // --- Helpers ---
 
@@ -346,6 +348,7 @@ async function storeFieldingPerformances(
 async function syncMatches(
   db: Kysely<DB>,
   api: PlayCricketApiClient,
+  rv: RvClient | null,
   config: SyncConfig,
   startTime: number,
 ): Promise<SyncResult> {
@@ -544,6 +547,23 @@ async function syncMatches(
           .execute();
       }
 
+      // ResultsVault ball-by-ball + match-stream ingest. Independent of
+      // the PC sync above; failures (token rejection, schema drift, RV
+      // outage) are logged but never propagated. The "match has no RV
+      // data" case is the common one and resolves silently inside
+      // ingestRvDataForMatch.
+      if (rv) {
+        try {
+          await ingestRvDataForMatch(db, rv, matchId, matchDateIso);
+        } catch (rvErr) {
+          errors.push(
+            `RV ingest failed for match ${matchId}: ${
+              rvErr instanceof Error ? rvErr.message : String(rvErr)
+            }`,
+          );
+        }
+      }
+
       matchesProcessed++;
     } catch (err) {
       const msg = `Error processing match ${matchId}: ${err instanceof Error ? err.message : String(err)}`;
@@ -564,14 +584,18 @@ async function syncMatches(
  *
  * TODO: Wire up as EventBridge scheduled task or admin HTTP trigger
  */
-export function runSync(db: Kysely<DB>, api: PlayCricketApiClient) {
+export function runSync(
+  db: Kysely<DB>,
+  api: PlayCricketApiClient,
+  rv: RvClient | null = null,
+) {
   return async (config: SyncConfig): Promise<SyncResult> => {
     const logId = crypto.randomUUID();
     const startedAt = new Date().toISOString();
     const startTime = Date.now();
 
     try {
-      const result = await syncMatches(db, api, config, startTime);
+      const result = await syncMatches(db, api, rv, config, startTime);
 
       // Log the sync
       await db
