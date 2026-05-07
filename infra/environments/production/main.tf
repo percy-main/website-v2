@@ -192,7 +192,11 @@ module "ecs" {
     GOOGLE_CLIENT_ID       = "${aws_secretsmanager_secret.app_secrets.arn}:GOOGLE_CLIENT_ID::"
     GOOGLE_CLIENT_SECRET   = "${aws_secretsmanager_secret.app_secrets.arn}:GOOGLE_CLIENT_SECRET::"
     PLAY_CRICKET_API_TOKEN = "${aws_secretsmanager_secret.app_secrets.arn}:PLAY_CRICKET_API_TOKEN::"
-    SLACK_WEBHOOK_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SLACK_WEBHOOK_URL::"
+    # ResultsVault shared secret used by the BBB ingest hook in
+    # sync-runner. Optional: if the JSON key is missing or empty, the
+    # ingest is skipped and the PC sync runs unchanged.
+    RV_SHARED_SECRET  = "${aws_secretsmanager_secret.app_secrets.arn}:RV_SHARED_SECRET::"
+    SLACK_WEBHOOK_URL = "${aws_secretsmanager_secret.app_secrets.arn}:SLACK_WEBHOOK_URL::"
 
     # Scout (alex-only AI cricket analyst). All keys must be populated in
     # the app_secrets blob before this redeploys; the streaming route

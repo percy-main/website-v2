@@ -7,8 +7,47 @@ import {
   type TestContext,
 } from "../../test/containers.ts";
 import type { PlayCricketApiClient } from "./api-client.ts";
+import type { RvClient } from "./rv-client.ts";
+import { ingestRvDataForMatch } from "./rv-ingest.ts";
+import type {
+  RvBall,
+  RvMatchOverview as RvMatchOverviewT,
+} from "./rv-schemas.ts";
 import { getMatchDetail, getPlayerCareerStats, getTeams } from "./service.ts";
 import { runSync } from "./sync.ts";
+
+// Mock RV client for the ingest tests below — wired with the same
+// curried-deps pattern as the real createRvClient. Each method returns
+// either a plain value or a function that yields a value per call (so
+// tests can stage different responses across multiple invocations).
+function makeMockRv(overrides: {
+  mapping?: { rvMatchId: string } | null;
+  match?: RvMatchOverviewT | null;
+  balls?: RvBall[][] | RvBall[];
+}): RvClient & { calls: { mapping: number; match: number; balls: number } } {
+  const calls = { mapping: 0, match: 0, balls: 0 };
+  const ballsArray = Array.isArray(overrides.balls?.[0])
+    ? (overrides.balls as RvBall[][])
+    : overrides.balls
+      ? [overrides.balls as RvBall[]]
+      : [[]];
+  return {
+    calls,
+    getMatchMapping: vi.fn(() => {
+      calls.mapping++;
+      return Promise.resolve(overrides.mapping ?? null);
+    }),
+    getMatch: vi.fn(() => {
+      calls.match++;
+      return Promise.resolve(overrides.match ?? null);
+    }),
+    getBalls: vi.fn(() => {
+      const next = ballsArray[calls.balls] ?? [];
+      calls.balls++;
+      return Promise.resolve(next);
+    }),
+  };
+}
 
 let ctx: TestContext;
 
@@ -642,5 +681,292 @@ describe("play-cricket sync (integration)", () => {
       .executeTakeFirst();
 
     expect(result).toBeUndefined();
+  });
+});
+
+// --- RV ingest integration ---
+
+describe("ingestRvDataForMatch (integration)", () => {
+  // The ingest writes match_ball / match_stream rows that FK to
+  // match_result.match_id, so each test seeds a parent match_result row
+  // first. We don't go through runSync — that's covered separately —
+  // and stay focused on the RV side of the pipeline.
+  async function seedMatchResult(matchId: string, matchDate = "2026-05-02") {
+    await ctx.db
+      .insertInto("match_result")
+      .values({
+        id: crypto.randomUUID(),
+        match_id: matchId,
+        home_team_id: "1",
+        away_team_id: "2",
+        home_team_name: "1st XI",
+        away_team_name: "1st XI",
+        match_date: matchDate,
+        season: 2026,
+      })
+      .onConflict((oc) => oc.column("match_id").doNothing())
+      .execute();
+  }
+
+  function makeOverview(
+    overrides: Partial<RvMatchOverviewT> = {},
+  ): RvMatchOverviewT {
+    return {
+      match_id: 7464451,
+      external_match_id: 7262912,
+      MatchTeams: [
+        {
+          team_name: "Backworth CC 2nd XI",
+          result_id: 25398667,
+          Innings: [{ innings_number: 1, PlayerPerfs: [] }],
+        },
+        {
+          team_name: "Percy Main CC 1st XI",
+          result_id: 25398668,
+          Innings: [
+            {
+              innings_number: 1,
+              PlayerPerfs: [
+                {
+                  player_id: 11680433,
+                  external_id: "4386566",
+                  player_name: "S Knight",
+                },
+                {
+                  player_id: 12367961,
+                  external_id: "5102931",
+                  player_name: "K Pattison",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      matchStreams: [
+        {
+          id: 71781,
+          match_id: 7464451,
+          video_id: "cu4A54DjCDI",
+          frogbox_stream_id: "59e32fe6-7502-4433-9044-413838f2f20e",
+          stream_provider_id: 3,
+          start_utc: "/Date(1777718649000+0100)/",
+          recording_started_utc: "/Date(1777718779000+0100)/",
+          publish_status_id: 0,
+          description: null,
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  function makeBall(
+    over_no: number,
+    ball_no: number,
+    overrides: Partial<RvBall> = {},
+  ): RvBall {
+    // ball_time anchored ~20 minutes after recording_started for ball 1,
+    // each subsequent ball nominally 30s later. Lets us assert that
+    // ball_offset_seconds is computed from the recording anchor.
+    const recordingMs = 1777718779000;
+    return {
+      innings_number: 1,
+      over_no,
+      ball_no,
+      ball_no_disp: ball_no,
+      result_id: 25398668,
+      batter_id: 11680433,
+      batter_id_ns: 12367961,
+      bowler_id: 12367961,
+      runs_bat: 0,
+      runs_extra: 0,
+      extras_type: null,
+      l_desc: " K Pattison to S Knight: No run",
+      s_desc: " .",
+      ball_time: `/Date(${recordingMs + 1200_000 + ball_no * 30_000}+0100)/`,
+      match_highlight_events: [],
+      ...overrides,
+    };
+  }
+
+  it("happy path: maps PC->RV, persists player mapping, stream, and balls (with offsets)", async () => {
+    const matchId = `rv-happy-${crypto.randomUUID()}`;
+    await seedMatchResult(matchId);
+
+    const ball1 = makeBall(0, 1);
+    const ball2 = makeBall(0, 2, {
+      runs_bat: 4,
+      l_desc: " K Pattison to S Knight: 4 runs",
+      s_desc: " 4",
+      match_highlight_events: [{ event_id: 1002, metric: 4 }],
+    });
+    const wicket = makeBall(0, 3, {
+      runs_bat: 0,
+      dismissed_batter_id: 11680433,
+      l_desc: " K Pattison to S Knight: dismissed",
+      s_desc: " W",
+    });
+
+    const rv = makeMockRv({
+      mapping: { rvMatchId: "7464451" },
+      match: makeOverview(),
+      // First call is for result_id 25398667 inn 1 (Backworth) — empty.
+      // Second call is for 25398668 inn 1 (Percy Main) — three balls.
+      // The probe stops at the first empty innings per result_id, so
+      // there should be exactly four getBalls calls total (1 empty for
+      // Backworth, 1 with balls for PM, 1 empty for PM probing inn 2).
+      balls: [[], [ball1, ball2, wicket], []],
+    });
+
+    const wrote = await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02");
+
+    expect(wrote).toBe(true);
+
+    const balls = await ctx.db
+      .selectFrom("match_ball")
+      .where("match_id", "=", matchId)
+      .orderBy("ball_no")
+      .selectAll()
+      .execute();
+    expect(balls).toHaveLength(3);
+    expect(balls[0]?.s_desc).toBe(" .");
+    expect(balls[1]?.runs_bat).toBe(4);
+    expect(balls[1]?.highlight_events).toEqual([{ event_id: 1002, metric: 4 }]);
+    expect(balls[2]?.dismissed_batter_rv_id).toBe(11680433);
+    expect(balls[2]?.s_desc).toBe(" W");
+
+    // ball_offset_seconds is rounded(ball_time - recording_started_utc).
+    // Anchor is 1777718779000; ball1's ball_time is anchor + 1200s + 30s
+    // = anchor + 1230s.
+    expect(balls[0]?.ball_offset_seconds).toBe(1230);
+    expect(balls[1]?.ball_offset_seconds).toBe(1260);
+    expect(balls[2]?.ball_offset_seconds).toBe(1290);
+
+    const streams = await ctx.db
+      .selectFrom("match_stream")
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .execute();
+    expect(streams).toHaveLength(1);
+    expect(streams[0]?.video_id).toBe("cu4A54DjCDI");
+
+    const mappings = await ctx.db
+      .selectFrom("rv_player_mapping")
+      .where("rv_player_id", "in", [11680433, 12367961])
+      .selectAll()
+      .execute();
+    expect(mappings).toHaveLength(2);
+    const knight = mappings.find((m) => m.rv_player_id === 11680433);
+    expect(knight?.pc_player_id).toBe("4386566");
+    expect(knight?.player_name).toBe("S Knight");
+  });
+
+  it("idempotent: re-running for the same match produces no duplicates and applies updates", async () => {
+    const matchId = `rv-idem-${crypto.randomUUID()}`;
+    await seedMatchResult(matchId);
+
+    const initial = makeBall(0, 1, {
+      runs_bat: 2,
+      l_desc: " K Pattison to S Knight: 2 runs",
+    });
+    const corrected = makeBall(0, 1, {
+      runs_bat: 4,
+      l_desc: " K Pattison to S Knight: 4 runs (corrected)",
+      s_desc: " 4",
+    });
+
+    const rvFirst = makeMockRv({
+      mapping: { rvMatchId: "7464451" },
+      match: makeOverview(),
+      balls: [[], [initial], []],
+    });
+    await ingestRvDataForMatch(ctx.db, rvFirst, matchId, "2026-05-02");
+
+    const rvSecond = makeMockRv({
+      mapping: { rvMatchId: "7464451" },
+      match: makeOverview(),
+      balls: [[], [corrected], []],
+    });
+    await ingestRvDataForMatch(ctx.db, rvSecond, matchId, "2026-05-02");
+
+    const balls = await ctx.db
+      .selectFrom("match_ball")
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .execute();
+    expect(balls).toHaveLength(1);
+    expect(balls[0]?.runs_bat).toBe(4);
+    expect(balls[0]?.l_desc).toContain("corrected");
+  });
+
+  it("skips silently when the mapping endpoint returns no mapping", async () => {
+    const matchId = `rv-nomap-${crypto.randomUUID()}`;
+    await seedMatchResult(matchId);
+
+    const rv = makeMockRv({ mapping: null });
+    const wrote = await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02");
+
+    expect(wrote).toBe(false);
+    expect(rv.calls.mapping).toBe(1);
+    expect(rv.calls.match).toBe(0);
+    expect(rv.calls.balls).toBe(0);
+    const balls = await ctx.db
+      .selectFrom("match_ball")
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .execute();
+    expect(balls).toHaveLength(0);
+  });
+
+  it("skips silently when the overview returns null (404 / unknown match)", async () => {
+    const matchId = `rv-no-overview-${crypto.randomUUID()}`;
+    await seedMatchResult(matchId);
+
+    const rv = makeMockRv({
+      mapping: { rvMatchId: "7464451" },
+      match: null,
+    });
+    const wrote = await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02");
+
+    expect(wrote).toBe(false);
+    expect(rv.calls.match).toBe(1);
+    expect(rv.calls.balls).toBe(0);
+  });
+
+  it("skips silently when MatchTeams is empty", async () => {
+    const matchId = `rv-empty-teams-${crypto.randomUUID()}`;
+    await seedMatchResult(matchId);
+
+    const rv = makeMockRv({
+      mapping: { rvMatchId: "7464451" },
+      match: makeOverview({ MatchTeams: [] }),
+    });
+    const wrote = await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02");
+
+    expect(wrote).toBe(false);
+    expect(rv.calls.balls).toBe(0);
+  });
+
+  it("leaves ball_offset_seconds null when no stream has a recording_started_utc", async () => {
+    const matchId = `rv-no-anchor-${crypto.randomUUID()}`;
+    await seedMatchResult(matchId);
+
+    const overview = makeOverview({
+      matchStreams: [], // no stream at all → no anchor
+    });
+    const rv = makeMockRv({
+      mapping: { rvMatchId: "7464451" },
+      match: overview,
+      balls: [[], [makeBall(0, 1)], []],
+    });
+
+    await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02");
+
+    const balls = await ctx.db
+      .selectFrom("match_ball")
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .execute();
+    expect(balls).toHaveLength(1);
+    expect(balls[0]?.ball_offset_seconds).toBeNull();
   });
 });

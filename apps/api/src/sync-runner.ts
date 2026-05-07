@@ -8,11 +8,17 @@
 
 import { createClient } from "@percy-main/db";
 import { createApiClient } from "./features/play-cricket/api-client.ts";
+import { createRvClient } from "./features/play-cricket/rv-client.ts";
 import { runSync } from "./features/play-cricket/sync.ts";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const PLAY_CRICKET_API_TOKEN = process.env.PLAY_CRICKET_API_TOKEN;
 const PLAY_CRICKET_SITE_ID = process.env.PLAY_CRICKET_SITE_ID;
+// ResultsVault shared secret (lifted from InteractSport's Match Centre
+// SPA bundle). Optional: when unset, the BBB ingest is skipped — the PC
+// sync still runs end-to-end. See BALL_BY_BALL_FETCHING.md (gitignored)
+// for how to obtain / rotate this.
+const RV_SHARED_SECRET = process.env.RV_SHARED_SECRET;
 
 if (!DATABASE_URL) throw new Error("Missing required env var: DATABASE_URL");
 if (!PLAY_CRICKET_API_TOKEN)
@@ -25,11 +31,16 @@ const api = createApiClient({
   apiToken: PLAY_CRICKET_API_TOKEN,
   siteId: PLAY_CRICKET_SITE_ID,
 });
+const rv = RV_SHARED_SECRET
+  ? createRvClient({ sharedSecret: RV_SHARED_SECRET })
+  : null;
 
 try {
-  console.log("Starting Play Cricket sync...");
+  console.log(
+    `Starting Play Cricket sync${rv ? " (with RV ingest)" : " (PC only)"}...`,
+  );
 
-  const sync = runSync(client, api);
+  const sync = runSync(client, api, rv);
   const result = await sync({ siteId: PLAY_CRICKET_SITE_ID });
 
   console.log(`Sync complete: ${result.matchesProcessed} matches processed`);
