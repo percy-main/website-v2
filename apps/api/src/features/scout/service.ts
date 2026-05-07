@@ -2,12 +2,30 @@ import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import type { ScoutMode } from "./schemas.ts";
 
+/**
+ * Sharing actor identity used in API responses (the owner who shared,
+ * or — on a list of sharees — the recipient). We only ever surface
+ * what's needed to render "Shared by Alex" / "Shared with: Alex, Jo".
+ */
+export interface ShareActor {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface ThreadSummary {
   id: string;
   title: string;
   mode: ScoutMode;
   createdAt: string;
   updatedAt: string;
+  /** When the current viewer is a recipient (not the owner), the owner
+   * who shared the thread with them. Null on owned threads. */
+  sharedBy: ShareActor | null;
+  /** True when the current viewer owns the thread AND has shared it with
+   * at least one other user. Lets the FE render a "shared" badge in the
+   * list without an extra round-trip to count sharees. */
+  sharedByMe: boolean;
 }
 
 export interface PersistedMessage {
@@ -24,25 +42,99 @@ export class ThreadNotFoundError extends Error {
   }
 }
 
+export class ShareForbiddenError extends Error {
+  constructor() {
+    super("Only the thread owner can manage sharing");
+  }
+}
+
+// Inherits Error's (message: string) constructor — service.ts callers do
+// `throw new ShareInvalidRecipientError("…")` and route handlers re-throw
+// with statusCode: 400 using err.message verbatim.
+export class ShareInvalidRecipientError extends Error {}
+
 const toIso = (value: Date | string): string =>
   value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 
 export function listThreads(db: Kysely<DB>) {
   return async (userId: string): Promise<ThreadSummary[]> => {
-    const rows = await db
+    // Three queries, then merge in JS:
+    //   1. owned threads
+    //   2. threads shared WITH me (recipient view)
+    //   3. ids of owned threads I've shared with someone (so the list view
+    //      can render a "shared" badge on my own row)
+    // Doing it as one giant CTE+UNION+OUTER-JOIN was a tighter SQL but a
+    // worse read; the row counts are tiny (a captain has tens of threads,
+    // not thousands) so this is plenty fast.
+    const ownedRows = await db
       .selectFrom("scout_thread")
       .where("user_id", "=", userId)
       .select(["id", "title", "mode", "created_at", "updated_at"])
       .orderBy("updated_at", "desc")
       .execute();
 
-    return rows.map((r) => ({
+    const sharedRows = await db
+      .selectFrom("scout_thread_share as s")
+      .innerJoin("scout_thread as t", "t.id", "s.thread_id")
+      .innerJoin("user as u", "u.id", "s.shared_by_user_id")
+      .where("s.shared_with_user_id", "=", userId)
+      .select([
+        "t.id as id",
+        "t.title as title",
+        "t.mode as mode",
+        "t.created_at as created_at",
+        "t.updated_at as updated_at",
+        "u.id as owner_id",
+        "u.name as owner_name",
+        "u.email as owner_email",
+      ])
+      .execute();
+
+    const sharedByMeIds =
+      ownedRows.length === 0
+        ? new Set<string>()
+        : new Set(
+            (
+              await db
+                .selectFrom("scout_thread_share")
+                .where(
+                  "thread_id",
+                  "in",
+                  ownedRows.map((r) => r.id),
+                )
+                .select("thread_id")
+                .distinct()
+                .execute()
+            ).map((r) => r.thread_id),
+          );
+
+    const owned: ThreadSummary[] = ownedRows.map((r) => ({
       id: r.id,
       title: r.title,
       mode: r.mode as ScoutMode,
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),
+      sharedBy: null,
+      sharedByMe: sharedByMeIds.has(r.id),
     }));
+
+    const shared: ThreadSummary[] = sharedRows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      mode: r.mode as ScoutMode,
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
+      sharedBy: {
+        id: r.owner_id,
+        name: r.owner_name,
+        email: r.owner_email,
+      },
+      sharedByMe: false,
+    }));
+
+    return [...owned, ...shared].sort((a, b) =>
+      a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0,
+    );
   };
 }
 
@@ -64,6 +156,8 @@ export function createThread(db: Kysely<DB>) {
       mode: row.mode as ScoutMode,
       createdAt: toIso(row.created_at),
       updatedAt: toIso(row.updated_at),
+      sharedBy: null,
+      sharedByMe: false,
     };
   };
 }
@@ -84,14 +178,52 @@ export function getThread(db: Kysely<DB>) {
     messages: PersistedMessage[];
     usage: ThreadUsage;
   }> => {
+    // Fetch the thread + owner identity, then check access against the
+    // current viewer. Access = owner OR a row in scout_thread_share. We
+    // do the access check after the row fetch (rather than embedding it
+    // in WHERE) so a non-existent thread and a forbidden thread look
+    // identical to the caller — both throw ThreadNotFoundError → 404.
     const thread = await db
-      .selectFrom("scout_thread")
-      .where("id", "=", threadId)
-      .where("user_id", "=", userId)
-      .select(["id", "title", "mode", "created_at", "updated_at"])
+      .selectFrom("scout_thread as t")
+      .innerJoin("user as u", "u.id", "t.user_id")
+      .where("t.id", "=", threadId)
+      .select([
+        "t.id",
+        "t.user_id",
+        "t.title",
+        "t.mode",
+        "t.created_at",
+        "t.updated_at",
+        "u.id as owner_id",
+        "u.name as owner_name",
+        "u.email as owner_email",
+      ])
       .executeTakeFirst();
 
     if (!thread) throw new ThreadNotFoundError();
+
+    const isOwner = thread.user_id === userId;
+    if (!isOwner) {
+      const share = await db
+        .selectFrom("scout_thread_share")
+        .where("thread_id", "=", threadId)
+        .where("shared_with_user_id", "=", userId)
+        .select("id")
+        .executeTakeFirst();
+      if (!share) throw new ThreadNotFoundError();
+    }
+
+    // Owner-side flag: have I shared this with anyone? Used by the FE
+    // to render a small "shared" indicator next to the thread title.
+    let sharedByMe = false;
+    if (isOwner) {
+      const any = await db
+        .selectFrom("scout_thread_share")
+        .where("thread_id", "=", threadId)
+        .select("id")
+        .executeTakeFirst();
+      sharedByMe = !!any;
+    }
 
     const messageRows = await db
       .selectFrom("scout_message")
@@ -128,6 +260,14 @@ export function getThread(db: Kysely<DB>) {
         mode: thread.mode as ScoutMode,
         createdAt: toIso(thread.created_at),
         updatedAt: toIso(thread.updated_at),
+        sharedBy: isOwner
+          ? null
+          : {
+              id: thread.owner_id,
+              name: thread.owner_name,
+              email: thread.owner_email,
+            },
+        sharedByMe,
       },
       messages: messageRows.map((m) => ({
         id: m.id,
@@ -525,5 +665,144 @@ export function cancelReport(db: Kysely<DB>) {
       .where("id", "=", reportId)
       .execute();
     return { alreadyComplete: false };
+  };
+}
+
+// ── Thread sharing ──
+//
+// v1 sharing model: an owner grants read-only access to one or more other
+// admin/official users. Recipients can view the full thread (messages,
+// charts, video embeds, reports) but cannot post — that's enforced by
+// keeping every write path on `assertThreadOwnership`. "Branch my own
+// thread" is the deferred follow-up if/when recipients want to continue
+// the conversation in their own copy.
+
+const SHAREABLE_ROLES = new Set(["admin", "official"]);
+
+/**
+ * Verify the current viewer owns the thread. Throws ThreadNotFoundError
+ * if the thread doesn't exist; ShareForbiddenError if it exists but the
+ * viewer isn't the owner. The two are split so the caller can map
+ * 404 vs 403 in the route layer.
+ */
+async function assertOwnerForShare(
+  db: Kysely<DB>,
+  userId: string,
+  threadId: string,
+): Promise<void> {
+  const row = await db
+    .selectFrom("scout_thread")
+    .where("id", "=", threadId)
+    .select(["user_id"])
+    .executeTakeFirst();
+  if (!row) throw new ThreadNotFoundError();
+  if (row.user_id !== userId) throw new ShareForbiddenError();
+}
+
+export function listOfficials(db: Kysely<DB>) {
+  // Source for the share-modal picker: every admin / official EXCEPT the
+  // current viewer (who'd never share with themselves — the unique-recipient
+  // constraint also blocks it but we don't want them in the list).
+  return async (currentUserId: string): Promise<ShareActor[]> => {
+    const rows = await db
+      .selectFrom("user")
+      .where("role", "in", Array.from(SHAREABLE_ROLES))
+      .where("id", "!=", currentUserId)
+      .where((eb) =>
+        eb.or([eb("banned", "is", null), eb("banned", "=", false)]),
+      )
+      .select(["id", "name", "email"])
+      .orderBy("name", "asc")
+      .execute();
+    return rows.map((r) => ({ id: r.id, name: r.name, email: r.email }));
+  };
+}
+
+export function listSharees(db: Kysely<DB>) {
+  return async (userId: string, threadId: string): Promise<ShareActor[]> => {
+    await assertOwnerForShare(db, userId, threadId);
+    const rows = await db
+      .selectFrom("scout_thread_share as s")
+      .innerJoin("user as u", "u.id", "s.shared_with_user_id")
+      .where("s.thread_id", "=", threadId)
+      .select(["u.id", "u.name", "u.email"])
+      .orderBy("u.name", "asc")
+      .execute();
+    return rows.map((r) => ({ id: r.id, name: r.name, email: r.email }));
+  };
+}
+
+export function shareThread(db: Kysely<DB>) {
+  return async (
+    ownerUserId: string,
+    threadId: string,
+    recipientUserIds: string[],
+  ): Promise<ShareActor[]> => {
+    await assertOwnerForShare(db, ownerUserId, threadId);
+
+    const unique = Array.from(new Set(recipientUserIds));
+    if (unique.length === 0)
+      return await listSharees(db)(ownerUserId, threadId);
+    if (unique.includes(ownerUserId)) {
+      throw new ShareInvalidRecipientError(
+        "Cannot share a thread with yourself.",
+      );
+    }
+
+    // Validate every recipient is still a real, role-eligible user. Doing
+    // this here (rather than relying on the FK alone) lets us return a
+    // useful 4xx instead of a Postgres-shaped error if someone bypassed
+    // the picker; it also keeps the role rule colocated with the feature.
+    const valid = await db
+      .selectFrom("user")
+      .where("id", "in", unique)
+      .where("role", "in", Array.from(SHAREABLE_ROLES))
+      .where((eb) =>
+        eb.or([eb("banned", "is", null), eb("banned", "=", false)]),
+      )
+      .select(["id"])
+      .execute();
+    const validIds = new Set(valid.map((r) => r.id));
+    const invalid = unique.filter((id) => !validIds.has(id));
+    if (invalid.length > 0) {
+      throw new ShareInvalidRecipientError(
+        `Recipient(s) not eligible for sharing: ${invalid.join(", ")}.`,
+      );
+    }
+
+    // ON CONFLICT DO NOTHING on the unique (thread_id, shared_with_user_id)
+    // constraint — resharing the same person is a silent no-op so the FE
+    // can call this idempotently without checking what's already there.
+    await db
+      .insertInto("scout_thread_share")
+      .values(
+        unique.map((id) => ({
+          thread_id: threadId,
+          shared_by_user_id: ownerUserId,
+          shared_with_user_id: id,
+        })),
+      )
+      .onConflict((oc) =>
+        oc.columns(["thread_id", "shared_with_user_id"]).doNothing(),
+      )
+      .execute();
+
+    return await listSharees(db)(ownerUserId, threadId);
+  };
+}
+
+export function unshareThread(db: Kysely<DB>) {
+  return async (
+    ownerUserId: string,
+    threadId: string,
+    recipientUserId: string,
+  ): Promise<ShareActor[]> => {
+    await assertOwnerForShare(db, ownerUserId, threadId);
+    await db
+      .deleteFrom("scout_thread_share")
+      .where("thread_id", "=", threadId)
+      .where("shared_with_user_id", "=", recipientUserId)
+      .execute();
+    return await listSharees(db)(ownerUserId, threadId);
   };
 }

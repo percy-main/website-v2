@@ -15,6 +15,7 @@ import { KnowledgeAdminView } from "./knowledge-admin.js";
 import { MessageView } from "./message-view.js";
 import { ReportsView } from "./reports-view.js";
 import { ScoutLauncher } from "./scout-launcher.js";
+import { ShareThreadModal } from "./share-thread-modal.js";
 import { ThreadList } from "./thread-list.js";
 import { useScoutChat } from "./use-scout-chat.js";
 
@@ -192,7 +193,13 @@ function ActiveThread({ threadId }: { threadId: string }) {
 interface ChatViewProps {
   threadId: string;
   loaded: {
-    thread: { id: string; title: string; mode: ScoutMode };
+    thread: {
+      id: string;
+      title: string;
+      mode: ScoutMode;
+      sharedBy: { id: string; name: string; email: string } | null;
+      sharedByMe: boolean;
+    };
     messages: Array<{
       id: string;
       role: "user" | "assistant" | "tool" | "system";
@@ -328,6 +335,8 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
 
   const isStreaming = status === "submitted" || status === "streaming";
   const mode = loaded.thread.mode;
+  const isReadOnly = loaded.thread.sharedBy !== null;
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   // When the chat connection drops mid-report, useChat surfaces a generic
   // "network error" with no useful info. The report's pipeline card stays
@@ -382,19 +391,56 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
               Scout
             </span>
           )}
+          {isReadOnly && (
+            <span
+              className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-violet-800 uppercase"
+              title={`Shared by ${loaded.thread.sharedBy?.name ?? ""}`}
+            >
+              Shared
+            </span>
+          )}
+          {!isReadOnly && loaded.thread.sharedByMe && (
+            <span
+              className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-blue-800 uppercase"
+              title="You've shared this thread"
+            >
+              Shared by you
+            </span>
+          )}
           <span className="truncate">{loaded.thread.title}</span>
         </h2>
-        <span className="text-xs text-gray-400">
-          {messages.length} message{messages.length === 1 ? "" : "s"}
-          {import.meta.env.DEV && (
-            <>
-              {" · "}
-              {loaded.usage.inputTokens.toLocaleString()} in /{" "}
-              {loaded.usage.outputTokens.toLocaleString()} out
-            </>
+        <div className="flex items-center gap-3">
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={() => setShareModalOpen(true)}
+              className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+            >
+              <ShareIcon className="h-3.5 w-3.5" />
+              Share
+            </button>
           )}
-        </span>
+          <span className="text-xs text-gray-400">
+            {messages.length} message{messages.length === 1 ? "" : "s"}
+            {import.meta.env.DEV && (
+              <>
+                {" · "}
+                {loaded.usage.inputTokens.toLocaleString()} in /{" "}
+                {loaded.usage.outputTokens.toLocaleString()} out
+              </>
+            )}
+          </span>
+        </div>
       </header>
+      {isReadOnly && loaded.thread.sharedBy && (
+        <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-xs text-violet-900">
+          Shared by{" "}
+          <span className="font-medium">{loaded.thread.sharedBy.name}</span>{" "}
+          <span className="text-violet-700">
+            · read-only — you can read the conversation but can&rsquo;t reply.
+          </span>
+        </div>
+      )}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2">
         {messages.length === 0 &&
           (mode === "debrief" ? (
@@ -462,19 +508,50 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
           </div>
         )}
       </div>
-      <Composer
-        initialDraft={draft}
-        onDraftChange={setDraft}
-        isStreaming={isStreaming}
-        thinkingMode={thinkingMode}
-        onThinkingModeChange={setThinkingMode}
-        onSubmit={send}
-        onStop={() => void stop()}
-        attachments={turnAttachments}
-        onUploadFile={(file) => void uploadAttachment(file)}
-        onRemoveAttachment={removeAttachment}
-        isUploadingAttachments={isUploadingAttachments}
-      />
+      {!isReadOnly && (
+        <Composer
+          initialDraft={draft}
+          onDraftChange={setDraft}
+          isStreaming={isStreaming}
+          thinkingMode={thinkingMode}
+          onThinkingModeChange={setThinkingMode}
+          onSubmit={send}
+          onStop={() => void stop()}
+          attachments={turnAttachments}
+          onUploadFile={(file) => void uploadAttachment(file)}
+          onRemoveAttachment={removeAttachment}
+          isUploadingAttachments={isUploadingAttachments}
+        />
+      )}
+      {!isReadOnly && (
+        <ShareThreadModal
+          threadId={threadId}
+          threadTitle={loaded.thread.title}
+          open={shareModalOpen}
+          onOpenChange={setShareModalOpen}
+        />
+      )}
     </>
+  );
+}
+
+function ShareIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
   );
 }
