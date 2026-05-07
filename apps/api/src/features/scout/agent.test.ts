@@ -35,6 +35,7 @@ function makeAgent(mode: "chat" | "debrief" | "scout" = "chat") {
     config: stubConfig,
     writer: stubWriter,
     userId: "test-user",
+    userName: "Test User",
     mode,
     scoutReports: stubScoutReports,
     thinkingMode: "thinking",
