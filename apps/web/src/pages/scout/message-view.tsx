@@ -2,12 +2,14 @@ import type { UIMessage } from "@ai-sdk/react";
 import {
   type ChartSpec,
   type ReportData as SharedReportData,
+  type VideoSpec,
 } from "@percy-main/shared";
 import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ReportCard } from "./report-card.tsx";
 import { ScoutChart } from "./scout-chart.tsx";
+import { ScoutVideo } from "./scout-video.tsx";
 
 const REMARK_PLUGINS = [remarkGfm];
 
@@ -533,6 +535,13 @@ function PartView({
     // The schema is validated server-side (Zod) so the FE trusts the shape.
     const chartPart = part as { type: "data-chart"; data: ChartSpec };
     return <ScoutChart spec={chartPart.data} />;
+  }
+
+  if (part.type === "data-video") {
+    // render_video — server-side Zod-validated; the spec is YouTube-only and
+    // includes optional start/end offsets for ball-level deep-links.
+    const videoPart = part as { type: "data-video"; data: VideoSpec };
+    return <ScoutVideo spec={videoPart.data} />;
   }
 
   if (part.type === "data-question") {
