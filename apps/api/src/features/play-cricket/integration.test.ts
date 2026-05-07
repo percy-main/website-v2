@@ -969,4 +969,41 @@ describe("ingestRvDataForMatch (integration)", () => {
     expect(balls).toHaveLength(1);
     expect(balls[0]?.ball_offset_seconds).toBeNull();
   });
+
+  it("persists canonical extras_type codes through to the DB", async () => {
+    // Schema-level transform of RV's numeric/string codes is unit-tested
+    // in rv-schemas.test.ts; this test asserts the canonical codes
+    // travel through the upsert layer unchanged into the text column.
+    const matchId = `rv-extras-${crypto.randomUUID()}`;
+    await seedMatchResult(matchId);
+
+    const nb = makeBall(0, 1, { runs_extra: 1, extras_type: "nb" });
+    const wd = makeBall(0, 2, { runs_extra: 1, extras_type: "wd" });
+    const b = makeBall(0, 3, { runs_extra: 1, extras_type: "b" });
+    const lb = makeBall(0, 4, { runs_extra: 1, extras_type: "lb" });
+    const none = makeBall(0, 5);
+
+    const rv = makeMockRv({
+      mapping: { rvMatchId: "7464451" },
+      match: makeOverview(),
+      balls: [[], [nb, wd, b, lb, none], []],
+    });
+
+    await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02");
+
+    const balls = await ctx.db
+      .selectFrom("match_ball")
+      .where("match_id", "=", matchId)
+      .orderBy("ball_no")
+      .selectAll()
+      .execute();
+    expect(balls).toHaveLength(5);
+    expect(balls.map((row) => row.extras_type)).toEqual([
+      "nb",
+      "wd",
+      "b",
+      "lb",
+      null,
+    ]);
+  });
 });
