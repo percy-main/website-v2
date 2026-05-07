@@ -19,6 +19,7 @@ import {
   SCOUT_FOCUSED_SYSTEM_PROMPT,
   SCOUT_SYSTEM_PROMPT,
 } from "./system-prompt.ts";
+import { createAskBallByBallTool } from "./tools/ask-ball-by-ball.ts";
 import { createAskDbTool } from "./tools/ask-db.ts";
 import { createAskQuestionTool } from "./tools/ask-question.ts";
 import { createScoutCache } from "./tools/cache.ts";
@@ -120,6 +121,17 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   // Failed queries, schema dumps, and intermediate row samples stay inside
   // the sub-agent's loop — see tools/ask-db.ts for the full rationale.
   const dbTools = createAskDbTool({
+    dbReadonly: deps.dbReadonly,
+    provider: deps.config.SCOUT_PROVIDER_DB,
+    modelId: deps.config.SCOUT_MODEL_DB,
+    maxSteps: deps.config.SCOUT_DB_AGENT_MAX_STEPS,
+    logger: deps.logger,
+  });
+  // Specialist sub-agent for ball-level analytics. Same isolation as ask_db
+  // (rows never reach the main chat) but a narrower allowlist + stricter
+  // tool description so the main agent only reaches for it on genuinely
+  // ball-by-ball questions. Reuses the DB-agent provider/model/step config.
+  const ballByBallTools = createAskBallByBallTool({
     dbReadonly: deps.dbReadonly,
     provider: deps.config.SCOUT_PROVIDER_DB,
     modelId: deps.config.SCOUT_MODEL_DB,
@@ -257,6 +269,7 @@ When asked about the "next" or "upcoming" match for ANY club (Percy Main or oppo
     tools: {
       ...playCricketTools,
       ...dbTools,
+      ...ballByBallTools,
       ...weatherTools,
       ...chartTools,
       ...reportTools,
