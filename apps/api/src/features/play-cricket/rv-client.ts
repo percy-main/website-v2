@@ -40,6 +40,31 @@ export interface RvClientConfig {
    * Override fetch — primarily for tests. Defaults to global fetch.
    */
   fetch?: typeof fetch;
+  /**
+   * Per-request timeout in milliseconds. Defaults to 15s. RV is hit
+   * inside the per-match sync loop, so a stalled connection would
+   * otherwise hold the entire sync hostage even though RV failures are
+   * meant to be non-fatal.
+   */
+  timeoutMs?: number;
+}
+
+const DEFAULT_TIMEOUT_MS = 15_000;
+const SHARED_SECRET_BYTES = 24; // 3DES needs exactly 24 bytes of key material.
+
+/**
+ * Validate the shared-secret byte length up front so a misconfigured
+ * RV_SHARED_SECRET fails at boot rather than at first crypto call.
+ */
+export function assertValidRvSharedSecret(secret: string): void {
+  const bytes = Buffer.from(secret, "utf8").length;
+  if (bytes !== SHARED_SECRET_BYTES) {
+    throw new Error(
+      `RV_SHARED_SECRET must be exactly ${String(
+        SHARED_SECRET_BYTES,
+      )} ASCII bytes (got ${String(bytes)}).`,
+    );
+  }
 }
 
 export interface RvMatchMapping {
@@ -77,7 +102,9 @@ export interface RvClient {
 }
 
 export function createRvClient(config: RvClientConfig): RvClient {
+  assertValidRvSharedSecret(config.sharedSecret);
   const fetchImpl = config.fetch ?? fetch;
+  const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const secretBuf = Buffer.from(config.sharedSecret, "utf8");
 
   function mintToken(): string {
@@ -88,12 +115,30 @@ export function createRvClient(config: RvClientConfig): RvClient {
     status: number;
     body: unknown;
   }> {
-    const res = await fetchImpl(url, {
-      headers: {
-        "x-ias-api-request": mintToken(),
-        accept: "application/json",
-      },
-    });
+    // Bound the request — the per-match try/catch in sync logs RV
+    // failures non-fatally, but only if the request actually returns.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), timeoutMs);
+    let res: Response;
+    try {
+      res = await fetchImpl(url, {
+        headers: {
+          "x-ias-api-request": mintToken(),
+          accept: "application/json",
+        },
+        signal: ac.signal,
+      });
+    } catch (err) {
+      if (ac.signal.aborted) {
+        throw new Error(
+          `ResultsVault API timeout (${String(timeoutMs)}ms) for ${url.pathname}`,
+          { cause: err },
+        );
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
     if (res.status === 404) return { status: 404, body: null };
     const text = await res.text();
     if (!res.ok) {

@@ -552,7 +552,14 @@ async function syncMatches(
       // outage) are logged but never propagated. The "match has no RV
       // data" case is the common one and resolves silently inside
       // ingestRvDataForMatch.
-      if (rv) {
+      //
+      // Gate on `shouldWriteResult` — otherwise we'd run the ingest for
+      // a recent match whose match_result row was deliberately skipped
+      // (no result entered yet, isRecent=true). match_ball / match_stream
+      // both FK to match_result.match_id, so writing them now would FK-
+      // violate. The next sync within the resync window picks the match
+      // up once the result lands.
+      if (rv && shouldWriteResult) {
         try {
           await ingestRvDataForMatch(db, rv, matchId, matchDateIso);
         } catch (rvErr) {

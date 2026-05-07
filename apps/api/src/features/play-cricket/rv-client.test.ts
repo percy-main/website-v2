@@ -1,11 +1,63 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRvClient, mintXIasToken, parseMsDate } from "./rv-client.ts";
+import {
+  assertValidRvSharedSecret,
+  createRvClient,
+  mintXIasToken,
+  parseMsDate,
+} from "./rv-client.ts";
 
 // 24-byte ASCII secret matching the format used by the Match Centre SPA.
 // The literal value used by RV at the time of writing is captured locally
 // in BALL_BY_BALL_FETCHING.md (gitignored). For tests we use any 24-byte
 // string — the algorithm doesn't care about contents, only length.
 const TEST_SECRET = "ABCDEFGHIJKLMNOPQRSTUVWX";
+
+describe("assertValidRvSharedSecret", () => {
+  it("accepts a 24-ASCII-byte secret", () => {
+    expect(() => assertValidRvSharedSecret(TEST_SECRET)).not.toThrow();
+  });
+
+  it("rejects shorter / longer secrets up front", () => {
+    expect(() => assertValidRvSharedSecret("short")).toThrow(
+      /must be exactly 24 ASCII bytes/,
+    );
+    expect(() => assertValidRvSharedSecret("A".repeat(32))).toThrow(
+      /must be exactly 24 ASCII bytes/,
+    );
+  });
+});
+
+describe("createRvClient construction", () => {
+  it("validates the shared secret at construction (not lazily on first call)", () => {
+    expect(() =>
+      createRvClient({
+        sharedSecret: "too-short",
+        fetch: vi.fn() as unknown as typeof fetch,
+      }),
+    ).toThrow(/24 ASCII bytes/);
+  });
+});
+
+describe("createRvClient timeout", () => {
+  it("aborts a stalled fetch after timeoutMs and throws a timeout error", async () => {
+    const fetchMock = vi.fn(
+      (_url: URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          // Resolve only when the caller's AbortSignal fires.
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        }),
+    );
+    const client = createRvClient({
+      sharedSecret: TEST_SECRET,
+      fetch: fetchMock as unknown as typeof fetch,
+      timeoutMs: 30,
+    });
+
+    await expect(client.getMatchMapping("123")).rejects.toThrow(/timeout/i);
+  });
+});
 
 describe("mintXIasToken", () => {
   it("produces a deterministic 24-char base64 token for a given clock time", () => {

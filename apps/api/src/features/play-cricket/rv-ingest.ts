@@ -113,7 +113,13 @@ async function upsertPlayerMappings(
       oc.column("rv_player_id").doUpdateSet({
         pc_player_id: (eb) => eb.ref("excluded.pc_player_id"),
         player_name: (eb) => eb.ref("excluded.player_name"),
-        last_seen_match_date: (eb) => eb.ref("excluded.last_seen_match_date"),
+        // last_seen_match_date should only ever advance — backfilling an
+        // older match must not move the marker backwards.
+        last_seen_match_date: (eb) =>
+          eb.fn("greatest", [
+            eb.ref("rv_player_mapping.last_seen_match_date"),
+            eb.ref("excluded.last_seen_match_date"),
+          ]),
         updated_at: new Date().toISOString(),
       }),
     )
@@ -128,7 +134,15 @@ async function upsertMatchStreams(
 ): Promise<number> {
   if (overview.matchStreams.length === 0) return 0;
 
-  const rows = overview.matchStreams.map((s) => ({
+  // Streams without a video_id aren't useful — the whole point of the row
+  // is to deep-link to the video. RV's schema permits empty defaults; we
+  // drop those rather than persist hollow records.
+  const usable = overview.matchStreams.filter(
+    (s) => s.video_id.length > 0 && s.frogbox_stream_id.length > 0,
+  );
+  if (usable.length === 0) return 0;
+
+  const rows = usable.map((s) => ({
     match_id: pcMatchId,
     rv_match_id: rvMatchId,
     rv_stream_id: s.id,
