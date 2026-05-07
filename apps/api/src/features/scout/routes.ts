@@ -778,6 +778,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             logger: app.log,
             voyage,
             userId: user.id,
+            userName: user.name,
             threadId,
             mode: threadMode,
             scoutReports: app.scoutReports,

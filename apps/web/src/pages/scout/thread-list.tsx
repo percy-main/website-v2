@@ -58,7 +58,17 @@ const TITLE_FOR_MODE: Record<ScoutMode, string> = {
   scout: "Scouting report",
 };
 
-export function ThreadList() {
+interface ThreadListProps {
+  // Below lg the sidebar renders as an off-canvas drawer that slides in from
+  // the left. mobileOpen drives the slide-in; onMobileClose lets the sidebar
+  // dismiss itself when the captain picks a thread (so the chat content is
+  // visible again immediately) or hits the close button. On lg+ both props
+  // are ignored — the sidebar sits in normal flex flow.
+  mobileOpen: boolean;
+  onMobileClose: () => void;
+}
+
+export function ThreadList({ mobileOpen, onMobileClose }: ThreadListProps) {
   const params = useParams<{ threadId?: string }>();
   const activeThreadId = params.threadId;
   const navigate = useNavigate();
@@ -66,29 +76,10 @@ export function ThreadList() {
   const [pendingDelete, setPendingDelete] = useState<ThreadSummary | null>(
     null,
   );
-  // Active mode for the split-button. Local state — survives clicks within
-  // the page but not reload; the dropdown is a transient affordance, not a
-  // navigable URL state.
-  const [activeMode, setActiveMode] = useState<ScoutMode>("chat");
 
   const threadsQuery = useQuery({
     queryKey: ["scout", "threads"],
     queryFn: () => callApi(api.GET("/api/scout/threads")),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (mode: ScoutMode) =>
-      callApi(
-        api.POST("/api/scout/threads", {
-          body: { title: TITLE_FOR_MODE[mode], mode },
-        }),
-      ),
-    onSuccess: async (thread) => {
-      await queryClient.invalidateQueries({
-        queryKey: ["scout", "threads"],
-      });
-      void navigate(`/scout/${thread.id}`);
-    },
   });
 
   const deleteMutation = useMutation({
@@ -107,19 +98,31 @@ export function ThreadList() {
     },
   });
 
+  // Below lg: drawer — fixed-position overlay that translates off/on screen.
+  // lg+: in-flow sidebar at w-64. The lg: overrides reset every drawer-only
+  // class so layout flips cleanly at the breakpoint.
+  const asideClass = [
+    "absolute inset-y-0 left-0 z-40 flex h-full w-72 transform flex-col border-r border-gray-200 bg-gray-50 shadow-xl transition-transform duration-200",
+    mobileOpen ? "translate-x-0" : "-translate-x-full",
+    "lg:relative lg:inset-auto lg:z-auto lg:w-64 lg:translate-x-0 lg:shadow-none lg:transition-none",
+  ].join(" ");
+
   return (
-    <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-gray-50">
+    <aside className={asideClass}>
       {/* h-12 matches ChatView's header (also h-12). Same fixed height
           on both sides keeps the border-bottom divider continuous across
           the sidebar/main split, regardless of the natural size of the
           contents on either side. */}
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-gray-200 px-3">
-        <NewThreadSplitButton
-          activeMode={activeMode}
-          onModeChange={setActiveMode}
-          onCreate={() => createMutation.mutate(activeMode)}
-          pending={createMutation.isPending}
-        />
+        <NewThreadButton onCreated={onMobileClose} />
+        <button
+          type="button"
+          onClick={onMobileClose}
+          aria-label="Close threads"
+          className="rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-900 lg:hidden"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto">
         {threadsQuery.isLoading && (
@@ -144,6 +147,7 @@ export function ThreadList() {
               <li key={t.id} className="group relative">
                 <Link
                   to={`/scout/${t.id}`}
+                  onClick={onMobileClose}
                   className={`block px-3 py-2 pr-10 text-sm hover:bg-white ${
                     isActive
                       ? "bg-white font-medium text-blue-700"
@@ -262,12 +266,53 @@ function ModeBadge({ mode }: { mode: ScoutMode }) {
   return null;
 }
 
+// ── Self-contained "new thread" control ───────────────────────────────
+//
+// Owns its own activeMode state + create mutation + post-create navigate so
+// the same control can drop into the sidebar header AND the empty-state
+// hero without lifting state to a common parent. onCreated is the optional
+// post-success hook — the sidebar uses it to dismiss the mobile drawer
+// once a thread has been created.
+export function NewThreadButton({ onCreated }: { onCreated?: () => void }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  // Active mode for the split-button. Local state — survives clicks within
+  // the page but not reload; the dropdown is a transient affordance, not a
+  // navigable URL state.
+  const [activeMode, setActiveMode] = useState<ScoutMode>("chat");
+
+  const createMutation = useMutation({
+    mutationFn: (mode: ScoutMode) =>
+      callApi(
+        api.POST("/api/scout/threads", {
+          body: { title: TITLE_FOR_MODE[mode], mode },
+        }),
+      ),
+    onSuccess: async (thread) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["scout", "threads"],
+      });
+      void navigate(`/scout/${thread.id}`);
+      onCreated?.();
+    },
+  });
+
+  return (
+    <NewThreadSplitButton
+      activeMode={activeMode}
+      onModeChange={setActiveMode}
+      onCreate={() => createMutation.mutate(activeMode)}
+      pending={createMutation.isPending}
+    />
+  );
+}
+
 // ── Split-button: pick mode from the dropdown, click to create ──────────
 //
 // Three modes (Chat / Debrief / Scout). Left button creates a thread of the
 // active mode; right caret opens a Radix DropdownMenu radio group so the
-// captain can flip the active mode. Local state — no need to persist the
-// selection across reloads.
+// captain can flip the active mode. Stateless presentational component —
+// state lives in NewThreadButton above.
 function NewThreadSplitButton({
   activeMode,
   onModeChange,
@@ -359,6 +404,23 @@ function ChevronDownIcon({ className }: { className?: string }) {
       aria-hidden="true"
     >
       <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M18 6L6 18M6 6l12 12" />
     </svg>
   );
 }

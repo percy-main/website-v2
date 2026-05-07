@@ -70,6 +70,11 @@ export interface ScoutAgentDeps {
   // every recorded fact for traceability.
   voyage?: VoyageClient;
   userId: string;
+  // Display name of the authenticated caller. Injected into the system
+  // prompt so the agent can address the captain by name in conversation
+  // (DeepSeek otherwise defaults to generic "Captain"-style openers, which
+  // reads off in a 1:1 chat).
+  userName: string;
   threadId?: string;
   // Interaction mode — fixed at thread creation. Picks system prompt and
   // toggles the ask_question / chart_render tool surface (debrief uses
@@ -250,6 +255,8 @@ When asked about the "next" or "upcoming" match for ANY club (Percy Main or oppo
         ? SCOUT_FOCUSED_SYSTEM_PROMPT
         : SCOUT_SYSTEM_PROMPT;
 
+  const userLine = `You are speaking with ${deps.userName} (a Percy Main official or admin). Address them by their first name when it reads naturally — don't force it into every reply.`;
+
   const resolved = resolveModel(
     deps.config.SCOUT_PROVIDER_CHAT,
     deps.config.SCOUT_MODEL_CHAT,
@@ -272,7 +279,7 @@ When asked about the "next" or "upcoming" match for ANY club (Percy Main or oppo
 
   return {
     model: resolved.model,
-    system: `${basePrompt}\n\n${todayLine}`,
+    system: `${basePrompt}\n\n${userLine}\n\n${todayLine}`,
     tools: {
       ...playCricketTools,
       ...dbTools,

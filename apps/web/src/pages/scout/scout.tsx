@@ -16,7 +16,7 @@ import { MessageView } from "./message-view.js";
 import { ReportsView } from "./reports-view.js";
 import { ScoutLauncher } from "./scout-launcher.js";
 import { ShareThreadModal } from "./share-thread-modal.js";
-import { ThreadList } from "./thread-list.js";
+import { NewThreadButton, ThreadList } from "./thread-list.js";
 import { useScoutChat } from "./use-scout-chat.js";
 
 type ScoutMode = "chat" | "debrief" | "scout";
@@ -49,12 +49,55 @@ export function Component() {
     );
   };
 
+  // Mobile-only drawer state. On lg+ the ThreadList renders inline as a
+  // sidebar and this flag is ignored. Below lg, the sidebar is positioned
+  // off-screen by default and slides in when this flips to true.
+  const [threadDrawerOpen, setThreadDrawerOpen] = useState(false);
+
+  // Snap the drawer shut if the viewport grows past lg — otherwise the
+  // overlay/backdrop stays mounted under the now-visible sidebar.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => {
+      if (mq.matches) setThreadDrawerOpen(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  // Escape-to-close. Body scroll lock is left off — the drawer doesn't fill
+  // the viewport (the site header is still visible above the scout shell)
+  // and locking would cause the page to jump.
+  useEffect(() => {
+    if (!threadDrawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setThreadDrawerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [threadDrawerOpen]);
+
   return (
     <div className="container mx-auto h-[calc(100vh-8rem)] px-0">
-      <div className="flex h-full overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <ThreadList />
-        <main className="flex flex-1 flex-col">
-          <ScoutTabs view={view} setView={setView} />
+      <div className="relative flex h-full overflow-hidden rounded-lg border border-gray-200 bg-white">
+        {threadDrawerOpen && (
+          <button
+            type="button"
+            aria-label="Close threads"
+            className="absolute inset-0 z-30 bg-black/40 lg:hidden"
+            onClick={() => setThreadDrawerOpen(false)}
+          />
+        )}
+        <ThreadList
+          mobileOpen={threadDrawerOpen}
+          onMobileClose={() => setThreadDrawerOpen(false)}
+        />
+        <main className="flex min-w-0 flex-1 flex-col">
+          <ScoutTabs
+            view={view}
+            setView={setView}
+            onOpenThreadDrawer={() => setThreadDrawerOpen(true)}
+          />
           {view === "reports" ? (
             <ReportsView />
           ) : view === "facts" ? (
@@ -75,12 +118,25 @@ export function Component() {
 function ScoutTabs({
   view,
   setView,
+  onOpenThreadDrawer,
 }: {
   view: ScoutView;
   setView: (next: ScoutView) => void;
+  onOpenThreadDrawer: () => void;
 }) {
+  // h-12 matches the sidebar's NewThreadSplitButton container so the bottom
+  // border on the tabs nav lines up exactly with the bottom border under
+  // "New chat".
   return (
-    <nav className="flex shrink-0 border-b border-gray-200 bg-gray-50">
+    <nav className="flex h-12 shrink-0 items-stretch border-b border-gray-200 bg-gray-50">
+      <button
+        type="button"
+        onClick={onOpenThreadDrawer}
+        aria-label="Open threads"
+        className="inline-flex items-center px-3 text-gray-600 hover:text-gray-900 lg:hidden"
+      >
+        <ThreadsIcon className="h-5 w-5" />
+      </button>
       <TabButton
         active={view === "chat"}
         onClick={() => setView("chat")}
@@ -120,8 +176,8 @@ function TabButton({
       onClick={onClick}
       className={
         active
-          ? "-mb-px border-b-2 border-blue-600 px-4 py-2 text-sm font-medium text-blue-700"
-          : "px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+          ? "-mb-px inline-flex items-center border-b-2 border-blue-600 px-4 text-sm font-medium text-blue-700"
+          : "inline-flex items-center px-4 text-sm text-gray-600 hover:text-gray-900"
       }
     >
       {label}
@@ -143,15 +199,15 @@ function EmptyState() {
           </div>
         </div>
         <div className="max-w-md">
-          <div className="mb-1 font-medium text-gray-700">
-            Pick a thread, or start a new one.
-          </div>
           <div>
             <strong>Chat</strong> for free-form opposition research,{" "}
             <strong>Debrief</strong> to walk through a recent match, or{" "}
             <strong>Scout</strong> to build a report PDF for an upcoming
             fixture.
           </div>
+        </div>
+        <div className="flex w-64">
+          <NewThreadButton />
         </div>
       </div>
     </div>
@@ -552,6 +608,25 @@ function ShareIcon({ className }: { className?: string }) {
       <circle cx="18" cy="19" r="3" />
       <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
       <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  );
+}
+
+function ThreadsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
     </svg>
   );
 }
