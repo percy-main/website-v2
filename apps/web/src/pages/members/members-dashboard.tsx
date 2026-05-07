@@ -263,7 +263,7 @@ function ScoutLink() {
       className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
       to="/scout"
     >
-      Scout
+      ImbuzAI
     </Link>
   );
 }

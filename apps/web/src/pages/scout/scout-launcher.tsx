@@ -1,3 +1,4 @@
+import { ImbuzaiMascot } from "@/components/imbuzai-mascot.js";
 import { Button } from "@/components/ui/button";
 import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
@@ -37,14 +38,19 @@ export function ScoutLauncher({ onLaunch }: ScoutLauncherProps) {
 
   return (
     <div className="mx-auto my-6 max-w-xl rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-      <h3 className="my-0 text-sm font-semibold text-emerald-900">
-        Scout an upcoming match
-      </h3>
-      <p className="mt-1 text-sm text-emerald-900/80">
-        Pick a fixture in the next two weeks, or describe a match below. Scout
-        will gather selection, opposition stats, weather and references, then
-        generate a PDF.
-      </p>
+      <div className="flex items-start gap-3">
+        <ImbuzaiMascot width={48} className="shrink-0" />
+        <div>
+          <h3 className="my-0 text-sm font-semibold text-emerald-900">
+            Scout an upcoming match
+          </h3>
+          <p className="mt-1 text-sm text-emerald-900/80">
+            Pick a fixture in the next two weeks, or describe a match below.
+            ImbuzAI will gather selection, opposition stats, weather and
+            references, then generate a PDF.
+          </p>
+        </div>
+      </div>
 
       <div className="mt-3">
         {upcomingQuery.isLoading && (

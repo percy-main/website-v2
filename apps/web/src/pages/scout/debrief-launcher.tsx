@@ -1,3 +1,4 @@
+import { ImbuzaiMascot } from "@/components/imbuzai-mascot.js";
 import { Button } from "@/components/ui/button";
 import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
@@ -38,13 +39,18 @@ export function DebriefLauncher({ onLaunch }: DebriefLauncherProps) {
 
   return (
     <div className="mx-auto my-6 max-w-xl rounded-lg border border-amber-200 bg-amber-50 p-4">
-      <h3 className="my-0 text-sm font-semibold text-amber-900">
-        Post-match debrief
-      </h3>
-      <p className="mt-1 text-sm text-amber-900/80">
-        Pick a recent match to walk through, or paste a Play Cricket scorecard
-        URL.
-      </p>
+      <div className="flex items-start gap-3">
+        <ImbuzaiMascot width={48} className="shrink-0" />
+        <div>
+          <h3 className="my-0 text-sm font-semibold text-amber-900">
+            Post-match debrief
+          </h3>
+          <p className="mt-1 text-sm text-amber-900/80">
+            Pick a recent match to walk through, or paste a Play Cricket
+            scorecard URL.
+          </p>
+        </div>
+      </div>
 
       <div className="mt-3">
         {recentQuery.isLoading && (
