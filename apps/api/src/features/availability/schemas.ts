@@ -17,8 +17,10 @@ export const assignmentIdParamSchema = z.object({
   assignmentId: z.string(),
 });
 
-export const responseIdParamSchema = z.object({
-  responseId: z.string(),
+export const requestDateMemberParamSchema = z.object({
+  requestId: z.string(),
+  date: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
+  memberId: z.string(),
 });
 
 // ── Body schemas ──
@@ -34,7 +36,7 @@ export const assignPlayerSchema = z.object({
   playerName: z.string().min(1),
 });
 
-export const overrideResponseSchema = z.object({
+export const setAvailabilitySchema = z.object({
   status: z.enum(["available", "unavailable"]),
 });
 
@@ -279,7 +281,7 @@ export const getPublicRequestResponseSchema = z.object({
 
 export type CreateRequest = z.infer<typeof createRequestSchema>;
 export type AssignPlayer = z.infer<typeof assignPlayerSchema>;
-export type OverrideResponse = z.infer<typeof overrideResponseSchema>;
+export type SetAvailability = z.infer<typeof setAvailabilitySchema>;
 export type Respond = z.infer<typeof respondSchema>;
 export type UpdateRequestStatus = z.infer<typeof updateRequestStatusSchema>;
 export type ListRequests = z.infer<typeof listRequestsSchema>;

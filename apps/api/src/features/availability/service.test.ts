@@ -67,9 +67,9 @@ import {
   getDateDetail,
   getRequest,
   listRequests,
-  overrideResponse,
   removeAssignment,
   respond,
+  setAvailability,
   updateRequestStatus,
 } from "./service.ts";
 
@@ -184,21 +184,38 @@ describe("availability service", () => {
     });
   });
 
-  describe("overrideResponse", () => {
-    it("throws 404 for non-existent response", async () => {
+  describe("setAvailability", () => {
+    it("throws 404 when no fixture on date", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
       await expect(
-        overrideResponse(db)("user-1", "missing", { status: "available" }),
-      ).rejects.toThrow("not found");
+        setAvailability(db)("user-1", "req-1", "2026-06-01", "member-1", {
+          status: "available",
+        }),
+      ).rejects.toThrow("No fixtures");
     });
 
-    it("updates response with override", async () => {
-      mockExecuteTakeFirst.mockResolvedValueOnce({ id: "resp-1" });
-      mockExecute.mockResolvedValueOnce(undefined);
+    it("throws 404 when member not found", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({ id: "fixture-1" }); // fixture lookup
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // member lookup
+      await expect(
+        setAvailability(db)("user-1", "req-1", "2026-06-01", "missing", {
+          status: "available",
+        }),
+      ).rejects.toThrow("Member not found");
+    });
 
-      const result = await overrideResponse(db)("user-1", "resp-1", {
-        status: "available",
-      });
+    it("upserts availability with override", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({ id: "fixture-1" }); // fixture lookup
+      mockExecuteTakeFirst.mockResolvedValueOnce({ id: "member-1" }); // member lookup
+      mockExecute.mockResolvedValueOnce(undefined); // upsert
+
+      const result = await setAvailability(db)(
+        "user-1",
+        "req-1",
+        "2026-06-01",
+        "member-1",
+        { status: "available" },
+      );
       expect(result).toEqual({ success: true });
     });
   });

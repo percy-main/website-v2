@@ -10,8 +10,8 @@ import type {
   ListRequests,
   NotifyPreview,
   NotifySend,
-  OverrideResponse,
   Respond,
+  SetAvailability,
   UpdateRequestStatus,
 } from "./schemas.ts";
 
@@ -501,24 +501,56 @@ export function removeAssignment(db: Kysely<DB>) {
   };
 }
 
-export function overrideResponse(db: Kysely<DB>) {
-  return async (userId: string, responseId: string, data: OverrideResponse) => {
-    const response = await db
-      .selectFrom("availability_response")
-      .where("id", "=", responseId)
+export function setAvailability(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    requestId: string,
+    date: string,
+    memberId: string,
+    data: SetAvailability,
+  ) => {
+    const fixture = await db
+      .selectFrom("availability_fixture")
+      .where("availability_request_id", "=", requestId)
+      .where("match_date", "=", date)
       .select("id")
       .executeTakeFirst();
 
-    if (!response) throwHttpError(404, "Response not found");
+    if (!fixture)
+      throwHttpError(404, "No fixtures on this date for this request");
+
+    const member = await db
+      .selectFrom("member")
+      .where("id", "=", memberId)
+      .where("deleted_at", "is", null)
+      .select("id")
+      .executeTakeFirst();
+
+    if (!member) throwHttpError(404, "Member not found");
+
+    const now = new Date().toISOString();
 
     await db
-      .updateTable("availability_response")
-      .set({
+      .insertInto("availability_response")
+      .values({
+        id: crypto.randomUUID(),
+        availability_request_id: requestId,
+        member_id: memberId,
+        match_date: date,
         status: data.status,
         overridden_by: userId,
-        updated_at: new Date().toISOString(),
+        created_at: now,
+        updated_at: now,
       })
-      .where("id", "=", responseId)
+      .onConflict((oc) =>
+        oc
+          .columns(["availability_request_id", "member_id", "match_date"])
+          .doUpdateSet({
+            status: data.status,
+            overridden_by: userId,
+            updated_at: now,
+          }),
+      )
       .execute();
 
     return { success: true };

@@ -5179,7 +5179,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/availability/responses/{responseId}/override": {
+    "/api/availability/requests/{requestId}/dates/{date}/members/{memberId}/availability": {
         parameters: {
             query?: never;
             header?: never;
@@ -5192,7 +5192,9 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    responseId: string;
+                    requestId: string;
+                    date: string;
+                    memberId: string;
                 };
                 cookie?: never;
             };
