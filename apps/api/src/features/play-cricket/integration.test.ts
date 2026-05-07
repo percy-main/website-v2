@@ -969,4 +969,47 @@ describe("ingestRvDataForMatch (integration)", () => {
     expect(balls).toHaveLength(1);
     expect(balls[0]?.ball_offset_seconds).toBeNull();
   });
+
+  it("accepts numeric extras_type from RV and persists it as text", async () => {
+    // Regression test for prod failure on 2026-05-07: RV's BBB feed emits
+    // numeric codes on some balls (e.g. extras_type=1 for wide) which
+    // crashed the original z.string() schema and aborted the whole match
+    // ingest with a Zod error. Schema now accepts string|number; ingest
+    // coerces to text before the DB insert.
+    const matchId = `rv-extras-num-${crypto.randomUUID()}`;
+    await seedMatchResult(matchId);
+
+    const numericExtras = makeBall(0, 1, {
+      runs_extra: 1,
+      extras_type: 1,
+      l_desc: " K Pattison to S Knight: 1 wide",
+      s_desc: " wd",
+    });
+    const stringExtras = makeBall(0, 2, {
+      runs_extra: 1,
+      extras_type: "nb",
+      l_desc: " K Pattison to S Knight: 1 no-ball",
+      s_desc: " nb",
+    });
+    const noExtras = makeBall(0, 3);
+
+    const rv = makeMockRv({
+      mapping: { rvMatchId: "7464451" },
+      match: makeOverview(),
+      balls: [[], [numericExtras, stringExtras, noExtras], []],
+    });
+
+    await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02");
+
+    const balls = await ctx.db
+      .selectFrom("match_ball")
+      .where("match_id", "=", matchId)
+      .orderBy("ball_no")
+      .selectAll()
+      .execute();
+    expect(balls).toHaveLength(3);
+    expect(balls[0]?.extras_type).toBe("1");
+    expect(balls[1]?.extras_type).toBe("nb");
+    expect(balls[2]?.extras_type).toBeNull();
+  });
 });

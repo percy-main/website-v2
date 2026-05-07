@@ -211,7 +211,10 @@ async function upsertBalls(
       dismissed_batter_rv_id: b.dismissed_batter_id ?? null,
       runs_bat: b.runs_bat,
       runs_extra: b.runs_extra,
-      extras_type: b.extras_type ?? null,
+      // Coerce to text — RV emits string codes ("wd", "nb", …) on some
+      // balls and numeric codes on others; match_ball.extras_type is
+      // text and tolerates either as a stringified value.
+      extras_type: b.extras_type == null ? null : String(b.extras_type),
       l_desc: b.l_desc,
       s_desc: b.s_desc,
       ball_time_utc: ballTime?.toISOString() ?? null,

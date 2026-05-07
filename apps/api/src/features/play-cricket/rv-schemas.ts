@@ -98,7 +98,21 @@ export const RvBall = z.looseObject({
   dismissed_batter_id: z.number().nullable().optional(),
   runs_bat: z.number().default(0),
   runs_extra: z.number().default(0),
-  extras_type: z.string().nullable().optional(),
+  // RV's BBB feed mixes representations for extras_type:
+  //   - null              — no extra
+  //   - string ("wd",     — older / non-live-scored matches
+  //              "nb",
+  //              "b",
+  //              "lb")
+  //   - numeric code      — live-scored matches:
+  //                            1 = no-ball, 2 = wide, 3 = bye, 4 = leg-bye
+  //                          (cross-checked against l_desc / s_desc on
+  //                          match 7464451 / PC 7262912 — Mashal-to-Robson
+  //                          over 8.2 is a wide, 8.3 is "4 runs, 1 nb",
+  //                          etc.)
+  // We accept both shapes off the wire and coerce to text in the ingest
+  // layer; match_ball.extras_type is text and stores either lossless.
+  extras_type: z.union([z.string(), z.number()]).nullable().optional(),
   l_desc: z.string().default(""),
   s_desc: z.string().default(""),
   ball_time: z.string().nullable().optional(),
