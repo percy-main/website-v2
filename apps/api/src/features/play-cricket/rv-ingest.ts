@@ -2,11 +2,13 @@ import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import type { RvClient } from "./rv-client.ts";
 import { parseMsDate } from "./rv-client.ts";
-import type {
-  RvBall,
-  RvMatchOverview,
-  RvMatchStream,
-  RvPlayerPerf,
+import {
+  canonicaliseExtrasType,
+  isUnmappedExtra,
+  type RvBall,
+  type RvMatchOverview,
+  type RvMatchStream,
+  type RvPlayerPerf,
 } from "./rv-schemas.ts";
 
 // Cap the per-team innings probe. NEPL is limited-overs (1 innings/team),
@@ -197,6 +199,16 @@ async function upsertBalls(
       ballTime != null && ctx.anchorMs != null
         ? Math.round((ballTime.getTime() - ctx.anchorMs) / 1000)
         : null;
+    const extrasType = canonicaliseExtrasType(b.extras_type);
+    if (isUnmappedExtra(b.extras_type, extrasType)) {
+      // RV sent us a code we don't know about. Don't fail the ingest —
+      // store null and surface a warning so we notice and add the
+      // mapping. Match + ball coordinates are enough to find the row in
+      // RV later for verification.
+      console.warn(
+        `[rv-ingest] unmapped extras_type ${JSON.stringify(b.extras_type)} on match=${ctx.matchId} innings=${String(b.innings_number)} over=${String(b.over_no)} ball=${String(b.ball_no)}`,
+      );
+    }
     return {
       match_id: ctx.matchId,
       rv_match_id: ctx.rvMatchId,
@@ -211,10 +223,7 @@ async function upsertBalls(
       dismissed_batter_rv_id: b.dismissed_batter_id ?? null,
       runs_bat: b.runs_bat,
       runs_extra: b.runs_extra,
-      // Coerce to text — RV emits string codes ("wd", "nb", …) on some
-      // balls and numeric codes on others; match_ball.extras_type is
-      // text and tolerates either as a stringified value.
-      extras_type: b.extras_type == null ? null : String(b.extras_type),
+      extras_type: extrasType,
       l_desc: b.l_desc,
       s_desc: b.s_desc,
       ball_time_utc: ballTime?.toISOString() ?? null,
