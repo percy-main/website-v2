@@ -529,6 +529,14 @@ async function syncMatches(
             away_team_id: detail.away_team_id,
             home_team_name: detail.home_team_name,
             away_team_name: detail.away_team_name,
+            // Source club fields from the summary, not the detail payload —
+            // the detail schema makes club_id optional with "" default and
+            // we'd rather store NULL than an empty string that breaks the
+            // launcher's club_id = siteId filter.
+            home_club_id: match.home_club_id,
+            home_club_name: match.home_club_name,
+            away_club_id: match.away_club_id,
+            away_club_name: match.away_club_name,
             result: matchResult,
             result_description: detail.result_description ?? "",
             result_applied_to: detail.result_applied_to ?? "",
@@ -542,6 +550,10 @@ async function syncMatches(
               result_description: detail.result_description ?? "",
               result_applied_to: detail.result_applied_to ?? "",
               match_date: matchDateIso,
+              home_club_id: match.home_club_id,
+              home_club_name: match.home_club_name,
+              away_club_id: match.away_club_id,
+              away_club_name: match.away_club_name,
             }),
           )
           .execute();

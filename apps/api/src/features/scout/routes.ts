@@ -125,6 +125,7 @@ import {
   listSharees,
   listThreads,
   listUpcomingScoutMatches,
+  type RecentDebriefMatch,
   ReportNotFoundError,
   ShareForbiddenError,
   ShareInvalidRecipientError,
@@ -147,7 +148,12 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const sharees = listSharees(app.db);
   const share = shareThread(app.db);
   const unshare = unshareThread(app.db);
-  const recentMatches = listRecentDebriefMatches(app.db);
+  // PLAY_CRICKET_SITE_ID is optional in config; if it's not set there are
+  // no Percy Main matches to surface, so the launcher returns an empty
+  // list rather than 503'ing the rest of Scout.
+  const recentMatches = app.config.PLAY_CRICKET_SITE_ID
+    ? listRecentDebriefMatches(app.db, app.config.PLAY_CRICKET_SITE_ID)
+    : () => Promise.resolve([] as RecentDebriefMatch[]);
   const upcomingMatches = listUpcomingScoutMatches(app.db);
   const reportsList = listReports(app.db);
   const reportForDownload = getReportForDownload(app.db);

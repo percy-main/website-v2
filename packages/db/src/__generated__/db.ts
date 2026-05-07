@@ -526,10 +526,14 @@ export interface MatchPerformanceFielding {
 }
 
 export interface MatchResult {
+  away_club_id: string | null;
+  away_club_name: string | null;
   away_team_id: string;
   away_team_name: string;
   competition_type: Generated<string>;
   created_at: Generated<string>;
+  home_club_id: string | null;
+  home_club_name: string | null;
   home_team_id: string;
   home_team_name: string;
   id: string;

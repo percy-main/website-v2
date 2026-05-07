@@ -360,11 +360,18 @@ export interface RecentDebriefMatch {
 
 /**
  * Recent Percy Main matches (last 14 days, descending) used to populate
- * the debrief launcher. We match by team-name prefix because the local
- * MatchResult mirror doesn't carry club_ids — every Percy Main team
- * starts with "Percy Main" (e.g. "Percy Main 1st XI", "Percy Main 2nd XI").
+ * the debrief launcher. Identified by club_id — Play Cricket stores
+ * team names bare ("1st XI", "2nd XI") with no club prefix for either
+ * side, so the only reliable disambiguator is club_id, persisted on
+ * match_result by sync. Pre-migration rows have NULL club_ids and are
+ * filtered out by the equality check; they fall out of the 14-day
+ * window naturally.
+ *
+ * Display strings are "{club_name} {team_name}" so the launcher reads
+ * "Percy Main 2nd XI vs Mitford 2nd XI" rather than the bare,
+ * ambiguous "2nd XI vs 2nd XI" the API alone would produce.
  */
-export function listRecentDebriefMatches(db: Kysely<DB>) {
+export function listRecentDebriefMatches(db: Kysely<DB>, siteId: string) {
   return async (
     days = 14,
     now: Date = new Date(),
@@ -381,6 +388,10 @@ export function listRecentDebriefMatches(db: Kysely<DB>) {
         "match_date",
         "home_team_name",
         "away_team_name",
+        "home_club_id",
+        "home_club_name",
+        "away_club_id",
+        "away_club_name",
         "result",
         "result_description",
       ])
@@ -388,25 +399,38 @@ export function listRecentDebriefMatches(db: Kysely<DB>) {
       .where("match_date", "<=", today)
       .where((eb) =>
         eb.or([
-          eb("home_team_name", "like", "Percy Main%"),
-          eb("away_team_name", "like", "Percy Main%"),
+          eb("home_club_id", "=", siteId),
+          eb("away_club_id", "=", siteId),
         ]),
       )
       .orderBy("match_date", "desc")
       .execute();
 
     return rows.map((r) => {
-      const isHome = r.home_team_name.startsWith("Percy Main");
+      const isHome = r.home_club_id === siteId;
+      const ourTeam = isHome
+        ? joinClubAndTeam(r.home_club_name, r.home_team_name)
+        : joinClubAndTeam(r.away_club_name, r.away_team_name);
+      const opposition = isHome
+        ? joinClubAndTeam(r.away_club_name, r.away_team_name)
+        : joinClubAndTeam(r.home_club_name, r.home_team_name);
       return {
         id: r.match_id,
         matchDate: r.match_date,
-        opposition: isHome ? r.away_team_name : r.home_team_name,
+        opposition,
         homeAway: isHome ? ("home" as const) : ("away" as const),
-        ourTeam: isHome ? r.home_team_name : r.away_team_name,
+        ourTeam,
         result: r.result_description || r.result || null,
       };
     });
   };
+}
+
+// Defensive join — club_name is always written alongside club_id by sync,
+// but if the API ever returns one without the other we don't want a
+// stray "null 2nd XI" leaking to the FE.
+function joinClubAndTeam(clubName: string | null, teamName: string): string {
+  return clubName ? `${clubName} ${teamName}` : teamName;
 }
 
 export interface UpcomingScoutMatch {

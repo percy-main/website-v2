@@ -575,6 +575,12 @@ describe("play-cricket sync (integration)", () => {
     expect(result.result).toBe("Won by 5 wickets");
     expect(result.home_team_id).toBe(OUR_TEAM_ID);
     expect(result.season).toBe(2026);
+    // club_id / club_name are the disambiguators for "is this our match",
+    // since PC stores team names bare. Both sides must be persisted.
+    expect(result.home_club_id).toBe(SITE_ID);
+    expect(result.home_club_name).toBe("Percy Main");
+    expect(result.away_club_id).toBe("999");
+    expect(result.away_club_name).toBe("Opposition CC");
   });
 
   it("logs sync to play_cricket_sync_log", async () => {

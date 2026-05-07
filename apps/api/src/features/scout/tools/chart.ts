@@ -28,7 +28,7 @@ export function createChartTool(deps: ChartToolDeps) {
 When to render:
 - Trend over time (a player's batting average across innings, our average score by month) → type: "line"
 - Categorical comparison (dismissals by mode, runs by opposition, points by division) → type: "bar"
-- Correlation between two numeric variables (innings score vs air temperature) → type: "scatter", and put a per-point label so users can identify outliers
+- Correlation between two numeric variables (innings score vs air temperature) → type: "scatter", and put a per-point label so users can identify outliers (see "Per-point hover labels" below)
 - Composition / share-of-whole → type: "pie" or "doughnut" (only when categories sum to a meaningful total)
 - Multiple comparable metrics for a few entities → type: "radar"
 
@@ -107,7 +107,35 @@ EXAMPLE — multi-series line (one dataset per series):
   }
 }
 
-EXAMPLE — scatter with labelled points (each datum is {x, y}; the dataset.label shows in the legend):
+Per-point hover labels (scatter / bubble):
+The default tooltip for scatter is "{dataset.label}: ({x}, {y})". Since callbacks aren't allowed (JSON-only), the ONLY way to show a per-point name on hover is to make each point its own dataset with the entity name as dataset.label. Yes, that means N datasets for N points — that's correct, do it. Hide the legend (it would be unusable at that size) and either share colours by category or vary per dataset.
+
+EXAMPLE — scatter with per-point hover labels (one dataset per player, coloured by quadrant, legend hidden):
+{
+  "chart": {
+    "type": "scatter",
+    "data": {
+      "datasets": [
+        { "label": "Philip Cramman",  "data": [{ "x": 603, "y": 54 }], "backgroundColor": "rgba(31, 119, 180, 0.8)" },
+        { "label": "Patrick Rathbone","data": [{ "x": 481, "y": 38 }], "backgroundColor": "rgba(31, 119, 180, 0.8)" },
+        { "label": "Andrew Beer",     "data": [{ "x": 312, "y": 22 }], "backgroundColor": "rgba(255, 127, 14, 0.8)" }
+      ]
+    },
+    "options": {
+      "plugins": {
+        "legend": { "display": false },
+        "tooltip": { "intersect": true, "mode": "nearest" }
+      },
+      "scales": {
+        "x": { "title": { "display": true, "text": "Runs scored" } },
+        "y": { "title": { "display": true, "text": "Innings" } }
+      }
+    },
+    "caption": "Top-right = high volume + high availability."
+  }
+}
+
+EXAMPLE — scatter without per-point labels (when you don't need names; one dataset, just shape):
 {
   "chart": {
     "type": "scatter",
