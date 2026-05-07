@@ -151,8 +151,20 @@ export type RvMatchOverview = z.output<typeof RvMatchOverview>;
 //                                &resultid={result_id}
 //                                &inningsnumber={n}
 //
-// Returns a flat array. Each ball describes a single delivery — RV uses
-// 0-based over_no and a per-innings 1-based ball_no that includes extras.
+// Returns a flat array. Each ball describes a single delivery — including
+// the bowled extra AND the rebowl as distinct entries. RV uses:
+//
+//   over_no        0-based over index within the innings
+//   ball_no        1-based per-delivery sequence within the over —
+//                  EVERY delivery (legal, wide, no-ball, rebowl) gets a
+//                  distinct ball_no, so a 6-legal over with one wide
+//                  has ball_no values 1..7. This is the natural unique
+//                  key alongside over_no.
+//   ball_no_disp   the cricketing display number ("8.2", "8.3"...) —
+//                  shared between an extra and its rebowl, so NOT
+//                  unique within an over.
+//
+// Combined natural key per innings is therefore (over_no, ball_no).
 
 const RvHighlightEvent = z.looseObject({
   event_id: z.number(),

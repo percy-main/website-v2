@@ -32,14 +32,21 @@ export function looksLikePlanningProse(text: string): boolean {
  * summary". The model occasionally ignores it (we've seen "Now let me search
  * in matchday and match_result:"). Replace any allowlisted table token with
  * a generic placeholder so the leak doesn't reach the caller.
+ *
+ * Takes the allowlist as an argument so specialist sub-agents (e.g.
+ * ask_ball_by_ball) can scope masking to their own table set rather than
+ * the main ask_db one.
  */
-function maskTableNames(summary: string): {
+export function maskTableNames(
+  summary: string,
+  allowedTables: readonly string[],
+): {
   masked: string;
   tablesFound: string[];
 } {
   const tablesFound: string[] = [];
   let masked = summary;
-  for (const t of SCOUT_ALLOWED_TABLES) {
+  for (const t of allowedTables) {
     const re = new RegExp(`\\b${t}\\b`, "g");
     if (re.test(masked)) {
       tablesFound.push(t);
@@ -244,7 +251,10 @@ If the rows are the entire answer (e.g. a count of 7), just say what filter you 
 
         let summary = cutOff ? "" : rawSummary;
         if (summary) {
-          const { masked, tablesFound } = maskTableNames(summary);
+          const { masked, tablesFound } = maskTableNames(
+            summary,
+            SCOUT_ALLOWED_TABLES,
+          );
           if (tablesFound.length > 0) {
             deps.logger?.warn(
               {
@@ -296,7 +306,7 @@ If the rows are the entire answer (e.g. a count of 7), just say what filter you 
         // model is most likely to spit "let me search in matchday and
         // match_result" and we don't want that reaching the caller.
         const { masked: maskedRawSummary, tablesFound: rawTablesFound } =
-          maskTableNames(rawSummary);
+          maskTableNames(rawSummary, SCOUT_ALLOWED_TABLES);
         deps.logger?.warn(
           {
             event: "scout.ask_db.no_sql_run",

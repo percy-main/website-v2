@@ -4,10 +4,16 @@ import { CompiledQuery, type Kysely } from "kysely";
 import { z } from "zod";
 
 /**
- * Tables Scout's read-only role has SELECT on, plus the redacted scout_member
- * view. Mirrors the GRANT in migration 2026-05-03. Including the list here as
- * defence-in-depth + cleaner output from db_list_tables; the role's grants are
- * the actual security boundary.
+ * Default allowlist for the main ask_db sub-agent: tables Scout's read-only
+ * role has SELECT on, plus the redacted scout_member view. Mirrors the GRANT
+ * in migration 2026-05-03. Including the list here as defence-in-depth +
+ * cleaner output from db_list_tables; the role's grants are the actual
+ * security boundary.
+ *
+ * Other sub-agents (e.g. ask_ball_by_ball) deliberately pass a different,
+ * narrower list — they get SELECT on additional tables via the same
+ * scout_readonly role but want their schema-discovery + table-name masking
+ * scoped to their own concern. See createDbTools({ allowedTables }).
  */
 export const SCOUT_ALLOWED_TABLES = [
   "matchday",
@@ -31,10 +37,36 @@ const STATEMENT_TIMEOUT_SECONDS = 30;
 
 export interface DbToolDeps {
   dbReadonly: Kysely<DB>;
+  /**
+   * Tables this sub-agent can discover via db_list_tables / db_describe_table
+   * and whose names are masked in summaries. Defaults to SCOUT_ALLOWED_TABLES
+   * for the main ask_db sub-agent. Pass a narrower list for specialist
+   * sub-agents that should only reason about a subset.
+   *
+   * NOT A SECURITY BOUNDARY. db_run_sql executes any SELECT the underlying
+   * scout_readonly role can perform — including tables outside this
+   * allowlist if the model literally types one in. The hard limit is the
+   * role's GRANTs (migration 2026-05-03 + the BBB extension on
+   * 2026-05-07). This list scopes:
+   *
+   *   - db_list_tables / db_describe_table output (so each sub-agent only
+   *     sees its own concern when discovering schema)
+   *   - maskTableNames in the sub-agent's summary text
+   *   - prompt routing (the system prompt steers the agent to the right
+   *     sub-agent for the kind of question)
+   *
+   * If a real per-sub-agent data boundary is ever needed (e.g. multi-
+   * tenant Scout, untrusted user input), provision separate DB roles
+   * with disjoint GRANTs and inject a different Kysely client per
+   * sub-agent. Today both sub-agents share scout_readonly because they
+   * both read the same club's data and the user is trusted.
+   */
+  allowedTables?: readonly string[];
 }
 
 export function createDbTools(deps: DbToolDeps) {
   const { dbReadonly } = deps;
+  const allowedTables = deps.allowedTables ?? SCOUT_ALLOWED_TABLES;
 
   return {
     db_list_tables: tool({
@@ -42,16 +74,14 @@ export function createDbTools(deps: DbToolDeps) {
         "List the tables Scout can read, with their columns and types. Call this first when you need to know what data is available before writing a SQL query.",
       inputSchema: z.object({}),
       execute: async () => {
-        const placeholders = SCOUT_ALLOWED_TABLES.map(
-          (_, i) => `$${i + 1}`,
-        ).join(",");
+        const placeholders = allowedTables.map((_, i) => `$${i + 1}`).join(",");
         const out = await dbReadonly.executeQuery(
           CompiledQuery.raw(
             `SELECT table_name, column_name, data_type, is_nullable
              FROM information_schema.columns
              WHERE table_schema = 'public' AND table_name IN (${placeholders})
              ORDER BY table_name, ordinal_position`,
-            [...SCOUT_ALLOWED_TABLES],
+            [...allowedTables],
           ),
         );
 
@@ -95,10 +125,10 @@ export function createDbTools(deps: DbToolDeps) {
         table: z.string().describe("Table name. Must be in the allowlist."),
       }),
       execute: async ({ table }) => {
-        if (!(SCOUT_ALLOWED_TABLES as readonly string[]).includes(table)) {
+        if (!allowedTables.includes(table)) {
           return {
-            error: `Table "${table}" is not in the Scout allowlist. Use db_list_tables to see what's available.`,
-            allowed: SCOUT_ALLOWED_TABLES,
+            error: `Table "${table}" is not in this sub-agent's allowlist. Use db_list_tables to see what's available.`,
+            allowed: allowedTables,
           };
         }
 

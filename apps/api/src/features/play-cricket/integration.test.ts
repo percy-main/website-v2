@@ -1006,4 +1006,97 @@ describe("ingestRvDataForMatch (integration)", () => {
       null,
     ]);
   });
+
+  it("ingests balls across multiple overs (ball_no resets per over)", async () => {
+    // Regression: the original UNIQUE constraint was
+    // (rv_match_id, rv_result_id, innings_number, ball_no) — but ball_no
+    // resets per over in RV's feed, so every delivery beyond the first
+    // ball of the innings collided on ON CONFLICT and the whole batch
+    // was rejected with "cannot affect row a second time". Constraint
+    // now includes over_no.
+    const matchId = `rv-multi-over-${crypto.randomUUID()}`;
+    await seedMatchResult(matchId);
+
+    // Two overs of 6 legal balls each — every (over_no, ball_no) tuple
+    // distinct under the corrected constraint, but the OLD constraint
+    // would have rejected every ball whose ball_no matched a previous
+    // over's.
+    const balls = [];
+    for (let over = 0; over < 2; over++) {
+      for (let ball = 1; ball <= 6; ball++) {
+        balls.push(makeBall(over, ball));
+      }
+    }
+
+    const rv = makeMockRv({
+      mapping: { rvMatchId: "7464451" },
+      match: makeOverview(),
+      balls: [[], balls, []],
+    });
+
+    await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02");
+
+    const stored = await ctx.db
+      .selectFrom("match_ball")
+      .where("match_id", "=", matchId)
+      .orderBy("over_no")
+      .orderBy("ball_no")
+      .selectAll()
+      .execute();
+    expect(stored).toHaveLength(12);
+    expect(
+      stored.map((r) => `${String(r.over_no)}.${String(r.ball_no)}`),
+    ).toEqual([
+      "0.1",
+      "0.2",
+      "0.3",
+      "0.4",
+      "0.5",
+      "0.6",
+      "1.1",
+      "1.2",
+      "1.3",
+      "1.4",
+      "1.5",
+      "1.6",
+    ]);
+  });
+
+  it("dedupes balls within a batch on the natural key (defensive — RV revisions)", async () => {
+    // Belt-and-braces: if RV ever returns the same (innings, over, ball)
+    // twice in one response (a revision lurking in the array), Postgres
+    // refuses the batch with "cannot affect row a second time". Ingest
+    // collapses duplicates last-write-wins before INSERT.
+    const matchId = `rv-dedupe-${crypto.randomUUID()}`;
+    await seedMatchResult(matchId);
+
+    const initial = makeBall(0, 1, {
+      runs_bat: 0,
+      l_desc: " K Pattison to S Knight: dot",
+    });
+    const revised = makeBall(0, 1, {
+      runs_bat: 4,
+      l_desc: " K Pattison to S Knight: 4 runs (revised)",
+      s_desc: " 4",
+    });
+
+    const rv = makeMockRv({
+      mapping: { rvMatchId: "7464451" },
+      match: makeOverview(),
+      // Same natural key appearing twice in a single response.
+      balls: [[], [initial, revised], []],
+    });
+
+    await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02");
+
+    const stored = await ctx.db
+      .selectFrom("match_ball")
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .execute();
+    expect(stored).toHaveLength(1);
+    // Last-write-wins.
+    expect(stored[0]?.runs_bat).toBe(4);
+    expect(stored[0]?.l_desc).toContain("revised");
+  });
 });
