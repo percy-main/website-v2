@@ -29,6 +29,7 @@ import { createGenerateReportTool } from "./tools/generate-report.ts";
 import { createKnowledgeTools } from "./tools/knowledge.ts";
 import { createPlayCricketCitationTools } from "./tools/play-cricket-citations.ts";
 import { createPlayCricketTools } from "./tools/play-cricket.ts";
+import { createRenderVideoTool } from "./tools/render-video.ts";
 import { createWeatherTools } from "./tools/weather.ts";
 
 // streamText's providerOptions is typed as a deep alias not re-exported from
@@ -144,6 +145,12 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   const chartTools =
     deps.mode === "chat" || deps.mode === "scout"
       ? createChartTool({ writer: deps.writer })
+      : {};
+  // render_video is gated to the same modes as chart_render. Debrief is a
+  // structured interview — embedding a clip mid-flow would derail it.
+  const videoTools =
+    deps.mode === "chat" || deps.mode === "scout"
+      ? createRenderVideoTool({ writer: deps.writer })
       : {};
   // generate_report builds a PDF and stores it in S3. Relevant in chat (the
   // captain may ask) and scout (the focused mode self-triggers the tool); not
@@ -272,6 +279,7 @@ When asked about the "next" or "upcoming" match for ANY club (Percy Main or oppo
       ...ballByBallTools,
       ...weatherTools,
       ...chartTools,
+      ...videoTools,
       ...reportTools,
       ...askQuestionTools,
       ...factTools,

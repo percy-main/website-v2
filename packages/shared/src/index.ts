@@ -32,6 +32,8 @@ export { nameSimilarity, normalizeName } from "./name-similarity.ts";
 
 export { chartSpecSchema, type ChartSpec } from "./scout-chart.ts";
 
+export { videoSpecSchema, type VideoSpec } from "./scout-video.ts";
+
 export {
   scoutLeagueTableSchema,
   scoutReportContentSchema,
