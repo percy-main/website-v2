@@ -1,3 +1,4 @@
+import { ImbuzaiMascot } from "@/components/imbuzai-mascot.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import type { UIMessage } from "@ai-sdk/react";
@@ -27,7 +28,7 @@ const VIEW_FROM_PARAM: Record<string, ScoutView> = {
 };
 
 export function Component() {
-  useDocumentMeta("Scout");
+  useDocumentMeta("ImbuzAI");
   const { threadId } = useParams<{ threadId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   // URL-state per the project's URL-state convention. The non-chat tabs
@@ -129,15 +130,27 @@ function TabButton({
 
 function EmptyState() {
   return (
-    <div className="flex flex-1 items-center justify-center text-center text-sm text-gray-500">
-      <div>
-        <div className="mb-1 font-medium text-gray-700">
-          Pick a thread, or start a new one.
-        </div>
+    <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-gray-500">
+      <div className="flex flex-col items-center gap-4">
+        <ImbuzaiMascot width={140} loading="eager" />
         <div>
-          <strong>Chat</strong> for free-form opposition research,{" "}
-          <strong>Debrief</strong> to walk through a recent match, or{" "}
-          <strong>Scout</strong> to build a report PDF for an upcoming fixture.
+          <div className="font-secondary text-xl font-bold tracking-tight text-gray-800">
+            ImbuzAI
+          </div>
+          <div className="mt-0.5 text-xs tracking-wider text-gray-500 uppercase">
+            Percy Main's AI cricket analyst
+          </div>
+        </div>
+        <div className="max-w-md">
+          <div className="mb-1 font-medium text-gray-700">
+            Pick a thread, or start a new one.
+          </div>
+          <div>
+            <strong>Chat</strong> for free-form opposition research,{" "}
+            <strong>Debrief</strong> to walk through a recent match, or{" "}
+            <strong>Scout</strong> to build a report PDF for an upcoming
+            fixture.
+          </div>
         </div>
       </div>
     </div>
@@ -358,6 +371,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
     <>
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-4">
         <h2 className="my-0 flex items-center gap-2 truncate text-sm font-medium text-gray-700">
+          <ImbuzaiMascot width={32} />
           {mode === "debrief" && (
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase">
               Debrief
@@ -415,7 +429,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
             {inFlightReport ? (
               <div className="space-y-1">
                 <div className="font-medium">
-                  Connection to Scout dropped while a report was generating.
+                  Connection to ImbuzAI dropped while a report was generating.
                 </div>
                 <div>
                   The researcher and analyst phases often keep running
