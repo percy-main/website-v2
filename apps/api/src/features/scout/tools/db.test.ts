@@ -134,7 +134,7 @@ describe("db_describe_table", () => {
       tools.db_describe_table.execute,
       { table: "user" },
     );
-    expect(result.error).toMatch(/not in the Scout allowlist/);
+    expect(result.error).toMatch(/not in this sub-agent's allowlist/);
   });
 
   it("does not call the database for disallowed tables", async () => {
