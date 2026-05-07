@@ -43,10 +43,23 @@ export interface DbToolDeps {
    * for the main ask_db sub-agent. Pass a narrower list for specialist
    * sub-agents that should only reason about a subset.
    *
-   * NOTE: this allowlist gates schema discovery and string masking, NOT the
-   * SQL itself — db_run_sql executes any SELECT the role can perform. A
-   * caller wanting genuine isolation must also rely on the scout_readonly
-   * GRANTs (or run a more restricted role).
+   * NOT A SECURITY BOUNDARY. db_run_sql executes any SELECT the underlying
+   * scout_readonly role can perform — including tables outside this
+   * allowlist if the model literally types one in. The hard limit is the
+   * role's GRANTs (migration 2026-05-03 + the BBB extension on
+   * 2026-05-07). This list scopes:
+   *
+   *   - db_list_tables / db_describe_table output (so each sub-agent only
+   *     sees its own concern when discovering schema)
+   *   - maskTableNames in the sub-agent's summary text
+   *   - prompt routing (the system prompt steers the agent to the right
+   *     sub-agent for the kind of question)
+   *
+   * If a real per-sub-agent data boundary is ever needed (e.g. multi-
+   * tenant Scout, untrusted user input), provision separate DB roles
+   * with disjoint GRANTs and inject a different Kysely client per
+   * sub-agent. Today both sub-agents share scout_readonly because they
+   * both read the same club's data and the user is trusted.
    */
   allowedTables?: readonly string[];
 }
