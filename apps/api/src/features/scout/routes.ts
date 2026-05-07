@@ -403,9 +403,12 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           });
         }
         if (err instanceof ShareForbiddenError) {
-          throw Object.assign(new Error("Only the thread owner can manage sharing"), {
-            statusCode: 403,
-          });
+          throw Object.assign(
+            new Error("Only the thread owner can manage sharing"),
+            {
+              statusCode: 403,
+            },
+          );
         }
         throw err;
       }
@@ -438,9 +441,12 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           });
         }
         if (err instanceof ShareForbiddenError) {
-          throw Object.assign(new Error("Only the thread owner can manage sharing"), {
-            statusCode: 403,
-          });
+          throw Object.assign(
+            new Error("Only the thread owner can manage sharing"),
+            {
+              statusCode: 403,
+            },
+          );
         }
         if (err instanceof ShareInvalidRecipientError) {
           throw Object.assign(new Error(err.message), { statusCode: 400 });
@@ -475,9 +481,12 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           });
         }
         if (err instanceof ShareForbiddenError) {
-          throw Object.assign(new Error("Only the thread owner can manage sharing"), {
-            statusCode: 403,
-          });
+          throw Object.assign(
+            new Error("Only the thread owner can manage sharing"),
+            {
+              statusCode: 403,
+            },
+          );
         }
         throw err;
       }

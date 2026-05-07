@@ -708,7 +708,9 @@ export function listOfficials(db: Kysely<DB>) {
       .selectFrom("user")
       .where("role", "in", Array.from(SHAREABLE_ROLES))
       .where("id", "!=", currentUserId)
-      .where((eb) => eb.or([eb("banned", "is", null), eb("banned", "=", false)]))
+      .where((eb) =>
+        eb.or([eb("banned", "is", null), eb("banned", "=", false)]),
+      )
       .select(["id", "name", "email"])
       .orderBy("name", "asc")
       .execute();
@@ -717,10 +719,7 @@ export function listOfficials(db: Kysely<DB>) {
 }
 
 export function listSharees(db: Kysely<DB>) {
-  return async (
-    userId: string,
-    threadId: string,
-  ): Promise<ShareActor[]> => {
+  return async (userId: string, threadId: string): Promise<ShareActor[]> => {
     await assertOwnerForShare(db, userId, threadId);
     const rows = await db
       .selectFrom("scout_thread_share as s")
@@ -742,9 +741,12 @@ export function shareThread(db: Kysely<DB>) {
     await assertOwnerForShare(db, ownerUserId, threadId);
 
     const unique = Array.from(new Set(recipientUserIds));
-    if (unique.length === 0) return await listSharees(db)(ownerUserId, threadId);
+    if (unique.length === 0)
+      return await listSharees(db)(ownerUserId, threadId);
     if (unique.includes(ownerUserId)) {
-      throw new ShareInvalidRecipientError("Cannot share a thread with yourself.");
+      throw new ShareInvalidRecipientError(
+        "Cannot share a thread with yourself.",
+      );
     }
 
     // Validate every recipient is still a real, role-eligible user. Doing
@@ -755,7 +757,9 @@ export function shareThread(db: Kysely<DB>) {
       .selectFrom("user")
       .where("id", "in", unique)
       .where("role", "in", Array.from(SHAREABLE_ROLES))
-      .where((eb) => eb.or([eb("banned", "is", null), eb("banned", "=", false)]))
+      .where((eb) =>
+        eb.or([eb("banned", "is", null), eb("banned", "=", false)]),
+      )
       .select(["id"])
       .execute();
     const validIds = new Set(valid.map((r) => r.id));

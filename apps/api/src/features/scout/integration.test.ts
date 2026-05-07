@@ -511,9 +511,9 @@ describe("scout thread sharing (integration)", () => {
     });
     const thread = await createThread(ctx.db)(owner, "Private");
 
-    await expect(
-      getThread(ctx.db)(stranger, thread.id),
-    ).rejects.toBeInstanceOf(ThreadNotFoundError);
+    await expect(getThread(ctx.db)(stranger, thread.id)).rejects.toBeInstanceOf(
+      ThreadNotFoundError,
+    );
   });
 });
 
