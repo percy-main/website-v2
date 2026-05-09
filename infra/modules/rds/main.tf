@@ -56,6 +56,12 @@ variable "security_group_id" {
   type = string
 }
 
+variable "enable_event_subscription" {
+  type        = bool
+  default     = false
+  description = "Create a dedicated SNS topic + event subscription for RDS events (backup failures, maintenance, low storage). Operators subscribe to the topic out of band."
+}
+
 # -----------------------------------------------------------------------------
 # Locals
 # -----------------------------------------------------------------------------
@@ -154,8 +160,12 @@ resource "aws_db_instance" "main" {
   parameter_group_name   = aws_db_parameter_group.main.name
   vpc_security_group_ids = [var.security_group_id]
 
-  publicly_accessible     = false
-  backup_retention_period = 1
+  publicly_accessible = false
+  # 7 days gives us a working week of recovery points; combined with
+  # multi_az = false (single AZ) this is the minimum viable RDS
+  # backup posture. A missed weekend backup no longer leaves nothing
+  # on Monday morning.
+  backup_retention_period = 7
   backup_window           = "02:00-03:00"
   maintenance_window      = "mon:03:00-mon:04:00"
 
@@ -164,12 +174,68 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled          = true
   performance_insights_retention_period = 7
 
+  # Export postgresql + upgrade logs to CloudWatch so they're reachable
+  # for alarming and downstream NR forwarding (#200). The parameter
+  # group already enables log_min_duration_statement / log_connections
+  # / log_disconnections — without exports those logs never leave the
+  # instance.
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+
+  # Enhanced monitoring — 60s OS-level metrics (load avg, IOPS by
+  # process, network). Performance Insights covers query-level; this
+  # covers the host. Valid intervals: 1/5/10/15/30/60.
+  monitoring_interval = 60
+  monitoring_role_arn = aws_iam_role.rds_enhanced_monitoring.arn
+
   skip_final_snapshot       = var.environment != "production"
   final_snapshot_identifier = var.environment == "production" ? "${local.name_prefix}-db-final" : null
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-db"
   })
+}
+
+# -----------------------------------------------------------------------------
+# Enhanced Monitoring IAM role
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "rds_em_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["monitoring.rds.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "rds_enhanced_monitoring" {
+  name               = "${local.name_prefix}-rds-enhanced-monitoring"
+  assume_role_policy = data.aws_iam_policy_document.rds_em_assume.json
+  tags               = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
+  role       = aws_iam_role.rds_enhanced_monitoring.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+}
+
+# -----------------------------------------------------------------------------
+# CloudWatch log groups for RDS log exports — explicit so we can control
+# retention. RDS would otherwise create them with infinite retention.
+# -----------------------------------------------------------------------------
+
+resource "aws_cloudwatch_log_group" "rds_postgres" {
+  name              = "/aws/rds/instance/${local.name_prefix}-db/postgresql"
+  retention_in_days = 30
+  tags              = local.common_tags
+}
+
+resource "aws_cloudwatch_log_group" "rds_upgrade" {
+  name              = "/aws/rds/instance/${local.name_prefix}-db/upgrade"
+  retention_in_days = 30
+  tags              = local.common_tags
 }
 
 # -----------------------------------------------------------------------------
@@ -224,4 +290,45 @@ output "secret_arn" {
 output "instance_id" {
   description = "RDS instance identifier (for monitoring)"
   value       = aws_db_instance.main.identifier
+}
+
+# -----------------------------------------------------------------------------
+# Event subscription — surface backup / failure / maintenance events to SNS
+# so a missed backup or hardware fault routes to on-call instead of being
+# discovered next time someone tries to recover.
+#
+# A dedicated topic (separate from the monitoring module's alarms topic)
+# avoids a module dependency cycle: monitoring needs rds.instance_id,
+# so rds cannot also depend on monitoring.sns_topic_arn. Operators
+# subscribe to this topic out of band.
+# -----------------------------------------------------------------------------
+
+resource "aws_sns_topic" "db_events" {
+  count = var.enable_event_subscription ? 1 : 0
+  name  = "${local.name_prefix}-db-events"
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-db-events"
+  })
+}
+
+resource "aws_db_event_subscription" "main" {
+  count = var.enable_event_subscription ? 1 : 0
+
+  name      = "${local.name_prefix}-db-events"
+  sns_topic = aws_sns_topic.db_events[0].arn
+
+  source_type = "db-instance"
+  source_ids  = [aws_db_instance.main.identifier]
+
+  event_categories = [
+    "backup",
+    "failure",
+    "failover",
+    "low storage",
+    "maintenance",
+    "notification",
+  ]
+
+  tags = local.common_tags
 }

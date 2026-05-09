@@ -1,0 +1,76 @@
+name: Notify deploy failure
+description: |
+  On a deploy job failure, open a GitHub issue (de-duped by title) and,
+  if SLACK_WEBHOOK_URL is set, post a Slack message. Always-run; the
+  caller is responsible for using `if: failure()`.
+
+inputs:
+  job:
+    description: Job identifier for the issue title (e.g. "deploy-api")
+    required: true
+  github-token:
+    description: "Token with issues:write permission"
+    required: true
+  slack-webhook-url:
+    description: Optional Slack incoming webhook URL. If empty, Slack is skipped.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Open issue + post Slack
+      uses: actions/github-script@v7
+      env:
+        JOB_NAME: ${{ inputs.job }}
+        SLACK_WEBHOOK_URL: ${{ inputs.slack-webhook-url }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const job = process.env.JOB_NAME;
+          const slackUrl = process.env.SLACK_WEBHOOK_URL;
+          const url = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+          const title = `Deploy failure: ${context.workflow} (${job})`;
+          const body = [
+            `Workflow run: ${url}`,
+            `Workflow: \`${context.workflow}\``,
+            `Job: \`${job}\``,
+            `Actor: \`${context.actor}\``,
+            `Ref: \`${context.ref}\``,
+            `SHA: \`${context.sha}\``,
+          ].join('\n');
+
+          // De-dupe: append a comment if an open issue with the same title exists.
+          const existing = await github.rest.issues.listForRepo({
+            owner: context.repo.owner, repo: context.repo.repo,
+            state: 'open', labels: 'incident: deploy-failure', per_page: 100,
+          });
+          const dup = existing.data.find(i => i.title === title);
+          if (dup) {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: dup.number, body,
+            });
+            core.notice(`Appended comment to existing issue #${dup.number}`);
+          } else {
+            const created = await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title, labels: ['incident: deploy-failure'], body,
+            });
+            core.notice(`Opened issue #${created.data.number}`);
+          }
+
+          if (slackUrl) {
+            try {
+              const res = await fetch(slackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  text: `:rotating_light: Deploy failure: *${context.workflow}* (${job})\n${url}`,
+                }),
+              });
+              if (!res.ok) core.warning(`Slack webhook returned ${res.status}`);
+            } catch (err) {
+              core.warning(`Slack webhook failed: ${err.message}`);
+            }
+          }

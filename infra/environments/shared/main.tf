@@ -99,6 +99,64 @@ resource "aws_route53_record" "ses_verification" {
 }
 
 # -----------------------------------------------------------------------------
+# SES alarms — bounce / complaint / sending-quota.
+# AWS auto-pauses sending if BounceRate > 5% or ComplaintRate > 0.1%
+# over a rolling window, so these need to page early enough that we
+# can intervene before the pause hits.
+# -----------------------------------------------------------------------------
+
+resource "aws_cloudwatch_metric_alarm" "ses_bounce_rate" {
+  alarm_name          = "percy-main-ses-bounce-rate"
+  alarm_description   = "SES bounce rate >5% — AWS auto-pauses sending if this stays high. Investigate before pause."
+  namespace           = "AWS/SES"
+  metric_name         = "Reputation.BounceRate"
+  statistic           = "Average"
+  period              = 900
+  evaluation_periods  = 4
+  threshold           = 0.05
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
+  alarm_name          = "percy-main-ses-complaint-rate"
+  alarm_description   = "SES complaint rate >0.1% — AWS auto-pauses sending if this stays high. Likely a list-hygiene problem."
+  namespace           = "AWS/SES"
+  metric_name         = "Reputation.ComplaintRate"
+  statistic           = "Average"
+  period              = 900
+  evaluation_periods  = 4
+  threshold           = 0.001
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms.arn]
+}
+
+# Send count is per-account (no dimensions). 24h send count crossing
+# 80% of the sandbox/production quota indicates either a campaign
+# spike or a runaway loop / compromised endpoint.
+resource "aws_cloudwatch_metric_alarm" "ses_send_volume" {
+  alarm_name          = "percy-main-ses-send-volume-spike"
+  alarm_description   = "SES Send count anomalously high in the last hour — possible runaway loop / compromised endpoint. Threshold is a heuristic; tune after observing normal traffic."
+  namespace           = "AWS/SES"
+  metric_name         = "Send"
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 1000
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms.arn]
+}
+
+# -----------------------------------------------------------------------------
 # GitHub Actions OIDC Provider
 # -----------------------------------------------------------------------------
 
@@ -168,7 +226,14 @@ data "aws_iam_policy_document" "terraform_plan_assume" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:pull_request"]
+      # Accept both PR runs (terraform-plan job) and main-branch
+      # scheduled / workflow_dispatch runs (terraform-drift workflow).
+      # The role grants ReadOnlyAccess + state-lock + secrets-read
+      # only — appropriate for both plan and drift.
+      values = [
+        "repo:${var.github_repo}:pull_request",
+        "repo:${var.github_repo}:ref:refs/heads/main",
+      ]
     }
 
     condition {
@@ -481,4 +546,280 @@ resource "aws_acm_certificate_validation" "cloudfront" {
 
   certificate_arn         = aws_acm_certificate.cloudfront.arn
   validation_record_fqdns = [for record in aws_route53_record.cloudfront_cert_validation : record.fqdn]
+}
+
+# -----------------------------------------------------------------------------
+# Reliability alarms — Route 53 health check + ACM expiry
+# -----------------------------------------------------------------------------
+# Operator-subscribed SNS topics (no Terraform-managed subscription —
+# add an email/Slack/Lambda subscription out of band, same pattern as
+# the security-events topics).
+#
+# Per-region split: Route 53 health-check metrics + the CloudFront
+# certificate live in us-east-1; the ALB certificate lives in
+# eu-west-2.
+
+# eu-west-2 reliability alarms topic — ALB cert expiry.
+resource "aws_sns_topic" "shared_reliability_alarms" {
+  name = "percy-main-shared-reliability-alarms"
+  tags = {
+    Environment = "shared"
+    Module      = "shared"
+    ManagedBy   = "terraform"
+    Purpose     = "reliability-alarms"
+  }
+}
+
+# us-east-1 reliability alarms topic — Route 53 health-check + CloudFront cert.
+resource "aws_sns_topic" "shared_reliability_alarms_us_east_1" {
+  provider = aws.us_east_1
+  name     = "percy-main-shared-reliability-alarms"
+  tags = {
+    Environment = "shared"
+    Module      = "shared"
+    ManagedBy   = "terraform"
+    Purpose     = "reliability-alarms-us-east-1"
+  }
+}
+
+# Route 53 HTTPS health check on the production API. The check originates
+# from R53's globally-distributed checkers, so it catches DNS / TLS /
+# edge problems that ALB target health cannot.
+resource "aws_route53_health_check" "api" {
+  fqdn              = "api.v2.${var.domain_name}"
+  port              = 443
+  type              = "HTTPS"
+  resource_path     = "/health"
+  request_interval  = 30
+  failure_threshold = 3
+  measure_latency   = false
+
+  tags = {
+    Name        = "percy-main-api-health-check"
+    Environment = "shared"
+    ManagedBy   = "terraform"
+  }
+}
+
+# Health-check status metric is published to us-east-1 only.
+resource "aws_cloudwatch_metric_alarm" "api_health_check" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-api-route53-health-check"
+  alarm_description   = "Route 53 health check failing for api.v2.${var.domain_name} — DNS / TLS / edge problem (independent of ALB target health)"
+  namespace           = "AWS/Route53"
+  metric_name         = "HealthCheckStatus"
+  statistic           = "Minimum"
+  period              = 60
+  evaluation_periods  = 2
+  threshold           = 1
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    HealthCheckId = aws_route53_health_check.api.id
+  }
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms_us_east_1.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms_us_east_1.arn]
+}
+
+# ACM cert expiry — alarm at 30 days. DNS-validated certs auto-renew but
+# renewal can fail (DNS records modified, NS delegation broken).
+resource "aws_cloudwatch_metric_alarm" "alb_cert_expiry" {
+  alarm_name          = "percy-main-alb-cert-expiry"
+  alarm_description   = "ALB ACM certificate expires in <30 days — auto-renewal may have failed"
+  namespace           = "AWS/CertificateManager"
+  metric_name         = "DaysToExpiry"
+  statistic           = "Minimum"
+  period              = 86400
+  evaluation_periods  = 1
+  threshold           = 30
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    CertificateArn = aws_acm_certificate.alb.arn
+  }
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "cloudfront_cert_expiry" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-cloudfront-cert-expiry"
+  alarm_description   = "CloudFront ACM certificate expires in <30 days — auto-renewal may have failed"
+  namespace           = "AWS/CertificateManager"
+  metric_name         = "DaysToExpiry"
+  statistic           = "Minimum"
+  period              = 86400
+  evaluation_periods  = 1
+  threshold           = 30
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    CertificateArn = aws_acm_certificate.cloudfront.arn
+  }
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms_us_east_1.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms_us_east_1.arn]
+}
+
+# -----------------------------------------------------------------------------
+# Security event notifications
+# -----------------------------------------------------------------------------
+# EventBridge rules that catch security-sensitive API calls (SG changes,
+# IAM policy edits) and route them to per-region SNS topics. Topics
+# carry no terraform-managed subscription — operators add an email /
+# Slack / Lambda subscription out of band so the audit channel can be
+# reconfigured without a TF change. Depends on CloudTrail being on
+# (#214).
+#
+# IMPORTANT: IAM is a global service. CloudTrail/EventBridge IAM API
+# events are delivered exclusively to us-east-1, so the IAM rule + its
+# SNS target both live there. SG events are regional and stay in the
+# default eu-west-2 provider.
+#
+# SNS topics are intentionally NOT encrypted with `alias/aws/sns` (the
+# AWS-managed SNS KMS key cannot have its policy edited, and EventBridge
+# needs `kms:GenerateDataKey` against a key that allows
+# `events.amazonaws.com` — only a customer-managed CMK can do that).
+# Event payloads are CloudTrail event metadata (no secrets), so leaving
+# encryption-at-rest off is an acceptable trade. Add a CMK here if the
+# threat model later requires it.
+
+# eu-west-2 topic — receives SG-change events.
+resource "aws_sns_topic" "security_events" {
+  name = "percy-main-shared-security-events"
+
+  tags = {
+    Environment = "shared"
+    Module      = "shared"
+    ManagedBy   = "terraform"
+    Purpose     = "security-event-notifications"
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "sg_changes" {
+  name        = "percy-main-shared-sg-changes"
+  description = "Security group ingress/egress/lifecycle changes"
+
+  event_pattern = jsonencode({
+    source        = ["aws.ec2"]
+    "detail-type" = ["AWS API Call via CloudTrail"]
+    detail = {
+      eventSource = ["ec2.amazonaws.com"]
+      eventName = [
+        "AuthorizeSecurityGroupIngress",
+        "AuthorizeSecurityGroupEgress",
+        "RevokeSecurityGroupIngress",
+        "RevokeSecurityGroupEgress",
+        "CreateSecurityGroup",
+        "DeleteSecurityGroup",
+      ]
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "sg_changes_to_sns" {
+  rule      = aws_cloudwatch_event_rule.sg_changes.name
+  target_id = "sns"
+  arn       = aws_sns_topic.security_events.arn
+}
+
+# Allow EventBridge to publish to the eu-west-2 topic.
+data "aws_iam_policy_document" "security_events_topic" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.security_events.arn]
+  }
+}
+
+resource "aws_sns_topic_policy" "security_events" {
+  arn    = aws_sns_topic.security_events.arn
+  policy = data.aws_iam_policy_document.security_events_topic.json
+}
+
+# us-east-1 topic + IAM rule — IAM API events surface only in us-east-1.
+resource "aws_sns_topic" "security_events_us_east_1" {
+  provider = aws.us_east_1
+  name     = "percy-main-shared-security-events"
+
+  tags = {
+    Environment = "shared"
+    Module      = "shared"
+    ManagedBy   = "terraform"
+    Purpose     = "security-event-notifications-us-east-1"
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "iam_changes" {
+  provider    = aws.us_east_1
+  name        = "percy-main-shared-iam-changes"
+  description = "IAM policy / role / user mutation API calls (delivered to us-east-1)"
+
+  event_pattern = jsonencode({
+    source        = ["aws.iam"]
+    "detail-type" = ["AWS API Call via CloudTrail"]
+    detail = {
+      eventSource = ["iam.amazonaws.com"]
+      eventName = [
+        "CreatePolicy",
+        "DeletePolicy",
+        "CreatePolicyVersion",
+        "DeletePolicyVersion",
+        "AttachUserPolicy",
+        "AttachRolePolicy",
+        "AttachGroupPolicy",
+        "DetachUserPolicy",
+        "DetachRolePolicy",
+        "DetachGroupPolicy",
+        "PutUserPolicy",
+        "PutRolePolicy",
+        "PutGroupPolicy",
+        "DeleteUserPolicy",
+        "DeleteRolePolicy",
+        "DeleteGroupPolicy",
+        "CreateUser",
+        "DeleteUser",
+        "CreateAccessKey",
+        "DeleteAccessKey",
+      ]
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "iam_changes_to_sns" {
+  provider  = aws.us_east_1
+  rule      = aws_cloudwatch_event_rule.iam_changes.name
+  target_id = "sns"
+  arn       = aws_sns_topic.security_events_us_east_1.arn
+}
+
+# Allow EventBridge in us-east-1 to publish to the us-east-1 topic.
+data "aws_iam_policy_document" "security_events_us_east_1_topic" {
+  provider = aws.us_east_1
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.security_events_us_east_1.arn]
+  }
+}
+
+resource "aws_sns_topic_policy" "security_events_us_east_1" {
+  provider = aws.us_east_1
+  arn      = aws_sns_topic.security_events_us_east_1.arn
+  policy   = data.aws_iam_policy_document.security_events_us_east_1_topic.json
 }

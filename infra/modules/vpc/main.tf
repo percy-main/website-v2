@@ -336,8 +336,14 @@ resource "aws_iam_role_policy" "flow_log" {
 }
 
 resource "aws_flow_log" "main" {
-  vpc_id               = aws_vpc.main.id
-  traffic_type         = "ALL"
+  vpc_id = aws_vpc.main.id
+  # REJECT-only: capture failed connection attempts for security
+  # forensics without paying CloudWatch Logs ingest on every successful
+  # request flow. Sufficient for "who tried to talk to a port we
+  # weren't listening on" investigations; insufficient for traffic
+  # accounting (use VPC Lattice or NR network monitoring if needed).
+  # See ADR 036.
+  traffic_type         = "REJECT"
   log_destination      = aws_cloudwatch_log_group.flow_logs.arn
   log_destination_type = "cloud-watch-logs"
   iam_role_arn         = aws_iam_role.flow_log.arn

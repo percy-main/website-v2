@@ -1,0 +1,123 @@
+name: Terraform drift detection
+
+# Daily plan against each environment's actual state. Manual changes via
+# the AWS console (IAM tweaks, console-edited Route 53 records, ad-hoc
+# bucket policy edits) silently diverge from Terraform; this catches
+# them within 24 h. Exit code 2 from `terraform plan -detailed-exitcode`
+# means "diff present" — we open a GitHub issue so it ends up in the
+# triage queue.
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # 07:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: "bash -euo pipefail {0}"
+
+env:
+  AWS_REGION: eu-west-2
+  TF_VERSION: "1.7"
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [shared, production]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # The plan role is read-only (ReadOnlyAccess + extras). Drift
+          # runs are scheduled / workflow_dispatch, so the OIDC subject
+          # is `repo:<repo>:ref:refs/heads/main`, not `pull_request` —
+          # the plan role's trust policy in shared/main.tf is updated
+          # to accept main-branch refs as well.
+          role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: terraform init -backend=true
+
+      - name: Terraform Plan (detailed exit code)
+        id: plan
+        working-directory: infra/environments/${{ matrix.environment }}
+        # Exit codes: 0 = no changes, 1 = error, 2 = changes present.
+        # We capture the code so the next step can branch.
+        run: |
+          set +e
+          terraform plan -detailed-exitcode -no-color -out=drift.tfplan 2>&1 | tee plan.txt
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "exitcode=${code}" >> "$GITHUB_OUTPUT"
+          if [ "$code" -eq 1 ]; then
+            echo "::error::Terraform plan errored for ${{ matrix.environment }}"
+            exit 1
+          fi
+          exit 0
+
+      - name: Plan summary
+        if: always()
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: |
+          {
+            echo "## Drift detection: ${{ matrix.environment }} — exit ${{ steps.plan.outputs.exitcode || 'n/a' }}"
+            echo '```'
+            tail -n 200 plan.txt 2>/dev/null || echo "(no plan.txt)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open drift issue
+        if: steps.plan.outputs.exitcode == '2'
+        uses: actions/github-script@v7
+        env:
+          ENV: ${{ matrix.environment }}
+        with:
+          script: |
+            const fs = require('fs');
+            const env = process.env.ENV;
+            const path = `infra/environments/${env}/plan.txt`;
+            let plan = '';
+            try { plan = fs.readFileSync(path, 'utf8'); } catch { /* ignore */ }
+            const truncated = plan.length > 30000 ? plan.slice(0, 30000) + '\n... (truncated)' : plan;
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = `Terraform drift detected: ${env}`;
+
+            // De-dupe: don't open another issue if one is already open with the same title.
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'drift', per_page: 100,
+            });
+            const dup = existing.data.find(i => i.title === title);
+            if (dup) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: dup.number,
+                body: `Drift still present (run: ${runUrl}).\n\n<details><summary>Plan</summary>\n\n\`\`\`\n${truncated}\n\`\`\`\n\n</details>`,
+              });
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title, labels: ['drift'],
+              body: `Daily drift detection found uncommitted changes in \`${env}\`.\n\nRun: ${runUrl}\n\n<details><summary>Plan</summary>\n\n\`\`\`\n${truncated}\n\`\`\`\n\n</details>`,
+            });

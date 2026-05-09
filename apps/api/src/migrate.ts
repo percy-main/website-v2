@@ -6,16 +6,34 @@
  * (injected by the ECS task definition).
  */
 
-import { createClient } from "@percy-main/db";
-import { FileMigrationProvider, Migrator } from "kysely";
+import type { DB } from "@percy-main/db";
+import {
+  FileMigrationProvider,
+  Kysely,
+  Migrator,
+  PostgresDialect,
+} from "kysely";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import pg from "pg";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
 if (!DATABASE_URL) throw new Error("Missing required env var: DATABASE_URL");
 
-const { client } = createClient(DATABASE_URL);
+// Bound the time we'll wait for an ACCESS EXCLUSIVE lock and the time
+// any single statement can run. Without these, a migration that races
+// with a long-running query can hang the deploy until ECS task-stopped
+// (~10 min default) or the workflow timeout — masking what would have
+// been an immediate, clear failure. libpq's `options` is applied at
+// connect time so every checkout already has them set, with no race
+// between the connection becoming available and a SET on it landing.
+const pool = new pg.Pool({
+  connectionString: DATABASE_URL,
+  max: 10,
+  options: "-c lock_timeout=5000 -c statement_timeout=60000",
+});
+const client = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
 
 const migrator = new Migrator({
   db: client,

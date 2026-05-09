@@ -19,6 +19,15 @@ on:
 permissions:
   id-token: write
   contents: read
+  issues: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: "bash -euo pipefail {0}"
 
 env:
   AWS_REGION: eu-west-2
@@ -31,6 +40,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
+
+      - name: Capture deployed SHA
+        id: ref
+        # workflow_dispatch sets github.sha to the workflow file's branch
+        # SHA, NOT the checked-out inputs.ref. Capture the actual SHA
+        # so the summary references what we deployed.
+        run: |
+          DEPLOYED_SHA=$(git rev-parse HEAD)
+          echo "sha=${DEPLOYED_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Deployed SHA: ${DEPLOYED_SHA}"
 
       - uses: pnpm/action-setup@v4
 
@@ -75,7 +94,93 @@ jobs:
             'aws s3 cp "$1" s3://${{ vars.FRONTEND_BUCKET }}/${1#apps/web/dist/} --cache-control "public, max-age=0, must-revalidate"' _ {} \;
 
       - name: Invalidate CloudFront cache
+        id: invalidate
+        # `/` and `/index.html` cache as separate keys at the edge — must
+        # invalidate both so the post-deploy smoke against `/` doesn't
+        # validate a stale cached root document.
         run: |
-          aws cloudfront create-invalidation \
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/index.html" "/*.json"
+            --paths "/" "/index.html" "/*.json" \
+            --query 'Invalidation.Id' --output text)
+          echo "invalidation_id=$INVALIDATION_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for invalidation
+        run: |
+          aws cloudfront wait invalidation-completed \
+            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --id "${{ steps.invalidate.outputs.invalidation_id }}"
+
+      - name: Record web deployment in New Relic
+        id: nr-deploy-web
+        if: success()
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_BROWSER_ENTITY_GUID: ${{ vars.NEW_RELIC_BROWSER_ENTITY_GUID }}
+          ACTOR: ${{ github.actor }}
+          REF_INPUT: ${{ inputs.ref }}
+          DEPLOYED_SHA: ${{ steps.ref.outputs.sha }}
+        run: |
+          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_BROWSER_ENTITY_GUID:-}" ]; then
+            echo "New Relic API key or Browser entity GUID not configured, skipping"
+            exit 0
+          fi
+          TIMESTAMP=$(date -u +%s)000
+          DESCRIPTION="Manual web deploy: actor=${ACTOR} ref=${REF_INPUT}"
+          PAYLOAD=$(jq -n \
+            --arg version "$DEPLOYED_SHA" \
+            --arg entity "$NEW_RELIC_BROWSER_ENTITY_GUID" \
+            --arg desc "$DESCRIPTION" \
+            --argjson ts "$TIMESTAMP" \
+            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: BASIC, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
+          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
+            -H "Content-Type: application/json" \
+            -H "API-Key: $NEW_RELIC_API_KEY" \
+            -d "$PAYLOAD" || printf '\n000')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
+            echo "::warning::New Relic web deployment tracking failed (HTTP $HTTP_CODE): $BODY"
+          else
+            echo "Web deployment recorded in New Relic"
+          fi
+
+      - name: Smoke test web
+        id: smoke-web
+        env:
+          URL: https://v2.percymain.org/
+        run: |
+          curl -fsSL --max-time 15 "$URL" -o /tmp/index.html
+          grep -q '<div id="root"' /tmp/index.html
+          # `|| true` keeps errexit happy when grep finds no match.
+          ASSET=$(grep -oE 'src="(/[^"]+\.js)"' /tmp/index.html | head -1 | sed 's/src="//;s/"//' || true)
+          if [ -n "$ASSET" ]; then
+            curl -fsSL --max-time 15 "https://v2.percymain.org${ASSET}" -o /dev/null
+          else
+            echo "::warning::No JS chunk found in index.html — skipping asset reachability check"
+          fi
+
+      - name: Deploy summary
+        if: always()
+        env:
+          REF_INPUT: ${{ inputs.ref }}
+          DEPLOYED_SHA: ${{ steps.ref.outputs.sha }}
+        run: |
+          {
+            echo "## Deploy Web (manual) — ${{ job.status }}"
+            echo "- Actor: \`${GITHUB_ACTOR}\`"
+            echo "- Ref input: \`${REF_INPUT}\`"
+            echo "- SHA: \`${DEPLOYED_SHA:-${GITHUB_SHA}}\`"
+            echo "- Bucket: \`${{ vars.FRONTEND_BUCKET }}\`"
+            echo "- CF distribution: \`${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}\`"
+            echo "- Invalidation: \`${{ steps.invalidate.outputs.invalidation_id || 'skipped' }}\`"
+            echo "- Smoke: \`${{ steps.smoke-web.outcome || 'skipped' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          job: deploy-web-manual
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}

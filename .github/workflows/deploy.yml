@@ -7,66 +7,26 @@ on:
 permissions:
   id-token: write
   contents: read
+  issues: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: "bash -euo pipefail {0}"
 
 env:
   AWS_REGION: eu-west-2
 
 jobs:
-  # ── Stage 1: CI ──────────────────────────────────────────────────────
+  # ── Stage 1: CI (lint + test + build, shared with PR CI) ────────────
+  # `pnpm build` is a hard gate before any deploy work begins so a build
+  # break that only manifests with prod env vars or a missing workspace
+  # export fails fast instead of mid-deploy.
   ci:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        # pgvector/pgvector:pg16 = official Postgres 16 image with the
-        # vector extension pre-built. Drop-in for postgres:16-alpine —
-        # required since the scout_fact migration runs CREATE EXTENSION
-        # vector.
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: percy
-          POSTGRES_PASSWORD: percy
-          POSTGRES_DB: percy_main
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U percy -d percy_main"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Run migrations
-        run: pnpm db:up
-        env:
-          DATABASE_URL: postgres://percy:percy@localhost:5432/percy_main
-
-      - name: Format check
-        run: pnpm format:check
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Type check
-        run: pnpm typecheck
-
-      - name: Unit tests
-        run: pnpm test
-        env:
-          DATABASE_URL: postgres://percy:percy@localhost:5432/percy_main
-
-      - name: Integration tests
-        run: pnpm --filter api test:integration
+    uses: ./.github/workflows/_lint-test-build.yml
 
   # ── Detect changed paths (runs parallel with Terraform) ──────────────
   changes:
@@ -96,6 +56,11 @@ jobs:
   terraform-shared:
     needs: ci
     runs-on: ubuntu-latest
+    # Shared layer applies Route 53, IAM, S3 backend, certificates —
+    # gate on the production environment (same reviewer list as the
+    # production layer) so a bad merge can't auto-apply foundational
+    # infra without a human approval.
+    environment: production
     env:
       TF_VERSION: "1.7"
     steps:
@@ -124,9 +89,86 @@ jobs:
             exit 1
           fi
 
-      - name: Terraform Apply
+      - name: Terraform Plan
+        id: plan
         working-directory: infra/environments/shared
-        run: terraform apply -auto-approve
+        # Plan-then-apply in the gated job: PR reviewers approve from
+        # the PR's plan comment; this records the apply-time plan in
+        # the run summary so any drift between PR plan and apply is
+        # auditable post hoc. See ADR 035.
+        run: |
+          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Plan summary
+        if: always()
+        working-directory: infra/environments/shared
+        run: |
+          {
+            echo "## Terraform plan (shared, apply-time) — ${{ steps.plan.outcome }}"
+            echo '```'
+            tail -n 200 plan.txt 2>/dev/null || echo "(no plan.txt)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Terraform Apply
+        id: apply
+        working-directory: infra/environments/shared
+        run: |
+          terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Apply summary
+        if: always()
+        working-directory: infra/environments/shared
+        run: |
+          {
+            echo "## Terraform apply (shared) — ${{ steps.apply.outcome }}"
+            echo '```'
+            tail -n 100 apply.log 2>/dev/null || echo "(no apply.log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record TF apply in New Relic
+        if: success()
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_INFRA_ENTITY_GUID: ${{ vars.NEW_RELIC_INFRA_ENTITY_GUID }}
+          ACTOR: ${{ github.actor }}
+          REF_NAME: ${{ github.ref_name }}
+          DEPLOYED_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_INFRA_ENTITY_GUID:-}" ]; then
+            echo "New Relic API key or infrastructure entity GUID not configured, skipping"
+            exit 0
+          fi
+          TIMESTAMP=$(date -u +%s)000
+          DESCRIPTION="Infrastructure apply (shared): actor=${ACTOR} ref=${REF_NAME}"
+          PAYLOAD=$(jq -n \
+            --arg version "$DEPLOYED_SHA" \
+            --arg entity "$NEW_RELIC_INFRA_ENTITY_GUID" \
+            --arg desc "$DESCRIPTION" \
+            --argjson ts "$TIMESTAMP" \
+            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: BASIC, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
+          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
+            -H "Content-Type: application/json" \
+            -H "API-Key: $NEW_RELIC_API_KEY" \
+            -d "$PAYLOAD" || printf '\n000')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
+            echo "::warning::New Relic infrastructure deployment tracking failed (HTTP $HTTP_CODE): $BODY"
+          else
+            echo "Infrastructure (shared) recorded in New Relic"
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          job: terraform-shared
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
 
   terraform-production:
     needs: terraform-shared
@@ -151,9 +193,82 @@ jobs:
         working-directory: infra/environments/production
         run: terraform init
 
-      - name: Terraform Apply
+      - name: Terraform Plan
+        id: plan
         working-directory: infra/environments/production
-        run: terraform apply -auto-approve
+        run: |
+          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Plan summary
+        if: always()
+        working-directory: infra/environments/production
+        run: |
+          {
+            echo "## Terraform plan (production, apply-time) — ${{ steps.plan.outcome }}"
+            echo '```'
+            tail -n 200 plan.txt 2>/dev/null || echo "(no plan.txt)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Terraform Apply
+        id: apply
+        working-directory: infra/environments/production
+        run: |
+          terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Apply summary
+        if: always()
+        working-directory: infra/environments/production
+        run: |
+          {
+            echo "## Terraform apply (production) — ${{ steps.apply.outcome }}"
+            echo '```'
+            tail -n 100 apply.log 2>/dev/null || echo "(no apply.log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record TF apply in New Relic
+        if: success()
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_INFRA_ENTITY_GUID: ${{ vars.NEW_RELIC_INFRA_ENTITY_GUID }}
+          ACTOR: ${{ github.actor }}
+          REF_NAME: ${{ github.ref_name }}
+          DEPLOYED_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_INFRA_ENTITY_GUID:-}" ]; then
+            echo "New Relic API key or infrastructure entity GUID not configured, skipping"
+            exit 0
+          fi
+          TIMESTAMP=$(date -u +%s)000
+          DESCRIPTION="Infrastructure apply (production): actor=${ACTOR} ref=${REF_NAME}"
+          PAYLOAD=$(jq -n \
+            --arg version "$DEPLOYED_SHA" \
+            --arg entity "$NEW_RELIC_INFRA_ENTITY_GUID" \
+            --arg desc "$DESCRIPTION" \
+            --argjson ts "$TIMESTAMP" \
+            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: BASIC, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
+          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
+            -H "Content-Type: application/json" \
+            -H "API-Key: $NEW_RELIC_API_KEY" \
+            -d "$PAYLOAD" || printf '\n000')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
+            echo "::warning::New Relic infrastructure deployment tracking failed (HTTP $HTTP_CODE): $BODY"
+          else
+            echo "Infrastructure (production) recorded in New Relic"
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          job: terraform-production
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
 
   # ── Stage 3: Deploy API ─────────────────────────────────────────────
   deploy-api:
@@ -194,16 +309,29 @@ jobs:
 
       - name: Register new task definition
         id: task-def
+        env:
+          IMAGE_URI: ${{ steps.build.outputs.image }}
+          RELEASE_SHA: ${{ github.sha }}
         run: |
           TASK_DEF=$(aws ecs describe-task-definition \
             --task-definition $ECS_SERVICE \
             --query 'taskDefinition' \
             --output json)
 
-          NEW_TASK_DEF=$(echo $TASK_DEF | jq \
-            --arg IMAGE "${{ steps.build.outputs.image }}" \
-            '.containerDefinitions[0].image = $IMAGE |
-             del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          # Patch image + add RELEASE_SHA / NEW_RELIC_LABELS env vars so
+          # NR APM and OTel can filter logs/traces by release. Replaces
+          # any existing entries with the same name (jq's group_by keeps
+          # the last occurrence after our additions are appended).
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq \
+            --arg IMAGE "$IMAGE_URI" \
+            --arg SHA "$RELEASE_SHA" \
+            '.containerDefinitions[0].image = $IMAGE
+             | .containerDefinitions[0].environment = (
+                 ((.containerDefinitions[0].environment // []) | map(select(.name != "RELEASE_SHA" and .name != "NEW_RELIC_LABELS"))) +
+                 [{name: "RELEASE_SHA", value: $SHA},
+                  {name: "NEW_RELIC_LABELS", value: ("release:" + $SHA)}]
+               )
+             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
 
           TASK_DEF_ARN=$(aws ecs register-task-definition \
             --cli-input-json "$NEW_TASK_DEF" \
@@ -213,6 +341,7 @@ jobs:
           echo "task-definition-arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
 
       - name: Run migrations
+        id: migrate
         run: |
           NETWORK_CONFIG=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER \
@@ -235,6 +364,7 @@ jobs:
             --output text)
 
           echo "Migration task: $TASK_ARN"
+          echo "task_arn=$TASK_ARN" >> "$GITHUB_OUTPUT"
           aws ecs wait tasks-stopped --cluster $ECS_CLUSTER --tasks $TASK_ARN
 
           EXIT_CODE=$(aws ecs describe-tasks \
@@ -242,11 +372,58 @@ jobs:
             --tasks $TASK_ARN \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
 
           if [ "$EXIT_CODE" != "0" ]; then
             echo "Migration failed with exit code $EXIT_CODE"
             exit 1
           fi
+
+      - name: Migration failure diagnostics
+        if: failure() && steps.migrate.outputs.task_arn != ''
+        env:
+          TASK_ARN: ${{ steps.migrate.outputs.task_arn }}
+          EXIT_CODE: ${{ steps.migrate.outputs.exit_code }}
+          TASK_DEF_ARN: ${{ steps.task-def.outputs.task-definition-arn }}
+        run: |
+          # Surface task-stop reason + container reason + last 50 log
+          # lines from the task's CloudWatch stream into the run summary,
+          # so the cause (Fargate kill, OOM, SQL error) is visible
+          # without dropping into the AWS console.
+          set +e
+          STOPPED_REASON=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+          CONTAINER_REASON=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].reason' --output text)
+          # Resolve the log group + stream prefix from the task definition.
+          LOG_GROUP=$(aws ecs describe-task-definition --task-definition "$TASK_DEF_ARN" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options."awslogs-group"' --output text)
+          STREAM_PREFIX=$(aws ecs describe-task-definition --task-definition "$TASK_DEF_ARN" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options."awslogs-stream-prefix"' --output text)
+          # awslogs convention: <prefix>/<containerName>/<task-id>
+          TASK_ID=$(echo "$TASK_ARN" | awk -F/ '{print $NF}')
+          STREAM="${STREAM_PREFIX}/api/${TASK_ID}"
+          LOG_TAIL=$(aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$STREAM" \
+            --limit 50 \
+            --no-start-from-head \
+            --query 'events[].message' --output text 2>&1)
+          set -e
+          {
+            echo "## Migration failure"
+            echo "- Exit code: \`${EXIT_CODE}\`"
+            echo "- Task: \`${TASK_ARN}\`"
+            echo "- Stopped reason: \`${STOPPED_REASON}\`"
+            echo "- Container reason: \`${CONTAINER_REASON}\`"
+            echo "- Log group: \`${LOG_GROUP}\`"
+            echo "- Log stream: \`${STREAM}\`"
+            echo ""
+            echo '### Last 50 log lines'
+            echo '```'
+            echo "${LOG_TAIL}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Update ECS service
         run: |
@@ -262,43 +439,77 @@ jobs:
             --services $ECS_SERVICE
 
       - name: Smoke test
+        id: smoke
         run: |
+          # Assert /health returns { status: "ok", database: "connected" }.
+          # 200 alone proves only the LB reaches the task; the body fields
+          # additionally prove DB connectivity. Until #193 splits to
+          # /health/ready and switches to 503-on-degraded, we body-grep.
           for i in $(seq 1 10); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.v2.percymain.org/health)
-            if [ "$STATUS" = "200" ]; then
-              echo "Smoke test passed"
+            BODY=$(curl -fsSL --max-time 10 https://api.v2.percymain.org/health || true)
+            if echo "$BODY" | jq -e '.status == "ok" and .database == "connected"' >/dev/null 2>&1; then
+              echo "Smoke test passed: $BODY"
               exit 0
             fi
-            echo "Attempt $i: got $STATUS, retrying..."
+            echo "Attempt $i: body=$BODY, retrying..."
             sleep 5
           done
-          echo "Smoke test failed"
+          echo "Smoke test failed (last body: $BODY)"
           exit 1
 
       - name: Record deployment in New Relic
+        id: nr-deploy
         if: success()
         env:
           NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
           NEW_RELIC_ENTITY_GUID: ${{ vars.NEW_RELIC_ENTITY_GUID }}
+          DEPLOYED_SHA: ${{ github.sha }}
         run: |
-          if [ -z "$NEW_RELIC_API_KEY" ] || [ -z "$NEW_RELIC_ENTITY_GUID" ]; then
+          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_ENTITY_GUID:-}" ]; then
             echo "New Relic API key or entity GUID not configured, skipping"
             exit 0
           fi
           TIMESTAMP=$(date -u +%s)000
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
+          PAYLOAD=$(jq -n \
+            --arg version "$DEPLOYED_SHA" \
+            --arg entity "$NEW_RELIC_ENTITY_GUID" \
+            --argjson ts "$TIMESTAMP" \
+            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: \"Deployed from GitHub Actions\", commit: \"" + $version + "\", deploymentType: ROLLING, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
+          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
             -H "Content-Type: application/json" \
             -H "API-Key: $NEW_RELIC_API_KEY" \
-            -d "{
-              \"query\": \"mutation { changeTrackingCreateDeployment(deployment: { version: \\\"${{ github.sha }}\\\", entityGuid: \\\"$NEW_RELIC_ENTITY_GUID\\\", description: \\\"Deployed from GitHub Actions\\\", commit: \\\"${{ github.sha }}\\\", deploymentType: ROLLING, timestamp: $TIMESTAMP }) { deploymentId } }\"
-            }")
+            -d "$PAYLOAD" || printf '\n000')
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | sed '$d')
-          if [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
+          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
             echo "::warning::New Relic deployment tracking failed (HTTP $HTTP_CODE): $BODY"
           else
-            echo "Deployment recorded in New Relic"
+            DEPLOY_ID=$(echo "$BODY" | jq -r '.data.changeTrackingCreateDeployment.deploymentId // empty')
+            echo "deployment_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
+            echo "Deployment recorded in New Relic: ${DEPLOY_ID}"
           fi
+
+      - name: Deploy summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy API — ${{ job.status }}"
+            echo "- Actor: \`${GITHUB_ACTOR}\`"
+            echo "- Ref: \`${GITHUB_REF}\`"
+            echo "- SHA: \`${GITHUB_SHA}\`"
+            echo "- Image: \`${{ steps.build.outputs.image || 'n/a' }}\`"
+            echo "- Task def: \`${{ steps.task-def.outputs.task-definition-arn || 'n/a' }}\`"
+            echo "- Smoke: \`${{ steps.smoke.outcome || 'skipped' }}\`"
+            echo "- NR deploy: \`${{ steps.nr-deploy.outputs.deployment_id || 'skipped' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          job: deploy-api
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
 
   # ── Stage 4: Deploy Frontend ────────────────────────────────────────
   deploy-web:
@@ -362,7 +573,95 @@ jobs:
             'aws s3 cp "$1" s3://${{ vars.FRONTEND_BUCKET }}/${1#apps/web/dist/} --cache-control "public, max-age=0, must-revalidate"' _ {} \;
 
       - name: Invalidate CloudFront cache
+        id: invalidate
+        # `/` and `/index.html` cache as separate keys at the edge — must
+        # invalidate both so the post-deploy smoke against `/` doesn't
+        # validate a stale cached root document.
         run: |
-          aws cloudfront create-invalidation \
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/index.html" "/*.json"
+            --paths "/" "/index.html" "/*.json" \
+            --query 'Invalidation.Id' --output text)
+          echo "invalidation_id=$INVALIDATION_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for invalidation
+        run: |
+          aws cloudfront wait invalidation-completed \
+            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --id "${{ steps.invalidate.outputs.invalidation_id }}"
+
+      - name: Record web deployment in New Relic
+        id: nr-deploy-web
+        if: success()
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_BROWSER_ENTITY_GUID: ${{ vars.NEW_RELIC_BROWSER_ENTITY_GUID }}
+          ACTOR: ${{ github.actor }}
+          REF_NAME: ${{ github.ref_name }}
+          DEPLOYED_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_BROWSER_ENTITY_GUID:-}" ]; then
+            echo "New Relic API key or Browser entity GUID not configured, skipping"
+            exit 0
+          fi
+          TIMESTAMP=$(date -u +%s)000
+          DESCRIPTION="Web deploy: actor=${ACTOR} ref=${REF_NAME}"
+          PAYLOAD=$(jq -n \
+            --arg version "$DEPLOYED_SHA" \
+            --arg entity "$NEW_RELIC_BROWSER_ENTITY_GUID" \
+            --arg desc "$DESCRIPTION" \
+            --argjson ts "$TIMESTAMP" \
+            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: BASIC, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
+          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
+            -H "Content-Type: application/json" \
+            -H "API-Key: $NEW_RELIC_API_KEY" \
+            -d "$PAYLOAD" || printf '\n000')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
+            echo "::warning::New Relic web deployment tracking failed (HTTP $HTTP_CODE): $BODY"
+          else
+            DEPLOY_ID=$(echo "$BODY" | jq -r '.data.changeTrackingCreateDeployment.deploymentId // empty')
+            echo "deployment_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
+            echo "Web deployment recorded in New Relic: ${DEPLOY_ID}"
+          fi
+
+      - name: Smoke test web
+        id: smoke-web
+        env:
+          URL: https://v2.percymain.org/
+        run: |
+          curl -fsSL --max-time 15 "$URL" -o /tmp/index.html
+          # Marker that the SPA shell rendered correctly.
+          grep -q '<div id="root"' /tmp/index.html
+          # Verify at least one referenced JS chunk is reachable. `|| true`
+          # keeps errexit happy when grep finds no match (an empty $ASSET
+          # is handled by the `if -n` branch below).
+          ASSET=$(grep -oE 'src="(/[^"]+\.js)"' /tmp/index.html | head -1 | sed 's/src="//;s/"//' || true)
+          if [ -n "$ASSET" ]; then
+            curl -fsSL --max-time 15 "https://v2.percymain.org${ASSET}" -o /dev/null
+          else
+            echo "::warning::No JS chunk found in index.html — skipping asset reachability check"
+          fi
+
+      - name: Deploy summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy Web — ${{ job.status }}"
+            echo "- Actor: \`${GITHUB_ACTOR}\`"
+            echo "- Ref: \`${GITHUB_REF}\`"
+            echo "- SHA: \`${GITHUB_SHA}\`"
+            echo "- Bucket: \`${{ vars.FRONTEND_BUCKET }}\`"
+            echo "- CF distribution: \`${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}\`"
+            echo "- Invalidation: \`${{ steps.invalidate.outputs.invalidation_id || 'skipped' }}\`"
+            echo "- Smoke: \`${{ steps.smoke-web.outcome || 'skipped' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          job: deploy-web
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}

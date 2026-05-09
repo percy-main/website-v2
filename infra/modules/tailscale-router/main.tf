@@ -50,6 +50,12 @@ variable "advertise_cidr" {
   description = "CIDR block to advertise to the tailnet (typically the VPC CIDR)"
 }
 
+variable "enable_alarms" {
+  type        = bool
+  default     = false
+  description = "Create a dedicated SNS topic + StatusCheck/CPU alarms for the router instance. Operators subscribe to the topic out of band."
+}
+
 variable "instance_type" {
   type        = string
   default     = "t3.micro"
@@ -297,4 +303,98 @@ output "auth_secret_arn" {
 output "auth_secret_name" {
   description = "Name of the Secrets Manager secret (for aws CLI put-secret-value)"
   value       = aws_secretsmanager_secret.tailscale_auth.name
+}
+
+# -----------------------------------------------------------------------------
+# CloudWatch alarms — StatusCheck (instance + system) and sustained high CPU.
+# The router gates admin DB access; if it goes down the only recovery path
+# is a Terraform redeploy, so failures need to page rather than be discovered
+# next time someone tries to reach RDS.
+#
+# A dedicated SNS topic (not the monitoring module's alarms topic) avoids
+# the encrypted-topic problem: the monitoring module's topic uses
+# alias/aws/sns, which CloudWatch alarms cannot publish to (the AWS-managed
+# SNS KMS key policy can't be edited to allow cloudwatch.amazonaws.com).
+# Operators subscribe to this topic out of band.
+# -----------------------------------------------------------------------------
+
+resource "aws_sns_topic" "router_alarms" {
+  count = var.enable_alarms ? 1 : 0
+  name  = "${local.name_prefix}-tailscale-router-alarms"
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-tailscale-router-alarms"
+  })
+}
+
+resource "aws_cloudwatch_metric_alarm" "router_status_check_instance" {
+  count = var.enable_alarms ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-tailscale-router-status-check-instance"
+  alarm_description   = "Tailscale router instance status check failing — instance unreachable / kernel panic / network problem on the instance side"
+  namespace           = "AWS/EC2"
+  metric_name         = "StatusCheckFailed_Instance"
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 2
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    InstanceId = aws_instance.router.id
+  }
+
+  alarm_actions = [aws_sns_topic.router_alarms[0].arn]
+  ok_actions    = [aws_sns_topic.router_alarms[0].arn]
+
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "router_status_check_system" {
+  count = var.enable_alarms ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-tailscale-router-status-check-system"
+  alarm_description   = "Tailscale router system status check failing — AWS-side hardware / network problem (auto-recovery should kick in but page anyway)"
+  namespace           = "AWS/EC2"
+  metric_name         = "StatusCheckFailed_System"
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 2
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    InstanceId = aws_instance.router.id
+  }
+
+  alarm_actions = [aws_sns_topic.router_alarms[0].arn]
+  ok_actions    = [aws_sns_topic.router_alarms[0].arn]
+
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "router_cpu_high" {
+  count = var.enable_alarms ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-tailscale-router-cpu-high"
+  alarm_description   = "Tailscale router CPU sustained > 80% — likely runaway process or DDoS"
+  namespace           = "AWS/EC2"
+  metric_name         = "CPUUtilization"
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 3
+  threshold           = 80
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    InstanceId = aws_instance.router.id
+  }
+
+  alarm_actions = [aws_sns_topic.router_alarms[0].arn]
+  ok_actions    = [aws_sns_topic.router_alarms[0].arn]
+
+  tags = local.common_tags
 }

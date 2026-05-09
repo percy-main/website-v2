@@ -28,6 +28,14 @@ provider "aws" {
   region = "eu-west-2"
 }
 
+# us-east-1 provider — required for CloudFront and Route 53 metrics
+# (both surface in us-east-1 only) and for any CloudFront-namespace
+# CloudWatch alarms.
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
 # ---------------------------------------------------------------------------
 # Tailscale provider — auth via OAuth client stored in Secrets Manager
 # (manually created in the Tailscale admin console with scopes: Policy File
@@ -77,6 +85,17 @@ data "terraform_remote_state" "shared" {
 
 locals {
   shared = data.terraform_remote_state.shared.outputs
+
+  # Reliability alarms SNS topic in us-east-1 (added by #211 fixup).
+  # try() lets PR plans pass before the shared layer has been re-applied
+  # with this new output. The deploy chain on main applies
+  # terraform-shared before terraform-production, so by apply time on
+  # main the output exists. Until then, the affected alarms have an
+  # empty action list — they'll evaluate but won't notify.
+  reliability_alarms_topic_arn_us_east_1 = try(
+    data.terraform_remote_state.shared.outputs.reliability_alarms_topic_arn_us_east_1,
+    null
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -95,14 +114,15 @@ module "vpc" {
 # ---------------------------------------------------------------------------
 
 module "rds" {
-  source             = "../../modules/rds"
-  environment        = "production"
-  instance_class     = "db.t4g.micro"
-  allocated_storage  = 20
-  multi_az           = false
-  vpc_id             = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnet_ids
-  security_group_id  = module.vpc.rds_security_group_id
+  source                    = "../../modules/rds"
+  environment               = "production"
+  instance_class            = "db.t4g.micro"
+  allocated_storage         = 20
+  multi_az                  = false
+  vpc_id                    = module.vpc.vpc_id
+  private_subnet_ids        = module.vpc.private_subnet_ids
+  security_group_id         = module.vpc.rds_security_group_id
+  enable_event_subscription = true
 }
 
 # ---------------------------------------------------------------------------
@@ -128,6 +148,7 @@ module "ecs" {
   assign_public_ip         = true
   ses_identity_arn         = local.shared.ses_identity_arn
   newrelic_license_key_arn = "${aws_secretsmanager_secret.app_secrets.arn}:NEW_RELIC_LICENSE_KEY::"
+  enable_nri_ecs_alarm     = true
 
   documents_bucket_arn                = module.documents_bucket.bucket_arn
   document_uploads_bucket_arn         = module.document_uploads.bucket_arn
@@ -302,6 +323,78 @@ module "cdn" {
   api_base_url        = "https://api.v2.percymain.org"
 }
 
+# CloudFront CloudWatch alarms — metrics live in us-east-1 only, so the
+# alarms must be provisioned with the us_east_1 provider. Routed to the
+# shared us-east-1 reliability alarms topic (operator-subscribed).
+resource "aws_cloudwatch_metric_alarm" "cdn_5xx_rate" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-production-cdn-5xx-rate"
+  alarm_description   = "CloudFront 5xx error rate >1% — origin (ALB → API) is failing or edge layer is misbehaving"
+  namespace           = "AWS/CloudFront"
+  metric_name         = "5xxErrorRate"
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 3
+  threshold           = 1
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DistributionId = module.cdn.distribution_id
+    Region         = "Global"
+  }
+
+  alarm_actions = compact([local.reliability_alarms_topic_arn_us_east_1])
+  ok_actions    = compact([local.reliability_alarms_topic_arn_us_east_1])
+}
+
+resource "aws_cloudwatch_metric_alarm" "cdn_origin_latency" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-production-cdn-origin-latency"
+  alarm_description   = "CloudFront OriginLatency p99 >2s — slow origin (ALB → API) responses, may indicate API saturation"
+  namespace           = "AWS/CloudFront"
+  metric_name         = "OriginLatency"
+  extended_statistic  = "p99"
+  period              = 300
+  evaluation_periods  = 3
+  threshold           = 2000
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DistributionId = module.cdn.distribution_id
+    Region         = "Global"
+  }
+
+  alarm_actions = compact([local.reliability_alarms_topic_arn_us_east_1])
+  ok_actions    = compact([local.reliability_alarms_topic_arn_us_east_1])
+}
+
+resource "aws_cloudwatch_metric_alarm" "cdn_cache_hit_rate" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-production-cdn-cache-hit-rate"
+  alarm_description   = "CloudFront cache hit rate <80% — regression in cache config or sudden uncached traffic pattern. CacheHitRate requires additional metrics to be enabled on the distribution."
+  namespace           = "AWS/CloudFront"
+  metric_name         = "CacheHitRate"
+  statistic           = "Average"
+  period              = 3600
+  evaluation_periods  = 2
+  threshold           = 80
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DistributionId = module.cdn.distribution_id
+    Region         = "Global"
+  }
+
+  alarm_actions = compact([local.reliability_alarms_topic_arn_us_east_1])
+  ok_actions    = compact([local.reliability_alarms_topic_arn_us_east_1])
+}
+
 # ---------------------------------------------------------------------------
 # DNS (Route 53) — only api.v2 record needed; percymain.org DNS is at Netlify
 # ---------------------------------------------------------------------------
@@ -343,6 +436,10 @@ module "monitoring" {
   alb_arn_suffix          = module.ecs.alb_arn_suffix
   target_group_arn_suffix = module.ecs.target_group_arn_suffix
   rds_instance_id         = module.rds.instance_id
+  # 50 GiB cap (must match `max_allocated_storage` on the RDS module —
+  # default 50 in modules/rds/main.tf). Drives the percentage-based
+  # storage alarm.
+  rds_max_allocated_storage_bytes = 50 * 1024 * 1024 * 1024
 }
 
 # ---------------------------------------------------------------------------
@@ -356,6 +453,7 @@ module "tailscale_router" {
   vpc_id           = module.vpc.vpc_id
   public_subnet_id = module.vpc.public_subnet_ids[0]
   advertise_cidr   = "10.0.0.0/16"
+  enable_alarms    = true
 }
 
 # Allow admins on the tailnet (via the router) to reach RDS
