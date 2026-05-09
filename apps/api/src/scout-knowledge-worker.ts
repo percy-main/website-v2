@@ -15,6 +15,7 @@
  * backstop the report worker carries.
  */
 
+import { context, propagation, ROOT_CONTEXT } from "@opentelemetry/api";
 import { createClient } from "@percy-main/db";
 import { parseConfig } from "./config.ts";
 import { createVoyageClient } from "./features/scout/facts/voyage.ts";
@@ -22,6 +23,21 @@ import { runIngest } from "./features/scout/knowledge/run-ingest.ts";
 import { resolveModel } from "./features/scout/provider.ts";
 import { createS3KnowledgeBaseStore } from "./lib/s3-knowledge-base.ts";
 import { createWorkerLogger } from "./lib/worker-logger.ts";
+
+/**
+ * Extract the propagated W3C trace context from env vars set by the
+ * launcher (#197). See scout-report-worker.ts for the full rationale.
+ */
+function extractTraceContext() {
+  const carrier: Record<string, string> = {};
+  if (process.env.OTEL_TRACEPARENT) {
+    carrier.traceparent = process.env.OTEL_TRACEPARENT;
+  }
+  if (process.env.OTEL_TRACESTATE) {
+    carrier.tracestate = process.env.OTEL_TRACESTATE;
+  }
+  return propagation.extract(ROOT_CONTEXT, carrier);
+}
 
 const DOCUMENT_ID = process.env.KB_DOCUMENT_ID;
 if (!DOCUMENT_ID) {
@@ -53,13 +69,16 @@ const anthropicModel = config.ANTHROPIC_API_KEY
   : null;
 const scoutKnowledgeBase = createS3KnowledgeBaseStore(config);
 const logger = createWorkerLogger("scout-knowledge-worker");
+const parentCtx = extractTraceContext();
 
 logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_started");
 
 try {
-  await runIngest(
-    { db, voyage, anthropicModel, scoutKnowledgeBase, config, logger },
-    DOCUMENT_ID,
+  await context.with(parentCtx, () =>
+    runIngest(
+      { db, voyage, anthropicModel, scoutKnowledgeBase, config, logger },
+      DOCUMENT_ID,
+    ),
   );
   logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_done");
   await db.destroy();

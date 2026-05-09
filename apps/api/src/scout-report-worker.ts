@@ -14,6 +14,7 @@
  * stalled outside the agent loop.
  */
 
+import { context, propagation, ROOT_CONTEXT } from "@opentelemetry/api";
 import { createClient } from "@percy-main/db";
 import { parseConfig } from "./config.ts";
 import { createApiClient } from "./features/play-cricket/api-client.ts";
@@ -21,6 +22,23 @@ import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runReport } from "./features/scout/report/run-report.ts";
 import { createScoutReportStore } from "./lib/s3-scout-reports.ts";
 import { createWorkerLogger } from "./lib/worker-logger.ts";
+
+/**
+ * Extract the propagated W3C trace context from env vars set by the
+ * launcher (#197). Returns a Context that the rest of the worker
+ * should run inside via context.with(...) so any spans/metrics it
+ * emits are children of the API span that triggered this run.
+ */
+function extractTraceContext() {
+  const carrier: Record<string, string> = {};
+  if (process.env.OTEL_TRACEPARENT) {
+    carrier.traceparent = process.env.OTEL_TRACEPARENT;
+  }
+  if (process.env.OTEL_TRACESTATE) {
+    carrier.tracestate = process.env.OTEL_TRACESTATE;
+  }
+  return propagation.extract(ROOT_CONTEXT, carrier);
+}
 
 const RENDER_MARGIN_MS = 90_000;
 
@@ -70,21 +88,24 @@ const voyage = config.VOYAGE_API_KEY
   : undefined;
 const scoutReports = createScoutReportStore(config);
 const logger = createWorkerLogger("scout-report-worker");
+const parentCtx = extractTraceContext();
 
 logger.info({ reportId: REPORT_ID }, "scout_report_worker_started");
 
 try {
-  await runReport(
-    {
-      db,
-      dbReadonly,
-      playCricket,
-      config,
-      voyage,
-      scoutReports,
-      logger,
-    },
-    REPORT_ID,
+  await context.with(parentCtx, () =>
+    runReport(
+      {
+        db,
+        dbReadonly,
+        playCricket,
+        config,
+        voyage,
+        scoutReports,
+        logger,
+      },
+      REPORT_ID,
+    ),
   );
   logger.info({ reportId: REPORT_ID }, "scout_report_worker_done");
   await db.destroy();

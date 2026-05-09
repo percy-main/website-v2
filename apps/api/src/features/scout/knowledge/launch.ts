@@ -1,6 +1,25 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
+import { context, propagation } from "@opentelemetry/api";
 import type { Config } from "../../../config.ts";
 import { runIngest, type RunIngestDeps } from "./run-ingest.ts";
+
+/**
+ * Inject the active OTel context into env-var carriers so the spawned
+ * worker can extract them and create its root span as a child. See
+ * launch.ts in scout/report for the full rationale.
+ */
+function tracepartEnvOverrides(): { name: string; value: string }[] {
+  const carrier: Record<string, string> = {};
+  propagation.inject(context.active(), carrier);
+  const out: { name: string; value: string }[] = [];
+  if (carrier.traceparent) {
+    out.push({ name: "OTEL_TRACEPARENT", value: carrier.traceparent });
+  }
+  if (carrier.tracestate) {
+    out.push({ name: "OTEL_TRACESTATE", value: carrier.tracestate });
+  }
+  return out;
+}
 
 export interface LaunchScoutKbOpts {
   config: Config;
@@ -76,8 +95,20 @@ export async function launchScoutKbIngest({
         containerOverrides: [
           {
             name: "api",
-            command: ["node", "apps/api/dist/scout-knowledge-worker.js"],
-            environment: [{ name: "KB_DOCUMENT_ID", value: documentId }],
+            // Mirror the API's `start` script: --import boots the OTel
+            // SDK before any worker code runs. Without it the SDK is
+            // never registered, the propagator can't extract from env,
+            // and the OTEL_TRACEPARENT injected here would be inert.
+            command: [
+              "node",
+              "--import",
+              "./apps/api/dist/instrumentation.js",
+              "apps/api/dist/scout-knowledge-worker.js",
+            ],
+            environment: [
+              { name: "KB_DOCUMENT_ID", value: documentId },
+              ...tracepartEnvOverrides(),
+            ],
           },
         ],
       },
