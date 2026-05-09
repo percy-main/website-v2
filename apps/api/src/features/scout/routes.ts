@@ -755,6 +755,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               {
                 event: "scout.turn",
                 threadId,
+                userId: user.id,
                 provider: app.config.SCOUT_PROVIDER_CHAT,
                 model: app.config.SCOUT_MODEL_CHAT,
                 inputTokens,
