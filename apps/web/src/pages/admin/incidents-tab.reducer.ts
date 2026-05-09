@@ -202,9 +202,7 @@ export function buildIncidentPayload(
     actionsTaken: state.actionsTaken.trim() || null,
     targetCompletionDate: fromDateInput(state.targetCompletionDate),
     riddorRequired:
-      state.riddorRequired === "unset"
-        ? null
-        : state.riddorRequired === "yes",
+      state.riddorRequired === "unset" ? null : state.riddorRequired === "yes",
     riddorReportedAt: fromDateInput(state.riddorReportedAt),
     internalNotes: state.internalNotes.trim() || null,
     closureReason: state.closureReason.trim() || null,

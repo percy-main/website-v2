@@ -75,8 +75,15 @@ export function ExpenseHistoryTab() {
     defaults,
     makeInitialExpenseFiltersState,
   );
-  const { page, status, expenseType, search, debouncedSearch, dateFrom, dateTo } =
-    filters;
+  const {
+    page,
+    status,
+    expenseType,
+    search,
+    debouncedSearch,
+    dateFrom,
+    dateTo,
+  } = filters;
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(
     null,
   );

@@ -360,7 +360,9 @@ function NewThreadSplitButton({
                 <span className="text-sm font-medium text-stone-900">
                   {opt.label}
                 </span>
-                <span className="text-xs text-stone-500">{opt.description}</span>
+                <span className="text-xs text-stone-500">
+                  {opt.description}
+                </span>
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>

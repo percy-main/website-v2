@@ -390,7 +390,9 @@ function MembershipSection({
   if (!membership) {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-stone-900">Membership</h3>
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">
+          Membership
+        </h3>
         <p className="text-sm text-stone-500">No membership record found.</p>
       </section>
     );

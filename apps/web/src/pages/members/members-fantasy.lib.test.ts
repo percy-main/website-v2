@@ -191,9 +191,7 @@ describe("canDropOnSlot", () => {
   });
 
   it("allows dropping onto a different slot that has capacity", () => {
-    const squad: SelectedPlayer[] = [
-      makePlayer("a", { slotType: "batting" }),
-    ];
+    const squad: SelectedPlayer[] = [makePlayer("a", { slotType: "batting" })];
     const player = squad[0];
     expect(canDropOnSlot(squad, player, "bowling")).toBe(true);
   });
@@ -264,10 +262,12 @@ describe("moveSquadPlayerToSlot", () => {
   });
 
   it("is a no-op when the player isn't in the squad", () => {
-    const squad = [
-      makePlayer("a", { slotType: "batting", isCaptain: true }),
-    ];
-    const result = moveSquadPlayerToSlot(squad, "missing", "bowling" as SlotType);
+    const squad = [makePlayer("a", { slotType: "batting", isCaptain: true })];
+    const result = moveSquadPlayerToSlot(
+      squad,
+      "missing",
+      "bowling" as SlotType,
+    );
     expect(result).toEqual(squad);
   });
 });

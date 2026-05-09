@@ -1,5 +1,6 @@
 import eslint from "@eslint/js";
 import hooksPlugin from "eslint-plugin-react-hooks";
+import reactDoctor from "react-doctor/eslint-plugin";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
@@ -35,6 +36,49 @@ export default tseslint.config(
       "@typescript-eslint/array-type": ["error", { default: "array-simple" }],
       "@typescript-eslint/no-unnecessary-condition": "off",
       "@typescript-eslint/no-confusing-void-expression": "off",
+      // Allow `_`-prefixed identifiers to mark intentionally-unused
+      // destructure discards (e.g. `const { clientId: _clientId, ...rest } = d`).
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
+  },
+  // react-doctor: only meaningful in the React app, so scope to apps/web.
+  // Globally disable rules that don't apply to a Vite SPA.
+  {
+    ...reactDoctor.configs.recommended,
+    files: ["apps/web/src/**/*.{ts,tsx}"],
+  },
+  {
+    ...reactDoctor.configs["tanstack-query"],
+    files: ["apps/web/src/**/*.{ts,tsx}"],
+  },
+  {
+    files: ["apps/web/src/**/*.{ts,tsx}"],
+    rules: {
+      // Vite SPA — there is no SSR. `new Date()` reachable from JSX cannot
+      // mismatch between server and client because the server doesn't render.
+      "react-doctor/rendering-hydration-mismatch-time": "off",
+      "react-doctor/rendering-hydration-no-flicker": "off",
+      // Vite SPA — no server actions / progressive enhancement story. Forms
+      // rely on `e.preventDefault()` + a mutation; that's the correct pattern.
+      "react-doctor/no-prevent-default": "off",
+    },
+  },
+  {
+    // shadcn ui/* primitives intentionally use forwardRef and other React 18
+    // patterns to stay aligned with the upstream registry. Don't push them
+    // onto React 19's bare `ref` prop.
+    files: ["apps/web/src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "react-doctor/no-react19-deprecated-apis": "off",
     },
   },
   {

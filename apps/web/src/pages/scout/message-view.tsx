@@ -1221,7 +1221,9 @@ function ToolPartView({ part }: { part: Part }) {
           )}
           {tool.output !== undefined && (
             <details>
-              <summary className="cursor-pointer text-stone-500">output</summary>
+              <summary className="cursor-pointer text-stone-500">
+                output
+              </summary>
               <pre className="mt-1 max-h-72 overflow-auto rounded bg-white p-1 font-mono text-[11px]">
                 {JSON.stringify(tool.output, null, 2)}
               </pre>

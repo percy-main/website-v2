@@ -161,7 +161,9 @@ export function ShareThreadModal({
         {/* ── Already shared with ───────────────────────────────── */}
         {shareesQuery.data && hasShares ? (
           <div className="space-y-1">
-            <div className="text-xs font-medium text-stone-500">Shared with</div>
+            <div className="text-xs font-medium text-stone-500">
+              Shared with
+            </div>
             <ul className="divide-y divide-stone-100 rounded border border-stone-200">
               {shareesQuery.data.sharees.map((s) => (
                 <li

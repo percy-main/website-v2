@@ -812,7 +812,10 @@ function TeamSelectionView({
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
                 No Response
-                <Badge variant="outline" className="bg-stone-100 text-stone-600">
+                <Badge
+                  variant="outline"
+                  className="bg-stone-100 text-stone-600"
+                >
                   {filteredNoResponse.length}
                 </Badge>
               </CardTitle>
@@ -923,7 +926,9 @@ function PlayerPool({
                 <div>
                   <span>{p.name}</span>
                   {p.note && (
-                    <span className="ml-2 text-xs text-stone-400">{p.note}</span>
+                    <span className="ml-2 text-xs text-stone-400">
+                      {p.note}
+                    </span>
                   )}
                   {p.overridden && (
                     <span className="ml-1 text-xs text-amber-500">
@@ -1146,9 +1151,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                 onClick={() => previewMutation.mutate()}
                 disabled={previewMutation.isPending}
               >
-                {previewMutation.isPending
-                  ? "Loading…"
-                  : "Preview Recipients"}
+                {previewMutation.isPending ? "Loading…" : "Preview Recipients"}
               </Button>
 
               {previewMutation.isError && (

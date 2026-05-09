@@ -117,9 +117,9 @@ describe("isGameSponsorFormValid", () => {
   });
 
   it("rejects when there's a logo error", () => {
-    expect(
-      isGameSponsorFormValid({ ...validBase, logoError: "Bad" }),
-    ).toBe(false);
+    expect(isGameSponsorFormValid({ ...validBase, logoError: "Bad" })).toBe(
+      false,
+    );
   });
 });
 

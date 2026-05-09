@@ -136,7 +136,9 @@ export function KnowledgeAdminView() {
 
       <div className="flex-1 overflow-y-auto px-4 py-2">
         {docsQuery.isLoading && (
-          <div className="py-6 text-center text-sm text-stone-500">Loading…</div>
+          <div className="py-6 text-center text-sm text-stone-500">
+            Loading…
+          </div>
         )}
         {docsQuery.error && (
           <div className="py-6 text-center text-sm text-red-600">
@@ -195,7 +197,10 @@ interface UploadFormProps {
 function UploadForm({ onUploaded }: UploadFormProps) {
   // Tags syntax: "key:value, key:value2" — array values via repeat.
   // Empty tags raw is fine; service stores {} regardless.
-  const [form, dispatch] = useReducer(uploadFormReducer, initialUploadFormState);
+  const [form, dispatch] = useReducer(
+    uploadFormReducer,
+    initialUploadFormState,
+  );
   const { file, title, description, tagsRaw, error, busy } = form;
 
   const submit = async () => {
@@ -431,4 +436,3 @@ function DeleteConfirmDialog({
     </Dialog>
   );
 }
-

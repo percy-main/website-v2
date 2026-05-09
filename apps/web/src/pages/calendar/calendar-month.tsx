@@ -529,10 +529,7 @@ export function Component() {
   const itemsByDay = useMemo(() => groupItemsByDay(allItems), [allItems]);
 
   // Stats
-  const stats = useMemo(
-    () => summariseMonth(allItems, new Date()),
-    [allItems],
-  );
+  const stats = useMemo(() => summariseMonth(allItems, new Date()), [allItems]);
 
   // Divider position
   const dividerIndex = useMemo(

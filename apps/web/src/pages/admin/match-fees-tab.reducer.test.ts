@@ -84,9 +84,9 @@ describe("parseAmountPence", () => {
 describe("isFormReady", () => {
   it("requires category and a valid amount", () => {
     expect(isFormReady(initialNewRateFormState)).toBe(false);
-    expect(isFormReady({ ...initialNewRateFormState, category: "senior" })).toBe(
-      false,
-    );
+    expect(
+      isFormReady({ ...initialNewRateFormState, category: "senior" }),
+    ).toBe(false);
     expect(
       isFormReady({
         ...initialNewRateFormState,

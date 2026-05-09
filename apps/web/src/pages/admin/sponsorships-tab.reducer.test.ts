@@ -274,7 +274,9 @@ describe("isPlayerSponsorshipReady", () => {
 
   it("is false when sponsorName or email is missing", () => {
     expect(isPlayerSponsorshipReady({ ...valid, sponsorName: "" })).toBe(false);
-    expect(isPlayerSponsorshipReady({ ...valid, sponsorEmail: "" })).toBe(false);
+    expect(isPlayerSponsorshipReady({ ...valid, sponsorEmail: "" })).toBe(
+      false,
+    );
   });
 
   it("is false when amount is invalid", () => {

@@ -39,4 +39,3 @@ export function writeCookie(
   }
   document.cookie = parts.join("; ");
 }
-

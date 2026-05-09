@@ -132,9 +132,9 @@ describe("isSponsorFormValid", () => {
   });
 
   it("is false when there's a logo error", () => {
-    expect(
-      isSponsorFormValid({ ...validBase, logoError: "Bad image" }),
-    ).toBe(false);
+    expect(isSponsorFormValid({ ...validBase, logoError: "Bad image" })).toBe(
+      false,
+    );
   });
 });
 

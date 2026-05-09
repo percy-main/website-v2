@@ -39,12 +39,21 @@ describe("categoriseTeam", () => {
 
 describe("parseMonthYear", () => {
   it("parses valid year + month", () => {
-    expect(parseMonthYear("2026", "may")).toEqual({ year: 2026, monthIndex: 4 });
+    expect(parseMonthYear("2026", "may")).toEqual({
+      year: 2026,
+      monthIndex: 4,
+    });
   });
 
   it("parses month name case-insensitively", () => {
-    expect(parseMonthYear("2026", "May")).toEqual({ year: 2026, monthIndex: 4 });
-    expect(parseMonthYear("2026", "MAY")).toEqual({ year: 2026, monthIndex: 4 });
+    expect(parseMonthYear("2026", "May")).toEqual({
+      year: 2026,
+      monthIndex: 4,
+    });
+    expect(parseMonthYear("2026", "MAY")).toEqual({
+      year: 2026,
+      monthIndex: 4,
+    });
   });
 
   it("returns null for non-numeric year", () => {
@@ -157,10 +166,7 @@ describe("summariseMonth", () => {
 
   it("ignores events", () => {
     expect(
-      summariseMonth(
-        [{ when: "2026-05-10", type: "event" }],
-        now,
-      ),
+      summariseMonth([{ when: "2026-05-10", type: "event" }], now),
     ).toEqual({ won: 0, lost: 0, upcoming: 0 });
   });
 
@@ -187,10 +193,7 @@ describe("findDividerIndex", () => {
   });
 
   it("returns -1 when the only past content is at the end (no trailing divider)", () => {
-    const grouped = [
-      { dateStr: "2026-04-30" },
-      { dateStr: "2026-05-01" },
-    ];
+    const grouped = [{ dateStr: "2026-04-30" }, { dateStr: "2026-05-01" }];
     expect(findDividerIndex(grouped, today)).toBe(-1);
   });
 

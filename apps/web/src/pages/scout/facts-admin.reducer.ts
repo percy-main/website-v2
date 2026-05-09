@@ -156,7 +156,9 @@ export function factEditReducer(
  * with a user-facing message — the component surfaces that message in
  * the dialog.
  */
-export function parseTagsText(tagsText: string): Record<string, string | string[]> {
+export function parseTagsText(
+  tagsText: string,
+): Record<string, string | string[]> {
   try {
     // Trust + verify: cast then assume JSON.parse returned an object. The
     // server validates again on the wire, this is just a friendly preflight.

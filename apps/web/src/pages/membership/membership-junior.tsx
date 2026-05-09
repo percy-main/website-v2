@@ -208,10 +208,8 @@ function SocialMembershipUpsell() {
 }
 
 function JuniorRegistrationInner() {
-  const [wizard, dispatch] = useReducer(
-    juniorWizardReducer,
-    undefined,
-    () => initialJuniorWizardState(),
+  const [wizard, dispatch] = useReducer(juniorWizardReducer, undefined, () =>
+    initialJuniorWizardState(),
   );
   const { step, dependents, errors, paymentData, paymentError } = wizard;
   const setStep = (next: Step) => dispatch({ type: "goToStep", step: next });

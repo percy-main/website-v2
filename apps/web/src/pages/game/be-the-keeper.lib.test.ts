@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ballPos,
   calculateCatchPoints,
-  catchRadiusForWidth,
   CATCHES_PER_LEVEL,
+  catchRadiusForWidth,
   clamp,
-  gapAfterDelivery,
   GAP_BETWEEN,
+  gapAfterDelivery,
   HIGH_SCORE_STORAGE_KEY,
   isCatch,
   isSoClose,

@@ -98,8 +98,6 @@ describe("registerFormReducer", () => {
 describe("canSubmitRegisterForm", () => {
   it("requires age confirmation", () => {
     expect(canSubmitRegisterForm(empty)).toBe(false);
-    expect(
-      canSubmitRegisterForm({ ...empty, ageConfirmed: true }),
-    ).toBe(true);
+    expect(canSubmitRegisterForm({ ...empty, ageConfirmed: true })).toBe(true);
   });
 });

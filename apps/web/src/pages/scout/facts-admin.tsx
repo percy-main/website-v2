@@ -63,7 +63,9 @@ export function FactsAdminView() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="border-b border-stone-200 px-4 py-3">
-        <h2 className="text-sm font-medium text-stone-700">Scout fact corpus</h2>
+        <h2 className="text-sm font-medium text-stone-700">
+          Scout fact corpus
+        </h2>
         <p className="mt-0.5 text-xs text-stone-500">
           Review, edit, and prune knowledge Scout has recorded. Editing content
           regenerates the embedding so retrieval stays in sync.
@@ -177,7 +179,9 @@ function FactRow({
         {fact.sourceKbDocument && (
           <div className="mt-0.5 text-[11px] text-stone-500">
             From document:{" "}
-            <span className="text-stone-700">{fact.sourceKbDocument.title}</span>
+            <span className="text-stone-700">
+              {fact.sourceKbDocument.title}
+            </span>
           </div>
         )}
       </div>

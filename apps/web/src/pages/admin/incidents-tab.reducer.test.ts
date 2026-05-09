@@ -223,12 +223,15 @@ describe("buildIncidentPayload", () => {
   it("translates riddorRequired tri-state to boolean | null", () => {
     const base = initialIncidentEditState(baseInitial);
 
-    expect(buildIncidentPayload({ ...base, riddorRequired: "yes" }))
-      .toMatchObject({ riddorRequired: true });
-    expect(buildIncidentPayload({ ...base, riddorRequired: "no" }))
-      .toMatchObject({ riddorRequired: false });
-    expect(buildIncidentPayload({ ...base, riddorRequired: "unset" }))
-      .toMatchObject({ riddorRequired: null });
+    expect(
+      buildIncidentPayload({ ...base, riddorRequired: "yes" }),
+    ).toMatchObject({ riddorRequired: true });
+    expect(
+      buildIncidentPayload({ ...base, riddorRequired: "no" }),
+    ).toMatchObject({ riddorRequired: false });
+    expect(
+      buildIncidentPayload({ ...base, riddorRequired: "unset" }),
+    ).toMatchObject({ riddorRequired: null });
   });
 
   it("trims text fields and keeps non-empty content", () => {

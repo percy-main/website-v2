@@ -109,18 +109,18 @@ describe("isFiltered", () => {
   });
 
   it("is true when status is not 'all'", () => {
-    expect(
-      isFiltered({ ...initialChargesFilterState, status: "paid" }),
-    ).toBe(true);
+    expect(isFiltered({ ...initialChargesFilterState, status: "paid" })).toBe(
+      true,
+    );
   });
 
   it("is true when any filter is set", () => {
     expect(
       isFiltered({ ...initialChargesFilterState, dateFrom: "2026-01-01" }),
     ).toBe(true);
-    expect(
-      isFiltered({ ...initialChargesFilterState, search: "alice" }),
-    ).toBe(true);
+    expect(isFiltered({ ...initialChargesFilterState, search: "alice" })).toBe(
+      true,
+    );
     expect(
       isFiltered({ ...initialChargesFilterState, showDeleted: true }),
     ).toBe(true);

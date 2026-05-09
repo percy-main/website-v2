@@ -181,7 +181,10 @@ export function RecordsWall() {
         {honoursQuery.isPending ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-10 animate-pulse rounded bg-stone-200" />
+              <div
+                key={i}
+                className="h-10 animate-pulse rounded bg-stone-200"
+              />
             ))}
           </div>
         ) : honours ? (

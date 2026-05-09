@@ -24,11 +24,7 @@ export const BUDGET = 30;
 export const SQUAD_SIZE = 11;
 export const EMPTY_SLOT_PREFIX = "empty-slot:";
 
-const SLOT_TYPES: readonly SlotType[] = [
-  "batting",
-  "bowling",
-  "allrounder",
-];
+const SLOT_TYPES: readonly SlotType[] = ["batting", "bowling", "allrounder"];
 
 /** Returns true for one of the three valid SlotType strings. */
 export function isSlotType(value: string): value is SlotType {
@@ -113,7 +109,9 @@ export function validateSquadComposition(
     messages.push(`Bowling: ${counts.bowling}/${SLOT_COUNTS.bowling}`);
   }
   if (counts.allrounder !== SLOT_COUNTS.allrounder) {
-    messages.push(`All-rounder: ${counts.allrounder}/${SLOT_COUNTS.allrounder}`);
+    messages.push(
+      `All-rounder: ${counts.allrounder}/${SLOT_COUNTS.allrounder}`,
+    );
   }
 
   const hasCaptain = captainCount === 1;

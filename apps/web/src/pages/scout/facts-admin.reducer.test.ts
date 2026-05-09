@@ -38,10 +38,7 @@ describe("factsListReducer", () => {
 
   it("reset returns to the initial state", () => {
     expect(
-      factsListReducer(
-        { scope: "user", q: "x", tag: "y" },
-        { type: "reset" },
-      ),
+      factsListReducer({ scope: "user", q: "x", tag: "y" }, { type: "reset" }),
     ).toEqual(initialFactsListState);
   });
 });

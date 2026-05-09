@@ -156,9 +156,7 @@ export interface ChargesBreakdown {
 /**
  * Aggregate counts and pence totals for a list of charges.
  */
-export function summariseCharges(
-  charges: readonly Charge[],
-): ChargesBreakdown {
+export function summariseCharges(charges: readonly Charge[]): ChargesBreakdown {
   let paid = 0;
   let pending = 0;
   let unpaid = 0;
@@ -176,7 +174,14 @@ export function summariseCharges(
     }
   }
 
-  return { total: charges.length, paid, pending, unpaid, totalPence, unpaidPence };
+  return {
+    total: charges.length,
+    paid,
+    pending,
+    unpaid,
+    totalPence,
+    unpaidPence,
+  };
 }
 
 /**

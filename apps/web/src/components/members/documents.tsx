@@ -42,7 +42,9 @@ export function Documents() {
       <div>
         <h2 className="mb-2 text-lg font-semibold">Needs Review</h2>
         {needsReview.length === 0 ? (
-          <p className="text-sm text-stone-500">All documents are up to date.</p>
+          <p className="text-sm text-stone-500">
+            All documents are up to date.
+          </p>
         ) : (
           <Table>
             <TableHeader>

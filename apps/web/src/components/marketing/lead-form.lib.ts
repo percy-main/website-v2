@@ -130,21 +130,12 @@ export function isLeadFormReady(input: {
 export function buildLeadPayload<TConsent, TAttribution>(
   input: BuildLeadPayloadInput<TConsent, TAttribution>,
 ): LeadPayload<TConsent, TAttribution> {
-  const {
-    campaignId,
-    segment,
-    variant,
-    adult,
-    junior,
-    attribution,
-    consent,
-  } = input;
+  const { campaignId, segment, variant, adult, junior, attribution, consent } =
+    input;
   const isJunior = variant === "junior";
 
   const name = isJunior ? safeTrim(junior.parentName) : safeTrim(adult.name);
-  const email = isJunior
-    ? safeTrim(junior.parentEmail)
-    : safeTrim(adult.email);
+  const email = isJunior ? safeTrim(junior.parentEmail) : safeTrim(adult.email);
   const phone = isJunior
     ? normalisePhone(junior.parentPhone)
     : normalisePhone(adult.phone);

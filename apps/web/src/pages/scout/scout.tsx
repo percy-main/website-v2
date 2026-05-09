@@ -14,6 +14,7 @@ import { FactsAdminView } from "./facts-admin.js";
 import { KnowledgeAdminView } from "./knowledge-admin.js";
 import { MessageView } from "./message-view.js";
 import { ReportsView } from "./reports-view.js";
+import { ScoutLauncher } from "./scout-launcher.js";
 import {
   filterMessagesByRole,
   findInFlightReport,
@@ -23,7 +24,6 @@ import {
   type ScoutMode,
   type ScoutView,
 } from "./scout.lib.js";
-import { ScoutLauncher } from "./scout-launcher.js";
 import { ShareThreadModal } from "./share-thread-modal.js";
 import { NewThreadButton, ThreadList } from "./thread-list.js";
 import { useScoutChat } from "./use-scout-chat.js";

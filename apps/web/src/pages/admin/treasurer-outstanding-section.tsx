@@ -92,11 +92,7 @@ export function TreasurerOutstandingSection() {
               {outstandingQuery.data?.items.map((item) => {
                 const days = daysOverdue(item.charge_date);
                 const overdueBadgeVariant =
-                  days > 30
-                    ? "destructive"
-                    : days > 7
-                      ? "warning"
-                      : "default";
+                  days > 30 ? "destructive" : days > 7 ? "warning" : "default";
 
                 return (
                   <TableRow key={item.id}>

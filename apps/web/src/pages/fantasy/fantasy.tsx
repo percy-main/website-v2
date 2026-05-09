@@ -14,6 +14,7 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
+import { ScoringRulesContent } from "./fantasy-rules.js";
 import {
   formatSandwichCost,
   parseGameweekParam,
@@ -21,7 +22,6 @@ import {
   parseTeamIdParam,
   sortSquadBySlot,
 } from "./fantasy.lib.js";
-import { ScoringRulesContent } from "./fantasy-rules.js";
 
 // ---------------------------------------------------------------------------
 // Hooks

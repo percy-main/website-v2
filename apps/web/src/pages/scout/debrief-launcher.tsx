@@ -95,7 +95,9 @@ export function DebriefLauncher({ onLaunch }: DebriefLauncherProps) {
                   </span>
                 </div>
                 {m.result && (
-                  <div className="mt-0.5 text-xs text-stone-600">{m.result}</div>
+                  <div className="mt-0.5 text-xs text-stone-600">
+                    {m.result}
+                  </div>
                 )}
               </button>
             </li>

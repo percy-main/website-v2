@@ -72,7 +72,9 @@ describe("priceForChild / calculateTotal", () => {
 
   it("calculateTotal sums up first + additional", () => {
     expect(calculateTotal(0, 1)).toBe(FIRST_CHILD_PRICE);
-    expect(calculateTotal(0, 2)).toBe(FIRST_CHILD_PRICE + ADDITIONAL_CHILD_PRICE);
+    expect(calculateTotal(0, 2)).toBe(
+      FIRST_CHILD_PRICE + ADDITIONAL_CHILD_PRICE,
+    );
     expect(calculateTotal(0, 3)).toBe(
       FIRST_CHILD_PRICE + ADDITIONAL_CHILD_PRICE * 2,
     );
@@ -159,7 +161,9 @@ describe("validateCricketStep", () => {
 
   it("accepts both yes and no answers", () => {
     expect(validateCricketStep([valid({ played_before: true })])).toEqual([""]);
-    expect(validateCricketStep([valid({ played_before: false })])).toEqual([""]);
+    expect(validateCricketStep([valid({ played_before: false })])).toEqual([
+      "",
+    ]);
   });
 });
 
@@ -173,21 +177,21 @@ describe("validateContactStep", () => {
   });
 
   it("flags missing whatsapp_consent decision", () => {
-    expect(
-      validateContactStep([valid({ whatsapp_consent: null })]),
-    ).toEqual(["WhatsApp consent is required."]);
+    expect(validateContactStep([valid({ whatsapp_consent: null })])).toEqual([
+      "WhatsApp consent is required.",
+    ]);
   });
 
   it("flags blank alternative-contact name", () => {
-    expect(
-      validateContactStep([valid({ alt_contact_name: "  " })]),
-    ).toEqual(["Alternative contact name is required."]);
+    expect(validateContactStep([valid({ alt_contact_name: "  " })])).toEqual([
+      "Alternative contact name is required.",
+    ]);
   });
 
   it("flags blank alternative-contact phone", () => {
-    expect(
-      validateContactStep([valid({ alt_contact_phone: "" })]),
-    ).toEqual(["Alternative contact phone number is required."]);
+    expect(validateContactStep([valid({ alt_contact_phone: "" })])).toEqual([
+      "Alternative contact phone number is required.",
+    ]);
   });
 
   it("flags missing alt-contact whatsapp consent", () => {
@@ -233,9 +237,7 @@ describe("validateMedicalStep", () => {
   it("blocks registration when emergency medical consent is denied", () => {
     expect(
       validateMedicalStep([valid({ emergency_medical_consent: false })]),
-    ).toEqual([
-      "You must consent to emergency medical treatment to register.",
-    ]);
+    ).toEqual(["You must consent to emergency medical treatment to register."]);
   });
 
   it("requires explicit medical fitness declaration", () => {
@@ -275,15 +277,15 @@ describe("validateConsentsStep", () => {
   });
 
   it("requires explicit photo consent decision", () => {
-    expect(
-      validateConsentsStep([valid({ photo_consent: null })]),
-    ).toEqual(["Photo consent is required."]);
+    expect(validateConsentsStep([valid({ photo_consent: null })])).toEqual([
+      "Photo consent is required.",
+    ]);
   });
 
   it("photo consent of false is a valid decision (parent can opt out)", () => {
-    expect(
-      validateConsentsStep([valid({ photo_consent: false })]),
-    ).toEqual([""]);
+    expect(validateConsentsStep([valid({ photo_consent: false })])).toEqual([
+      "",
+    ]);
   });
 });
 
@@ -324,10 +326,7 @@ describe("juniorWizardReducer", () => {
       type: "addChild",
       child: emptyDependent("second"),
     });
-    expect(next.dependents.map((d) => d.clientId)).toEqual([
-      "first",
-      "second",
-    ]);
+    expect(next.dependents.map((d) => d.clientId)).toEqual(["first", "second"]);
     expect(next.errors).toEqual([""]);
   });
 

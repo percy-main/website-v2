@@ -58,8 +58,15 @@ export function ChargesTab() {
     chargesFilterReducer,
     initialChargesFilterState,
   );
-  const { page, status, showDeleted, dateFrom, dateTo, search, debouncedSearch } =
-    filters;
+  const {
+    page,
+    status,
+    showDeleted,
+    dateFrom,
+    dateTo,
+    search,
+    debouncedSearch,
+  } = filters;
   const [chasingChargeId, setChasingChargeId] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -343,9 +350,7 @@ export function ChargesTab() {
                                 disabled={chaseMutation.isPending}
                                 onClick={() => chaseMutation.mutate(charge.id)}
                               >
-                                {chaseMutation.isPending
-                                  ? "Sending…"
-                                  : "Send"}
+                                {chaseMutation.isPending ? "Sending…" : "Send"}
                               </Button>
                               <Button
                                 variant="outline"

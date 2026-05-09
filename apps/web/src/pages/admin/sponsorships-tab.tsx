@@ -31,13 +31,13 @@ import { useMemo, useReducer, useRef, useState } from "react";
 import {
   buildGameSponsorshipPayload,
   buildPlayerSponsorshipPayload,
-  type GameSponsorshipPayload,
   gameSponsorshipFormReducer,
   initialGameSponsorshipFormState,
   initialPlayerSponsorshipFormState,
   isPlayerSponsorshipReady,
-  type PlayerSponsorshipPayload,
   playerSponsorshipFormReducer,
+  type GameSponsorshipPayload,
+  type PlayerSponsorshipPayload,
 } from "./sponsorships-tab.reducer";
 import { formatDate, formatPence } from "./status-pill";
 

@@ -38,13 +38,13 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import {
   BUDGET,
-  EMPTY_SLOT_PREFIX,
-  SLOT_COUNTS,
   countSlots,
+  EMPTY_SLOT_PREFIX,
   getNextSlotType as getNextSlotTypeFromSquad,
   moveSquadPlayerToSlot,
   parseEmptySlotId,
   reorderWithinSlot,
+  SLOT_COUNTS,
   validateSquadComposition,
   type SelectedPlayer,
   type SlotType,
@@ -403,8 +403,7 @@ function TeamBuilder({
 
       {chaosWeek && (
         <Alert className="mb-4 border-amber-400 bg-amber-50 text-amber-800">
-          <strong>Chaos Week: {chaosWeek.name}.</strong>{" "}
-          {chaosWeek.description}
+          <strong>Chaos Week: {chaosWeek.name}.</strong> {chaosWeek.description}
         </Alert>
       )}
 

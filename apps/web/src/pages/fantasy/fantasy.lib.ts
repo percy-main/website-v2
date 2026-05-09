@@ -97,9 +97,7 @@ interface TeamPointsRow {
  * guarantees only one captain, so this is a robust fallback rather than
  * a deliberate feature.
  */
-export function calculateTeamPoints(
-  squad: readonly TeamPointsRow[],
-): number {
+export function calculateTeamPoints(squad: readonly TeamPointsRow[]): number {
   let total = 0;
   for (const p of squad) {
     total += p.isCaptain ? p.seasonPoints * 2 : p.seasonPoints;

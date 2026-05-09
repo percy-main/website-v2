@@ -38,9 +38,9 @@ function makeCharge(overrides: Partial<Charge> = {}): Charge {
   };
 }
 
-function makeMember(overrides: Partial<NonNullable<Member>> = {}): NonNullable<
-  Member
-> {
+function makeMember(
+  overrides: Partial<NonNullable<Member>> = {},
+): NonNullable<Member> {
   return {
     id: "m1",
     email: "alex@example.com",

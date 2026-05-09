@@ -312,9 +312,7 @@ export function Component() {
             onClick={() => paymentMutation.mutate()}
             disabled={!isFormValid || paymentMutation.isPending}
           >
-            {paymentMutation.isPending
-              ? "Processing…"
-              : "Continue to Payment"}
+            {paymentMutation.isPending ? "Processing…" : "Continue to Payment"}
           </Button>
         </CardFooter>
       </Card>

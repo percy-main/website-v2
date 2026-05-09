@@ -162,7 +162,9 @@ export function SeasonLeaders() {
               }
             >
               {battingEntries.map((entry, idx) => (
-                <TableRow key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}>
+                <TableRow
+                  key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}
+                >
                   <TableCell className="text-stone-400">{idx + 1}</TableCell>
                   <TableCell>
                     <PlayerLink name={entry.playerName} slug={entry.slug} />
@@ -199,7 +201,9 @@ export function SeasonLeaders() {
               }
             >
               {bowlingEntries.map((entry, idx) => (
-                <TableRow key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}>
+                <TableRow
+                  key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}
+                >
                   <TableCell className="text-stone-400">{idx + 1}</TableCell>
                   <TableCell>
                     <PlayerLink name={entry.playerName} slug={entry.slug} />

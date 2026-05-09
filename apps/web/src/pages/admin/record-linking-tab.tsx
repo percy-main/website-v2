@@ -169,9 +169,10 @@ export function RecordLinkingTab() {
     stats;
 
   // Player name lookup for PC IDs
-  const playerNameById = useMemo(() => buildPlayerNameMap(pcPlayers), [
-    pcPlayers,
-  ]);
+  const playerNameById = useMemo(
+    () => buildPlayerNameMap(pcPlayers),
+    [pcPlayers],
+  );
 
   // Keep detail modal person in sync with linkingData refreshes
   useEffect(() => {
@@ -341,7 +342,9 @@ export function RecordLinkingTab() {
                       &#10003;
                     </span>
                   ) : (
-                    <span className="inline-block text-stone-300">&#10007;</span>
+                    <span className="inline-block text-stone-300">
+                      &#10007;
+                    </span>
                   )}
                 </TableCell>
                 <TableCell className="text-center">

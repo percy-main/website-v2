@@ -88,11 +88,7 @@ export interface BallScreenPos {
  * Pure: depends only on the delivery's numeric fields and canvas dimensions,
  * so it can be tested without a CanvasRenderingContext2D.
  */
-export function ballPos(
-  b: DeliveryShape,
-  w: number,
-  h: number,
-): BallScreenPos {
+export function ballPos(b: DeliveryShape, w: number, h: number): BallScreenPos {
   const p = b.progress;
   const t = Math.pow(p, 1.5);
 

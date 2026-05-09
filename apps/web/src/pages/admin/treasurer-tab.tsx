@@ -1,11 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -19,9 +14,9 @@ import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { useQuery } from "@tanstack/react-query";
 import { Suspense, lazy, useMemo, useState } from "react";
+import { formatPence } from "./status-pill";
 import { TreasurerExpensesSection } from "./treasurer-expenses-section";
 import { TreasurerOutstandingSection } from "./treasurer-outstanding-section";
-import { formatPence } from "./status-pill";
 
 const TreasurerIncomeChart = lazy(() => import("./treasurer-income-chart.js"));
 

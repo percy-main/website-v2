@@ -154,7 +154,9 @@ export function parseSponsorshipAmountPence(input: string): number | null {
   return Math.round(parsed * 100);
 }
 
-export function isGameSponsorshipReady(state: GameSponsorshipFormState): boolean {
+export function isGameSponsorshipReady(
+  state: GameSponsorshipFormState,
+): boolean {
   if (!state.gameId.trim()) return false;
   if (!state.sponsorName.trim()) return false;
   if (!state.sponsorEmail.trim()) return false;

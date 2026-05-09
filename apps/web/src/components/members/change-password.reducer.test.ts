@@ -119,9 +119,9 @@ describe("validatePasswordChange", () => {
   });
 
   it("rejects mismatched new + confirm", () => {
-    expect(
-      validatePasswordChange("old", "longenough1", "different11"),
-    ).toBe("New passwords do not match.");
+    expect(validatePasswordChange("old", "longenough1", "different11")).toBe(
+      "New passwords do not match.",
+    );
   });
 
   it("accepts a valid trio (returns null)", () => {

@@ -80,7 +80,9 @@ export const ReassuranceList: FC<ReassuranceListProps> = ({ items }) => (
             key={item.heading}
             className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm"
           >
-            <h2 className="text-dark mb-2 text-lg font-semibold">{item.heading}</h2>
+            <h2 className="text-dark mb-2 text-lg font-semibold">
+              {item.heading}
+            </h2>
             <div className="text-sm text-stone-700">{item.body}</div>
           </div>
         ))}
