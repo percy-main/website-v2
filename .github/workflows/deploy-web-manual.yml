@@ -110,6 +110,21 @@ jobs:
             --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
             --id "${{ steps.invalidate.outputs.invalidation_id }}"
 
+      - name: Smoke test web
+        id: smoke-web
+        env:
+          URL: https://v2.percymain.org/
+        run: |
+          curl -fsSL --max-time 15 "$URL" -o /tmp/index.html
+          grep -q '<div id="root"' /tmp/index.html
+          # `|| true` keeps errexit happy when grep finds no match.
+          ASSET=$(grep -oE 'src="(/[^"]+\.js)"' /tmp/index.html | head -1 | sed 's/src="//;s/"//' || true)
+          if [ -n "$ASSET" ]; then
+            curl -fsSL --max-time 15 "https://v2.percymain.org${ASSET}" -o /dev/null
+          else
+            echo "::warning::No JS chunk found in index.html — skipping asset reachability check"
+          fi
+
       - name: Deploy summary
         if: always()
         env:
@@ -124,4 +139,5 @@ jobs:
             echo "- Bucket: \`${{ vars.FRONTEND_BUCKET }}\`"
             echo "- CF distribution: \`${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}\`"
             echo "- Invalidation: \`${{ steps.invalidate.outputs.invalidation_id || 'skipped' }}\`"
+            echo "- Smoke: \`${{ steps.smoke-web.outcome || 'skipped' }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
