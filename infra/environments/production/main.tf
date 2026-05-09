@@ -137,6 +137,7 @@ module "ecs" {
   assign_public_ip         = true
   ses_identity_arn         = local.shared.ses_identity_arn
   newrelic_license_key_arn = "${aws_secretsmanager_secret.app_secrets.arn}:NEW_RELIC_LICENSE_KEY::"
+  enable_nri_ecs_alarm     = true
 
   documents_bucket_arn                = module.documents_bucket.bucket_arn
   document_uploads_bucket_arn         = module.document_uploads.bucket_arn

@@ -137,6 +137,12 @@ variable "scout_kb_bucket_arn" {
   description = "ARN of the permanent scout knowledge-base bucket (committed reference docs)."
 }
 
+variable "enable_nri_ecs_alarm" {
+  type        = bool
+  default     = false
+  description = "Create a dedicated SNS topic + alarm that fires when the newrelic-infra sidecar logs failure messages. Operators subscribe out of band. Disabled by default to avoid a module cycle when monitoring's SNS topic is passed in."
+}
+
 # ------------------------------------------------------------------------------
 # Locals
 # ------------------------------------------------------------------------------
@@ -880,4 +886,66 @@ output "task_definition_family" {
 output "log_group_name" {
   description = "CloudWatch log group name for the API task"
   value       = aws_cloudwatch_log_group.api.name
+}
+
+# ------------------------------------------------------------------------------
+# nri-ecs sidecar failure detection
+# ------------------------------------------------------------------------------
+# The newrelic-infra sidecar runs with essential = false: if NR ingest
+# dies (license key invalid, NR endpoint unreachable, sidecar crash-
+# looping) the task continues serving traffic and the failure is
+# invisible. A log metric filter against the sidecar's stream catches
+# the common failure signatures and surfaces them via SNS.
+#
+# Dedicated SNS topic (rather than monitoring's alarms topic) avoids a
+# module dependency cycle: monitoring already takes ecs.cluster_name
+# and ecs.service_name, so ecs cannot also depend on
+# monitoring.sns_topic_arn. Operators subscribe to this topic out of
+# band.
+
+resource "aws_sns_topic" "nri_ecs_alarms" {
+  count = var.enable_nri_ecs_alarm ? 1 : 0
+  name  = "${local.name_prefix}-nri-ecs-alarms"
+  tags  = local.tags
+}
+
+resource "aws_cloudwatch_log_metric_filter" "nri_ecs_errors" {
+  count = var.enable_nri_ecs_alarm ? 1 : 0
+
+  name           = "${local.name_prefix}-nri-ecs-errors"
+  log_group_name = aws_cloudwatch_log_group.api.name
+  # Match nri-ecs failure phrases only. CloudWatch metric filters can't
+  # restrict by log stream, so the patterns are deliberately NR-specific
+  # to avoid matching app logs that happen to contain the word "ERROR".
+  # If the sidecar's failure vocabulary changes in a future NR Infra
+  # release this filter needs updating — track via a periodic alarm
+  # smoke test rather than relying on the alarm itself to never trip.
+  filter_pattern = "?\"failed to send metrics\" ?\"License key not valid\" ?\"unauthorized\" ?\"InvalidLicenseKey\""
+
+  metric_transformation {
+    name          = "NriEcsErrors"
+    namespace     = "PercyMain/Observability"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "nri_ecs_failure" {
+  count = var.enable_nri_ecs_alarm ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-nri-ecs-failure"
+  alarm_description   = "newrelic-infra sidecar is logging errors — NR ingest from this task may be dropping silently. Check the newrelic-infra log stream."
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = aws_cloudwatch_log_metric_filter.nri_ecs_errors[0].metric_transformation[0].name
+  namespace           = aws_cloudwatch_log_metric_filter.nri_ecs_errors[0].metric_transformation[0].namespace
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.nri_ecs_alarms[0].arn]
+  ok_actions    = [aws_sns_topic.nri_ecs_alarms[0].arn]
+
+  tags = local.tags
 }
