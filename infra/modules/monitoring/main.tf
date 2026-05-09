@@ -40,6 +40,12 @@ variable "rds_instance_id" {
   description = "RDS instance identifier for metrics"
 }
 
+variable "rds_max_allocated_storage_bytes" {
+  type        = number
+  default     = 0
+  description = "RDS storage auto-scaling cap in bytes (env passes max_allocated_storage * 1024^3). When non-zero, the storage alarm uses a percentage threshold against this; when zero, falls back to the absolute 2GB threshold."
+}
+
 # -----------------------------------------------------------------------------
 # Locals
 # -----------------------------------------------------------------------------
@@ -59,11 +65,16 @@ locals {
 # -----------------------------------------------------------------------------
 # SNS Topic for Alarm Notifications
 # -----------------------------------------------------------------------------
+# Intentionally NOT encrypted with `alias/aws/sns`: CloudWatch alarm
+# publishes need a CMK whose policy allows `cloudwatch.amazonaws.com`,
+# and the AWS-managed SNS KMS key cannot have its policy edited. Alarm
+# payloads carry CloudWatch alarm state metadata (no secrets), so
+# leaving encryption-at-rest off is an acceptable trade. Add a CMK
+# here if the threat model later requires it.
 
 resource "aws_sns_topic" "alarms" {
-  name              = "${local.prefix}-alarms"
-  kms_master_key_id = "alias/aws/sns"
-  tags              = local.default_tags
+  name = "${local.prefix}-alarms"
+  tags = local.default_tags
 }
 
 resource "aws_sns_topic_subscription" "email" {
@@ -221,18 +232,49 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "rds_free_storage_low" {
+  # When max_allocated_storage_bytes is provided, alarm at <15% free
+  # against the auto-scaling cap (so the alarm tracks autoscale events
+  # instead of firing too late after one). Falls back to the absolute
+  # 2 GB threshold when caller doesn't pass the cap.
   alarm_name          = "${local.prefix}-rds-free-storage-low"
-  alarm_description   = "RDS free storage space below 2 GB"
+  alarm_description   = var.rds_max_allocated_storage_bytes > 0 ? "RDS free storage <15% of max_allocated_storage" : "RDS free storage space below 2 GB"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = 1
-  metric_name         = "FreeStorageSpace"
-  namespace           = "AWS/RDS"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 2000000000 # 2 GB in bytes
+  threshold           = var.rds_max_allocated_storage_bytes > 0 ? 15 : 2000000000
   treat_missing_data  = "notBreaching"
 
-  dimensions = {
+  dynamic "metric_query" {
+    for_each = var.rds_max_allocated_storage_bytes > 0 ? [1] : []
+    content {
+      id          = "free_pct"
+      expression  = "(free_bytes / ${var.rds_max_allocated_storage_bytes}) * 100"
+      label       = "FreeStorage % of max_allocated_storage"
+      return_data = true
+    }
+  }
+
+  dynamic "metric_query" {
+    for_each = var.rds_max_allocated_storage_bytes > 0 ? [1] : []
+    content {
+      id = "free_bytes"
+      metric {
+        metric_name = "FreeStorageSpace"
+        namespace   = "AWS/RDS"
+        period      = 300
+        stat        = "Average"
+        dimensions = {
+          DBInstanceIdentifier = var.rds_instance_id
+        }
+      }
+    }
+  }
+
+  # Fallback: simple absolute-bytes alarm if no cap was passed in.
+  metric_name = var.rds_max_allocated_storage_bytes > 0 ? null : "FreeStorageSpace"
+  namespace   = var.rds_max_allocated_storage_bytes > 0 ? null : "AWS/RDS"
+  period      = var.rds_max_allocated_storage_bytes > 0 ? null : 300
+  statistic   = var.rds_max_allocated_storage_bytes > 0 ? null : "Average"
+  dimensions = var.rds_max_allocated_storage_bytes > 0 ? null : {
     DBInstanceIdentifier = var.rds_instance_id
   }
 

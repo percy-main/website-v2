@@ -424,6 +424,10 @@ module "monitoring" {
   alb_arn_suffix          = module.ecs.alb_arn_suffix
   target_group_arn_suffix = module.ecs.target_group_arn_suffix
   rds_instance_id         = module.rds.instance_id
+  # 50 GiB cap (must match `max_allocated_storage` on the RDS module —
+  # default 50 in modules/rds/main.tf). Drives the percentage-based
+  # storage alarm.
+  rds_max_allocated_storage_bytes = 50 * 1024 * 1024 * 1024
 }
 
 # ---------------------------------------------------------------------------
