@@ -103,7 +103,14 @@ if (licenseKey && applicationID && accountID) {
         enabled: true,
         cors_use_tracecontext_headers: true,
         cors_use_newrelic_header: true,
-        allowed_origins: ["https://api.v2.percymain.org"],
+        // Both production + staging API origins so cross-app traces
+        // light up in either env (#195). Staging may not currently
+        // emit any traces if its frontend NR ingest is unconfigured —
+        // harmless to list it here regardless.
+        allowed_origins: [
+          "https://api.v2.percymain.org",
+          "https://api.staging.v2.percymain.org",
+        ],
       },
       privacy: { cookies_enabled: true },
       ajax: { deny_list: ["bam.eu01.nr-data.net"] },
