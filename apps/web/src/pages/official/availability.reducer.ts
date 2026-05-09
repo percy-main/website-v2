@@ -107,10 +107,11 @@ export function notifyFormReducer(
  */
 export function parseAdditionalEmails(raw: string): string[] | undefined {
   if (!raw) return undefined;
-  const parts = raw
-    .split(",")
-    .map((e) => e.trim())
-    .filter((e) => e.length > 0);
+  const parts: string[] = [];
+  for (const piece of raw.split(",")) {
+    const trimmed = piece.trim();
+    if (trimmed.length > 0) parts.push(trimmed);
+  }
   return parts.length > 0 ? parts : undefined;
 }
 

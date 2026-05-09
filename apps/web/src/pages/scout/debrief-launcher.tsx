@@ -80,7 +80,7 @@ export function DebriefLauncher({ onLaunch }: DebriefLauncherProps) {
                     } ${m.opposition} on ${formatMatchDate(m.matchDate)}.`,
                   )
                 }
-                className="block w-full rounded border border-amber-200 bg-white px-3 py-2 text-left text-sm text-stone-900 shadow-sm hover:border-amber-400 hover:bg-amber-100"
+                className="block w-full rounded border border-amber-200 bg-white px-3 py-2 text-left text-sm text-stone-900 shadow-sm hover:border-amber-400 hover:shadow-md"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate font-medium">

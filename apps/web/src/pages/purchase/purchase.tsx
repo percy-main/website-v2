@@ -175,7 +175,7 @@ export function Component() {
       <div className="container mx-auto max-w-lg px-4 py-8">
         <Card>
           <CardContent className="py-8 text-center text-sm text-stone-500">
-            Loading...
+            Loading…
           </CardContent>
         </Card>
       </div>

@@ -238,6 +238,7 @@ function EditView({
 export function MemberDetails({ userName }: { userName?: string | null }) {
   const query = useMemberDetails();
   const member = query.data?.member;
+  // eslint-disable-next-line react-doctor/rerender-state-only-in-handlers -- `editing` drives the conditional render between EditView and DisplayView; useRef would not switch the view.
   const [editing, setEditing] = useState(false);
 
   if (query.isLoading) return null;

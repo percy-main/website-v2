@@ -329,7 +329,14 @@ function IncidentDetailBody({
   if (detail.isError || !detail.data)
     return <p className="text-red-600">Failed to load report.</p>;
 
-  return <IncidentEditForm id={id} initial={detail.data} onClose={onClose} />;
+  return (
+    <IncidentEditForm
+      key={id}
+      id={id}
+      initial={detail.data}
+      onClose={onClose}
+    />
+  );
 }
 
 function IncidentEditForm({
@@ -343,18 +350,23 @@ function IncidentEditForm({
 }) {
   const queryClient = useQueryClient();
 
-  const [status, setStatus] = useState<Status>(initial.status);
+  // All state seeded from `initial` on mount. The parent passes
+  // `key={id}` so opening a different incident remounts this form
+  // with fresh state — no need to sync state to props on update.
+  const [status, setStatus] = useState<Status>(() => initial.status);
   const [severity, setSeverity] = useState<Severity | "unset">(
-    initial.severity ?? "unset",
+    () => initial.severity ?? "unset",
   );
   const [internalNotes, setInternalNotes] = useState(
-    initial.internalNotes ?? "",
+    () => initial.internalNotes ?? "",
   );
-  const [actionsTaken, setActionsTaken] = useState(initial.actionsTaken ?? "");
+  const [actionsTaken, setActionsTaken] = useState(
+    () => initial.actionsTaken ?? "",
+  );
   const [targetCompletionDate, setTargetCompletionDate] = useState(() =>
     toDateInput(initial.targetCompletionDate),
   );
-  const [riddorRequired, setRiddorRequired] = useState<RiddorState>(
+  const [riddorRequired, setRiddorRequired] = useState<RiddorState>(() =>
     initial.riddorRequired === true
       ? "yes"
       : initial.riddorRequired === false
@@ -365,19 +377,19 @@ function IncidentEditForm({
     toDateInput(initial.riddorReportedAt),
   );
   const [closureReason, setClosureReason] = useState(
-    initial.closureReason ?? "",
+    () => initial.closureReason ?? "",
   );
   const [closedAt, setClosedAt] = useState(() =>
     toDateTimeLocal(initial.closedAt),
   );
   const [safeguardingDiscussed, setSafeguardingDiscussed] = useState(
-    initial.safeguardingDiscussed,
+    () => initial.safeguardingDiscussed,
   );
   const [safeguardingDiscussedAt, setSafeguardingDiscussedAt] = useState(() =>
     toDateTimeLocal(initial.safeguardingDiscussedAt),
   );
   const [safeguardingNotes, setSafeguardingNotes] = useState(
-    initial.safeguardingNotes ?? "",
+    () => initial.safeguardingNotes ?? "",
   );
 
   const save = useMutation({

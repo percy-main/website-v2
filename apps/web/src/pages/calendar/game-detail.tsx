@@ -54,7 +54,7 @@ function SponsorThisGame({ gameId, when }: { gameId: string; when: string }) {
 
   return (
     <div className="flex w-full flex-col items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
-      <p className="text-sm text-orange-600">No match sponsor... yet</p>
+      <p className="text-sm text-orange-600">No match sponsor… yet</p>
       <Link
         to={`/calendar/game/${gameId}/sponsor`}
         className={buttonVariants({ variant: "default", size: "sm" })}

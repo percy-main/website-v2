@@ -1502,7 +1502,7 @@ function ExpensesSection({
                 />
                 {compressing && (
                   <p className="mt-1 text-xs text-stone-500">
-                    Processing image...
+                    Processing image…
                   </p>
                 )}
                 {receiptPreview && (

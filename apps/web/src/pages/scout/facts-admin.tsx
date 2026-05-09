@@ -141,7 +141,11 @@ export function FactsAdminView() {
         )}
       </div>
 
-      <FactEditDialog fact={editing} onClose={() => setEditing(null)} />
+      <FactEditDialog
+        key={editing?.id ?? "none"}
+        fact={editing}
+        onClose={() => setEditing(null)}
+      />
       <FactDeleteDialog
         fact={pendingDelete}
         onClose={() => setPendingDelete(null)}
@@ -222,17 +226,6 @@ function FactEditDialog({
   const [tagsText, setTagsText] = useState(
     fact ? JSON.stringify(fact.tags) : "{}",
   );
-
-  // Re-seed the form when a different fact is opened.
-  const factId = fact?.id;
-  useUpdateOnFact(factId, () => {
-    if (!fact) return;
-    setContent(fact.content);
-    setScope(fact.scope);
-    setConfidence(fact.confidence);
-    setPermanence(fact.permanence);
-    setTagsText(JSON.stringify(fact.tags));
-  });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -429,16 +422,4 @@ function FactDeleteDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-// Tiny wrapper so the edit form re-seeds whenever the user opens it on a
-// different fact. Plain useEffect works but the lint rule for exhaustive
-// deps doesn't love calling state setters inside it; this isolates the
-// rule disable to one place.
-import { useEffect } from "react";
-function useUpdateOnFact(factId: string | undefined, fn: () => void) {
-  useEffect(() => {
-    if (factId) fn();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fn closes over latest fact via the hook caller; only re-run when factId changes
-  }, [factId]);
 }

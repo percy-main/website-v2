@@ -7,6 +7,10 @@ import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { getImageUrl, getPicture } from "@/lib/image-map.js";
+import {
+  CURRENT_CONSENT_VERSION,
+  requestConsentReopen,
+} from "@/lib/marketing/consent.js";
 import { getPersonBySlug } from "@/lib/people.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -458,6 +462,22 @@ function MdxImg(props: React.ImgHTMLAttributes<HTMLImageElement>) {
  * Component map provided to MDX content.
  * MDX files can use these as JSX tags: <Person slug="..." />, <LeagueTable divisionId="..." />, etc.
  */
+function CookieSettingsLink({ children }: { children?: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={() => requestConsentReopen()}
+      className="inline text-blue-900 underline"
+    >
+      {children ?? "Cookie settings"}
+    </button>
+  );
+}
+
+function ConsentVersion() {
+  return <>{CURRENT_CONSENT_VERSION}</>;
+}
+
 export const mdxComponents = {
   Person,
   PersonGrid,
@@ -467,6 +487,8 @@ export const mdxComponents = {
   EventPreview,
   GamePreview,
   ContactForm,
+  CookieSettingsLink,
+  ConsentVersion,
   Image: ContentImage,
   img: MdxImg,
 };

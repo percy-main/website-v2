@@ -1,3 +1,4 @@
+// eslint-disable-next-line react-doctor/prefer-dynamic-import -- this whole file is lazy-loaded by treasurer-tab.tsx via React.lazy(); recharts is correctly isolated to this chunk
 import {
   Bar,
   BarChart,

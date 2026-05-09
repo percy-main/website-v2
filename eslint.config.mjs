@@ -3,6 +3,24 @@ import hooksPlugin from "eslint-plugin-react-hooks";
 import reactDoctor from "react-doctor/eslint-plugin";
 import tseslint from "typescript-eslint";
 
+// Project-wide policy: every ESLint rule is "error" or "off" — never "warn".
+// Warnings just turn into noise that doesn't block CI. This helper takes a
+// rules object from a shared preset and promotes every "warn" to "error" so
+// new rules added by future plugin upgrades surface as failures by default.
+function warnsToErrors(rules) {
+  const out = {};
+  for (const [name, value] of Object.entries(rules)) {
+    if (value === "warn") {
+      out[name] = "error";
+    } else if (Array.isArray(value) && value[0] === "warn") {
+      out[name] = ["error", ...value.slice(1)];
+    } else {
+      out[name] = value;
+    }
+  }
+  return out;
+}
+
 export default tseslint.config(
   eslint.configs.recommended,
   tseslint.configs.strictTypeChecked,
@@ -11,7 +29,7 @@ export default tseslint.config(
     plugins: {
       "react-hooks": hooksPlugin,
     },
-    rules: hooksPlugin.configs.recommended.rules,
+    rules: warnsToErrors(hooksPlugin.configs.recommended.rules),
   },
   {
     languageOptions: {
@@ -31,16 +49,14 @@ export default tseslint.config(
     },
   },
   // apps/web runs the React Compiler — recommended-latest's compiler-aware
-  // ruleset replaces the legacy "exhaustive-deps as error" stance (the
-  // compiler now handles dep tracking and function stability for us).
-  // This block must come after the global "exhaustive-deps: error" override
-  // above so its `warn` level wins for apps/web.
+  // ruleset replaces the legacy "exhaustive-deps as error" stance. Every
+  // warn-level rule is promoted to error per the no-warnings policy.
   {
     files: ["apps/web/src/**/*.{ts,tsx}"],
     plugins: {
       "react-hooks": hooksPlugin,
     },
-    rules: hooksPlugin.configs["recommended-latest"].rules,
+    rules: warnsToErrors(hooksPlugin.configs["recommended-latest"].rules),
   },
   {
     rules: {
@@ -67,10 +83,12 @@ export default tseslint.config(
   {
     ...reactDoctor.configs.recommended,
     files: ["apps/web/src/**/*.{ts,tsx}"],
+    rules: warnsToErrors(reactDoctor.configs.recommended.rules),
   },
   {
     ...reactDoctor.configs["tanstack-query"],
     files: ["apps/web/src/**/*.{ts,tsx}"],
+    rules: warnsToErrors(reactDoctor.configs["tanstack-query"].rules),
   },
   {
     files: ["apps/web/src/**/*.{ts,tsx}"],

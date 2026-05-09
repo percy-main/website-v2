@@ -390,8 +390,6 @@ export function RecordLinkingTab() {
               id: detailModal.person.id,
             })
           }
-          isLinking={linkPcMutation.isPending}
-          isUnlinking={unlinkPcMutation.isPending}
           onLinkSlug={(slug) =>
             linkSlugMutation.mutate({
               memberId: detailModal.person.id,
@@ -403,8 +401,12 @@ export function RecordLinkingTab() {
               memberId: detailModal.person.id,
             })
           }
-          isLinkingSlug={linkSlugMutation.isPending}
-          isUnlinkingSlug={unlinkSlugMutation.isPending}
+          pending={{
+            linkPlayCricket: linkPcMutation.isPending,
+            unlinkPlayCricket: unlinkPcMutation.isPending,
+            linkSlug: linkSlugMutation.isPending,
+            unlinkSlug: unlinkSlugMutation.isPending,
+          }}
           onClose={() => {
             setDetailModal(null);
             setLinkSearch("");
@@ -413,6 +415,13 @@ export function RecordLinkingTab() {
       )}
     </div>
   );
+}
+
+interface MutationPending {
+  linkPlayCricket: boolean;
+  unlinkPlayCricket: boolean;
+  linkSlug: boolean;
+  unlinkSlug: boolean;
 }
 
 function DetailModal({
@@ -426,12 +435,9 @@ function DetailModal({
   onCancelLinking,
   onLinkPlayCricket,
   onUnlinkPlayCricket,
-  isLinking,
-  isUnlinking,
   onLinkSlug,
   onUnlinkSlug,
-  isLinkingSlug,
-  isUnlinkingSlug,
+  pending,
   onClose,
 }: {
   person: PersonRow;
@@ -444,12 +450,9 @@ function DetailModal({
   onCancelLinking: () => void;
   onLinkPlayCricket: (playCricketId: string) => void;
   onUnlinkPlayCricket: () => void;
-  isLinking: boolean;
-  isUnlinking: boolean;
   onLinkSlug: (slug: string) => void;
   onUnlinkSlug: () => void;
-  isLinkingSlug: boolean;
-  isUnlinkingSlug: boolean;
+  pending: MutationPending;
   onClose: () => void;
 }) {
   const [slugInput, setSlugInput] = useState("");
@@ -498,7 +501,7 @@ function DetailModal({
                 variant="outline"
                 size="sm"
                 onClick={onUnlinkPlayCricket}
-                disabled={isUnlinking}
+                disabled={pending.unlinkPlayCricket}
                 className="border-red-300 text-red-700 hover:bg-red-50"
               >
                 Unlink
@@ -551,7 +554,7 @@ function DetailModal({
                       onClick={() =>
                         onLinkPlayCricket(player.memberId.toString())
                       }
-                      disabled={isLinking}
+                      disabled={pending.linkPlayCricket}
                     >
                       Link
                     </Button>
@@ -596,7 +599,7 @@ function DetailModal({
                   variant="outline"
                   size="sm"
                   onClick={onUnlinkSlug}
-                  disabled={isUnlinkingSlug}
+                  disabled={pending.unlinkSlug}
                   className="border-red-300 text-red-700 hover:bg-red-50"
                 >
                   Unlink
@@ -619,7 +622,7 @@ function DetailModal({
                       setSlugInput("");
                     }
                   }}
-                  disabled={!slugInput.trim() || isLinkingSlug}
+                  disabled={!slugInput.trim() || pending.linkSlug}
                   className="border-blue-300 text-blue-700 hover:bg-blue-50"
                   variant="outline"
                 >

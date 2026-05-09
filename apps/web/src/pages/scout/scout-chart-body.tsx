@@ -1,4 +1,5 @@
 import type { ChartSpec } from "@percy-main/shared";
+// eslint-disable-next-line react-doctor/prefer-dynamic-import -- this whole file is lazy-loaded by scout-chart.tsx via React.lazy(); chart.js is correctly isolated to this chunk
 import {
   ArcElement,
   BarController,
@@ -22,6 +23,7 @@ import {
   Title,
   Tooltip,
 } from "chart.js";
+// eslint-disable-next-line react-doctor/prefer-dynamic-import -- same chunk as chart.js above; lazy-loaded by scout-chart.tsx
 import { Chart } from "react-chartjs-2";
 
 // Register every controller / element / scale Chart.js v4 needs for the

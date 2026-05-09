@@ -198,7 +198,9 @@ function TeamBuilder({
 }) {
   const queryClient = useQueryClient();
 
-  const [squad, setSquad] = useState<SelectedPlayer[]>(initialSquad);
+  // Seeded from initialSquad on mount; parent never re-renders TeamBuilder
+  // with a different team for the same user, so a key isn't needed.
+  const [squad, setSquad] = useState<SelectedPlayer[]>(() => initialSquad);
   const [search, setSearch] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);

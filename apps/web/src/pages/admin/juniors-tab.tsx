@@ -514,7 +514,7 @@ function LinkingDialog({
 
           {suggestedUsersQuery.isLoading && (
             <p className="text-sm text-stone-500">
-              Searching for matching users...
+              Searching for matching users…
             </p>
           )}
           {suggestedUsersQuery.error && (

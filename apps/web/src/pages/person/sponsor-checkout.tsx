@@ -39,6 +39,7 @@ export function Component() {
 
   useDocumentMeta(person ? `Sponsor ${person.name}` : "Sponsor");
 
+  // eslint-disable-next-line react-doctor/rerender-state-only-in-handlers -- `step` drives which checkout step renders (details → payment → confirm); useRef would not switch the view.
   const [step, setStep] = useState<Step>("details");
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorEmail, setSponsorEmail] = useState("");
