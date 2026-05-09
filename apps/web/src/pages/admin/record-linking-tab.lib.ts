@@ -89,7 +89,7 @@ export interface PersonStatsSummary {
  * Aggregate counts shown in the header stats bar.
  */
 export function summarisePersonStats(
-  allPeople: ReadonlyArray<PersonRow>,
+  allPeople: readonly PersonRow[],
 ): PersonStatsSummary {
   let totalMembers = 0;
   let totalDependents = 0;
@@ -128,7 +128,7 @@ export interface FilterPeopleParams {
  * Pure: takes the resolved (debounced) search term and returns a new array.
  */
 export function filterPeople(
-  allPeople: ReadonlyArray<PersonRow>,
+  allPeople: readonly PersonRow[],
   params: FilterPeopleParams,
 ): PersonRow[] {
   const { search, showLinked, showUnlinked, personTypeFilter } = params;
@@ -162,7 +162,7 @@ export interface ScoredPlayCricketPlayer extends PlayCricketPlayer {
  * Mirrors the original useMemo body in DetailModal.
  */
 export function rankPlayCricketSuggestions(
-  pcPlayers: ReadonlyArray<PlayCricketPlayer>,
+  pcPlayers: readonly PlayCricketPlayer[],
   personName: string | null,
   linkSearch: string,
 ): ScoredPlayCricketPlayer[] {
@@ -194,7 +194,7 @@ export function rankPlayCricketSuggestions(
  * player name, given the loaded list (or null if not yet loaded).
  */
 export function buildPlayerNameMap(
-  pcPlayers: ReadonlyArray<PlayCricketPlayer> | null,
+  pcPlayers: readonly PlayCricketPlayer[] | null,
 ): Map<string, string> {
   if (!pcPlayers) return new Map();
   return new Map(pcPlayers.map((p) => [p.memberId.toString(), p.name]));

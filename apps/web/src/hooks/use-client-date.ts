@@ -10,6 +10,9 @@ import { useEffect, useState } from "react";
 export function useClientDate(): Date | null {
   const [date, setDate] = useState<Date | null>(null);
   useEffect(() => {
+    // Setting state in an effect is the deliberate mechanism here: defer
+    // the non-deterministic value until after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDate(new Date());
   }, []);
   return date;
@@ -23,6 +26,9 @@ export function useClientDate(): Date | null {
 export function useClientDateWithInitial(initial: Date): Date {
   const [date, setDate] = useState<Date>(initial);
   useEffect(() => {
+    // Setting state in an effect is the deliberate mechanism here: defer
+    // the non-deterministic value until after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDate(new Date());
   }, []);
   return date;

@@ -24,7 +24,7 @@ export const BUDGET = 30;
 export const SQUAD_SIZE = 11;
 export const EMPTY_SLOT_PREFIX = "empty-slot:";
 
-const SLOT_TYPES: ReadonlyArray<SlotType> = [
+const SLOT_TYPES: readonly SlotType[] = [
   "batting",
   "bowling",
   "allrounder",
@@ -32,7 +32,7 @@ const SLOT_TYPES: ReadonlyArray<SlotType> = [
 
 /** Returns true for one of the three valid SlotType strings. */
 export function isSlotType(value: string): value is SlotType {
-  return (SLOT_TYPES as ReadonlyArray<string>).includes(value);
+  return (SLOT_TYPES as readonly string[]).includes(value);
 }
 
 /**
@@ -47,13 +47,13 @@ export function parseEmptySlotId(id: string): SlotType | null {
 }
 
 /** Sum of sandwich costs for the squad. */
-export function calculateSquadCost(squad: ReadonlyArray<SelectedPlayer>): number {
+export function calculateSquadCost(squad: readonly SelectedPlayer[]): number {
   return squad.reduce((sum, p) => sum + p.sandwichCost, 0);
 }
 
 /** Tally of how many players each slot currently has. */
 export function countSlots(
-  squad: ReadonlyArray<SelectedPlayer>,
+  squad: readonly SelectedPlayer[],
 ): Record<SlotType, number> {
   const counts: Record<SlotType, number> = {
     batting: 0,
@@ -69,7 +69,7 @@ export function countSlots(
  * batting → bowling → allrounder), or null if all slots are full.
  */
 export function getNextSlotType(
-  squad: ReadonlyArray<SelectedPlayer>,
+  squad: readonly SelectedPlayer[],
 ): SlotType | null {
   const counts = countSlots(squad);
   if (counts.batting < SLOT_COUNTS.batting) return "batting";
@@ -98,7 +98,7 @@ export interface SquadValidation {
  * the Save button checks, plus the slot-distribution warning messages.
  */
 export function validateSquadComposition(
-  squad: ReadonlyArray<SelectedPlayer>,
+  squad: readonly SelectedPlayer[],
 ): SquadValidation {
   const counts = countSlots(squad);
   const totalCost = calculateSquadCost(squad);
@@ -148,7 +148,7 @@ export function validateSquadComposition(
  *   already in that slot is rejected.
  */
 export function canDropOnSlot(
-  squad: ReadonlyArray<SelectedPlayer>,
+  squad: readonly SelectedPlayer[],
   player: SelectedPlayer,
   targetSlot: SlotType,
 ): boolean {
@@ -163,7 +163,7 @@ export function canDropOnSlot(
  * - if no captain remains, promote the first non-allrounder player.
  */
 export function moveSquadPlayerToSlot(
-  squad: ReadonlyArray<SelectedPlayer>,
+  squad: readonly SelectedPlayer[],
   playCricketId: string,
   targetSlot: SlotType,
 ): SelectedPlayer[] {
@@ -184,7 +184,7 @@ export function moveSquadPlayerToSlot(
  * the squad is returned untouched.
  */
 export function ensureCaptain(
-  squad: ReadonlyArray<SelectedPlayer>,
+  squad: readonly SelectedPlayer[],
 ): SelectedPlayer[] {
   if (squad.some((p) => p.isCaptain)) return squad.slice();
   const first = squad.find((p) => p.slotType !== "allrounder");
@@ -200,7 +200,7 @@ export function ensureCaptain(
  * same slot, returns the squad unchanged.
  */
 export function reorderWithinSlot(
-  squad: ReadonlyArray<SelectedPlayer>,
+  squad: readonly SelectedPlayer[],
   activeId: string,
   overId: string,
 ): SelectedPlayer[] {

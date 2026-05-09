@@ -178,13 +178,15 @@ describe("validateSquadComposition", () => {
 describe("canDropOnSlot", () => {
   it("allows dropping back on the same slot type even when full", () => {
     const squad = makeFullSquad();
-    const player = squad.find((p) => p.slotType === "batting")!;
+    const player = squad.find((p) => p.slotType === "batting");
+    if (!player) throw new Error("test setup: no batting player");
     expect(canDropOnSlot(squad, player, "batting")).toBe(true);
   });
 
   it("rejects dropping onto a full slot of a different type", () => {
     const squad = makeFullSquad();
-    const player = squad.find((p) => p.slotType === "batting")!;
+    const player = squad.find((p) => p.slotType === "batting");
+    if (!player) throw new Error("test setup: no batting player");
     expect(canDropOnSlot(squad, player, "allrounder")).toBe(false);
   });
 
@@ -192,7 +194,7 @@ describe("canDropOnSlot", () => {
     const squad: SelectedPlayer[] = [
       makePlayer("a", { slotType: "batting" }),
     ];
-    const player = squad[0]!;
+    const player = squad[0];
     expect(canDropOnSlot(squad, player, "bowling")).toBe(true);
   });
 });
@@ -253,7 +255,7 @@ describe("moveSquadPlayerToSlot", () => {
   });
 
   it("returns a new array and does not mutate the input", () => {
-    const squad: ReadonlyArray<SelectedPlayer> = [
+    const squad: readonly SelectedPlayer[] = [
       makePlayer("a", { slotType: "batting", isCaptain: true }),
     ];
     const before = JSON.stringify(squad);

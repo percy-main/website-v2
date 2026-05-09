@@ -157,7 +157,7 @@ export interface ChargesBreakdown {
  * Aggregate counts and pence totals for a list of charges.
  */
 export function summariseCharges(
-  charges: ReadonlyArray<Charge>,
+  charges: readonly Charge[],
 ): ChargesBreakdown {
   let paid = 0;
   let pending = 0;
@@ -184,7 +184,7 @@ export function summariseCharges(
  * Centralises the null/undefined check used across sections.
  */
 export function isMemberArchived(member: Member): boolean {
-  return Boolean(member && member.deleted_at);
+  return Boolean(member?.deleted_at);
 }
 
 export interface NewChargeInput {
@@ -193,12 +193,14 @@ export interface NewChargeInput {
   chargeDate: string;
 }
 
-export interface ParsedChargeForm {
-  ok: boolean;
-  description?: string;
-  amountPence?: number;
-  chargeDate?: string;
-}
+export type ParsedChargeForm =
+  | { ok: false }
+  | {
+      ok: true;
+      description: string;
+      amountPence: number;
+      chargeDate: string;
+    };
 
 /**
  * Validate and parse the new-charge form fields. Returns `ok: false` for

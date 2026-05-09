@@ -788,9 +788,9 @@ function PaymentsSection({
     const parsed = parseNewChargeForm({ description, amount, chargeDate });
     if (!parsed.ok) return;
     createCharge.mutate({
-      description: parsed.description!,
-      amountPence: parsed.amountPence!,
-      chargeDate: parsed.chargeDate!,
+      description: parsed.description,
+      amountPence: parsed.amountPence,
+      chargeDate: parsed.chargeDate,
     });
   };
 

@@ -25,7 +25,7 @@ const UNKNOWN_SLOT_RANK = 3;
  * type sort to the end.
  */
 export function sortSquadBySlot<P extends { slotType: string }>(
-  players: ReadonlyArray<P>,
+  players: readonly P[],
 ): P[] {
   return players.toSorted(
     (a, b) =>
@@ -98,7 +98,7 @@ interface TeamPointsRow {
  * a deliberate feature.
  */
 export function calculateTeamPoints(
-  squad: ReadonlyArray<TeamPointsRow>,
+  squad: readonly TeamPointsRow[],
 ): number {
   let total = 0;
   for (const p of squad) {

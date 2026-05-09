@@ -137,8 +137,8 @@ export function groupItemsByDay<T extends ItemLike>(
  * with an outcome of "W" or "L" are counted as won/lost; upcoming counts
  * games with no outcome whose `when` is at or after `now`.
  */
-export function summariseMonth<T extends ItemLike>(
-  items: T[],
+export function summariseMonth(
+  items: ItemLike[],
   now: Date,
 ): { won: number; lost: number; upcoming: number } {
   let won = 0;

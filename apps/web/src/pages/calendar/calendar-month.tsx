@@ -27,7 +27,6 @@ import {
   sortCalendarItems,
   summariseMonth,
   type Filter,
-  type TeamCategory,
 } from "./calendar-month.lib.js";
 
 // --- Types ---

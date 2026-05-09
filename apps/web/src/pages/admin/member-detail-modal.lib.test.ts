@@ -184,7 +184,7 @@ describe("buildDependentFields", () => {
       }),
     );
     const byLabel = Object.fromEntries(fields.map((f) => [f.label, f.value]));
-    expect(byLabel["Sex"]).toBe("Female");
+    expect(byLabel.Sex).toBe("Female");
     expect(byLabel["Photo Consent"]).toBe("Yes");
     expect(byLabel["GP Surgery / Phone"]).toBe("Surgery A / 0123");
     expect(byLabel["Alt Contact"]).toBe("Auntie / 0456");

@@ -62,7 +62,7 @@ export function filterMessagesByRole<
  * usage in scout.tsx.
  */
 export function summariseAttachments(
-  messages: ReadonlyArray<MessageLike>,
+  messages: readonly MessageLike[],
 ): Map<string, string[]> {
   const map = new Map<string, string[]>();
   for (const m of messages) {
@@ -84,7 +84,7 @@ interface MessagePartsLike {
  * dropped while a report was generating" banner.
  */
 export function findInFlightReport(
-  messages: ReadonlyArray<MessagePartsLike>,
+  messages: readonly MessagePartsLike[],
 ): ReportData | null {
   const terminalReportIds = new Set<string>();
   for (let i = messages.length - 1; i >= 0; i--) {

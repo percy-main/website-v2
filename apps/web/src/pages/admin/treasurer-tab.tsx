@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -18,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Suspense, lazy, useMemo, useState } from "react";
 import { TreasurerExpensesSection } from "./treasurer-expenses-section";
 import { TreasurerOutstandingSection } from "./treasurer-outstanding-section";
