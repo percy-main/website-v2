@@ -32,6 +32,10 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+defaults:
+  run:
+    shell: "bash -euo pipefail {0}"
+
 env:
   AWS_REGION: eu-west-2
   TF_VERSION: "1.7"
