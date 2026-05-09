@@ -431,7 +431,7 @@ export function Component() {
 
   // Unique authors
   const uniqueAuthors = new Set(
-    allNews.map((a) => a.authorSlug).filter(Boolean),
+    allNews.flatMap((a) => (a.authorSlug ? [a.authorSlug] : [])),
   );
 
   return (

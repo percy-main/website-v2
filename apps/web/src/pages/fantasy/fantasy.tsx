@@ -890,7 +890,7 @@ function TeamView({
   if (!data) return null;
 
   const slotOrder = { batting: 0, bowling: 1, allrounder: 2 };
-  const sorted = [...data.players].sort(
+  const sorted = data.players.toSorted(
     (a, b) => (slotOrder[a.slotType] ?? 3) - (slotOrder[b.slotType] ?? 3),
   );
 

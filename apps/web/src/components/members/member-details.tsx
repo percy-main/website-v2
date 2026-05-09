@@ -82,7 +82,7 @@ function EditView({
   const [form, setForm] = useState<NonNullable<MemberData>>(initial);
 
   const update = (field: keyof NonNullable<MemberData>, value: string) => {
-    setForm({ ...form, [field]: value || null });
+    setForm((prev) => ({ ...prev, [field]: value || null }));
   };
 
   const mutation = useMutation({

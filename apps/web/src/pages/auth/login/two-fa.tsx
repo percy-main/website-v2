@@ -64,7 +64,7 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
           </InputOTPGroup>
         </InputOTP>
         <Button type="submit" className="w-full">
-          Submit
+          Verify code
         </Button>
         {error && (
           <p className="text-sm font-light text-red-800">{error.message}</p>

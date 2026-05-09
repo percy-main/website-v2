@@ -558,8 +558,8 @@ export function Component() {
         map.set(dateStr, [item]);
       }
     }
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
+    return Array.from(map.entries())
+      .toSorted(([a], [b]) => a.localeCompare(b))
       .map(([dateStr, items]) => ({ dateStr, items }));
   }, [filteredItems]);
 

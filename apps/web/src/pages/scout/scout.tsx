@@ -269,16 +269,17 @@ interface ChatViewProps {
 function ChatView({ threadId, loaded }: ChatViewProps) {
   const initialMessages = useMemo<UIMessage[]>(
     () =>
-      loaded.messages
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .map(
-          (m) =>
-            ({
-              id: m.id,
-              role: m.role,
-              parts: m.parts,
-            }) as unknown as UIMessage,
-        ),
+      loaded.messages.flatMap((m) =>
+        m.role === "user" || m.role === "assistant"
+          ? [
+              {
+                id: m.id,
+                role: m.role,
+                parts: m.parts,
+              } as unknown as UIMessage,
+            ]
+          : [],
+      ),
     [loaded.messages],
   );
   // Historical attachment ids by message id. Live messages (still streaming
@@ -566,6 +567,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
       </div>
       {!isReadOnly && (
         <Composer
+          key={threadId}
           initialDraft={draft}
           onDraftChange={setDraft}
           isStreaming={isStreaming}

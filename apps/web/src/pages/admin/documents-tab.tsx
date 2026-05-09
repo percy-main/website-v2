@@ -349,25 +349,29 @@ function AssignUsersDialog({
           />
 
           <div className="max-h-48 overflow-y-auto rounded border">
-            {usersData?.items
-              .filter((u) => !assignedUserIds.has(u.id))
-              .map((u) => (
-                <label
-                  key={u.id}
-                  className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-stone-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedUserIds.includes(u.id)}
-                    onChange={() => toggleUser(u.id)}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{u.name ?? u.email}</span>
-                  {u.name && (
-                    <span className="text-xs text-stone-400">{u.email}</span>
-                  )}
-                </label>
-              ))}
+            {usersData?.items.flatMap((u) =>
+              assignedUserIds.has(u.id)
+                ? []
+                : [
+                    <label
+                      key={u.id}
+                      className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-stone-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedUserIds.includes(u.id)}
+                        onChange={() => toggleUser(u.id)}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{u.name ?? u.email}</span>
+                      {u.name && (
+                        <span className="text-xs text-stone-400">
+                          {u.email}
+                        </span>
+                      )}
+                    </label>,
+                  ],
+            )}
             {usersData?.items.length === 0 && (
               <div className="px-3 py-4 text-center text-sm text-stone-500">
                 No members found.

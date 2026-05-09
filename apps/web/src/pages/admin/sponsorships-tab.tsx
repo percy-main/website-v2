@@ -152,7 +152,6 @@ function InlineEdit({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           className="h-7 w-32 text-xs"
-          autoFocus
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               onSave(draft.trim() || null);

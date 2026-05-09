@@ -43,9 +43,9 @@ export function AvailabilityNagModal() {
   const unansweredDates: string[] = [];
   for (const req of query.data.items) {
     const answeredDates = new Set(req.myResponses.map((r) => r.match_date));
-    const fixtureDates = [
-      ...new Set(req.fixtures.map((f) => f.match_date)),
-    ].sort();
+    const fixtureDates = Array.from(
+      new Set(req.fixtures.map((f) => f.match_date)),
+    ).toSorted();
     for (const d of fixtureDates) {
       if (!answeredDates.has(d)) {
         unansweredDates.push(d);

@@ -51,6 +51,11 @@ type Expense = ExpensesWithReceiptsResponse["expenses"][number];
 
 const PAGE_SIZE = 20;
 
+const GBP_FORMATTER = new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+});
+
 function getFinancialYearDefaults(): { dateFrom: string; dateTo: string } {
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
@@ -475,12 +480,7 @@ export function TreasurerTab() {
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip
-                  formatter={(value) =>
-                    new Intl.NumberFormat("en-GB", {
-                      style: "currency",
-                      currency: "GBP",
-                    }).format(Number(value))
-                  }
+                  formatter={(value) => GBP_FORMATTER.format(Number(value))}
                 />
                 <Legend />
                 <Bar
@@ -741,16 +741,22 @@ export function TreasurerTab() {
                   <p className="mb-1 text-sm font-medium text-stone-500">
                     Receipt
                   </p>
-                  <img
-                    src={selectedExpense.receipt_image_url}
-                    alt="Receipt"
-                    className="max-h-48 cursor-pointer rounded border"
+                  <button
+                    type="button"
                     onClick={() => {
                       if (selectedExpense.receipt_image_url) {
                         setLightboxUrl(selectedExpense.receipt_image_url);
                       }
                     }}
-                  />
+                    className="cursor-pointer"
+                    aria-label="Open receipt full size"
+                  >
+                    <img
+                      src={selectedExpense.receipt_image_url}
+                      alt="Receipt"
+                      className="max-h-48 rounded border"
+                    />
+                  </button>
                 </div>
               )}
 
@@ -952,8 +958,17 @@ export function TreasurerTab() {
       {/* Receipt Lightbox */}
       {lightboxUrl && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Receipt full size"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
           onClick={() => setLightboxUrl(null)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+              setLightboxUrl(null);
+            }
+          }}
         >
           <img
             src={lightboxUrl}

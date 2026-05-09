@@ -762,16 +762,18 @@ function TeamSelectionView({
           <PlayerPool
             title="Unavailable"
             badgeColor="bg-red-100 text-red-800"
-            players={pools.unavailable
-              .filter((p) =>
-                (p.member_name ?? "").toLowerCase().includes(searchLower),
-              )
-              .map((p) => ({
-                id: p.member_id,
-                name: p.member_name ?? "Unknown",
-                note: p.note,
-                overridden: !!p.overridden_by,
-              }))}
+            players={pools.unavailable.flatMap((p) =>
+              (p.member_name ?? "").toLowerCase().includes(searchLower)
+                ? [
+                    {
+                      id: p.member_id,
+                      name: p.member_name ?? "Unknown",
+                      note: p.note,
+                      overridden: !!p.overridden_by,
+                    },
+                  ]
+                : [],
+            )}
             fixtures={fixtures}
             onAssign={(fixtureId, memberId, name) =>
               assignMutation.mutate({
@@ -976,10 +978,10 @@ function NotifyDialog({ requestId }: { requestId: string }) {
             membershipStatus:
               (membershipStatus as "active" | "lapsed") || undefined,
             additionalEmails: manualEmails
-              ? manualEmails
-                  .split(",")
-                  .map((e) => e.trim())
-                  .filter(Boolean)
+              ? manualEmails.split(",").flatMap((e) => {
+                  const trimmed = e.trim();
+                  return trimmed ? [trimmed] : [];
+                })
               : undefined,
           },
         }),
@@ -997,9 +999,11 @@ function NotifyDialog({ requestId }: { requestId: string }) {
         api.POST("/api/availability/requests/{requestId}/notify/send", {
           params: { path: { requestId } },
           body: {
-            recipients: recipients
-              .filter((r) => checked.has(r.email))
-              .map((r) => ({ email: r.email, name: r.name })),
+            recipients: recipients.flatMap((r) =>
+              checked.has(r.email)
+                ? [{ email: r.email, name: r.name }]
+                : [],
+            ),
           },
         }),
       ),

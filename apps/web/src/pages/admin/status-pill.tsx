@@ -82,13 +82,15 @@ export function getMembershipStatus(paidUntil: string | null): {
   return { label: "Expired", variant: "red" };
 }
 
+const GBP_PENCE_FORMATTER = new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 export function formatPence(pence: number): string {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(pence / 100);
+  return GBP_PENCE_FORMATTER.format(pence / 100);
 }
 
 export function formatDate(date: string, includeTime = false): string {

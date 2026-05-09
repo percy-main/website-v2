@@ -528,23 +528,20 @@ function DetailModal({
     if (!pcPlayers || !linking) return [];
     const query =
       linkSearch.trim().length > 0 ? linkSearch : (person.name ?? "");
+    const term = linkSearch.toLowerCase().trim();
     return pcPlayers
-      .map((player) => ({
-        ...player,
-        score: fuzzyScore(query, player.name),
-      }))
-      .filter((p) => {
-        if (linkSearch.trim().length > 0) {
-          const term = linkSearch.toLowerCase().trim();
-          return (
-            p.name.toLowerCase().includes(term) ||
-            p.memberId.toString().includes(term) ||
-            p.score > 0.3
-          );
+      .flatMap((player) => {
+        const scored = { ...player, score: fuzzyScore(query, player.name) };
+        if (term.length > 0) {
+          return scored.name.toLowerCase().includes(term) ||
+            scored.memberId.toString().includes(term) ||
+            scored.score > 0.3
+            ? [scored]
+            : [];
         }
-        return p.score > 0.2;
+        return scored.score > 0.2 ? [scored] : [];
       })
-      .sort((a, b) => b.score - a.score)
+      .toSorted((a, b) => b.score - a.score)
       .slice(0, 20);
   }, [pcPlayers, linking, linkSearch, person.name]);
 
@@ -603,7 +600,6 @@ function DetailModal({
                   value={linkSearch}
                   onChange={(e) => onLinkSearchChange(e.target.value)}
                   className="flex-1"
-                  autoFocus
                 />
                 <Button variant="ghost" size="sm" onClick={onCancelLinking}>
                   Cancel

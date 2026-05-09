@@ -572,14 +572,16 @@ function DependentCard({
         )}
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        {fields
-          .filter((f) => f.value !== null)
-          .map((f) => (
-            <div key={f.label}>
-              <span className="text-stone-500">{f.label}</span>
-              <p>{f.value}</p>
-            </div>
-          ))}
+        {fields.flatMap((f) =>
+          f.value !== null
+            ? [
+                <div key={f.label}>
+                  <span className="text-stone-500">{f.label}</span>
+                  <p>{f.value}</p>
+                </div>,
+              ]
+            : [],
+        )}
       </div>
       {dependent.medical_info && (
         <div className="mt-2 text-sm">

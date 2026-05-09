@@ -94,7 +94,7 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
           onChange={(e) => setNewPassword(e.currentTarget.value)}
         />
         <Button type="submit" className="w-full">
-          Submit
+          Set new password
         </Button>
         {error && (
           <p className="text-sm font-light text-red-800">{error.message}</p>

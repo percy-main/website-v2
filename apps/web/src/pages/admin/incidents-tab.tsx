@@ -351,7 +351,7 @@ function IncidentEditForm({
     initial.internalNotes ?? "",
   );
   const [actionsTaken, setActionsTaken] = useState(initial.actionsTaken ?? "");
-  const [targetCompletionDate, setTargetCompletionDate] = useState(
+  const [targetCompletionDate, setTargetCompletionDate] = useState(() =>
     toDateInput(initial.targetCompletionDate),
   );
   const [riddorRequired, setRiddorRequired] = useState<RiddorState>(
@@ -361,17 +361,19 @@ function IncidentEditForm({
         ? "no"
         : "unset",
   );
-  const [riddorReportedAt, setRiddorReportedAt] = useState(
+  const [riddorReportedAt, setRiddorReportedAt] = useState(() =>
     toDateInput(initial.riddorReportedAt),
   );
   const [closureReason, setClosureReason] = useState(
     initial.closureReason ?? "",
   );
-  const [closedAt, setClosedAt] = useState(toDateTimeLocal(initial.closedAt));
+  const [closedAt, setClosedAt] = useState(() =>
+    toDateTimeLocal(initial.closedAt),
+  );
   const [safeguardingDiscussed, setSafeguardingDiscussed] = useState(
     initial.safeguardingDiscussed,
   );
-  const [safeguardingDiscussedAt, setSafeguardingDiscussedAt] = useState(
+  const [safeguardingDiscussedAt, setSafeguardingDiscussedAt] = useState(() =>
     toDateTimeLocal(initial.safeguardingDiscussedAt),
   );
   const [safeguardingNotes, setSafeguardingNotes] = useState(

@@ -674,7 +674,7 @@ function MatchdayView({
   );
   const searchResults = searchMembersQuery.data ?? [];
   const existingMemberIds = new Set(
-    players.filter((p) => p.member_id).map((p) => p.member_id),
+    players.flatMap((p) => (p.member_id ? [p.member_id] : [])),
   );
 
   const handleStartConfirm = () => {
@@ -1012,34 +1012,38 @@ function MatchdayView({
                   )}
                   {searchResults.length > 0 && (
                     <div className="mt-2 max-h-48 overflow-y-auto rounded border border-stone-200">
-                      {searchResults
-                        .filter((m) => !existingMemberIds.has(m.id))
-                        .map((member) => (
-                          <button
-                            key={member.id}
-                            type="button"
-                            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-stone-50"
-                            disabled={addPlayerMutation.isPending}
-                            onClick={() =>
-                              addPlayerMutation.mutate({
-                                memberId: member.id,
-                                playerName: member.name ?? "Unknown",
-                              })
-                            }
-                          >
-                            <div>
-                              <span className="font-medium">{member.name}</span>
-                              {member.member_category && (
-                                <span className="ml-2 text-xs text-stone-400 capitalize">
-                                  {member.member_category}
+                      {searchResults.flatMap((member) =>
+                        existingMemberIds.has(member.id)
+                          ? []
+                          : [
+                              <button
+                                key={member.id}
+                                type="button"
+                                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-stone-50"
+                                disabled={addPlayerMutation.isPending}
+                                onClick={() =>
+                                  addPlayerMutation.mutate({
+                                    memberId: member.id,
+                                    playerName: member.name ?? "Unknown",
+                                  })
+                                }
+                              >
+                                <div>
+                                  <span className="font-medium">
+                                    {member.name}
+                                  </span>
+                                  {member.member_category && (
+                                    <span className="ml-2 text-xs text-stone-400 capitalize">
+                                      {member.member_category}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-stone-400">
+                                  {member.email}
                                 </span>
-                              )}
-                            </div>
-                            <span className="text-xs text-stone-400">
-                              {member.email}
-                            </span>
-                          </button>
-                        ))}
+                              </button>,
+                            ],
+                      )}
                     </div>
                   )}
                 </div>
@@ -1555,10 +1559,20 @@ function ExpensesSection({
         {/* Receipt image lightbox */}
         {viewingReceipt && (
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Receipt full size"
+            tabIndex={-1}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
             onClick={() => setViewingReceipt(null)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+                setViewingReceipt(null);
+              }
+            }}
           >
             <div
+              role="presentation"
               className="relative max-h-[90vh] max-w-[90vw]"
               onClick={(e) => e.stopPropagation()}
             >

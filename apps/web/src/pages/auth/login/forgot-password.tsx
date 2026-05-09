@@ -54,7 +54,7 @@ export const ForgotPassword: FC = () => {
               onChange={(e) => setEmail(e.currentTarget.value)}
             />
             <Button type="submit" className="w-full">
-              Submit
+              Send reset link
             </Button>
             {error && (
               <p className="text-sm font-light text-red-800">{error.message}</p>

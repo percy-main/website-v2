@@ -72,14 +72,13 @@ export function ShareThreadModal({
   const candidates = useMemo(() => {
     const all = officialsQuery.data?.officials ?? [];
     const q = filter.trim().toLowerCase();
-    return all
-      .filter((o) => !sharedIds.has(o.id))
-      .filter(
-        (o) =>
-          q === "" ||
+    return all.filter(
+      (o) =>
+        !sharedIds.has(o.id) &&
+        (q === "" ||
           o.name.toLowerCase().includes(q) ||
-          o.email.toLowerCase().includes(q),
-      );
+          o.email.toLowerCase().includes(q)),
+    );
   }, [officialsQuery.data, sharedIds, filter]);
 
   const shareMutation = useMutation({
@@ -262,7 +261,7 @@ export function ShareThreadModal({
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Done
+              Close
             </Button>
             <Button
               onClick={handleShare}

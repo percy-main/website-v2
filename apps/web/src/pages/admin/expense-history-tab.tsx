@@ -482,14 +482,20 @@ export function ExpenseHistoryTab() {
               {selectedExpense.receipt_image_url && (
                 <div className="border-t pt-3">
                   <h4 className="mb-2 text-sm font-medium">Receipt</h4>
-                  <img
-                    src={selectedExpense.receipt_image_url}
-                    alt="Receipt"
-                    className="max-h-48 cursor-pointer rounded border object-contain"
+                  <button
+                    type="button"
                     onClick={() =>
                       setLightboxUrl(selectedExpense.receipt_image_url)
                     }
-                  />
+                    className="cursor-pointer"
+                    aria-label="Open receipt full size"
+                  >
+                    <img
+                      src={selectedExpense.receipt_image_url}
+                      alt="Receipt"
+                      className="max-h-48 rounded border object-contain"
+                    />
+                  </button>
                 </div>
               )}
             </div>
@@ -500,8 +506,17 @@ export function ExpenseHistoryTab() {
       {/* Lightbox */}
       {lightboxUrl && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Receipt full size"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
           onClick={() => setLightboxUrl(null)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+              setLightboxUrl(null);
+            }
+          }}
         >
           <img
             src={lightboxUrl}

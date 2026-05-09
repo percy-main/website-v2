@@ -53,7 +53,7 @@ export const Recovery: FC<Props> = ({ setPhase }) => {
           onChange={(e) => setRecoveryCode(e.currentTarget.value)}
         />
         <Button type="submit" className="w-full">
-          Submit
+          Use recovery code
         </Button>
         {error && (
           <p className="text-sm font-light text-red-800">{error.message}</p>

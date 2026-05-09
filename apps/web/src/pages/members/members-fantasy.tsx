@@ -367,13 +367,14 @@ function TeamBuilder({
   }
 
   const availablePlayers = useMemo(() => {
+    const term = search.toLowerCase();
     return eligiblePlayers
-      .filter((p) => !squadPlayerIds.has(p.play_cricket_id))
       .filter(
         (p) =>
-          !search || p.player_name.toLowerCase().includes(search.toLowerCase()),
+          !squadPlayerIds.has(p.play_cricket_id) &&
+          (!search || p.player_name.toLowerCase().includes(term)),
       )
-      .sort((a, b) => b.previousSeasonPoints - a.previousSeasonPoints);
+      .toSorted((a, b) => b.previousSeasonPoints - a.previousSeasonPoints);
   }, [eligiblePlayers, squadPlayerIds, search]);
 
   const [activeId, setActiveId] = useState<string | null>(null);

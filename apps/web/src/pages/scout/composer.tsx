@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { AttachmentPreview } from "./attachments/attachment-preview.js";
 import {
   ATTACHMENT_ACCEPT_ATTR,
@@ -45,15 +45,10 @@ export function Composer({
   onRemoveAttachment,
   isUploadingAttachments,
 }: ComposerProps) {
-  const [value, setValue] = useState(initialDraft);
+  const [value, setValue] = useState(() => initialDraft);
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Re-sync when the controlling URL changes (e.g. switching threads).
-  useEffect(() => {
-    setValue(initialDraft);
-  }, [initialDraft]);
 
   const submit = () => {
     const trimmed = value.trim();
