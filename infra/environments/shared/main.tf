@@ -491,6 +491,126 @@ resource "aws_acm_certificate_validation" "cloudfront" {
 }
 
 # -----------------------------------------------------------------------------
+# Reliability alarms — Route 53 health check + ACM expiry
+# -----------------------------------------------------------------------------
+# Operator-subscribed SNS topics (no Terraform-managed subscription —
+# add an email/Slack/Lambda subscription out of band, same pattern as
+# the security-events topics).
+#
+# Per-region split: Route 53 health-check metrics + the CloudFront
+# certificate live in us-east-1; the ALB certificate lives in
+# eu-west-2.
+
+# eu-west-2 reliability alarms topic — ALB cert expiry.
+resource "aws_sns_topic" "shared_reliability_alarms" {
+  name = "percy-main-shared-reliability-alarms"
+  tags = {
+    Environment = "shared"
+    Module      = "shared"
+    ManagedBy   = "terraform"
+    Purpose     = "reliability-alarms"
+  }
+}
+
+# us-east-1 reliability alarms topic — Route 53 health-check + CloudFront cert.
+resource "aws_sns_topic" "shared_reliability_alarms_us_east_1" {
+  provider = aws.us_east_1
+  name     = "percy-main-shared-reliability-alarms"
+  tags = {
+    Environment = "shared"
+    Module      = "shared"
+    ManagedBy   = "terraform"
+    Purpose     = "reliability-alarms-us-east-1"
+  }
+}
+
+# Route 53 HTTPS health check on the production API. The check originates
+# from R53's globally-distributed checkers, so it catches DNS / TLS /
+# edge problems that ALB target health cannot.
+resource "aws_route53_health_check" "api" {
+  fqdn              = "api.v2.${var.domain_name}"
+  port              = 443
+  type              = "HTTPS"
+  resource_path     = "/health"
+  request_interval  = 30
+  failure_threshold = 3
+  measure_latency   = false
+
+  tags = {
+    Name        = "percy-main-api-health-check"
+    Environment = "shared"
+    ManagedBy   = "terraform"
+  }
+}
+
+# Health-check status metric is published to us-east-1 only.
+resource "aws_cloudwatch_metric_alarm" "api_health_check" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-api-route53-health-check"
+  alarm_description   = "Route 53 health check failing for api.v2.${var.domain_name} — DNS / TLS / edge problem (independent of ALB target health)"
+  namespace           = "AWS/Route53"
+  metric_name         = "HealthCheckStatus"
+  statistic           = "Minimum"
+  period              = 60
+  evaluation_periods  = 2
+  threshold           = 1
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    HealthCheckId = aws_route53_health_check.api.id
+  }
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms_us_east_1.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms_us_east_1.arn]
+}
+
+# ACM cert expiry — alarm at 30 days. DNS-validated certs auto-renew but
+# renewal can fail (DNS records modified, NS delegation broken).
+resource "aws_cloudwatch_metric_alarm" "alb_cert_expiry" {
+  alarm_name          = "percy-main-alb-cert-expiry"
+  alarm_description   = "ALB ACM certificate expires in <30 days — auto-renewal may have failed"
+  namespace           = "AWS/CertificateManager"
+  metric_name         = "DaysToExpiry"
+  statistic           = "Minimum"
+  period              = 86400
+  evaluation_periods  = 1
+  threshold           = 30
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    CertificateArn = aws_acm_certificate.alb.arn
+  }
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "cloudfront_cert_expiry" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-cloudfront-cert-expiry"
+  alarm_description   = "CloudFront ACM certificate expires in <30 days — auto-renewal may have failed"
+  namespace           = "AWS/CertificateManager"
+  metric_name         = "DaysToExpiry"
+  statistic           = "Minimum"
+  period              = 86400
+  evaluation_periods  = 1
+  threshold           = 30
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    CertificateArn = aws_acm_certificate.cloudfront.arn
+  }
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms_us_east_1.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms_us_east_1.arn]
+}
+
+# -----------------------------------------------------------------------------
 # Security event notifications
 # -----------------------------------------------------------------------------
 # EventBridge rules that catch security-sensitive API calls (SG changes,
