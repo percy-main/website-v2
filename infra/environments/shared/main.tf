@@ -99,6 +99,64 @@ resource "aws_route53_record" "ses_verification" {
 }
 
 # -----------------------------------------------------------------------------
+# SES alarms — bounce / complaint / sending-quota.
+# AWS auto-pauses sending if BounceRate > 5% or ComplaintRate > 0.1%
+# over a rolling window, so these need to page early enough that we
+# can intervene before the pause hits.
+# -----------------------------------------------------------------------------
+
+resource "aws_cloudwatch_metric_alarm" "ses_bounce_rate" {
+  alarm_name          = "percy-main-ses-bounce-rate"
+  alarm_description   = "SES bounce rate >5% — AWS auto-pauses sending if this stays high. Investigate before pause."
+  namespace           = "AWS/SES"
+  metric_name         = "Reputation.BounceRate"
+  statistic           = "Average"
+  period              = 900
+  evaluation_periods  = 4
+  threshold           = 0.05
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
+  alarm_name          = "percy-main-ses-complaint-rate"
+  alarm_description   = "SES complaint rate >0.1% — AWS auto-pauses sending if this stays high. Likely a list-hygiene problem."
+  namespace           = "AWS/SES"
+  metric_name         = "Reputation.ComplaintRate"
+  statistic           = "Average"
+  period              = 900
+  evaluation_periods  = 4
+  threshold           = 0.001
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms.arn]
+}
+
+# Send count is per-account (no dimensions). 24h send count crossing
+# 80% of the sandbox/production quota indicates either a campaign
+# spike or a runaway loop / compromised endpoint.
+resource "aws_cloudwatch_metric_alarm" "ses_send_volume" {
+  alarm_name          = "percy-main-ses-send-volume-spike"
+  alarm_description   = "SES Send count anomalously high in the last hour — possible runaway loop / compromised endpoint. Threshold is a heuristic; tune after observing normal traffic."
+  namespace           = "AWS/SES"
+  metric_name         = "Send"
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 1000
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.shared_reliability_alarms.arn]
+  ok_actions    = [aws_sns_topic.shared_reliability_alarms.arn]
+}
+
+# -----------------------------------------------------------------------------
 # GitHub Actions OIDC Provider
 # -----------------------------------------------------------------------------
 
