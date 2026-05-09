@@ -20,6 +20,7 @@ import { createApiClient } from "./features/play-cricket/api-client.ts";
 import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runReport } from "./features/scout/report/run-report.ts";
 import { createScoutReportStore } from "./lib/s3-scout-reports.ts";
+import { createWorkerLogger } from "./lib/worker-logger.ts";
 
 const RENDER_MARGIN_MS = 90_000;
 
@@ -68,8 +69,9 @@ const voyage = config.VOYAGE_API_KEY
     })
   : undefined;
 const scoutReports = createScoutReportStore(config);
+const logger = createWorkerLogger("scout-report-worker");
 
-console.log(`scout_report_worker_started reportId=${REPORT_ID}`);
+logger.info({ reportId: REPORT_ID }, "scout_report_worker_started");
 
 try {
   await runReport(
@@ -80,10 +82,11 @@ try {
       config,
       voyage,
       scoutReports,
+      logger,
     },
     REPORT_ID,
   );
-  console.log(`scout_report_worker_done reportId=${REPORT_ID}`);
+  logger.info({ reportId: REPORT_ID }, "scout_report_worker_done");
   await db.destroy();
   await dbReadonly.destroy();
   process.exit(0);
@@ -95,7 +98,7 @@ try {
   // the first phase write. ECS will retry per task settings (currently
   // none — the row just stays orphaned and a future operator query can
   // sweep it).
-  console.error("scout_report_worker_failed", err);
+  logger.error({ err, reportId: REPORT_ID }, "scout_report_worker_failed");
   await db.destroy().catch(() => undefined);
   await dbReadonly.destroy().catch(() => undefined);
   process.exit(1);

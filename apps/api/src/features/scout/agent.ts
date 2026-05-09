@@ -63,7 +63,7 @@ export interface ScoutAgentDeps {
   // the assistant's prose. The route wraps streamText in createUIMessageStream
   // and passes the resulting writer down.
   writer: UIMessageStreamWriter;
-  logger?: FastifyBaseLogger;
+  logger: FastifyBaseLogger;
   // Fact-RAG dependencies. Optional so the agent can boot without a Voyage
   // API key — the fact_record / fact_retrieve tools are simply omitted in
   // that case. userId is the authenticated caller; threadId is attached to

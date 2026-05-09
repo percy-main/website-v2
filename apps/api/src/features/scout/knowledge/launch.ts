@@ -41,7 +41,7 @@ export async function launchScoutKbIngest({
     // before throwing, so the top-level catch is purely belt-and-braces
     // logging.
     void runIngest(inProcessDeps, documentId).catch((err: unknown) => {
-      inProcessDeps.logger?.error(
+      inProcessDeps.logger.error(
         { err, documentId },
         "scout_kb_in_process_runner_failed",
       );
@@ -97,7 +97,7 @@ export async function launchScoutKbIngest({
     throw new ScoutKbLaunchError("ECS RunTask returned no task ARN");
   }
 
-  inProcessDeps.logger?.info(
+  inProcessDeps.logger.info(
     { documentId, taskArn },
     "scout_kb_worker_launched",
   );

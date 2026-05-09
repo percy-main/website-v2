@@ -55,7 +55,7 @@ export async function launchScoutReport({
     // are already persisted to the row's error_message before the throw, so
     // a top-level catch here is purely belt-and-braces logging.
     void runReport(inProcessDeps, reportId).catch((err: unknown) => {
-      inProcessDeps.logger?.error(
+      inProcessDeps.logger.error(
         { err, reportId },
         "scout_report_in_process_runner_failed",
       );
@@ -114,7 +114,7 @@ export async function launchScoutReport({
     throw new ScoutReportLaunchError("ECS RunTask returned no task ARN");
   }
 
-  inProcessDeps.logger?.info(
+  inProcessDeps.logger.info(
     { reportId, taskArn },
     "scout_report_worker_launched",
   );

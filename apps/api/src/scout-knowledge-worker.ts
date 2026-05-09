@@ -21,6 +21,7 @@ import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runIngest } from "./features/scout/knowledge/run-ingest.ts";
 import { resolveModel } from "./features/scout/provider.ts";
 import { createS3KnowledgeBaseStore } from "./lib/s3-knowledge-base.ts";
+import { createWorkerLogger } from "./lib/worker-logger.ts";
 
 const DOCUMENT_ID = process.env.KB_DOCUMENT_ID;
 if (!DOCUMENT_ID) {
@@ -51,15 +52,16 @@ const anthropicModel = config.ANTHROPIC_API_KEY
   ? resolveModel("anthropic", config.SCOUT_ATTACHMENT_DERIVE_MODEL).model
   : null;
 const scoutKnowledgeBase = createS3KnowledgeBaseStore(config);
+const logger = createWorkerLogger("scout-knowledge-worker");
 
-console.log(`scout_kb_worker_started documentId=${DOCUMENT_ID}`);
+logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_started");
 
 try {
   await runIngest(
-    { db, voyage, anthropicModel, scoutKnowledgeBase, config },
+    { db, voyage, anthropicModel, scoutKnowledgeBase, config, logger },
     DOCUMENT_ID,
   );
-  console.log(`scout_kb_worker_done documentId=${DOCUMENT_ID}`);
+  logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_done");
   await db.destroy();
   process.exit(0);
 } catch (err) {
@@ -67,7 +69,7 @@ try {
   // catch is purely about exit code + log. Unhandled errors here mean
   // something outside the pipeline (boot, DB connect) blew up; the
   // row's status is the source of truth for downstream observers.
-  console.error("scout_kb_worker_failed", err);
+  logger.error({ err, documentId: DOCUMENT_ID }, "scout_kb_worker_failed");
   await db.destroy().catch(() => undefined);
   process.exit(1);
 }
