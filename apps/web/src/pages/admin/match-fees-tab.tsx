@@ -18,7 +18,13 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer, useState } from "react";
+import {
+  buildAddRatePayload,
+  initialNewRateFormState,
+  isFormReady,
+  newRateFormReducer,
+} from "./match-fees-tab.reducer";
 import { formatPence } from "./status-pill";
 
 const MEMBER_CATEGORIES = ["senior", "junior", "student", "guest"] as const;
@@ -26,10 +32,10 @@ const COMPETITION_TYPES = ["League", "Cup", "Friendly"] as const;
 
 export function MatchFeesTab() {
   const queryClient = useQueryClient();
-  const [newCategory, setNewCategory] = useState("");
-  const [newAmount, setNewAmount] = useState("");
-  const [newTeamId, setNewTeamId] = useState("all");
-  const [newCompetitionType, setNewCompetitionType] = useState("");
+  const [newRate, dispatchNewRate] = useReducer(
+    newRateFormReducer,
+    initialNewRateFormState,
+  );
 
   const ratesQuery = useQuery({
     queryKey: ["admin", "matchFeeRates"],
@@ -49,10 +55,7 @@ export function MatchFeesTab() {
       amountPence: number;
     }) => callApi(api.POST("/api/admin/match-fee-rates", { body: input })),
     onSuccess: () => {
-      setNewCategory("");
-      setNewAmount("");
-      setNewTeamId("all");
-      setNewCompetitionType("");
+      dispatchNewRate({ type: "reset" });
       void queryClient.invalidateQueries({
         queryKey: ["admin", "matchFeeRates"],
       });
@@ -88,17 +91,11 @@ export function MatchFeesTab() {
   const teams = teamsQuery.data ?? [];
 
   const handleAdd = () => {
-    if (!newCategory || !newAmount) return;
-    const amountPence = Math.round(parseFloat(newAmount) * 100);
-    if (isNaN(amountPence) || amountPence < 0) return;
-
-    addRateMutation.mutate({
-      memberCategory: newCategory,
-      amountPence,
-      playCricketTeamId: newTeamId === "all" ? undefined : newTeamId,
-      competitionType: newCompetitionType || undefined,
-    });
+    const payload = buildAddRatePayload(newRate);
+    if (payload) addRateMutation.mutate(payload);
   };
+
+  const ready = isFormReady(newRate);
 
   return (
     <div className="flex flex-col gap-4">
@@ -115,7 +112,12 @@ export function MatchFeesTab() {
               >
                 Team
               </label>
-              <Select value={newTeamId} onValueChange={setNewTeamId}>
+              <Select
+                value={newRate.teamId}
+                onValueChange={(value) =>
+                  dispatchNewRate({ type: "setTeamId", value })
+                }
+              >
                 <SelectTrigger id="mfee-team" className="w-48">
                   <SelectValue />
                 </SelectTrigger>
@@ -136,7 +138,12 @@ export function MatchFeesTab() {
               >
                 Member Category
               </label>
-              <Select value={newCategory} onValueChange={setNewCategory}>
+              <Select
+                value={newRate.category}
+                onValueChange={(value) =>
+                  dispatchNewRate({ type: "setCategory", value })
+                }
+              >
                 <SelectTrigger id="mfee-category" className="w-40">
                   <SelectValue placeholder="Select…" />
                 </SelectTrigger>
@@ -157,9 +164,12 @@ export function MatchFeesTab() {
                 Competition Type
               </label>
               <Select
-                value={newCompetitionType || "any"}
+                value={newRate.competitionType || "any"}
                 onValueChange={(v) =>
-                  setNewCompetitionType(v === "any" ? "" : v)
+                  dispatchNewRate({
+                    type: "setCompetitionType",
+                    value: v === "any" ? "" : v,
+                  })
                 }
               >
                 <SelectTrigger id="mfee-competition-type" className="w-36">
@@ -189,13 +199,15 @@ export function MatchFeesTab() {
                 min="0"
                 step="0.01"
                 placeholder="0.00"
-                value={newAmount}
-                onChange={(e) => setNewAmount(e.target.value)}
+                value={newRate.amount}
+                onChange={(e) =>
+                  dispatchNewRate({ type: "setAmount", value: e.target.value })
+                }
               />
             </div>
             <Button
               onClick={handleAdd}
-              disabled={!newCategory || !newAmount || addRateMutation.isPending}
+              disabled={!ready || addRateMutation.isPending}
             >
               {addRateMutation.isPending ? "Adding…" : "Add Rate"}
             </Button>

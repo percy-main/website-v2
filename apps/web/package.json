@@ -7,7 +7,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@ai-sdk/react": "3.0.176",
@@ -65,6 +67,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.9.3",
     "vite": "^6.4.2",
-    "vite-imagetools": "^7.1.1"
+    "vite-imagetools": "^7.1.1",
+    "vitest": "^4.1.0"
   }
 }
