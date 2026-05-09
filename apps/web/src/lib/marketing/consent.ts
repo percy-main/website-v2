@@ -59,10 +59,6 @@ export function readConsentRecord(): ConsentRecord | null {
   }
 }
 
-export function getConsent(): ConsentRecord | null {
-  return readConsentRecord();
-}
-
 export function getConsentSnapshot(): ConsentSnapshot {
   const record = readConsentRecord();
   if (record?.version !== CURRENT_CONSENT_VERSION) {

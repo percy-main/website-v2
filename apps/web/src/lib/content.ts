@@ -5,7 +5,7 @@ interface MdxModule {
   frontmatter: Record<string, unknown>;
 }
 
-export interface ContentPage {
+interface ContentPage {
   /** URL path, e.g. "/club/history/honours" */
   path: string;
   /** MDX frontmatter */
@@ -64,7 +64,7 @@ function loadPages(): ContentPage[] {
 }
 
 /** All content pages, sorted by path for predictable ordering */
-export const contentPages: ContentPage[] = loadPages().sort((a, b) =>
+const contentPages: ContentPage[] = loadPages().sort((a, b) =>
   a.path.localeCompare(b.path),
 );
 
