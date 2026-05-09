@@ -357,6 +357,7 @@ module "tailscale_router" {
   vpc_id           = module.vpc.vpc_id
   public_subnet_id = module.vpc.public_subnet_ids[0]
   advertise_cidr   = "10.0.0.0/16"
+  enable_alarms    = true
 }
 
 # Allow admins on the tailnet (via the router) to reach RDS
