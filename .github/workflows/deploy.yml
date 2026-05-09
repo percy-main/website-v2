@@ -84,8 +84,22 @@ jobs:
           fi
 
       - name: Terraform Apply
+        id: apply
         working-directory: infra/environments/shared
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve -no-color 2>&1 | tee apply.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Apply summary
+        if: always()
+        working-directory: infra/environments/shared
+        run: |
+          {
+            echo "## Terraform apply (shared) — ${{ steps.apply.outcome }}"
+            echo '```'
+            tail -n 100 apply.log 2>/dev/null || echo "(no apply.log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   terraform-production:
     needs: terraform-shared
@@ -111,8 +125,22 @@ jobs:
         run: terraform init
 
       - name: Terraform Apply
+        id: apply
         working-directory: infra/environments/production
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve -no-color 2>&1 | tee apply.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Apply summary
+        if: always()
+        working-directory: infra/environments/production
+        run: |
+          {
+            echo "## Terraform apply (production) — ${{ steps.apply.outcome }}"
+            echo '```'
+            tail -n 100 apply.log 2>/dev/null || echo "(no apply.log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ── Stage 3: Deploy API ─────────────────────────────────────────────
   deploy-api:
