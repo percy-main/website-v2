@@ -192,8 +192,14 @@ export function ExpenseHistoryTab() {
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-stone-500">From</label>
+          <label
+            htmlFor="expense-history-date-from"
+            className="text-xs text-stone-500"
+          >
+            From
+          </label>
           <Input
+            id="expense-history-date-from"
             type="date"
             value={dateFrom}
             onChange={(e) => {
@@ -204,8 +210,14 @@ export function ExpenseHistoryTab() {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-stone-500">To</label>
+          <label
+            htmlFor="expense-history-date-to"
+            className="text-xs text-stone-500"
+          >
+            To
+          </label>
           <Input
+            id="expense-history-date-to"
             type="date"
             value={dateTo}
             onChange={(e) => {
@@ -216,7 +228,12 @@ export function ExpenseHistoryTab() {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-stone-500">Status</label>
+          <label
+            htmlFor="expense-history-status"
+            className="text-xs text-stone-500"
+          >
+            Status
+          </label>
           <Select
             value={status}
             onValueChange={(v) => {
@@ -224,7 +241,7 @@ export function ExpenseHistoryTab() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger id="expense-history-status" className="w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -238,7 +255,12 @@ export function ExpenseHistoryTab() {
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-stone-500">Type</label>
+          <label
+            htmlFor="expense-history-type"
+            className="text-xs text-stone-500"
+          >
+            Type
+          </label>
           <Select
             value={expenseType}
             onValueChange={(v) => {
@@ -246,7 +268,7 @@ export function ExpenseHistoryTab() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger id="expense-history-type" className="w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -260,8 +282,14 @@ export function ExpenseHistoryTab() {
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-stone-500">Search</label>
+          <label
+            htmlFor="expense-history-search"
+            className="text-xs text-stone-500"
+          >
+            Search
+          </label>
           <Input
+            id="expense-history-search"
             placeholder="Description or opposition…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

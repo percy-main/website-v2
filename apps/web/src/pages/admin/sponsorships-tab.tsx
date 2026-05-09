@@ -36,11 +36,13 @@ type SubTab = "game" | "player";
 type FilterValue = "all" | "pending_payment" | "pending_approval" | "approved";
 
 function PlayerSelect({
+  id,
   value,
   playerName,
   takenSlugs,
   onChange,
 }: {
+  id?: string;
   value: string;
   playerName: string;
   takenSlugs: Set<string>;
@@ -81,6 +83,7 @@ function PlayerSelect({
   return (
     <div className="relative">
       <Input
+        id={id}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -463,28 +466,42 @@ function CreateGameSponsorshipDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Game ID</label>
+            <label
+              htmlFor="sg-create-game-id"
+              className="mb-1 block text-sm font-medium"
+            >
+              Game ID
+            </label>
             <Input
+              id="sg-create-game-id"
               value={gameId}
               onChange={(e) => setGameId(e.target.value)}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sg-create-sponsor-name"
+              className="mb-1 block text-sm font-medium"
+            >
               Sponsor Name
             </label>
             <Input
+              id="sg-create-sponsor-name"
               value={sponsorName}
               onChange={(e) => setSponsorName(e.target.value)}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sg-create-sponsor-email"
+              className="mb-1 block text-sm font-medium"
+            >
               Sponsor Email
             </label>
             <Input
+              id="sg-create-sponsor-email"
               type="email"
               value={sponsorEmail}
               onChange={(e) => setSponsorEmail(e.target.value)}
@@ -492,18 +509,28 @@ function CreateGameSponsorshipDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sg-create-website"
+              className="mb-1 block text-sm font-medium"
+            >
               Website URL
             </label>
             <Input
+              id="sg-create-website"
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
               placeholder="Optional"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Phone</label>
+            <label
+              htmlFor="sg-create-phone"
+              className="mb-1 block text-sm font-medium"
+            >
+              Phone
+            </label>
             <Input
+              id="sg-create-phone"
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -511,8 +538,14 @@ function CreateGameSponsorshipDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Message</label>
+            <label
+              htmlFor="sg-create-message"
+              className="mb-1 block text-sm font-medium"
+            >
+              Message
+            </label>
             <Input
+              id="sg-create-message"
               value={message}
               onChange={(e) => setMessage(e.target.value.slice(0, 100))}
               placeholder="Optional (max 100 chars)"
@@ -523,10 +556,14 @@ function CreateGameSponsorshipDialog({
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sg-create-amount"
+              className="mb-1 block text-sm font-medium"
+            >
               Amount (GBP)
             </label>
             <Input
+              id="sg-create-amount"
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -536,18 +573,28 @@ function CreateGameSponsorshipDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sg-create-display-name"
+              className="mb-1 block text-sm font-medium"
+            >
               Display Name
             </label>
             <Input
+              id="sg-create-display-name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Optional"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Notes</label>
+            <label
+              htmlFor="sg-create-notes"
+              className="mb-1 block text-sm font-medium"
+            >
+              Notes
+            </label>
             <Input
+              id="sg-create-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Optional"
@@ -668,8 +715,14 @@ function CreatePlayerSponsorshipDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Player</label>
+            <label
+              htmlFor="sp-create-player"
+              className="mb-1 block text-sm font-medium"
+            >
+              Player
+            </label>
             <PlayerSelect
+              id="sp-create-player"
               value={slug}
               playerName={playerName}
               takenSlugs={takenSlugs}
@@ -685,20 +738,28 @@ function CreatePlayerSponsorshipDialog({
             )}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sp-create-sponsor-name"
+              className="mb-1 block text-sm font-medium"
+            >
               Sponsor Name
             </label>
             <Input
+              id="sp-create-sponsor-name"
               value={sponsorName}
               onChange={(e) => setSponsorName(e.target.value)}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sp-create-sponsor-email"
+              className="mb-1 block text-sm font-medium"
+            >
               Sponsor Email
             </label>
             <Input
+              id="sp-create-sponsor-email"
               type="email"
               value={sponsorEmail}
               onChange={(e) => setSponsorEmail(e.target.value)}
@@ -706,18 +767,28 @@ function CreatePlayerSponsorshipDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sp-create-website"
+              className="mb-1 block text-sm font-medium"
+            >
               Website URL
             </label>
             <Input
+              id="sp-create-website"
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
               placeholder="Optional"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Phone</label>
+            <label
+              htmlFor="sp-create-phone"
+              className="mb-1 block text-sm font-medium"
+            >
+              Phone
+            </label>
             <Input
+              id="sp-create-phone"
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -725,8 +796,14 @@ function CreatePlayerSponsorshipDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Message</label>
+            <label
+              htmlFor="sp-create-message"
+              className="mb-1 block text-sm font-medium"
+            >
+              Message
+            </label>
             <Input
+              id="sp-create-message"
               value={message}
               onChange={(e) => setMessage(e.target.value.slice(0, 100))}
               placeholder="Optional (max 100 chars)"
@@ -737,10 +814,14 @@ function CreatePlayerSponsorshipDialog({
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sp-create-amount"
+              className="mb-1 block text-sm font-medium"
+            >
               Amount (GBP)
             </label>
             <Input
+              id="sp-create-amount"
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -750,18 +831,28 @@ function CreatePlayerSponsorshipDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sp-create-display-name"
+              className="mb-1 block text-sm font-medium"
+            >
               Display Name
             </label>
             <Input
+              id="sp-create-display-name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Optional"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Notes</label>
+            <label
+              htmlFor="sp-create-notes"
+              className="mb-1 block text-sm font-medium"
+            >
+              Notes
+            </label>
             <Input
+              id="sp-create-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Optional"

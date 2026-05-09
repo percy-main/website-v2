@@ -1389,7 +1389,10 @@ function ExpensesSection({
           <div className="mt-4 rounded border border-stone-200 bg-stone-50 p-4">
             <div className="flex flex-col gap-3">
               <div>
-                <label className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="official-expense-type"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Expense Type
                 </label>
                 <Select
@@ -1398,7 +1401,7 @@ function ExpensesSection({
                     handleExpenseTypeChange(v as ExpenseType)
                   }
                 >
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger id="official-expense-type" className="w-48">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1426,10 +1429,14 @@ function ExpensesSection({
                   </label>
                   {matchBallUsed && (
                     <div>
-                      <label className="mb-1 block text-sm font-medium">
+                      <label
+                        htmlFor="official-match-ball-cost"
+                        className="mb-1 block text-sm font-medium"
+                      >
                         Cost
                       </label>
                       <Input
+                        id="official-match-ball-cost"
                         className="w-32"
                         type="number"
                         min="0"
@@ -1444,7 +1451,10 @@ function ExpensesSection({
               ) : (
                 <>
                   <div>
-                    <label className="mb-1 block text-sm font-medium">
+                    <label
+                      htmlFor="official-expense-description"
+                      className="mb-1 block text-sm font-medium"
+                    >
                       {expenseType === "umpire_fee"
                         ? "Umpire Name"
                         : expenseType === "scorer_fee"
@@ -1454,6 +1464,7 @@ function ExpensesSection({
                             : "Description (optional)"}
                     </label>
                     <Input
+                      id="official-expense-description"
                       placeholder={
                         expenseType === "umpire_fee"
                           ? "e.g. J. Smith"
@@ -1466,10 +1477,14 @@ function ExpensesSection({
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium">
+                    <label
+                      htmlFor="official-expense-amount"
+                      className="mb-1 block text-sm font-medium"
+                    >
                       Amount
                     </label>
                     <Input
+                      id="official-expense-amount"
                       className="w-32"
                       type="number"
                       min="0"
@@ -1484,10 +1499,14 @@ function ExpensesSection({
 
               {/* Receipt image capture */}
               <div>
-                <label className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="official-receipt-photo"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Receipt Photo (optional)
                 </label>
                 <input
+                  id="official-receipt-photo"
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"

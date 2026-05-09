@@ -94,8 +94,14 @@ function CreateDocumentDialog({
           className="space-y-4"
         >
           <div>
-            <label className="mb-1 block text-sm font-medium">Title</label>
+            <label
+              htmlFor="upload-doc-title"
+              className="mb-1 block text-sm font-medium"
+            >
+              Title
+            </label>
             <Input
+              id="upload-doc-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Safeguarding Policy"
@@ -103,10 +109,14 @@ function CreateDocumentDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="upload-doc-file"
+              className="mb-1 block text-sm font-medium"
+            >
               PDF Document
             </label>
             <Input
+              id="upload-doc-file"
               type="file"
               accept="application/pdf"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
@@ -207,18 +217,28 @@ function EditDocumentDialog({
           className="space-y-4"
         >
           <div>
-            <label className="mb-1 block text-sm font-medium">Title</label>
+            <label
+              htmlFor="edit-doc-title"
+              className="mb-1 block text-sm font-medium"
+            >
+              Title
+            </label>
             <Input
+              id="edit-doc-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="edit-doc-file"
+              className="mb-1 block text-sm font-medium"
+            >
               Replace PDF (optional; uploading increments version)
             </label>
             <Input
+              id="edit-doc-file"
               type="file"
               accept="application/pdf"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}

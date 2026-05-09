@@ -1,3 +1,4 @@
+import { useClientDate } from "@/hooks/use-client-date.js";
 import { requestConsentReopen } from "@/lib/marketing/consent.js";
 import type { FC } from "react";
 import { Link } from "react-router";
@@ -6,6 +7,7 @@ import { SocialLinks } from "./social-links.js";
 
 export const SiteFooter: FC = () => {
   const openCookieSettings = () => requestConsentReopen();
+  const now = useClientDate();
 
   return (
     <footer className="bg-primary text-white">
@@ -129,7 +131,7 @@ export const SiteFooter: FC = () => {
       <div className="border-t border-white/10">
         <div className="container mx-auto flex flex-col items-center justify-between gap-3 px-8 py-4 text-sm text-white/60 md:flex-row">
           <p>
-            &copy; {new Date().getFullYear()} Percy Main Community Sports Club
+            &copy; {now?.getFullYear() ?? ""} Percy Main Community Sports Club
           </p>
         </div>
       </div>

@@ -391,10 +391,14 @@ function ChaosWeeksSection() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="chaos-gameweek"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Gameweek
                 </label>
                 <Input
+                  id="chaos-gameweek"
                   type="number"
                   min={1}
                   value={gameweekId}
@@ -403,11 +407,14 @@ function ChaosWeeksSection() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="chaos-rule-type"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Rule Type
                 </label>
                 <Select value={ruleType} onValueChange={handleRuleTypeChange}>
-                  <SelectTrigger>
+                  <SelectTrigger id="chaos-rule-type">
                     <SelectValue placeholder="Select rule type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -430,18 +437,28 @@ function ChaosWeeksSection() {
                 </Select>
               </div>
               <div className="col-span-2">
-                <label className="mb-1 block text-sm font-medium">Name</label>
+                <label
+                  htmlFor="chaos-name"
+                  className="mb-1 block text-sm font-medium"
+                >
+                  Name
+                </label>
                 <Input
+                  id="chaos-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
                 />
               </div>
               <div className="col-span-2">
-                <label className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="chaos-description"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Description
                 </label>
                 <textarea
+                  id="chaos-description"
                   className="flex min-h-[80px] w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm placeholder:text-stone-500 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -450,10 +467,14 @@ function ChaosWeeksSection() {
               </div>
               {showRuleConfig && (
                 <div className="col-span-2">
-                  <label className="mb-1 block text-sm font-medium">
+                  <label
+                    htmlFor="chaos-rule-config"
+                    className="mb-1 block text-sm font-medium"
+                  >
                     Rule Config JSON
                   </label>
                   <textarea
+                    id="chaos-rule-config"
                     className="flex min-h-[80px] w-full rounded-md border border-stone-300 bg-white px-3 py-2 font-mono text-sm placeholder:text-stone-500 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                     value={ruleConfig}
                     onChange={(e) => setRuleConfig(e.target.value)}

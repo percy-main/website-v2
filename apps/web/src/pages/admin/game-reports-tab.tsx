@@ -87,11 +87,14 @@ export function GameReportsTab() {
         </CardHeader>
         <CardContent>
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="game-reports-team-filter"
+              className="mb-1 block text-sm font-medium"
+            >
               Filter by Team
             </label>
             <Select value={teamFilter} onValueChange={setTeamFilter}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger id="game-reports-team-filter" className="w-64">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

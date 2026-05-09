@@ -896,10 +896,14 @@ function PaymentsSection({
           className="mb-4 space-y-3 rounded-md border border-stone-200 p-3"
         >
           <div>
-            <label className="mb-1 block text-sm text-stone-600">
+            <label
+              htmlFor="member-charge-description"
+              className="mb-1 block text-sm text-stone-600"
+            >
               Description
             </label>
             <Input
+              id="member-charge-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               required
@@ -907,10 +911,14 @@ function PaymentsSection({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-sm text-stone-600">
+              <label
+                htmlFor="member-charge-amount"
+                className="mb-1 block text-sm text-stone-600"
+              >
                 Amount (GBP)
               </label>
               <Input
+                id="member-charge-amount"
                 type="number"
                 min="0.01"
                 step="0.01"
@@ -920,8 +928,14 @@ function PaymentsSection({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-stone-600">Date</label>
+              <label
+                htmlFor="member-charge-date"
+                className="mb-1 block text-sm text-stone-600"
+              >
+                Date
+              </label>
               <Input
+                id="member-charge-date"
                 type="date"
                 value={chargeDate}
                 onChange={(e) => setChargeDate(e.target.value)}

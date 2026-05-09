@@ -109,9 +109,14 @@ export function MatchFeesTab() {
         <CardContent>
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="mb-1 block text-sm font-medium">Team</label>
+              <label
+                htmlFor="mfee-team"
+                className="mb-1 block text-sm font-medium"
+              >
+                Team
+              </label>
               <Select value={newTeamId} onValueChange={setNewTeamId}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger id="mfee-team" className="w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -125,11 +130,14 @@ export function MatchFeesTab() {
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">
+              <label
+                htmlFor="mfee-category"
+                className="mb-1 block text-sm font-medium"
+              >
                 Member Category
               </label>
               <Select value={newCategory} onValueChange={setNewCategory}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger id="mfee-category" className="w-40">
                   <SelectValue placeholder="Select…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -142,7 +150,10 @@ export function MatchFeesTab() {
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">
+              <label
+                htmlFor="mfee-competition-type"
+                className="mb-1 block text-sm font-medium"
+              >
                 Competition Type
               </label>
               <Select
@@ -151,7 +162,7 @@ export function MatchFeesTab() {
                   setNewCompetitionType(v === "any" ? "" : v)
                 }
               >
-                <SelectTrigger className="w-36">
+                <SelectTrigger id="mfee-competition-type" className="w-36">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -165,8 +176,14 @@ export function MatchFeesTab() {
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Amount</label>
+              <label
+                htmlFor="mfee-amount"
+                className="mb-1 block text-sm font-medium"
+              >
+                Amount
+              </label>
               <Input
+                id="mfee-amount"
                 className="w-24"
                 type="number"
                 min="0"

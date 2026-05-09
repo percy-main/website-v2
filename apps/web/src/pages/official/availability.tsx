@@ -213,16 +213,28 @@ function CreateRequestView() {
         <CardContent className="flex flex-col gap-4 py-4">
           <div className="flex flex-wrap gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">From</label>
+              <label
+                htmlFor="availability-new-date-from"
+                className="mb-1 block text-sm font-medium"
+              >
+                From
+              </label>
               <Input
+                id="availability-new-date-from"
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">To</label>
+              <label
+                htmlFor="availability-new-date-to"
+                className="mb-1 block text-sm font-medium"
+              >
+                To
+              </label>
               <Input
+                id="availability-new-date-to"
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
@@ -1078,7 +1090,10 @@ function NotifyDialog({ requestId }: { requestId: string }) {
           ) : !previewed ? (
             <div className="space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="notify-member-category"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Member Category
                 </label>
                 <Select
@@ -1087,7 +1102,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                     setMemberCategory(v === "__all__" ? "" : v)
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="notify-member-category">
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1102,7 +1117,10 @@ function NotifyDialog({ requestId }: { requestId: string }) {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="notify-membership-status"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Membership Status
                 </label>
                 <Select
@@ -1111,7 +1129,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                     setMembershipStatus(v === "__any__" ? "" : v)
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="notify-membership-status">
                     <SelectValue placeholder="Any status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1123,10 +1141,14 @@ function NotifyDialog({ requestId }: { requestId: string }) {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="notify-additional-emails"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Additional Emails
                 </label>
                 <Input
+                  id="notify-additional-emails"
                   placeholder="email1@example.com, email2@example.com"
                   value={manualEmails}
                   onChange={(e) => setManualEmails(e.target.value)}
