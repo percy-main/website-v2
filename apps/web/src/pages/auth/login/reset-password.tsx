@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button.js";
 import { useSearchParam } from "@/hooks/use-search-param.js";
 import { authClient } from "@/lib/auth-client.js";
 import { useMutation } from "@tanstack/react-query";
-import { useCallback, useState, type FC } from "react";
+import { useState, type FC } from "react";
 import { z } from "zod";
 import type { LoginPhase } from "../login.js";
 
@@ -40,13 +40,10 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
       ),
   });
 
-  const handleSubmit = useCallback(
-    (event: React.SyntheticEvent) => {
-      event.preventDefault();
-      resetPassword.mutate();
-    },
-    [resetPassword],
-  );
+  const handleSubmit = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    resetPassword.mutate();
+  };
 
   const error = resetPassword.error ?? resetPassword.data?.error;
 

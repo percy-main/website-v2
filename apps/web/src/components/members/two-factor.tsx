@@ -2,7 +2,7 @@ import { SimpleInput } from "@/components/form/simple-input";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import QRCode from "react-qr-code";
 import { match, P } from "ts-pattern";
 
@@ -43,11 +43,11 @@ export function TwoFactor({ user }: Props) {
     },
   });
 
-  const reset = useCallback(() => {
+  const reset = () => {
     setIsEnabling(false);
     setIsDisabling(false);
     setPassword("");
-  }, []);
+  };
 
   return (
     <section>

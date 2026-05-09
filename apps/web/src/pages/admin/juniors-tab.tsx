@@ -27,7 +27,7 @@ import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { AGE_GROUPS } from "@percy-main/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import {
   initialJuniorsFilterState,
   juniorsFilterReducer,
@@ -112,11 +112,11 @@ export function JuniorsTab() {
       ),
   });
 
-  const juniors = useMemo<Junior[]>(() => data?.juniors ?? [], [data]);
+  const juniors: Junior[] = data?.juniors ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const grouped = useMemo(() => {
+  const grouped = (() => {
     const groups = new Map<string, Junior[]>();
 
     for (const junior of juniors) {
@@ -129,7 +129,6 @@ export function JuniorsTab() {
       }
     }
 
-    // Sort teams according to the defined order
     const sorted = new Map<string, Junior[]>();
     for (const teamKey of TEAM_ORDER) {
       const members = groups.get(teamKey);
@@ -137,14 +136,13 @@ export function JuniorsTab() {
         sorted.set(teamKey, members);
       }
     }
-    // Append overage players at the end
     const overage = groups.get("Overage");
     if (overage && overage.length > 0) {
       sorted.set("Overage", overage);
     }
 
     return sorted;
-  }, [juniors]);
+  })();
 
   return (
     <div className="flex flex-col gap-4">

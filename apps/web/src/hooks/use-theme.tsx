@@ -1,11 +1,4 @@
-import {
-  createContext,
-  use,
-  useCallback,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, use, useEffect, useState, type ReactNode } from "react";
 
 type Theme = "light" | "dark" | "system";
 type ResolvedTheme = "light" | "dark";
@@ -46,14 +39,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const resolved = resolveTheme(theme);
 
-  const setTheme = useCallback((next: Theme) => {
+  const setTheme = (next: Theme) => {
     localStorage.setItem(STORAGE_KEY, next);
     setThemeState(next);
-  }, []);
+  };
 
-  const toggleTheme = useCallback(() => {
+  const toggleTheme = () => {
     setTheme(resolved === "dark" ? "light" : "dark");
-  }, [resolved, setTheme]);
+  };
 
   // Apply dark class on mount and whenever resolved theme changes
   useEffect(() => {

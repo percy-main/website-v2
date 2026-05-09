@@ -2,7 +2,7 @@ import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
 import { authClient } from "@/lib/auth-client.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState, type FC } from "react";
+import { useState, type FC } from "react";
 import { useNavigate } from "react-router";
 import type { LoginPhase } from "../login.js";
 
@@ -31,13 +31,10 @@ export const Recovery: FC<Props> = ({ setPhase }) => {
     },
   });
 
-  const handleSubmit = useCallback(
-    (event: React.SyntheticEvent) => {
-      event.preventDefault();
-      verifyBackupCode.mutate();
-    },
-    [verifyBackupCode],
-  );
+  const handleSubmit = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    verifyBackupCode.mutate();
+  };
 
   const error = verifyBackupCode.error ?? verifyBackupCode.data?.error;
 

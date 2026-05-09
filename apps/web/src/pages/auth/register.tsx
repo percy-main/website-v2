@@ -4,7 +4,7 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { authClient } from "@/lib/auth-client.js";
 import { trackEvent } from "@/lib/marketing/gtag.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState, type FC } from "react";
+import { useState, type FC } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 const GoogleIcon: FC = () => (
@@ -75,22 +75,19 @@ export function Component() {
       }),
   });
 
-  const handleGoogleClick = useCallback(() => {
+  const handleGoogleClick = () => {
     googleSignUp.mutate();
-  }, [googleSignUp]);
+  };
 
-  const handleSubmit = useCallback(
-    (event: React.SyntheticEvent) => {
-      event.preventDefault();
-      if (!ageConfirmed) {
-        setAgeError(true);
-        return;
-      }
-      setAgeError(false);
-      register.mutate();
-    },
-    [ageConfirmed, register],
-  );
+  const handleSubmit = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    if (!ageConfirmed) {
+      setAgeError(true);
+      return;
+    }
+    setAgeError(false);
+    register.mutate();
+  };
 
   const isUserExists =
     register.data?.error?.code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL";

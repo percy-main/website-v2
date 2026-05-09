@@ -1,7 +1,7 @@
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
 // ══════════════════════════════════════════════════════════════
@@ -1498,7 +1498,7 @@ function BeTheKeeper() {
     isLoggedInRef.current = isLoggedIn;
   }, [isLoggedIn]);
 
-  const handleGameOver = useCallback(async (s: GS) => {
+  const handleGameOver = async (s: GS) => {
     // Guard: only write back if the game hasn't been restarted
     const isStillOver = () => s.phase === "over";
 
@@ -1548,7 +1548,7 @@ function BeTheKeeper() {
         /* score submit failed silently */
       }
     }
-  }, []);
+  };
 
   useEffect(() => {
     const cvs = canvasRef.current;

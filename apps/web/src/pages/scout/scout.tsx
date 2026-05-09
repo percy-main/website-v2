@@ -4,7 +4,7 @@ import { api, callApi } from "@/lib/api-client";
 import type { UIMessage } from "@ai-sdk/react";
 import type { ReportData } from "@percy-main/shared";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { MessageAttachments } from "./attachments/message-attachments.js";
 import { useAttachmentUpload } from "./attachments/use-attachment-upload.js";
@@ -266,25 +266,21 @@ interface ChatViewProps {
 }
 
 function ChatView({ threadId, loaded }: ChatViewProps) {
-  const initialMessages = useMemo<UIMessage[]>(
-    () =>
-      filterMessagesByRole(loaded.messages, ["user", "assistant"]).map(
-        (m) =>
-          ({
-            id: m.id,
-            role: m.role,
-            parts: m.parts,
-          }) as unknown as UIMessage,
-      ),
-    [loaded.messages],
+  const initialMessages: UIMessage[] = filterMessagesByRole(loaded.messages, [
+    "user",
+    "assistant",
+  ]).map(
+    (m) =>
+      ({
+        id: m.id,
+        role: m.role,
+        parts: m.parts,
+      }) as unknown as UIMessage,
   );
   // Historical attachment ids by message id. Live messages (still streaming
   // / not yet refetched) won't appear here — that's fine; the user just
   // sees thumbnails on the next thread reload.
-  const attachmentIdsByMessage = useMemo(
-    () => summariseAttachments(loaded.messages),
-    [loaded.messages],
-  );
+  const attachmentIdsByMessage = summariseAttachments(loaded.messages);
 
   const { messages, sendMessage, status, error, stop } = useScoutChat({
     threadId,
@@ -402,10 +398,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
   // state (ready / failed) so a stale "generating" snapshot for the same
   // reportId emitted earlier in the stream doesn't get surfaced as
   // in-flight.
-  const inFlightReport = useMemo<ReportData | null>(
-    () => findInFlightReport(messages),
-    [messages],
-  );
+  const inFlightReport: ReportData | null = findInFlightReport(messages);
 
   return (
     <>

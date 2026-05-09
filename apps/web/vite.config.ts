@@ -1,6 +1,7 @@
 import mdx from "@mdx-js/rollup";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import path from "path";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
@@ -53,6 +54,9 @@ export default defineConfig(({ mode }) => ({
       providerImportSource: "@mdx-js/react",
     }),
     react(),
+    babel({
+      presets: [reactCompilerPreset()],
+    }),
     tailwindcss(),
     imagetools({
       defaultDirectives: (url) => {
@@ -69,13 +73,14 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: [
-            "react",
-            "react-dom",
-            "react-router",
-            "@tanstack/react-query",
-          ],
+        manualChunks(id) {
+          if (
+            /[\\/]node_modules[\\/](\.pnpm[\\/])?(@tanstack[\\/]react-query|react|react-dom|react-router|scheduler)([\\/@]|$)/.test(
+              id,
+            )
+          ) {
+            return "vendor";
+          }
         },
       },
     },

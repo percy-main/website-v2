@@ -5,7 +5,7 @@ import {
   InfoWindow,
   useAdvancedMarkerRef,
 } from "@vis.gl/react-google-maps";
-import { useCallback, useState, type FC, type PropsWithChildren } from "react";
+import { useState, type FC, type PropsWithChildren } from "react";
 
 const MAPS_API_KEY = String(import.meta.env.VITE_MAPS_API_KEY ?? "");
 const MAPS_MAP_ID = String(import.meta.env.VITE_MAPS_MAP_ID ?? "");
@@ -26,13 +26,13 @@ const MarkerWithInfoWindow: FC<
   const [markerRef, marker] = useAdvancedMarkerRef();
   const [infoWindowShown, setInfoWindowShown] = useState(true);
 
-  const handleMarkerClick = useCallback(() => {
+  const handleMarkerClick = () => {
     setInfoWindowShown((isShown) => !isShown);
-  }, []);
+  };
 
-  const handleClose = useCallback(() => {
+  const handleClose = () => {
     setInfoWindowShown(false);
-  }, []);
+  };
 
   return (
     <>

@@ -30,6 +30,18 @@ export default tseslint.config(
       "react-hooks/exhaustive-deps": "error",
     },
   },
+  // apps/web runs the React Compiler — recommended-latest's compiler-aware
+  // ruleset replaces the legacy "exhaustive-deps as error" stance (the
+  // compiler now handles dep tracking and function stability for us).
+  // This block must come after the global "exhaustive-deps: error" override
+  // above so its `warn` level wins for apps/web.
+  {
+    files: ["apps/web/src/**/*.{ts,tsx}"],
+    plugins: {
+      "react-hooks": hooksPlugin,
+    },
+    rules: hooksPlugin.configs["recommended-latest"].rules,
+  },
   {
     rules: {
       "no-undef": "off",

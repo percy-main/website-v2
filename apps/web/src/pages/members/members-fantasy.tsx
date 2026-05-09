@@ -34,7 +34,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import {
   BUDGET,
@@ -249,11 +249,7 @@ function TeamBuilder({
     },
   });
 
-  // Derived state
-  const squadPlayerIds = useMemo(
-    () => new Set(squad.map((p) => p.playCricketId)),
-    [squad],
-  );
+  const squadPlayerIds = new Set(squad.map((p) => p.playCricketId));
 
   const slotCounts = countSlots(squad);
   const validation = validateSquadComposition(squad);
@@ -314,7 +310,7 @@ function TeamBuilder({
     setSquad((prev) => moveSquadPlayerToSlot(prev, playCricketId, slotType));
   }
 
-  const availablePlayers = useMemo(() => {
+  const availablePlayers = (() => {
     const term = search.toLowerCase();
     return eligiblePlayers
       .filter(
@@ -323,7 +319,7 @@ function TeamBuilder({
           (!search || p.player_name.toLowerCase().includes(term)),
       )
       .toSorted((a, b) => b.previousSeasonPoints - a.previousSeasonPoints);
-  }, [eligiblePlayers, squadPlayerIds, search]);
+  })();
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const activePlayer = activeId

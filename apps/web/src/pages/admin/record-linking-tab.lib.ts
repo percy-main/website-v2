@@ -157,10 +157,7 @@ export interface ScoredPlayCricketPlayer extends PlayCricketPlayer {
   score: number;
 }
 
-/**
- * Filter and rank Play-Cricket players for the link-suggestion list.
- * Mirrors the original useMemo body in DetailModal.
- */
+/** Filter and rank Play-Cricket players for the link-suggestion list. */
 export function rankPlayCricketSuggestions(
   pcPlayers: readonly PlayCricketPlayer[],
   personName: string | null,

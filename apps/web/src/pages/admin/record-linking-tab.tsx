@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   buildPlayerNameMap,
   filterPeople,
@@ -132,47 +132,36 @@ export function RecordLinkingTab() {
   });
 
   // Combine members and dependents into a single list
-  const allPeople: PersonRow[] = useMemo(() => {
-    if (!linkingData) return [];
-    const members: PersonRow[] = linkingData.members.map((m) => ({
-      id: m.id,
-      name: m.name,
-      playCricketId: m.play_cricket_id,
-      slug: m.slug,
-      type: "member" as const,
-    }));
-    const deps: PersonRow[] = linkingData.dependents.map((d) => ({
-      id: d.id,
-      name: d.name,
-      parentName: d.parentName,
-      playCricketId: d.play_cricket_id,
-      type: "dependent" as const,
-    }));
-    return [...members, ...deps];
-  }, [linkingData]);
+  const allPeople: PersonRow[] = linkingData
+    ? [
+        ...linkingData.members.map<PersonRow>((m) => ({
+          id: m.id,
+          name: m.name,
+          playCricketId: m.play_cricket_id,
+          slug: m.slug,
+          type: "member" as const,
+        })),
+        ...linkingData.dependents.map<PersonRow>((d) => ({
+          id: d.id,
+          name: d.name,
+          parentName: d.parentName,
+          playCricketId: d.play_cricket_id,
+          type: "dependent" as const,
+        })),
+      ]
+    : [];
 
-  // Filter people
-  const filteredPeople = useMemo(
-    () =>
-      filterPeople(allPeople, {
-        search: debouncedSearch,
-        showLinked,
-        showUnlinked,
-        personTypeFilter,
-      }),
-    [allPeople, debouncedSearch, showLinked, showUnlinked, personTypeFilter],
-  );
+  const filteredPeople = filterPeople(allPeople, {
+    search: debouncedSearch,
+    showLinked,
+    showUnlinked,
+    personTypeFilter,
+  });
 
-  // Stats
-  const stats = useMemo(() => summarisePersonStats(allPeople), [allPeople]);
   const { totalMembers, totalDependents, linkedPcMembers, linkedPcDeps } =
-    stats;
+    summarisePersonStats(allPeople);
 
-  // Player name lookup for PC IDs
-  const playerNameById = useMemo(
-    () => buildPlayerNameMap(pcPlayers),
-    [pcPlayers],
-  );
+  const playerNameById = buildPlayerNameMap(pcPlayers);
 
   // Keep detail modal person in sync with linkingData refreshes
   useEffect(() => {
@@ -464,11 +453,10 @@ function DetailModal({
   onClose: () => void;
 }) {
   const [slugInput, setSlugInput] = useState("");
-  // Suggested PC players
-  const suggestedPcPlayers = useMemo(() => {
-    if (!pcPlayers || !linking) return [];
-    return rankPlayCricketSuggestions(pcPlayers, person.name, linkSearch);
-  }, [pcPlayers, linking, linkSearch, person.name]);
+  const suggestedPcPlayers =
+    pcPlayers && linking
+      ? rankPlayCricketSuggestions(pcPlayers, person.name, linkSearch)
+      : [];
 
   return (
     <Dialog

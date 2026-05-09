@@ -11,7 +11,7 @@ import {
 } from "@/lib/marketing/consent.js";
 import { trackLeadGenerated } from "@/lib/marketing/track-lead.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState, type FC } from "react";
+import { useState, type FC } from "react";
 
 type Variant = "adult" | "junior";
 
@@ -142,19 +142,16 @@ export const LeadForm: FC<LeadFormProps> = ({
     },
   });
 
-  const handleSubmit = useCallback(
-    (event: React.SyntheticEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (mutation.isPending) return;
-      // Capture the display name the moment the user submits so the success
-      // copy stays personalised even if state is later reset.
-      setSubmittedDisplayName(
-        variant === "junior" ? junior.childName.trim() : adult.name.trim(),
-      );
-      mutation.mutate();
-    },
-    [adult.name, junior.childName, mutation, variant],
-  );
+  const handleSubmit = (event: React.SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (mutation.isPending) return;
+    // Capture the display name the moment the user submits so the success
+    // copy stays personalised even if state is later reset.
+    setSubmittedDisplayName(
+      variant === "junior" ? junior.childName.trim() : adult.name.trim(),
+    );
+    mutation.mutate();
+  };
 
   if (mutation.isSuccess) {
     return (

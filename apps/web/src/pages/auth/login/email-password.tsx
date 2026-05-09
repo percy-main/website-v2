@@ -2,7 +2,7 @@ import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
 import { authClient } from "@/lib/auth-client.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState, type FC } from "react";
+import { useEffect, useState, type FC } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import type { LoginPhase } from "../login.js";
 
@@ -86,13 +86,10 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
       }),
   });
 
-  const handleSubmit = useCallback(
-    (event: React.SyntheticEvent) => {
-      event.preventDefault();
-      signin.mutate();
-    },
-    [signin],
-  );
+  const handleSubmit = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    signin.mutate();
+  };
 
   const error = signin.error ?? googleSignIn.error ?? googleSignIn.data?.error;
 
