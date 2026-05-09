@@ -110,6 +110,40 @@ jobs:
             --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
             --id "${{ steps.invalidate.outputs.invalidation_id }}"
 
+      - name: Record web deployment in New Relic
+        id: nr-deploy-web
+        if: success()
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_BROWSER_ENTITY_GUID: ${{ vars.NEW_RELIC_BROWSER_ENTITY_GUID }}
+          ACTOR: ${{ github.actor }}
+          REF_INPUT: ${{ inputs.ref }}
+          DEPLOYED_SHA: ${{ steps.ref.outputs.sha }}
+        run: |
+          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_BROWSER_ENTITY_GUID:-}" ]; then
+            echo "New Relic API key or Browser entity GUID not configured, skipping"
+            exit 0
+          fi
+          TIMESTAMP=$(date -u +%s)000
+          DESCRIPTION="Manual web deploy: actor=${ACTOR} ref=${REF_INPUT}"
+          PAYLOAD=$(jq -n \
+            --arg version "$DEPLOYED_SHA" \
+            --arg entity "$NEW_RELIC_BROWSER_ENTITY_GUID" \
+            --arg desc "$DESCRIPTION" \
+            --argjson ts "$TIMESTAMP" \
+            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: BASIC, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
+          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
+            -H "Content-Type: application/json" \
+            -H "API-Key: $NEW_RELIC_API_KEY" \
+            -d "$PAYLOAD" || printf '\n000')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
+            echo "::warning::New Relic web deployment tracking failed (HTTP $HTTP_CODE): $BODY"
+          else
+            echo "Web deployment recorded in New Relic"
+          fi
+
       - name: Smoke test web
         id: smoke-web
         env:
