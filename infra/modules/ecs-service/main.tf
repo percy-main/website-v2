@@ -177,9 +177,14 @@ resource "aws_cloudwatch_log_group" "api" {
 resource "aws_ecs_cluster" "main" {
   name = "${local.name_prefix}-cluster"
 
+  # Enabled so the monitoring module's task-count-drop alarm (#205) has
+  # ECS/ContainerInsights DesiredTaskCount + RunningTaskCount metrics
+  # to alarm against. Without this, those metrics are not published
+  # and the alarm sits in INSUFFICIENT_DATA forever. The cost is the
+  # extra CW Logs ingest for ContainerInsights — small at our scale.
   setting {
     name  = "containerInsights"
-    value = "disabled"
+    value = "enabled"
   }
 
   tags = local.tags

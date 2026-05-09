@@ -134,6 +134,96 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
   tags = local.default_tags
 }
 
+# Running below desired — pages on task crash-loop / cold-stop / 0
+# tasks running. Uses metric math so it works for any desired count.
+resource "aws_cloudwatch_metric_alarm" "ecs_running_below_desired" {
+  alarm_name          = "${local.prefix}-ecs-running-below-desired"
+  alarm_description   = "ECS service has fewer running tasks than desired — crash loop, capacity exhaustion, or stuck deployment"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+
+  metric_query {
+    id          = "missing"
+    expression  = "desired - running"
+    label       = "Desired - Running"
+    return_data = true
+  }
+
+  metric_query {
+    id = "desired"
+    metric {
+      metric_name = "DesiredTaskCount"
+      namespace   = "ECS/ContainerInsights"
+      period      = 60
+      stat        = "Average"
+      dimensions = {
+        ClusterName = var.cluster_name
+        ServiceName = var.service_name
+      }
+    }
+  }
+
+  metric_query {
+    id = "running"
+    metric {
+      metric_name = "RunningTaskCount"
+      namespace   = "ECS/ContainerInsights"
+      period      = 60
+      stat        = "Average"
+      dimensions = {
+        ClusterName = var.cluster_name
+        ServiceName = var.service_name
+      }
+    }
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
+# Deployment failed (circuit-breaker rollback or other deployment-state
+# failure) — routed to SNS via EventBridge.
+resource "aws_cloudwatch_event_rule" "ecs_deployment_failed" {
+  name        = "${local.prefix}-ecs-deployment-failed"
+  description = "ECS service deployment entered a failed state (deployment circuit breaker, etc)"
+
+  event_pattern = jsonencode({
+    source        = ["aws.ecs"]
+    "detail-type" = ["ECS Deployment State Change"]
+    detail = {
+      eventName = ["SERVICE_DEPLOYMENT_FAILED"]
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "ecs_deployment_failed_to_sns" {
+  rule      = aws_cloudwatch_event_rule.ecs_deployment_failed.name
+  target_id = "sns"
+  arn       = aws_sns_topic.alarms.arn
+}
+
+# Allow EventBridge to publish to the alarms SNS topic.
+data "aws_iam_policy_document" "alarms_topic" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com", "cloudwatch.amazonaws.com"]
+    }
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.alarms.arn]
+  }
+}
+
+resource "aws_sns_topic_policy" "alarms" {
+  arn    = aws_sns_topic.alarms.arn
+  policy = data.aws_iam_policy_document.alarms_topic.json
+}
+
 # -----------------------------------------------------------------------------
 # ALB CloudWatch Alarms
 # -----------------------------------------------------------------------------
