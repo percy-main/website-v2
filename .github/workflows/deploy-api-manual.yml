@@ -111,6 +111,7 @@ jobs:
           echo "task-definition-arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
 
       - name: Run migrations
+        id: migrate
         run: |
           NETWORK_CONFIG=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER \
@@ -133,6 +134,7 @@ jobs:
             --output text)
 
           echo "Migration task: $TASK_ARN"
+          echo "task_arn=$TASK_ARN" >> "$GITHUB_OUTPUT"
           aws ecs wait tasks-stopped --cluster $ECS_CLUSTER --tasks $TASK_ARN
 
           EXIT_CODE=$(aws ecs describe-tasks \
@@ -140,11 +142,54 @@ jobs:
             --tasks $TASK_ARN \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
 
           if [ "$EXIT_CODE" != "0" ]; then
             echo "Migration failed with exit code $EXIT_CODE"
             exit 1
           fi
+
+      - name: Migration failure diagnostics
+        if: failure() && steps.migrate.outputs.task_arn != ''
+        env:
+          TASK_ARN: ${{ steps.migrate.outputs.task_arn }}
+          EXIT_CODE: ${{ steps.migrate.outputs.exit_code }}
+          TASK_DEF_ARN: ${{ steps.task-def.outputs.task-definition-arn }}
+        run: |
+          # Surface task-stop reason + container reason + last 50 log
+          # lines from the task's CloudWatch stream into the run summary.
+          set +e
+          STOPPED_REASON=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+          CONTAINER_REASON=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].reason' --output text)
+          LOG_GROUP=$(aws ecs describe-task-definition --task-definition "$TASK_DEF_ARN" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options."awslogs-group"' --output text)
+          STREAM_PREFIX=$(aws ecs describe-task-definition --task-definition "$TASK_DEF_ARN" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options."awslogs-stream-prefix"' --output text)
+          TASK_ID=$(echo "$TASK_ARN" | awk -F/ '{print $NF}')
+          STREAM="${STREAM_PREFIX}/api/${TASK_ID}"
+          LOG_TAIL=$(aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$STREAM" \
+            --limit 50 \
+            --no-start-from-head \
+            --query 'events[].message' --output text 2>&1)
+          set -e
+          {
+            echo "## Migration failure (manual)"
+            echo "- Exit code: \`${EXIT_CODE}\`"
+            echo "- Task: \`${TASK_ARN}\`"
+            echo "- Stopped reason: \`${STOPPED_REASON}\`"
+            echo "- Container reason: \`${CONTAINER_REASON}\`"
+            echo "- Log group: \`${LOG_GROUP}\`"
+            echo "- Log stream: \`${STREAM}\`"
+            echo ""
+            echo '### Last 50 log lines'
+            echo '```'
+            echo "${LOG_TAIL}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Update ECS service
         run: |

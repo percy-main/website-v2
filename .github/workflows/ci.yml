@@ -16,6 +16,17 @@ jobs:
   lint-test-build:
     uses: ./.github/workflows/_lint-test-build.yml
 
+  unsafe-ddl-check:
+    # Guardrail against unsafe DDL in migrations (DROP COLUMN / DROP
+    # TABLE / SET NOT NULL on existing data). Opt-out via
+    # `safe-ddl-ack: <reason>` token in any commit message.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: bash .github/scripts/check-unsafe-ddl.sh "origin/${{ github.base_ref }}"
+
   react-doctor:
     # Diff-only scan of apps/web on the PR. Findings are posted as a PR
     # comment by the action; failures here don't block merge — eslint
