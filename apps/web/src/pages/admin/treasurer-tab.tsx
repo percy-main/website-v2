@@ -50,6 +50,7 @@ const MEMBERSHIP_TYPE_LABELS: Record<string, string> = {
 
 // --- Component ---
 
+// eslint-disable-next-line react-doctor/no-giant-component -- treasurer dashboard: date range picker + 4 income/sponsor/expense queries + chart + summary tiles share dateFrom/dateTo via prop drilling that a split would only formalise. Sub-sections (chart, expenses, outstanding) already live in sibling files.
 export function TreasurerTab() {
   const defaults = getFinancialYearDefaults();
   const [dateFrom, setDateFrom] = useState(defaults.dateFrom);

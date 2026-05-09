@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer } from "react";
 import { Link } from "react-router";
 
 type ReporterRelationship =
@@ -42,55 +42,102 @@ type IncidentType =
 
 type InjurySeverity = "minor" | "serious" | "fatal";
 
+// eslint-disable-next-line react-doctor/no-giant-component -- public H&S incident report: 26-field single-submission form covering reporter / affected / incident / injury / actions / declaration sections. All fields submit together with one validation lifecycle, and the form stays accessible without auth so we keep state colocated.
 export function Component() {
   useDocumentMeta(
     "Report an accident or incident",
     "Report an accident, injury, near miss or safety concern at Percy Main Community Sports Club.",
   );
 
-  // Reporter
-  const [reporterName, setReporterName] = useState("");
-  const [reporterEmail, setReporterEmail] = useState("");
-  const [reporterPhone, setReporterPhone] = useState("");
-  const [reporterRelationship, setReporterRelationship] =
-    useState<ReporterRelationship>("member");
-  const [prefersNoContact, setPrefersNoContact] = useState(false);
+  interface ReportFormState {
+    reporterName: string;
+    reporterEmail: string;
+    reporterPhone: string;
+    reporterRelationship: ReporterRelationship;
+    prefersNoContact: boolean;
+    affectedName: string;
+    affectedRelationship: AffectedRelationship | "";
+    affectedContact: string;
+    affectedIsMinor: boolean;
+    occurredAt: string;
+    location: string;
+    activity: string;
+    incidentType: IncidentType;
+    description: string;
+    injuryOccurred: boolean;
+    natureOfInjury: string;
+    bodyPartsAffected: string;
+    injurySeverity: InjurySeverity | "";
+    firstAidGiven: boolean;
+    firstAiderName: string;
+    firstAidDetails: string;
+    medicalTreatmentRequired: boolean;
+    immediateActions: string;
+    witnesses: string;
+    declarationConfirmed: boolean;
+    /** Honeypot — bots tend to fill this, humans leave it blank. */
+    website: string;
+  }
 
-  // Affected
-  const [affectedName, setAffectedName] = useState("");
-  const [affectedRelationship, setAffectedRelationship] = useState<
-    AffectedRelationship | ""
-  >("");
-  const [affectedContact, setAffectedContact] = useState("");
-  const [affectedIsMinor, setAffectedIsMinor] = useState(false);
-
-  // Incident
-  const [occurredAt, setOccurredAt] = useState("");
-  const [location, setLocation] = useState("");
-  const [activity, setActivity] = useState("");
-  const [incidentType, setIncidentType] = useState<IncidentType>("injury");
-  const [description, setDescription] = useState("");
-
-  // Injury / ill health
-  const [injuryOccurred, setInjuryOccurred] = useState(false);
-  const [natureOfInjury, setNatureOfInjury] = useState("");
-  const [bodyPartsAffected, setBodyPartsAffected] = useState("");
-  const [injurySeverity, setInjurySeverity] = useState<InjurySeverity | "">("");
-  const [firstAidGiven, setFirstAidGiven] = useState(false);
-  const [firstAiderName, setFirstAiderName] = useState("");
-  const [firstAidDetails, setFirstAidDetails] = useState("");
-  const [medicalTreatmentRequired, setMedicalTreatmentRequired] =
-    useState(false);
-
-  // Actions & witnesses
-  const [immediateActions, setImmediateActions] = useState("");
-  const [witnesses, setWitnesses] = useState("");
-
-  // Declaration
-  const [declarationConfirmed, setDeclarationConfirmed] = useState(false);
-
-  // Honeypot — bots tend to fill this, humans leave it blank.
-  const [website, setWebsite] = useState("");
+  const [form, update] = useReducer(
+    (s: ReportFormState, p: Partial<ReportFormState>) => ({ ...s, ...p }),
+    {
+      reporterName: "",
+      reporterEmail: "",
+      reporterPhone: "",
+      reporterRelationship: "member",
+      prefersNoContact: false,
+      affectedName: "",
+      affectedRelationship: "",
+      affectedContact: "",
+      affectedIsMinor: false,
+      occurredAt: "",
+      location: "",
+      activity: "",
+      incidentType: "injury",
+      description: "",
+      injuryOccurred: false,
+      natureOfInjury: "",
+      bodyPartsAffected: "",
+      injurySeverity: "",
+      firstAidGiven: false,
+      firstAiderName: "",
+      firstAidDetails: "",
+      medicalTreatmentRequired: false,
+      immediateActions: "",
+      witnesses: "",
+      declarationConfirmed: false,
+      website: "",
+    },
+  );
+  const {
+    reporterName,
+    reporterEmail,
+    reporterPhone,
+    reporterRelationship,
+    prefersNoContact,
+    affectedName,
+    affectedRelationship,
+    affectedContact,
+    affectedIsMinor,
+    occurredAt,
+    location,
+    activity,
+    incidentType,
+    description,
+    injuryOccurred,
+    natureOfInjury,
+    bodyPartsAffected,
+    injurySeverity,
+    firstAidGiven,
+    firstAiderName,
+    firstAidDetails,
+    medicalTreatmentRequired,
+    immediateActions,
+    witnesses,
+    declarationConfirmed,
+    website,
+  } = form;
 
   // Fire-and-forget: public submission with no in-app cached list to refresh.
   // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- public-facing submission; the admin incidents list is on a separate page and refetches on mount
@@ -201,7 +248,7 @@ export function Component() {
               tabIndex={-1}
               autoComplete="off"
               value={website}
-              onChange={(e) => setWebsite(e.target.value)}
+              onChange={(e) => update({ website: e.target.value })}
             />
           </label>
         </div>
@@ -215,7 +262,7 @@ export function Component() {
                 id="reporterName"
                 required
                 value={reporterName}
-                onChange={(e) => setReporterName(e.target.value)}
+                onChange={(e) => update({ reporterName: e.target.value })}
               />
             </Field>
             <Field>
@@ -225,7 +272,7 @@ export function Component() {
               <Select
                 value={reporterRelationship}
                 onValueChange={(v) =>
-                  setReporterRelationship(v as ReporterRelationship)
+                  update({ reporterRelationship: v as ReporterRelationship })
                 }
               >
                 <SelectTrigger id="reporterRelationship">
@@ -254,7 +301,7 @@ export function Component() {
                 type="email"
                 required
                 value={reporterEmail}
-                onChange={(e) => setReporterEmail(e.target.value)}
+                onChange={(e) => update({ reporterEmail: e.target.value })}
               />
             </Field>
             <Field>
@@ -263,7 +310,7 @@ export function Component() {
                 id="reporterPhone"
                 type="tel"
                 value={reporterPhone}
-                onChange={(e) => setReporterPhone(e.target.value)}
+                onChange={(e) => update({ reporterPhone: e.target.value })}
               />
             </Field>
           </FieldRow>
@@ -272,7 +319,7 @@ export function Component() {
               id="prefersNoContact"
               className="mt-1"
               checked={prefersNoContact}
-              onCheckedChange={(v) => setPrefersNoContact(v === true)}
+              onCheckedChange={(v) => update({ prefersNoContact: v === true })}
             />
             <Label htmlFor="prefersNoContact" className="leading-snug">
               I&rsquo;d prefer not to be contacted about this report. (We still
@@ -294,7 +341,7 @@ export function Component() {
               <Input
                 id="affectedName"
                 value={affectedName}
-                onChange={(e) => setAffectedName(e.target.value)}
+                onChange={(e) => update({ affectedName: e.target.value })}
                 placeholder="Leave blank if this was you, or unknown"
               />
             </Field>
@@ -303,7 +350,7 @@ export function Component() {
               <Select
                 value={affectedRelationship}
                 onValueChange={(v) =>
-                  setAffectedRelationship(v as AffectedRelationship)
+                  update({ affectedRelationship: v as AffectedRelationship })
                 }
               >
                 <SelectTrigger id="affectedRelationship">
@@ -325,7 +372,7 @@ export function Component() {
             <Input
               id="affectedContact"
               value={affectedContact}
-              onChange={(e) => setAffectedContact(e.target.value)}
+              onChange={(e) => update({ affectedContact: e.target.value })}
               placeholder="Email and/or phone number"
             />
           </Field>
@@ -333,7 +380,7 @@ export function Component() {
             <Checkbox
               id="affectedIsMinor"
               checked={affectedIsMinor}
-              onCheckedChange={(v) => setAffectedIsMinor(v === true)}
+              onCheckedChange={(v) => update({ affectedIsMinor: v === true })}
             />
             <Label htmlFor="affectedIsMinor">
               The person affected is under 18
@@ -351,7 +398,7 @@ export function Component() {
                 type="datetime-local"
                 required
                 value={occurredAt}
-                onChange={(e) => setOccurredAt(e.target.value)}
+                onChange={(e) => update({ occurredAt: e.target.value })}
               />
             </Field>
             <Field>
@@ -360,7 +407,7 @@ export function Component() {
                 id="location"
                 required
                 value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                onChange={(e) => update({ location: e.target.value })}
                 placeholder="e.g. Main pitch, clubhouse, nets"
               />
             </Field>
@@ -370,7 +417,9 @@ export function Component() {
               <Label htmlFor="incidentType">Type of incident *</Label>
               <Select
                 value={incidentType}
-                onValueChange={(v) => setIncidentType(v as IncidentType)}
+                onValueChange={(v) =>
+                  update({ incidentType: v as IncidentType })
+                }
               >
                 <SelectTrigger id="incidentType">
                   <SelectValue />
@@ -393,7 +442,7 @@ export function Component() {
               <Input
                 id="activity"
                 value={activity}
-                onChange={(e) => setActivity(e.target.value)}
+                onChange={(e) => update({ activity: e.target.value })}
                 placeholder="e.g. Junior training, match day, maintenance"
               />
             </Field>
@@ -405,7 +454,7 @@ export function Component() {
               required
               rows={5}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => update({ description: e.target.value })}
             />
           </Field>
         </section>
@@ -418,7 +467,7 @@ export function Component() {
             <Checkbox
               id="injuryOccurred"
               checked={injuryOccurred}
-              onCheckedChange={(v) => setInjuryOccurred(v === true)}
+              onCheckedChange={(v) => update({ injuryOccurred: v === true })}
             />
             <Label htmlFor="injuryOccurred">
               Someone was injured or unwell
@@ -434,7 +483,7 @@ export function Component() {
                   id="natureOfInjury"
                   rows={2}
                   value={natureOfInjury}
-                  onChange={(e) => setNatureOfInjury(e.target.value)}
+                  onChange={(e) => update({ natureOfInjury: e.target.value })}
                   placeholder="e.g. sprained ankle, cut to the head, asthma attack"
                 />
               </Field>
@@ -446,7 +495,9 @@ export function Component() {
                   <Input
                     id="bodyPartsAffected"
                     value={bodyPartsAffected}
-                    onChange={(e) => setBodyPartsAffected(e.target.value)}
+                    onChange={(e) =>
+                      update({ bodyPartsAffected: e.target.value })
+                    }
                   />
                 </Field>
                 <Field>
@@ -454,7 +505,7 @@ export function Component() {
                   <Select
                     value={injurySeverity}
                     onValueChange={(v) =>
-                      setInjurySeverity(v as InjurySeverity)
+                      update({ injurySeverity: v as InjurySeverity })
                     }
                   >
                     <SelectTrigger id="injurySeverity">
@@ -473,7 +524,7 @@ export function Component() {
                   id="medicalTreatmentRequired"
                   checked={medicalTreatmentRequired}
                   onCheckedChange={(v) =>
-                    setMedicalTreatmentRequired(v === true)
+                    update({ medicalTreatmentRequired: v === true })
                   }
                 />
                 <Label htmlFor="medicalTreatmentRequired">
@@ -486,7 +537,7 @@ export function Component() {
             <Checkbox
               id="firstAidGiven"
               checked={firstAidGiven}
-              onCheckedChange={(v) => setFirstAidGiven(v === true)}
+              onCheckedChange={(v) => update({ firstAidGiven: v === true })}
             />
             <Label htmlFor="firstAidGiven">First aid was given</Label>
           </div>
@@ -497,7 +548,7 @@ export function Component() {
                 <Input
                   id="firstAiderName"
                   value={firstAiderName}
-                  onChange={(e) => setFirstAiderName(e.target.value)}
+                  onChange={(e) => update({ firstAiderName: e.target.value })}
                 />
               </Field>
               <Field>
@@ -508,7 +559,7 @@ export function Component() {
                   id="firstAidDetails"
                   rows={2}
                   value={firstAidDetails}
-                  onChange={(e) => setFirstAidDetails(e.target.value)}
+                  onChange={(e) => update({ firstAidDetails: e.target.value })}
                 />
               </Field>
             </>
@@ -527,7 +578,7 @@ export function Component() {
               id="immediateActions"
               rows={3}
               value={immediateActions}
-              onChange={(e) => setImmediateActions(e.target.value)}
+              onChange={(e) => update({ immediateActions: e.target.value })}
             />
           </Field>
           <Field>
@@ -538,7 +589,7 @@ export function Component() {
               id="witnesses"
               rows={3}
               value={witnesses}
-              onChange={(e) => setWitnesses(e.target.value)}
+              onChange={(e) => update({ witnesses: e.target.value })}
             />
           </Field>
         </section>
@@ -550,7 +601,9 @@ export function Component() {
               id="declarationConfirmed"
               className="mt-1"
               checked={declarationConfirmed}
-              onCheckedChange={(v) => setDeclarationConfirmed(v === true)}
+              onCheckedChange={(v) =>
+                update({ declarationConfirmed: v === true })
+              }
             />
             <Label
               htmlFor="declarationConfirmed"

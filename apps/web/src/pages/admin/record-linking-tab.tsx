@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import {
   buildPlayerNameMap,
   filterPeople,
@@ -39,22 +39,54 @@ interface DetailModalState {
   linking: boolean;
 }
 
+interface RecordLinkingState {
+  pcPlayers: PlayCricketPlayer[] | null;
+  search: string;
+  debouncedSearch: string;
+  detailModal: DetailModalState | null;
+  linkSearch: string;
+  showLinked: boolean;
+  showUnlinked: boolean;
+  personTypeFilter: "all" | "member" | "dependent";
+}
+
+const initialRecordLinkingState: RecordLinkingState = {
+  pcPlayers: null,
+  search: "",
+  debouncedSearch: "",
+  detailModal: null,
+  linkSearch: "",
+  showLinked: true,
+  showUnlinked: true,
+  personTypeFilter: "all",
+};
+
+// eslint-disable-next-line react-doctor/no-giant-component -- admin record-linking tool: search + filter bar + people table + DetailModal that shares 4 mutations + linked PC players state. The DetailModal is already extracted; the remaining surface is the linker UI itself.
 export function RecordLinkingTab() {
   const queryClient = useQueryClient();
-  const [pcPlayers, setPcPlayers] = useState<PlayCricketPlayer[] | null>(null);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [detailModal, setDetailModal] = useState<DetailModalState | null>(null);
-  const [linkSearch, setLinkSearch] = useState("");
-  const [showLinked, setShowLinked] = useState(true);
-  const [showUnlinked, setShowUnlinked] = useState(true);
-  const [personTypeFilter, setPersonTypeFilter] = useState<
-    "all" | "member" | "dependent"
-  >("all");
+  const [state, update] = useReducer(
+    (
+      s: RecordLinkingState,
+      p:
+        | Partial<RecordLinkingState>
+        | ((s: RecordLinkingState) => Partial<RecordLinkingState>),
+    ) => ({ ...s, ...(typeof p === "function" ? p(s) : p) }),
+    initialRecordLinkingState,
+  );
+  const {
+    pcPlayers,
+    search,
+    debouncedSearch,
+    detailModal,
+    linkSearch,
+    showLinked,
+    showUnlinked,
+    personTypeFilter,
+  } = state;
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setDebouncedSearch(search);
+      update({ debouncedSearch: search });
     }, 300);
     return () => clearTimeout(timeout);
   }, [search]);
@@ -70,7 +102,7 @@ export function RecordLinkingTab() {
   const refreshMutation = useMutation({
     mutationFn: () => callApi(api.GET("/api/admin/play-cricket-players")),
     onSuccess: (result) => {
-      setPcPlayers(result.players as PlayCricketPlayer[]);
+      update({ pcPlayers: result.players as PlayCricketPlayer[] });
     },
   });
 
@@ -89,8 +121,12 @@ export function RecordLinkingTab() {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "recordLinking"],
       });
-      setDetailModal((prev) => (prev ? { ...prev, linking: false } : null));
-      setLinkSearch("");
+      update((s) => ({
+        detailModal: s.detailModal
+          ? { ...s.detailModal, linking: false }
+          : null,
+        linkSearch: "",
+      }));
     },
   });
 
@@ -172,7 +208,11 @@ export function RecordLinkingTab() {
           p.id === detailModal.person.id && p.type === detailModal.person.type,
       );
       if (updated) {
-        setDetailModal((prev) => (prev ? { ...prev, person: updated } : null));
+        update((s) => ({
+          detailModal: s.detailModal
+            ? { ...s.detailModal, person: updated }
+            : null,
+        }));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- same pattern as v1
@@ -240,7 +280,7 @@ export function RecordLinkingTab() {
           type="text"
           placeholder="Search by name…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => update({ search: e.target.value })}
           className="max-w-md"
         />
         <div className="flex items-center gap-3 text-sm">
@@ -248,7 +288,7 @@ export function RecordLinkingTab() {
             <input
               type="checkbox"
               checked={showLinked}
-              onChange={(e) => setShowLinked(e.target.checked)}
+              onChange={(e) => update({ showLinked: e.target.checked })}
             />
             Fully linked
           </label>
@@ -256,7 +296,7 @@ export function RecordLinkingTab() {
             <input
               type="checkbox"
               checked={showUnlinked}
-              onChange={(e) => setShowUnlinked(e.target.checked)}
+              onChange={(e) => update({ showUnlinked: e.target.checked })}
             />
             Unlinked
           </label>
@@ -264,7 +304,9 @@ export function RecordLinkingTab() {
         <Select
           value={personTypeFilter}
           onValueChange={(value) =>
-            setPersonTypeFilter(value as "all" | "member" | "dependent")
+            update({
+              personTypeFilter: value as "all" | "member" | "dependent",
+            })
           }
         >
           <SelectTrigger className="w-[160px]">
@@ -306,7 +348,9 @@ export function RecordLinkingTab() {
               <TableRow
                 key={`${person.type}-${person.id}`}
                 className="cursor-pointer"
-                onClick={() => setDetailModal({ person, linking: false })}
+                onClick={() =>
+                  update({ detailModal: { person, linking: false } })
+                }
               >
                 <TableCell>
                   <div className="font-medium">{person.name}</div>
@@ -365,19 +409,23 @@ export function RecordLinkingTab() {
           pcPlayers={pcPlayers}
           playerNameById={playerNameById}
           linkSearch={linkSearch}
-          onLinkSearchChange={setLinkSearch}
-          onStartLinking={() => {
-            setDetailModal((prev) =>
-              prev ? { ...prev, linking: true } : null,
-            );
-            setLinkSearch("");
-          }}
-          onCancelLinking={() => {
-            setDetailModal((prev) =>
-              prev ? { ...prev, linking: false } : null,
-            );
-            setLinkSearch("");
-          }}
+          onLinkSearchChange={(value) => update({ linkSearch: value })}
+          onStartLinking={() =>
+            update((s) => ({
+              detailModal: s.detailModal
+                ? { ...s.detailModal, linking: true }
+                : null,
+              linkSearch: "",
+            }))
+          }
+          onCancelLinking={() =>
+            update((s) => ({
+              detailModal: s.detailModal
+                ? { ...s.detailModal, linking: false }
+                : null,
+              linkSearch: "",
+            }))
+          }
           onLinkPlayCricket={(playCricketId) =>
             linkPcMutation.mutate({
               type: detailModal.person.type,
@@ -409,8 +457,8 @@ export function RecordLinkingTab() {
             unlinkSlug: unlinkSlugMutation.isPending,
           }}
           onClose={() => {
-            setDetailModal(null);
-            setLinkSearch("");
+            update({ detailModal: null });
+            update({ linkSearch: "" });
           }}
         />
       )}

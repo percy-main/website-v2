@@ -17,7 +17,7 @@ import { getImageUrl, getPicture } from "@/lib/image-map";
 import { resizeLogo } from "@/lib/logo-resize";
 import { getPersonBySlug } from "@/lib/people";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer, useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useParams } from "react-router";
 
@@ -33,6 +33,26 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
 
 type Step = "details" | "paying" | "success";
 
+interface SponsorFormState {
+  sponsorName: string;
+  sponsorEmail: string;
+  sponsorWebsite: string;
+  sponsorPhone: string;
+  sponsorMessage: string;
+  logoDataUrl: string | null;
+  logoError: string | null;
+}
+
+const initialSponsorFormState: SponsorFormState = {
+  sponsorName: "",
+  sponsorEmail: "",
+  sponsorWebsite: "",
+  sponsorPhone: "",
+  sponsorMessage: "",
+  logoDataUrl: null,
+  logoError: null,
+};
+
 export function Component() {
   const { slug } = useParams();
   const person = getPersonBySlug(slug ?? "");
@@ -41,13 +61,19 @@ export function Component() {
 
   // eslint-disable-next-line react-doctor/rerender-state-only-in-handlers -- `step` drives which checkout step renders (details → payment → confirm); useRef would not switch the view.
   const [step, setStep] = useState<Step>("details");
-  const [sponsorName, setSponsorName] = useState("");
-  const [sponsorEmail, setSponsorEmail] = useState("");
-  const [sponsorWebsite, setSponsorWebsite] = useState("");
-  const [sponsorPhone, setSponsorPhone] = useState("");
-  const [sponsorMessage, setSponsorMessage] = useState("");
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
-  const [logoError, setLogoError] = useState<string | null>(null);
+  const [form, update] = useReducer(
+    (s: SponsorFormState, p: Partial<SponsorFormState>) => ({ ...s, ...p }),
+    initialSponsorFormState,
+  );
+  const {
+    sponsorName,
+    sponsorEmail,
+    sponsorWebsite,
+    sponsorPhone,
+    sponsorMessage,
+    logoDataUrl,
+    logoError,
+  } = form;
 
   const priceQuery = useQuery({
     queryKey: ["player-sponsorship-price"],
@@ -98,19 +124,19 @@ export function Component() {
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) {
-      setLogoDataUrl(null);
-      setLogoError(null);
+      update({ logoDataUrl: null, logoError: null });
       return;
     }
-    setLogoError(null);
+    update({ logoError: null });
     try {
       const dataUrl = await resizeLogo(file);
-      setLogoDataUrl(dataUrl);
+      update({ logoDataUrl: dataUrl });
     } catch (err) {
-      setLogoError(
-        err instanceof Error ? err.message : "Failed to process logo",
-      );
-      setLogoDataUrl(null);
+      update({
+        logoDataUrl: null,
+        logoError:
+          err instanceof Error ? err.message : "Failed to process logo",
+      });
     }
   };
 
@@ -218,7 +244,7 @@ export function Component() {
               <Input
                 id="sponsorName"
                 value={sponsorName}
-                onChange={(e) => setSponsorName(e.target.value)}
+                onChange={(e) => update({ sponsorName: e.target.value })}
                 maxLength={200}
               />
             </div>
@@ -229,7 +255,7 @@ export function Component() {
                 id="sponsorEmail"
                 type="email"
                 value={sponsorEmail}
-                onChange={(e) => setSponsorEmail(e.target.value)}
+                onChange={(e) => update({ sponsorEmail: e.target.value })}
               />
             </div>
 
@@ -240,7 +266,7 @@ export function Component() {
                 type="text"
                 placeholder="https://www.example.com (optional)"
                 value={sponsorWebsite}
-                onChange={(e) => setSponsorWebsite(e.target.value)}
+                onChange={(e) => update({ sponsorWebsite: e.target.value })}
               />
             </div>
 
@@ -251,7 +277,7 @@ export function Component() {
                 type="tel"
                 placeholder="Optional"
                 value={sponsorPhone}
-                onChange={(e) => setSponsorPhone(e.target.value)}
+                onChange={(e) => update({ sponsorPhone: e.target.value })}
               />
             </div>
 
@@ -280,7 +306,7 @@ export function Component() {
               <Input
                 id="sponsorMessage"
                 value={sponsorMessage}
-                onChange={(e) => setSponsorMessage(e.target.value)}
+                onChange={(e) => update({ sponsorMessage: e.target.value })}
                 maxLength={MAX_MESSAGE_CHARS}
               />
               <p className="mt-1 text-xs text-stone-400">

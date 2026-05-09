@@ -1483,6 +1483,7 @@ function update(s: GS, dt: number, w: number, h: number) {
 
 // ── React Component ─────────────────────────────────────────
 
+// eslint-disable-next-line react-doctor/no-giant-component -- canvas-driven game loop: a single requestAnimationFrame loop owns the keeper, ball, audio, scoring, leaderboard, and DOM event listeners. Splitting forces refs and game state through props/context, which is worse than the current single owner.
 function BeTheKeeper() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<GS>(initState());

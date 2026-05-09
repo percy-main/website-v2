@@ -470,6 +470,7 @@ function RequestDetailView({ requestId }: { requestId: string }) {
 
 // ── Team Selection View ──
 
+// eslint-disable-next-line react-doctor/no-giant-component -- per-date team selection: roster table + drag/drop selection + send-notify dialog + override modals all share the selection state and the date's mutations. The notify dialog already lives in its own helper; the selection grid is the cohesive remainder.
 function TeamSelectionView({
   requestId,
   date,

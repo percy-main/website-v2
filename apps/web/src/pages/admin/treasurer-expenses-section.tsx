@@ -64,6 +64,7 @@ interface TreasurerExpensesSectionProps {
  * the detail listing — both queries are scoped to the same `dateFrom` /
  * `dateTo` keys driven by the parent.
  */
+// eslint-disable-next-line react-doctor/no-giant-component -- treasurer expense approval section: paginated table + 3 status mutations (approve/reject/reimburse) + receipt modal. All four UI states share the same filtered query.
 export function TreasurerExpensesSection({
   dateFrom,
   dateTo,

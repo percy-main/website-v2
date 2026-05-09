@@ -68,6 +68,7 @@ const STATUS_CONFIG: Record<
 
 // --- Component ---
 
+// eslint-disable-next-line react-doctor/no-giant-component -- expense history admin tab: filter bar + summary chart + grouped paginated table + row dialogs all share the filters reducer and a single export-CSV path. TODO: pull rows + dialogs into siblings once they need to be reused elsewhere.
 export function ExpenseHistoryTab() {
   const [defaults] = useState(() => getFinancialYearDefaults(new Date()));
   const [filters, dispatch] = useReducer(

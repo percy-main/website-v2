@@ -10,7 +10,7 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useReducer, useState } from "react";
+import { useReducer } from "react";
 
 /**
  * Fact corpus admin — list / search / edit / delete the agent's
@@ -35,12 +35,28 @@ type Permanence = Fact["permanence"];
  * owns mounting; we drive our own filter state + URL search params
  * so deep-links land on the right rows.
  */
+interface FactsViewState {
+  scope: "" | "user" | "club";
+  q: string;
+  tag: string;
+  editing: Fact | null;
+  pendingDelete: Fact | null;
+}
+
+const initialFactsViewState: FactsViewState = {
+  scope: "",
+  q: "",
+  tag: "",
+  editing: null,
+  pendingDelete: null,
+};
+
 export function FactsAdminView() {
-  const [scope, setScope] = useState<"" | "user" | "club">("");
-  const [q, setQ] = useState("");
-  const [tag, setTag] = useState("");
-  const [editing, setEditing] = useState<Fact | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<Fact | null>(null);
+  const [state, update] = useReducer(
+    (s: FactsViewState, p: Partial<FactsViewState>) => ({ ...s, ...p }),
+    initialFactsViewState,
+  );
+  const { scope, q, tag, editing, pendingDelete } = state;
 
   const factsQuery = useQuery({
     queryKey: ["scout", "facts", { scope, q, tag }],
@@ -78,7 +94,9 @@ export function FactsAdminView() {
           <select
             className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
             value={scope}
-            onChange={(e) => setScope(e.target.value as "" | "user" | "club")}
+            onChange={(e) =>
+              update({ scope: e.target.value as "" | "user" | "club" })
+            }
           >
             <option value="">All</option>
             <option value="club">Club</option>
@@ -91,7 +109,7 @@ export function FactsAdminView() {
             className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
             placeholder="full-text query (e.g. 'covers')"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => update({ q: e.target.value })}
           />
         </label>
         <label className="flex flex-1 flex-col text-xs text-stone-600">
@@ -100,7 +118,7 @@ export function FactsAdminView() {
             className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
             placeholder="key:value (e.g. team:Mitford CC)"
             value={tag}
-            onChange={(e) => setTag(e.target.value)}
+            onChange={(e) => update({ tag: e.target.value })}
           />
         </label>
       </div>
@@ -127,8 +145,8 @@ export function FactsAdminView() {
                 <FactRow
                   key={f.id}
                   fact={f}
-                  onEdit={() => setEditing(f)}
-                  onDelete={() => setPendingDelete(f)}
+                  onEdit={() => update({ editing: f })}
+                  onDelete={() => update({ pendingDelete: f })}
                 />
               ))}
             </ul>
@@ -144,11 +162,11 @@ export function FactsAdminView() {
       <FactEditDialog
         key={editing?.id ?? "none"}
         fact={editing}
-        onClose={() => setEditing(null)}
+        onClose={() => update({ editing: null })}
       />
       <FactDeleteDialog
         fact={pendingDelete}
-        onClose={() => setPendingDelete(null)}
+        onClose={() => update({ pendingDelete: null })}
       />
     </div>
   );
