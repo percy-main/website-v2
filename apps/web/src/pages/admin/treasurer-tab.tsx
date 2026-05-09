@@ -220,18 +220,26 @@ export function TreasurerTab() {
     <div className="space-y-6">
       {/* Date Range Selector */}
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-1.5 text-sm">
+        <label
+          className="flex items-center gap-1.5 text-sm"
+          htmlFor="treasurer-date-from"
+        >
           From
           <Input
+            id="treasurer-date-from"
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             className="w-40"
           />
         </label>
-        <label className="flex items-center gap-1.5 text-sm">
+        <label
+          className="flex items-center gap-1.5 text-sm"
+          htmlFor="treasurer-date-to"
+        >
           To
           <Input
+            id="treasurer-date-to"
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}

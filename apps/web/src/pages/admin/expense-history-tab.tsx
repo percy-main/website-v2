@@ -525,7 +525,10 @@ export function ExpenseHistoryTab() {
           aria-label="Receipt full size"
           tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-          onClick={() => setLightboxUrl(null)}
+          onClick={(e) => {
+            // Only close when the backdrop itself is clicked, not the image.
+            if (e.target === e.currentTarget) setLightboxUrl(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
               setLightboxUrl(null);
@@ -536,7 +539,6 @@ export function ExpenseHistoryTab() {
             src={lightboxUrl}
             alt="Receipt full size"
             className="max-h-[90vh] max-w-[90vw] object-contain"
-            onClick={(e) => e.stopPropagation()}
           />
         </div>
       )}

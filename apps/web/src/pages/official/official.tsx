@@ -149,7 +149,7 @@ function RoleSelectors({
 
   return (
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2 text-sm" htmlFor="role-captain">
         <span className="text-stone-700">Captain (*)</span>
         <Select
           value={captain}
@@ -162,7 +162,7 @@ function RoleSelectors({
             })
           }
         >
-          <SelectTrigger className="w-48">
+          <SelectTrigger id="role-captain" className="w-48">
             <SelectValue placeholder="Select captain" />
           </SelectTrigger>
           <SelectContent>
@@ -175,7 +175,10 @@ function RoleSelectors({
           </SelectContent>
         </Select>
       </label>
-      <label className="flex items-center gap-2 text-sm">
+      <label
+        className="flex items-center gap-2 text-sm"
+        htmlFor="role-wicketkeeper"
+      >
         <span className="text-stone-700">Wicketkeeper (†)</span>
         <Select
           value={wicketkeeper}
@@ -187,7 +190,7 @@ function RoleSelectors({
             })
           }
         >
-          <SelectTrigger className="w-48">
+          <SelectTrigger id="role-wicketkeeper" className="w-48">
             <SelectValue placeholder="Select wicketkeeper" />
           </SelectTrigger>
           <SelectContent>
