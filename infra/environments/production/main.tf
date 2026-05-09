@@ -95,14 +95,15 @@ module "vpc" {
 # ---------------------------------------------------------------------------
 
 module "rds" {
-  source             = "../../modules/rds"
-  environment        = "production"
-  instance_class     = "db.t4g.micro"
-  allocated_storage  = 20
-  multi_az           = false
-  vpc_id             = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnet_ids
-  security_group_id  = module.vpc.rds_security_group_id
+  source                    = "../../modules/rds"
+  environment               = "production"
+  instance_class            = "db.t4g.micro"
+  allocated_storage         = 20
+  multi_az                  = false
+  vpc_id                    = module.vpc.vpc_id
+  private_subnet_ids        = module.vpc.private_subnet_ids
+  security_group_id         = module.vpc.rds_security_group_id
+  enable_event_subscription = true
 }
 
 # ---------------------------------------------------------------------------
