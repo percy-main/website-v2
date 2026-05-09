@@ -93,6 +93,7 @@ export function Component() {
   const [website, setWebsite] = useState("");
 
   // Fire-and-forget: public submission with no in-app cached list to refresh.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- public-facing submission; the admin incidents list is on a separate page and refetches on mount
   const submit = useMutation({
     mutationFn: () => {
       const occurredIso = occurredAt

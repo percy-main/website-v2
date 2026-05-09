@@ -308,6 +308,7 @@ function ContactForm({
 
   // Fire-and-forget: contact form submission triggers an email; no cached
   // data to invalidate.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- triggers an email send; no cached data to invalidate
   const mutation = useMutation({
     mutationFn: (input: {
       name: string;

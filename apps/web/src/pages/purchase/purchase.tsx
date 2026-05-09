@@ -79,6 +79,7 @@ export function Component() {
   // Fire-and-forget: creates a Stripe payment intent and transitions to the
   // in-page payment form. No cached data changes until the payment confirms
   // (which is handled by the PaymentForm onSuccess + webhook).
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- creates a Stripe payment intent; PaymentForm.onSuccess + the Stripe webhook handle any cache updates after the customer confirms payment
   const purchaseMutation = useMutation({
     mutationFn: async () => {
       let parsed: Record<string, unknown> | undefined;

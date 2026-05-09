@@ -66,6 +66,7 @@ export function RecordLinkingTab() {
 
   // Fire-and-forget: this is a GET that loads the Play Cricket player list
   // into local state; no cached data is mutated.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- result lands in local state via setPcPlayers; nothing in the queryClient cache changes
   const refreshMutation = useMutation({
     mutationFn: () => callApi(api.GET("/api/admin/play-cricket-players")),
     onSuccess: (result) => {

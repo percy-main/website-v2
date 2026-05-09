@@ -67,6 +67,7 @@ export function Component() {
 
   // Fire-and-forget: redirects out to Google's OAuth flow; the page reloads on
   // return, so there's no in-page cache to invalidate here.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- redirects out to Google OAuth and the page reloads on return
   const googleSignUp = useMutation({
     mutationFn: () =>
       authClient.signIn.social({

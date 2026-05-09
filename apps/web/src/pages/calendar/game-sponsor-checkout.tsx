@@ -68,6 +68,7 @@ export function Component() {
 
   // Fire-and-forget: creates a Stripe payment intent and transitions to the
   // in-page payment form. No cached data changes until the webhook reconciles.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- creates a Stripe payment intent; sponsorship data updates server-side via the Stripe webhook, not from this client mutation
   const paymentMutation = useMutation({
     mutationFn: () =>
       callApi(

@@ -2,17 +2,65 @@ import { SimpleInput } from "@/components/form/simple-input";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer } from "react";
 
 const MIN_PASSWORD_LENGTH = 8;
 
+interface FormState {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+  validationError: string;
+  success: boolean;
+}
+
+type FormAction =
+  | {
+      type: "field";
+      field: "currentPassword" | "newPassword" | "confirmPassword";
+      value: string;
+    }
+  | { type: "validationError"; message: string }
+  | { type: "submitStart" }
+  | { type: "submitSucceeded" };
+
+const initialState: FormState = {
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
+  validationError: "",
+  success: false,
+};
+
+function formReducer(state: FormState, action: FormAction): FormState {
+  switch (action.type) {
+    case "field":
+      // Editing any field clears the success / validation status.
+      return {
+        ...state,
+        [action.field]: action.value,
+        success: false,
+        validationError: "",
+      };
+    case "validationError":
+      return { ...state, validationError: action.message, success: false };
+    case "submitStart":
+      return { ...state, validationError: "", success: false };
+    case "submitSucceeded":
+      return { ...initialState, success: true };
+  }
+}
+
 export function ChangePassword() {
   const queryClient = useQueryClient();
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [validationError, setValidationError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [form, dispatch] = useReducer(formReducer, initialState);
+  const {
+    currentPassword,
+    newPassword,
+    confirmPassword,
+    validationError,
+    success,
+  } = form;
 
   const accounts = useQuery({
     queryKey: ["accounts"],
@@ -41,29 +89,28 @@ export function ChangePassword() {
       return result.data;
     },
     onSuccess: () => {
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setValidationError("");
-      setSuccess(true);
+      dispatch({ type: "submitSucceeded" });
       void queryClient.invalidateQueries({ queryKey: ["accounts"] });
     },
   });
 
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
-    setSuccess(false);
-    setValidationError("");
+    dispatch({ type: "submitStart" });
 
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      setValidationError(
-        `New password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-      );
+      dispatch({
+        type: "validationError",
+        message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+      });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setValidationError("New passwords do not match.");
+      dispatch({
+        type: "validationError",
+        message: "New passwords do not match.",
+      });
       return;
     }
 
@@ -97,11 +144,13 @@ export function ChangePassword() {
           type="password"
           label="Current Password"
           value={currentPassword}
-          onChange={(e) => {
-            setCurrentPassword(e.currentTarget.value);
-            setSuccess(false);
-            setValidationError("");
-          }}
+          onChange={(e) =>
+            dispatch({
+              type: "field",
+              field: "currentPassword",
+              value: e.currentTarget.value,
+            })
+          }
           required
           minLength={MIN_PASSWORD_LENGTH}
           autoComplete="current-password"
@@ -111,11 +160,13 @@ export function ChangePassword() {
           type="password"
           label="New Password"
           value={newPassword}
-          onChange={(e) => {
-            setNewPassword(e.currentTarget.value);
-            setSuccess(false);
-            setValidationError("");
-          }}
+          onChange={(e) =>
+            dispatch({
+              type: "field",
+              field: "newPassword",
+              value: e.currentTarget.value,
+            })
+          }
           required
           minLength={MIN_PASSWORD_LENGTH}
           autoComplete="new-password"
@@ -125,11 +176,13 @@ export function ChangePassword() {
           type="password"
           label="Confirm New Password"
           value={confirmPassword}
-          onChange={(e) => {
-            setConfirmPassword(e.currentTarget.value);
-            setSuccess(false);
-            setValidationError("");
-          }}
+          onChange={(e) =>
+            dispatch({
+              type: "field",
+              field: "confirmPassword",
+              value: e.currentTarget.value,
+            })
+          }
           required
           minLength={MIN_PASSWORD_LENGTH}
           autoComplete="new-password"

@@ -993,6 +993,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
 
   // Fire-and-forget: returns a recipient preview into local state; no cached
   // queries to invalidate.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- returns a recipient preview into the local reducer; nothing in queryClient cache changes
   const previewMutation = useMutation({
     mutationFn: () =>
       callApi(
@@ -1007,6 +1008,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
   });
 
   // Fire-and-forget: dispatches notification emails; no cached data changes.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- dispatches notification emails; no cached data changes
   const sendMutation = useMutation({
     mutationFn: () =>
       callApi(

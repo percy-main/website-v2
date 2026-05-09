@@ -10,7 +10,7 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer, useState } from "react";
 
 /**
  * Fact corpus admin — list / search / edit / delete the agent's
@@ -209,6 +209,14 @@ function FactRow({
   );
 }
 
+interface FactFormState {
+  content: string;
+  scope: "user" | "club";
+  confidence: number;
+  permanence: Permanence;
+  tagsText: string;
+}
+
 function FactEditDialog({
   fact,
   onClose,
@@ -217,15 +225,23 @@ function FactEditDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [content, setContent] = useState(fact?.content ?? "");
-  const [scope, setScope] = useState<"user" | "club">(fact?.scope ?? "club");
-  const [confidence, setConfidence] = useState<number>(fact?.confidence ?? 3);
-  const [permanence, setPermanence] = useState<Permanence>(
-    fact?.permanence ?? null,
+  // Single shallow-merge reducer keeps the field setters as data-flow
+  // through one `update({ ... })` call. The form mounts fresh per-fact via
+  // `key={fact.id}` on the parent, so the initial values pin to mount.
+  const [form, update] = useReducer(
+    (state: FactFormState, patch: Partial<FactFormState>) => ({
+      ...state,
+      ...patch,
+    }),
+    {
+      content: fact?.content ?? "",
+      scope: fact?.scope ?? "club",
+      confidence: fact?.confidence ?? 3,
+      permanence: fact?.permanence ?? null,
+      tagsText: fact ? JSON.stringify(fact.tags) : "{}",
+    },
   );
-  const [tagsText, setTagsText] = useState(
-    fact ? JSON.stringify(fact.tags) : "{}",
-  );
+  const { content, scope, confidence, permanence, tagsText } = form;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -278,7 +294,7 @@ function FactEditDialog({
           <textarea
             className="mt-1 min-h-[80px] rounded border border-stone-300 px-2 py-1 text-sm"
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(e) => update({ content: e.target.value })}
           />
         </label>
 
@@ -288,7 +304,9 @@ function FactEditDialog({
             <select
               className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
               value={scope}
-              onChange={(e) => setScope(e.target.value as "user" | "club")}
+              onChange={(e) =>
+                update({ scope: e.target.value as "user" | "club" })
+              }
             >
               <option value="club">Club</option>
               <option value="user">Personal</option>
@@ -303,7 +321,9 @@ function FactEditDialog({
               className="mt-1 w-24 rounded border border-stone-300 px-2 py-1 text-sm"
               value={confidence}
               onChange={(e) =>
-                setConfidence(Math.max(1, Math.min(5, Number(e.target.value))))
+                update({
+                  confidence: Math.max(1, Math.min(5, Number(e.target.value))),
+                })
               }
             />
           </label>
@@ -314,7 +334,7 @@ function FactEditDialog({
               value={permanence ?? ""}
               onChange={(e) => {
                 const v = e.target.value;
-                setPermanence(v === "" ? null : (v as Permanence));
+                update({ permanence: v === "" ? null : (v as Permanence) });
               }}
             >
               <option value="">Unknown</option>
@@ -330,7 +350,7 @@ function FactEditDialog({
           <textarea
             className="mt-1 min-h-[60px] rounded border border-stone-300 px-2 py-1 font-mono text-xs"
             value={tagsText}
-            onChange={(e) => setTagsText(e.target.value)}
+            onChange={(e) => update({ tagsText: e.target.value })}
           />
         </label>
 
