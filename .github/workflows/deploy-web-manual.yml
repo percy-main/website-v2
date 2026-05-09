@@ -94,12 +94,21 @@ jobs:
 
       - name: Invalidate CloudFront cache
         id: invalidate
+        # `/` and `/index.html` cache as separate keys at the edge — must
+        # invalidate both so the post-deploy smoke against `/` doesn't
+        # validate a stale cached root document.
         run: |
           INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/index.html" "/*.json" \
+            --paths "/" "/index.html" "/*.json" \
             --query 'Invalidation.Id' --output text)
           echo "invalidation_id=$INVALIDATION_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for invalidation
+        run: |
+          aws cloudfront wait invalidation-completed \
+            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --id "${{ steps.invalidate.outputs.invalidation_id }}"
 
       - name: Deploy summary
         if: always()
