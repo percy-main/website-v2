@@ -8,6 +8,7 @@ import { match, P } from "ts-pattern";
 export const ForgotPassword: FC = () => {
   const [email, setEmail] = useState("");
 
+  // Fire-and-forget: triggers an email send; no cached data to invalidate.
   const requestReset = useMutation({
     mutationFn: () =>
       authClient.requestPasswordReset({

@@ -177,17 +177,11 @@ export function TreasurerTab() {
       ),
     onSuccess: () => {
       setChasingId(null);
+      void queryClient.invalidateQueries({
+        queryKey: ["treasurer", "outstanding-payments"],
+      });
     },
   });
-
-  const invalidateExpenses = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ["treasurer", "expenses-with-receipts"],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ["treasurer", "matchday-expenses-summary"],
-    });
-  };
 
   const approveMutation = useMutation({
     mutationFn: (expenseId: string) =>
@@ -198,7 +192,12 @@ export function TreasurerTab() {
       ),
     onSuccess: () => {
       setSelectedExpense(null);
-      invalidateExpenses();
+      void queryClient.invalidateQueries({
+        queryKey: ["treasurer", "expenses-with-receipts"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["treasurer", "matchday-expenses-summary"],
+      });
     },
   });
 
@@ -220,7 +219,12 @@ export function TreasurerTab() {
       setSelectedExpense(null);
       setRejectingId(null);
       setRejectReason("");
-      invalidateExpenses();
+      void queryClient.invalidateQueries({
+        queryKey: ["treasurer", "expenses-with-receipts"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["treasurer", "matchday-expenses-summary"],
+      });
     },
   });
 
@@ -233,7 +237,12 @@ export function TreasurerTab() {
       ),
     onSuccess: () => {
       setSelectedExpense(null);
-      invalidateExpenses();
+      void queryClient.invalidateQueries({
+        queryKey: ["treasurer", "expenses-with-receipts"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["treasurer", "matchday-expenses-summary"],
+      });
     },
   });
 

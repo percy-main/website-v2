@@ -45,6 +45,7 @@ const DEFAULT_CONFIGS: Record<string, string> = {
 };
 
 function PlayCricketSyncSection() {
+  const queryClient = useQueryClient();
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +56,9 @@ function PlayCricketSyncSection() {
         "Sync started. Match data and fantasy scores will appear in a few minutes.",
       );
       setError(null);
+      // Sync runs in the background; invalidate broadly so any fantasy data
+      // refetches once it completes.
+      void queryClient.invalidateQueries({ queryKey: ["admin"] });
     },
     onError: (err) => {
       setResult(null);
@@ -141,6 +145,9 @@ function PlayerManagementSection() {
       setCostsResult(
         `Sandwich costs calculated from ${result.previousSeason} season data. ${result.updated} players updated for ${result.season} season.`,
       );
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "fantasyPlayers"],
+      });
     },
   });
 

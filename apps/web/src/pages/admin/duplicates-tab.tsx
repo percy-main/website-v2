@@ -195,6 +195,7 @@ function MergePreviewModal({
   onClose: () => void;
   onMerged: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [confirmText, setConfirmText] = useState("");
 
   const { data, isLoading, isError } = useQuery({
@@ -216,7 +217,13 @@ function MergePreviewModal({
           body: { keepMemberId, removeMemberId },
         }),
       ),
-    onSuccess: () => onMerged(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "duplicateMembers"],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+      onMerged();
+    },
   });
 
   const preview = data;

@@ -56,6 +56,8 @@ async function resolvePlayerPhotos(
 export function ShareMyTeamButton() {
   const [shared, setShared] = useState(false);
 
+  // Fire-and-forget: client-side image generation + share/download. No server
+  // state changes, so there's nothing to invalidate.
   const shareMutation = useMutation({
     mutationFn: async () => {
       const data = await fetchShareData();

@@ -980,6 +980,8 @@ function NotifyDialog({ requestId }: { requestId: string }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [previewed, setPreviewed] = useState(false);
 
+  // Fire-and-forget: returns a recipient preview into local state; no cached
+  // queries to invalidate.
   const previewMutation = useMutation({
     mutationFn: () =>
       callApi(
@@ -1005,6 +1007,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
     },
   });
 
+  // Fire-and-forget: dispatches notification emails; no cached data changes.
   const sendMutation = useMutation({
     mutationFn: () =>
       callApi(

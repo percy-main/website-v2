@@ -302,6 +302,8 @@ function ContactForm({
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
 
+  // Fire-and-forget: contact form submission triggers an email; no cached
+  // data to invalidate.
   const mutation = useMutation({
     mutationFn: (input: {
       name: string;

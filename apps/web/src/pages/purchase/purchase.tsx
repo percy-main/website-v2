@@ -76,6 +76,9 @@ export function Component() {
       (!priceInfo.customAmount.max || totalAmount <= priceInfo.customAmount.max)
     : totalAmount > 0;
 
+  // Fire-and-forget: creates a Stripe payment intent and transitions to the
+  // in-page payment form. No cached data changes until the payment confirms
+  // (which is handled by the PaymentForm onSuccess + webhook).
   const purchaseMutation = useMutation({
     mutationFn: async () => {
       let parsed: Record<string, unknown> | undefined;

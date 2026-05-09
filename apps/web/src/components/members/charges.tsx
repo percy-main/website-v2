@@ -53,6 +53,8 @@ export function Charges() {
           paymentIntentId: piId,
         });
       }
+      // Refresh charges so any newly-attached payment intent state is visible.
+      void queryClient.invalidateQueries({ queryKey: ["myCharges"] });
     },
     onError: () => {
       setPaymentError("Failed to create payment. Please try again.");

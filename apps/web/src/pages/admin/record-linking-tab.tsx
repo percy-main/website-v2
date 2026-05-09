@@ -109,6 +109,8 @@ export function RecordLinkingTab() {
     queryFn: () => callApi(api.GET("/api/admin/record-linking")),
   });
 
+  // Fire-and-forget: this is a GET that loads the Play Cricket player list
+  // into local state; no cached data is mutated.
   const refreshMutation = useMutation({
     mutationFn: () => callApi(api.GET("/api/admin/play-cricket-players")),
     onSuccess: (result) => {

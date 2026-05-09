@@ -6,7 +6,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp.js";
 import { authClient } from "@/lib/auth-client.js";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type FC } from "react";
 import { useNavigate } from "react-router";
 import type { LoginPhase } from "../login.js";
@@ -18,6 +18,7 @@ interface Props {
 export const TwoFA: FC<Props> = ({ setPhase }) => {
   const [otp, setOtp] = useState("");
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const signin = useMutation({
     mutationFn: () =>
@@ -29,6 +30,10 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
           },
         },
       ),
+    onSuccess: () => {
+      // Session changed — drop all cached data so member-scoped queries refetch.
+      void queryClient.invalidateQueries();
+    },
   });
 
   const handleSubmit = useCallback(

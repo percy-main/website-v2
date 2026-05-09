@@ -14,7 +14,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useDocumentMeta } from "@/hooks/use-document-meta";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { differenceInYears, format } from "date-fns";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -351,6 +351,7 @@ function JuniorRegistrationInner() {
   const [step, setStep] = useState<Step>("children");
   const [dependents, setDependents] = useState<Dependent[]>([emptyDependent()]);
   const [errors, setErrors] = useState<string[]>([]);
+  const queryClient = useQueryClient();
 
   const existingDepsQuery = useQuery({
     queryKey: ["dependents"],
@@ -390,6 +391,10 @@ function JuniorRegistrationInner() {
           },
         }),
       ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dependents"] });
+      void queryClient.invalidateQueries({ queryKey: ["myCharges"] });
+    },
   });
 
   const payMutation = useMutation({
@@ -403,6 +408,7 @@ function JuniorRegistrationInner() {
         paymentIntentId: piId,
       });
       setPaymentError(null);
+      void queryClient.invalidateQueries({ queryKey: ["myCharges"] });
     },
     onError: () => {
       setPaymentError("Failed to create payment. Please try again.");

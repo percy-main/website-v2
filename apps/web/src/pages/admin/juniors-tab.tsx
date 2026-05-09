@@ -381,6 +381,7 @@ function LinkingDialog({
   onClose: () => void;
   onLinked: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [userSearch, setUserSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -418,6 +419,9 @@ function LinkingDialog({
         }),
       ),
     onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "listJuniors"],
+      });
       onLinked();
       onClose();
     },
@@ -431,6 +435,9 @@ function LinkingDialog({
         }),
       ),
     onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "listJuniors"],
+      });
       onLinked();
       onClose();
     },

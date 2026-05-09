@@ -10,7 +10,7 @@ import {
   readConsentRecord,
 } from "@/lib/marketing/consent.js";
 import { trackLeadGenerated } from "@/lib/marketing/track-lead.js";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type FC } from "react";
 
 type Variant = "adult" | "junior";
@@ -89,6 +89,7 @@ export const LeadForm: FC<LeadFormProps> = ({
   const [submittedDisplayName, setSubmittedDisplayName] = useState<
     string | null
   >(null);
+  const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -135,6 +136,9 @@ export const LeadForm: FC<LeadFormProps> = ({
     },
     onSuccess: ({ email }) => {
       void trackLeadGenerated({ campaignId, segment, email });
+      // Invalidate admin leads cache in case an admin is browsing in another
+      // tab; harmless no-op for non-admin users.
+      void queryClient.invalidateQueries({ queryKey: ["admin", "leads"] });
     },
   });
 

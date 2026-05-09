@@ -54,6 +54,8 @@ export function Component() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fire-and-forget: creates a Stripe payment intent and transitions to the
+  // in-page payment form. No cached data changes until the webhook reconciles.
   const paymentMutation = useMutation({
     mutationFn: () =>
       callApi(

@@ -1,12 +1,13 @@
 import { SimpleInput } from "@/components/form/simple-input";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 const MIN_PASSWORD_LENGTH = 8;
 
 export function ChangePassword() {
+  const queryClient = useQueryClient();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -45,6 +46,7 @@ export function ChangePassword() {
       setConfirmPassword("");
       setValidationError("");
       setSuccess(true);
+      void queryClient.invalidateQueries({ queryKey: ["accounts"] });
     },
   });
 

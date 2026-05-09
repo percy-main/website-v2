@@ -52,15 +52,6 @@ const CATEGORY_OPTIONS = [
 ] as const;
 
 export function MemberDetailModal({ userId, onClose }: MemberDetailModalProps) {
-  const queryClient = useQueryClient();
-
-  const invalidateAll = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ["admin", "userDetail", userId],
-    });
-    void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
-  };
-
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "userDetail", userId],
     queryFn: () =>
@@ -77,11 +68,7 @@ export function MemberDetailModal({ userId, onClose }: MemberDetailModalProps) {
         {isLoading || !data ? (
           <div className="py-12 text-center text-stone-500">Loading…</div>
         ) : (
-          <MemberDetailContent
-            data={data}
-            userId={userId}
-            invalidateAll={invalidateAll}
-          />
+          <MemberDetailContent data={data} userId={userId} />
         )}
       </DialogContent>
     </Dialog>
@@ -91,11 +78,9 @@ export function MemberDetailModal({ userId, onClose }: MemberDetailModalProps) {
 function MemberDetailContent({
   data,
   userId,
-  invalidateAll,
 }: {
   data: UserDetail;
   userId: string;
-  invalidateAll: () => void;
 }) {
   const { user, member, membership, dependents, charges } = data;
 
@@ -118,11 +103,7 @@ function MemberDetailContent({
       )}
 
       {/* 2. Account Section */}
-      <AccountSection
-        user={user}
-        userId={userId}
-        invalidateAll={invalidateAll}
-      />
+      <AccountSection user={user} userId={userId} />
 
       <hr />
 
@@ -132,11 +113,7 @@ function MemberDetailContent({
       <hr />
 
       {/* 4. Member Category */}
-      <MemberCategorySection
-        member={member}
-        userId={userId}
-        invalidateAll={invalidateAll}
-      />
+      <MemberCategorySection member={member} userId={userId} />
 
       <hr />
 
@@ -156,7 +133,6 @@ function MemberDetailContent({
         userId={userId}
         userRole={user.role ?? "user"}
         selectedTeamIds={data.juniorManagerTeams.map((t) => t.id)}
-        invalidateAll={invalidateAll}
       />
 
       <hr />
@@ -167,26 +143,17 @@ function MemberDetailContent({
         userId={userId}
         userRole={user.role ?? "user"}
         selectedTeamIds={data.officialTeams.map((t) => t.id)}
-        invalidateAll={invalidateAll}
       />
 
       <hr />
 
       {/* 9. Payments */}
-      <PaymentsSection
-        userId={userId}
-        charges={charges}
-        invalidateAll={invalidateAll}
-      />
+      <PaymentsSection userId={userId} charges={charges} />
 
       <hr />
 
       {/* 10. Archive/Restore */}
-      <ArchiveSection
-        userId={userId}
-        member={member}
-        invalidateAll={invalidateAll}
-      />
+      <ArchiveSection userId={userId} member={member} />
     </div>
   );
 }
@@ -198,12 +165,11 @@ function MemberDetailContent({
 function AccountSection({
   user,
   userId,
-  invalidateAll,
 }: {
   user: UserDetail["user"];
   userId: string;
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [confirmingRole, setConfirmingRole] = useState(false);
 
   const roleMutation = useMutation({
@@ -222,7 +188,10 @@ function AccountSection({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setConfirmingRole(false);
     },
   });
@@ -366,12 +335,11 @@ function MemberDetailsSection({ member }: { member: UserDetail["member"] }) {
 function MemberCategorySection({
   member,
   userId,
-  invalidateAll,
 }: {
   member: UserDetail["member"];
   userId: string;
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const currentCategory = member?.member_category ?? null;
   const categoryDisplay = getMemberCategoryDisplay(currentCategory);
 
@@ -383,7 +351,12 @@ function MemberCategorySection({
           body: { userId, memberCategory },
         }),
       ),
-    onSuccess: invalidateAll,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+    },
   });
 
   return (
@@ -601,13 +574,12 @@ function JuniorManagerTeamsSection({
   userId,
   userRole,
   selectedTeamIds,
-  invalidateAll,
 }: {
   userId: string;
   userRole: string;
   selectedTeamIds: string[];
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [localIds, setLocalIds] = useState<string[]>(selectedTeamIds);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -625,7 +597,10 @@ function JuniorManagerTeamsSection({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setHasChanges(false);
     },
   });
@@ -717,13 +692,12 @@ function OfficialTeamsSection({
   userId,
   userRole,
   selectedTeamIds,
-  invalidateAll,
 }: {
   userId: string;
   userRole: string;
   selectedTeamIds: string[];
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [localIds, setLocalIds] = useState<string[]>(selectedTeamIds);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -741,7 +715,10 @@ function OfficialTeamsSection({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setHasChanges(false);
     },
   });
@@ -832,12 +809,11 @@ function OfficialTeamsSection({
 function PaymentsSection({
   userId,
   charges,
-  invalidateAll,
 }: {
   userId: string;
   charges: UserDetail["charges"];
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
@@ -858,7 +834,10 @@ function PaymentsSection({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setDescription("");
       setAmount("");
       setChargeDate(new Date().toISOString().split("T")[0]);
@@ -965,11 +944,7 @@ function PaymentsSection({
           </TableHeader>
           <TableBody>
             {charges.map((charge) => (
-              <ChargeRow
-                key={charge.id}
-                charge={charge}
-                invalidateAll={invalidateAll}
-              />
+              <ChargeRow key={charge.id} charge={charge} userId={userId} />
             ))}
           </TableBody>
         </Table>
@@ -980,11 +955,12 @@ function PaymentsSection({
 
 function ChargeRow({
   charge,
-  invalidateAll,
+  userId,
 }: {
   charge: UserDetail["charges"][number];
-  invalidateAll: () => void;
+  userId: string;
 }) {
+  const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
 
@@ -997,7 +973,10 @@ function ChargeRow({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setShowDelete(false);
     },
   });
@@ -1072,12 +1051,11 @@ function ChargeRow({
 function ArchiveSection({
   userId,
   member,
-  invalidateAll,
 }: {
   userId: string;
   member: UserDetail["member"];
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const isArchived =
     member?.deleted_at !== null && member?.deleted_at !== undefined;
   const [showArchiveForm, setShowArchiveForm] = useState(false);
@@ -1092,7 +1070,10 @@ function ArchiveSection({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setShowArchiveForm(false);
       setArchiveReason("");
     },
@@ -1105,7 +1086,12 @@ function ArchiveSection({
           params: { path: { userId } },
         }),
       ),
-    onSuccess: invalidateAll,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+    },
   });
 
   if (isArchived) {

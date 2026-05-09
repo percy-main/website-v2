@@ -1,7 +1,7 @@
 import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
 import { authClient } from "@/lib/auth-client.js";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type FC } from "react";
 import { useNavigate } from "react-router";
 import type { LoginPhase } from "../login.js";
@@ -13,6 +13,7 @@ interface Props {
 export const Recovery: FC<Props> = ({ setPhase }) => {
   const [recoveryCode, setRecoveryCode] = useState("");
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const verifyBackupCode = useMutation({
     mutationFn: () =>
@@ -24,6 +25,10 @@ export const Recovery: FC<Props> = ({ setPhase }) => {
           },
         },
       ),
+    onSuccess: () => {
+      // Session changed — drop all cached data so member-scoped queries refetch.
+      void queryClient.invalidateQueries();
+    },
   });
 
   const handleSubmit = useCallback(

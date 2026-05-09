@@ -1,7 +1,7 @@
 import { SimpleInput } from "@/components/form/simple-input";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import QRCode from "react-qr-code";
 import { match, P } from "ts-pattern";
@@ -13,6 +13,7 @@ interface Props {
 }
 
 export function TwoFactor({ user }: Props) {
+  const queryClient = useQueryClient();
   const [isEnabling, setIsEnabling] = useState(false);
   const [isDisabling, setIsDisabling] = useState(false);
   const [password, setPassword] = useState("");
@@ -20,16 +21,25 @@ export function TwoFactor({ user }: Props) {
 
   const enable2FA = useMutation({
     mutationFn: (pw: string) => authClient.twoFactor.enable({ password: pw }),
+    onSuccess: () => {
+      // 2FA enabled — refresh anything keyed on the user/session.
+      void queryClient.invalidateQueries();
+    },
   });
 
   const disable2FA = useMutation({
     mutationFn: (pw: string) => authClient.twoFactor.disable({ password: pw }),
+    onSuccess: () => {
+      // 2FA disabled — refresh anything keyed on the user/session.
+      void queryClient.invalidateQueries();
+    },
   });
 
   const verifyTotp = useMutation({
     mutationFn: (code: string) => authClient.twoFactor.verifyTotp({ code }),
     onSuccess: () => {
       setVerifyCode("");
+      void queryClient.invalidateQueries();
     },
   });
 

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { authClient } from "@/lib/auth-client.js";
 import { trackEvent } from "@/lib/marketing/gtag.js";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type FC } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
@@ -38,6 +38,7 @@ export function Component() {
   const [ageError, setAgeError] = useState(false);
   const navigate = useNavigate();
   const returnTo = searchParams.get("returnTo");
+  const queryClient = useQueryClient();
 
   const register = useMutation({
     mutationFn: () => {
@@ -54,6 +55,8 @@ export function Component() {
     onSuccess(result) {
       if (!result.error) {
         trackEvent("sign_up", { method: "email" });
+        // Session changed — drop cached anonymous queries.
+        void queryClient.invalidateQueries();
         const registeredUrl = returnTo
           ? `/auth/registered?returnTo=${encodeURIComponent(returnTo)}`
           : "/auth/registered";
@@ -62,6 +65,8 @@ export function Component() {
     },
   });
 
+  // Fire-and-forget: redirects out to Google's OAuth flow; the page reloads on
+  // return, so there's no in-page cache to invalidate here.
   const googleSignUp = useMutation({
     mutationFn: () =>
       authClient.signIn.social({

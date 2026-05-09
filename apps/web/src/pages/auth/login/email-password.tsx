@@ -1,7 +1,7 @@
 import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
 import { authClient } from "@/lib/auth-client.js";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState, type FC } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import type { LoginPhase } from "../login.js";
@@ -37,6 +37,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("returnTo");
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     async function tryPasskeyAutofill() {
@@ -68,10 +69,15 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
         setPhase("2fa");
         return;
       }
+      // Session changed — drop all cached queries so the new user sees fresh
+      // data rather than the previous user's (or anonymous) cached responses.
+      void queryClient.invalidateQueries();
       void navigate(returnTo ?? "/members");
     },
   });
 
+  // Fire-and-forget: redirects out to Google's OAuth flow; the page reloads on
+  // return, so there's no in-page cache to invalidate here.
   const googleSignIn = useMutation({
     mutationFn: () =>
       authClient.signIn.social({

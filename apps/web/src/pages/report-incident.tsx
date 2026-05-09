@@ -92,6 +92,7 @@ export function Component() {
   // Honeypot — bots tend to fill this, humans leave it blank.
   const [website, setWebsite] = useState("");
 
+  // Fire-and-forget: public submission with no in-app cached list to refresh.
   const submit = useMutation({
     mutationFn: () => {
       const occurredIso = occurredAt
