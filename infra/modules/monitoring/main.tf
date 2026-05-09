@@ -306,6 +306,123 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
   tags = local.default_tags
 }
 
+# db.t4g.micro has 1 GiB RAM. <100 MiB freeable is the most common
+# silent failure mode — connection refusal under load.
+resource "aws_cloudwatch_metric_alarm" "rds_freeable_memory_low" {
+  alarm_name          = "${local.prefix}-rds-freeable-memory-low"
+  alarm_description   = "RDS freeable memory <100 MiB — instance under memory pressure, may refuse connections"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "FreeableMemory"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 100 * 1024 * 1024
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_instance_id
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
+# db.t4g.* are burstable — running out of CPU credits silently
+# throttles compute to baseline (10% of vCPU on t4g.micro). The
+# correct CW metric is CPUCreditBalance (the t-class CPU credit pool);
+# `BurstBalance` exists in the AWS/RDS namespace too but tracks gp2
+# *storage* burst credits, a different failure mode.
+resource "aws_cloudwatch_metric_alarm" "rds_cpu_credit_balance_low" {
+  alarm_name          = "${local.prefix}-rds-cpu-credit-balance-low"
+  alarm_description   = "RDS CPUCreditBalance <30 — instance about to throttle CPU to baseline performance"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUCreditBalance"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 30
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_instance_id
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "rds_read_latency_p99_high" {
+  alarm_name          = "${local.prefix}-rds-read-latency-p99-high"
+  alarm_description   = "RDS ReadLatency p99 >50ms — slow reads, possible IOPS exhaustion or lock contention"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "ReadLatency"
+  namespace           = "AWS/RDS"
+  period              = 300
+  extended_statistic  = "p99"
+  threshold           = 0.05
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_instance_id
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "rds_write_latency_p99_high" {
+  alarm_name          = "${local.prefix}-rds-write-latency-p99-high"
+  alarm_description   = "RDS WriteLatency p99 >50ms — slow writes, possible IOPS exhaustion or WAL backpressure"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "WriteLatency"
+  namespace           = "AWS/RDS"
+  period              = 300
+  extended_statistic  = "p99"
+  threshold           = 0.05
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_instance_id
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "rds_deadlocks" {
+  alarm_name          = "${local.prefix}-rds-deadlocks"
+  alarm_description   = "RDS Deadlocks >0 — concurrent transactions deadlocked, application logic likely needs review"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Deadlocks"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_instance_id
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
 # -----------------------------------------------------------------------------
 # CloudWatch Dashboard
 # -----------------------------------------------------------------------------
