@@ -41,6 +41,7 @@ When the account moves off the Free Plan (typically when the non-profit AWS Acti
 ## Trigger to revisit
 
 Any of:
+
 - AWS account moves off the Free Plan (activated Activate credits, billing change).
 - A real recovery scenario hits the 1-day window and we lose data.
 - The DB event subscription fires on a backup failure that can't be retried within the 1-day window.
