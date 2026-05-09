@@ -53,6 +53,8 @@ const DISABILITY_TYPES = [
 ];
 
 interface Dependent {
+  // Stable client-side id for React keys; not sent to the API.
+  clientId: string;
   name: string;
   sex: string;
   dob: string;
@@ -75,6 +77,7 @@ interface Dependent {
 }
 
 const emptyDependent = (): Dependent => ({
+  clientId: crypto.randomUUID(),
   name: "",
   sex: "",
   dob: "",
@@ -367,7 +370,7 @@ function JuniorRegistrationInner() {
       callApi(
         api.POST("/api/junior/dependents", {
           body: {
-            dependents: deps.map((d) => ({
+            dependents: deps.map(({ clientId: _clientId, ...d }) => ({
               ...d,
               sex: d.sex as "male" | "female",
               played_before: d.played_before ?? false,
@@ -488,7 +491,7 @@ function JuniorRegistrationInner() {
         <>
           {dependents.map((dep, i) => (
             <div
-              key={i}
+              key={dep.clientId}
               className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
             >
               <div className="mb-2 flex items-center justify-between">
@@ -562,7 +565,7 @@ function JuniorRegistrationInner() {
         <>
           {dependents.map((dep, i) => (
             <div
-              key={i}
+              key={dep.clientId}
               className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
             >
               <h5 className="mb-3 text-sm font-semibold">{dep.name}</h5>
@@ -629,7 +632,7 @@ function JuniorRegistrationInner() {
         <>
           {dependents.map((dep, i) => (
             <div
-              key={i}
+              key={dep.clientId}
               className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
             >
               <h5 className="mb-3 text-sm font-semibold">{dep.name}</h5>
@@ -739,7 +742,7 @@ function JuniorRegistrationInner() {
         <>
           {dependents.map((dep, i) => (
             <div
-              key={i}
+              key={dep.clientId}
               className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
             >
               <h5 className="mb-3 text-sm font-semibold">{dep.name}</h5>
@@ -928,7 +931,7 @@ function JuniorRegistrationInner() {
 
           {dependents.map((dep, i) => (
             <div
-              key={i}
+              key={dep.clientId}
               className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
             >
               <h5 className="mb-3 text-sm font-semibold">{dep.name}</h5>
@@ -1004,7 +1007,7 @@ function JuniorRegistrationInner() {
         <>
           {dependents.map((dep, i) => (
             <div
-              key={i}
+              key={dep.clientId}
               className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
             >
               <div className="mb-2 flex items-center justify-between">
@@ -1044,7 +1047,7 @@ function JuniorRegistrationInner() {
               </thead>
               <tbody>
                 {dependents.map((dep, i) => (
-                  <tr key={i} className="border-b last:border-0">
+                  <tr key={dep.clientId} className="border-b last:border-0">
                     <td className="py-2">{dep.name}</td>
                     <td className="py-2 text-right">
                       £{priceForChild(existingCount, i)}

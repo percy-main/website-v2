@@ -121,13 +121,23 @@ function MiniCalendar({
   selectedDay: number | null;
   onDayClick: (day: number) => void;
 }) {
-  const dayHeaders = ["M", "T", "W", "T", "F", "S", "S"];
+  const dayHeaders: Array<{ key: string; label: string }> = [
+    { key: "mon", label: "M" },
+    { key: "tue", label: "T" },
+    { key: "wed", label: "W" },
+    { key: "thu", label: "T" },
+    { key: "fri", label: "F" },
+    { key: "sat", label: "S" },
+    { key: "sun", label: "S" },
+  ];
   const daysInMonth = getDaysInMonth(date);
   const firstDayOfWeek = (getDay(startOfMonth(date)) + 6) % 7; // Mon=0
 
-  const cells: Array<{ day: number | null }> = [];
-  for (let i = 0; i < firstDayOfWeek; i++) cells.push({ day: null });
-  for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d });
+  const cells: Array<{ key: string; day: number | null }> = [];
+  for (let i = 0; i < firstDayOfWeek; i++)
+    cells.push({ key: `pad-${i}`, day: null });
+  for (let d = 1; d <= daysInMonth; d++)
+    cells.push({ key: `day-${d}`, day: d });
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -135,19 +145,21 @@ function MiniCalendar({
         {format(date, "MMMM yyyy")}
       </div>
       <div className="mb-1 grid grid-cols-7 text-center">
-        {dayHeaders.map((d, i) => (
+        {dayHeaders.map((d) => (
           <div
-            key={i}
+            key={d.key}
             className="py-1 text-[11px] font-semibold tracking-wider text-stone-400 uppercase"
           >
-            {d}
+            {d.label}
           </div>
         ))}
       </div>
       <div className="grid grid-cols-7 text-center">
-        {cells.map((cell, i) => {
+        {cells.map((cell) => {
           if (cell.day === null) {
-            return <span key={i} className="py-1.5 text-xs text-stone-300" />;
+            return (
+              <span key={cell.key} className="py-1.5 text-xs text-stone-300" />
+            );
           }
           const day = cell.day;
           const hasItems = itemsByDay.has(day);
@@ -178,7 +190,7 @@ function MiniCalendar({
           if (hasItems) {
             return (
               <button
-                key={i}
+                key={cell.key}
                 type="button"
                 onClick={() => onDayClick(day)}
                 className={classes}
@@ -190,7 +202,7 @@ function MiniCalendar({
           }
 
           return (
-            <span key={i} className={classes}>
+            <span key={cell.key} className={classes}>
               {day}
             </span>
           );

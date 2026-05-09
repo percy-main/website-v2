@@ -121,8 +121,11 @@ function ResultSummary({
           )}
         </div>
         <div className="flex flex-col gap-2">
-          {result.innings.map((inn, i) => (
-            <div key={i} className="flex items-baseline justify-between gap-4">
+          {result.innings.map((inn) => (
+            <div
+              key={`${inn.teamBattingId}-${inn.runs}-${inn.wickets}-${inn.overs}`}
+              className="flex items-baseline justify-between gap-4"
+            >
               <span className="text-sm font-medium">{inn.teamName}</span>
               <span className="font-mono text-sm font-semibold tabular-nums">
                 {formatInningsScore(inn)}
@@ -349,8 +352,8 @@ function GameDetailContent({ game }: { game: GameData }) {
                 {game.lineup.confirmed ? "Team" : "Selected Team"}
               </h4>
               <ol className="list-inside list-decimal space-y-1">
-                {game.lineup.players.map((player, i) => (
-                  <li key={i} className="text-sm">
+                {game.lineup.players.map((player, pos) => (
+                  <li key={`${pos}-${player.name}`} className="text-sm">
                     {player.name}
                   </li>
                 ))}

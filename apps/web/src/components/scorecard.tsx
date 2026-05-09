@@ -392,12 +392,12 @@ function BowlingCard({ bowling }: { bowling: BowlingEntry[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {bowling.map((b, i) => {
+        {bowling.map((b) => {
           const decimalOvers = oversToDecimal(b.overs);
           const economy =
             decimalOvers > 0 ? (b.runs / decimalOvers).toFixed(1) : "-";
           return (
-            <TableRow key={`${b.name}-${i}`}>
+            <TableRow key={b.memberSlug ?? b.name}>
               <TableCell>
                 <PlayerName
                   name={b.name}
@@ -473,15 +473,15 @@ function ScorecardSkeleton() {
     <div className="flex flex-col gap-4">
       <h4 className="text-lg font-semibold md:text-xl">Scorecard</h4>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {[0, 1].map((i) => (
-          <Card key={i}>
+        {["innings-1", "innings-2"].map((k) => (
+          <Card key={k}>
             <CardHeader>
               <div className="h-5 w-40 animate-pulse rounded bg-stone-200" />
             </CardHeader>
             <CardContent className="space-y-3">
-              {Array.from({ length: 6 }, (_, j) => (
+              {["r1", "r2", "r3", "r4", "r5", "r6"].map((row) => (
                 <div
-                  key={j}
+                  key={`${k}-${row}`}
                   className="h-4 animate-pulse rounded bg-stone-100"
                 />
               ))}

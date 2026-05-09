@@ -130,12 +130,12 @@ export function SeasonLeaders() {
 
       {isLoading ? (
         <div className="grid gap-6 md:grid-cols-2">
-          {[0, 1].map((i) => (
-            <div key={i} className="space-y-3">
+          {["batting", "bowling"].map((col) => (
+            <div key={col} className="space-y-3">
               <div className="h-4 w-24 animate-pulse rounded bg-stone-200" />
-              {[0, 1, 2].map((j) => (
+              {["row1", "row2", "row3"].map((row) => (
                 <div
-                  key={j}
+                  key={`${col}-${row}`}
                   className="h-8 animate-pulse rounded bg-stone-100"
                 />
               ))}
@@ -162,7 +162,7 @@ export function SeasonLeaders() {
               }
             >
               {battingEntries.map((entry, idx) => (
-                <TableRow key={idx}>
+                <TableRow key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}>
                   <TableCell className="text-stone-400">{idx + 1}</TableCell>
                   <TableCell>
                     <PlayerLink name={entry.playerName} slug={entry.slug} />
@@ -199,7 +199,7 @@ export function SeasonLeaders() {
               }
             >
               {bowlingEntries.map((entry, idx) => (
-                <TableRow key={idx}>
+                <TableRow key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}>
                   <TableCell className="text-stone-400">{idx + 1}</TableCell>
                   <TableCell>
                     <PlayerLink name={entry.playerName} slug={entry.slug} />

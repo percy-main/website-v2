@@ -36,9 +36,9 @@ export function PlayerStats({ slug }: { slug: string }) {
       <div className="mt-6 space-y-3">
         <div className="h-6 w-32 animate-pulse rounded bg-stone-200" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-          {[0, 1, 2, 3, 4].map((i) => (
+          {["s1", "s2", "s3", "s4", "s5"].map((k) => (
             <div
-              key={i}
+              key={k}
               className="h-16 animate-pulse rounded-lg bg-stone-100"
             />
           ))}

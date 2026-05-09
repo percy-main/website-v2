@@ -127,8 +127,10 @@ function HonoursTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {entries.map((entry, i) => (
-          <TableRow key={`${entry.playerName}-${entry.matchDate}-${i}`}>
+        {entries.map((entry) => (
+          <TableRow
+            key={`${entry.playerName}-${entry.matchDate}-${entry.value}`}
+          >
             <TableCell>
               <PlayerLink name={entry.playerName} slug={entry.slug} />
             </TableCell>

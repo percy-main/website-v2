@@ -77,12 +77,12 @@ export function Component() {
               </tr>
             </thead>
             <tbody>
-              {entries.map((row, i) => (
+              {entries.map((row, rank) => (
                 <tr
-                  key={i}
-                  className={`border-t border-stone-100 ${i % 2 === 0 ? "bg-white" : "bg-stone-50"} ${i < 3 ? "font-semibold" : ""}`}
+                  key={`${rank}-${row.name ?? "unknown"}-${row.score}`}
+                  className={`border-t border-stone-100 ${rank % 2 === 0 ? "bg-white" : "bg-stone-50"} ${rank < 3 ? "font-semibold" : ""}`}
                 >
-                  <td className="px-4 py-3">{medals[i] ?? i + 1}</td>
+                  <td className="px-4 py-3">{medals[rank] ?? rank + 1}</td>
                   <td className="px-4 py-3">{row.name ?? "Unknown"}</td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     {row.score}

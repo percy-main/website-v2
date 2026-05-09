@@ -339,15 +339,15 @@ export function MessageView({
       >
         {(() => {
           const rendered = renderParts(message.parts, citations.numberByKey);
-          return rendered.map((part, i) => (
+          return rendered.map((part, pos) => (
             <PartView
-              key={`${message.id}-${i}`}
+              key={`${message.id}-${pos}-${part.type}`}
               part={part}
               numberByKey={citations.numberByKey}
               onChipClick={handleChipClick}
               onAnswerQuestion={onAnswerQuestion}
               isStreaming={isStreaming}
-              isLast={i === rendered.length - 1}
+              isLast={pos === rendered.length - 1}
             />
           ));
         })()}

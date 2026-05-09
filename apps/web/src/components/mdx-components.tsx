@@ -129,9 +129,9 @@ function LeagueTable({
               </tr>
             </thead>
             <tbody className="border border-red-50">
-              {rows.map((row, i) => (
+              {rows.map((row) => (
                 <tr
-                  key={i}
+                  key={row.position}
                   className="border-b border-b-stone-200 odd:bg-red-50"
                 >
                   <td className="px-3 py-2 text-left">
