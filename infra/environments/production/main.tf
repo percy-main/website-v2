@@ -28,6 +28,14 @@ provider "aws" {
   region = "eu-west-2"
 }
 
+# us-east-1 provider — required for CloudFront and Route 53 metrics
+# (both surface in us-east-1 only) and for any CloudFront-namespace
+# CloudWatch alarms.
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
 # ---------------------------------------------------------------------------
 # Tailscale provider — auth via OAuth client stored in Secrets Manager
 # (manually created in the Tailscale admin console with scopes: Policy File
@@ -301,6 +309,78 @@ module "cdn" {
   acm_certificate_arn = local.shared.acm_cloudfront_certificate_arn
   extra_aliases       = ["www.percymain.org", "kit.percymain.org"]
   api_base_url        = "https://api.v2.percymain.org"
+}
+
+# CloudFront CloudWatch alarms — metrics live in us-east-1 only, so the
+# alarms must be provisioned with the us_east_1 provider. Routed to the
+# shared us-east-1 reliability alarms topic (operator-subscribed).
+resource "aws_cloudwatch_metric_alarm" "cdn_5xx_rate" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-production-cdn-5xx-rate"
+  alarm_description   = "CloudFront 5xx error rate >1% — origin (ALB → API) is failing or edge layer is misbehaving"
+  namespace           = "AWS/CloudFront"
+  metric_name         = "5xxErrorRate"
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 3
+  threshold           = 1
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DistributionId = module.cdn.distribution_id
+    Region         = "Global"
+  }
+
+  alarm_actions = [local.shared.reliability_alarms_topic_arn_us_east_1]
+  ok_actions    = [local.shared.reliability_alarms_topic_arn_us_east_1]
+}
+
+resource "aws_cloudwatch_metric_alarm" "cdn_origin_latency" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-production-cdn-origin-latency"
+  alarm_description   = "CloudFront OriginLatency p99 >2s — slow origin (ALB → API) responses, may indicate API saturation"
+  namespace           = "AWS/CloudFront"
+  metric_name         = "OriginLatency"
+  extended_statistic  = "p99"
+  period              = 300
+  evaluation_periods  = 3
+  threshold           = 2000
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DistributionId = module.cdn.distribution_id
+    Region         = "Global"
+  }
+
+  alarm_actions = [local.shared.reliability_alarms_topic_arn_us_east_1]
+  ok_actions    = [local.shared.reliability_alarms_topic_arn_us_east_1]
+}
+
+resource "aws_cloudwatch_metric_alarm" "cdn_cache_hit_rate" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-production-cdn-cache-hit-rate"
+  alarm_description   = "CloudFront cache hit rate <80% — regression in cache config or sudden uncached traffic pattern. CacheHitRate requires additional metrics to be enabled on the distribution."
+  namespace           = "AWS/CloudFront"
+  metric_name         = "CacheHitRate"
+  statistic           = "Average"
+  period              = 3600
+  evaluation_periods  = 2
+  threshold           = 80
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DistributionId = module.cdn.distribution_id
+    Region         = "Global"
+  }
+
+  alarm_actions = [local.shared.reliability_alarms_topic_arn_us_east_1]
+  ok_actions    = [local.shared.reliability_alarms_topic_arn_us_east_1]
 }
 
 # ---------------------------------------------------------------------------

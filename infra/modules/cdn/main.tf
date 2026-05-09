@@ -375,6 +375,22 @@ resource "aws_cloudfront_distribution" "main" {
 }
 
 # -----------------------------------------------------------------------------
+# Additional metrics — required for OriginLatency and CacheHitRate alarms
+# (see production env). Without this subscription, those metrics are not
+# published and the corresponding alarms stay perpetually OK.
+# -----------------------------------------------------------------------------
+
+resource "aws_cloudfront_monitoring_subscription" "main" {
+  distribution_id = aws_cloudfront_distribution.main.id
+
+  monitoring_subscription {
+    realtime_metrics_subscription_config {
+      realtime_metrics_subscription_status = "Enabled"
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
 # Outputs
 # -----------------------------------------------------------------------------
 
