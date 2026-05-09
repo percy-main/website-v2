@@ -55,6 +55,11 @@ jobs:
   terraform-shared:
     needs: ci
     runs-on: ubuntu-latest
+    # Shared layer applies Route 53, IAM, S3 backend, certificates —
+    # gate on the production environment (same reviewer list as the
+    # production layer) so a bad merge can't auto-apply foundational
+    # infra without a human approval.
+    environment: production
     env:
       TF_VERSION: "1.7"
     steps:

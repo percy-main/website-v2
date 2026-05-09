@@ -44,6 +44,10 @@ jobs:
   terraform-shared:
     if: ${{ inputs.target == 'shared' || inputs.target == 'both' }}
     runs-on: ubuntu-latest
+    # Shared layer applies foundational infra (Route 53, IAM, S3
+    # backend) — gate on the production environment so a manual run
+    # against an arbitrary ref still requires reviewer approval.
+    environment: production
     steps:
       - uses: actions/checkout@v4
         with:
