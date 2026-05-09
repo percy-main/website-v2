@@ -14,19 +14,19 @@ import { FactsAdminView } from "./facts-admin.js";
 import { KnowledgeAdminView } from "./knowledge-admin.js";
 import { MessageView } from "./message-view.js";
 import { ReportsView } from "./reports-view.js";
+import {
+  filterMessagesByRole,
+  findInFlightReport,
+  summariseAttachments,
+  thinkingModeFromParam,
+  viewFromParam,
+  type ScoutMode,
+  type ScoutView,
+} from "./scout.lib.js";
 import { ScoutLauncher } from "./scout-launcher.js";
 import { ShareThreadModal } from "./share-thread-modal.js";
 import { NewThreadButton, ThreadList } from "./thread-list.js";
 import { useScoutChat } from "./use-scout-chat.js";
-
-type ScoutMode = "chat" | "debrief" | "scout";
-type ScoutView = "chat" | "reports" | "facts" | "knowledge";
-
-const VIEW_FROM_PARAM: Record<string, ScoutView> = {
-  reports: "reports",
-  facts: "facts",
-  knowledge: "knowledge",
-};
 
 export function Component() {
   useDocumentMeta("ImbuzAI");
@@ -34,8 +34,7 @@ export function Component() {
   const [searchParams, setSearchParams] = useSearchParams();
   // URL-state per the project's URL-state convention. The non-chat tabs
   // are global (not per-thread) so they survive switching between threads.
-  const viewParam = searchParams.get("view") ?? "";
-  const view: ScoutView = VIEW_FROM_PARAM[viewParam] ?? "chat";
+  const view: ScoutView = viewFromParam(searchParams.get("view"));
 
   const setView = (next: ScoutView) => {
     setSearchParams(
@@ -269,29 +268,23 @@ interface ChatViewProps {
 function ChatView({ threadId, loaded }: ChatViewProps) {
   const initialMessages = useMemo<UIMessage[]>(
     () =>
-      loaded.messages.flatMap((m) =>
-        m.role === "user" || m.role === "assistant"
-          ? [
-              {
-                id: m.id,
-                role: m.role,
-                parts: m.parts,
-              } as unknown as UIMessage,
-            ]
-          : [],
+      filterMessagesByRole(loaded.messages, ["user", "assistant"]).map(
+        (m) =>
+          ({
+            id: m.id,
+            role: m.role,
+            parts: m.parts,
+          }) as unknown as UIMessage,
       ),
     [loaded.messages],
   );
   // Historical attachment ids by message id. Live messages (still streaming
   // / not yet refetched) won't appear here — that's fine; the user just
   // sees thumbnails on the next thread reload.
-  const attachmentIdsByMessage = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const m of loaded.messages) {
-      if (m.attachmentIds.length > 0) map.set(m.id, m.attachmentIds);
-    }
-    return map;
-  }, [loaded.messages]);
+  const attachmentIdsByMessage = useMemo(
+    () => summariseAttachments(loaded.messages),
+    [loaded.messages],
+  );
 
   const { messages, sendMessage, status, error, stop } = useScoutChat({
     threadId,
@@ -340,8 +333,9 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
   // sticks per thread within a tab session. Default "thinking" — DeepSeek-
   // v4-pro reasons by default and most prompts benefit from it; the toggle
   // is for when the user wants a quick follow-up.
-  const thinkingMode: ThinkingMode =
-    searchParams.get("think") === "fast" ? "fast" : "thinking";
+  const thinkingMode: ThinkingMode = thinkingModeFromParam(
+    searchParams.get("think"),
+  );
   const setThinkingMode = (next: ThinkingMode) => {
     setSearchParams(
       (prev) => {
@@ -408,30 +402,10 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
   // state (ready / failed) so a stale "generating" snapshot for the same
   // reportId emitted earlier in the stream doesn't get surfaced as
   // in-flight.
-  const inFlightReport = useMemo<ReportData | null>(() => {
-    const terminalReportIds = new Set<string>();
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const parts = messages[i].parts ?? [];
-      for (let j = parts.length - 1; j >= 0; j--) {
-        const part = parts[j];
-        if (
-          typeof part !== "object" ||
-          part === null ||
-          !("type" in part) ||
-          (part as { type: unknown }).type !== "data-report"
-        ) {
-          continue;
-        }
-        const data = (part as { data: ReportData }).data;
-        if (data.status === "generating") {
-          if (!terminalReportIds.has(data.reportId)) return data;
-        } else {
-          terminalReportIds.add(data.reportId);
-        }
-      }
-    }
-    return null;
-  }, [messages]);
+  const inFlightReport = useMemo<ReportData | null>(
+    () => findInFlightReport(messages),
+    [messages],
+  );
 
   return (
     <>

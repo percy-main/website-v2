@@ -14,6 +14,13 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
+import {
+  formatSandwichCost,
+  parseGameweekParam,
+  parsePlayerIdParam,
+  parseTeamIdParam,
+  sortSquadBySlot,
+} from "./fantasy.lib.js";
 import { ScoringRulesContent } from "./fantasy-rules.js";
 
 // ---------------------------------------------------------------------------
@@ -471,7 +478,7 @@ function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
                       <TableCell>
                         <div className="font-medium">{p.playerName}</div>
                         <div className="text-xs">
-                          {"🥪".repeat(p.sandwichCost)}
+                          {formatSandwichCost(p.sandwichCost)}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">{p.points}</TableCell>
@@ -515,7 +522,7 @@ function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
                       <TableCell>
                         <div>{e.playerName}</div>
                         <div className="text-xs">
-                          {"🥪".repeat(e.sandwichCost)}
+                          {formatSandwichCost(e.sandwichCost)}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -609,11 +616,7 @@ function LeaderboardsTab({
   const [params, setParams] = useSearchParams();
   const subTab = params.get("lb") ?? "season";
 
-  const gwParam = params.get("gw");
-  const selectedGw =
-    gwParam !== null && gwParam !== "" && !Number.isNaN(Number(gwParam))
-      ? Number(gwParam)
-      : undefined;
+  const selectedGw = parseGameweekParam(params.get("gw"));
 
   function setSelectedGw(gw: number) {
     const next = new URLSearchParams(params);
@@ -889,10 +892,7 @@ function TeamView({
     return <p className="text-center text-red-600">Failed to load team.</p>;
   if (!data) return null;
 
-  const slotOrder = { batting: 0, bowling: 1, allrounder: 2 };
-  const sorted = data.players.toSorted(
-    (a, b) => (slotOrder[a.slotType] ?? 3) - (slotOrder[b.slotType] ?? 3),
-  );
+  const sorted = sortSquadBySlot(data.players);
 
   const { latestGameweek } = data.team;
 
@@ -970,7 +970,7 @@ function TeamView({
               <TableCell className="capitalize">{p.slotType}</TableCell>
               <TableCell className="text-center">
                 <span className="inline-flex items-center gap-0.5 text-sm whitespace-nowrap">
-                  {"🥪".repeat(p.sandwichCost)}
+                  {formatSandwichCost(p.sandwichCost)}
                 </span>
               </TableCell>
               <TableCell className="text-right">{p.ownershipPct}%</TableCell>
@@ -1112,15 +1112,8 @@ export function Component() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") ?? "home";
 
-  const teamParam = params.get("team");
-  const viewTeamId =
-    teamParam !== null && teamParam !== "" && !Number.isNaN(Number(teamParam))
-      ? Number(teamParam)
-      : null;
-
-  const playerParam = params.get("player");
-  const viewPlayerId =
-    playerParam !== null && playerParam !== "" ? playerParam : null;
+  const viewTeamId = parseTeamIdParam(params.get("team"));
+  const viewPlayerId = parsePlayerIdParam(params.get("player"));
 
   function setTab(t: string) {
     const next = new URLSearchParams(params);

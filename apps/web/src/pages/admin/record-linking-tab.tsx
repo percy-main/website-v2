@@ -24,60 +24,15 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import {
+  buildPlayerNameMap,
+  filterPeople,
+  rankPlayCricketSuggestions,
+  summarisePersonStats,
+  type PersonRow,
+  type PlayCricketPlayer,
+} from "./record-linking-tab.lib";
 import { StatusPill } from "./status-pill";
-
-/** Simple substring + token-match score. Returns 0..1 where 1 is a perfect match. */
-function fuzzyScore(query: string, target: string): number {
-  const q = query.toLowerCase().trim();
-  const t = target.toLowerCase().trim();
-
-  if (q.length === 0 || t.length === 0) return 0;
-  if (q === t) return 1;
-  if (t.includes(q)) return 0.8;
-  if (q.includes(t)) return 0.7;
-
-  const queryTokens = q.split(/\s+/);
-  const targetTokens = t.split(/\s+/);
-  let matchedTokens = 0;
-
-  for (const qt of queryTokens) {
-    for (const tt of targetTokens) {
-      if (tt.includes(qt) || qt.includes(tt)) {
-        matchedTokens++;
-        break;
-      }
-    }
-  }
-
-  let reverseMatchedTokens = 0;
-  for (const tt of targetTokens) {
-    for (const qt of queryTokens) {
-      if (qt.includes(tt) || tt.includes(qt)) {
-        reverseMatchedTokens++;
-        break;
-      }
-    }
-  }
-
-  const forwardRatio = matchedTokens / queryTokens.length;
-  const reverseRatio = reverseMatchedTokens / targetTokens.length;
-
-  return Math.max(forwardRatio, reverseRatio) * 0.6;
-}
-
-interface PlayCricketPlayer {
-  memberId: number;
-  name: string;
-}
-
-interface PersonRow {
-  id: string;
-  name: string | null;
-  playCricketId: string | null;
-  slug?: string | null;
-  parentName?: string | null;
-  type: "member" | "dependent";
-}
 
 interface DetailModalState {
   person: PersonRow;
@@ -197,45 +152,26 @@ export function RecordLinkingTab() {
   }, [linkingData]);
 
   // Filter people
-  const filteredPeople = useMemo(() => {
-    return allPeople.filter((person) => {
-      if (personTypeFilter !== "all" && person.type !== personTypeFilter)
-        return false;
-
-      const isLinked = Boolean(person.playCricketId);
-
-      if (!showLinked && isLinked) return false;
-      if (!showUnlinked && !isLinked) return false;
-
-      if (debouncedSearch.trim().length > 0) {
-        const term = debouncedSearch.toLowerCase();
-        const nameMatch = person.name?.toLowerCase().includes(term) ?? false;
-        const parentMatch =
-          person.parentName?.toLowerCase().includes(term) ?? false;
-        if (!nameMatch && !parentMatch) return false;
-      }
-
-      return true;
-    });
-  }, [allPeople, debouncedSearch, showLinked, showUnlinked, personTypeFilter]);
+  const filteredPeople = useMemo(
+    () =>
+      filterPeople(allPeople, {
+        search: debouncedSearch,
+        showLinked,
+        showUnlinked,
+        personTypeFilter,
+      }),
+    [allPeople, debouncedSearch, showLinked, showUnlinked, personTypeFilter],
+  );
 
   // Stats
-  const linkedPcMembers = allPeople.filter(
-    (p) => p.type === "member" && p.playCricketId,
-  ).length;
-  const totalMembers = allPeople.filter((p) => p.type === "member").length;
-  const linkedPcDeps = allPeople.filter(
-    (p) => p.type === "dependent" && p.playCricketId,
-  ).length;
-  const totalDependents = allPeople.filter(
-    (p) => p.type === "dependent",
-  ).length;
+  const stats = useMemo(() => summarisePersonStats(allPeople), [allPeople]);
+  const { totalMembers, totalDependents, linkedPcMembers, linkedPcDeps } =
+    stats;
 
   // Player name lookup for PC IDs
-  const playerNameById = useMemo(() => {
-    if (!pcPlayers) return new Map<string, string>();
-    return new Map(pcPlayers.map((p) => [p.memberId.toString(), p.name]));
-  }, [pcPlayers]);
+  const playerNameById = useMemo(() => buildPlayerNameMap(pcPlayers), [
+    pcPlayers,
+  ]);
 
   // Keep detail modal person in sync with linkingData refreshes
   useEffect(() => {
@@ -528,23 +464,7 @@ function DetailModal({
   // Suggested PC players
   const suggestedPcPlayers = useMemo(() => {
     if (!pcPlayers || !linking) return [];
-    const query =
-      linkSearch.trim().length > 0 ? linkSearch : (person.name ?? "");
-    const term = linkSearch.toLowerCase().trim();
-    return pcPlayers
-      .flatMap((player) => {
-        const scored = { ...player, score: fuzzyScore(query, player.name) };
-        if (term.length > 0) {
-          return scored.name.toLowerCase().includes(term) ||
-            scored.memberId.toString().includes(term) ||
-            scored.score > 0.3
-            ? [scored]
-            : [];
-        }
-        return scored.score > 0.2 ? [scored] : [];
-      })
-      .toSorted((a, b) => b.score - a.score)
-      .slice(0, 20);
+    return rankPlayCricketSuggestions(pcPlayers, person.name, linkSearch);
   }, [pcPlayers, linking, linkSearch, person.name]);
 
   return (

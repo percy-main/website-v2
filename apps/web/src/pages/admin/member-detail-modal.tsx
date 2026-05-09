@@ -26,6 +26,15 @@ import type { paths } from "@/lib/api.gen";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
+  buildDependentFields,
+  buildMemberDetailFields,
+  canDeleteCharge,
+  getChargeStatus,
+  getRoleLabel,
+  isMemberArchived,
+  parseNewChargeForm,
+} from "./member-detail-modal.lib";
+import {
   StatusPill,
   formatDate,
   formatPence,
@@ -261,16 +270,14 @@ function AccountSection({
 }
 
 function RolePill({ role }: { role: string }) {
-  switch (role) {
-    case "admin":
-      return <StatusPill variant="blue">Admin</StatusPill>;
-    case "junior_manager":
-      return <StatusPill variant="green">Junior Manager</StatusPill>;
-    case "official":
-      return <StatusPill variant="green">Official</StatusPill>;
-    default:
-      return <StatusPill variant="gray">User</StatusPill>;
-  }
+  const label = getRoleLabel(role);
+  const variant: "blue" | "green" | "gray" =
+    role === "admin"
+      ? "blue"
+      : role === "junior_manager" || role === "official"
+        ? "green"
+        : "gray";
+  return <StatusPill variant={variant}>{label}</StatusPill>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -291,25 +298,7 @@ function MemberDetailsSection({ member }: { member: UserDetail["member"] }) {
     );
   }
 
-  const fields: Array<{ label: string; value: string | null }> = [
-    { label: "Title", value: member.title },
-    {
-      label: "Name",
-      value: member.name,
-    },
-    { label: "Address", value: member.address },
-    { label: "Postcode", value: member.postcode },
-    {
-      label: "Date of Birth",
-      value: member.dob ? formatDate(member.dob) : null,
-    },
-    { label: "Telephone", value: member.telephone },
-    { label: "Emergency Contact", value: member.emergency_contact_name },
-    {
-      label: "Emergency Telephone",
-      value: member.emergency_contact_telephone,
-    },
-  ];
+  const fields = buildMemberDetailFields(member);
 
   return (
     <section>
@@ -479,58 +468,7 @@ function DependentCard({
   const paidUntil = dependent.membershipPaidUntil;
   const hasPaid = paidUntil !== null;
 
-  const formatSex = (sex: string | null) => {
-    if (!sex) return null;
-    if (sex === "prefer_not_to_say") return "Prefer not to say";
-    return sex.charAt(0).toUpperCase() + sex.slice(1);
-  };
-
-  const fields: Array<{ label: string; value: string | null }> = [
-    {
-      label: "Date of Birth",
-      value: dependent.dob ? formatDate(dependent.dob) : null,
-    },
-    { label: "Sex", value: formatSex(dependent.sex) },
-    { label: "School Year", value: dependent.school_year },
-    {
-      label: "Photo Consent",
-      value:
-        dependent.photo_consent !== null
-          ? dependent.photo_consent
-            ? "Yes"
-            : "No"
-          : null,
-    },
-    {
-      label: "GP Surgery / Phone",
-      value:
-        [dependent.gp_surgery, dependent.gp_phone]
-          .filter(Boolean)
-          .join(" / ") || null,
-    },
-    {
-      label: "Alt Contact",
-      value:
-        [dependent.alt_contact_name, dependent.alt_contact_phone]
-          .filter(Boolean)
-          .join(" / ") || null,
-    },
-    {
-      label: "Emergency Medical Consent",
-      value:
-        dependent.emergency_medical_consent !== null
-          ? dependent.emergency_medical_consent
-            ? "Yes"
-            : "No"
-          : null,
-    },
-    {
-      label: "Disability",
-      value: dependent.has_disability
-        ? (dependent.disability_type ?? "Yes")
-        : null,
-    },
-  ];
+  const fields = buildDependentFields(dependent);
 
   return (
     <div className="rounded-md border border-stone-200 p-3">
@@ -847,12 +785,12 @@ function PaymentsSection({
 
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
-    const amountNum = parseFloat(amount);
-    if (!description || isNaN(amountNum) || amountNum < 0.01) return;
+    const parsed = parseNewChargeForm({ description, amount, chargeDate });
+    if (!parsed.ok) return;
     createCharge.mutate({
-      description,
-      amountPence: Math.round(amountNum * 100),
-      chargeDate,
+      description: parsed.description!,
+      amountPence: parsed.amountPence!,
+      chargeDate: parsed.chargeDate!,
     });
   };
 
@@ -981,16 +919,8 @@ function ChargeRow({
     },
   });
 
-  const canDelete = !charge.paid_at && !charge.payment_confirmed_at;
-
-  const getChargeStatus = () => {
-    if (charge.paid_at) return { label: "Paid", variant: "green" as const };
-    if (charge.payment_confirmed_at)
-      return { label: "Pending", variant: "blue" as const };
-    return { label: "Unpaid", variant: "yellow" as const };
-  };
-
-  const status = getChargeStatus();
+  const canDelete = canDeleteCharge(charge);
+  const status = getChargeStatus(charge);
 
   return (
     <TableRow>
@@ -1056,8 +986,7 @@ function ArchiveSection({
   member: UserDetail["member"];
 }) {
   const queryClient = useQueryClient();
-  const isArchived =
-    member?.deleted_at !== null && member?.deleted_at !== undefined;
+  const isArchived = isMemberArchived(member);
   const [showArchiveForm, setShowArchiveForm] = useState(false);
   const [archiveReason, setArchiveReason] = useState("");
 

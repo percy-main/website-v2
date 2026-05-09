@@ -27,7 +27,18 @@ import { api, callApi } from "@/lib/api-client";
 import { resizeLogo } from "@/lib/logo-resize";
 import { getAllPeople } from "@/lib/people";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useReducer, useRef, useState } from "react";
+import {
+  buildGameSponsorshipPayload,
+  buildPlayerSponsorshipPayload,
+  type GameSponsorshipPayload,
+  gameSponsorshipFormReducer,
+  initialGameSponsorshipFormState,
+  initialPlayerSponsorshipFormState,
+  isPlayerSponsorshipReady,
+  type PlayerSponsorshipPayload,
+  playerSponsorshipFormReducer,
+} from "./sponsorships-tab.reducer";
 import { formatDate, formatPence } from "./status-pill";
 
 const PAGE_SIZE = 20;
@@ -394,68 +405,32 @@ function CreateGameSponsorshipDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const [gameId, setGameId] = useState("");
-  const [sponsorName, setSponsorName] = useState("");
-  const [sponsorEmail, setSponsorEmail] = useState("");
-  const [website, setWebsite] = useState("");
-  const [phone, setPhone] = useState("");
-  const [message, setMessage] = useState("");
-  const [amount, setAmount] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [notes, setNotes] = useState("");
+  const [form, dispatch] = useReducer(
+    gameSponsorshipFormReducer,
+    initialGameSponsorshipFormState,
+  );
 
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
+    mutationFn: (body: GameSponsorshipPayload) =>
       callApi(
         api.POST("/api/sponsorship/admin/game/manual", {
-          body: body as {
-            gameId: string;
-            sponsorName: string;
-            sponsorEmail: string;
-            amountPence: number;
-            sponsorWebsite?: string;
-            sponsorPhone?: string;
-            sponsorMessage?: string;
-            displayName?: string;
-            notes?: string;
-          },
+          body,
         }),
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "gameSponsorships"],
       });
-      resetForm();
+      dispatch({ type: "reset" });
       onOpenChange(false);
     },
   });
 
-  function resetForm() {
-    setGameId("");
-    setSponsorName("");
-    setSponsorEmail("");
-    setWebsite("");
-    setPhone("");
-    setMessage("");
-    setAmount("");
-    setDisplayName("");
-    setNotes("");
-  }
-
   function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
-    const amountPence = Math.round(parseFloat(amount) * 100);
-    createMutation.mutate({
-      gameId,
-      sponsorName,
-      sponsorEmail,
-      ...(website ? { sponsorWebsite: website } : {}),
-      ...(phone ? { sponsorPhone: phone } : {}),
-      ...(message ? { sponsorMessage: message } : {}),
-      amountPence,
-      ...(displayName ? { displayName } : {}),
-      ...(notes ? { notes } : {}),
-    });
+    const payload = buildGameSponsorshipPayload(form);
+    if (!payload) return;
+    createMutation.mutate(payload);
   }
 
   return (
@@ -474,8 +449,10 @@ function CreateGameSponsorshipDialog({
             </label>
             <Input
               id="sg-create-game-id"
-              value={gameId}
-              onChange={(e) => setGameId(e.target.value)}
+              value={form.gameId}
+              onChange={(e) =>
+                dispatch({ type: "setGameId", value: e.target.value })
+              }
               required
             />
           </div>
@@ -488,8 +465,14 @@ function CreateGameSponsorshipDialog({
             </label>
             <Input
               id="sg-create-sponsor-name"
-              value={sponsorName}
-              onChange={(e) => setSponsorName(e.target.value)}
+              value={form.sponsorName}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "sponsorName",
+                  value: e.target.value,
+                })
+              }
               required
             />
           </div>
@@ -503,8 +486,14 @@ function CreateGameSponsorshipDialog({
             <Input
               id="sg-create-sponsor-email"
               type="email"
-              value={sponsorEmail}
-              onChange={(e) => setSponsorEmail(e.target.value)}
+              value={form.sponsorEmail}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "sponsorEmail",
+                  value: e.target.value,
+                })
+              }
               required
             />
           </div>
@@ -517,8 +506,14 @@ function CreateGameSponsorshipDialog({
             </label>
             <Input
               id="sg-create-website"
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
+              value={form.website}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "website",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
@@ -532,8 +527,14 @@ function CreateGameSponsorshipDialog({
             <Input
               id="sg-create-phone"
               type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              value={form.phone}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "phone",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
@@ -546,13 +547,19 @@ function CreateGameSponsorshipDialog({
             </label>
             <Input
               id="sg-create-message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value.slice(0, 100))}
+              value={form.message}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "message",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional (max 100 chars)"
               maxLength={100}
             />
             <div className="mt-0.5 text-right text-xs text-stone-400">
-              {message.length}/100
+              {form.message.length}/100
             </div>
           </div>
           <div>
@@ -565,8 +572,14 @@ function CreateGameSponsorshipDialog({
             <Input
               id="sg-create-amount"
               type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              value={form.amount}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "amount",
+                  value: e.target.value,
+                })
+              }
               min={0}
               step={0.01}
               required
@@ -581,8 +594,14 @@ function CreateGameSponsorshipDialog({
             </label>
             <Input
               id="sg-create-display-name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              value={form.displayName}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "displayName",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
@@ -595,8 +614,14 @@ function CreateGameSponsorshipDialog({
             </label>
             <Input
               id="sg-create-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              value={form.notes}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "notes",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
@@ -626,16 +651,10 @@ function CreatePlayerSponsorshipDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const [slug, setSlug] = useState("");
-  const [playerName, setPlayerName] = useState("");
-  const [sponsorName, setSponsorName] = useState("");
-  const [sponsorEmail, setSponsorEmail] = useState("");
-  const [website, setWebsite] = useState("");
-  const [phone, setPhone] = useState("");
-  const [message, setMessage] = useState("");
-  const [amount, setAmount] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [notes, setNotes] = useState("");
+  const [form, dispatch] = useReducer(
+    playerSponsorshipFormReducer,
+    initialPlayerSponsorshipFormState,
+  );
 
   const takenSlugsQuery = useQuery({
     queryKey: ["admin", "playerSponsorships", "takenSlugs"],
@@ -650,61 +669,27 @@ function CreatePlayerSponsorshipDialog({
   );
 
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
+    mutationFn: (body: PlayerSponsorshipPayload) =>
       callApi(
         api.POST("/api/sponsorship/admin/player/manual", {
-          body: body as {
-            slug: string;
-            playerName: string;
-            sponsorName: string;
-            sponsorEmail: string;
-            amountPence: number;
-            sponsorWebsite?: string;
-            sponsorPhone?: string;
-            sponsorMessage?: string;
-            displayName?: string;
-            notes?: string;
-          },
+          body,
         }),
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "playerSponsorships"],
       });
-      resetForm();
+      dispatch({ type: "reset" });
       onOpenChange(false);
     },
   });
 
-  function resetForm() {
-    setSlug("");
-    setPlayerName("");
-    setSponsorName("");
-    setSponsorEmail("");
-    setWebsite("");
-    setPhone("");
-    setMessage("");
-    setAmount("");
-    setDisplayName("");
-    setNotes("");
-  }
-
   function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
-    if (!slug || !playerName) return;
-    const amountPence = Math.round(parseFloat(amount) * 100);
-    createMutation.mutate({
-      slug,
-      playerName,
-      sponsorName,
-      sponsorEmail,
-      ...(website ? { sponsorWebsite: website } : {}),
-      ...(phone ? { sponsorPhone: phone } : {}),
-      ...(message ? { sponsorMessage: message } : {}),
-      amountPence,
-      ...(displayName ? { displayName } : {}),
-      ...(notes ? { notes } : {}),
-    });
+    if (!isPlayerSponsorshipReady(form)) return;
+    const payload = buildPlayerSponsorshipPayload(form);
+    if (!payload) return;
+    createMutation.mutate(payload);
   }
 
   return (
@@ -723,13 +708,16 @@ function CreatePlayerSponsorshipDialog({
             </label>
             <PlayerSelect
               id="sp-create-player"
-              value={slug}
-              playerName={playerName}
+              value={form.slug}
+              playerName={form.playerName}
               takenSlugs={takenSlugs}
-              onChange={(nextSlug, nextName) => {
-                setSlug(nextSlug);
-                setPlayerName(nextName);
-              }}
+              onChange={(nextSlug, nextName) =>
+                dispatch({
+                  type: "setPlayer",
+                  slug: nextSlug,
+                  playerName: nextName,
+                })
+              }
             />
             {takenSlugsQuery.isLoading && (
               <div className="mt-1 text-xs text-stone-500">
@@ -746,8 +734,14 @@ function CreatePlayerSponsorshipDialog({
             </label>
             <Input
               id="sp-create-sponsor-name"
-              value={sponsorName}
-              onChange={(e) => setSponsorName(e.target.value)}
+              value={form.sponsorName}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "sponsorName",
+                  value: e.target.value,
+                })
+              }
               required
             />
           </div>
@@ -761,8 +755,14 @@ function CreatePlayerSponsorshipDialog({
             <Input
               id="sp-create-sponsor-email"
               type="email"
-              value={sponsorEmail}
-              onChange={(e) => setSponsorEmail(e.target.value)}
+              value={form.sponsorEmail}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "sponsorEmail",
+                  value: e.target.value,
+                })
+              }
               required
             />
           </div>
@@ -775,8 +775,14 @@ function CreatePlayerSponsorshipDialog({
             </label>
             <Input
               id="sp-create-website"
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
+              value={form.website}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "website",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
@@ -790,8 +796,14 @@ function CreatePlayerSponsorshipDialog({
             <Input
               id="sp-create-phone"
               type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              value={form.phone}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "phone",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
@@ -804,13 +816,19 @@ function CreatePlayerSponsorshipDialog({
             </label>
             <Input
               id="sp-create-message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value.slice(0, 100))}
+              value={form.message}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "message",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional (max 100 chars)"
               maxLength={100}
             />
             <div className="mt-0.5 text-right text-xs text-stone-400">
-              {message.length}/100
+              {form.message.length}/100
             </div>
           </div>
           <div>
@@ -823,8 +841,14 @@ function CreatePlayerSponsorshipDialog({
             <Input
               id="sp-create-amount"
               type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              value={form.amount}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "amount",
+                  value: e.target.value,
+                })
+              }
               min={0}
               step={0.01}
               required
@@ -839,8 +863,14 @@ function CreatePlayerSponsorshipDialog({
             </label>
             <Input
               id="sp-create-display-name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              value={form.displayName}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "displayName",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
@@ -853,8 +883,14 @@ function CreatePlayerSponsorshipDialog({
             </label>
             <Input
               id="sp-create-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              value={form.notes}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "notes",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
@@ -868,7 +904,9 @@ function CreatePlayerSponsorshipDialog({
             </Button>
             <Button
               type="submit"
-              disabled={createMutation.isPending || !slug || !playerName}
+              disabled={
+                createMutation.isPending || !form.slug || !form.playerName
+              }
             >
               {createMutation.isPending ? "Creating…" : "Create"}
             </Button>

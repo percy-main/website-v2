@@ -10,7 +10,6 @@ import {
   format,
   getDay,
   getDaysInMonth,
-  isBefore,
   isToday,
   startOfMonth,
 } from "date-fns";
@@ -18,6 +17,18 @@ import { formatInTimeZone } from "date-fns-tz";
 import { useMemo, useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useParams } from "react-router";
+import {
+  categoriseTeam,
+  filterItemsByCategory,
+  findDividerIndex,
+  groupItemsByDate,
+  groupItemsByDay,
+  parseMonthYear,
+  sortCalendarItems,
+  summariseMonth,
+  type Filter,
+  type TeamCategory,
+} from "./calendar-month.lib.js";
 
 // --- Types ---
 
@@ -50,24 +61,7 @@ type CalendarItem =
       eventName: string;
     };
 
-type Filter = "all" | "1xi" | "2xi" | "mid" | "jun" | "event";
-
 // --- Constants ---
-
-const MONTH_NAMES = [
-  "january",
-  "february",
-  "march",
-  "april",
-  "may",
-  "june",
-  "july",
-  "august",
-  "september",
-  "october",
-  "november",
-  "december",
-];
 
 const FILTER_LABELS: Array<{ key: Filter; label: string }> = [
   { key: "all", label: "All" },
@@ -84,29 +78,6 @@ const TEAM_BORDER_CLASSES: Record<string, string> = {
   mid: "border-l-violet-600",
   jun: "border-l-amber-600",
 };
-
-// --- Helpers ---
-
-type TeamCategory = "1xi" | "2xi" | "mid" | "jun";
-
-function categoriseTeam(teamName: string): TeamCategory {
-  if (/1st/i.test(teamName)) return "1xi";
-  if (/2nd/i.test(teamName)) return "2xi";
-  if (/midweek/i.test(teamName)) return "mid";
-  if (/under|junior|colts|\bU\d{2}\b/i.test(teamName)) return "jun";
-  return "1xi";
-}
-
-function parseMonthYear(
-  yearParam: string,
-  monthParam: string,
-): { year: number; monthIndex: number } | null {
-  const year = parseInt(yearParam, 10);
-  if (isNaN(year)) return null;
-  const monthIndex = MONTH_NAMES.indexOf(monthParam.toLowerCase());
-  if (monthIndex === -1) return null;
-  return { year, monthIndex };
-}
 
 // --- Mini Calendar ---
 
@@ -540,86 +511,35 @@ export function Component() {
       });
     }
 
-    // Sort by date, then games before events on same day
-    items.sort((a, b) => {
-      const diff = new Date(a.when).getTime() - new Date(b.when).getTime();
-      if (diff !== 0) return diff;
-      if (a.type === "game" && b.type === "event") return -1;
-      if (a.type === "event" && b.type === "game") return 1;
-      return 0;
-    });
-
-    return items;
+    return sortCalendarItems(items);
   }, [games, date]);
 
   // Filter
-  const filteredItems = useMemo(() => {
-    if (activeFilter === "all") return allItems;
-    return allItems.filter((item) => item.category === activeFilter);
-  }, [allItems, activeFilter]);
+  const filteredItems = useMemo(
+    () => filterItemsByCategory(allItems, activeFilter),
+    [allItems, activeFilter],
+  );
 
   // Group by date
-  const grouped = useMemo(() => {
-    const map = new Map<string, CalendarItem[]>();
-    for (const item of filteredItems) {
-      const dateStr = item.when.split("T")[0];
-      const existing = map.get(dateStr);
-      if (existing) {
-        existing.push(item);
-      } else {
-        map.set(dateStr, [item]);
-      }
-    }
-    return Array.from(map.entries())
-      .toSorted(([a], [b]) => a.localeCompare(b))
-      .map(([dateStr, items]) => ({ dateStr, items }));
-  }, [filteredItems]);
+  const grouped = useMemo(
+    () => groupItemsByDate(filteredItems),
+    [filteredItems],
+  );
 
   // Items by day number for mini calendar
-  const itemsByDay = useMemo(() => {
-    const map = new Map<number, CalendarItem[]>();
-    for (const item of allItems) {
-      const d = new Date(item.when).getDate();
-      const existing = map.get(d);
-      if (existing) {
-        existing.push(item);
-      } else {
-        map.set(d, [item]);
-      }
-    }
-    return map;
-  }, [allItems]);
+  const itemsByDay = useMemo(() => groupItemsByDay(allItems), [allItems]);
 
   // Stats
-  const stats = useMemo(() => {
-    const now = new Date();
-    const won = allItems.filter(
-      (i) => i.type === "game" && i.outcome === "W",
-    ).length;
-    const lost = allItems.filter(
-      (i) => i.type === "game" && i.outcome === "L",
-    ).length;
-    const upcoming = allItems.filter(
-      (i) =>
-        i.type === "game" && !i.outcome && !isBefore(new Date(i.when), now),
-    ).length;
-    return { won, lost, upcoming };
-  }, [allItems]);
+  const stats = useMemo(
+    () => summariseMonth(allItems, new Date()),
+    [allItems],
+  );
 
   // Divider position
-  const dividerIndex = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    let lastPastIdx = -1;
-    for (let i = 0; i < grouped.length; i++) {
-      const d = new Date(grouped[i].dateStr);
-      if (d < today) lastPastIdx = i;
-    }
-    if (lastPastIdx >= 0 && lastPastIdx < grouped.length - 1) {
-      return lastPastIdx;
-    }
-    return -1;
-  }, [grouped]);
+  const dividerIndex = useMemo(
+    () => findDividerIndex(grouped, new Date()),
+    [grouped],
+  );
 
   // Navigation
   const prevDate = addMonths(date, -1);
