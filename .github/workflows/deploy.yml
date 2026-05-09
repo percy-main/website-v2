@@ -249,6 +249,7 @@ jobs:
             --services $ECS_SERVICE
 
       - name: Smoke test
+        id: smoke
         run: |
           for i in $(seq 1 10); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.v2.percymain.org/health)
@@ -263,12 +264,13 @@ jobs:
           exit 1
 
       - name: Record deployment in New Relic
+        id: nr-deploy
         if: success()
         env:
           NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
           NEW_RELIC_ENTITY_GUID: ${{ vars.NEW_RELIC_ENTITY_GUID }}
         run: |
-          if [ -z "$NEW_RELIC_API_KEY" ] || [ -z "$NEW_RELIC_ENTITY_GUID" ]; then
+          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_ENTITY_GUID:-}" ]; then
             echo "New Relic API key or entity GUID not configured, skipping"
             exit 0
           fi
@@ -284,8 +286,24 @@ jobs:
           if [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
             echo "::warning::New Relic deployment tracking failed (HTTP $HTTP_CODE): $BODY"
           else
-            echo "Deployment recorded in New Relic"
+            DEPLOY_ID=$(echo "$BODY" | jq -r '.data.changeTrackingCreateDeployment.deploymentId // empty')
+            echo "deployment_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
+            echo "Deployment recorded in New Relic: ${DEPLOY_ID}"
           fi
+
+      - name: Deploy summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy API — ${{ job.status }}"
+            echo "- Actor: \`${GITHUB_ACTOR}\`"
+            echo "- Ref: \`${GITHUB_REF}\`"
+            echo "- SHA: \`${GITHUB_SHA}\`"
+            echo "- Image: \`${{ steps.build.outputs.image || 'n/a' }}\`"
+            echo "- Task def: \`${{ steps.task-def.outputs.task-definition-arn || 'n/a' }}\`"
+            echo "- Smoke: \`${{ steps.smoke.outcome || 'skipped' }}\`"
+            echo "- NR deploy: \`${{ steps.nr-deploy.outputs.deployment_id || 'skipped' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ── Stage 4: Deploy Frontend ────────────────────────────────────────
   deploy-web:
@@ -349,7 +367,23 @@ jobs:
             'aws s3 cp "$1" s3://${{ vars.FRONTEND_BUCKET }}/${1#apps/web/dist/} --cache-control "public, max-age=0, must-revalidate"' _ {} \;
 
       - name: Invalidate CloudFront cache
+        id: invalidate
         run: |
-          aws cloudfront create-invalidation \
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/index.html" "/*.json"
+            --paths "/index.html" "/*.json" \
+            --query 'Invalidation.Id' --output text)
+          echo "invalidation_id=$INVALIDATION_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy Web — ${{ job.status }}"
+            echo "- Actor: \`${GITHUB_ACTOR}\`"
+            echo "- Ref: \`${GITHUB_REF}\`"
+            echo "- SHA: \`${GITHUB_SHA}\`"
+            echo "- Bucket: \`${{ vars.FRONTEND_BUCKET }}\`"
+            echo "- CF distribution: \`${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}\`"
+            echo "- Invalidation: \`${{ steps.invalidate.outputs.invalidation_id || 'skipped' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

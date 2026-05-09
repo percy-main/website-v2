@@ -40,6 +40,16 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Capture deployed SHA
+        id: ref
+        # workflow_dispatch sets github.sha to the workflow file's branch
+        # SHA, NOT the checked-out inputs.ref. Capture the actual SHA
+        # so the summary references what we deployed.
+        run: |
+          DEPLOYED_SHA=$(git rev-parse HEAD)
+          echo "sha=${DEPLOYED_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Deployed SHA: ${DEPLOYED_SHA}"
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
@@ -83,7 +93,26 @@ jobs:
             'aws s3 cp "$1" s3://${{ vars.FRONTEND_BUCKET }}/${1#apps/web/dist/} --cache-control "public, max-age=0, must-revalidate"' _ {} \;
 
       - name: Invalidate CloudFront cache
+        id: invalidate
         run: |
-          aws cloudfront create-invalidation \
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/index.html" "/*.json"
+            --paths "/index.html" "/*.json" \
+            --query 'Invalidation.Id' --output text)
+          echo "invalidation_id=$INVALIDATION_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy summary
+        if: always()
+        env:
+          REF_INPUT: ${{ inputs.ref }}
+          DEPLOYED_SHA: ${{ steps.ref.outputs.sha }}
+        run: |
+          {
+            echo "## Deploy Web (manual) — ${{ job.status }}"
+            echo "- Actor: \`${GITHUB_ACTOR}\`"
+            echo "- Ref input: \`${REF_INPUT}\`"
+            echo "- SHA: \`${DEPLOYED_SHA:-${GITHUB_SHA}}\`"
+            echo "- Bucket: \`${{ vars.FRONTEND_BUCKET }}\`"
+            echo "- CF distribution: \`${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}\`"
+            echo "- Invalidation: \`${{ steps.invalidate.outputs.invalidation_id || 'skipped' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
