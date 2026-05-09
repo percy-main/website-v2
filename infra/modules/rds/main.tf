@@ -161,11 +161,14 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [var.security_group_id]
 
   publicly_accessible = false
-  # 7 days gives us a working week of recovery points; combined with
-  # multi_az = false (single AZ) this is the minimum viable RDS
-  # backup posture. A missed weekend backup no longer leaves nothing
-  # on Monday morning.
-  backup_retention_period = 7
+  # Pinned to 1 day by AWS Free Plan: ModifyDBInstance returns
+  # FreeTierRestrictionError when retention > 1. Apply with retention
+  # = 7 (#216 / ADR 041) failed in production on 2026-05-09.
+  # Revisit this when the account moves off the Free Plan; the desired
+  # value is 7 (working week of recovery points). The DB event
+  # subscription added in #216 is in place, so a missed/failed backup
+  # at least surfaces via SNS now.
+  backup_retention_period = 1
   backup_window           = "02:00-03:00"
   maintenance_window      = "mon:03:00-mon:04:00"
 
