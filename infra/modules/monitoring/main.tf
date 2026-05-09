@@ -140,7 +140,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
 
 resource "aws_cloudwatch_metric_alarm" "alb_5xx_errors" {
   alarm_name          = "${local.prefix}-alb-5xx-errors"
-  alarm_description   = "ALB 5xx error count exceeds 10"
+  alarm_description   = "ALB 5xx error count exceeds 10 (failures inside the LB — timeout to target etc)"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   metric_name         = "HTTPCode_ELB_5XX_Count"
@@ -152,6 +152,78 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx_errors" {
 
   dimensions = {
     LoadBalancer = var.alb_arn_suffix
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
+# Application-emitted 5xx — distinct from ELB 5xx above. A runtime
+# 500 storm in the API would not trip the ELB-side alarm.
+resource "aws_cloudwatch_metric_alarm" "alb_target_5xx_errors" {
+  alarm_name          = "${local.prefix}-alb-target-5xx-errors"
+  alarm_description   = "Target 5xx count >5 in 5min — API is emitting 500s"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "HTTPCode_Target_5XX_Count"
+  namespace           = "AWS/ApplicationELB"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 5
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    LoadBalancer = var.alb_arn_suffix
+    TargetGroup  = var.target_group_arn_suffix
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
+# Connection saturation — production runs 1 task by default; rejected
+# connections are an early signal that the task is overloaded.
+resource "aws_cloudwatch_metric_alarm" "alb_rejected_connections" {
+  alarm_name          = "${local.prefix}-alb-rejected-connections"
+  alarm_description   = "ALB rejected any connections — connection saturation"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "RejectedConnectionCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    LoadBalancer = var.alb_arn_suffix
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "alb_target_connection_errors" {
+  alarm_name          = "${local.prefix}-alb-target-connection-errors"
+  alarm_description   = "ALB target connection errors >5 in 5min — TCP-level errors hitting the ECS task"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "TargetConnectionErrorCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 5
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    LoadBalancer = var.alb_arn_suffix
+    TargetGroup  = var.target_group_arn_suffix
   }
 
   alarm_actions = [aws_sns_topic.alarms.arn]
