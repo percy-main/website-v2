@@ -1,5 +1,6 @@
 import type { DB } from "@percy-main/db";
 import type { ModelMessage } from "ai";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { createHash } from "node:crypto";
 import type { z } from "zod";
@@ -57,6 +58,7 @@ export interface AttachmentDeps {
   maxImageBytes: number;
   maxPdfBytes: number;
   uploadUrlExpirySeconds: number;
+  log: FastifyBaseLogger;
 }
 
 export class AttachmentSizeTooLargeError extends Error {
@@ -265,7 +267,14 @@ export function commitAttachment(deps: AttachmentDeps) {
         .executeTakeFirstOrThrow();
 
       // Best-effort: 24h S3 lifecycle reaps the object if this fails.
-      void deps.store.deletePending(row.pending_key).catch(() => undefined);
+      void deps.store
+        .deletePending(row.pending_key)
+        .catch((err: unknown) =>
+          deps.log.warn(
+            { err, key: row.pending_key, kind: "s3_cleanup" },
+            "s3_cleanup_failed",
+          ),
+        );
 
       return rowToSummary(updated);
     } catch (err) {
@@ -322,10 +331,24 @@ export function deleteAttachment(deps: AttachmentDeps) {
 
     // Best-effort: orphaned bytes are tolerated per Track 1 design notes.
     if (row.s3_key) {
-      void deps.store.deletePermanent(row.s3_key).catch(() => undefined);
+      void deps.store
+        .deletePermanent(row.s3_key)
+        .catch((err: unknown) =>
+          deps.log.warn(
+            { err, key: row.s3_key, kind: "s3_cleanup" },
+            "s3_cleanup_failed",
+          ),
+        );
     }
     if (row.pending_key) {
-      void deps.store.deletePending(row.pending_key).catch(() => undefined);
+      void deps.store
+        .deletePending(row.pending_key)
+        .catch((err: unknown) =>
+          deps.log.warn(
+            { err, key: row.pending_key, kind: "s3_cleanup" },
+            "s3_cleanup_failed",
+          ),
+        );
     }
   };
 }

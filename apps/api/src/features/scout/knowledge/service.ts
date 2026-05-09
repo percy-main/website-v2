@@ -1,4 +1,5 @@
 import type { DB } from "@percy-main/db";
+import type { FastifyBaseLogger } from "fastify";
 import { CompiledQuery, type Kysely, sql } from "kysely";
 import { createHash } from "node:crypto";
 import type { S3KnowledgeBaseStore } from "../../../lib/s3-knowledge-base.ts";
@@ -123,6 +124,7 @@ export interface KbDeps {
   voyage?: VoyageClient;
   maxDocumentBytes: number;
   uploadUrlExpirySeconds: number;
+  log: FastifyBaseLogger;
 }
 
 // ── List ──
@@ -345,7 +347,14 @@ export function commitDocument(deps: KbDeps) {
 
     // Best-effort cleanup of the uploads-bucket object. The 24h
     // lifecycle is the safety net.
-    void deps.store.deletePending(row.pending_key).catch(() => undefined);
+    void deps.store
+      .deletePending(row.pending_key)
+      .catch((err: unknown) =>
+        deps.log.warn(
+          { err, key: row.pending_key, kind: "s3_cleanup" },
+          "s3_cleanup_failed",
+        ),
+      );
 
     return {
       id,
@@ -413,10 +422,24 @@ export function deleteDocument(deps: KbDeps) {
     // Best-effort S3 cleanup. Orphaned bytes are tolerated — Scout
     // is admin-only, low volume.
     if (row.s3_key) {
-      void deps.store.deleteDocument(row.s3_key).catch(() => undefined);
+      void deps.store
+        .deleteDocument(row.s3_key)
+        .catch((err: unknown) =>
+          deps.log.warn(
+            { err, key: row.s3_key, kind: "s3_cleanup" },
+            "s3_cleanup_failed",
+          ),
+        );
     }
     if (row.pending_key) {
-      void deps.store.deletePending(row.pending_key).catch(() => undefined);
+      void deps.store
+      .deletePending(row.pending_key)
+      .catch((err: unknown) =>
+        deps.log.warn(
+          { err, key: row.pending_key, kind: "s3_cleanup" },
+          "s3_cleanup_failed",
+        ),
+      );
     }
   };
 }

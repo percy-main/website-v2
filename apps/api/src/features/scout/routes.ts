@@ -184,6 +184,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
     maxPdfBytes: app.config.SCOUT_ATTACHMENT_MAX_PDF_BYTES,
     uploadUrlExpirySeconds:
       app.config.SCOUT_ATTACHMENT_UPLOAD_URL_EXPIRY_SECONDS,
+    log: app.log,
   };
   const mintAtt = mintAttachment(attachmentDeps);
   const commitAtt = commitAttachment(attachmentDeps);
@@ -210,6 +211,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
     voyage: kbVoyage,
     maxDocumentBytes: app.config.SCOUT_KB_MAX_DOCUMENT_BYTES,
     uploadUrlExpirySeconds: app.config.SCOUT_KB_UPLOAD_URL_EXPIRY_SECONDS,
+    log: app.log,
   };
   const kbList = listDocuments(kbDeps);
   const kbGet = getDocument(kbDeps);
