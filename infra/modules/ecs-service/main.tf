@@ -143,6 +143,18 @@ variable "enable_nri_ecs_alarm" {
   description = "Create a dedicated SNS topic + alarm that fires when the newrelic-infra sidecar logs failure messages. Operators subscribe out of band. Disabled by default to avoid a module cycle when monitoring's SNS topic is passed in."
 }
 
+variable "otel_endpoint" {
+  type        = string
+  default     = "https://otlp.eu01.nr-data.net"
+  description = "OTLP HTTP endpoint for OTel exporter. Override if NR account region changes (e.g. https://otlp.nr-data.net for US)."
+}
+
+variable "otel_traces_sampler_arg" {
+  type        = string
+  default     = "1.0"
+  description = "Trace sampler ratio (0.0-1.0) for OTEL_TRACES_SAMPLER=parentbased_traceidratio. 1.0 = sample everything (current low traffic); reduce when volume / cost demands."
+}
+
 # ------------------------------------------------------------------------------
 # Locals
 # ------------------------------------------------------------------------------
@@ -551,8 +563,19 @@ resource "aws_ecs_task_definition" "api" {
             }
           ],
           var.newrelic_license_key_arn != "" ? [
-            { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "https://otlp.eu01.nr-data.net" },
+            { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = var.otel_endpoint },
             { name = "OTEL_SERVICE_NAME", value = "${local.name_prefix}-api" },
+            # OTEL_RESOURCE_ATTRIBUTES — propagated to every span /
+            # metric / log record so NR can filter by environment,
+            # release SHA (set in ECS task env by deploy.yml from
+            # #224), and service name. release.id falls back to
+            # "unknown" when RELEASE_SHA isn't set (local / staging
+            # without the deploy workflow patching the task def).
+            { name = "OTEL_RESOURCE_ATTRIBUTES", value = "service.name=${local.name_prefix}-api,deployment.environment=${var.environment},service.namespace=percy-main" },
+            # Sample everything for now — low traffic. Switch to ratio
+            # < 1.0 if/when volume warrants it.
+            { name = "OTEL_TRACES_SAMPLER", value = "parentbased_traceidratio" },
+            { name = "OTEL_TRACES_SAMPLER_ARG", value = var.otel_traces_sampler_arg },
           ] : []
         )
 
