@@ -26,6 +26,15 @@ import type { paths } from "@/lib/api.gen";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
+  buildDependentFields,
+  buildMemberDetailFields,
+  canDeleteCharge,
+  getChargeStatus,
+  getRoleLabel,
+  isMemberArchived,
+  parseNewChargeForm,
+} from "./member-detail-modal.lib";
+import {
   StatusPill,
   formatDate,
   formatPence,
@@ -52,15 +61,6 @@ const CATEGORY_OPTIONS = [
 ] as const;
 
 export function MemberDetailModal({ userId, onClose }: MemberDetailModalProps) {
-  const queryClient = useQueryClient();
-
-  const invalidateAll = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ["admin", "userDetail", userId],
-    });
-    void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
-  };
-
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "userDetail", userId],
     queryFn: () =>
@@ -75,13 +75,9 @@ export function MemberDetailModal({ userId, onClose }: MemberDetailModalProps) {
     <Dialog open={true} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-2xl">
         {isLoading || !data ? (
-          <div className="py-12 text-center text-gray-500">Loading...</div>
+          <div className="py-12 text-center text-stone-500">Loading…</div>
         ) : (
-          <MemberDetailContent
-            data={data}
-            userId={userId}
-            invalidateAll={invalidateAll}
-          />
+          <MemberDetailContent data={data} userId={userId} />
         )}
       </DialogContent>
     </Dialog>
@@ -91,11 +87,9 @@ export function MemberDetailModal({ userId, onClose }: MemberDetailModalProps) {
 function MemberDetailContent({
   data,
   userId,
-  invalidateAll,
 }: {
   data: UserDetail;
   userId: string;
-  invalidateAll: () => void;
 }) {
   const { user, member, membership, dependents, charges } = data;
 
@@ -118,11 +112,7 @@ function MemberDetailContent({
       )}
 
       {/* 2. Account Section */}
-      <AccountSection
-        user={user}
-        userId={userId}
-        invalidateAll={invalidateAll}
-      />
+      <AccountSection user={user} userId={userId} />
 
       <hr />
 
@@ -132,11 +122,7 @@ function MemberDetailContent({
       <hr />
 
       {/* 4. Member Category */}
-      <MemberCategorySection
-        member={member}
-        userId={userId}
-        invalidateAll={invalidateAll}
-      />
+      <MemberCategorySection member={member} userId={userId} />
 
       <hr />
 
@@ -156,7 +142,6 @@ function MemberDetailContent({
         userId={userId}
         userRole={user.role ?? "user"}
         selectedTeamIds={data.juniorManagerTeams.map((t) => t.id)}
-        invalidateAll={invalidateAll}
       />
 
       <hr />
@@ -167,26 +152,17 @@ function MemberDetailContent({
         userId={userId}
         userRole={user.role ?? "user"}
         selectedTeamIds={data.officialTeams.map((t) => t.id)}
-        invalidateAll={invalidateAll}
       />
 
       <hr />
 
       {/* 9. Payments */}
-      <PaymentsSection
-        userId={userId}
-        charges={charges}
-        invalidateAll={invalidateAll}
-      />
+      <PaymentsSection userId={userId} charges={charges} />
 
       <hr />
 
       {/* 10. Archive/Restore */}
-      <ArchiveSection
-        userId={userId}
-        member={member}
-        invalidateAll={invalidateAll}
-      />
+      <ArchiveSection userId={userId} member={member} />
     </div>
   );
 }
@@ -198,12 +174,11 @@ function MemberDetailContent({
 function AccountSection({
   user,
   userId,
-  invalidateAll,
 }: {
   user: UserDetail["user"];
   userId: string;
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [confirmingRole, setConfirmingRole] = useState(false);
 
   const roleMutation = useMutation({
@@ -222,7 +197,10 @@ function AccountSection({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setConfirmingRole(false);
     },
   });
@@ -232,28 +210,28 @@ function AccountSection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">Account</h3>
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">Account</h3>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <div>
-          <span className="text-gray-500">Name</span>
+          <span className="text-stone-500">Name</span>
           <p>{user.name}</p>
         </div>
         <div>
-          <span className="text-gray-500">Email</span>
+          <span className="text-stone-500">Email</span>
           <p>{user.email}</p>
         </div>
         <div>
-          <span className="text-gray-500">Role</span>
+          <span className="text-stone-500">Role</span>
           <p>
             <RolePill role={user.role ?? "user"} />
           </p>
         </div>
         <div>
-          <span className="text-gray-500">Email Verified</span>
+          <span className="text-stone-500">Email Verified</span>
           <p>{user.emailVerified ? "Yes" : "No"}</p>
         </div>
         <div>
-          <span className="text-gray-500">Created</span>
+          <span className="text-stone-500">Created</span>
           <p>{formatDate(user.createdAt, true)}</p>
         </div>
       </div>
@@ -292,16 +270,14 @@ function AccountSection({
 }
 
 function RolePill({ role }: { role: string }) {
-  switch (role) {
-    case "admin":
-      return <StatusPill variant="blue">Admin</StatusPill>;
-    case "junior_manager":
-      return <StatusPill variant="green">Junior Manager</StatusPill>;
-    case "official":
-      return <StatusPill variant="green">Official</StatusPill>;
-    default:
-      return <StatusPill variant="gray">User</StatusPill>;
-  }
+  const label = getRoleLabel(role);
+  const variant: "blue" | "green" | "gray" =
+    role === "admin"
+      ? "blue"
+      : role === "junior_manager" || role === "official"
+        ? "green"
+        : "gray";
+  return <StatusPill variant={variant}>{label}</StatusPill>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -312,45 +288,27 @@ function MemberDetailsSection({ member }: { member: UserDetail["member"] }) {
   if (!member) {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">
           Member Details
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-stone-500">
           No member record found for this user.
         </p>
       </section>
     );
   }
 
-  const fields: Array<{ label: string; value: string | null }> = [
-    { label: "Title", value: member.title },
-    {
-      label: "Name",
-      value: member.name,
-    },
-    { label: "Address", value: member.address },
-    { label: "Postcode", value: member.postcode },
-    {
-      label: "Date of Birth",
-      value: member.dob ? formatDate(member.dob) : null,
-    },
-    { label: "Telephone", value: member.telephone },
-    { label: "Emergency Contact", value: member.emergency_contact_name },
-    {
-      label: "Emergency Telephone",
-      value: member.emergency_contact_telephone,
-    },
-  ];
+  const fields = buildMemberDetailFields(member);
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Member Details
       </h3>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         {fields.map((f) => (
           <div key={f.label}>
-            <span className="text-gray-500">{f.label}</span>
+            <span className="text-stone-500">{f.label}</span>
             <p>{f.value ?? "-"}</p>
           </div>
         ))}
@@ -366,12 +324,11 @@ function MemberDetailsSection({ member }: { member: UserDetail["member"] }) {
 function MemberCategorySection({
   member,
   userId,
-  invalidateAll,
 }: {
   member: UserDetail["member"];
   userId: string;
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const currentCategory = member?.member_category ?? null;
   const categoryDisplay = getMemberCategoryDisplay(currentCategory);
 
@@ -383,12 +340,17 @@ function MemberCategorySection({
           body: { userId, memberCategory },
         }),
       ),
-    onSuccess: invalidateAll,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+    },
   });
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Member Category
       </h3>
       <div className="flex items-center gap-3">
@@ -428,8 +390,10 @@ function MembershipSection({
   if (!membership) {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">Membership</h3>
-        <p className="text-sm text-gray-500">No membership record found.</p>
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">
+          Membership
+        </h3>
+        <p className="text-sm text-stone-500">No membership record found.</p>
       </section>
     );
   }
@@ -439,10 +403,10 @@ function MembershipSection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">Membership</h3>
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">Membership</h3>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <div>
-          <span className="text-gray-500">Type</span>
+          <span className="text-stone-500">Type</span>
           <p>
             <StatusPill variant={typeDisplay.variant}>
               {typeDisplay.label}
@@ -450,19 +414,19 @@ function MembershipSection({
           </p>
         </div>
         <div>
-          <span className="text-gray-500">Paid Until</span>
+          <span className="text-stone-500">Paid Until</span>
           <p>
             {membership.paid_until ? formatDate(membership.paid_until) : "-"}
           </p>
         </div>
         <div>
-          <span className="text-gray-500">Status</span>
+          <span className="text-stone-500">Status</span>
           <p>
             <StatusPill variant={status.variant}>{status.label}</StatusPill>
           </p>
         </div>
         <div>
-          <span className="text-gray-500">Created</span>
+          <span className="text-stone-500">Created</span>
           <p>{formatDate(membership.created_at)}</p>
         </div>
       </div>
@@ -481,11 +445,11 @@ function JuniorMembersSection({
 }) {
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Junior Members ({dependents.length})
       </h3>
       {dependents.length === 0 ? (
-        <p className="text-sm text-gray-500">No junior members.</p>
+        <p className="text-sm text-stone-500">No junior members.</p>
       ) : (
         <div className="space-y-3">
           {dependents.map((dep) => (
@@ -506,61 +470,10 @@ function DependentCard({
   const paidUntil = dependent.membershipPaidUntil;
   const hasPaid = paidUntil !== null;
 
-  const formatSex = (sex: string | null) => {
-    if (!sex) return null;
-    if (sex === "prefer_not_to_say") return "Prefer not to say";
-    return sex.charAt(0).toUpperCase() + sex.slice(1);
-  };
-
-  const fields: Array<{ label: string; value: string | null }> = [
-    {
-      label: "Date of Birth",
-      value: dependent.dob ? formatDate(dependent.dob) : null,
-    },
-    { label: "Sex", value: formatSex(dependent.sex) },
-    { label: "School Year", value: dependent.school_year },
-    {
-      label: "Photo Consent",
-      value:
-        dependent.photo_consent !== null
-          ? dependent.photo_consent
-            ? "Yes"
-            : "No"
-          : null,
-    },
-    {
-      label: "GP Surgery / Phone",
-      value:
-        [dependent.gp_surgery, dependent.gp_phone]
-          .filter(Boolean)
-          .join(" / ") || null,
-    },
-    {
-      label: "Alt Contact",
-      value:
-        [dependent.alt_contact_name, dependent.alt_contact_phone]
-          .filter(Boolean)
-          .join(" / ") || null,
-    },
-    {
-      label: "Emergency Medical Consent",
-      value:
-        dependent.emergency_medical_consent !== null
-          ? dependent.emergency_medical_consent
-            ? "Yes"
-            : "No"
-          : null,
-    },
-    {
-      label: "Disability",
-      value: dependent.has_disability
-        ? (dependent.disability_type ?? "Yes")
-        : null,
-    },
-  ];
+  const fields = buildDependentFields(dependent);
 
   return (
-    <div className="rounded-md border border-gray-200 p-3">
+    <div className="rounded-md border border-stone-200 p-3">
       <div className="mb-2 flex items-center gap-2">
         <span className="font-semibold">{name}</span>
         {hasPaid && paidUntil ? (
@@ -572,18 +485,20 @@ function DependentCard({
         )}
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        {fields
-          .filter((f) => f.value !== null)
-          .map((f) => (
-            <div key={f.label}>
-              <span className="text-gray-500">{f.label}</span>
-              <p>{f.value}</p>
-            </div>
-          ))}
+        {fields.flatMap((f) =>
+          f.value !== null
+            ? [
+                <div key={f.label}>
+                  <span className="text-stone-500">{f.label}</span>
+                  <p>{f.value}</p>
+                </div>,
+              ]
+            : [],
+        )}
       </div>
       {dependent.medical_info && (
         <div className="mt-2 text-sm">
-          <span className="text-gray-500">Medical Info</span>
+          <span className="text-stone-500">Medical Info</span>
           <p className="whitespace-pre-wrap">{dependent.medical_info}</p>
         </div>
       )}
@@ -599,13 +514,12 @@ function JuniorManagerTeamsSection({
   userId,
   userRole,
   selectedTeamIds,
-  invalidateAll,
 }: {
   userId: string;
   userRole: string;
   selectedTeamIds: string[];
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [localIds, setLocalIds] = useState<string[]>(selectedTeamIds);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -623,7 +537,10 @@ function JuniorManagerTeamsSection({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setHasChanges(false);
     },
   });
@@ -645,10 +562,10 @@ function JuniorManagerTeamsSection({
   if (userRole === "admin") {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">
           Junior Manager Teams
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-stone-500">
           Admins have access to all teams. Team assignment is only for the
           Junior Manager role.
         </p>
@@ -658,7 +575,7 @@ function JuniorManagerTeamsSection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Junior Manager Teams
       </h3>
       {teams && teams.length > 0 ? (
@@ -674,7 +591,7 @@ function JuniorManagerTeamsSection({
                   className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
                     selected
                       ? "border-blue-500 bg-blue-50 text-blue-800"
-                      : "border-gray-200 hover:bg-gray-50"
+                      : "border-stone-200 hover:bg-stone-50"
                   }`}
                 >
                   {team.name}
@@ -701,7 +618,7 @@ function JuniorManagerTeamsSection({
           </div>
         </>
       ) : (
-        <p className="text-sm text-gray-500">No junior teams available.</p>
+        <p className="text-sm text-stone-500">No junior teams available.</p>
       )}
     </section>
   );
@@ -715,13 +632,12 @@ function OfficialTeamsSection({
   userId,
   userRole,
   selectedTeamIds,
-  invalidateAll,
 }: {
   userId: string;
   userRole: string;
   selectedTeamIds: string[];
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [localIds, setLocalIds] = useState<string[]>(selectedTeamIds);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -739,7 +655,10 @@ function OfficialTeamsSection({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setHasChanges(false);
     },
   });
@@ -761,10 +680,10 @@ function OfficialTeamsSection({
   if (userRole === "admin") {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">
           Match Official Teams
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-stone-500">
           Admins have access to all teams. Team assignment is only for the
           Official role.
         </p>
@@ -774,7 +693,7 @@ function OfficialTeamsSection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Match Official Teams
       </h3>
       {teams && teams.length > 0 ? (
@@ -790,7 +709,7 @@ function OfficialTeamsSection({
                   className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
                     selected
                       ? "border-blue-500 bg-blue-50 text-blue-800"
-                      : "border-gray-200 hover:bg-gray-50"
+                      : "border-stone-200 hover:bg-stone-50"
                   }`}
                 >
                   {team.name}
@@ -817,7 +736,7 @@ function OfficialTeamsSection({
           </div>
         </>
       ) : (
-        <p className="text-sm text-gray-500">No teams available.</p>
+        <p className="text-sm text-stone-500">No teams available.</p>
       )}
     </section>
   );
@@ -830,12 +749,11 @@ function OfficialTeamsSection({
 function PaymentsSection({
   userId,
   charges,
-  invalidateAll,
 }: {
   userId: string;
   charges: UserDetail["charges"];
-  invalidateAll: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
@@ -856,7 +774,10 @@ function PaymentsSection({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setDescription("");
       setAmount("");
       setChargeDate(new Date().toISOString().split("T")[0]);
@@ -866,19 +787,19 @@ function PaymentsSection({
 
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
-    const amountNum = parseFloat(amount);
-    if (!description || isNaN(amountNum) || amountNum < 0.01) return;
+    const parsed = parseNewChargeForm({ description, amount, chargeDate });
+    if (!parsed.ok) return;
     createCharge.mutate({
-      description,
-      amountPence: Math.round(amountNum * 100),
-      chargeDate,
+      description: parsed.description,
+      amountPence: parsed.amountPence,
+      chargeDate: parsed.chargeDate,
     });
   };
 
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900">Payments</h3>
+        <h3 className="text-sm font-semibold text-stone-900">Payments</h3>
         <Button
           variant="outline"
           size="sm"
@@ -891,13 +812,17 @@ function PaymentsSection({
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="mb-4 space-y-3 rounded-md border border-gray-200 p-3"
+          className="mb-4 space-y-3 rounded-md border border-stone-200 p-3"
         >
           <div>
-            <label className="mb-1 block text-sm text-gray-600">
+            <label
+              htmlFor="member-charge-description"
+              className="mb-1 block text-sm text-stone-600"
+            >
               Description
             </label>
             <Input
+              id="member-charge-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               required
@@ -905,10 +830,14 @@ function PaymentsSection({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-sm text-gray-600">
+              <label
+                htmlFor="member-charge-amount"
+                className="mb-1 block text-sm text-stone-600"
+              >
                 Amount (GBP)
               </label>
               <Input
+                id="member-charge-amount"
                 type="number"
                 min="0.01"
                 step="0.01"
@@ -918,8 +847,14 @@ function PaymentsSection({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-gray-600">Date</label>
+              <label
+                htmlFor="member-charge-date"
+                className="mb-1 block text-sm text-stone-600"
+              >
+                Date
+              </label>
               <Input
+                id="member-charge-date"
                 type="date"
                 value={chargeDate}
                 onChange={(e) => setChargeDate(e.target.value)}
@@ -934,7 +869,7 @@ function PaymentsSection({
       )}
 
       {charges.length === 0 ? (
-        <p className="text-sm text-gray-500">No charges recorded.</p>
+        <p className="text-sm text-stone-500">No charges recorded.</p>
       ) : (
         <Table>
           <TableHeader>
@@ -949,11 +884,7 @@ function PaymentsSection({
           </TableHeader>
           <TableBody>
             {charges.map((charge) => (
-              <ChargeRow
-                key={charge.id}
-                charge={charge}
-                invalidateAll={invalidateAll}
-              />
+              <ChargeRow key={charge.id} charge={charge} userId={userId} />
             ))}
           </TableBody>
         </Table>
@@ -964,11 +895,12 @@ function PaymentsSection({
 
 function ChargeRow({
   charge,
-  invalidateAll,
+  userId,
 }: {
   charge: UserDetail["charges"][number];
-  invalidateAll: () => void;
+  userId: string;
 }) {
+  const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
 
@@ -981,21 +913,16 @@ function ChargeRow({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setShowDelete(false);
     },
   });
 
-  const canDelete = !charge.paid_at && !charge.payment_confirmed_at;
-
-  const getChargeStatus = () => {
-    if (charge.paid_at) return { label: "Paid", variant: "green" as const };
-    if (charge.payment_confirmed_at)
-      return { label: "Pending", variant: "blue" as const };
-    return { label: "Unpaid", variant: "yellow" as const };
-  };
-
-  const status = getChargeStatus();
+  const canDelete = canDeleteCharge(charge);
+  const status = getChargeStatus(charge);
 
   return (
     <TableRow>
@@ -1019,7 +946,7 @@ function ChargeRow({
         {showDelete && (
           <div className="flex items-center gap-1">
             <Input
-              placeholder="Reason..."
+              placeholder="Reason…"
               value={deleteReason}
               onChange={(e) => setDeleteReason(e.target.value)}
               className="h-8 w-32 text-xs"
@@ -1056,14 +983,12 @@ function ChargeRow({
 function ArchiveSection({
   userId,
   member,
-  invalidateAll,
 }: {
   userId: string;
   member: UserDetail["member"];
-  invalidateAll: () => void;
 }) {
-  const isArchived =
-    member?.deleted_at !== null && member?.deleted_at !== undefined;
+  const queryClient = useQueryClient();
+  const isArchived = isMemberArchived(member);
   const [showArchiveForm, setShowArchiveForm] = useState(false);
   const [archiveReason, setArchiveReason] = useState("");
 
@@ -1076,7 +1001,10 @@ function ArchiveSection({
         }),
       ),
     onSuccess: () => {
-      invalidateAll();
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       setShowArchiveForm(false);
       setArchiveReason("");
     },
@@ -1089,16 +1017,21 @@ function ArchiveSection({
           params: { path: { userId } },
         }),
       ),
-    onSuccess: invalidateAll,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+    },
   });
 
   if (isArchived) {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">
           Archive Status
         </h3>
-        <p className="mb-3 text-sm text-gray-500">
+        <p className="mb-3 text-sm text-stone-500">
           This member is currently archived. Restoring will make them active
           again.
         </p>
@@ -1116,10 +1049,10 @@ function ArchiveSection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Archive Status
       </h3>
-      <p className="mb-3 text-sm text-gray-500">
+      <p className="mb-3 text-sm text-stone-500">
         Archiving a member will hide them from the default member list.
       </p>
       {!showArchiveForm ? (
@@ -1133,8 +1066,8 @@ function ArchiveSection({
       ) : (
         <div className="space-y-2">
           <textarea
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none"
-            placeholder="Reason for archiving..."
+            className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
+            placeholder="Reason for archiving…"
             rows={3}
             value={archiveReason}
             onChange={(e) => setArchiveReason(e.target.value)}

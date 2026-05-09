@@ -27,7 +27,18 @@ import { api, callApi } from "@/lib/api-client";
 import { resizeLogo } from "@/lib/logo-resize";
 import { getAllPeople } from "@/lib/people";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useReducer, useRef, useState } from "react";
+import {
+  buildGameSponsorshipPayload,
+  buildPlayerSponsorshipPayload,
+  gameSponsorshipFormReducer,
+  initialGameSponsorshipFormState,
+  initialPlayerSponsorshipFormState,
+  isPlayerSponsorshipReady,
+  playerSponsorshipFormReducer,
+  type GameSponsorshipPayload,
+  type PlayerSponsorshipPayload,
+} from "./sponsorships-tab.reducer";
 import { formatDate, formatPence } from "./status-pill";
 
 const PAGE_SIZE = 20;
@@ -36,11 +47,13 @@ type SubTab = "game" | "player";
 type FilterValue = "all" | "pending_payment" | "pending_approval" | "approved";
 
 function PlayerSelect({
+  id,
   value,
   playerName,
   takenSlugs,
   onChange,
 }: {
+  id?: string;
   value: string;
   playerName: string;
   takenSlugs: Set<string>;
@@ -65,7 +78,7 @@ function PlayerSelect({
     return (
       <div className="flex items-center gap-2">
         <div className="border-border bg-muted/30 flex-1 rounded border px-3 py-2 text-sm">
-          {playerName} <span className="text-gray-500">({value})</span>
+          {playerName} <span className="text-stone-500">({value})</span>
         </div>
         <button
           type="button"
@@ -81,6 +94,7 @@ function PlayerSelect({
   return (
     <div className="relative">
       <Input
+        id={id}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -88,12 +102,12 @@ function PlayerSelect({
         }}
         onFocus={() => setDropdownOpen(true)}
         onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
-        placeholder="Search players..."
+        placeholder="Search players…"
       />
       {dropdownOpen && (
         <div className="border-border bg-surface absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded border shadow-lg">
           {filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500">
+            <div className="px-3 py-2 text-sm text-stone-500">
               {query.trim()
                 ? "No matching players available"
                 : "No players available"}
@@ -103,7 +117,7 @@ function PlayerSelect({
               <button
                 key={p.slug}
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-stone-100"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   onChange(p.slug, p.name);
@@ -152,7 +166,6 @@ function InlineEdit({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           className="h-7 w-32 text-xs"
-          autoFocus
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               onSave(draft.trim() || null);
@@ -193,7 +206,7 @@ function InlineEdit({
   if (value) {
     return (
       <button
-        className="block cursor-pointer text-left text-xs text-gray-700 hover:underline"
+        className="block cursor-pointer text-left text-xs text-stone-700 hover:underline"
         onClick={() => {
           setDraft(value);
           setEditing(true);
@@ -278,7 +291,7 @@ function LogoEdit({
           className="cursor-pointer text-xs text-blue-600 hover:underline disabled:opacity-50"
           onClick={() => fileInputRef.current?.click()}
         >
-          {busy ? "Uploading..." : logoUrl ? "Change logo" : "Add logo"}
+          {busy ? "Uploading…" : logoUrl ? "Change logo" : "Add logo"}
         </button>
         {logoUrl && (
           <button
@@ -321,7 +334,7 @@ function SponsorColumn({
   return (
     <div className="space-y-0.5">
       <div className="font-bold">{name}</div>
-      <div className="text-xs text-gray-500">{email}</div>
+      <div className="text-xs text-stone-500">{email}</div>
       {onWebsiteChange ? (
         <div>
           <InlineEdit
@@ -331,7 +344,7 @@ function SponsorColumn({
           />
           {website && !isValidUrl(website) && (
             <div className="text-xs font-medium text-amber-600">
-              Invalid URL — fix before approving
+              Invalid URL: fix before approving
             </div>
           )}
         </div>
@@ -346,7 +359,7 @@ function SponsorColumn({
             {website}
           </a>
         ) : (
-          <span className="text-xs text-gray-500">{website}</span>
+          <span className="text-xs text-stone-500">{website}</span>
         )
       ) : null}
       {onPhoneChange ? (
@@ -392,68 +405,32 @@ function CreateGameSponsorshipDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const [gameId, setGameId] = useState("");
-  const [sponsorName, setSponsorName] = useState("");
-  const [sponsorEmail, setSponsorEmail] = useState("");
-  const [website, setWebsite] = useState("");
-  const [phone, setPhone] = useState("");
-  const [message, setMessage] = useState("");
-  const [amount, setAmount] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [notes, setNotes] = useState("");
+  const [form, dispatch] = useReducer(
+    gameSponsorshipFormReducer,
+    initialGameSponsorshipFormState,
+  );
 
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
+    mutationFn: (body: GameSponsorshipPayload) =>
       callApi(
         api.POST("/api/sponsorship/admin/game/manual", {
-          body: body as {
-            gameId: string;
-            sponsorName: string;
-            sponsorEmail: string;
-            amountPence: number;
-            sponsorWebsite?: string;
-            sponsorPhone?: string;
-            sponsorMessage?: string;
-            displayName?: string;
-            notes?: string;
-          },
+          body,
         }),
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "gameSponsorships"],
       });
-      resetForm();
+      dispatch({ type: "reset" });
       onOpenChange(false);
     },
   });
 
-  function resetForm() {
-    setGameId("");
-    setSponsorName("");
-    setSponsorEmail("");
-    setWebsite("");
-    setPhone("");
-    setMessage("");
-    setAmount("");
-    setDisplayName("");
-    setNotes("");
-  }
-
   function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
-    const amountPence = Math.round(parseFloat(amount) * 100);
-    createMutation.mutate({
-      gameId,
-      sponsorName,
-      sponsorEmail,
-      ...(website ? { sponsorWebsite: website } : {}),
-      ...(phone ? { sponsorPhone: phone } : {}),
-      ...(message ? { sponsorMessage: message } : {}),
-      amountPence,
-      ...(displayName ? { displayName } : {}),
-      ...(notes ? { notes } : {}),
-    });
+    const payload = buildGameSponsorshipPayload(form);
+    if (!payload) return;
+    createMutation.mutate(payload);
   }
 
   return (
@@ -464,93 +441,187 @@ function CreateGameSponsorshipDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Game ID</label>
+            <label
+              htmlFor="sg-create-game-id"
+              className="mb-1 block text-sm font-medium"
+            >
+              Game ID
+            </label>
             <Input
-              value={gameId}
-              onChange={(e) => setGameId(e.target.value)}
+              id="sg-create-game-id"
+              value={form.gameId}
+              onChange={(e) =>
+                dispatch({ type: "setGameId", value: e.target.value })
+              }
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sg-create-sponsor-name"
+              className="mb-1 block text-sm font-medium"
+            >
               Sponsor Name
             </label>
             <Input
-              value={sponsorName}
-              onChange={(e) => setSponsorName(e.target.value)}
+              id="sg-create-sponsor-name"
+              value={form.sponsorName}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "sponsorName",
+                  value: e.target.value,
+                })
+              }
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sg-create-sponsor-email"
+              className="mb-1 block text-sm font-medium"
+            >
               Sponsor Email
             </label>
             <Input
+              id="sg-create-sponsor-email"
               type="email"
-              value={sponsorEmail}
-              onChange={(e) => setSponsorEmail(e.target.value)}
+              value={form.sponsorEmail}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "sponsorEmail",
+                  value: e.target.value,
+                })
+              }
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sg-create-website"
+              className="mb-1 block text-sm font-medium"
+            >
               Website URL
             </label>
             <Input
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
+              id="sg-create-website"
+              value={form.website}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "website",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Phone</label>
+            <label
+              htmlFor="sg-create-phone"
+              className="mb-1 block text-sm font-medium"
+            >
+              Phone
+            </label>
             <Input
+              id="sg-create-phone"
               type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              value={form.phone}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "phone",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Message</label>
+            <label
+              htmlFor="sg-create-message"
+              className="mb-1 block text-sm font-medium"
+            >
+              Message
+            </label>
             <Input
-              value={message}
-              onChange={(e) => setMessage(e.target.value.slice(0, 100))}
+              id="sg-create-message"
+              value={form.message}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "message",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional (max 100 chars)"
               maxLength={100}
             />
-            <div className="mt-0.5 text-right text-xs text-gray-400">
-              {message.length}/100
+            <div className="mt-0.5 text-right text-xs text-stone-400">
+              {form.message.length}/100
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sg-create-amount"
+              className="mb-1 block text-sm font-medium"
+            >
               Amount (GBP)
             </label>
             <Input
+              id="sg-create-amount"
               type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              value={form.amount}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "amount",
+                  value: e.target.value,
+                })
+              }
               min={0}
               step={0.01}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sg-create-display-name"
+              className="mb-1 block text-sm font-medium"
+            >
               Display Name
             </label>
             <Input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              id="sg-create-display-name"
+              value={form.displayName}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "displayName",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Notes</label>
+            <label
+              htmlFor="sg-create-notes"
+              className="mb-1 block text-sm font-medium"
+            >
+              Notes
+            </label>
             <Input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              id="sg-create-notes"
+              value={form.notes}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "notes",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
@@ -563,7 +634,7 @@ function CreateGameSponsorshipDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Creating..." : "Create"}
+              {createMutation.isPending ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>
         </form>
@@ -580,16 +651,10 @@ function CreatePlayerSponsorshipDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const [slug, setSlug] = useState("");
-  const [playerName, setPlayerName] = useState("");
-  const [sponsorName, setSponsorName] = useState("");
-  const [sponsorEmail, setSponsorEmail] = useState("");
-  const [website, setWebsite] = useState("");
-  const [phone, setPhone] = useState("");
-  const [message, setMessage] = useState("");
-  const [amount, setAmount] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [notes, setNotes] = useState("");
+  const [form, dispatch] = useReducer(
+    playerSponsorshipFormReducer,
+    initialPlayerSponsorshipFormState,
+  );
 
   const takenSlugsQuery = useQuery({
     queryKey: ["admin", "playerSponsorships", "takenSlugs"],
@@ -604,61 +669,27 @@ function CreatePlayerSponsorshipDialog({
   );
 
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
+    mutationFn: (body: PlayerSponsorshipPayload) =>
       callApi(
         api.POST("/api/sponsorship/admin/player/manual", {
-          body: body as {
-            slug: string;
-            playerName: string;
-            sponsorName: string;
-            sponsorEmail: string;
-            amountPence: number;
-            sponsorWebsite?: string;
-            sponsorPhone?: string;
-            sponsorMessage?: string;
-            displayName?: string;
-            notes?: string;
-          },
+          body,
         }),
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "playerSponsorships"],
       });
-      resetForm();
+      dispatch({ type: "reset" });
       onOpenChange(false);
     },
   });
 
-  function resetForm() {
-    setSlug("");
-    setPlayerName("");
-    setSponsorName("");
-    setSponsorEmail("");
-    setWebsite("");
-    setPhone("");
-    setMessage("");
-    setAmount("");
-    setDisplayName("");
-    setNotes("");
-  }
-
   function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
-    if (!slug || !playerName) return;
-    const amountPence = Math.round(parseFloat(amount) * 100);
-    createMutation.mutate({
-      slug,
-      playerName,
-      sponsorName,
-      sponsorEmail,
-      ...(website ? { sponsorWebsite: website } : {}),
-      ...(phone ? { sponsorPhone: phone } : {}),
-      ...(message ? { sponsorMessage: message } : {}),
-      amountPence,
-      ...(displayName ? { displayName } : {}),
-      ...(notes ? { notes } : {}),
-    });
+    if (!isPlayerSponsorshipReady(form)) return;
+    const payload = buildPlayerSponsorshipPayload(form);
+    if (!payload) return;
+    createMutation.mutate(payload);
   }
 
   return (
@@ -669,102 +700,197 @@ function CreatePlayerSponsorshipDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Player</label>
+            <label
+              htmlFor="sp-create-player"
+              className="mb-1 block text-sm font-medium"
+            >
+              Player
+            </label>
             <PlayerSelect
-              value={slug}
-              playerName={playerName}
+              id="sp-create-player"
+              value={form.slug}
+              playerName={form.playerName}
               takenSlugs={takenSlugs}
-              onChange={(nextSlug, nextName) => {
-                setSlug(nextSlug);
-                setPlayerName(nextName);
-              }}
+              onChange={(nextSlug, nextName) =>
+                dispatch({
+                  type: "setPlayer",
+                  slug: nextSlug,
+                  playerName: nextName,
+                })
+              }
             />
             {takenSlugsQuery.isLoading && (
-              <div className="mt-1 text-xs text-gray-500">
+              <div className="mt-1 text-xs text-stone-500">
                 Loading available players...
               </div>
             )}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sp-create-sponsor-name"
+              className="mb-1 block text-sm font-medium"
+            >
               Sponsor Name
             </label>
             <Input
-              value={sponsorName}
-              onChange={(e) => setSponsorName(e.target.value)}
+              id="sp-create-sponsor-name"
+              value={form.sponsorName}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "sponsorName",
+                  value: e.target.value,
+                })
+              }
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sp-create-sponsor-email"
+              className="mb-1 block text-sm font-medium"
+            >
               Sponsor Email
             </label>
             <Input
+              id="sp-create-sponsor-email"
               type="email"
-              value={sponsorEmail}
-              onChange={(e) => setSponsorEmail(e.target.value)}
+              value={form.sponsorEmail}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "sponsorEmail",
+                  value: e.target.value,
+                })
+              }
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sp-create-website"
+              className="mb-1 block text-sm font-medium"
+            >
               Website URL
             </label>
             <Input
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
+              id="sp-create-website"
+              value={form.website}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "website",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Phone</label>
+            <label
+              htmlFor="sp-create-phone"
+              className="mb-1 block text-sm font-medium"
+            >
+              Phone
+            </label>
             <Input
+              id="sp-create-phone"
               type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              value={form.phone}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "phone",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Message</label>
+            <label
+              htmlFor="sp-create-message"
+              className="mb-1 block text-sm font-medium"
+            >
+              Message
+            </label>
             <Input
-              value={message}
-              onChange={(e) => setMessage(e.target.value.slice(0, 100))}
+              id="sp-create-message"
+              value={form.message}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "message",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional (max 100 chars)"
               maxLength={100}
             />
-            <div className="mt-0.5 text-right text-xs text-gray-400">
-              {message.length}/100
+            <div className="mt-0.5 text-right text-xs text-stone-400">
+              {form.message.length}/100
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sp-create-amount"
+              className="mb-1 block text-sm font-medium"
+            >
               Amount (GBP)
             </label>
             <Input
+              id="sp-create-amount"
               type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              value={form.amount}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "amount",
+                  value: e.target.value,
+                })
+              }
               min={0}
               step={0.01}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="sp-create-display-name"
+              className="mb-1 block text-sm font-medium"
+            >
               Display Name
             </label>
             <Input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              id="sp-create-display-name"
+              value={form.displayName}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "displayName",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Notes</label>
+            <label
+              htmlFor="sp-create-notes"
+              className="mb-1 block text-sm font-medium"
+            >
+              Notes
+            </label>
             <Input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              id="sp-create-notes"
+              value={form.notes}
+              onChange={(e) =>
+                dispatch({
+                  type: "setField",
+                  field: "notes",
+                  value: e.target.value,
+                })
+              }
               placeholder="Optional"
             />
           </div>
@@ -778,9 +904,11 @@ function CreatePlayerSponsorshipDialog({
             </Button>
             <Button
               type="submit"
-              disabled={createMutation.isPending || !slug || !playerName}
+              disabled={
+                createMutation.isPending || !form.slug || !form.playerName
+              }
             >
-              {createMutation.isPending ? "Creating..." : "Create"}
+              {createMutation.isPending ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>
         </form>
@@ -865,7 +993,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
   if (isLoading) {
-    return <div className="py-12 text-center text-gray-500">Loading...</div>;
+    return <div className="py-12 text-center text-stone-500">Loading…</div>;
   }
 
   return (
@@ -918,7 +1046,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
                 {s.sponsor_message ? (
                   <span className="italic">"{s.sponsor_message}"</span>
                 ) : (
-                  <span className="text-gray-400">-</span>
+                  <span className="text-stone-400">-</span>
                 )}
               </TableCell>
               <TableCell>{formatPence(s.amount_pence)}</TableCell>
@@ -991,7 +1119,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
             <TableRow>
               <TableCell
                 colSpan={8}
-                className="py-12 text-center text-gray-500"
+                className="py-12 text-center text-stone-500"
               >
                 No game sponsorships found.
               </TableCell>
@@ -1002,10 +1130,10 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
 
       {data && data.total > 0 && (
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             {data.total} sponsorships total
           </span>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             Page {page} of {totalPages}
           </span>
           <div className="flex gap-2">
@@ -1108,7 +1236,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
   if (isLoading) {
-    return <div className="py-12 text-center text-gray-500">Loading...</div>;
+    return <div className="py-12 text-center text-stone-500">Loading…</div>;
   }
 
   return (
@@ -1132,7 +1260,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
               <TableCell>
                 <div>
                   <div className="font-bold">{s.player_name}</div>
-                  <div className="text-xs text-gray-500">{s.season}</div>
+                  <div className="text-xs text-stone-500">{s.season}</div>
                 </div>
               </TableCell>
               <TableCell>
@@ -1166,7 +1294,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
                 {s.sponsor_message ? (
                   <span className="italic">"{s.sponsor_message}"</span>
                 ) : (
-                  <span className="text-gray-400">-</span>
+                  <span className="text-stone-400">-</span>
                 )}
               </TableCell>
               <TableCell>{formatPence(s.amount_pence)}</TableCell>
@@ -1239,7 +1367,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
             <TableRow>
               <TableCell
                 colSpan={8}
-                className="py-12 text-center text-gray-500"
+                className="py-12 text-center text-stone-500"
               >
                 No player sponsorships found.
               </TableCell>
@@ -1250,10 +1378,10 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
 
       {data && data.total > 0 && (
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             {data.total} sponsorships total
           </span>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             Page {page} of {totalPages}
           </span>
           <div className="flex gap-2">

@@ -39,8 +39,3 @@ export function writeCookie(
   }
   document.cookie = parts.join("; ");
 }
-
-export function deleteCookie(name: string): void {
-  if (typeof document === "undefined") return;
-  document.cookie = `${name}=; Max-Age=0; Path=/`;
-}

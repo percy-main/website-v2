@@ -36,29 +36,19 @@ import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type SlotType = "batting" | "bowling" | "allrounder";
-
-interface SelectedPlayer {
-  playCricketId: string;
-  playerName: string;
-  sandwichCost: number;
-  isCaptain: boolean;
-  slotType: SlotType;
-  isWicketkeeper: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const SLOT_COUNTS = { batting: 6, bowling: 4, allrounder: 1 };
-const BUDGET = 30;
-const EMPTY_SLOT_PREFIX = "empty-slot:";
+import {
+  BUDGET,
+  countSlots,
+  EMPTY_SLOT_PREFIX,
+  getNextSlotType as getNextSlotTypeFromSquad,
+  moveSquadPlayerToSlot,
+  parseEmptySlotId,
+  reorderWithinSlot,
+  SLOT_COUNTS,
+  validateSquadComposition,
+  type SelectedPlayer,
+  type SlotType,
+} from "./members-fantasy.lib";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -73,14 +63,6 @@ function SandwichCost({ cost }: { cost: number }) {
       {"🥪".repeat(cost)}
     </span>
   );
-}
-
-function parseEmptySlotId(id: string): SlotType | null {
-  if (!id.startsWith(EMPTY_SLOT_PREFIX)) return null;
-  const rest = id.slice(EMPTY_SLOT_PREFIX.length);
-  const slotType = rest.split(":")[0] as SlotType;
-  if (["batting", "bowling", "allrounder"].includes(slotType)) return slotType;
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -155,10 +137,10 @@ export function Component() {
   if (playersQuery.isPending || teamQuery.isPending) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
-        <h1 className="mb-6 text-3xl font-bold">My Fantasy Team</h1>
+        <h1 className="mb-6 text-3xl font-semibold">My Fantasy Team</h1>
         <div className="space-y-2">
           {Array.from({ length: 11 }).map((_, i) => (
-            <div key={i} className="h-10 animate-pulse rounded bg-gray-200" />
+            <div key={i} className="h-10 animate-pulse rounded bg-stone-200" />
           ))}
         </div>
       </div>
@@ -168,7 +150,7 @@ export function Component() {
   if (playersQuery.error || teamQuery.error) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
-        <h1 className="mb-6 text-3xl font-bold">My Fantasy Team</h1>
+        <h1 className="mb-6 text-3xl font-semibold">My Fantasy Team</h1>
         <p className="text-center text-red-600">
           Failed to load fantasy data. Please try again.
         </p>
@@ -268,32 +250,20 @@ function TeamBuilder({
   });
 
   // Derived state
-  const totalCost = squad.reduce((sum, p) => sum + p.sandwichCost, 0);
-  const captainCount = squad.filter((p) => p.isCaptain).length;
-  const wkCount = squad.filter((p) => p.isWicketkeeper).length;
   const squadPlayerIds = useMemo(
     () => new Set(squad.map((p) => p.playCricketId)),
     [squad],
   );
 
-  const slotCounts = { batting: 0, bowling: 0, allrounder: 0 };
-  for (const p of squad) slotCounts[p.slotType]++;
+  const slotCounts = countSlots(squad);
+  const validation = validateSquadComposition(squad);
+  const totalCost = validation.totalCost;
+  const canSave = validation.isValid;
+  const validationMessages = validation.messages;
 
-  const canSave =
-    squad.length === 11 &&
-    captainCount === 1 &&
-    wkCount === 1 &&
-    slotCounts.batting === SLOT_COUNTS.batting &&
-    slotCounts.bowling === SLOT_COUNTS.bowling &&
-    slotCounts.allrounder === SLOT_COUNTS.allrounder &&
-    totalCost <= BUDGET;
-
-  // Get next available slot type
+  // Get next available slot type given the current squad
   function getNextSlotType(): SlotType | null {
-    if (slotCounts.batting < SLOT_COUNTS.batting) return "batting";
-    if (slotCounts.bowling < SLOT_COUNTS.bowling) return "bowling";
-    if (slotCounts.allrounder < SLOT_COUNTS.allrounder) return "allrounder";
-    return null;
+    return getNextSlotTypeFromSquad(squad);
   }
 
   function addPlayer(player: EligiblePlayer) {
@@ -341,39 +311,18 @@ function TeamBuilder({
   }
 
   function setSlotType(playCricketId: string, slotType: SlotType) {
-    setSquad((prev) => {
-      const result = prev.map((p) => {
-        if (p.playCricketId !== playCricketId) return p;
-        const updated = { ...p, slotType };
-        // Captain cannot be in allrounder slot
-        if (slotType === "allrounder" && p.isCaptain) {
-          updated.isCaptain = false;
-        }
-        return updated;
-      });
-      // Ensure there's still a captain
-      if (!result.some((x) => x.isCaptain)) {
-        const first = result.find((x) => x.slotType !== "allrounder");
-        if (first) {
-          return result.map((p) =>
-            p.playCricketId === first.playCricketId
-              ? { ...p, isCaptain: true }
-              : p,
-          );
-        }
-      }
-      return result;
-    });
+    setSquad((prev) => moveSquadPlayerToSlot(prev, playCricketId, slotType));
   }
 
   const availablePlayers = useMemo(() => {
+    const term = search.toLowerCase();
     return eligiblePlayers
-      .filter((p) => !squadPlayerIds.has(p.play_cricket_id))
       .filter(
         (p) =>
-          !search || p.player_name.toLowerCase().includes(search.toLowerCase()),
+          !squadPlayerIds.has(p.play_cricket_id) &&
+          (!search || p.player_name.toLowerCase().includes(term)),
       )
-      .sort((a, b) => b.previousSeasonPoints - a.previousSeasonPoints);
+      .toSorted((a, b) => b.previousSeasonPoints - a.previousSeasonPoints);
   }, [eligiblePlayers, squadPlayerIds, search]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -402,28 +351,9 @@ function TeamBuilder({
     // Dropping onto an empty slot — change the dragged player's slot type
     const emptySlotType = parseEmptySlotId(overId);
     if (emptySlotType) {
-      setSquad((prev) => {
-        const result = prev.map((p) => {
-          if (p.playCricketId !== active.id) return p;
-          const updated = { ...p, slotType: emptySlotType };
-          if (emptySlotType === "allrounder" && p.isCaptain) {
-            updated.isCaptain = false;
-          }
-          return updated;
-        });
-        // Ensure there's still a captain
-        if (!result.some((x) => x.isCaptain)) {
-          const first = result.find((x) => x.slotType !== "allrounder");
-          if (first) {
-            return result.map((p) =>
-              p.playCricketId === first.playCricketId
-                ? { ...p, isCaptain: true }
-                : p,
-            );
-          }
-        }
-        return result;
-      });
+      setSquad((prev) =>
+        moveSquadPlayerToSlot(prev, active.id as string, emptySlotType),
+      );
       return;
     }
 
@@ -434,36 +364,15 @@ function TeamBuilder({
 
       // Different slot type: move dragged player to the target's section (no swap)
       if (activePlayer.slotType !== overPlayer.slotType) {
-        const targetSlotType = overPlayer.slotType;
-        const result = prev.map((p) => {
-          if (p.playCricketId !== active.id) return p;
-          const updated = { ...p, slotType: targetSlotType };
-          if (targetSlotType === "allrounder" && p.isCaptain) {
-            updated.isCaptain = false;
-          }
-          return updated;
-        });
-        // Ensure there's still a captain
-        if (!result.some((x) => x.isCaptain)) {
-          const first = result.find((x) => x.slotType !== "allrounder");
-          if (first) {
-            return result.map((p) =>
-              p.playCricketId === first.playCricketId
-                ? { ...p, isCaptain: true }
-                : p,
-            );
-          }
-        }
-        return result;
+        return moveSquadPlayerToSlot(
+          prev,
+          active.id as string,
+          overPlayer.slotType,
+        );
       }
 
       // Same slot type: reorder within the section
-      const activeIdx = prev.indexOf(activePlayer);
-      const overIdx = prev.indexOf(overPlayer);
-      const result = [...prev];
-      result.splice(activeIdx, 1);
-      result.splice(overIdx, 0, activePlayer);
-      return result;
+      return reorderWithinSlot(prev, active.id as string, overId);
     });
   }
 
@@ -474,28 +383,10 @@ function TeamBuilder({
     (c) => c.chipType === "triple_captain",
   );
 
-  // Build validation messages for slot distribution
-  const validationMessages: string[] = [];
-  if (slotCounts.batting !== SLOT_COUNTS.batting) {
-    validationMessages.push(
-      `Batting: ${slotCounts.batting}/${SLOT_COUNTS.batting}`,
-    );
-  }
-  if (slotCounts.bowling !== SLOT_COUNTS.bowling) {
-    validationMessages.push(
-      `Bowling: ${slotCounts.bowling}/${SLOT_COUNTS.bowling}`,
-    );
-  }
-  if (slotCounts.allrounder !== SLOT_COUNTS.allrounder) {
-    validationMessages.push(
-      `All-rounder: ${slotCounts.allrounder}/${SLOT_COUNTS.allrounder}`,
-    );
-  }
-
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">My Fantasy Team</h1>
+        <h1 className="text-3xl font-semibold">My Fantasy Team</h1>
         <div className="flex gap-2">
           {teamData.team &&
             initialSquad.length === 11 &&
@@ -512,8 +403,7 @@ function TeamBuilder({
 
       {chaosWeek && (
         <Alert className="mb-4 border-amber-400 bg-amber-50 text-amber-800">
-          <strong>Chaos Week: {chaosWeek.name}</strong> —{" "}
-          {chaosWeek.description}
+          <strong>Chaos Week: {chaosWeek.name}.</strong> {chaosWeek.description}
         </Alert>
       )}
 
@@ -550,7 +440,7 @@ function TeamBuilder({
               disabled={!canSave || saveMutation.isPending}
               onClick={() => saveMutation.mutate(squad)}
             >
-              {saveMutation.isPending ? "Saving..." : "Save Team"}
+              {saveMutation.isPending ? "Saving…" : "Save Team"}
             </Button>
           </div>
         </CardContent>
@@ -580,7 +470,7 @@ function TeamBuilder({
         <Card className="mb-4">
           <CardContent className="flex items-center justify-between py-3">
             <div className="text-sm">
-              <strong>Triple Captain</strong> — 3x captain multiplier.{" "}
+              <strong>Triple Captain:</strong> 3x captain multiplier.{" "}
               {tripleCaptain.usedThisSeason}/{tripleCaptain.maxPerSeason} used
               this season.
             </div>
@@ -696,7 +586,7 @@ function TeamBuilder({
           </CardHeader>
           <CardContent>
             <Input
-              placeholder="Search players..."
+              placeholder="Search players…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="mb-3"
@@ -765,7 +655,7 @@ function EmptySlotRow({
   return (
     <div
       ref={setNodeRef}
-      className={`mb-1 rounded border border-dashed p-2 text-center text-xs text-gray-400 ${
+      className={`mb-1 rounded border border-dashed p-2 text-center text-xs text-stone-400 ${
         isOver ? "border-blue-400 bg-blue-50" : ""
       }`}
     >
@@ -833,7 +723,7 @@ function SortableSquadRow({
       <Button
         size="sm"
         variant={player.isCaptain ? "default" : "ghost"}
-        className="h-6 w-6 p-0 text-xs"
+        className="size-6 p-0 text-xs"
         onClick={onSetCaptain}
         title="Set as Captain"
       >
@@ -842,7 +732,7 @@ function SortableSquadRow({
       <Button
         size="sm"
         variant={player.isWicketkeeper ? "default" : "ghost"}
-        className="h-6 w-6 p-0 text-xs"
+        className="size-6 p-0 text-xs"
         onClick={onSetWk}
         title="Set as Wicketkeeper"
       >
@@ -851,7 +741,7 @@ function SortableSquadRow({
       <Button
         size="sm"
         variant="ghost"
-        className="h-6 w-6 p-0 text-xs text-red-500"
+        className="size-6 p-0 text-xs text-red-500"
         onClick={onRemove}
         title="Remove"
       >

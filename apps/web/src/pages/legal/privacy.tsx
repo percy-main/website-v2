@@ -170,11 +170,11 @@ export function Component() {
             Name and age indication (adult or under 18) of the person affected
           </li>
           <li>
-            Details of the incident — date, time, location, activity, and a
+            Details of the incident: date, time, location, activity, and a
             description of what happened
           </li>
           <li>
-            Health-related information where relevant — for example whether an
+            Health-related information where relevant, for example whether an
             injury occurred and what first aid or emergency care was given
           </li>
           <li>Witness details where known</li>
@@ -431,33 +431,33 @@ export function Component() {
         <table className="mt-2 w-full border-collapse text-sm">
           <thead>
             <tr className="border-b">
-              <th className="px-2 py-2 text-left">Name</th>
-              <th className="px-2 py-2 text-left">Purpose</th>
-              <th className="px-2 py-2 text-left">Retention</th>
+              <th className="p-2 text-left">Name</th>
+              <th className="p-2 text-left">Purpose</th>
+              <th className="p-2 text-left">Retention</th>
             </tr>
           </thead>
           <tbody>
             <tr className="border-b">
-              <td className="px-2 py-2 align-top">
+              <td className="p-2 align-top">
                 <code>pm_consent</code>
               </td>
-              <td className="px-2 py-2 align-top">
+              <td className="p-2 align-top">
                 Records your cookie choice on the banner, with the version of
                 this notice you accepted against. First-party.
               </td>
-              <td className="px-2 py-2 align-top">12 months</td>
+              <td className="p-2 align-top">12 months</td>
             </tr>
             <tr className="border-b">
-              <td className="px-2 py-2 align-top">
+              <td className="p-2 align-top">
                 <code>pm_attrib</code>
               </td>
-              <td className="px-2 py-2 align-top">
+              <td className="p-2 align-top">
                 Stores which ad click brought you to the site (Google{" "}
                 <code>gclid</code>, UTM parameters, landing page, referrer) so
                 we can credit our recruitment campaigns. Only written after you
                 have granted cookie consent. First-party.
               </td>
-              <td className="px-2 py-2 align-top">90 days</td>
+              <td className="p-2 align-top">90 days</td>
             </tr>
           </tbody>
         </table>
@@ -505,7 +505,7 @@ export function Component() {
           footer. The banner will re-open and your new choice takes effect
           immediately &mdash; no page reload required.
         </p>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-stone-600">
           This notice version: {CURRENT_CONSENT_VERSION}. If we change what we
           send to Google in a way that materially affects this notice, we bump
           the version and the banner re-appears so you can re-decide.

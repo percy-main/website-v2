@@ -8,9 +8,9 @@ interface Props {
 }
 
 const sizeClasses = {
-  sm: "h-8 w-8",
+  sm: "size-8",
   md: "h-[52px] w-[52px]",
-  lg: "h-24 w-24",
+  lg: "size-24",
 } as const;
 
 const sizePx = {

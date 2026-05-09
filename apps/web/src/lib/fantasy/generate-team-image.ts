@@ -5,7 +5,7 @@
 
 import { getImageUrl } from "@/lib/image-map.js";
 
-export interface SharePlayer {
+interface SharePlayer {
   playerName: string;
   sandwichCost: number;
   isCaptain: boolean;

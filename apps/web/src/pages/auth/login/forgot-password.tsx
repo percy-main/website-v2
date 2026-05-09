@@ -8,6 +8,7 @@ import { match, P } from "ts-pattern";
 export const ForgotPassword: FC = () => {
   const [email, setEmail] = useState("");
 
+  // Fire-and-forget: triggers an email send; no cached data to invalidate.
   const requestReset = useMutation({
     mutationFn: () =>
       authClient.requestPasswordReset({
@@ -28,7 +29,7 @@ export const ForgotPassword: FC = () => {
 
   return (
     <section>
-      <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+      <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
         Forgotten your password?
       </h1>
       {match(requestReset)
@@ -39,7 +40,7 @@ export const ForgotPassword: FC = () => {
         ))
         .otherwise(() => (
           <form
-            className="flex flex-col items-center justify-center space-y-4 md:space-y-6"
+            className="flex flex-col items-center justify-center gap-y-4 md:gap-y-6"
             onSubmit={handleSubmit}
           >
             <p>
@@ -54,7 +55,7 @@ export const ForgotPassword: FC = () => {
               onChange={(e) => setEmail(e.currentTarget.value)}
             />
             <Button type="submit" className="w-full">
-              Submit
+              Send reset link
             </Button>
             {error && (
               <p className="text-sm font-light text-red-800">{error.message}</p>

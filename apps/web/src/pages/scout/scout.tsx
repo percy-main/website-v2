@@ -15,18 +15,18 @@ import { KnowledgeAdminView } from "./knowledge-admin.js";
 import { MessageView } from "./message-view.js";
 import { ReportsView } from "./reports-view.js";
 import { ScoutLauncher } from "./scout-launcher.js";
+import {
+  filterMessagesByRole,
+  findInFlightReport,
+  summariseAttachments,
+  thinkingModeFromParam,
+  viewFromParam,
+  type ScoutMode,
+  type ScoutView,
+} from "./scout.lib.js";
 import { ShareThreadModal } from "./share-thread-modal.js";
 import { NewThreadButton, ThreadList } from "./thread-list.js";
 import { useScoutChat } from "./use-scout-chat.js";
-
-type ScoutMode = "chat" | "debrief" | "scout";
-type ScoutView = "chat" | "reports" | "facts" | "knowledge";
-
-const VIEW_FROM_PARAM: Record<string, ScoutView> = {
-  reports: "reports",
-  facts: "facts",
-  knowledge: "knowledge",
-};
 
 export function Component() {
   useDocumentMeta("ImbuzAI");
@@ -34,8 +34,7 @@ export function Component() {
   const [searchParams, setSearchParams] = useSearchParams();
   // URL-state per the project's URL-state convention. The non-chat tabs
   // are global (not per-thread) so they survive switching between threads.
-  const viewParam = searchParams.get("view") ?? "";
-  const view: ScoutView = VIEW_FROM_PARAM[viewParam] ?? "chat";
+  const view: ScoutView = viewFromParam(searchParams.get("view"));
 
   const setView = (next: ScoutView) => {
     setSearchParams(
@@ -79,7 +78,7 @@ export function Component() {
 
   return (
     <div className="container mx-auto h-[calc(100vh-8rem)] px-0">
-      <div className="relative flex h-full overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="relative flex h-full overflow-hidden rounded-lg border border-stone-200 bg-white">
         {threadDrawerOpen && (
           <button
             type="button"
@@ -128,14 +127,14 @@ function ScoutTabs({
   // border on the tabs nav lines up exactly with the bottom border under
   // "New chat".
   return (
-    <nav className="flex h-12 shrink-0 items-stretch border-b border-gray-200 bg-gray-50">
+    <nav className="flex h-12 shrink-0 items-stretch border-b border-stone-200 bg-stone-50">
       <button
         type="button"
         onClick={onOpenThreadDrawer}
         aria-label="Open threads"
-        className="inline-flex items-center px-3 text-gray-600 hover:text-gray-900 lg:hidden"
+        className="inline-flex items-center px-3 text-stone-600 hover:text-stone-900 lg:hidden"
       >
-        <ThreadsIcon className="h-5 w-5" />
+        <ThreadsIcon className="size-5" />
       </button>
       <TabButton
         active={view === "chat"}
@@ -177,7 +176,7 @@ function TabButton({
       className={
         active
           ? "-mb-px inline-flex items-center border-b-2 border-blue-600 px-4 text-sm font-medium text-blue-700"
-          : "inline-flex items-center px-4 text-sm text-gray-600 hover:text-gray-900"
+          : "inline-flex items-center px-4 text-sm text-stone-600 hover:text-stone-900"
       }
     >
       {label}
@@ -187,14 +186,14 @@ function TabButton({
 
 function EmptyState() {
   return (
-    <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-gray-500">
+    <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-stone-500">
       <div className="flex flex-col items-center gap-4">
         <ImbuzaiMascot width={140} loading="eager" />
         <div>
-          <div className="font-secondary text-xl font-bold tracking-tight text-gray-800">
+          <div className="font-secondary text-xl font-bold tracking-tight text-stone-800">
             ImbuzAI
           </div>
-          <div className="mt-0.5 text-xs tracking-wider text-gray-500 uppercase">
+          <div className="mt-0.5 text-xs tracking-wider text-stone-500 uppercase">
             Percy Main's AI cricket analyst
           </div>
         </div>
@@ -227,7 +226,7 @@ function ActiveThread({ threadId }: { threadId: string }) {
 
   if (threadQuery.isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-gray-500">
+      <div className="flex flex-1 items-center justify-center text-sm text-stone-500">
         Loading thread…
       </div>
     );
@@ -269,28 +268,23 @@ interface ChatViewProps {
 function ChatView({ threadId, loaded }: ChatViewProps) {
   const initialMessages = useMemo<UIMessage[]>(
     () =>
-      loaded.messages
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .map(
-          (m) =>
-            ({
-              id: m.id,
-              role: m.role,
-              parts: m.parts,
-            }) as unknown as UIMessage,
-        ),
+      filterMessagesByRole(loaded.messages, ["user", "assistant"]).map(
+        (m) =>
+          ({
+            id: m.id,
+            role: m.role,
+            parts: m.parts,
+          }) as unknown as UIMessage,
+      ),
     [loaded.messages],
   );
   // Historical attachment ids by message id. Live messages (still streaming
   // / not yet refetched) won't appear here — that's fine; the user just
   // sees thumbnails on the next thread reload.
-  const attachmentIdsByMessage = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const m of loaded.messages) {
-      if (m.attachmentIds.length > 0) map.set(m.id, m.attachmentIds);
-    }
-    return map;
-  }, [loaded.messages]);
+  const attachmentIdsByMessage = useMemo(
+    () => summariseAttachments(loaded.messages),
+    [loaded.messages],
+  );
 
   const { messages, sendMessage, status, error, stop } = useScoutChat({
     threadId,
@@ -339,8 +333,9 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
   // sticks per thread within a tab session. Default "thinking" — DeepSeek-
   // v4-pro reasons by default and most prompts benefit from it; the toggle
   // is for when the user wants a quick follow-up.
-  const thinkingMode: ThinkingMode =
-    searchParams.get("think") === "fast" ? "fast" : "thinking";
+  const thinkingMode: ThinkingMode = thinkingModeFromParam(
+    searchParams.get("think"),
+  );
   const setThinkingMode = (next: ThinkingMode) => {
     setSearchParams(
       (prev) => {
@@ -407,35 +402,15 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
   // state (ready / failed) so a stale "generating" snapshot for the same
   // reportId emitted earlier in the stream doesn't get surfaced as
   // in-flight.
-  const inFlightReport = useMemo<ReportData | null>(() => {
-    const terminalReportIds = new Set<string>();
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const parts = messages[i].parts ?? [];
-      for (let j = parts.length - 1; j >= 0; j--) {
-        const part = parts[j];
-        if (
-          typeof part !== "object" ||
-          part === null ||
-          !("type" in part) ||
-          (part as { type: unknown }).type !== "data-report"
-        ) {
-          continue;
-        }
-        const data = (part as { data: ReportData }).data;
-        if (data.status === "generating") {
-          if (!terminalReportIds.has(data.reportId)) return data;
-        } else {
-          terminalReportIds.add(data.reportId);
-        }
-      }
-    }
-    return null;
-  }, [messages]);
+  const inFlightReport = useMemo<ReportData | null>(
+    () => findInFlightReport(messages),
+    [messages],
+  );
 
   return (
     <>
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-4">
-        <h2 className="my-0 flex items-center gap-2 truncate text-sm font-medium text-gray-700">
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-stone-200 px-4">
+        <h2 className="my-0 flex items-center gap-2 truncate text-sm font-medium text-stone-700">
           <ImbuzaiMascot width={32} />
           {mode === "debrief" && (
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase">
@@ -470,13 +445,13 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
             <button
               type="button"
               onClick={() => setShareModalOpen(true)}
-              className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              className="inline-flex items-center gap-1 rounded border border-stone-200 px-2 py-1 text-xs text-stone-600 hover:bg-stone-50 hover:text-stone-900"
             >
-              <ShareIcon className="h-3.5 w-3.5" />
+              <ShareIcon className="size-3.5" />
               Share
             </button>
           )}
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-stone-400">
             {messages.length} message{messages.length === 1 ? "" : "s"}
             {import.meta.env.DEV && (
               <>
@@ -493,7 +468,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
           Shared by{" "}
           <span className="font-medium">{loaded.thread.sharedBy.name}</span>{" "}
           <span className="text-violet-700">
-            · read-only — you can read the conversation but can&rsquo;t reply.
+            · read-only: you can read the conversation but can&rsquo;t reply.
           </span>
         </div>
       )}
@@ -504,7 +479,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
           ) : mode === "scout" ? (
             <ScoutLauncher onLaunch={send} />
           ) : (
-            <div className="mt-8 text-center text-sm text-gray-400">
+            <div className="mt-8 text-center text-sm text-stone-400">
               New thread. Ask a question to get started.
             </div>
           ))}
@@ -552,7 +527,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
                   >
                     Reports tab
                   </button>{" "}
-                  in a few minutes — if the report finished, it'll be there.
+                  in a few minutes; if the report finished, it'll be there.
                 </div>
                 <div className="text-[11px] text-red-600/80">
                   Original error: {error.message}
@@ -566,6 +541,7 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
       </div>
       {!isReadOnly && (
         <Composer
+          key={threadId}
           initialDraft={draft}
           onDraftChange={setDraft}
           isStreaming={isStreaming}

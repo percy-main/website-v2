@@ -52,7 +52,7 @@ export function Passkeys() {
         {query.data?.map((passkey) => (
           <div
             key={passkey.id}
-            className="flex max-w-max flex-row items-center justify-start rounded-2xl border border-gray-500 bg-blue-100 p-4"
+            className="flex max-w-max flex-row items-center justify-start rounded-2xl border border-stone-500 bg-blue-100 p-4"
           >
             <Button
               variant="ghost"

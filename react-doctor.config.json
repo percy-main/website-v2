@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/millionco/react-doctor/main/packages/react-doctor/schema.json",
+  "ignore": {
+    "rules": [
+      "react-doctor/rendering-hydration-mismatch-time",
+      "react-doctor/rendering-hydration-no-flicker",
+      "react-doctor/no-prevent-default"
+    ],
+    "files": [
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/__generated__/**",
+      "**/*.gen.d.ts",
+      "**/*.gen.json",
+      "apps/web/src/lib/api.gen.*",
+      "packages/db/src/__generated__/**",
+      "apps/api/**",
+      "packages/**",
+      "infra/**",
+      "scripts/**"
+    ],
+    "overrides": []
+  },
+  "adoptExistingLintConfig": true
+}

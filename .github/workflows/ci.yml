@@ -74,3 +74,20 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+
+  react-doctor:
+    # Diff-only scan of apps/web on the PR. Findings are posted as a PR
+    # comment by the action; failures here don't block merge — eslint
+    # (the same plugin running locally and in `lint-and-test`) is the
+    # blocking gate for the rules we've opted into.
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: millionco/react-doctor@main
+        with:
+          diff: main
+          github-token: ${{ secrets.GITHUB_TOKEN }}

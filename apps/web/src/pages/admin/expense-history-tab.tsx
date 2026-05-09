@@ -25,7 +25,13 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
+import {
+  expenseFiltersReducer,
+  getFinancialYearDefaults,
+  isFiltered,
+  makeInitialExpenseFiltersState,
+} from "./expense-history-tab.reducer";
 import { formatDate, formatPence } from "./status-pill";
 
 // --- Types ---
@@ -60,27 +66,24 @@ const STATUS_CONFIG: Record<
   reimbursed: { label: "Reimbursed", variant: "secondary" },
 };
 
-function getFinancialYearDefaults(): { dateFrom: string; dateTo: string } {
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1;
-  const year = currentMonth >= 4 ? now.getFullYear() : now.getFullYear() - 1;
-  return {
-    dateFrom: `${year}-04-01`,
-    dateTo: `${year + 1}-03-31`,
-  };
-}
-
 // --- Component ---
 
 export function ExpenseHistoryTab() {
-  const defaults = getFinancialYearDefaults();
-  const [dateFrom, setDateFrom] = useState(defaults.dateFrom);
-  const [dateTo, setDateTo] = useState(defaults.dateTo);
-  const [status, setStatus] = useState("all");
-  const [expenseType, setExpenseType] = useState("all");
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [defaults] = useState(() => getFinancialYearDefaults(new Date()));
+  const [filters, dispatch] = useReducer(
+    expenseFiltersReducer,
+    defaults,
+    makeInitialExpenseFiltersState,
+  );
+  const {
+    page,
+    status,
+    expenseType,
+    search,
+    debouncedSearch,
+    dateFrom,
+    dateTo,
+  } = filters;
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(
     null,
   );
@@ -93,8 +96,7 @@ export function ExpenseHistoryTab() {
       clearTimeout(debounceTimerRef.current);
     }
     debounceTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
+      dispatch({ type: "commitSearch", value: search });
     }, 300);
     return () => {
       if (debounceTimerRef.current) {
@@ -125,22 +127,9 @@ export function ExpenseHistoryTab() {
 
   const totalPages = Math.ceil((expensesQuery.data?.total ?? 0) / PAGE_SIZE);
 
-  const hasFilters =
-    status !== "all" ||
-    expenseType !== "all" ||
-    debouncedSearch !== "" ||
-    dateFrom !== defaults.dateFrom ||
-    dateTo !== defaults.dateTo;
+  const hasFilters = isFiltered(filters, defaults);
 
-  const clearFilters = () => {
-    setStatus("all");
-    setExpenseType("all");
-    setSearch("");
-    setDebouncedSearch("");
-    setDateFrom(defaults.dateFrom);
-    setDateTo(defaults.dateTo);
-    setPage(1);
-  };
+  const clearFilters = () => dispatch({ type: "clearFilters", defaults });
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -185,46 +174,58 @@ export function ExpenseHistoryTab() {
           onClick={() => void handleExport()}
           disabled={isExporting}
         >
-          {isExporting ? "Exporting..." : "Export CSV"}
+          {isExporting ? "Exporting…" : "Export CSV"}
         </Button>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">From</label>
+          <label
+            htmlFor="expense-history-date-from"
+            className="text-xs text-stone-500"
+          >
+            From
+          </label>
           <Input
+            id="expense-history-date-from"
             type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) =>
+              dispatch({ type: "setDateFrom", value: e.target.value })
+            }
             className="w-40"
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">To</label>
+          <label
+            htmlFor="expense-history-date-to"
+            className="text-xs text-stone-500"
+          >
+            To
+          </label>
           <Input
+            id="expense-history-date-to"
             type="date"
             value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) =>
+              dispatch({ type: "setDateTo", value: e.target.value })
+            }
             className="w-40"
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">Status</label>
+          <label
+            htmlFor="expense-history-status"
+            className="text-xs text-stone-500"
+          >
+            Status
+          </label>
           <Select
             value={status}
-            onValueChange={(v) => {
-              setStatus(v);
-              setPage(1);
-            }}
+            onValueChange={(v) => dispatch({ type: "setStatus", value: v })}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger id="expense-history-status" className="w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -238,15 +239,19 @@ export function ExpenseHistoryTab() {
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">Type</label>
+          <label
+            htmlFor="expense-history-type"
+            className="text-xs text-stone-500"
+          >
+            Type
+          </label>
           <Select
             value={expenseType}
-            onValueChange={(v) => {
-              setExpenseType(v);
-              setPage(1);
-            }}
+            onValueChange={(v) =>
+              dispatch({ type: "setExpenseType", value: v })
+            }
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger id="expense-history-type" className="w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -260,11 +265,19 @@ export function ExpenseHistoryTab() {
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">Search</label>
+          <label
+            htmlFor="expense-history-search"
+            className="text-xs text-stone-500"
+          >
+            Search
+          </label>
           <Input
-            placeholder="Description or opposition..."
+            id="expense-history-search"
+            placeholder="Description or opposition…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) =>
+              dispatch({ type: "setSearch", value: e.target.value })
+            }
             className="w-56"
           />
         </div>
@@ -276,11 +289,11 @@ export function ExpenseHistoryTab() {
       </div>
 
       {/* Results count */}
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-stone-500">
         {expensesQuery.data
           ? `${expensesQuery.data.total} expense${expensesQuery.data.total === 1 ? "" : "s"} found`
           : expensesQuery.isLoading
-            ? "Loading..."
+            ? "Loading…"
             : ""}
       </div>
 
@@ -337,7 +350,7 @@ export function ExpenseHistoryTab() {
               <TableRow>
                 <TableCell
                   colSpan={8}
-                  className="py-8 text-center text-gray-500"
+                  className="py-8 text-center text-stone-500"
                 >
                   No expenses found matching your filters.
                 </TableCell>
@@ -350,7 +363,7 @@ export function ExpenseHistoryTab() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-stone-500">
             Page {page} of {totalPages}
           </p>
           <div className="flex gap-2">
@@ -358,7 +371,7 @@ export function ExpenseHistoryTab() {
               variant="outline"
               size="sm"
               disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => dispatch({ type: "setPage", value: page - 1 })}
             >
               Previous
             </Button>
@@ -366,7 +379,7 @@ export function ExpenseHistoryTab() {
               variant="outline"
               size="sm"
               disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => dispatch({ type: "setPage", value: page + 1 })}
             >
               Next
             </Button>
@@ -389,32 +402,32 @@ export function ExpenseHistoryTab() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <p className="text-gray-500">Match Date</p>
+                  <p className="text-stone-500">Match Date</p>
                   <p>{formatDate(selectedExpense.match_date)}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Opposition</p>
+                  <p className="text-stone-500">Opposition</p>
                   <p>{selectedExpense.opposition}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Team</p>
+                  <p className="text-stone-500">Team</p>
                   <p>{selectedExpense.team_name}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Type</p>
+                  <p className="text-stone-500">Type</p>
                   <p>
                     {EXPENSE_TYPE_LABELS[selectedExpense.expense_type] ??
                       selectedExpense.expense_type}
                   </p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Amount</p>
+                  <p className="text-stone-500">Amount</p>
                   <p className="font-medium">
                     {formatPence(selectedExpense.amount_pence)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Status</p>
+                  <p className="text-stone-500">Status</p>
                   <Badge
                     variant={
                       STATUS_CONFIG[selectedExpense.status]?.variant ??
@@ -427,7 +440,7 @@ export function ExpenseHistoryTab() {
                 </div>
                 {selectedExpense.description && (
                   <div className="col-span-2">
-                    <p className="text-gray-500">Description</p>
+                    <p className="text-stone-500">Description</p>
                     <p>{selectedExpense.description}</p>
                   </div>
                 )}
@@ -438,7 +451,7 @@ export function ExpenseHistoryTab() {
                 <h4 className="mb-2 text-sm font-medium">Audit Trail</h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-500">
+                    <span className="text-stone-500">
                       {selectedExpense.submitted_at
                         ? "Submitted by"
                         : "Created by"}
@@ -451,7 +464,7 @@ export function ExpenseHistoryTab() {
                   </div>
                   {selectedExpense.approved_at && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Approved by</span>
+                      <span className="text-stone-500">Approved by</span>
                       <span>
                         {selectedExpense.approved_by_name ?? "Unknown"}
                         {` on ${formatDate(selectedExpense.approved_at, true)}`}
@@ -460,7 +473,7 @@ export function ExpenseHistoryTab() {
                   )}
                   {selectedExpense.reimbursed_at && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Reimbursed by</span>
+                      <span className="text-stone-500">Reimbursed by</span>
                       <span>
                         {selectedExpense.reimbursed_by_name ?? "Unknown"}
                         {` on ${formatDate(selectedExpense.reimbursed_at, true)}`}
@@ -469,7 +482,7 @@ export function ExpenseHistoryTab() {
                   )}
                   {selectedExpense.rejected_reason && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Rejected reason</span>
+                      <span className="text-stone-500">Rejected reason</span>
                       <span className="text-red-600">
                         {selectedExpense.rejected_reason}
                       </span>
@@ -482,14 +495,20 @@ export function ExpenseHistoryTab() {
               {selectedExpense.receipt_image_url && (
                 <div className="border-t pt-3">
                   <h4 className="mb-2 text-sm font-medium">Receipt</h4>
-                  <img
-                    src={selectedExpense.receipt_image_url}
-                    alt="Receipt"
-                    className="max-h-48 cursor-pointer rounded border object-contain"
+                  <button
+                    type="button"
                     onClick={() =>
                       setLightboxUrl(selectedExpense.receipt_image_url)
                     }
-                  />
+                    className="cursor-pointer"
+                    aria-label="Open receipt full size"
+                  >
+                    <img
+                      src={selectedExpense.receipt_image_url}
+                      alt="Receipt"
+                      className="max-h-48 rounded border object-contain"
+                    />
+                  </button>
                 </div>
               )}
             </div>
@@ -500,8 +519,17 @@ export function ExpenseHistoryTab() {
       {/* Lightbox */}
       {lightboxUrl && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Receipt full size"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
           onClick={() => setLightboxUrl(null)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+              setLightboxUrl(null);
+            }
+          }}
         >
           <img
             src={lightboxUrl}

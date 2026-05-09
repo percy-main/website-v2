@@ -65,6 +65,8 @@ export function Component() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fire-and-forget: creates a Stripe payment intent and transitions to the
+  // in-page payment form. No cached data changes until the webhook reconciles.
   const paymentMutation = useMutation({
     mutationFn: () =>
       callApi(
@@ -112,7 +114,7 @@ export function Component() {
   if (gameQuery.isLoading) {
     return (
       <div className="container mx-auto max-w-md px-4 py-12">
-        <div className="h-6 w-48 animate-pulse rounded bg-gray-200" />
+        <div className="h-6 w-48 animate-pulse rounded bg-stone-200" />
       </div>
     );
   }
@@ -141,7 +143,7 @@ export function Component() {
               be reviewed by our team and displayed on the game page once
               approved.
             </p>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-stone-600">
               A confirmation email has been sent to {sponsorEmail}.
             </p>
           </CardContent>
@@ -176,25 +178,25 @@ export function Component() {
     <div className="container mx-auto max-w-md px-4 py-6">
       {/* Breadcrumbs */}
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/calendar" className="hover:text-primary text-gray-600">
+        <Link to="/calendar" className="hover:text-primary text-stone-600">
           Calendar
         </Link>
-        <IoChevronForward className="text-gray-400" size={14} />
+        <IoChevronForward className="text-stone-400" size={14} />
         <Link
           to={`/calendar/game/${id}`}
-          className="hover:text-primary text-gray-600"
+          className="hover:text-primary text-stone-600"
         >
           {gameTitle}
         </Link>
-        <IoChevronForward className="text-gray-400" size={14} />
+        <IoChevronForward className="text-stone-400" size={14} />
         <span className="text-dark font-medium">Sponsor</span>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Sponsor This Game</CardTitle>
-          <p className="text-sm text-gray-600">{gameTitle}</p>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-stone-600">{gameTitle}</p>
+          <p className="text-sm text-stone-600">
             Sponsor this game and your details will be displayed on the match
             page.
           </p>
@@ -281,10 +283,10 @@ export function Component() {
                 id="sponsorMessage"
                 value={sponsorMessage}
                 onChange={(e) => setSponsorMessage(e.target.value)}
-                placeholder='e.g. "Good luck lads!" or "In memory of..."'
+                placeholder='e.g. "Good luck lads!" or "In memory of…"'
                 maxLength={MAX_MESSAGE_CHARS}
               />
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-stone-400">
                 {sponsorMessage.length}/{MAX_MESSAGE_CHARS}
               </p>
             </div>
@@ -302,7 +304,7 @@ export function Component() {
         <CardFooter className="flex justify-between">
           <Link
             to={`/calendar/game/${id}`}
-            className="text-sm text-gray-500 hover:underline"
+            className="text-sm text-stone-500 hover:underline"
           >
             Cancel
           </Link>
@@ -310,9 +312,7 @@ export function Component() {
             onClick={() => paymentMutation.mutate()}
             disabled={!isFormValid || paymentMutation.isPending}
           >
-            {paymentMutation.isPending
-              ? "Processing..."
-              : "Continue to Payment"}
+            {paymentMutation.isPending ? "Processing…" : "Continue to Payment"}
           </Button>
         </CardFooter>
       </Card>

@@ -1,12 +1,13 @@
 import { SimpleInput } from "@/components/form/simple-input";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 const MIN_PASSWORD_LENGTH = 8;
 
 export function ChangePassword() {
+  const queryClient = useQueryClient();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -45,6 +46,7 @@ export function ChangePassword() {
       setConfirmPassword("");
       setValidationError("");
       setSuccess(true);
+      void queryClient.invalidateQueries({ queryKey: ["accounts"] });
     },
   });
 
@@ -74,7 +76,7 @@ export function ChangePassword() {
     return (
       <section>
         <h2 className="text-h4">Password</h2>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-stone-600">
           You sign in with Google. No password is required.
         </p>
       </section>
@@ -146,7 +148,7 @@ export function ChangePassword() {
           disabled={changePassword.isPending}
           className="justify-self-start"
         >
-          {changePassword.isPending ? "Changing..." : "Change Password"}
+          {changePassword.isPending ? "Changing…" : "Change Password"}
         </Button>
       </form>
     </section>

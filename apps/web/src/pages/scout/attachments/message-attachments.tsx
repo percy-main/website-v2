@@ -52,7 +52,7 @@ function AttachmentChip({
 
   if (query.isLoading) {
     return (
-      <div className="h-12 w-32 animate-pulse rounded border border-gray-200 bg-gray-100" />
+      <div className="h-12 w-32 animate-pulse rounded border border-stone-200 bg-stone-100" />
     );
   }
   if (query.error || !query.data) {
@@ -72,22 +72,22 @@ function AttachmentChip({
       target="_blank"
       rel="noopener noreferrer"
       title={filename}
-      className="flex h-12 max-w-[200px] items-center gap-2 rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+      className="flex h-12 max-w-[200px] items-center gap-2 rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-700 hover:bg-stone-50"
     >
       {isImage ? (
         <img
           src={signedUrl}
           alt=""
-          className="h-9 w-9 shrink-0 rounded object-cover"
+          className="size-9 shrink-0 rounded object-cover"
         />
       ) : (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-gray-200 text-[10px] font-semibold tracking-wide text-gray-600 uppercase">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded bg-stone-200 text-[10px] font-semibold tracking-wide text-stone-600 uppercase">
           {kind === "pdf" ? "PDF" : "IMG"}
         </div>
       )}
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium">{filename}</div>
-        <div className="text-[10px] text-gray-500">
+        <div className="text-[10px] text-stone-500">
           {formatBytes(sizeBytes)}
         </div>
       </div>

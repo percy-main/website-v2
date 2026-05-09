@@ -6,7 +6,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp.js";
 import { authClient } from "@/lib/auth-client.js";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type FC } from "react";
 import { useNavigate } from "react-router";
 import type { LoginPhase } from "../login.js";
@@ -18,6 +18,7 @@ interface Props {
 export const TwoFA: FC<Props> = ({ setPhase }) => {
   const [otp, setOtp] = useState("");
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const signin = useMutation({
     mutationFn: () =>
@@ -29,6 +30,10 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
           },
         },
       ),
+    onSuccess: () => {
+      // Session changed — drop all cached data so member-scoped queries refetch.
+      void queryClient.invalidateQueries();
+    },
   });
 
   const handleSubmit = useCallback(
@@ -43,11 +48,11 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
 
   return (
     <section>
-      <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+      <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
         Two-factor Authentication Required
       </h1>
       <form
-        className="flex flex-col items-center justify-center space-y-4 md:space-y-6"
+        className="flex flex-col items-center justify-center gap-y-4 md:gap-y-6"
         onSubmit={handleSubmit}
       >
         <InputOTP maxLength={6} value={otp} onChange={setOtp}>
@@ -64,7 +69,7 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
           </InputOTPGroup>
         </InputOTP>
         <Button type="submit" className="w-full">
-          Submit
+          Verify code
         </Button>
         {error && (
           <p className="text-sm font-light text-red-800">{error.message}</p>

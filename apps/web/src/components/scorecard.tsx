@@ -319,7 +319,7 @@ function BattingCard({
                     slug={b.memberSlug}
                     className="font-medium"
                   />
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-stone-500">
                     {formatDismissal(b)}
                   </div>
                 </div>
@@ -343,7 +343,7 @@ function BattingCard({
           ))}
           <TableRow>
             <TableCell>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-stone-600">
                 Extras ({formatExtrasBreakdown(extras)})
               </span>
             </TableCell>
@@ -364,7 +364,7 @@ function BattingCard({
         </TableBody>
       </Table>
       {didNotBat.length > 0 && (
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-2 text-xs text-stone-500">
           <strong>Did not bat:</strong>{" "}
           {didNotBat.map((b, i) => (
             <span key={b.position}>
@@ -392,12 +392,12 @@ function BowlingCard({ bowling }: { bowling: BowlingEntry[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {bowling.map((b, i) => {
+        {bowling.map((b) => {
           const decimalOvers = oversToDecimal(b.overs);
           const economy =
             decimalOvers > 0 ? (b.runs / decimalOvers).toFixed(1) : "-";
           return (
-            <TableRow key={`${b.name}-${i}`}>
+            <TableRow key={b.memberSlug ?? b.name}>
               <TableCell>
                 <PlayerName
                   name={b.name}
@@ -431,7 +431,7 @@ function BowlingCard({ bowling }: { bowling: BowlingEntry[] }) {
 function FallOfWickets({ fow }: { fow: FoWEntry[] }) {
   if (fow.length === 0) return null;
   return (
-    <p className="text-xs text-gray-600">
+    <p className="text-xs text-stone-600">
       <strong>Fall of wickets:</strong>{" "}
       {fow.map((f, i) => (
         <span key={f.wicketNumber}>
@@ -448,7 +448,7 @@ function InningsCard({ innings }: { innings: ScorecardInnings }) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg">{innings.teamBattingName}</CardTitle>
-        <div className="text-sm font-semibold text-gray-700">
+        <div className="text-sm font-semibold text-stone-700">
           {formatTotalScore(innings.total)}
         </div>
       </CardHeader>
@@ -460,7 +460,7 @@ function InningsCard({ innings }: { innings: ScorecardInnings }) {
         />
         <FallOfWickets fow={innings.fallOfWickets} />
         <div className="border-t pt-4">
-          <h5 className="mb-2 text-sm font-semibold text-gray-700">Bowling</h5>
+          <h5 className="mb-2 text-sm font-semibold text-stone-700">Bowling</h5>
           <BowlingCard bowling={innings.bowling} />
         </div>
       </CardContent>
@@ -473,16 +473,16 @@ function ScorecardSkeleton() {
     <div className="flex flex-col gap-4">
       <h4 className="text-lg font-semibold md:text-xl">Scorecard</h4>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {[0, 1].map((i) => (
-          <Card key={i}>
+        {["innings-1", "innings-2"].map((k) => (
+          <Card key={k}>
             <CardHeader>
-              <div className="h-5 w-40 animate-pulse rounded bg-gray-200" />
+              <div className="h-5 w-40 animate-pulse rounded bg-stone-200" />
             </CardHeader>
             <CardContent className="space-y-3">
-              {Array.from({ length: 6 }, (_, j) => (
+              {["r1", "r2", "r3", "r4", "r5", "r6"].map((row) => (
                 <div
-                  key={j}
-                  className="h-4 animate-pulse rounded bg-gray-100"
+                  key={`${k}-${row}`}
+                  className="h-4 animate-pulse rounded bg-stone-100"
                 />
               ))}
             </CardContent>

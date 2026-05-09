@@ -61,9 +61,9 @@ export function MarketingOutboxTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3 text-sm text-gray-600">
+      <div className="flex items-center gap-3 text-sm text-stone-600">
         <p>
-          Marketing outbox — pending and historical Google Ads conversion
+          Marketing outbox: pending and historical Google Ads conversion
           uploads.
         </p>
         <select
@@ -82,7 +82,7 @@ export function MarketingOutboxTab() {
         </select>
       </div>
 
-      {isLoading && <p className="text-gray-500">Loading…</p>}
+      {isLoading && <p className="text-stone-500">Loading…</p>}
 
       {data && (
         <>
@@ -106,7 +106,7 @@ export function MarketingOutboxTab() {
                 <TableRow>
                   <TableCell
                     colSpan={10}
-                    className="py-6 text-center text-gray-500"
+                    className="py-6 text-center text-stone-500"
                   >
                     No outbox rows.
                   </TableCell>
@@ -120,8 +120,8 @@ export function MarketingOutboxTab() {
                   <TableCell>
                     {row.eventType ?? row.eventId.slice(0, 8)}
                   </TableCell>
-                  <TableCell>{row.campaignId ?? "—"}</TableCell>
-                  <TableCell>{row.segment ?? "—"}</TableCell>
+                  <TableCell>{row.campaignId ?? "-"}</TableCell>
+                  <TableCell>{row.segment ?? "-"}</TableCell>
                   <TableCell>{row.destination}</TableCell>
                   <TableCell>{row.status}</TableCell>
                   <TableCell>{row.attempts}</TableCell>
@@ -149,7 +149,7 @@ export function MarketingOutboxTab() {
           </Table>
 
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">{data.total} rows total</span>
+            <span className="text-stone-500">{data.total} rows total</span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -159,7 +159,7 @@ export function MarketingOutboxTab() {
               >
                 Previous
               </Button>
-              <span className="text-gray-600">
+              <span className="text-stone-600">
                 Page {page} of {totalPages}
               </span>
               <Button

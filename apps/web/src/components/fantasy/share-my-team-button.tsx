@@ -22,12 +22,11 @@ async function resolvePlayerPhotos(
   players: ApiSharePlayer[],
 ): Promise<Array<string | null>> {
   // Dynamic import to avoid pulling people data into the main bundle
-  // for users who never click share
-  const { getPersonBySlug } = await import("@/lib/people.js");
-
-  // Build a name → photo lookup from all people
-  // We import the module to get all people, then try slug-based lookup
-  const peopleModule = await import("../../lib/people.js");
+  // for users who never click share. Both imports are independent — race them.
+  const [{ getPersonBySlug }, peopleModule] = await Promise.all([
+    import("@/lib/people.js"),
+    import("../../lib/people.js"),
+  ]);
 
   // Try to match each player by slugifying their name
   return players.map((player) => {
@@ -57,6 +56,8 @@ async function resolvePlayerPhotos(
 export function ShareMyTeamButton() {
   const [shared, setShared] = useState(false);
 
+  // Fire-and-forget: client-side image generation + share/download. No server
+  // state changes, so there's nothing to invalidate.
   const shareMutation = useMutation({
     mutationFn: async () => {
       const data = await fetchShareData();
@@ -114,7 +115,7 @@ export function ShareMyTeamButton() {
       disabled={shareMutation.isPending}
     >
       {shareMutation.isPending
-        ? "Generating..."
+        ? "Generating…"
         : shared
           ? "Done!"
           : "Share My Team"}

@@ -11,7 +11,11 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import { campaigns } from "@percy-main/shared/marketing";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useReducer, useRef, useState } from "react";
+import {
+  initialLeadsFilterState,
+  leadsFilterReducer,
+} from "./leads-tab.reducer";
 import { formatDate } from "./status-pill";
 
 const PAGE_SIZE = 25;
@@ -36,13 +40,12 @@ const SOURCE_OPTIONS = [
 ];
 
 export function LeadsTab() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [campaignId, setCampaignId] = useState<string>("");
-  const [segment, setSegment] = useState<string>("");
-  const [status, setStatus] = useState<string>("");
-  const [source, setSource] = useState<string>("");
+  const [filters, dispatch] = useReducer(
+    leadsFilterReducer,
+    initialLeadsFilterState,
+  );
+  const { page, search, debouncedSearch, campaignId, segment, status, source } =
+    filters;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [memberLinkLeadId, setMemberLinkLeadId] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,8 +54,7 @@ export function LeadsTab() {
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
+      dispatch({ type: "commitSearch", value: search });
     }, 300);
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -122,19 +124,19 @@ export function LeadsTab() {
       <div className="flex flex-wrap gap-3">
         <Input
           type="text"
-          placeholder="Search by name or email..."
+          placeholder="Search by name or email…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setSearch", value: e.target.value })
+          }
           className="max-w-sm"
         />
         <select
           className="border-border rounded border px-2 py-1 text-sm"
           value={campaignId}
-          onChange={(e) => {
-            setCampaignId(e.target.value);
-            setSegment("");
-            setPage(1);
-          }}
+          onChange={(e) =>
+            dispatch({ type: "setCampaignId", value: e.target.value })
+          }
         >
           <option value="">All campaigns</option>
           {Object.entries(campaigns).map(([id, c]) => (
@@ -146,10 +148,9 @@ export function LeadsTab() {
         <select
           className="border-border rounded border px-2 py-1 text-sm"
           value={segment}
-          onChange={(e) => {
-            setSegment(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) =>
+            dispatch({ type: "setSegment", value: e.target.value })
+          }
           disabled={!campaignId}
         >
           <option value="">All segments</option>
@@ -162,10 +163,9 @@ export function LeadsTab() {
         <select
           className="border-border rounded border px-2 py-1 text-sm"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) =>
+            dispatch({ type: "setStatus", value: e.target.value })
+          }
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -176,10 +176,9 @@ export function LeadsTab() {
         <select
           className="border-border rounded border px-2 py-1 text-sm"
           value={source}
-          onChange={(e) => {
-            setSource(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) =>
+            dispatch({ type: "setSource", value: e.target.value })
+          }
         >
           {SOURCE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -189,7 +188,7 @@ export function LeadsTab() {
         </select>
       </div>
 
-      {isLoading && <p className="text-gray-500">Loading…</p>}
+      {isLoading && <p className="text-stone-500">Loading…</p>}
       {isError && <p className="text-red-600">Failed to load leads.</p>}
 
       {data && (
@@ -212,7 +211,7 @@ export function LeadsTab() {
                 <TableRow>
                   <TableCell
                     colSpan={8}
-                    className="py-6 text-center text-gray-500"
+                    className="py-6 text-center text-stone-500"
                   >
                     No leads found.
                   </TableCell>
@@ -232,10 +231,10 @@ export function LeadsTab() {
                       <TableCell className="font-medium">
                         {lead.email}
                       </TableCell>
-                      <TableCell>{lead.name ?? "—"}</TableCell>
+                      <TableCell>{lead.name ?? "-"}</TableCell>
                       <TableCell>{lead.source}</TableCell>
-                      <TableCell>{lead.firstCampaignId ?? "—"}</TableCell>
-                      <TableCell>{lead.firstSegment ?? "—"}</TableCell>
+                      <TableCell>{lead.firstCampaignId ?? "-"}</TableCell>
+                      <TableCell>{lead.firstSegment ?? "-"}</TableCell>
                       <TableCell>{lead.status}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
@@ -244,8 +243,8 @@ export function LeadsTab() {
                             <span
                               className={
                                 cutoffPassed
-                                  ? "text-xs text-gray-500"
-                                  : "text-xs text-gray-400"
+                                  ? "text-xs text-stone-500"
+                                  : "text-xs text-stone-400"
                               }
                               title={
                                 cutoffPassed
@@ -311,25 +310,32 @@ export function LeadsTab() {
           </Table>
 
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">
+            <span className="text-stone-500">
               {data.total} lead{data.total !== 1 ? "s" : ""} total
             </span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() =>
+                  dispatch({ type: "setPage", value: Math.max(1, page - 1) })
+                }
                 disabled={page <= 1}
               >
                 Previous
               </Button>
-              <span className="text-gray-600">
+              <span className="text-stone-600">
                 Page {page} of {totalPages}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() =>
+                  dispatch({
+                    type: "setPage",
+                    value: Math.min(totalPages, page + 1),
+                  })
+                }
                 disabled={page >= totalPages}
               >
                 Next
@@ -369,20 +375,20 @@ function LeadEventTimeline({ leadId }: { leadId: string }) {
   });
 
   if (isLoading)
-    return <p className="py-2 text-sm text-gray-500">Loading events…</p>;
+    return <p className="py-2 text-sm text-stone-500">Loading events…</p>;
   if (!data?.items.length)
-    return <p className="py-2 text-sm text-gray-500">No events yet.</p>;
+    return <p className="py-2 text-sm text-stone-500">No events yet.</p>;
 
   return (
     <ol className="flex flex-col gap-1 py-2 text-sm">
       {data.items.map((evt) => (
         <li key={evt.id} className="flex items-center gap-3">
-          <span className="font-mono text-xs text-gray-500">
+          <span className="font-mono text-xs text-stone-500">
             {formatDate(evt.createdAt, true)}
           </span>
           <span className="font-medium">{evt.type}</span>
           {evt.campaignId && (
-            <span className="text-gray-600">
+            <span className="text-stone-600">
               {evt.campaignId}
               {evt.segment ? ` / ${evt.segment}` : ""}
             </span>
@@ -392,7 +398,7 @@ function LeadEventTimeline({ leadId }: { leadId: string }) {
               ads queued
             </span>
           )}
-          <span className="text-gray-500">via {evt.source}</span>
+          <span className="text-stone-500">via {evt.source}</span>
         </li>
       ))}
     </ol>
@@ -415,7 +421,7 @@ function JoinedModal({
         <h3 className="text-lg font-semibold">
           Mark lead {leadId.slice(0, 8)}… as joined
         </h3>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-stone-600">
           Optionally link an existing member record by id. Leave blank to record
           the outcome without a link.
         </p>

@@ -32,19 +32,19 @@ function Person({ slug, role }: { slug: string; role?: string }) {
   const picture = person?.photoPicture ?? ANON_PICTURE;
 
   return (
-    <div className="person h-full rounded-lg bg-white pb-4 text-gray-900 shadow-md">
+    <div className="person h-full rounded-lg bg-white pb-4 text-stone-900 shadow-md">
       <div className="from-cta h-2 rounded-t-lg bg-gradient-to-r to-orange-400" />
-      <div className="mx-auto mt-4 h-24 w-24 overflow-hidden rounded-full border-4 border-gray-100">
+      <div className="mx-auto mt-4 size-24 overflow-hidden rounded-full border-4 border-stone-100">
         {picture ? (
           <OptimisedImage
             picture={picture}
             alt={name}
-            className="h-24 w-24 object-cover object-center"
+            className="size-24 object-cover object-center"
             sizes="96px"
           />
         ) : (
           <img
-            className="h-24 w-24 object-cover object-center"
+            className="size-24 object-cover object-center"
             src={person?.photo ?? ANON_IMAGE}
             alt={name}
           />
@@ -52,7 +52,7 @@ function Person({ slug, role }: { slug: string; role?: string }) {
       </div>
       <div className="mt-3 text-center">
         <h5 className="pb-1 font-semibold">{name}</h5>
-        {role && <p className="text-sm text-gray-600">{role}</p>}
+        {role && <p className="text-sm text-stone-600">{role}</p>}
         <Link
           to={`/person/${slug}`}
           className="text-primary mt-2 inline-block px-2 text-sm font-medium hover:underline"
@@ -111,12 +111,12 @@ function LeagueTable({
   const { columns, rows } = query.data;
 
   return (
-    <div className="container mx-auto rounded-md p-2 sm:p-4 dark:bg-gray-50 dark:text-gray-800">
+    <div className="container mx-auto rounded-md p-2 sm:p-4 dark:bg-stone-50 dark:text-stone-800">
       <div className="mx-auto max-w-max rounded-lg bg-white p-4 shadow">
         <h2 className="mb-3 text-2xl leading-tight font-semibold">{name}</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-xs">
-            <thead className="rounded-t-lg dark:bg-gray-300">
+            <thead className="rounded-t-lg dark:bg-stone-300">
               <tr className="text-right">
                 <th title="Position" className="p-3 text-left">
                   Position
@@ -129,10 +129,10 @@ function LeagueTable({
               </tr>
             </thead>
             <tbody className="border border-red-50">
-              {rows.map((row, i) => (
+              {rows.map((row) => (
                 <tr
-                  key={i}
-                  className="border-b border-b-gray-200 odd:bg-red-50"
+                  key={row.position}
+                  className="border-b border-b-stone-200 odd:bg-red-50"
                 >
                   <td className="px-3 py-2 text-left">
                     <span>{row.position}</span>
@@ -181,7 +181,7 @@ function EventPreview({
             className="flex flex-col items-center justify-center self-stretch"
           >
             <IoChevronForward
-              className="text-gray-700 hover:text-gray-400"
+              className="text-stone-700 hover:text-stone-400"
               fontSize={32}
               aria-label="Read more about this event"
             />
@@ -228,8 +228,8 @@ function GamePreview({ playCricketId }: { playCricketId: string }) {
 
   if (isLoading) {
     return (
-      <div className="my-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <p className="text-sm text-gray-500">Loading game...</p>
+      <div className="my-2 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+        <p className="text-sm text-stone-500">Loading game…</p>
       </div>
     );
   }
@@ -253,7 +253,7 @@ function GamePreview({ playCricketId }: { playCricketId: string }) {
       <div className="flex shrink-0 flex-col items-center gap-1">
         <span
           className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-md text-xs font-extrabold",
+            "flex size-7 items-center justify-center rounded-md text-xs font-semibold",
             game.home
               ? "bg-green-100 text-green-800"
               : "bg-blue-100 text-blue-800",
@@ -264,17 +264,17 @@ function GamePreview({ playCricketId }: { playCricketId: string }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-          <span className="text-sm font-bold text-gray-900">
+          <span className="text-sm font-bold text-stone-900">
             {game.team.name}
           </span>
-          <span className="text-sm text-gray-400">vs.</span>
-          <span className="text-sm font-semibold text-gray-900">
+          <span className="text-sm text-stone-400">vs.</span>
+          <span className="text-sm font-semibold text-stone-900">
             {game.opposition.club.name} {game.opposition.team.name}
           </span>
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-gray-400">{dateStr}</span>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-stone-400">{dateStr}</span>
+          <span className="text-xs text-stone-400">
             {game.league.name || game.competition.name}
           </span>
         </div>
@@ -285,7 +285,7 @@ function GamePreview({ playCricketId }: { playCricketId: string }) {
           scoreDescription={game.scoreDescription ?? undefined}
         />
       )}
-      <IoChevronForward className="h-5 w-5 shrink-0 text-gray-300" />
+      <IoChevronForward className="size-5 shrink-0 text-stone-300" />
     </Link>
   );
 }
@@ -302,6 +302,8 @@ function ContactForm({
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
 
+  // Fire-and-forget: contact form submission triggers an email; no cached
+  // data to invalidate.
   const mutation = useMutation({
     mutationFn: (input: {
       name: string;
@@ -312,18 +314,18 @@ function ContactForm({
   });
 
   return (
-    <div className="mx-auto w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold tracking-tight text-gray-900">
+    <div className="mx-auto w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+      <h2 className="text-lg font-semibold tracking-tight text-stone-900">
         {title}
       </h2>
       {mutation.isSuccess ? (
-        <p className="mt-3 text-sm text-gray-600">
+        <p className="mt-3 text-sm text-stone-600">
           Thanks for getting in touch! We'll get back to you soon.
         </p>
       ) : (
         <>
           {description ? (
-            <p className="mt-1 text-sm text-gray-500">{description}</p>
+            <p className="mt-1 text-sm text-stone-500">{description}</p>
           ) : null}
           <form
             className="mt-4 flex flex-col gap-3"
@@ -376,7 +378,7 @@ function ContactForm({
               onChange={(e) => setMessage(e.target.value)}
             />
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? "Sending..." : "Send Message"}
+              {mutation.isPending ? "Sending…" : "Send Message"}
             </Button>
           </form>
           {mutation.isError ? (
@@ -418,7 +420,7 @@ function ContentImage({
         />
       )}
       {caption && (
-        <figcaption className="mt-2 text-sm text-gray-600">
+        <figcaption className="mt-2 text-sm text-stone-600">
           {caption}
         </figcaption>
       )}

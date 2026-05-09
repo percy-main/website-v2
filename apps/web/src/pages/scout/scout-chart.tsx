@@ -14,11 +14,11 @@ export function ScoutChart({ spec }: { spec: ChartSpec }) {
   // The model sometimes sets a title via options.plugins.title.text; we let
   // Chart.js render that one. Caption is our Scout-specific extra below.
   return (
-    <figure className="my-3 rounded border border-gray-200 bg-white p-3">
+    <figure className="my-3 rounded border border-stone-200 bg-white p-3">
       <div style={{ width: "100%", height: HEIGHT }}>
         <Suspense
           fallback={
-            <div className="flex h-full items-center justify-center text-xs text-gray-400">
+            <div className="flex h-full items-center justify-center text-xs text-stone-400">
               Rendering chart…
             </div>
           }
@@ -27,7 +27,7 @@ export function ScoutChart({ spec }: { spec: ChartSpec }) {
         </Suspense>
       </div>
       {spec.caption ? (
-        <figcaption className="mt-2 text-xs text-gray-500">
+        <figcaption className="mt-2 text-xs text-stone-500">
           {spec.caption}
         </figcaption>
       ) : null}

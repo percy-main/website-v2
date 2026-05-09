@@ -18,7 +18,13 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer, useState } from "react";
+import {
+  buildAddRatePayload,
+  initialNewRateFormState,
+  isFormReady,
+  newRateFormReducer,
+} from "./match-fees-tab.reducer";
 import { formatPence } from "./status-pill";
 
 const MEMBER_CATEGORIES = ["senior", "junior", "student", "guest"] as const;
@@ -26,10 +32,10 @@ const COMPETITION_TYPES = ["League", "Cup", "Friendly"] as const;
 
 export function MatchFeesTab() {
   const queryClient = useQueryClient();
-  const [newCategory, setNewCategory] = useState("");
-  const [newAmount, setNewAmount] = useState("");
-  const [newTeamId, setNewTeamId] = useState("all");
-  const [newCompetitionType, setNewCompetitionType] = useState("");
+  const [newRate, dispatchNewRate] = useReducer(
+    newRateFormReducer,
+    initialNewRateFormState,
+  );
 
   const ratesQuery = useQuery({
     queryKey: ["admin", "matchFeeRates"],
@@ -49,10 +55,7 @@ export function MatchFeesTab() {
       amountPence: number;
     }) => callApi(api.POST("/api/admin/match-fee-rates", { body: input })),
     onSuccess: () => {
-      setNewCategory("");
-      setNewAmount("");
-      setNewTeamId("all");
-      setNewCompetitionType("");
+      dispatchNewRate({ type: "reset" });
       void queryClient.invalidateQueries({
         queryKey: ["admin", "matchFeeRates"],
       });
@@ -88,17 +91,11 @@ export function MatchFeesTab() {
   const teams = teamsQuery.data ?? [];
 
   const handleAdd = () => {
-    if (!newCategory || !newAmount) return;
-    const amountPence = Math.round(parseFloat(newAmount) * 100);
-    if (isNaN(amountPence) || amountPence < 0) return;
-
-    addRateMutation.mutate({
-      memberCategory: newCategory,
-      amountPence,
-      playCricketTeamId: newTeamId === "all" ? undefined : newTeamId,
-      competitionType: newCompetitionType || undefined,
-    });
+    const payload = buildAddRatePayload(newRate);
+    if (payload) addRateMutation.mutate(payload);
   };
+
+  const ready = isFormReady(newRate);
 
   return (
     <div className="flex flex-col gap-4">
@@ -109,9 +106,19 @@ export function MatchFeesTab() {
         <CardContent>
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="mb-1 block text-sm font-medium">Team</label>
-              <Select value={newTeamId} onValueChange={setNewTeamId}>
-                <SelectTrigger className="w-48">
+              <label
+                htmlFor="mfee-team"
+                className="mb-1 block text-sm font-medium"
+              >
+                Team
+              </label>
+              <Select
+                value={newRate.teamId}
+                onValueChange={(value) =>
+                  dispatchNewRate({ type: "setTeamId", value })
+                }
+              >
+                <SelectTrigger id="mfee-team" className="w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -125,12 +132,20 @@ export function MatchFeesTab() {
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">
+              <label
+                htmlFor="mfee-category"
+                className="mb-1 block text-sm font-medium"
+              >
                 Member Category
               </label>
-              <Select value={newCategory} onValueChange={setNewCategory}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Select..." />
+              <Select
+                value={newRate.category}
+                onValueChange={(value) =>
+                  dispatchNewRate({ type: "setCategory", value })
+                }
+              >
+                <SelectTrigger id="mfee-category" className="w-40">
+                  <SelectValue placeholder="Select…" />
                 </SelectTrigger>
                 <SelectContent>
                   {MEMBER_CATEGORIES.map((cat) => (
@@ -142,16 +157,22 @@ export function MatchFeesTab() {
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">
+              <label
+                htmlFor="mfee-competition-type"
+                className="mb-1 block text-sm font-medium"
+              >
                 Competition Type
               </label>
               <Select
-                value={newCompetitionType || "any"}
+                value={newRate.competitionType || "any"}
                 onValueChange={(v) =>
-                  setNewCompetitionType(v === "any" ? "" : v)
+                  dispatchNewRate({
+                    type: "setCompetitionType",
+                    value: v === "any" ? "" : v,
+                  })
                 }
               >
-                <SelectTrigger className="w-36">
+                <SelectTrigger id="mfee-competition-type" className="w-36">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -165,22 +186,30 @@ export function MatchFeesTab() {
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Amount</label>
+              <label
+                htmlFor="mfee-amount"
+                className="mb-1 block text-sm font-medium"
+              >
+                Amount
+              </label>
               <Input
+                id="mfee-amount"
                 className="w-24"
                 type="number"
                 min="0"
                 step="0.01"
                 placeholder="0.00"
-                value={newAmount}
-                onChange={(e) => setNewAmount(e.target.value)}
+                value={newRate.amount}
+                onChange={(e) =>
+                  dispatchNewRate({ type: "setAmount", value: e.target.value })
+                }
               />
             </div>
             <Button
               onClick={handleAdd}
-              disabled={!newCategory || !newAmount || addRateMutation.isPending}
+              disabled={!ready || addRateMutation.isPending}
             >
-              {addRateMutation.isPending ? "Adding..." : "Add Rate"}
+              {addRateMutation.isPending ? "Adding…" : "Add Rate"}
             </Button>
           </div>
           {addRateMutation.isError && (
@@ -195,9 +224,9 @@ export function MatchFeesTab() {
         </CardHeader>
         <CardContent>
           {ratesQuery.isLoading ? (
-            <p className="text-sm text-gray-500">Loading...</p>
+            <p className="text-sm text-stone-500">Loading…</p>
           ) : rates.length === 0 ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-stone-500">
               No fee rates configured. Add rates above so match fees can be
               generated when a team is confirmed.
             </p>

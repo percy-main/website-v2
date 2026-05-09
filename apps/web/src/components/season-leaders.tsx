@@ -63,7 +63,7 @@ function MiniTable({
 }) {
   return (
     <div className="min-w-0 flex-1">
-      <h4 className="mb-3 text-sm font-semibold tracking-wide text-gray-600 uppercase">
+      <h4 className="mb-3 text-sm font-semibold tracking-wide text-stone-600 uppercase">
         {title}
       </h4>
       <Table>
@@ -122,7 +122,7 @@ export function SeasonLeaders() {
   return (
     <div>
       <h3
-        className="font-secondary mb-6 text-center font-bold"
+        className="font-secondary mb-6 text-center font-semibold"
         style={{ fontSize: "var(--text-h4)" }}
       >
         Season Leaders
@@ -130,13 +130,13 @@ export function SeasonLeaders() {
 
       {isLoading ? (
         <div className="grid gap-6 md:grid-cols-2">
-          {[0, 1].map((i) => (
-            <div key={i} className="space-y-3">
-              <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
-              {[0, 1, 2].map((j) => (
+          {["batting", "bowling"].map((col) => (
+            <div key={col} className="space-y-3">
+              <div className="h-4 w-24 animate-pulse rounded bg-stone-200" />
+              {["row1", "row2", "row3"].map((row) => (
                 <div
-                  key={j}
-                  className="h-8 animate-pulse rounded bg-gray-100"
+                  key={`${col}-${row}`}
+                  className="h-8 animate-pulse rounded bg-stone-100"
                 />
               ))}
             </div>
@@ -162,8 +162,10 @@ export function SeasonLeaders() {
               }
             >
               {battingEntries.map((entry, idx) => (
-                <TableRow key={idx}>
-                  <TableCell className="text-gray-400">{idx + 1}</TableCell>
+                <TableRow
+                  key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}
+                >
+                  <TableCell className="text-stone-400">{idx + 1}</TableCell>
                   <TableCell>
                     <PlayerLink name={entry.playerName} slug={entry.slug} />
                   </TableCell>
@@ -199,8 +201,10 @@ export function SeasonLeaders() {
               }
             >
               {bowlingEntries.map((entry, idx) => (
-                <TableRow key={idx}>
-                  <TableCell className="text-gray-400">{idx + 1}</TableCell>
+                <TableRow
+                  key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}
+                >
+                  <TableCell className="text-stone-400">{idx + 1}</TableCell>
                   <TableCell>
                     <PlayerLink name={entry.playerName} slug={entry.slug} />
                   </TableCell>

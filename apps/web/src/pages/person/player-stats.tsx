@@ -12,9 +12,9 @@ import { Link } from "react-router";
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-center">
+    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-center">
       <div className="text-lg font-bold text-green-800">{value}</div>
-      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-xs text-stone-500">{label}</div>
     </div>
   );
 }
@@ -34,12 +34,12 @@ export function PlayerStats({ slug }: { slug: string }) {
   if (careerQuery.isPending) {
     return (
       <div className="mt-6 space-y-3">
-        <div className="h-6 w-32 animate-pulse rounded bg-gray-200" />
+        <div className="h-6 w-32 animate-pulse rounded bg-stone-200" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-          {[0, 1, 2, 3, 4].map((i) => (
+          {["s1", "s2", "s3", "s4", "s5"].map((k) => (
             <div
-              key={i}
-              className="h-16 animate-pulse rounded-lg bg-gray-100"
+              key={k}
+              className="h-16 animate-pulse rounded-lg bg-stone-100"
             />
           ))}
         </div>
@@ -87,7 +87,7 @@ export function PlayerStats({ slug }: { slug: string }) {
       {/* Batting by season */}
       {battingSeasons.length > 0 && (
         <div>
-          <p className="mb-1 text-xs font-medium text-gray-500">Batting</p>
+          <p className="mb-1 text-xs font-medium text-stone-500">Batting</p>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -154,7 +154,7 @@ export function PlayerStats({ slug }: { slug: string }) {
       {/* Bowling by season */}
       {bowlingSeasons.length > 0 && (
         <div className="mt-4">
-          <p className="mb-1 text-xs font-medium text-gray-500">Bowling</p>
+          <p className="mb-1 text-xs font-medium text-stone-500">Bowling</p>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -212,7 +212,7 @@ export function PlayerStats({ slug }: { slug: string }) {
 
       {/* Leaderboard link */}
       {battingSeasons.length > 0 && (
-        <p className="mt-4 text-xs text-gray-400">
+        <p className="mt-4 text-xs text-stone-400">
           View the full{" "}
           <Link
             to={`/cricket/records/leaderboards?season=${battingSeasons[0].season}`}

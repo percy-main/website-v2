@@ -102,7 +102,7 @@ export function ThreadList({ mobileOpen, onMobileClose }: ThreadListProps) {
   // lg+: in-flow sidebar at w-64. The lg: overrides reset every drawer-only
   // class so layout flips cleanly at the breakpoint.
   const asideClass = [
-    "absolute inset-y-0 left-0 z-40 flex h-full w-72 transform flex-col border-r border-gray-200 bg-gray-50 shadow-xl transition-transform duration-200",
+    "absolute inset-y-0 left-0 z-40 flex h-full w-72 transform flex-col border-r border-stone-200 bg-stone-50 shadow-xl transition-transform duration-200",
     mobileOpen ? "translate-x-0" : "-translate-x-full",
     "lg:relative lg:inset-auto lg:z-auto lg:w-64 lg:translate-x-0 lg:shadow-none lg:transition-none",
   ].join(" ");
@@ -113,20 +113,20 @@ export function ThreadList({ mobileOpen, onMobileClose }: ThreadListProps) {
           on both sides keeps the border-bottom divider continuous across
           the sidebar/main split, regardless of the natural size of the
           contents on either side. */}
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-gray-200 px-3">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-stone-200 px-3">
         <NewThreadButton onCreated={onMobileClose} />
         <button
           type="button"
           onClick={onMobileClose}
           aria-label="Close threads"
-          className="rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-900 lg:hidden"
+          className="rounded p-1 text-stone-500 hover:bg-stone-200 hover:text-stone-900 lg:hidden"
         >
-          <CloseIcon className="h-4 w-4" />
+          <CloseIcon className="size-4" />
         </button>
       </div>
       <div className="flex-1 overflow-y-auto">
         {threadsQuery.isLoading && (
-          <div className="p-3 text-sm text-gray-500">Loading…</div>
+          <div className="p-3 text-sm text-stone-500">Loading…</div>
         )}
         {threadsQuery.error && (
           <div className="p-3 text-sm text-red-600">
@@ -136,7 +136,7 @@ export function ThreadList({ mobileOpen, onMobileClose }: ThreadListProps) {
           </div>
         )}
         {threadsQuery.data?.threads.length === 0 && (
-          <div className="p-3 text-sm text-gray-500">
+          <div className="p-3 text-sm text-stone-500">
             No threads yet. Pick a mode and click &ldquo;New&rdquo; to start.
           </div>
         )}
@@ -151,7 +151,7 @@ export function ThreadList({ mobileOpen, onMobileClose }: ThreadListProps) {
                   className={`block px-3 py-2 pr-10 text-sm hover:bg-white ${
                     isActive
                       ? "bg-white font-medium text-blue-700"
-                      : "text-gray-700"
+                      : "text-stone-700"
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
@@ -162,7 +162,7 @@ export function ThreadList({ mobileOpen, onMobileClose }: ThreadListProps) {
                         title={`Shared by ${t.sharedBy.name}`}
                         aria-label={`Shared by ${t.sharedBy.name}`}
                       >
-                        <ShareGlyph className="h-3 w-3" />
+                        <ShareGlyph className="size-3" />
                       </span>
                     )}
                     {t.sharedByMe && !t.sharedBy && (
@@ -171,12 +171,12 @@ export function ThreadList({ mobileOpen, onMobileClose }: ThreadListProps) {
                         title="You've shared this thread"
                         aria-label="Shared by you"
                       >
-                        <ShareGlyph className="h-3 w-3" />
+                        <ShareGlyph className="size-3" />
                       </span>
                     )}
                     <span className="truncate">{t.title}</span>
                   </div>
-                  <div className="truncate text-xs text-gray-400">
+                  <div className="truncate text-xs text-stone-400">
                     {t.sharedBy ? `Shared by ${t.sharedBy.name} · ` : ""}
                     {new Date(t.updatedAt).toLocaleString()}
                   </div>
@@ -188,7 +188,7 @@ export function ThreadList({ mobileOpen, onMobileClose }: ThreadListProps) {
                   <button
                     type="button"
                     aria-label={`Delete ${t.title}`}
-                    className="absolute top-2 right-2 rounded p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-red-700"
+                    className="absolute top-2 right-2 rounded p-1 text-stone-400 opacity-0 group-hover:opacity-100 hover:bg-stone-200 hover:text-red-700"
                     onClick={(e) => {
                       e.preventDefault();
                       setPendingDelete(t);
@@ -334,7 +334,7 @@ function NewThreadSplitButton({
         onClick={onCreate}
         disabled={pending}
         title={`Start a new ${activeLabel.toLowerCase()} thread`}
-        className="flex-1 rounded-l-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+        className="flex-1 rounded-l-md bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-60"
       >
         {pending ? "Creating…" : `New ${activeLabel.toLowerCase()}`}
       </button>
@@ -342,9 +342,9 @@ function NewThreadSplitButton({
         <DropdownMenuTrigger
           aria-label="Choose new-thread mode"
           disabled={pending}
-          className="flex items-center justify-center rounded-r-md border-l border-gray-700 bg-gray-900 px-2 py-1.5 text-white hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:opacity-60"
+          className="flex items-center justify-center rounded-r-md border-l border-stone-700 bg-stone-900 px-2 py-1.5 text-white hover:bg-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 disabled:opacity-60"
         >
-          <ChevronDownIcon className="h-3.5 w-3.5" />
+          <ChevronDownIcon className="size-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuRadioGroup
@@ -357,10 +357,12 @@ function NewThreadSplitButton({
                 value={opt.value}
                 className="flex flex-col items-start gap-0.5 py-2"
               >
-                <span className="text-sm font-medium text-gray-900">
+                <span className="text-sm font-medium text-stone-900">
                   {opt.label}
                 </span>
-                <span className="text-xs text-gray-500">{opt.description}</span>
+                <span className="text-xs text-stone-500">
+                  {opt.description}
+                </span>
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>

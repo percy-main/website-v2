@@ -24,60 +24,15 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import {
+  buildPlayerNameMap,
+  filterPeople,
+  rankPlayCricketSuggestions,
+  summarisePersonStats,
+  type PersonRow,
+  type PlayCricketPlayer,
+} from "./record-linking-tab.lib";
 import { StatusPill } from "./status-pill";
-
-/** Simple substring + token-match score. Returns 0..1 where 1 is a perfect match. */
-function fuzzyScore(query: string, target: string): number {
-  const q = query.toLowerCase().trim();
-  const t = target.toLowerCase().trim();
-
-  if (q.length === 0 || t.length === 0) return 0;
-  if (q === t) return 1;
-  if (t.includes(q)) return 0.8;
-  if (q.includes(t)) return 0.7;
-
-  const queryTokens = q.split(/\s+/);
-  const targetTokens = t.split(/\s+/);
-  let matchedTokens = 0;
-
-  for (const qt of queryTokens) {
-    for (const tt of targetTokens) {
-      if (tt.includes(qt) || qt.includes(tt)) {
-        matchedTokens++;
-        break;
-      }
-    }
-  }
-
-  let reverseMatchedTokens = 0;
-  for (const tt of targetTokens) {
-    for (const qt of queryTokens) {
-      if (qt.includes(tt) || tt.includes(qt)) {
-        reverseMatchedTokens++;
-        break;
-      }
-    }
-  }
-
-  const forwardRatio = matchedTokens / queryTokens.length;
-  const reverseRatio = reverseMatchedTokens / targetTokens.length;
-
-  return Math.max(forwardRatio, reverseRatio) * 0.6;
-}
-
-interface PlayCricketPlayer {
-  memberId: number;
-  name: string;
-}
-
-interface PersonRow {
-  id: string;
-  name: string | null;
-  playCricketId: string | null;
-  slug?: string | null;
-  parentName?: string | null;
-  type: "member" | "dependent";
-}
 
 interface DetailModalState {
   person: PersonRow;
@@ -109,6 +64,8 @@ export function RecordLinkingTab() {
     queryFn: () => callApi(api.GET("/api/admin/record-linking")),
   });
 
+  // Fire-and-forget: this is a GET that loads the Play Cricket player list
+  // into local state; no cached data is mutated.
   const refreshMutation = useMutation({
     mutationFn: () => callApi(api.GET("/api/admin/play-cricket-players")),
     onSuccess: (result) => {
@@ -195,45 +152,27 @@ export function RecordLinkingTab() {
   }, [linkingData]);
 
   // Filter people
-  const filteredPeople = useMemo(() => {
-    return allPeople.filter((person) => {
-      if (personTypeFilter !== "all" && person.type !== personTypeFilter)
-        return false;
-
-      const isLinked = Boolean(person.playCricketId);
-
-      if (!showLinked && isLinked) return false;
-      if (!showUnlinked && !isLinked) return false;
-
-      if (debouncedSearch.trim().length > 0) {
-        const term = debouncedSearch.toLowerCase();
-        const nameMatch = person.name?.toLowerCase().includes(term) ?? false;
-        const parentMatch =
-          person.parentName?.toLowerCase().includes(term) ?? false;
-        if (!nameMatch && !parentMatch) return false;
-      }
-
-      return true;
-    });
-  }, [allPeople, debouncedSearch, showLinked, showUnlinked, personTypeFilter]);
+  const filteredPeople = useMemo(
+    () =>
+      filterPeople(allPeople, {
+        search: debouncedSearch,
+        showLinked,
+        showUnlinked,
+        personTypeFilter,
+      }),
+    [allPeople, debouncedSearch, showLinked, showUnlinked, personTypeFilter],
+  );
 
   // Stats
-  const linkedPcMembers = allPeople.filter(
-    (p) => p.type === "member" && p.playCricketId,
-  ).length;
-  const totalMembers = allPeople.filter((p) => p.type === "member").length;
-  const linkedPcDeps = allPeople.filter(
-    (p) => p.type === "dependent" && p.playCricketId,
-  ).length;
-  const totalDependents = allPeople.filter(
-    (p) => p.type === "dependent",
-  ).length;
+  const stats = useMemo(() => summarisePersonStats(allPeople), [allPeople]);
+  const { totalMembers, totalDependents, linkedPcMembers, linkedPcDeps } =
+    stats;
 
   // Player name lookup for PC IDs
-  const playerNameById = useMemo(() => {
-    if (!pcPlayers) return new Map<string, string>();
-    return new Map(pcPlayers.map((p) => [p.memberId.toString(), p.name]));
-  }, [pcPlayers]);
+  const playerNameById = useMemo(
+    () => buildPlayerNameMap(pcPlayers),
+    [pcPlayers],
+  );
 
   // Keep detail modal person in sync with linkingData refreshes
   useEffect(() => {
@@ -254,23 +193,23 @@ export function RecordLinkingTab() {
       {/* Header stats */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap gap-3">
-          <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-            <span className="text-gray-500">Members:</span>{" "}
+          <div className="rounded border border-stone-200 bg-stone-50 px-3 py-2 text-sm">
+            <span className="text-stone-500">Members:</span>{" "}
             <span className="font-medium">{totalMembers}</span>
           </div>
-          <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-            <span className="text-gray-500">Play-Cricket:</span>{" "}
+          <div className="rounded border border-stone-200 bg-stone-50 px-3 py-2 text-sm">
+            <span className="text-stone-500">Play-Cricket:</span>{" "}
             <span className="font-medium">
               {linkedPcMembers}/{totalMembers}
             </span>{" "}
-            <span className="text-gray-400">members</span>
+            <span className="text-stone-400">members</span>
             {totalDependents > 0 && (
               <>
                 {", "}
                 <span className="font-medium">
                   {linkedPcDeps}/{totalDependents}
                 </span>{" "}
-                <span className="text-gray-400">juniors</span>
+                <span className="text-stone-400">juniors</span>
               </>
             )}
           </div>
@@ -284,7 +223,7 @@ export function RecordLinkingTab() {
             variant="outline"
           >
             {refreshMutation.isPending
-              ? "Fetching..."
+              ? "Fetching…"
               : pcPlayers
                 ? "Refresh PC Players"
                 : "Load PC Players"}
@@ -309,7 +248,7 @@ export function RecordLinkingTab() {
       <div className="flex flex-wrap items-center gap-4">
         <Input
           type="text"
-          placeholder="Search by name..."
+          placeholder="Search by name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-md"
@@ -350,7 +289,7 @@ export function RecordLinkingTab() {
       </div>
 
       {/* Table */}
-      {isLoading && <p className="text-gray-500">Loading...</p>}
+      {isLoading && <p className="text-stone-500">Loading…</p>}
 
       {linkingData && (
         <Table>
@@ -367,7 +306,7 @@ export function RecordLinkingTab() {
               <TableRow>
                 <TableCell
                   colSpan={4}
-                  className="py-6 text-center text-gray-500"
+                  className="py-6 text-center text-stone-500"
                 >
                   No matching people found.
                 </TableCell>
@@ -382,7 +321,7 @@ export function RecordLinkingTab() {
                 <TableCell>
                   <div className="font-medium">{person.name}</div>
                   {person.parentName && (
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-stone-500">
                       Parent: {person.parentName}
                     </div>
                   )}
@@ -403,7 +342,9 @@ export function RecordLinkingTab() {
                       &#10003;
                     </span>
                   ) : (
-                    <span className="inline-block text-gray-300">&#10007;</span>
+                    <span className="inline-block text-stone-300">
+                      &#10007;
+                    </span>
                   )}
                 </TableCell>
                 <TableCell className="text-center">
@@ -415,7 +356,7 @@ export function RecordLinkingTab() {
                       &#10003;
                     </span>
                   ) : (
-                    <span className="inline-block text-gray-300">
+                    <span className="inline-block text-stone-300">
                       {person.type === "member" ? "\u2717" : "\u2014"}
                     </span>
                   )}
@@ -526,26 +467,7 @@ function DetailModal({
   // Suggested PC players
   const suggestedPcPlayers = useMemo(() => {
     if (!pcPlayers || !linking) return [];
-    const query =
-      linkSearch.trim().length > 0 ? linkSearch : (person.name ?? "");
-    return pcPlayers
-      .map((player) => ({
-        ...player,
-        score: fuzzyScore(query, player.name),
-      }))
-      .filter((p) => {
-        if (linkSearch.trim().length > 0) {
-          const term = linkSearch.toLowerCase().trim();
-          return (
-            p.name.toLowerCase().includes(term) ||
-            p.memberId.toString().includes(term) ||
-            p.score > 0.3
-          );
-        }
-        return p.score > 0.2;
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20);
+    return rankPlayCricketSuggestions(pcPlayers, person.name, linkSearch);
   }, [pcPlayers, linking, linkSearch, person.name]);
 
   return (
@@ -558,7 +480,7 @@ function DetailModal({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{person.name}</DialogTitle>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-stone-500">
             <StatusPill variant={person.type === "member" ? "blue" : "green"}>
               {person.type === "member" ? "Member" : "Junior"}
             </StatusPill>
@@ -567,19 +489,19 @@ function DetailModal({
         </DialogHeader>
 
         {/* Play-Cricket section */}
-        <div className="rounded border border-gray-200 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">
+        <div className="rounded border border-stone-200 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-stone-700">
             Play-Cricket
           </h3>
           {person.playCricketId ? (
             <div className="flex items-center justify-between">
               <div>
                 <StatusPill variant="green">Linked</StatusPill>
-                <span className="ml-2 font-mono text-xs text-gray-500">
+                <span className="ml-2 font-mono text-xs text-stone-500">
                   #{person.playCricketId}
                 </span>
                 {playerNameById.get(person.playCricketId) && (
-                  <span className="ml-1 text-sm text-gray-700">
+                  <span className="ml-1 text-sm text-stone-700">
                     {playerNameById.get(person.playCricketId)}
                   </span>
                 )}
@@ -599,11 +521,10 @@ function DetailModal({
               <div className="mb-2 flex items-center gap-2">
                 <Input
                   type="text"
-                  placeholder="Search Play-Cricket players..."
+                  placeholder="Search Play-Cricket players…"
                   value={linkSearch}
                   onChange={(e) => onLinkSearchChange(e.target.value)}
                   className="flex-1"
-                  autoFocus
                 />
                 <Button variant="ghost" size="sm" onClick={onCancelLinking}>
                   Cancel
@@ -616,18 +537,18 @@ function DetailModal({
               )}
               <div className="flex max-h-60 flex-col gap-1 overflow-y-auto">
                 {suggestedPcPlayers.length === 0 && pcPlayers && (
-                  <p className="py-2 text-center text-sm text-gray-500">
+                  <p className="py-2 text-center text-sm text-stone-500">
                     No matching players found.
                   </p>
                 )}
                 {suggestedPcPlayers.map((player) => (
                   <div
                     key={player.memberId}
-                    className="flex items-center justify-between rounded px-3 py-2 hover:bg-gray-50"
+                    className="flex items-center justify-between rounded px-3 py-2 hover:bg-stone-50"
                   >
                     <div>
                       <span className="font-medium">{player.name}</span>
-                      <span className="ml-2 font-mono text-xs text-gray-400">
+                      <span className="ml-2 font-mono text-xs text-stone-400">
                         #{player.memberId}
                       </span>
                       {player.score >= 0.7 && (
@@ -671,15 +592,15 @@ function DetailModal({
 
         {/* Slug section (members only) */}
         {person.type === "member" && (
-          <div className="rounded border border-gray-200 p-4">
-            <h3 className="mb-2 text-sm font-semibold text-gray-700">
+          <div className="rounded border border-stone-200 p-4">
+            <h3 className="mb-2 text-sm font-semibold text-stone-700">
               Person Page Slug
             </h3>
             {person.slug ? (
               <div className="flex items-center justify-between">
                 <div>
                   <StatusPill variant="green">Linked</StatusPill>
-                  <span className="ml-2 font-mono text-xs text-gray-500">
+                  <span className="ml-2 font-mono text-xs text-stone-500">
                     {person.slug}
                   </span>
                 </div>

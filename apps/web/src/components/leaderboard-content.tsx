@@ -139,7 +139,7 @@ function SkeletonRows({ cols }: { cols: number }) {
         <TableRow key={i}>
           {Array.from({ length: cols }).map((_, j) => (
             <TableCell key={j}>
-              <div className="h-4 w-12 animate-pulse rounded bg-gray-200" />
+              <div className="h-4 w-12 animate-pulse rounded bg-stone-200" />
             </TableCell>
           ))}
         </TableRow>
@@ -174,7 +174,7 @@ function PlayerName({
     <div>
       {nameElement}
       {sponsor && (
-        <span className="block text-xs text-gray-500">
+        <span className="block text-xs text-stone-500">
           {sponsor.display_name ?? sponsor.sponsor_name}
         </span>
       )}
@@ -238,7 +238,7 @@ function BattingTable({
             <TableRow>
               <TableCell
                 colSpan={12}
-                className="py-8 text-center text-gray-500"
+                className="py-8 text-center text-stone-500"
               >
                 No batting data available yet.
               </TableCell>
@@ -246,7 +246,7 @@ function BattingTable({
           )}
           {entries?.map((e, i) => (
             <TableRow key={e.playerId}>
-              <TableCell className="text-gray-500">{i + 1}</TableCell>
+              <TableCell className="text-stone-500">{i + 1}</TableCell>
               <TableCell>
                 <PlayerName
                   name={e.playerName}
@@ -283,7 +283,7 @@ function BattingTable({
         </TableBody>
       </Table>
       {entries && entries.length > 0 && (
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-2 text-xs text-stone-500">
           Averages shown for players with 3+ innings.
         </p>
       )}
@@ -339,7 +339,7 @@ function BowlingTable({
             <TableRow>
               <TableCell
                 colSpan={10}
-                className="py-8 text-center text-gray-500"
+                className="py-8 text-center text-stone-500"
               >
                 No bowling data available yet.
               </TableCell>
@@ -347,7 +347,7 @@ function BowlingTable({
           )}
           {entries?.map((e, i) => (
             <TableRow key={e.playerId}>
-              <TableCell className="text-gray-500">{i + 1}</TableCell>
+              <TableCell className="text-stone-500">{i + 1}</TableCell>
               <TableCell>
                 <PlayerName
                   name={e.playerName}
@@ -380,7 +380,7 @@ function BowlingTable({
         </TableBody>
       </Table>
       {entries && entries.length > 0 && (
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-2 text-xs text-stone-500">
           Averages and strike rates shown for bowlers with 10+ overs.
         </p>
       )}
@@ -460,13 +460,13 @@ export function LeaderboardContent() {
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-2xl font-bold">
+        <h2 className="text-2xl font-semibold">
           {season !== null ? `${season} Season` : "All Time"} Leaderboard
         </h2>
         <select
           value={season !== null ? String(season) : "all"}
           onChange={(e) => handleSeasonChange(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+          className="rounded border border-stone-300 px-3 py-1.5 text-sm"
         >
           <option value="all">All Time</option>
           {seasons.map((y) => (
@@ -480,10 +480,10 @@ export function LeaderboardContent() {
       {/* Filters */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
         {/* Category toggle */}
-        <div className="inline-flex rounded-md bg-gray-100 p-1">
+        <div className="inline-flex rounded-md bg-stone-100 p-1">
           <button
             className={`rounded px-3 py-1 text-sm font-medium ${
-              !isJunior ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+              !isJunior ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"
             }`}
             onClick={() => handleCategoryChange(false)}
           >
@@ -491,7 +491,7 @@ export function LeaderboardContent() {
           </button>
           <button
             className={`rounded px-3 py-1 text-sm font-medium ${
-              isJunior ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+              isJunior ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"
             }`}
             onClick={() => handleCategoryChange(true)}
           >
@@ -503,7 +503,7 @@ export function LeaderboardContent() {
         <select
           value={teamId}
           onChange={(e) => setTeamId(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+          className="rounded border border-stone-300 px-3 py-1.5 text-sm"
         >
           <option value="">All teams</option>
           {filteredTeams.map((t) => (
@@ -521,7 +521,7 @@ export function LeaderboardContent() {
                 type="checkbox"
                 checked={competitionTypes.includes(type)}
                 onChange={() => toggleCompetitionType(type)}
-                className="rounded border-gray-300"
+                className="rounded border-stone-300"
               />
               {type}
             </label>
@@ -562,7 +562,7 @@ export function LeaderboardContent() {
         {season !== null && season > FIRST_SEASON && (
           <button
             onClick={() => handleSeasonChange(String(season - 1))}
-            className="rounded border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
+            className="rounded border border-stone-300 px-4 py-2 text-sm hover:bg-stone-50"
           >
             {season - 1}
           </button>
@@ -570,7 +570,7 @@ export function LeaderboardContent() {
         {season !== null && season < seasons[0] && (
           <button
             onClick={() => handleSeasonChange(String(season + 1))}
-            className="rounded border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
+            className="rounded border border-stone-300 px-4 py-2 text-sm hover:bg-stone-50"
           >
             {season + 1}
           </button>
@@ -578,7 +578,7 @@ export function LeaderboardContent() {
         {season !== null && (
           <button
             onClick={() => handleSeasonChange("all")}
-            className="rounded border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
+            className="rounded border border-stone-300 px-4 py-2 text-sm hover:bg-stone-50"
           >
             All Time
           </button>

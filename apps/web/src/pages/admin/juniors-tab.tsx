@@ -25,13 +25,14 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
-import { AGE_GROUPS, type AgeGroup } from "@percy-main/shared";
+import { AGE_GROUPS } from "@percy-main/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  initialJuniorsFilterState,
+  juniorsFilterReducer,
+} from "./juniors-tab.reducer";
 import { formatDate } from "./status-pill";
-
-type MembershipFilter = "all" | "paid" | "unpaid";
-type SexFilter = "all" | "male" | "female";
 
 type JuniorsResponse =
   paths["/api/admin/juniors"]["get"]["responses"]["200"]["content"]["application/json"];
@@ -52,13 +53,18 @@ const PAGE_SIZE = 100;
 
 export function JuniorsTab() {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [ageGroupFilter, setAgeGroupFilter] = useState<AgeGroup | "all">("all");
-  const [sexFilter, setSexFilter] = useState<SexFilter>("all");
-  const [membershipFilter, setMembershipFilter] =
-    useState<MembershipFilter>("all");
-  const [page, setPage] = useState(1);
+  const [filters, dispatch] = useReducer(
+    juniorsFilterReducer,
+    initialJuniorsFilterState,
+  );
+  const {
+    page,
+    search,
+    debouncedSearch,
+    ageGroupFilter,
+    sexFilter,
+    membershipFilter,
+  } = filters;
   const [selectedJunior, setSelectedJunior] = useState<Junior | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -67,8 +73,7 @@ export function JuniorsTab() {
       clearTimeout(debounceTimerRef.current);
     }
     debounceTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
+      dispatch({ type: "commitSearch", value: search });
     }, 300);
     return () => {
       if (debounceTimerRef.current) {
@@ -147,17 +152,21 @@ export function JuniorsTab() {
       <div className="flex flex-wrap items-center gap-3">
         <Input
           type="text"
-          placeholder="Search by junior or parent name..."
+          placeholder="Search by junior or parent name…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setSearch", value: e.target.value })
+          }
           className="max-w-xs"
         />
         <Select
           value={ageGroupFilter}
-          onValueChange={(value) => {
-            setAgeGroupFilter(value as AgeGroup | "all");
-            setPage(1);
-          }}
+          onValueChange={(value) =>
+            dispatch({
+              type: "setAgeGroupFilter",
+              value: value as typeof ageGroupFilter,
+            })
+          }
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All Age Groups" />
@@ -173,10 +182,12 @@ export function JuniorsTab() {
         </Select>
         <Select
           value={sexFilter}
-          onValueChange={(value) => {
-            setSexFilter(value as SexFilter);
-            setPage(1);
-          }}
+          onValueChange={(value) =>
+            dispatch({
+              type: "setSexFilter",
+              value: value as typeof sexFilter,
+            })
+          }
         >
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="All Genders" />
@@ -189,10 +200,12 @@ export function JuniorsTab() {
         </Select>
         <Select
           value={membershipFilter}
-          onValueChange={(value) => {
-            setMembershipFilter(value as MembershipFilter);
-            setPage(1);
-          }}
+          onValueChange={(value) =>
+            dispatch({
+              type: "setMembershipFilter",
+              value: value as typeof membershipFilter,
+            })
+          }
         >
           <SelectTrigger className="w-[170px]">
             <SelectValue placeholder="All Memberships" />
@@ -206,20 +219,20 @@ export function JuniorsTab() {
       </div>
 
       {/* Summary */}
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-stone-500">
         Showing {juniors.length} of {total} junior
         {total !== 1 ? "s" : ""}
       </p>
 
       {/* Loading / Error */}
-      {isLoading && <p className="text-gray-500">Loading...</p>}
+      {isLoading && <p className="text-stone-500">Loading…</p>}
       {error && <p className="text-red-600">Failed to load juniors.</p>}
 
       {/* Grouped teams */}
       {!isLoading && !error && (
         <div className="flex flex-col gap-4">
           {grouped.size === 0 && (
-            <p className="py-6 text-center text-gray-500">
+            <p className="py-6 text-center text-stone-500">
               No juniors found matching the current filters.
             </p>
           )}
@@ -240,18 +253,25 @@ export function JuniorsTab() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() =>
+              dispatch({ type: "setPage", value: Math.max(1, page - 1) })
+            }
             disabled={page <= 1}
           >
             Previous
           </Button>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             Page {page} of {totalPages}
           </span>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() =>
+              dispatch({
+                type: "setPage",
+                value: Math.min(totalPages, page + 1),
+              })
+            }
             disabled={page >= totalPages}
           >
             Next
@@ -297,7 +317,7 @@ function TeamCard({
             {teamName}
             <Badge variant="secondary">{members.length}</Badge>
           </CardTitle>
-          <span className="text-sm text-gray-400">
+          <span className="text-sm text-stone-400">
             {expanded ? "Collapse" : "Expand"}
           </span>
         </div>
@@ -348,7 +368,7 @@ function TeamCard({
                           Linked
                         </Badge>
                       ) : (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-xs text-stone-400">-</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -356,7 +376,7 @@ function TeamCard({
                         {paid ? "Paid" : "Unpaid"}
                       </Badge>
                       {junior.paidUntil && (
-                        <span className="ml-1 text-xs text-gray-500">
+                        <span className="ml-1 text-xs text-stone-500">
                           until {formatDate(junior.paidUntil)}
                         </span>
                       )}
@@ -381,6 +401,7 @@ function LinkingDialog({
   onClose: () => void;
   onLinked: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [userSearch, setUserSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -418,6 +439,9 @@ function LinkingDialog({
         }),
       ),
     onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "listJuniors"],
+      });
       onLinked();
       onClose();
     },
@@ -431,6 +455,9 @@ function LinkingDialog({
         }),
       ),
     onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "listJuniors"],
+      });
       onLinked();
       onClose();
     },
@@ -451,8 +478,8 @@ function LinkingDialog({
         </DialogHeader>
 
         {/* Current status */}
-        <div className="rounded border border-gray-200 p-3">
-          <p className="text-sm text-gray-600">
+        <div className="rounded border border-stone-200 p-3">
+          <p className="text-sm text-stone-600">
             <span className="font-medium">Parent:</span> {junior.parentName} (
             {junior.parentEmail})
           </p>
@@ -473,7 +500,7 @@ function LinkingDialog({
               </Button>
             </div>
           ) : (
-            <p className="mt-1 text-sm text-gray-400">No linked account</p>
+            <p className="mt-1 text-sm text-stone-400">No linked account</p>
           )}
         </div>
 
@@ -481,14 +508,14 @@ function LinkingDialog({
         <div className="mt-2">
           <Input
             type="text"
-            placeholder="Search by name or email..."
+            placeholder="Search by name or email…"
             value={userSearch}
             onChange={(e) => setUserSearch(e.target.value)}
             className="mb-2"
           />
 
           {suggestedUsersQuery.isLoading && (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-stone-500">
               Searching for matching users...
             </p>
           )}
@@ -498,18 +525,18 @@ function LinkingDialog({
 
           <div className="flex max-h-60 flex-col gap-1 overflow-y-auto">
             {users.length === 0 && !suggestedUsersQuery.isLoading && (
-              <p className="py-2 text-center text-sm text-gray-500">
+              <p className="py-2 text-center text-sm text-stone-500">
                 No matching users found.
               </p>
             )}
             {users.map((user) => (
               <div
                 key={user.id}
-                className="flex items-center justify-between rounded px-3 py-2 hover:bg-gray-50"
+                className="flex items-center justify-between rounded px-3 py-2 hover:bg-stone-50"
               >
                 <div>
                   <span className="font-medium">{user.name}</span>
-                  <span className="ml-2 text-xs text-gray-500">
+                  <span className="ml-2 text-xs text-stone-500">
                     {user.email}
                   </span>
                   {user.score >= 0.7 && (

@@ -39,7 +39,7 @@ export function getEventBySlug(slug: string): EventData | undefined {
 }
 
 export function getAllEvents(): EventData[] {
-  return [...events.values()].sort(
+  return Array.from(events.values()).toSorted(
     (a, b) => new Date(b.when).getTime() - new Date(a.when).getTime(),
   );
 }

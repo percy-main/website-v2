@@ -3,12 +3,12 @@ import { Button } from "@/components/ui/button.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { authClient } from "@/lib/auth-client.js";
 import { trackEvent } from "@/lib/marketing/gtag.js";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type FC } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 const GoogleIcon: FC = () => (
-  <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+  <svg className="mr-2 size-5" viewBox="0 0 24 24" aria-hidden="true">
     <path
       d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
       fill="#4285F4"
@@ -38,6 +38,7 @@ export function Component() {
   const [ageError, setAgeError] = useState(false);
   const navigate = useNavigate();
   const returnTo = searchParams.get("returnTo");
+  const queryClient = useQueryClient();
 
   const register = useMutation({
     mutationFn: () => {
@@ -54,6 +55,8 @@ export function Component() {
     onSuccess(result) {
       if (!result.error) {
         trackEvent("sign_up", { method: "email" });
+        // Session changed — drop cached anonymous queries.
+        void queryClient.invalidateQueries();
         const registeredUrl = returnTo
           ? `/auth/registered?returnTo=${encodeURIComponent(returnTo)}`
           : "/auth/registered";
@@ -62,6 +65,8 @@ export function Component() {
     },
   });
 
+  // Fire-and-forget: redirects out to Google's OAuth flow; the page reloads on
+  // return, so there's no in-page cache to invalidate here.
   const googleSignUp = useMutation({
     mutationFn: () =>
       authClient.signIn.social({
@@ -94,10 +99,10 @@ export function Component() {
   return (
     <div className="w-full rounded-lg bg-white shadow-sm sm:max-w-md">
       <div className="space-y-4 p-6 sm:p-8 md:space-y-6">
-        <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+        <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
           Create an Account
         </h1>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-stone-600">
           Register to manage your membership, track payments, and access the
           members area.
         </p>
@@ -114,9 +119,9 @@ export function Component() {
         </Button>
 
         <div className="flex items-center">
-          <div className="h-px flex-1 bg-gray-300" />
-          <span className="px-4 text-sm text-gray-500">or</span>
-          <div className="h-px flex-1 bg-gray-300" />
+          <div className="h-px flex-1 bg-stone-300" />
+          <span className="px-4 text-sm text-stone-500">or</span>
+          <div className="h-px flex-1 bg-stone-300" />
         </div>
 
         <form className="space-y-4 md:space-y-6" onSubmit={handleSubmit}>
@@ -182,10 +187,10 @@ export function Component() {
                 setAgeConfirmed(e.target.checked);
                 if (e.target.checked) setAgeError(false);
               }}
-              className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="mt-1 size-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500"
               required
             />
-            <label htmlFor="age-confirmed" className="text-sm text-gray-700">
+            <label htmlFor="age-confirmed" className="text-sm text-stone-700">
               I confirm I am aged 13 or over
             </label>
           </div>
@@ -202,7 +207,7 @@ export function Component() {
             Create Account
           </Button>
 
-          <p className="text-sm font-light text-gray-500">
+          <p className="text-sm font-light text-stone-500">
             Already have an account?{" "}
             <Link
               to={

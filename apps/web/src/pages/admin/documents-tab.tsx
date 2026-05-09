@@ -94,8 +94,14 @@ function CreateDocumentDialog({
           className="space-y-4"
         >
           <div>
-            <label className="mb-1 block text-sm font-medium">Title</label>
+            <label
+              htmlFor="upload-doc-title"
+              className="mb-1 block text-sm font-medium"
+            >
+              Title
+            </label>
             <Input
+              id="upload-doc-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Safeguarding Policy"
@@ -103,10 +109,14 @@ function CreateDocumentDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="upload-doc-file"
+              className="mb-1 block text-sm font-medium"
+            >
               PDF Document
             </label>
             <Input
+              id="upload-doc-file"
               type="file"
               accept="application/pdf"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
@@ -125,7 +135,7 @@ function CreateDocumentDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending || !file}>
-              {mutation.isPending ? "Uploading..." : "Upload"}
+              {mutation.isPending ? "Uploading…" : "Upload"}
             </Button>
           </DialogFooter>
         </form>
@@ -207,18 +217,28 @@ function EditDocumentDialog({
           className="space-y-4"
         >
           <div>
-            <label className="mb-1 block text-sm font-medium">Title</label>
+            <label
+              htmlFor="edit-doc-title"
+              className="mb-1 block text-sm font-medium"
+            >
+              Title
+            </label>
             <Input
+              id="edit-doc-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">
-              Replace PDF (optional — uploading increments version)
+            <label
+              htmlFor="edit-doc-file"
+              className="mb-1 block text-sm font-medium"
+            >
+              Replace PDF (optional; uploading increments version)
             </label>
             <Input
+              id="edit-doc-file"
               type="file"
               accept="application/pdf"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
@@ -236,7 +256,7 @@ function EditDocumentDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? "Saving..." : "Save"}
+              {mutation.isPending ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </form>
@@ -329,47 +349,51 @@ function AssignUsersDialog({
               disabled={assignMutation.isPending}
             >
               {assignMutation.isPending
-                ? "Assigning..."
+                ? "Assigning…"
                 : "Assign to All Active Members"}
             </Button>
           </div>
 
           <div className="relative flex items-center">
-            <div className="flex-grow border-t border-gray-300" />
-            <span className="mx-3 text-xs text-gray-500">
+            <div className="flex-grow border-t border-stone-300" />
+            <span className="mx-3 text-xs text-stone-500">
               or select individuals
             </span>
-            <div className="flex-grow border-t border-gray-300" />
+            <div className="flex-grow border-t border-stone-300" />
           </div>
 
           <Input
-            placeholder="Search members..."
+            placeholder="Search members…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
 
           <div className="max-h-48 overflow-y-auto rounded border">
-            {usersData?.items
-              .filter((u) => !assignedUserIds.has(u.id))
-              .map((u) => (
-                <label
-                  key={u.id}
-                  className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-gray-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedUserIds.includes(u.id)}
-                    onChange={() => toggleUser(u.id)}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{u.name ?? u.email}</span>
-                  {u.name && (
-                    <span className="text-xs text-gray-400">{u.email}</span>
-                  )}
-                </label>
-              ))}
+            {usersData?.items.flatMap((u) =>
+              assignedUserIds.has(u.id)
+                ? []
+                : [
+                    <label
+                      key={u.id}
+                      className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-stone-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedUserIds.includes(u.id)}
+                        onChange={() => toggleUser(u.id)}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{u.name ?? u.email}</span>
+                      {u.name && (
+                        <span className="text-xs text-stone-400">
+                          {u.email}
+                        </span>
+                      )}
+                    </label>,
+                  ],
+            )}
             {usersData?.items.length === 0 && (
-              <div className="px-3 py-4 text-center text-sm text-gray-500">
+              <div className="px-3 py-4 text-center text-sm text-stone-500">
                 No members found.
               </div>
             )}
@@ -383,7 +407,7 @@ function AssignUsersDialog({
               disabled={assignMutation.isPending}
             >
               {assignMutation.isPending
-                ? "Assigning..."
+                ? "Assigning…"
                 : `Assign to ${selectedUserIds.length} Selected`}
             </Button>
           )}
@@ -465,7 +489,7 @@ function DocumentDetailModal({
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-w-2xl">
         {isLoading ? (
-          <div className="py-8 text-center text-gray-500">Loading...</div>
+          <div className="py-8 text-center text-stone-500">Loading…</div>
         ) : data ? (
           <div className="space-y-4">
             <DialogHeader>
@@ -503,7 +527,7 @@ function DocumentDetailModal({
                   onClick={() => archiveMutation.mutate()}
                   disabled={archiveMutation.isPending}
                 >
-                  {archiveMutation.isPending ? "Archiving..." : "Archive"}
+                  {archiveMutation.isPending ? "Archiving…" : "Archive"}
                 </Button>
               </div>
             )}
@@ -513,7 +537,7 @@ function DocumentDetailModal({
             </h3>
 
             {data.assignments.length === 0 ? (
-              <p className="text-sm text-gray-500">No users assigned yet.</p>
+              <p className="text-sm text-stone-500">No users assigned yet.</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -528,7 +552,7 @@ function DocumentDetailModal({
                 <TableBody>
                   {data.assignments.map((a) => (
                     <TableRow key={a.id}>
-                      <TableCell>{a.userName ?? "—"}</TableCell>
+                      <TableCell>{a.userName ?? "-"}</TableCell>
                       <TableCell className="text-xs">{a.userEmail}</TableCell>
                       <TableCell>
                         {a.confirmedAt ? (
@@ -546,7 +570,7 @@ function DocumentDetailModal({
                         )}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {a.confirmedAt ? formatDate(a.confirmedAt) : "—"}
+                        {a.confirmedAt ? formatDate(a.confirmedAt) : "-"}
                       </TableCell>
                       {!data.archivedAt && (
                         <TableCell>
@@ -628,7 +652,7 @@ export function DocumentsTab() {
   });
 
   if (isLoading) {
-    return <div className="py-12 text-center text-gray-500">Loading...</div>;
+    return <div className="py-12 text-center text-stone-500">Loading…</div>;
   }
 
   return (
@@ -655,7 +679,7 @@ export function DocumentsTab() {
           {data?.documents.map((doc) => (
             <TableRow
               key={doc.id}
-              className="cursor-pointer hover:bg-gray-50"
+              className="cursor-pointer hover:bg-stone-50"
               onClick={() => setSelectedDocId(doc.id)}
             >
               <TableCell className="font-medium">{doc.title}</TableCell>
@@ -676,7 +700,7 @@ export function DocumentsTab() {
             <TableRow>
               <TableCell
                 colSpan={6}
-                className="py-12 text-center text-gray-500"
+                className="py-12 text-center text-stone-500"
               >
                 No documents yet. Upload one to get started.
               </TableCell>

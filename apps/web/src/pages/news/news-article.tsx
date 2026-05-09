@@ -35,10 +35,10 @@ export function Component() {
     <div className="container mx-auto px-4 py-6">
       {/* Breadcrumbs */}
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/news/1" className="hover:text-primary text-gray-600">
+        <Link to="/news/1" className="hover:text-primary text-stone-600">
           News
         </Link>
-        <IoChevronForward className="text-gray-400" size={14} />
+        <IoChevronForward className="text-stone-400" size={14} />
         <span className="text-dark font-medium">{article.title}</span>
       </div>
 
@@ -55,12 +55,12 @@ export function Component() {
                 <OptimisedImage
                   picture={picture}
                   alt={article.author.name}
-                  className="h-14 w-14 rounded-full object-cover"
+                  className="size-14 rounded-full object-cover"
                   sizes="56px"
                 />
               ) : (
                 <img
-                  className="h-14 w-14 rounded-full object-cover"
+                  className="size-14 rounded-full object-cover"
                   src={article.author.photo ?? ANON_IMAGE}
                   alt={article.author.name}
                 />
@@ -69,7 +69,7 @@ export function Component() {
             <span className="text-dark font-medium">{article.author.name}</span>
           </Link>
         )}
-        <p className="pb-4 text-sm text-gray-600">
+        <p className="pb-4 text-sm text-stone-600">
           Published on {format(article.date, "PPPP")}
         </p>
 

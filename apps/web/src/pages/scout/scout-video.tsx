@@ -23,13 +23,13 @@ function buildSrc(spec: VideoSpec): string {
 export function ScoutVideo({ spec }: { spec: VideoSpec }) {
   const src = buildSrc(spec);
   return (
-    <figure className="my-3 rounded border border-gray-200 bg-white p-3">
+    <figure className="my-3 rounded border border-stone-200 bg-white p-3">
       {spec.title ? (
-        <figcaption className="mb-2 text-sm font-medium text-gray-900">
+        <figcaption className="mb-2 text-sm font-medium text-stone-900">
           {spec.title}
         </figcaption>
       ) : null}
-      <div className="relative w-full overflow-hidden rounded bg-black pb-[56.25%]">
+      <div className="relative w-full overflow-hidden rounded bg-stone-950 pb-[56.25%]">
         <iframe
           src={src}
           title={spec.title ?? "Match highlight"}
@@ -40,7 +40,7 @@ export function ScoutVideo({ spec }: { spec: VideoSpec }) {
         />
       </div>
       {spec.caption ? (
-        <figcaption className="mt-2 text-xs text-gray-500">
+        <figcaption className="mt-2 text-xs text-stone-500">
           {spec.caption}
         </figcaption>
       ) : null}

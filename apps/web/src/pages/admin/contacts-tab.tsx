@@ -17,7 +17,7 @@ const PAGE_SIZE = 20;
 
 function truncateMessage(message: string, maxLength = 100): string {
   if (message.length <= maxLength) return message;
-  return message.slice(0, maxLength) + "...";
+  return message.slice(0, maxLength) + "…";
 }
 
 export function ContactsTab() {
@@ -65,14 +65,14 @@ export function ContactsTab() {
       <div>
         <Input
           type="text"
-          placeholder="Search by name or email..."
+          placeholder="Search by name or email…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-md"
         />
       </div>
 
-      {isLoading && <p className="text-gray-500">Loading...</p>}
+      {isLoading && <p className="text-stone-500">Loading…</p>}
       {isError && <p className="text-red-600">Failed to load submissions.</p>}
 
       {data && (
@@ -92,7 +92,7 @@ export function ContactsTab() {
                 <TableRow>
                   <TableCell
                     colSpan={5}
-                    className="py-6 text-center text-gray-500"
+                    className="py-6 text-center text-stone-500"
                   >
                     No submissions found.
                   </TableCell>
@@ -132,7 +132,7 @@ export function ContactsTab() {
           </Table>
 
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">
+            <span className="text-stone-500">
               {data.total} submission{data.total !== 1 ? "s" : ""} total
             </span>
             <div className="flex items-center gap-2">
@@ -144,7 +144,7 @@ export function ContactsTab() {
               >
                 Previous
               </Button>
-              <span className="text-gray-600">
+              <span className="text-stone-600">
                 Page {page} of {totalPages}
               </span>
               <Button

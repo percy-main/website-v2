@@ -26,6 +26,8 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
     schema: z.string().optional(),
   });
 
+  // Fire-and-forget: success transitions to the login phase; no cached data
+  // changes (the user has to re-authenticate after reset).
   const resetPassword = useMutation({
     mutationFn: () =>
       authClient.resetPassword(
@@ -51,7 +53,7 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
   if (paramError) {
     return (
       <section>
-        <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+        <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
           Something went wrong
         </h1>
         <p>We can&apos;t reset your password right now.</p>
@@ -65,7 +67,7 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
   if (!token) {
     return (
       <section>
-        <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+        <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
           How did you get here?
         </h1>
         <p>You sneaky devil.</p>
@@ -79,11 +81,11 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
 
   return (
     <section>
-      <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+      <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
         Set your new password
       </h1>
       <form
-        className="flex flex-col items-center justify-center space-y-4 md:space-y-6"
+        className="flex flex-col items-center justify-center gap-y-4 md:gap-y-6"
         onSubmit={handleSubmit}
       >
         <SimpleInput
@@ -94,7 +96,7 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
           onChange={(e) => setNewPassword(e.currentTarget.value)}
         />
         <Button type="submit" className="w-full">
-          Submit
+          Set new password
         </Button>
         {error && (
           <p className="text-sm font-light text-red-800">{error.message}</p>

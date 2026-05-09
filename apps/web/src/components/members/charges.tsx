@@ -53,6 +53,8 @@ export function Charges() {
           paymentIntentId: piId,
         });
       }
+      // Refresh charges so any newly-attached payment intent state is visible.
+      void queryClient.invalidateQueries({ queryKey: ["myCharges"] });
     },
     onError: () => {
       setPaymentError("Failed to create payment. Please try again.");
@@ -69,7 +71,7 @@ export function Charges() {
     return (
       <div className="flex flex-col gap-4">
         <h2 className="text-h4 mb-0">Payments</h2>
-        <p className="text-sm text-gray-500">No payments yet.</p>
+        <p className="text-sm text-stone-500">No payments yet.</p>
       </div>
     );
   }
@@ -132,7 +134,7 @@ export function Charges() {
               disabled={payMutation.isPending}
             >
               {payMutation.isPending
-                ? "Processing..."
+                ? "Processing…"
                 : "Pay Outstanding Balance"}
             </Button>
           </CardContent>

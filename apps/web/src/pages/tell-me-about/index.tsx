@@ -97,12 +97,12 @@ export function Component() {
               <Link
                 key={link.segment}
                 to={link.href}
-                className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+                className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm transition hover:shadow-md"
               >
-                <h3 className="text-dark mb-1 text-lg font-bold">
+                <h3 className="text-dark mb-1 text-lg font-semibold">
                   {link.label}
                 </h3>
-                <p className="text-sm text-gray-700">{link.description}</p>
+                <p className="text-sm text-stone-700">{link.description}</p>
               </Link>
             ))}
           </div>
@@ -123,7 +123,7 @@ export function Component() {
               variant={variant}
             />
           ) : (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-stone-600">
               Pick a group above to see the form.
             </p>
           )}

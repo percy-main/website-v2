@@ -29,7 +29,7 @@ function SidebarNav({
               className={`py-1 ${
                 isActive
                   ? "border-primary text-primary ml-[-0.76rem] border-l-4 pl-2 font-medium"
-                  : "hover:text-primary text-gray-700"
+                  : "hover:text-primary text-stone-700"
               }`}
             >
               {child.page.title}
@@ -47,7 +47,7 @@ function SidebarNav({
                       className={`py-1 ${
                         isChildActive
                           ? "border-primary text-primary ml-[-1.76rem] border-l-4 pl-4 font-medium"
-                          : "hover:text-primary text-gray-600"
+                          : "hover:text-primary text-stone-600"
                       }`}
                     >
                       <span className={isChildActive ? "pl-2" : ""}>
@@ -78,17 +78,17 @@ function MobileSidebarNav({
 
   return (
     <nav className="text-sm md:hidden">
-      <div className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-md">
+      <div className="flex flex-col overflow-hidden rounded-lg border border-stone-200 bg-white shadow-md">
         {tree.children.map((child) => {
           const isActive = currentPath.startsWith(child.page.path);
           return (
             <div key={child.page.path}>
               <Link
                 to={child.page.path}
-                className={`block border-b border-gray-100 px-4 py-2.5 font-medium transition-colors last:border-b-0 ${
+                className={`block border-b border-stone-100 px-4 py-2.5 font-medium transition-colors last:border-b-0 ${
                   isActive
                     ? "bg-primary/5 text-primary"
-                    : "hover:text-primary text-gray-800 hover:bg-gray-50"
+                    : "hover:text-primary text-stone-800 hover:bg-stone-50"
                 }`}
               >
                 {child.page.title}
@@ -101,10 +101,10 @@ function MobileSidebarNav({
                   <Link
                     key={grandchild.page.path}
                     to={grandchild.page.path}
-                    className={`block border-b border-gray-100 py-2.5 pr-4 pl-9 transition-colors last:border-b-0 ${
+                    className={`block border-b border-stone-100 py-2.5 pr-4 pl-9 transition-colors last:border-b-0 ${
                       isChildActive
                         ? "bg-primary/5 text-primary font-medium"
-                        : "hover:text-primary text-gray-600 hover:bg-gray-50"
+                        : "hover:text-primary text-stone-600 hover:bg-stone-50"
                     }`}
                   >
                     {grandchild.page.title}
@@ -154,20 +154,20 @@ export function Component() {
             className="text-dark flex cursor-pointer items-center p-1 md:hidden"
             aria-label="Toggle section menu"
           >
-            <svg className="h-5 w-5 fill-current" viewBox="0 0 20 20">
+            <svg className="size-5 fill-current" viewBox="0 0 20 20">
               <path d="M0 3h20v2H0V3zm0 6h20v2H0V9zm0 6h20v2H0v-2z" />
             </svg>
           </button>
         )}
         {breadcrumbs.map((crumb, i) => (
           <span key={crumb.path} className="flex items-center gap-2">
-            {i > 0 && <IoChevronForward className="text-gray-400" size={14} />}
+            {i > 0 && <IoChevronForward className="text-stone-400" size={14} />}
             {i === breadcrumbs.length - 1 ? (
               <span className="text-dark font-medium">{crumb.title}</span>
             ) : (
               <Link
                 to={crumb.path}
-                className="hover:text-primary text-gray-600"
+                className="hover:text-primary text-stone-600"
               >
                 {crumb.title}
               </Link>

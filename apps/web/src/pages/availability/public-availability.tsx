@@ -174,7 +174,7 @@ export function Component() {
   if (query.isPending || sessionPending) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-stone-500">Loading…</p>
       </div>
     );
   }
@@ -183,7 +183,7 @@ export function Component() {
     return (
       <div className="container mx-auto px-4 py-8">
         <h1>Availability</h1>
-        <p className="mt-4 text-center text-gray-500">
+        <p className="mt-4 text-center text-stone-500">
           This availability request could not be found or is no longer open.
         </p>
       </div>
@@ -210,7 +210,7 @@ export function Component() {
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
-      <h1 className="text-2xl font-bold">Availability</h1>
+      <h1 className="text-2xl font-semibold">Availability</h1>
 
       {hasDraft && isSignedIn && (
         <Alert className="mt-4">
@@ -248,7 +248,7 @@ export function Component() {
 
       {!isSignedIn && (
         <div className="mt-4 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <IoLockClosed className="h-4 w-4 shrink-0" />
+          <IoLockClosed className="size-4 shrink-0" />
           <p>
             <Link
               to={`/auth/login?returnTo=${returnTo}`}
@@ -292,7 +292,7 @@ export function Component() {
             }
             className="w-full sm:w-auto"
           >
-            {submitMutation.isPending ? "Saving..." : "Submit Responses"}
+            {submitMutation.isPending ? "Saving…" : "Submit Responses"}
           </Button>
           {submitMutation.isError && (
             <p className="mt-2 text-sm text-red-600">
@@ -331,10 +331,10 @@ function DateCard({
       </p>
       <div className="mb-3 flex flex-col gap-1">
         {fixtures.map((f) => (
-          <p key={f.id} className="text-sm text-gray-600">
+          <p key={f.id} className="text-sm text-stone-600">
             {f.team_name ?? "Team"} {f.is_home ? "vs" : "@"} {f.opposition}
             {f.competition_name && (
-              <span className="text-gray-400"> ({f.competition_name})</span>
+              <span className="text-stone-400"> ({f.competition_name})</span>
             )}
           </p>
         ))}
@@ -345,7 +345,7 @@ function DateCard({
           className={`rounded px-3 py-1 text-sm ${
             response?.status === "available"
               ? "bg-green-600 text-white"
-              : "border bg-white text-gray-700"
+              : "border bg-white text-stone-700"
           } ${locked ? "cursor-not-allowed" : "hover:bg-green-50"}`}
           onClick={() => onStatusChange("available")}
           disabled={disabled}
@@ -356,7 +356,7 @@ function DateCard({
           className={`rounded px-3 py-1 text-sm ${
             response?.status === "unavailable"
               ? "bg-red-600 text-white"
-              : "border bg-white text-gray-700"
+              : "border bg-white text-stone-700"
           } ${locked ? "cursor-not-allowed" : "hover:bg-red-50"}`}
           onClick={() => onStatusChange("unavailable")}
           disabled={disabled}

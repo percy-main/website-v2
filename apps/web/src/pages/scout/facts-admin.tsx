@@ -62,19 +62,21 @@ export function FactsAdminView() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="border-b border-gray-200 px-4 py-3">
-        <h2 className="text-sm font-medium text-gray-700">Scout fact corpus</h2>
-        <p className="mt-0.5 text-xs text-gray-500">
+      <div className="border-b border-stone-200 px-4 py-3">
+        <h2 className="text-sm font-medium text-stone-700">
+          Scout fact corpus
+        </h2>
+        <p className="mt-0.5 text-xs text-stone-500">
           Review, edit, and prune knowledge Scout has recorded. Editing content
           regenerates the embedding so retrieval stays in sync.
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2 border-b border-gray-200 px-4 py-3">
-        <label className="flex flex-col text-xs text-gray-600">
+      <div className="flex flex-wrap items-end gap-2 border-b border-stone-200 px-4 py-3">
+        <label className="flex flex-col text-xs text-stone-600">
           Scope
           <select
-            className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
             value={scope}
             onChange={(e) => setScope(e.target.value as "" | "user" | "club")}
           >
@@ -83,19 +85,19 @@ export function FactsAdminView() {
             <option value="user">Personal</option>
           </select>
         </label>
-        <label className="flex flex-1 flex-col text-xs text-gray-600">
+        <label className="flex flex-1 flex-col text-xs text-stone-600">
           Search
           <input
-            className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
             placeholder="full-text query (e.g. 'covers')"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </label>
-        <label className="flex flex-1 flex-col text-xs text-gray-600">
+        <label className="flex flex-1 flex-col text-xs text-stone-600">
           Tag
           <input
-            className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
             placeholder="key:value (e.g. team:Mitford CC)"
             value={tag}
             onChange={(e) => setTag(e.target.value)}
@@ -105,7 +107,7 @@ export function FactsAdminView() {
 
       <div className="flex-1 overflow-y-auto px-4 py-2">
         {factsQuery.isLoading && (
-          <div className="p-3 text-sm text-gray-500">Loading…</div>
+          <div className="p-3 text-sm text-stone-500">Loading…</div>
         )}
         {factsQuery.error && (
           <div className="p-3 text-sm text-red-600">
@@ -116,11 +118,11 @@ export function FactsAdminView() {
         )}
         {factsQuery.data && (
           <>
-            <div className="px-1 pt-1 pb-1 text-xs text-gray-500">
+            <div className="px-1 pt-1 pb-1 text-xs text-stone-500">
               {factsQuery.data.total} fact
               {factsQuery.data.total === 1 ? "" : "s"} total
             </div>
-            <ul className="divide-y divide-gray-100">
+            <ul className="divide-y divide-stone-100">
               {factsQuery.data.facts.map((f) => (
                 <FactRow
                   key={f.id}
@@ -131,7 +133,7 @@ export function FactsAdminView() {
               ))}
             </ul>
             {factsQuery.data.facts.length === 0 && (
-              <div className="p-3 text-sm text-gray-500">
+              <div className="p-3 text-sm text-stone-500">
                 No facts match the current filters.
               </div>
             )}
@@ -163,8 +165,8 @@ function FactRow({
   return (
     <li className="group flex items-start justify-between gap-3 px-1 py-2">
       <div className="min-w-0 flex-1">
-        <div className="text-sm text-gray-900">{fact.content}</div>
-        <div className="mt-0.5 text-xs text-gray-500">
+        <div className="text-sm text-stone-900">{fact.content}</div>
+        <div className="mt-0.5 text-xs text-stone-500">
           {fact.scope === "user" ? "personal" : "club"} · confidence{" "}
           {fact.confidence}/5 ·{" "}
           <span className="font-medium">
@@ -175,23 +177,25 @@ function FactRow({
           {new Date(fact.createdAt).toLocaleDateString()}
         </div>
         {fact.sourceKbDocument && (
-          <div className="mt-0.5 text-[11px] text-gray-500">
+          <div className="mt-0.5 text-[11px] text-stone-500">
             From document:{" "}
-            <span className="text-gray-700">{fact.sourceKbDocument.title}</span>
+            <span className="text-stone-700">
+              {fact.sourceKbDocument.title}
+            </span>
           </div>
         )}
       </div>
       <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100">
         <button
           type="button"
-          className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+          className="rounded border border-stone-200 px-2 py-1 text-xs text-stone-700 hover:bg-stone-50"
           onClick={onEdit}
         >
           Edit
         </button>
         <button
           type="button"
-          className="rounded border border-gray-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+          className="rounded border border-stone-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
           onClick={onDelete}
         >
           Delete
@@ -276,20 +280,20 @@ function FactEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <label className="flex flex-col text-xs text-gray-600">
+        <label className="flex flex-col text-xs text-stone-600">
           Content
           <textarea
-            className="mt-1 min-h-[80px] rounded border border-gray-300 px-2 py-1 text-sm"
+            className="mt-1 min-h-[80px] rounded border border-stone-300 px-2 py-1 text-sm"
             value={content}
             onChange={(e) => setContent(e.target.value)}
           />
         </label>
 
         <div className="flex gap-3">
-          <label className="flex flex-col text-xs text-gray-600">
+          <label className="flex flex-col text-xs text-stone-600">
             Scope
             <select
-              className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+              className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
               value={scope}
               onChange={(e) => setScope(e.target.value as "user" | "club")}
             >
@@ -297,23 +301,23 @@ function FactEditDialog({
               <option value="user">Personal</option>
             </select>
           </label>
-          <label className="flex flex-col text-xs text-gray-600">
+          <label className="flex flex-col text-xs text-stone-600">
             Confidence (1–5)
             <input
               type="number"
               min={1}
               max={5}
-              className="mt-1 w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+              className="mt-1 w-24 rounded border border-stone-300 px-2 py-1 text-sm"
               value={confidence}
               onChange={(e) =>
                 setConfidence(Math.max(1, Math.min(5, Number(e.target.value))))
               }
             />
           </label>
-          <label className="flex flex-col text-xs text-gray-600">
+          <label className="flex flex-col text-xs text-stone-600">
             Permanence
             <select
-              className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+              className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
               value={permanence ?? ""}
               onChange={(e) => {
                 const v = e.target.value;
@@ -328,10 +332,10 @@ function FactEditDialog({
           </label>
         </div>
 
-        <label className="flex flex-col text-xs text-gray-600">
+        <label className="flex flex-col text-xs text-stone-600">
           Tags (JSON)
           <textarea
-            className="mt-1 min-h-[60px] rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+            className="mt-1 min-h-[60px] rounded border border-stone-300 px-2 py-1 font-mono text-xs"
             value={tagsText}
             onChange={(e) => setTagsText(e.target.value)}
           />
@@ -402,7 +406,7 @@ function FactDeleteDialog({
           <DialogTitle>Delete fact?</DialogTitle>
           <DialogDescription>
             &ldquo;{fact?.content}&rdquo; will be removed from the corpus. This
-            is hard-delete — citations referencing it will resolve to &ldquo;not
+            is hard-delete; citations referencing it will resolve to &ldquo;not
             found&rdquo;.
           </DialogDescription>
         </DialogHeader>

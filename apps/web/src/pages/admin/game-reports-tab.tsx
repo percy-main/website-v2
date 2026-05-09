@@ -87,11 +87,14 @@ export function GameReportsTab() {
         </CardHeader>
         <CardContent>
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium">
+            <label
+              htmlFor="game-reports-team-filter"
+              className="mb-1 block text-sm font-medium"
+            >
               Filter by Team
             </label>
             <Select value={teamFilter} onValueChange={setTeamFilter}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger id="game-reports-team-filter" className="w-64">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -106,9 +109,9 @@ export function GameReportsTab() {
           </div>
 
           {matchdaysQuery.isLoading ? (
-            <p className="text-sm text-gray-500">Loading...</p>
+            <p className="text-sm text-stone-500">Loading…</p>
           ) : matchdays.length === 0 ? (
-            <p className="text-sm text-gray-500">No matchdays found.</p>
+            <p className="text-sm text-stone-500">No matchdays found.</p>
           ) : (
             <Table>
               <TableHeader>
@@ -133,7 +136,7 @@ export function GameReportsTab() {
                             ? "bg-yellow-100 text-yellow-800"
                             : matchday.status === "confirmed"
                               ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
+                              : "bg-stone-100 text-stone-800"
                         }`}
                       >
                         {matchday.status}
@@ -189,11 +192,11 @@ function ChargeStatusBadge({
         </span>
       );
     case "abandoned":
-      return <span className="text-xs text-gray-400">Abandoned</span>;
+      return <span className="text-xs text-stone-400">Abandoned</span>;
     case "deleted":
-      return <span className="text-xs text-gray-400">Deleted</span>;
+      return <span className="text-xs text-stone-400">Deleted</span>;
     default:
-      return <span className="text-xs text-gray-400">-</span>;
+      return <span className="text-xs text-stone-400">-</span>;
   }
 }
 
@@ -223,16 +226,16 @@ function MatchdayReport({
           Back
         </Button>
         {reportQuery.isLoading ? (
-          <p className="text-gray-500">Loading report...</p>
+          <p className="text-stone-500">Loading report…</p>
         ) : data ? (
           <div>
             <h3 className="text-lg font-semibold">
               {data.team?.name} vs {data.matchday.opposition}
             </h3>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-stone-500">
               {formatMatchDate(data.matchday.match_date)}
               {data.matchday.competition_type && (
-                <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">
+                <span className="ml-2 rounded bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-600">
                   {data.matchday.competition_type}
                 </span>
               )}
@@ -254,8 +257,8 @@ function MatchdayReport({
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded border border-gray-200 p-3">
-                  <p className="text-sm text-gray-500">Match Fee Income</p>
+                <div className="rounded border border-stone-200 p-3">
+                  <p className="text-sm text-stone-500">Match Fee Income</p>
                   <p className="text-lg font-semibold">
                     {formatPence(data.summary.totalIncoming)}
                   </p>
@@ -274,20 +277,20 @@ function MatchdayReport({
                   </div>
                 </div>
                 {data.summary.sponsorshipIncome > 0 && (
-                  <div className="rounded border border-gray-200 p-3">
-                    <p className="text-sm text-gray-500">Sponsorship Income</p>
+                  <div className="rounded border border-stone-200 p-3">
+                    <p className="text-sm text-stone-500">Sponsorship Income</p>
                     <p className="text-lg font-semibold">
                       {formatPence(data.summary.sponsorshipIncome)}
                     </p>
                     {data.sponsorship && (
-                      <p className="mt-1 text-xs text-gray-500">
+                      <p className="mt-1 text-xs text-stone-500">
                         {data.sponsorship.sponsor_name}
                       </p>
                     )}
                   </div>
                 )}
-                <div className="rounded border border-gray-200 p-3">
-                  <p className="text-sm text-gray-500">Total Expenses</p>
+                <div className="rounded border border-stone-200 p-3">
+                  <p className="text-sm text-stone-500">Total Expenses</p>
                   <p className="text-lg font-semibold">
                     {formatPence(data.summary.totalExpenses)}
                   </p>
@@ -299,7 +302,7 @@ function MatchdayReport({
                       : "border-red-200 bg-red-50"
                   }`}
                 >
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-stone-500">
                     {data.summary.profitLoss >= 0 ? "Profit" : "Loss"}
                   </p>
                   <p
@@ -323,7 +326,7 @@ function MatchdayReport({
             </CardHeader>
             <CardContent>
               {data.players.length === 0 ? (
-                <p className="text-sm text-gray-500">No players recorded.</p>
+                <p className="text-sm text-stone-500">No players recorded.</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -350,13 +353,13 @@ function MatchdayReport({
                                   ? "bg-yellow-100 text-yellow-800"
                                   : player.status === "no_show"
                                     ? "bg-red-100 text-red-800"
-                                    : "bg-gray-100 text-gray-700"
+                                    : "bg-stone-100 text-stone-700"
                             }`}
                           >
                             {player.status}
                           </span>
                         </TableCell>
-                        <TableCell className="text-sm text-gray-500 capitalize">
+                        <TableCell className="text-sm text-stone-500 capitalize">
                           {player.member_category ?? "-"}
                         </TableCell>
                         <TableCell className="text-right">
@@ -387,7 +390,7 @@ function MatchdayReport({
             </CardHeader>
             <CardContent>
               {data.expenses.length === 0 ? (
-                <p className="text-sm text-gray-500">No expenses recorded.</p>
+                <p className="text-sm text-stone-500">No expenses recorded.</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -404,7 +407,7 @@ function MatchdayReport({
                           {EXPENSE_TYPE_LABELS[expense.expense_type] ??
                             expense.expense_type}
                         </TableCell>
-                        <TableCell className="text-gray-500">
+                        <TableCell className="text-stone-500">
                           {expense.description ?? "-"}
                         </TableCell>
                         <TableCell className="text-right">

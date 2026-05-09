@@ -10,7 +10,6 @@ import {
   format,
   getDay,
   getDaysInMonth,
-  isBefore,
   isToday,
   startOfMonth,
 } from "date-fns";
@@ -18,6 +17,17 @@ import { formatInTimeZone } from "date-fns-tz";
 import { useMemo, useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useParams } from "react-router";
+import {
+  categoriseTeam,
+  filterItemsByCategory,
+  findDividerIndex,
+  groupItemsByDate,
+  groupItemsByDay,
+  parseMonthYear,
+  sortCalendarItems,
+  summariseMonth,
+  type Filter,
+} from "./calendar-month.lib.js";
 
 // --- Types ---
 
@@ -50,24 +60,7 @@ type CalendarItem =
       eventName: string;
     };
 
-type Filter = "all" | "1xi" | "2xi" | "mid" | "jun" | "event";
-
 // --- Constants ---
-
-const MONTH_NAMES = [
-  "january",
-  "february",
-  "march",
-  "april",
-  "may",
-  "june",
-  "july",
-  "august",
-  "september",
-  "october",
-  "november",
-  "december",
-];
 
 const FILTER_LABELS: Array<{ key: Filter; label: string }> = [
   { key: "all", label: "All" },
@@ -85,29 +78,6 @@ const TEAM_BORDER_CLASSES: Record<string, string> = {
   jun: "border-l-amber-600",
 };
 
-// --- Helpers ---
-
-type TeamCategory = "1xi" | "2xi" | "mid" | "jun";
-
-function categoriseTeam(teamName: string): TeamCategory {
-  if (/1st/i.test(teamName)) return "1xi";
-  if (/2nd/i.test(teamName)) return "2xi";
-  if (/midweek/i.test(teamName)) return "mid";
-  if (/under|junior|colts|\bU\d{2}\b/i.test(teamName)) return "jun";
-  return "1xi";
-}
-
-function parseMonthYear(
-  yearParam: string,
-  monthParam: string,
-): { year: number; monthIndex: number } | null {
-  const year = parseInt(yearParam, 10);
-  if (isNaN(year)) return null;
-  const monthIndex = MONTH_NAMES.indexOf(monthParam.toLowerCase());
-  if (monthIndex === -1) return null;
-  return { year, monthIndex };
-}
-
 // --- Mini Calendar ---
 
 function MiniCalendar({
@@ -121,33 +91,45 @@ function MiniCalendar({
   selectedDay: number | null;
   onDayClick: (day: number) => void;
 }) {
-  const dayHeaders = ["M", "T", "W", "T", "F", "S", "S"];
+  const dayHeaders: Array<{ key: string; label: string }> = [
+    { key: "mon", label: "M" },
+    { key: "tue", label: "T" },
+    { key: "wed", label: "W" },
+    { key: "thu", label: "T" },
+    { key: "fri", label: "F" },
+    { key: "sat", label: "S" },
+    { key: "sun", label: "S" },
+  ];
   const daysInMonth = getDaysInMonth(date);
   const firstDayOfWeek = (getDay(startOfMonth(date)) + 6) % 7; // Mon=0
 
-  const cells: Array<{ day: number | null }> = [];
-  for (let i = 0; i < firstDayOfWeek; i++) cells.push({ day: null });
-  for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d });
+  const cells: Array<{ key: string; day: number | null }> = [];
+  for (let i = 0; i < firstDayOfWeek; i++)
+    cells.push({ key: `pad-${i}`, day: null });
+  for (let d = 1; d <= daysInMonth; d++)
+    cells.push({ key: `day-${d}`, day: d });
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 text-sm font-bold text-gray-900">
+    <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 text-sm font-bold text-stone-900">
         {format(date, "MMMM yyyy")}
       </div>
       <div className="mb-1 grid grid-cols-7 text-center">
-        {dayHeaders.map((d, i) => (
+        {dayHeaders.map((d) => (
           <div
-            key={i}
-            className="py-1 text-[11px] font-semibold tracking-wider text-gray-400 uppercase"
+            key={d.key}
+            className="py-1 text-[11px] font-semibold tracking-wider text-stone-400 uppercase"
           >
-            {d}
+            {d.label}
           </div>
         ))}
       </div>
       <div className="grid grid-cols-7 text-center">
-        {cells.map((cell, i) => {
+        {cells.map((cell) => {
           if (cell.day === null) {
-            return <span key={i} className="py-1.5 text-xs text-gray-300" />;
+            return (
+              <span key={cell.key} className="py-1.5 text-xs text-stone-300" />
+            );
           }
           const day = cell.day;
           const hasItems = itemsByDay.has(day);
@@ -158,9 +140,9 @@ function MiniCalendar({
 
           const classes = cn(
             "relative rounded py-1.5 text-xs transition-colors",
-            !hasItems && "text-gray-500",
+            !hasItems && "text-stone-500",
             hasItems &&
-              "cursor-pointer font-semibold text-gray-900 hover:bg-green-50",
+              "cursor-pointer font-semibold text-stone-900 hover:bg-green-50",
             isSelected && "!bg-green-800 !text-white",
             isTodayDay && !isSelected && "ring-1 ring-green-800/40",
           );
@@ -178,7 +160,7 @@ function MiniCalendar({
           if (hasItems) {
             return (
               <button
-                key={i}
+                key={cell.key}
                 type="button"
                 onClick={() => onDayClick(day)}
                 className={classes}
@@ -190,7 +172,7 @@ function MiniCalendar({
           }
 
           return (
-            <span key={i} className={classes}>
+            <span key={cell.key} className={classes}>
               {day}
             </span>
           );
@@ -208,8 +190,8 @@ function MonthSummary({
   stats: { won: number; lost: number; upcoming: number };
 }) {
   return (
-    <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <h4 className="mb-2 text-xs font-bold tracking-wider text-gray-400 uppercase">
+    <div className="mt-4 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+      <h4 className="mb-2 text-xs font-semibold tracking-wider text-stone-400 uppercase">
         Month Summary
       </h4>
       <div className="grid grid-cols-3 gap-2">
@@ -225,11 +207,11 @@ function MonthSummary({
             Lost
           </div>
         </div>
-        <div className="rounded-lg bg-gray-100 p-2 text-center">
-          <div className="text-lg font-bold text-gray-600">
+        <div className="rounded-lg bg-stone-100 p-2 text-center">
+          <div className="text-lg font-bold text-stone-600">
             {stats.upcoming}
           </div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase">
+          <div className="text-[10px] font-semibold text-stone-400 uppercase">
             Upcoming
           </div>
         </div>
@@ -260,7 +242,7 @@ function FilterPills({
               "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
               isActive
                 ? "bg-green-800 text-white shadow-md"
-                : "border-2 border-gray-200 text-gray-700 hover:border-gray-300",
+                : "border-2 border-stone-200 text-stone-700 hover:border-stone-300",
             )}
           >
             {label}
@@ -299,7 +281,7 @@ function FixtureCard({ item }: { item: CalendarItem & { type: "game" } }) {
       <div className="flex shrink-0 flex-col items-center gap-1">
         <span
           className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-md text-xs font-extrabold",
+            "flex size-7 items-center justify-center rounded-md text-xs font-semibold",
             item.home
               ? "bg-green-100 text-green-800"
               : "bg-blue-100 text-blue-800",
@@ -307,28 +289,28 @@ function FixtureCard({ item }: { item: CalendarItem & { type: "game" } }) {
         >
           {item.home ? "H" : "A"}
         </span>
-        <span className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">
+        <span className="text-[10px] font-bold tracking-wider text-stone-400 uppercase">
           {time}
         </span>
       </div>
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-          <span className="text-sm font-bold text-gray-900 sm:text-base">
+          <span className="text-sm font-bold text-stone-900 sm:text-base">
             {item.teamName}
           </span>
-          <span className="text-sm text-gray-400">vs.</span>
-          <span className="text-sm font-semibold text-gray-900 sm:text-base">
+          <span className="text-sm text-stone-400">vs.</span>
+          <span className="text-sm font-semibold text-stone-900 sm:text-base">
             {item.oppositionClub} {item.oppositionTeam}
           </span>
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-stone-400">
             {item.leagueName || item.competitionName}
           </span>
           {item.sponsorName && (
             <>
-              <span className="mx-1 h-1 w-1 rounded-full bg-gray-200" />
+              <span className="mx-1 size-1 rounded-full bg-stone-200" />
               <span className="text-xs font-medium text-orange-600">
                 Sponsored by {item.sponsorName}
               </span>
@@ -344,7 +326,7 @@ function FixtureCard({ item }: { item: CalendarItem & { type: "game" } }) {
         />
       )}
 
-      <IoChevronForward className="h-5 w-5 shrink-0 text-gray-300" />
+      <IoChevronForward className="size-5 shrink-0 text-stone-300" />
     </Link>
   );
 }
@@ -361,9 +343,9 @@ function EventCard({ item }: { item: CalendarItem & { type: "event" } }) {
       className="group mb-2 flex items-center gap-3 rounded-lg border-2 border-dashed border-orange-300/50 bg-orange-50/50 p-3 transition-all hover:translate-x-1 hover:shadow-md sm:gap-4 sm:p-4"
     >
       <div className="flex shrink-0 flex-col items-center gap-1">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-orange-100 text-orange-600">
+        <span className="flex size-7 items-center justify-center rounded-md bg-orange-100 text-orange-600">
           <svg
-            className="h-4 w-4"
+            className="size-4"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -372,7 +354,7 @@ function EventCard({ item }: { item: CalendarItem & { type: "event" } }) {
             <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         </span>
-        <span className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">
+        <span className="text-[10px] font-bold tracking-wider text-stone-400 uppercase">
           {time}
         </span>
       </div>
@@ -382,13 +364,13 @@ function EventCard({ item }: { item: CalendarItem & { type: "event" } }) {
           <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-orange-600 uppercase">
             Event
           </span>
-          <span className="text-sm font-bold text-gray-900 sm:text-base">
+          <span className="text-sm font-bold text-stone-900 sm:text-base">
             {item.eventName}
           </span>
         </div>
       </div>
 
-      <IoChevronForward className="h-5 w-5 shrink-0 text-gray-300" />
+      <IoChevronForward className="size-5 shrink-0 text-stone-300" />
     </Link>
   );
 }
@@ -408,7 +390,7 @@ function DateGroup({
   return (
     <div className="mb-6" id={`agenda-day-${date.getDate()}`}>
       <div className="mb-3">
-        <h3 className="mb-0 text-base font-bold text-gray-900 sm:text-lg">
+        <h3 className="mb-0 text-base font-semibold text-stone-900 sm:text-lg">
           {heading}
         </h3>
       </div>
@@ -528,86 +510,32 @@ export function Component() {
       });
     }
 
-    // Sort by date, then games before events on same day
-    items.sort((a, b) => {
-      const diff = new Date(a.when).getTime() - new Date(b.when).getTime();
-      if (diff !== 0) return diff;
-      if (a.type === "game" && b.type === "event") return -1;
-      if (a.type === "event" && b.type === "game") return 1;
-      return 0;
-    });
-
-    return items;
+    return sortCalendarItems(items);
   }, [games, date]);
 
   // Filter
-  const filteredItems = useMemo(() => {
-    if (activeFilter === "all") return allItems;
-    return allItems.filter((item) => item.category === activeFilter);
-  }, [allItems, activeFilter]);
+  const filteredItems = useMemo(
+    () => filterItemsByCategory(allItems, activeFilter),
+    [allItems, activeFilter],
+  );
 
   // Group by date
-  const grouped = useMemo(() => {
-    const map = new Map<string, CalendarItem[]>();
-    for (const item of filteredItems) {
-      const dateStr = item.when.split("T")[0];
-      const existing = map.get(dateStr);
-      if (existing) {
-        existing.push(item);
-      } else {
-        map.set(dateStr, [item]);
-      }
-    }
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([dateStr, items]) => ({ dateStr, items }));
-  }, [filteredItems]);
+  const grouped = useMemo(
+    () => groupItemsByDate(filteredItems),
+    [filteredItems],
+  );
 
   // Items by day number for mini calendar
-  const itemsByDay = useMemo(() => {
-    const map = new Map<number, CalendarItem[]>();
-    for (const item of allItems) {
-      const d = new Date(item.when).getDate();
-      const existing = map.get(d);
-      if (existing) {
-        existing.push(item);
-      } else {
-        map.set(d, [item]);
-      }
-    }
-    return map;
-  }, [allItems]);
+  const itemsByDay = useMemo(() => groupItemsByDay(allItems), [allItems]);
 
   // Stats
-  const stats = useMemo(() => {
-    const now = new Date();
-    const won = allItems.filter(
-      (i) => i.type === "game" && i.outcome === "W",
-    ).length;
-    const lost = allItems.filter(
-      (i) => i.type === "game" && i.outcome === "L",
-    ).length;
-    const upcoming = allItems.filter(
-      (i) =>
-        i.type === "game" && !i.outcome && !isBefore(new Date(i.when), now),
-    ).length;
-    return { won, lost, upcoming };
-  }, [allItems]);
+  const stats = useMemo(() => summariseMonth(allItems, new Date()), [allItems]);
 
   // Divider position
-  const dividerIndex = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    let lastPastIdx = -1;
-    for (let i = 0; i < grouped.length; i++) {
-      const d = new Date(grouped[i].dateStr);
-      if (d < today) lastPastIdx = i;
-    }
-    if (lastPastIdx >= 0 && lastPastIdx < grouped.length - 1) {
-      return lastPastIdx;
-    }
-    return -1;
-  }, [grouped]);
+  const dividerIndex = useMemo(
+    () => findDividerIndex(grouped, new Date()),
+    [grouped],
+  );
 
   // Navigation
   const prevDate = addMonths(date, -1);
@@ -629,7 +557,7 @@ export function Component() {
   if (!parsed) {
     return (
       <div className="container mx-auto px-4 py-12">
-        <h1 className="text-2xl font-bold">Invalid Date</h1>
+        <h1 className="text-2xl font-semibold">Invalid Date</h1>
         <Link
           to="/calendar"
           className="text-primary mt-4 inline-block hover:underline"
@@ -644,10 +572,10 @@ export function Component() {
     <div className="container mx-auto px-4 py-6">
       {/* Breadcrumbs */}
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/calendar" className="hover:text-primary text-gray-600">
+        <Link to="/calendar" className="hover:text-primary text-stone-600">
           Calendar
         </Link>
-        <IoChevronForward className="text-gray-400" size={14} />
+        <IoChevronForward className="text-stone-400" size={14} />
         <span className="text-dark font-medium">
           {monthDisplay} {yearDisplay}
         </span>
@@ -658,10 +586,10 @@ export function Component() {
         <div className="flex items-center gap-4 sm:gap-8">
           <Link
             to={prevPath}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-green-800/20 text-green-800 transition-colors hover:bg-green-800 hover:text-white"
+            className="flex size-10 items-center justify-center rounded-lg border-2 border-green-800/20 text-green-800 transition-colors hover:bg-green-800 hover:text-white"
           >
             <svg
-              className="h-5 w-5"
+              className="size-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -671,10 +599,10 @@ export function Component() {
             </svg>
           </Link>
           <div>
-            <h1 className="mb-0 text-2xl font-bold text-gray-900 sm:text-3xl">
+            <h1 className="mb-0 text-2xl font-semibold text-stone-900 sm:text-3xl">
               {monthDisplay} {yearDisplay}
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-stone-500">
               {totalFixtures} fixture{totalFixtures !== 1 ? "s" : ""}
               {totalResults > 0 && (
                 <>
@@ -687,10 +615,10 @@ export function Component() {
           </div>
           <Link
             to={nextPath}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-green-800/20 text-green-800 transition-colors hover:bg-green-800 hover:text-white"
+            className="flex size-10 items-center justify-center rounded-lg border-2 border-green-800/20 text-green-800 transition-colors hover:bg-green-800 hover:text-white"
           >
             <svg
-              className="h-5 w-5"
+              className="size-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -706,7 +634,7 @@ export function Component() {
           className="hidden items-center gap-1.5 rounded-lg bg-green-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 sm:flex"
         >
           <svg
-            className="h-4 w-4"
+            className="size-4"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -743,7 +671,7 @@ export function Component() {
           {grouped.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-lg bg-white p-8 text-center shadow-sm">
               <svg
-                className="mb-3 h-12 w-12 text-gray-300"
+                className="mb-3 size-12 text-stone-300"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -751,7 +679,7 @@ export function Component() {
               >
                 <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <p className="font-medium text-gray-600">
+              <p className="font-medium text-stone-600">
                 {activeFilter === "all"
                   ? `No events scheduled for ${monthDisplay}`
                   : `No ${FILTER_LABELS.find((f) => f.key === activeFilter)?.label ?? ""} fixtures for ${monthDisplay}`}

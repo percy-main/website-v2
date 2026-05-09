@@ -25,31 +25,31 @@ export function Subscriptions() {
             className="flex flex-wrap items-center gap-y-4"
           >
             <dl className="w-1/2 sm:w-1/4 lg:w-auto lg:flex-1">
-              <dt className="text-base font-medium text-gray-500">Name</dt>
-              <dd className="mt-1.5 text-base font-semibold text-gray-900">
+              <dt className="text-base font-medium text-stone-500">Name</dt>
+              <dd className="mt-1.5 text-base font-semibold text-stone-900">
                 {subscription.name ?? subscription.product.name}
               </dd>
             </dl>
 
             <dl className="w-1/2 sm:w-1/4 lg:w-auto lg:flex-1">
-              <dt className="text-base font-medium text-gray-500">Created</dt>
-              <dd className="mt-1.5 text-base font-semibold text-gray-900">
+              <dt className="text-base font-medium text-stone-500">Created</dt>
+              <dd className="mt-1.5 text-base font-semibold text-stone-900">
                 {formatDate(subscription.created, "dd/MM/yyyy HH:mm")}
               </dd>
             </dl>
 
             <dl className="w-1/2 sm:w-1/4 lg:w-auto lg:flex-1">
-              <dt className="text-base font-medium text-gray-500">Status</dt>
-              <dd className="mt-1.5 text-base font-semibold text-gray-900">
+              <dt className="text-base font-medium text-stone-500">Status</dt>
+              <dd className="mt-1.5 text-base font-semibold text-stone-900">
                 {subscription.status}
               </dd>
             </dl>
 
             <dl className="w-1/2 sm:w-1/4 lg:w-auto lg:flex-1">
-              <dt className="text-base font-medium text-gray-500">
+              <dt className="text-base font-medium text-stone-500">
                 Paid Until
               </dt>
-              <dd className="mt-1.5 text-base font-semibold text-gray-900">
+              <dd className="mt-1.5 text-base font-semibold text-stone-900">
                 {formatDate(subscription.paidUntil, "dd/MM/yyyy HH:mm")}
               </dd>
             </dl>

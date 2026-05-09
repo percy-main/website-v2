@@ -79,7 +79,6 @@ The Fastify instance owns all shared dependencies:
 - **PostgreSQL aggregates return bigint (string in node-pg)** — use `sql<string>` (not `sql<number>`) for all aggregate expressions (`SUM`, `COUNT`, `MAX`, `COALESCE(SUM(...))`, etc.). Wrap in `Number()` when converting. Using `sql<number>` lies to TypeScript and causes `@typescript-eslint/no-unnecessary-type-conversion` to flag the `Number()` call.
 - **No `process.env` in services or routes** — use `app.config` via Fastify decoration.
 - **Use `return await` in async route handlers** — preserves stack traces for error debugging.
-- **Always add imports and their usage in the same edit** — lint hooks run on save and will strip unused imports.
 
 ## Generated Files — DO NOT EDIT MANUALLY
 

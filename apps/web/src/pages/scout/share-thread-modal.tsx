@@ -72,14 +72,13 @@ export function ShareThreadModal({
   const candidates = useMemo(() => {
     const all = officialsQuery.data?.officials ?? [];
     const q = filter.trim().toLowerCase();
-    return all
-      .filter((o) => !sharedIds.has(o.id))
-      .filter(
-        (o) =>
-          q === "" ||
+    return all.filter(
+      (o) =>
+        !sharedIds.has(o.id) &&
+        (q === "" ||
           o.name.toLowerCase().includes(q) ||
-          o.email.toLowerCase().includes(q),
-      );
+          o.email.toLowerCase().includes(q)),
+    );
   }, [officialsQuery.data, sharedIds, filter]);
 
   const shareMutation = useMutation({
@@ -154,7 +153,7 @@ export function ShareThreadModal({
           <DialogTitle>Share thread</DialogTitle>
           <DialogDescription>
             Give other officials read-only access to{" "}
-            <span className="font-medium text-gray-900">{threadTitle}</span>.
+            <span className="font-medium text-stone-900">{threadTitle}</span>.
             They&rsquo;ll see the full conversation but can&rsquo;t reply.
           </DialogDescription>
         </DialogHeader>
@@ -162,18 +161,20 @@ export function ShareThreadModal({
         {/* ── Already shared with ───────────────────────────────── */}
         {shareesQuery.data && hasShares ? (
           <div className="space-y-1">
-            <div className="text-xs font-medium text-gray-500">Shared with</div>
-            <ul className="divide-y divide-gray-100 rounded border border-gray-200">
+            <div className="text-xs font-medium text-stone-500">
+              Shared with
+            </div>
+            <ul className="divide-y divide-stone-100 rounded border border-stone-200">
               {shareesQuery.data.sharees.map((s) => (
                 <li
                   key={s.id}
                   className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
                 >
                   <div className="min-w-0">
-                    <div className="truncate font-medium text-gray-900">
+                    <div className="truncate font-medium text-stone-900">
                       {s.name}
                     </div>
-                    <div className="truncate text-xs text-gray-500">
+                    <div className="truncate text-xs text-stone-500">
                       {s.email}
                     </div>
                   </div>
@@ -181,7 +182,7 @@ export function ShareThreadModal({
                     type="button"
                     onClick={() => unshareMutation.mutate(s.id)}
                     disabled={unshareMutation.isPending}
-                    className="text-xs text-gray-500 hover:text-red-700 disabled:opacity-50"
+                    className="text-xs text-stone-500 hover:text-red-700 disabled:opacity-50"
                   >
                     Remove
                   </button>
@@ -199,12 +200,12 @@ export function ShareThreadModal({
             onChange={(e) => setFilter(e.target.value)}
             disabled={officialsQuery.isLoading}
           />
-          <div className="max-h-48 overflow-y-auto rounded border border-gray-200">
+          <div className="max-h-48 overflow-y-auto rounded border border-stone-200">
             {officialsQuery.isLoading && (
-              <div className="p-3 text-sm text-gray-500">Loading…</div>
+              <div className="p-3 text-sm text-stone-500">Loading…</div>
             )}
             {!officialsQuery.isLoading && candidates.length === 0 && (
-              <div className="p-3 text-sm text-gray-500">
+              <div className="p-3 text-sm text-stone-500">
                 {filter
                   ? "No matching officials."
                   : hasShares
@@ -212,21 +213,21 @@ export function ShareThreadModal({
                     : "No other officials yet."}
               </div>
             )}
-            <ul className="divide-y divide-gray-100">
+            <ul className="divide-y divide-stone-100">
               {candidates.map((o: ShareActor) => {
                 const checked = selectedToAdd.has(o.id);
                 return (
                   <li key={o.id}>
-                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-gray-50">
+                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-stone-50">
                       <Checkbox
                         checked={checked}
                         onCheckedChange={() => handleToggle(o.id)}
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-gray-900">
+                        <div className="truncate text-sm font-medium text-stone-900">
                           {o.name}
                         </div>
-                        <div className="truncate text-xs text-gray-500">
+                        <div className="truncate text-xs text-stone-500">
                           {o.email}
                         </div>
                       </div>
@@ -262,7 +263,7 @@ export function ShareThreadModal({
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Done
+              Close
             </Button>
             <Button
               onClick={handleShare}

@@ -12,9 +12,9 @@ export const ThemeToggle: FC<{ className?: string }> = ({ className }) => {
       aria-label={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode`}
     >
       {resolvedTheme === "dark" ? (
-        <LuSun className="h-4 w-4" />
+        <LuSun className="size-4" />
       ) : (
-        <LuMoon className="h-4 w-4" />
+        <LuMoon className="size-4" />
       )}
     </button>
   );

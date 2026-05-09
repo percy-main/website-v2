@@ -1,18 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -24,28 +12,18 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { formatDate, formatPence } from "./status-pill";
+import { useQuery } from "@tanstack/react-query";
+import { Suspense, lazy, useMemo, useState } from "react";
+import { formatPence } from "./status-pill";
+import { TreasurerExpensesSection } from "./treasurer-expenses-section";
+import { TreasurerOutstandingSection } from "./treasurer-outstanding-section";
+
+const TreasurerIncomeChart = lazy(() => import("./treasurer-income-chart.js"));
 
 // --- Types ---
 
 type SponsorshipSummaryResponse =
   paths["/api/treasurer/sponsorship-summary"]["get"]["responses"]["200"]["content"]["application/json"];
-
-type ExpensesWithReceiptsResponse =
-  paths["/api/treasurer/expenses-with-receipts"]["get"]["responses"]["200"]["content"]["application/json"];
-type Expense = ExpensesWithReceiptsResponse["expenses"][number];
 
 // --- Helpers ---
 
@@ -70,49 +48,12 @@ const MEMBERSHIP_TYPE_LABELS: Record<string, string> = {
   unknown: "Unknown",
 };
 
-const EXPENSE_TYPE_LABELS: Record<string, string> = {
-  umpire_fee: "Umpire Fee",
-  scorer_fee: "Scorer Fee",
-  match_ball: "Match Ball",
-  teas: "Teas",
-  miscellaneous: "Miscellaneous",
-};
-
-const STATUS_CONFIG: Record<
-  string,
-  {
-    label: string;
-    variant: "default" | "secondary" | "success" | "warning" | "destructive";
-  }
-> = {
-  draft: { label: "Draft", variant: "secondary" },
-  submitted: { label: "Submitted", variant: "default" },
-  approved: { label: "Approved", variant: "success" },
-  rejected: { label: "Rejected", variant: "destructive" },
-  reimbursed: { label: "Reimbursed", variant: "secondary" },
-};
-
-function daysOverdue(chargeDate: string): number {
-  const charge = new Date(chargeDate);
-  const now = new Date();
-  const diffMs = now.getTime() - charge.getTime();
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
-}
-
 // --- Component ---
 
 export function TreasurerTab() {
   const defaults = getFinancialYearDefaults();
   const [dateFrom, setDateFrom] = useState(defaults.dateFrom);
   const [dateTo, setDateTo] = useState(defaults.dateTo);
-  const [outstandingPage, setOutstandingPage] = useState(1);
-  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [chasingId, setChasingId] = useState<string | null>(null);
-
-  const queryClient = useQueryClient();
 
   // --- Queries ---
 
@@ -131,14 +72,17 @@ export function TreasurerTab() {
     queryFn: () => callApi(api.GET("/api/treasurer/membership-summary")),
   });
 
+  // Page 1 fetched here purely so the summary card can show the count;
+  // TreasurerOutstandingSection runs the same query with its own page
+  // state (TanStack dedupes the page-1 hit).
   const outstandingQuery = useQuery({
-    queryKey: ["treasurer", "outstanding-payments", outstandingPage],
+    queryKey: ["treasurer", "outstanding-payments", 1],
     queryFn: () =>
       callApi(
         api.GET("/api/treasurer/outstanding-payments", {
           params: {
             query: {
-              page: outstandingPage,
+              page: 1,
               pageSize: PAGE_SIZE,
             },
           },
@@ -164,85 +108,6 @@ export function TreasurerTab() {
           params: { query: { dateFrom, dateTo } },
         }),
       ),
-  });
-
-  const expensesDetailQuery = useQuery({
-    queryKey: ["treasurer", "expenses-with-receipts", dateFrom, dateTo],
-    queryFn: () =>
-      callApi(
-        api.GET("/api/treasurer/expenses-with-receipts", {
-          params: { query: { dateFrom, dateTo } },
-        }),
-      ),
-  });
-
-  const chaseMutation = useMutation({
-    mutationFn: (userId: string) =>
-      callApi(
-        api.POST("/api/admin/charge-notification", {
-          body: { userId },
-        }),
-      ),
-    onSuccess: () => {
-      setChasingId(null);
-    },
-  });
-
-  const invalidateExpenses = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ["treasurer", "expenses-with-receipts"],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ["treasurer", "matchday-expenses-summary"],
-    });
-  };
-
-  const approveMutation = useMutation({
-    mutationFn: (expenseId: string) =>
-      callApi(
-        api.POST("/api/matchday/expenses/{expenseId}/approve", {
-          params: { path: { expenseId } },
-        }),
-      ),
-    onSuccess: () => {
-      setSelectedExpense(null);
-      invalidateExpenses();
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: ({
-      expenseId,
-      reason,
-    }: {
-      expenseId: string;
-      reason: string;
-    }) =>
-      callApi(
-        api.POST("/api/matchday/expenses/{expenseId}/reject", {
-          params: { path: { expenseId } },
-          body: { reason },
-        }),
-      ),
-    onSuccess: () => {
-      setSelectedExpense(null);
-      setRejectingId(null);
-      setRejectReason("");
-      invalidateExpenses();
-    },
-  });
-
-  const reimburseMutation = useMutation({
-    mutationFn: (expenseId: string) =>
-      callApi(
-        api.POST("/api/matchday/expenses/{expenseId}/reimburse", {
-          params: { path: { expenseId } },
-        }),
-      ),
-    onSuccess: () => {
-      setSelectedExpense(null);
-      invalidateExpenses();
-    },
   });
 
   // --- Derived data ---
@@ -346,12 +211,6 @@ export function TreasurerTab() {
     );
   }, [incomeQuery.data]);
 
-  // --- Pagination ---
-
-  const outstandingTotalPages = outstandingQuery.data
-    ? Math.ceil(outstandingQuery.data.total / PAGE_SIZE)
-    : 0;
-
   // --- Reset handler ---
 
   const resetDateRange = () => {
@@ -359,11 +218,6 @@ export function TreasurerTab() {
     setDateFrom(d.dateFrom);
     setDateTo(d.dateTo);
   };
-
-  const anyActionPending =
-    approveMutation.isPending ||
-    rejectMutation.isPending ||
-    reimburseMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -394,9 +248,9 @@ export function TreasurerTab() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <Card className="border-l-4 border-l-green-500">
+        <Card className="border-t-2 border-t-green-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-stone-500">
               Total Income
             </CardTitle>
           </CardHeader>
@@ -405,9 +259,9 @@ export function TreasurerTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-yellow-500">
+        <Card className="border-t-2 border-t-yellow-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-stone-500">
               Outstanding
             </CardTitle>
           </CardHeader>
@@ -418,9 +272,9 @@ export function TreasurerTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500">
+        <Card className="border-t-2 border-t-blue-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-stone-500">
               Membership
             </CardTitle>
           </CardHeader>
@@ -431,9 +285,9 @@ export function TreasurerTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
+        <Card className="border-t-2 border-t-green-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-stone-500">
               Sponsorship
             </CardTitle>
           </CardHeader>
@@ -444,9 +298,9 @@ export function TreasurerTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-red-500">
+        <Card className="border-t-2 border-t-red-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-stone-500">
               Matchday Expenses
             </CardTitle>
           </CardHeader>
@@ -465,51 +319,19 @@ export function TreasurerTab() {
         </CardHeader>
         <CardContent>
           {chartData.length === 0 ? (
-            <p className="py-12 text-center text-gray-500">
+            <p className="py-12 text-center text-stone-500">
               No income data for this period.
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip
-                  formatter={(value) =>
-                    new Intl.NumberFormat("en-GB", {
-                      style: "currency",
-                      currency: "GBP",
-                    }).format(Number(value))
-                  }
-                />
-                <Legend />
-                <Bar
-                  dataKey="Membership"
-                  stackId="a"
-                  fill="#2563eb"
-                  name="Membership"
-                />
-                <Bar
-                  dataKey="Sponsorship"
-                  stackId="a"
-                  fill="#16a34a"
-                  name="Sponsorship"
-                />
-                <Bar
-                  dataKey="Donation"
-                  stackId="a"
-                  fill="#f59e0b"
-                  name="Donation"
-                />
-                <Bar
-                  dataKey="Manual"
-                  stackId="a"
-                  fill="#8b5cf6"
-                  name="Manual"
-                />
-                <Bar dataKey="Other" stackId="a" fill="#6b7280" name="Other" />
-              </BarChart>
-            </ResponsiveContainer>
+            <Suspense
+              fallback={
+                <div className="flex h-[300px] items-center justify-center text-sm text-stone-500">
+                  Loading chart…
+                </div>
+              }
+            >
+              <TreasurerIncomeChart data={chartData} />
+            </Suspense>
           )}
         </CardContent>
       </Card>
@@ -523,7 +345,7 @@ export function TreasurerTab() {
           </CardHeader>
           <CardContent>
             {membershipQuery.isLoading ? (
-              <p className="py-8 text-center text-gray-500">Loading...</p>
+              <p className="py-8 text-center text-stone-500">Loading…</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -592,7 +414,7 @@ export function TreasurerTab() {
           </CardHeader>
           <CardContent>
             {sponsorshipQuery.isLoading ? (
-              <p className="py-8 text-center text-gray-500">Loading...</p>
+              <p className="py-8 text-center text-stone-500">Loading…</p>
             ) : sponsorshipQuery.data ? (
               <SponsorshipTable data={sponsorshipQuery.data} />
             ) : null}
@@ -600,369 +422,11 @@ export function TreasurerTab() {
         </Card>
       </div>
 
-      {/* Matchday Expenses */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            Matchday Expenses
-            {expensesSummaryQuery.data
-              ? ` (${formatPence(expensesSummaryQuery.data.grandTotal)} total)`
-              : ""}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {expensesDetailQuery.isLoading ? (
-            <p className="py-8 text-center text-gray-500">Loading...</p>
-          ) : !expensesDetailQuery.data ||
-            expensesDetailQuery.data.expenses.length === 0 ? (
-            <p className="py-8 text-center text-gray-500">
-              No expenses for this period.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Match Date</TableHead>
-                  <TableHead>Opposition</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {expensesDetailQuery.data.expenses.map((expense) => {
-                  const sc = STATUS_CONFIG[expense.status] ?? {
-                    label: expense.status,
-                    variant: "secondary" as const,
-                  };
-                  return (
-                    <TableRow key={expense.id}>
-                      <TableCell>{formatDate(expense.match_date)}</TableCell>
-                      <TableCell>{expense.opposition}</TableCell>
-                      <TableCell>
-                        {EXPENSE_TYPE_LABELS[expense.expense_type] ??
-                          expense.expense_type}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatPence(expense.amount_pence)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={sc.variant}>{sc.label}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedExpense(expense)}
-                        >
-                          Detail
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      {/* Matchday Expenses (table + detail modal + receipt lightbox) */}
+      <TreasurerExpensesSection dateFrom={dateFrom} dateTo={dateTo} />
 
-      {/* Expense Detail Modal */}
-      <Dialog
-        open={selectedExpense !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedExpense(null);
-            setRejectingId(null);
-            setRejectReason("");
-          }
-        }}
-      >
-        {selectedExpense && (
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Expense Detail</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <dt className="font-medium text-gray-500">Match</dt>
-                <dd>
-                  {selectedExpense.opposition} (
-                  {formatDate(selectedExpense.match_date)})
-                </dd>
-                <dt className="font-medium text-gray-500">Type</dt>
-                <dd>
-                  {EXPENSE_TYPE_LABELS[selectedExpense.expense_type] ??
-                    selectedExpense.expense_type}
-                </dd>
-                <dt className="font-medium text-gray-500">Description</dt>
-                <dd>{selectedExpense.description ?? "-"}</dd>
-                <dt className="font-medium text-gray-500">Amount</dt>
-                <dd className="font-semibold">
-                  {formatPence(selectedExpense.amount_pence)}
-                </dd>
-                <dt className="font-medium text-gray-500">Submitted by</dt>
-                <dd>{selectedExpense.submitted_by_name}</dd>
-                <dt className="font-medium text-gray-500">Status</dt>
-                <dd>
-                  <Badge
-                    variant={
-                      (
-                        STATUS_CONFIG[selectedExpense.status] ?? {
-                          variant: "secondary",
-                        }
-                      ).variant
-                    }
-                  >
-                    {
-                      (
-                        STATUS_CONFIG[selectedExpense.status] ?? {
-                          label: selectedExpense.status,
-                        }
-                      ).label
-                    }
-                  </Badge>
-                </dd>
-                {selectedExpense.rejected_reason && (
-                  <>
-                    <dt className="font-medium text-gray-500">
-                      Rejection reason
-                    </dt>
-                    <dd className="text-red-600">
-                      {selectedExpense.rejected_reason}
-                    </dd>
-                  </>
-                )}
-              </dl>
-
-              {selectedExpense.receipt_image_url && (
-                <div>
-                  <p className="mb-1 text-sm font-medium text-gray-500">
-                    Receipt
-                  </p>
-                  <img
-                    src={selectedExpense.receipt_image_url}
-                    alt="Receipt"
-                    className="max-h-48 cursor-pointer rounded border"
-                    onClick={() => {
-                      if (selectedExpense.receipt_image_url) {
-                        setLightboxUrl(selectedExpense.receipt_image_url);
-                      }
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Actions based on status */}
-              <div className="flex gap-2 border-t pt-4">
-                {selectedExpense.status === "submitted" && (
-                  <>
-                    <Button
-                      size="sm"
-                      disabled={anyActionPending}
-                      onClick={() => approveMutation.mutate(selectedExpense.id)}
-                    >
-                      Approve
-                    </Button>
-                    {rejectingId === selectedExpense.id ? (
-                      <div className="flex flex-1 gap-2">
-                        <Input
-                          placeholder="Reason for rejection"
-                          value={rejectReason}
-                          onChange={(e) => setRejectReason(e.target.value)}
-                          className="flex-1"
-                        />
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={
-                            anyActionPending || rejectReason.trim() === ""
-                          }
-                          onClick={() =>
-                            rejectMutation.mutate({
-                              expenseId: selectedExpense.id,
-                              reason: rejectReason.trim(),
-                            })
-                          }
-                        >
-                          Confirm
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setRejectingId(null);
-                            setRejectReason("");
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        disabled={anyActionPending}
-                        onClick={() => setRejectingId(selectedExpense.id)}
-                      >
-                        Reject
-                      </Button>
-                    )}
-                  </>
-                )}
-                {selectedExpense.status === "approved" && (
-                  <Button
-                    size="sm"
-                    disabled={anyActionPending}
-                    onClick={() => reimburseMutation.mutate(selectedExpense.id)}
-                  >
-                    Mark Reimbursed
-                  </Button>
-                )}
-              </div>
-            </div>
-          </DialogContent>
-        )}
-      </Dialog>
-
-      {/* Outstanding Payments */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Outstanding Payments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {outstandingQuery.isLoading ? (
-            <p className="py-8 text-center text-gray-500">Loading...</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Member</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Days Overdue</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {outstandingQuery.data?.items.map((item) => {
-                  const days = daysOverdue(item.charge_date);
-                  const overdueBadgeVariant =
-                    days > 30
-                      ? "destructive"
-                      : days > 7
-                        ? "warning"
-                        : "default";
-
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div>{item.member_name}</div>
-                        <div className="text-xs text-gray-500">
-                          {item.member_email}
-                        </div>
-                      </TableCell>
-                      <TableCell>{item.description}</TableCell>
-                      <TableCell className="text-right">
-                        {formatPence(item.amount_pence)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant={overdueBadgeVariant}>{days}d</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {chasingId === item.id ? (
-                          <div className="flex gap-1">
-                            <Button
-                              variant="default"
-                              size="sm"
-                              disabled={
-                                chaseMutation.isPending || !("user_id" in item)
-                              }
-                              onClick={() => {
-                                const userId = (item as { user_id?: string })
-                                  .user_id;
-                                if (userId) chaseMutation.mutate(userId);
-                              }}
-                            >
-                              Send
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setChasingId(null)}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setChasingId(item.id)}
-                          >
-                            Chase
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {outstandingQuery.data?.items.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="py-12 text-center text-gray-500"
-                    >
-                      No outstanding payments.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-        {outstandingQuery.data && outstandingQuery.data.total > 0 && (
-          <CardFooter className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">
-              {outstandingQuery.data.total} payment(s) total
-            </span>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={outstandingPage <= 1}
-                onClick={() => setOutstandingPage((p) => p - 1)}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={outstandingPage >= outstandingTotalPages}
-                onClick={() => setOutstandingPage((p) => p + 1)}
-              >
-                Next
-              </Button>
-            </div>
-          </CardFooter>
-        )}
-      </Card>
-
-      {/* Receipt Lightbox */}
-      {lightboxUrl && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-          onClick={() => setLightboxUrl(null)}
-        >
-          <img
-            src={lightboxUrl}
-            alt="Receipt"
-            className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      {/* Outstanding Payments (paginated table + per-row chase action) */}
+      <TreasurerOutstandingSection />
     </div>
   );
 }

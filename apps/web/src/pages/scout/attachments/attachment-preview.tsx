@@ -19,14 +19,14 @@ export function AttachmentPreview({
         "relative flex max-w-[220px] items-center gap-2 rounded border px-2 py-1.5 text-xs " +
         (failed
           ? "border-red-300 bg-red-50 text-red-700"
-          : "border-gray-300 bg-gray-50 text-gray-700")
+          : "border-stone-300 bg-stone-50 text-stone-700")
       }
       title={error ?? filename}
     >
       <Thumb kind={kind} previewUrl={previewUrl} />
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium">{filename}</div>
-        <div className="text-[10px] text-gray-500">
+        <div className="text-[10px] text-stone-500">
           {formatBytes(sizeBytes)}
           {busy && (
             <>
@@ -46,9 +46,9 @@ export function AttachmentPreview({
         type="button"
         onClick={() => onRemove(attachment.localId)}
         title="Remove attachment"
-        className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+        className="rounded p-0.5 text-stone-400 hover:bg-stone-200 hover:text-stone-700"
       >
-        <CloseIcon className="h-3.5 w-3.5" />
+        <CloseIcon className="size-3.5" />
       </button>
     </div>
   );
@@ -66,12 +66,12 @@ function Thumb({
       <img
         src={previewUrl}
         alt=""
-        className="h-8 w-8 shrink-0 rounded object-cover"
+        className="size-8 shrink-0 rounded object-cover"
       />
     );
   }
   return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-gray-200 text-[10px] font-semibold tracking-wide text-gray-600 uppercase">
+    <div className="flex size-8 shrink-0 items-center justify-center rounded bg-stone-200 text-[10px] font-semibold tracking-wide text-stone-600 uppercase">
       {kind === "pdf" ? "PDF" : "IMG"}
     </div>
   );

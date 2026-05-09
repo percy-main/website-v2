@@ -9,7 +9,7 @@ interface TabsContextValue {
 const TabsContext = React.createContext<TabsContextValue | null>(null);
 
 function useTabs() {
-  const ctx = React.useContext(TabsContext);
+  const ctx = React.use(TabsContext);
   if (!ctx)
     throw new Error("Tabs compound components must be used within <Tabs>");
   return ctx;
@@ -70,7 +70,7 @@ export function TabsTrigger({
       role="tab"
       aria-selected={isActive}
       className={cn(
-        "ring-offset-surface inline-flex items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+        "ring-offset-surface inline-flex items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
         isActive && "bg-surface text-dark shadow-sm",
         className,
       )}
@@ -97,7 +97,7 @@ export function TabsContent({
     <div
       role="tabpanel"
       className={cn(
-        "ring-offset-surface mt-2 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none",
+        "ring-offset-surface mt-2 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none",
         className,
       )}
     >

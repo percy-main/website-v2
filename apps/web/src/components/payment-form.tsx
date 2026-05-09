@@ -105,7 +105,7 @@ function CheckoutForm({
           disabled={!stripe || processing}
         >
           {processing
-            ? "Processing..."
+            ? "Processing…"
             : `Pay ${currencyFormatter.format(amount / 100)}`}
         </Button>
       </CardFooter>

@@ -21,12 +21,16 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
+import {
+  type ChargeStatus,
+  chargesFilterReducer,
+  initialChargesFilterState,
+  isFiltered,
+} from "./charges-tab.reducer";
 import { formatDate, formatPence } from "./status-pill";
 
 const PAGE_SIZE = 20;
-
-type ChargeStatus = "all" | "unpaid" | "pending" | "paid" | "abandoned";
 
 const statusBadgeMap: Record<
   string,
@@ -50,13 +54,19 @@ const statusBadgeMap: Record<
 
 export function ChargesTab() {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<ChargeStatus>("all");
-  const [showDeleted, setShowDeleted] = useState(false);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filters, dispatch] = useReducer(
+    chargesFilterReducer,
+    initialChargesFilterState,
+  );
+  const {
+    page,
+    status,
+    showDeleted,
+    dateFrom,
+    dateTo,
+    search,
+    debouncedSearch,
+  } = filters;
   const [chasingChargeId, setChasingChargeId] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -65,8 +75,7 @@ export function ChargesTab() {
       clearTimeout(debounceTimerRef.current);
     }
     debounceTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
+      dispatch({ type: "commitSearch", value: search });
     }, 300);
     return () => {
       if (debounceTimerRef.current) {
@@ -139,8 +148,7 @@ export function ChargesTab() {
     ? Math.max(1, Math.ceil(result.total / PAGE_SIZE))
     : 1;
 
-  const hasFilters =
-    dateFrom || dateTo || search || status !== "all" || showDeleted;
+  const hasFilters = isFiltered(filters);
 
   return (
     <div className="flex flex-col gap-4">
@@ -187,17 +195,18 @@ export function ChargesTab() {
       <div className="flex flex-wrap items-center gap-3">
         <Input
           type="text"
-          placeholder="Search member or description..."
+          placeholder="Search member or description…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setSearch", value: e.target.value })
+          }
           className="w-full max-w-xs"
         />
         <Select
           value={status}
-          onValueChange={(value) => {
-            setStatus(value as ChargeStatus);
-            setPage(1);
-          }}
+          onValueChange={(value) =>
+            dispatch({ type: "setStatus", value: value as ChargeStatus })
+          }
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="All Statuses" />
@@ -211,32 +220,30 @@ export function ChargesTab() {
           </SelectContent>
         </Select>
         <div className="flex items-center gap-1">
-          <Label htmlFor="charges-date-from" className="text-gray-500">
+          <Label htmlFor="charges-date-from" className="text-stone-500">
             From
           </Label>
           <Input
             id="charges-date-from"
             type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) =>
+              dispatch({ type: "setDateFrom", value: e.target.value })
+            }
             className="w-auto"
           />
         </div>
         <div className="flex items-center gap-1">
-          <Label htmlFor="charges-date-to" className="text-gray-500">
+          <Label htmlFor="charges-date-to" className="text-stone-500">
             To
           </Label>
           <Input
             id="charges-date-to"
             type="date"
             value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) =>
+              dispatch({ type: "setDateTo", value: e.target.value })
+            }
             className="w-auto"
           />
         </div>
@@ -244,12 +251,11 @@ export function ChargesTab() {
           <Checkbox
             id="charges-show-deleted"
             checked={showDeleted}
-            onCheckedChange={(checked) => {
-              setShowDeleted(checked === true);
-              setPage(1);
-            }}
+            onCheckedChange={(checked) =>
+              dispatch({ type: "setShowDeleted", value: checked === true })
+            }
           />
-          <Label htmlFor="charges-show-deleted" className="text-gray-600">
+          <Label htmlFor="charges-show-deleted" className="text-stone-600">
             Show deleted
           </Label>
         </div>
@@ -257,15 +263,7 @@ export function ChargesTab() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setSearch("");
-              setDebouncedSearch("");
-              setStatus("all");
-              setDateFrom("");
-              setDateTo("");
-              setShowDeleted(false);
-              setPage(1);
-            }}
+            onClick={() => dispatch({ type: "clearFilters" })}
           >
             Clear filters
           </Button>
@@ -273,7 +271,7 @@ export function ChargesTab() {
       </div>
 
       {/* Loading / Error */}
-      {chargesQuery.isLoading && <p className="text-gray-500">Loading...</p>}
+      {chargesQuery.isLoading && <p className="text-stone-500">Loading…</p>}
       {chargesQuery.isError && (
         <p className="text-red-600">Failed to load charges.</p>
       )}
@@ -297,7 +295,7 @@ export function ChargesTab() {
             <TableBody>
               {result.charges.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-gray-500">
+                  <TableCell colSpan={8} className="text-center text-stone-500">
                     No charges found.
                   </TableCell>
                 </TableRow>
@@ -313,7 +311,7 @@ export function ChargesTab() {
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium">{charge.memberName}</span>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-stone-500">
                           {charge.memberEmail}
                         </span>
                       </div>
@@ -321,7 +319,7 @@ export function ChargesTab() {
                     <TableCell>
                       {charge.description}
                       {charge.deletedReason && (
-                        <div className="text-xs text-gray-400">
+                        <div className="text-xs text-stone-400">
                           Deleted: {charge.deletedReason}
                         </div>
                       )}
@@ -352,9 +350,7 @@ export function ChargesTab() {
                                 disabled={chaseMutation.isPending}
                                 onClick={() => chaseMutation.mutate(charge.id)}
                               >
-                                {chaseMutation.isPending
-                                  ? "Sending..."
-                                  : "Send"}
+                                {chaseMutation.isPending ? "Sending…" : "Send"}
                               </Button>
                               <Button
                                 variant="outline"
@@ -390,25 +386,32 @@ export function ChargesTab() {
 
           {/* Pagination */}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">
+            <span className="text-stone-500">
               {result.total} charge{result.total !== 1 ? "s" : ""} total
             </span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() =>
+                  dispatch({ type: "setPage", value: Math.max(1, page - 1) })
+                }
                 disabled={page <= 1}
               >
                 Previous
               </Button>
-              <span className="text-gray-600">
+              <span className="text-stone-600">
                 Page {page} of {totalPages}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() =>
+                  dispatch({
+                    type: "setPage",
+                    value: Math.min(totalPages, page + 1),
+                  })
+                }
                 disabled={page >= totalPages}
               >
                 Next
@@ -442,13 +445,13 @@ function SummaryCard({
   return (
     <Card className={`border-l-4 ${borderColorMap[variant]}`}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-gray-500">
+        <CardTitle className="text-sm font-medium text-stone-500">
           {title}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="text-xl font-bold">{formatPence(amount)}</div>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-stone-500">
           {count} charge{count !== 1 ? "s" : ""}
         </p>
       </CardContent>

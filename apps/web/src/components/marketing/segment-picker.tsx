@@ -32,7 +32,7 @@ export const SegmentPicker: FC<SegmentPickerProps> = ({
 }) => {
   const segments = campaigns["recruit-2026"].segments;
 
-  const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
+  const selectSegment = (event: ChangeEvent<HTMLSelectElement>) => {
     onChange(event.currentTarget.value);
   };
 
@@ -43,8 +43,8 @@ export const SegmentPicker: FC<SegmentPickerProps> = ({
         id={id}
         name={id}
         value={value}
-        onChange={handleChange}
-        className="border-border bg-surface text-dark ring-offset-surface flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none"
+        onChange={selectSegment}
+        className="border-border bg-surface text-dark ring-offset-surface flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         <option value="" disabled>
           Choose one…

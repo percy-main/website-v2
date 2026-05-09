@@ -95,7 +95,7 @@ function SandwichBudgetRules() {
           </Table>
           <p className="text-muted-foreground">
             Your total squad cost must not exceed <strong>30 sandwiches</strong>
-            . This ensures team diversity — you can&apos;t just pick all the
+            . This ensures team diversity, so you can&apos;t just pick all the
             best players.
           </p>
         </div>
@@ -216,7 +216,7 @@ function BattingRules() {
           </TableBody>
         </Table>
         <p className="text-muted-foreground mt-2 text-sm">
-          Half-century and century bonuses are mutually exclusive — a century
+          Half-century and century bonuses are mutually exclusive; a century
           earns the century bonus only.
         </p>
       </CardContent>

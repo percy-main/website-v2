@@ -15,8 +15,17 @@ import { useSession } from "@/lib/auth-client";
 import { compressImage } from "@/lib/image-utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parse } from "date-fns";
-import { useRef, useState } from "react";
+import { useReducer, useRef, useState } from "react";
 import { Link } from "react-router";
+import {
+  buildAddExpensePayload,
+  buildConfirmPayload,
+  confirmationFormReducer,
+  expenseFormReducer,
+  initialConfirmationFormState,
+  initialExpenseFormState,
+  type ExpenseType as ReducerExpenseType,
+} from "./official.reducer";
 
 // ── Constants ──
 
@@ -103,7 +112,7 @@ function DownloadTeamNewsButton({
       disabled={downloading}
       onClick={handleDownload}
     >
-      {downloading ? "Generating..." : "Download Image"}
+      {downloading ? "Generating…" : "Download Image"}
     </Button>
   );
 }
@@ -141,7 +150,7 @@ function RoleSelectors({
   return (
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
       <label className="flex items-center gap-2 text-sm">
-        <span className="text-gray-700">Captain (*)</span>
+        <span className="text-stone-700">Captain (*)</span>
         <Select
           value={captain}
           disabled={disabled}
@@ -167,7 +176,7 @@ function RoleSelectors({
         </Select>
       </label>
       <label className="flex items-center gap-2 text-sm">
-        <span className="text-gray-700">Wicketkeeper (†)</span>
+        <span className="text-stone-700">Wicketkeeper (†)</span>
         <Select
           value={wicketkeeper}
           disabled={disabled}
@@ -213,14 +222,14 @@ export function Component() {
           <div className="flex gap-2">
             {user.role === "admin" && (
               <Link
-                className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+                className="rounded border border-stone-800 px-4 py-2 text-sm text-stone-900 hover:bg-stone-200"
                 to="/admin"
               >
                 Admin Panel
               </Link>
             )}
             <Link
-              className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+              className="rounded border border-stone-800 px-4 py-2 text-sm text-stone-900 hover:bg-stone-200"
               to="/matchday"
             >
               Matchday
@@ -247,7 +256,7 @@ function TeamsDashboard() {
   });
 
   if (teamsQuery.isPending) {
-    return <p className="text-gray-500">Loading teams...</p>;
+    return <p className="text-stone-500">Loading teams…</p>;
   }
 
   if (teamsQuery.isError) {
@@ -258,7 +267,7 @@ function TeamsDashboard() {
 
   if (teams.length === 0) {
     return (
-      <p className="text-gray-500">
+      <p className="text-stone-500">
         No teams assigned. Contact an admin to be assigned as an official.
       </p>
     );
@@ -300,7 +309,7 @@ function TeamsDashboard() {
             <CardTitle className="text-lg">{team.name}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-stone-500">
               Click to view upcoming matches
             </p>
           </CardContent>
@@ -379,14 +388,14 @@ function TeamMatchesView({
       </div>
 
       {matchesQuery.isPending && (
-        <p className="text-gray-500">Loading matches...</p>
+        <p className="text-stone-500">Loading matches…</p>
       )}
       {matchesQuery.isError && (
         <p className="text-red-600">Failed to load matches.</p>
       )}
 
       {matches.length === 0 && !matchesQuery.isPending && (
-        <p className="text-gray-500">No upcoming matches found.</p>
+        <p className="text-stone-500">No upcoming matches found.</p>
       )}
 
       <div className="grid gap-3">
@@ -401,14 +410,14 @@ function TeamMatchesView({
                   <p className="font-medium">
                     {match.isHome ? "vs" : "@"} {match.opposition}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-stone-500">
                     {format(matchDate, "EEEE d MMMM yyyy")}
                     {match.matchTime ? ` at ${match.matchTime}` : ""}
                   </p>
                   {(match.competitionName ?? match.competitionType) && (
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-stone-400">
                       {match.competitionType && (
-                        <span className="mr-1 rounded bg-gray-100 px-1 py-0.5 font-medium text-gray-600">
+                        <span className="mr-1 rounded bg-stone-100 px-1 py-0.5 font-medium text-stone-600">
                           {match.competitionType}
                         </span>
                       )}
@@ -458,7 +467,7 @@ function TeamMatchesView({
                       }
                     >
                       {createMatchdayMutation.isPending
-                        ? "Creating..."
+                        ? "Creating…"
                         : "Start Matchday"}
                     </Button>
                   )}
@@ -491,10 +500,12 @@ function MatchdayView({
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [adHocName, setAdHocName] = useState("");
-  const [confirmingTeam, setConfirmingTeam] = useState(false);
-  const [playerStatuses, setPlayerStatuses] = useState<
-    Record<string, "playing" | "dropped_out" | "no_show">
-  >({});
+  const [confirmation, dispatchConfirmation] = useReducer(
+    confirmationFormReducer,
+    initialConfirmationFormState,
+  );
+  const confirmingTeam = confirmation.confirming;
+  const playerStatuses = confirmation.playerStatuses;
   const [payingPlayerId, setPayingPlayerId] = useState<string | null>(null);
   type ResultType = "W" | "L" | "D" | "T" | "A" | "C" | "N";
   const [selectedResultType, setSelectedResultType] = useState<ResultType | "">(
@@ -567,8 +578,7 @@ function MatchdayView({
         }),
       ),
     onSuccess: () => {
-      setConfirmingTeam(false);
-      setPlayerStatuses({});
+      dispatchConfirmation({ type: "reset" });
       void queryClient.invalidateQueries({
         queryKey: ["official", "matchday", matchdayId],
       });
@@ -674,31 +684,22 @@ function MatchdayView({
   );
   const searchResults = searchMembersQuery.data ?? [];
   const existingMemberIds = new Set(
-    players.filter((p) => p.member_id).map((p) => p.member_id),
+    players.flatMap((p) => (p.member_id ? [p.member_id] : [])),
   );
 
   const handleStartConfirm = () => {
-    const initial: Record<string, "playing" | "dropped_out" | "no_show"> = {};
-    for (const p of players) {
-      if (p.id) initial[p.id] = "playing";
-    }
-    setPlayerStatuses(initial);
-    setConfirmingTeam(true);
-  };
-
-  const handleConfirm = () => {
-    confirmTeamMutation.mutate({
-      playerStatuses: Object.entries(playerStatuses).map(
-        ([matchdayPlayerId, status]) => ({
-          matchdayPlayerId,
-          status,
-        }),
-      ),
+    dispatchConfirmation({
+      type: "start",
+      playerIds: players.flatMap((p) => (p.id ? [p.id] : [])),
     });
   };
 
+  const handleConfirm = () => {
+    confirmTeamMutation.mutate(buildConfirmPayload(confirmation));
+  };
+
   const statusColors: Record<string, string> = {
-    selected: "bg-gray-100 text-gray-700",
+    selected: "bg-stone-100 text-stone-700",
     playing: "bg-green-100 text-green-800",
     dropped_out: "bg-yellow-100 text-yellow-800",
     no_show: "bg-red-100 text-red-800",
@@ -720,13 +721,13 @@ function MatchdayView({
           Back
         </Button>
         {matchdayQuery.isPending ? (
-          <p className="text-gray-500">Loading...</p>
+          <p className="text-stone-500">Loading…</p>
         ) : data ? (
           <div>
             <h2 className="text-xl font-semibold">
               {data.team?.name} vs {data.matchday.opposition}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-stone-500">
               {format(new Date(data.matchday.match_date), "EEEE d MMMM yyyy")}
               <span
                 className={`ml-2 inline-block rounded px-2 py-0.5 text-xs font-medium ${
@@ -734,7 +735,7 @@ function MatchdayView({
                     ? "bg-yellow-100 text-yellow-800"
                     : data.matchday.status === "confirmed"
                       ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
+                      : "bg-stone-100 text-stone-800"
                 }`}
               >
                 {data.matchday.status}
@@ -793,24 +794,24 @@ function MatchdayView({
                   />
                 )}
               {players.length === 0 ? (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-stone-500">
                   No players selected yet.
                 </p>
               ) : confirmingTeam ? (
                 /* Confirmation mode */
                 <div className="flex flex-col gap-3">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-stone-600">
                     Set each player&apos;s status and confirm the team.
                   </p>
                   {players.map((player) => (
                     <div
                       key={player.id}
-                      className="flex items-center justify-between rounded border border-gray-200 px-3 py-2"
+                      className="flex items-center justify-between rounded border border-stone-200 px-3 py-2"
                     >
                       <div>
                         <p className="font-medium">{player.player_name}</p>
                         {player.member_category && (
-                          <p className="text-xs text-gray-400 capitalize">
+                          <p className="text-xs text-stone-400 capitalize">
                             {player.member_category}
                           </p>
                         )}
@@ -820,10 +821,11 @@ function MatchdayView({
                         onValueChange={(
                           value: "playing" | "dropped_out" | "no_show",
                         ) =>
-                          setPlayerStatuses((prev) => ({
-                            ...prev,
-                            [player.id]: value,
-                          }))
+                          dispatchConfirmation({
+                            type: "setStatus",
+                            playerId: player.id,
+                            status: value,
+                          })
                         }
                       >
                         <SelectTrigger className="w-36">
@@ -845,12 +847,12 @@ function MatchdayView({
                       disabled={confirmTeamMutation.isPending}
                     >
                       {confirmTeamMutation.isPending
-                        ? "Confirming..."
+                        ? "Confirming…"
                         : "Confirm Team"}
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => setConfirmingTeam(false)}
+                      onClick={() => dispatchConfirmation({ type: "cancel" })}
                     >
                       Cancel
                     </Button>
@@ -867,10 +869,10 @@ function MatchdayView({
                   {players.map((player, idx) => (
                     <div
                       key={player.id}
-                      className="flex items-center justify-between rounded border border-gray-200 px-3 py-2"
+                      className="flex items-center justify-between rounded border border-stone-200 px-3 py-2"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="w-6 text-center text-sm font-medium text-gray-400">
+                        <span className="w-6 text-center text-sm font-medium text-stone-400">
                           {idx + 1}
                         </span>
                         <div>
@@ -878,7 +880,7 @@ function MatchdayView({
                             {player.player_name}
                             {player.is_captain && (
                               <span
-                                className="ml-1 text-gray-500"
+                                className="ml-1 text-stone-500"
                                 title="Captain"
                               >
                                 *
@@ -886,7 +888,7 @@ function MatchdayView({
                             )}
                             {player.is_wicketkeeper && (
                               <span
-                                className="ml-0.5 text-gray-500"
+                                className="ml-0.5 text-stone-500"
                                 title="Wicketkeeper"
                               >
                                 †
@@ -895,7 +897,7 @@ function MatchdayView({
                           </p>
                           <div className="flex items-center gap-2">
                             {player.member_category && (
-                              <span className="text-xs text-gray-400 capitalize">
+                              <span className="text-xs text-stone-400 capitalize">
                                 {player.member_category}
                               </span>
                             )}
@@ -968,7 +970,7 @@ function MatchdayView({
                               Fee pending
                             </span>
                           ) : (
-                            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">
+                            <span className="rounded bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-600">
                               No fee set
                             </span>
                           ))}
@@ -1003,49 +1005,53 @@ function MatchdayView({
               <CardContent className="flex flex-col gap-4">
                 <div>
                   <Input
-                    placeholder="Search members by name..."
+                    placeholder="Search members by name…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                   {searchMembersQuery.isPending && searchQuery.length >= 2 && (
-                    <p className="mt-2 text-sm text-gray-500">Searching...</p>
+                    <p className="mt-2 text-sm text-stone-500">Searching…</p>
                   )}
                   {searchResults.length > 0 && (
-                    <div className="mt-2 max-h-48 overflow-y-auto rounded border border-gray-200">
-                      {searchResults
-                        .filter((m) => !existingMemberIds.has(m.id))
-                        .map((member) => (
-                          <button
-                            key={member.id}
-                            type="button"
-                            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50"
-                            disabled={addPlayerMutation.isPending}
-                            onClick={() =>
-                              addPlayerMutation.mutate({
-                                memberId: member.id,
-                                playerName: member.name ?? "Unknown",
-                              })
-                            }
-                          >
-                            <div>
-                              <span className="font-medium">{member.name}</span>
-                              {member.member_category && (
-                                <span className="ml-2 text-xs text-gray-400 capitalize">
-                                  {member.member_category}
+                    <div className="mt-2 max-h-48 overflow-y-auto rounded border border-stone-200">
+                      {searchResults.flatMap((member) =>
+                        existingMemberIds.has(member.id)
+                          ? []
+                          : [
+                              <button
+                                key={member.id}
+                                type="button"
+                                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-stone-50"
+                                disabled={addPlayerMutation.isPending}
+                                onClick={() =>
+                                  addPlayerMutation.mutate({
+                                    memberId: member.id,
+                                    playerName: member.name ?? "Unknown",
+                                  })
+                                }
+                              >
+                                <div>
+                                  <span className="font-medium">
+                                    {member.name}
+                                  </span>
+                                  {member.member_category && (
+                                    <span className="ml-2 text-xs text-stone-400 capitalize">
+                                      {member.member_category}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-stone-400">
+                                  {member.email}
                                 </span>
-                              )}
-                            </div>
-                            <span className="text-xs text-gray-400">
-                              {member.email}
-                            </span>
-                          </button>
-                        ))}
+                              </button>,
+                            ],
+                      )}
                     </div>
                   )}
                 </div>
 
-                <div className="border-t border-gray-200 pt-4">
-                  <p className="mb-2 text-sm text-gray-600">
+                <div className="border-t border-stone-200 pt-4">
+                  <p className="mb-2 text-sm text-stone-600">
                     Or add a player not in the system:
                   </p>
                   <div className="flex gap-2">
@@ -1097,7 +1103,7 @@ function MatchdayView({
             <Card>
               <CardContent className="p-4">
                 <p className="font-medium">Finish Match</p>
-                <p className="mb-3 text-sm text-gray-500">
+                <p className="mb-3 text-sm text-stone-500">
                   Select the match result and finish. Unpaid match fees will
                   remain as charges and notification emails will be sent.
                 </p>
@@ -1130,7 +1136,7 @@ function MatchdayView({
                     }
                   >
                     {finishMatchMutation.isPending
-                      ? "Finishing..."
+                      ? "Finishing…"
                       : "Finish Match"}
                   </Button>
                 </div>
@@ -1154,7 +1160,7 @@ function MatchdayView({
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-stone-500">
                       This match has been finished.
                       {data.matchday.result_type &&
                         ` Result: ${RESULT_TYPE_LABELS[data.matchday.result_type] ?? data.matchday.result_type}.`}
@@ -1172,12 +1178,7 @@ function MatchdayView({
   );
 }
 
-type ExpenseType =
-  | "umpire_fee"
-  | "scorer_fee"
-  | "match_ball"
-  | "teas"
-  | "miscellaneous";
+type ExpenseType = ReducerExpenseType;
 
 function ExpensesSection({
   expenses,
@@ -1203,26 +1204,26 @@ function ExpensesSection({
   deleteExpenseMutation: ReturnType<typeof useMutation<unknown, Error, string>>;
 }) {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [expenseType, setExpenseType] = useState<ExpenseType>("umpire_fee");
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [matchBallUsed, setMatchBallUsed] = useState(true);
-  const [matchBallCost, setMatchBallCost] = useState("");
-  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
-  const [compressing, setCompressing] = useState(false);
+  const [expenseForm, dispatchExpense] = useReducer(
+    expenseFormReducer,
+    initialExpenseFormState,
+  );
+  const {
+    expenseType,
+    description,
+    amount,
+    matchBallUsed,
+    matchBallCost,
+    receiptPreview,
+    compressing,
+  } = expenseForm;
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount_pence, 0);
 
   const resetForm = () => {
-    setDescription("");
-    setAmount("");
-    setMatchBallCost("");
-    setMatchBallUsed(true);
-    setReceiptPreview(null);
-    setReceiptDataUrl(null);
+    dispatchExpense({ type: "resetFields" });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -1232,67 +1233,36 @@ function ExpensesSection({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setCompressing(true);
+    dispatchExpense({ type: "setCompressing", value: true });
     try {
       const dataUrl = await compressImage(file, {
         maxDimension: 1200,
         maxBytes: 400_000,
       });
-      setReceiptPreview(dataUrl);
-      setReceiptDataUrl(dataUrl);
+      dispatchExpense({ type: "setReceipt", preview: dataUrl, dataUrl });
     } catch {
       // Image processing failed
-      setReceiptPreview(null);
-      setReceiptDataUrl(null);
+      dispatchExpense({ type: "setReceipt", preview: null, dataUrl: null });
     } finally {
-      setCompressing(false);
+      dispatchExpense({ type: "setCompressing", value: false });
     }
   };
 
   const handleExpenseTypeChange = (newType: ExpenseType) => {
-    setExpenseType(newType);
-    resetForm();
+    dispatchExpense({ type: "setExpenseType", value: newType });
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleAddExpense = () => {
-    if (expenseType === "match_ball") {
-      if (!matchBallUsed) return;
-      const amountPence = Math.round(parseFloat(matchBallCost || "0") * 100);
-      if (amountPence <= 0) return;
-      addExpenseMutation.mutate(
-        {
-          type: "match_ball",
-          description: "New match ball",
-          amountPence,
-          receiptImage: receiptDataUrl ?? undefined,
-        },
-        {
-          onSuccess: () => {
-            resetForm();
-            setShowAddForm(false);
-          },
-        },
-      );
-      return;
-    }
+    const payload = buildAddExpensePayload(expenseForm);
+    if (!payload) return;
 
-    const amountPence = Math.round(parseFloat(amount) * 100);
-    if (isNaN(amountPence) || amountPence < 0) return;
-
-    addExpenseMutation.mutate(
-      {
-        type: expenseType,
-        description: description.trim() || undefined,
-        amountPence,
-        receiptImage: receiptDataUrl ?? undefined,
+    addExpenseMutation.mutate(payload, {
+      onSuccess: () => {
+        resetForm();
+        setShowAddForm(false);
       },
-      {
-        onSuccess: () => {
-          resetForm();
-          setShowAddForm(false);
-        },
-      },
-    );
+    });
   };
 
   const hasMatchBall = expenses.some((e) => e.expense_type === "match_ball");
@@ -1304,7 +1274,7 @@ function ExpensesSection({
           <span>
             Expenses
             {totalExpenses > 0 && (
-              <span className="ml-2 text-sm font-normal text-gray-500">
+              <span className="ml-2 text-sm font-normal text-stone-500">
                 (Total: {currencyFormatter.format(totalExpenses / 100)})
               </span>
             )}
@@ -1323,7 +1293,7 @@ function ExpensesSection({
       <CardContent>
         {/* Existing expenses */}
         {expenses.length === 0 ? (
-          <p className="text-sm text-gray-500">No expenses recorded yet.</p>
+          <p className="text-sm text-stone-500">No expenses recorded yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {expenses.map((expense) => {
@@ -1332,7 +1302,7 @@ function ExpensesSection({
               return (
                 <div
                   key={expenseId}
-                  className="flex items-center justify-between rounded border border-gray-200 px-3 py-2"
+                  className="flex items-center justify-between rounded border border-stone-200 px-3 py-2"
                 >
                   <div className="flex items-center gap-2">
                     <div>
@@ -1341,7 +1311,7 @@ function ExpensesSection({
                           expense.expense_type}
                       </p>
                       {expense.description && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-stone-500">
                           {expense.description}
                         </p>
                       )}
@@ -1382,10 +1352,13 @@ function ExpensesSection({
 
         {/* Add expense form */}
         {showAddForm && (
-          <div className="mt-4 rounded border border-gray-200 bg-gray-50 p-4">
+          <div className="mt-4 rounded border border-stone-200 bg-stone-50 p-4">
             <div className="flex flex-col gap-3">
               <div>
-                <label className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="official-expense-type"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Expense Type
                 </label>
                 <Select
@@ -1394,7 +1367,7 @@ function ExpensesSection({
                     handleExpenseTypeChange(v as ExpenseType)
                   }
                 >
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger id="official-expense-type" className="w-48">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1415,24 +1388,38 @@ function ExpensesSection({
                     <input
                       type="checkbox"
                       checked={matchBallUsed}
-                      onChange={(e) => setMatchBallUsed(e.target.checked)}
+                      onChange={(e) =>
+                        dispatchExpense({
+                          type: "setMatchBallUsed",
+                          value: e.target.checked,
+                        })
+                      }
                       className="rounded"
                     />
                     New match ball used
                   </label>
                   {matchBallUsed && (
                     <div>
-                      <label className="mb-1 block text-sm font-medium">
+                      <label
+                        htmlFor="official-match-ball-cost"
+                        className="mb-1 block text-sm font-medium"
+                      >
                         Cost
                       </label>
                       <Input
+                        id="official-match-ball-cost"
                         className="w-32"
                         type="number"
                         min="0"
                         step="0.01"
                         placeholder="0.00"
                         value={matchBallCost}
-                        onChange={(e) => setMatchBallCost(e.target.value)}
+                        onChange={(e) =>
+                          dispatchExpense({
+                            type: "setMatchBallCost",
+                            value: e.target.value,
+                          })
+                        }
                       />
                     </div>
                   )}
@@ -1440,7 +1427,10 @@ function ExpensesSection({
               ) : (
                 <>
                   <div>
-                    <label className="mb-1 block text-sm font-medium">
+                    <label
+                      htmlFor="official-expense-description"
+                      className="mb-1 block text-sm font-medium"
+                    >
                       {expenseType === "umpire_fee"
                         ? "Umpire Name"
                         : expenseType === "scorer_fee"
@@ -1450,6 +1440,7 @@ function ExpensesSection({
                             : "Description (optional)"}
                     </label>
                     <Input
+                      id="official-expense-description"
                       placeholder={
                         expenseType === "umpire_fee"
                           ? "e.g. J. Smith"
@@ -1458,21 +1449,35 @@ function ExpensesSection({
                             : "Description"
                       }
                       value={description}
-                      onChange={(e) => setDescription(e.target.value)}
+                      onChange={(e) =>
+                        dispatchExpense({
+                          type: "setDescription",
+                          value: e.target.value,
+                        })
+                      }
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium">
+                    <label
+                      htmlFor="official-expense-amount"
+                      className="mb-1 block text-sm font-medium"
+                    >
                       Amount
                     </label>
                     <Input
+                      id="official-expense-amount"
                       className="w-32"
                       type="number"
                       min="0"
                       step="0.01"
                       placeholder="0.00"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={(e) =>
+                        dispatchExpense({
+                          type: "setAmount",
+                          value: e.target.value,
+                        })
+                      }
                     />
                   </div>
                 </>
@@ -1480,19 +1485,23 @@ function ExpensesSection({
 
               {/* Receipt image capture */}
               <div>
-                <label className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="official-receipt-photo"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Receipt Photo (optional)
                 </label>
                 <input
+                  id="official-receipt-photo"
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   capture="environment"
                   onChange={(e) => void handleReceiptCapture(e)}
-                  className="block w-full text-sm text-gray-500 file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200"
+                  className="block w-full text-sm text-stone-500 file:mr-3 file:rounded file:border-0 file:bg-stone-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-stone-700 hover:file:bg-stone-200"
                 />
                 {compressing && (
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-stone-500">
                     Processing image...
                   </p>
                 )}
@@ -1501,14 +1510,17 @@ function ExpensesSection({
                     <img
                       src={receiptPreview}
                       alt="Receipt preview"
-                      className="h-24 w-auto rounded border border-gray-200 object-cover"
+                      className="h-24 w-auto rounded border border-stone-200 object-cover"
                     />
                     <button
                       type="button"
                       className="mt-1 text-xs text-red-600 hover:underline"
                       onClick={() => {
-                        setReceiptPreview(null);
-                        setReceiptDataUrl(null);
+                        dispatchExpense({
+                          type: "setReceipt",
+                          preview: null,
+                          dataUrl: null,
+                        });
                         if (fileInputRef.current)
                           fileInputRef.current.value = "";
                       }}
@@ -1528,7 +1540,7 @@ function ExpensesSection({
                     (expenseType === "match_ball" ? !matchBallUsed : !amount)
                   }
                 >
-                  {addExpenseMutation.isPending ? "Adding..." : "Add"}
+                  {addExpenseMutation.isPending ? "Adding…" : "Add"}
                 </Button>
                 <Button
                   variant="outline"
@@ -1555,10 +1567,20 @@ function ExpensesSection({
         {/* Receipt image lightbox */}
         {viewingReceipt && (
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Receipt full size"
+            tabIndex={-1}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
             onClick={() => setViewingReceipt(null)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+                setViewingReceipt(null);
+              }
+            }}
           >
             <div
+              role="presentation"
               className="relative max-h-[90vh] max-w-[90vw]"
               onClick={(e) => e.stopPropagation()}
             >
@@ -1569,7 +1591,7 @@ function ExpensesSection({
               />
               <button
                 type="button"
-                className="absolute -top-3 -right-3 rounded-full bg-white p-1.5 text-gray-800 shadow hover:bg-gray-100"
+                className="absolute -top-3 -right-3 rounded-full bg-white p-1.5 text-stone-800 shadow hover:bg-stone-100"
                 onClick={() => setViewingReceipt(null)}
               >
                 <svg

@@ -10,7 +10,7 @@ import {
   readConsentRecord,
 } from "@/lib/marketing/consent.js";
 import { trackLeadGenerated } from "@/lib/marketing/track-lead.js";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type FC } from "react";
 
 type Variant = "adult" | "junior";
@@ -89,6 +89,7 @@ export const LeadForm: FC<LeadFormProps> = ({
   const [submittedDisplayName, setSubmittedDisplayName] = useState<
     string | null
   >(null);
+  const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -135,6 +136,9 @@ export const LeadForm: FC<LeadFormProps> = ({
     },
     onSuccess: ({ email }) => {
       void trackLeadGenerated({ campaignId, segment, email });
+      // Invalidate admin leads cache in case an admin is browsing in another
+      // tab; harmless no-op for non-admin users.
+      void queryClient.invalidateQueries({ queryKey: ["admin", "leads"] });
     },
   });
 
@@ -219,7 +223,7 @@ export const LeadForm: FC<LeadFormProps> = ({
           <Field
             id="lead-phone"
             label="Phone"
-            hint="Add a number if you'd like us to call — we'll email otherwise."
+            hint="Add a number if you'd like us to call; we'll email otherwise."
           >
             <Input
               id="lead-phone"
@@ -303,7 +307,7 @@ export const LeadForm: FC<LeadFormProps> = ({
           <Field
             id="lead-parent-phone"
             label="Parent / guardian phone"
-            hint="Optional — add a number if you'd prefer a call."
+            hint="Optional: add a number if you'd prefer a call."
           >
             <Input
               id="lead-parent-phone"
@@ -402,7 +406,7 @@ const SuccessMessage: FC<SuccessMessageProps> = ({ variant, displayName }) => {
       {variant === "junior" ? (
         <>
           <p>
-            Thanks — we'll be in touch about{" "}
+            Thanks, we'll be in touch about{" "}
             <strong>{safeName ? `${safeName}'s` : "your child's"}</strong> trial
             within <strong>1 working day</strong>.
           </p>
@@ -420,7 +424,7 @@ const SuccessMessage: FC<SuccessMessageProps> = ({ variant, displayName }) => {
       ) : (
         <>
           <p>
-            Thanks{safeName ? <> {safeName}</> : null} — someone from Percy Main
+            Thanks{safeName ? <> {safeName}</> : null}, someone from Percy Main
             will be in touch within <strong>1 working day</strong>.
           </p>
           <p className="mt-2">

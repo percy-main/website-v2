@@ -1779,7 +1779,7 @@ function BeTheKeeper() {
           touchAction: "none",
           borderRadius: expanded ? 0 : 12,
           boxShadow: expanded ? "none" : "0 8px 32px rgba(0,0,0,0.25)",
-          background: "#000",
+          background: "#0c0a09",
         }}
       />
       {isMobile && isPortrait && (

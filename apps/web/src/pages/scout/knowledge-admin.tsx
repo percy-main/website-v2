@@ -10,7 +10,12 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer, useState } from "react";
+import {
+  initialUploadFormState,
+  parseTags,
+  uploadFormReducer,
+} from "./knowledge-admin.reducer";
 
 /**
  * Scout knowledge base admin — list / upload / delete / reingest the
@@ -97,18 +102,18 @@ export function KnowledgeAdminView() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="border-b border-gray-200 px-4 py-3">
-        <h2 className="text-sm font-medium text-gray-700">
+      <div className="border-b border-stone-200 px-4 py-3">
+        <h2 className="text-sm font-medium text-stone-700">
           Scout knowledge base
         </h2>
-        <p className="mt-0.5 text-xs text-gray-500">
+        <p className="mt-0.5 text-xs text-stone-500">
           Upload PDFs, images, or plain text the agent should be able to search.
           Re-ingesting re-embeds chunks. Deleting cascades chunks but does not
           remove recorded facts derived from them.
         </p>
       </div>
 
-      <div className="border-b border-gray-200 px-4 py-3">
+      <div className="border-b border-stone-200 px-4 py-3">
         <UploadForm
           onUploaded={() => {
             void qc.invalidateQueries({ queryKey: ["scout", "knowledge"] });
@@ -116,11 +121,11 @@ export function KnowledgeAdminView() {
         />
       </div>
 
-      <div className="flex flex-wrap items-end gap-2 border-b border-gray-200 px-4 py-3">
-        <label className="flex flex-1 flex-col text-xs text-gray-600">
+      <div className="flex flex-wrap items-end gap-2 border-b border-stone-200 px-4 py-3">
+        <label className="flex flex-1 flex-col text-xs text-stone-600">
           Search
           <input
-            className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -131,7 +136,9 @@ export function KnowledgeAdminView() {
 
       <div className="flex-1 overflow-y-auto px-4 py-2">
         {docsQuery.isLoading && (
-          <div className="py-6 text-center text-sm text-gray-500">Loading…</div>
+          <div className="py-6 text-center text-sm text-stone-500">
+            Loading…
+          </div>
         )}
         {docsQuery.error && (
           <div className="py-6 text-center text-sm text-red-600">
@@ -142,12 +149,12 @@ export function KnowledgeAdminView() {
         )}
         {docsQuery.data &&
           (docsQuery.data.documents.length === 0 ? (
-            <div className="py-6 text-center text-sm text-gray-500">
+            <div className="py-6 text-center text-sm text-stone-500">
               No documents yet.
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="text-left text-xs text-gray-500">
+              <thead className="text-left text-xs text-stone-500">
                 <tr>
                   <th className="px-2 py-1 font-medium">Title</th>
                   <th className="px-2 py-1 font-medium">Kind</th>
@@ -188,33 +195,24 @@ interface UploadFormProps {
 }
 
 function UploadForm({ onUploaded }: UploadFormProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  // Tags: simple "key:value, key:value2" syntax — array values via repeat.
-  // Empty when admin doesn't care; service stores {} regardless.
-  const [tagsRaw, setTagsRaw] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const reset = () => {
-    setFile(null);
-    setTitle("");
-    setDescription("");
-    setTagsRaw("");
-    setError(null);
-  };
+  // Tags syntax: "key:value, key:value2" — array values via repeat.
+  // Empty tags raw is fine; service stores {} regardless.
+  const [form, dispatch] = useReducer(
+    uploadFormReducer,
+    initialUploadFormState,
+  );
+  const { file, title, description, tagsRaw, error, busy } = form;
 
   const submit = async () => {
     if (!file) return;
-    setError(null);
-    setBusy(true);
+    dispatch({ type: "setError", value: null });
+    dispatch({ type: "setBusy", value: true });
     try {
       const contentType = file.type as (typeof ACCEPTED_TYPES)[number];
       if (!ACCEPTED_TYPES.includes(contentType)) {
         throw new Error(`Unsupported content type: ${file.type}`);
       }
-      const tags = parseTagInput(tagsRaw);
+      const tags = parseTags(tagsRaw);
 
       const mint = await callApi(
         api.POST("/api/scout/knowledge/documents", {
@@ -246,52 +244,66 @@ function UploadForm({ onUploaded }: UploadFormProps) {
         }),
       );
 
-      reset();
+      dispatch({ type: "reset" });
       onUploaded();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      dispatch({
+        type: "setError",
+        value: err instanceof Error ? err.message : String(err),
+      });
     } finally {
-      setBusy(false);
+      dispatch({ type: "setBusy", value: false });
     }
   };
 
   return (
-    <div className="space-y-2 rounded border border-dashed border-gray-300 bg-gray-50 p-3 text-sm">
+    <div className="space-y-2 rounded border border-dashed border-stone-300 bg-stone-50 p-3 text-sm">
       <div className="flex flex-wrap items-end gap-2">
-        <label className="flex min-w-[12rem] flex-1 flex-col text-xs text-gray-600">
+        <label className="flex min-w-[12rem] flex-1 flex-col text-xs text-stone-600">
           File
           <input
             type="file"
             accept={ACCEPT_ATTR}
             className="mt-1 text-sm"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={(e) =>
+              dispatch({
+                type: "setFile",
+                value: e.target.files?.[0] ?? null,
+              })
+            }
           />
         </label>
-        <label className="flex min-w-[12rem] flex-1 flex-col text-xs text-gray-600">
-          Title (optional — defaults to filename)
+        <label className="flex min-w-[12rem] flex-1 flex-col text-xs text-stone-600">
+          Title (optional; defaults to filename)
           <input
-            className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) =>
+              dispatch({ type: "setTitle", value: e.target.value })
+            }
             placeholder="2026 league handbook"
           />
         </label>
       </div>
-      <label className="flex flex-col text-xs text-gray-600">
+      <label className="flex flex-col text-xs text-stone-600">
         Description (optional)
         <textarea
           rows={2}
-          className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+          className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setDescription", value: e.target.value })
+          }
         />
       </label>
-      <label className="flex flex-col text-xs text-gray-600">
+      <label className="flex flex-col text-xs text-stone-600">
         Tags (optional, comma-separated key:value)
         <input
-          className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+          className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
           value={tagsRaw}
-          onChange={(e) => setTagsRaw(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setTagsRaw", value: e.target.value })
+          }
           placeholder="topic:rules, season:2026"
         />
       </label>
@@ -317,28 +329,28 @@ interface DocumentRowProps {
 
 function DocumentRow({ doc, onReingest, onDelete }: DocumentRowProps) {
   return (
-    <tr className="border-t border-gray-100 align-top">
-      <td className="px-2 py-2">
-        <div className="font-medium text-gray-800">{doc.title}</div>
-        <div className="text-[11px] text-gray-500">{doc.filename}</div>
+    <tr className="border-t border-stone-100 align-top">
+      <td className="p-2">
+        <div className="font-medium text-stone-800">{doc.title}</div>
+        <div className="text-[11px] text-stone-500">{doc.filename}</div>
         {doc.description && (
-          <div className="mt-0.5 text-[11px] text-gray-500">
+          <div className="mt-0.5 text-[11px] text-stone-500">
             {doc.description}
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-gray-600">{doc.kind}</td>
-      <td className="px-2 py-2 text-xs text-gray-600">
+      <td className="p-2 text-xs text-stone-600">{doc.kind}</td>
+      <td className="p-2 text-xs text-stone-600">
         {doc.pageCount !== null ? `${doc.pageCount} pp · ` : ""}
         {doc.chunkCount} chunk{doc.chunkCount === 1 ? "" : "s"}
       </td>
-      <td className="px-2 py-2">
+      <td className="p-2">
         <StatusBadge status={doc.status} error={doc.errorMessage} />
       </td>
-      <td className="px-2 py-2 text-xs text-gray-500">
+      <td className="p-2 text-xs text-stone-500">
         {new Date(doc.updatedAt).toLocaleDateString()}
       </td>
-      <td className="space-x-2 px-2 py-2 text-right text-xs">
+      <td className="space-x-2 p-2 text-right text-xs">
         <Button
           size="sm"
           variant="ghost"
@@ -363,7 +375,7 @@ function StatusBadge({
   error: string | null;
 }) {
   const palette: Record<DocumentStatus, string> = {
-    "awaiting-upload": "bg-gray-100 text-gray-700",
+    "awaiting-upload": "bg-stone-100 text-stone-700",
     queued: "bg-amber-100 text-amber-800",
     ingesting: "bg-blue-100 text-blue-800",
     ready: "bg-emerald-100 text-emerald-800",
@@ -402,7 +414,7 @@ function DeleteConfirmDialog({
         <DialogHeader>
           <DialogTitle>Delete document?</DialogTitle>
           <DialogDescription>
-            "{doc.title}" — {doc.chunkCount} chunk
+            "{doc.title}": {doc.chunkCount} chunk
             {doc.chunkCount === 1 ? "" : "s"} will be removed. Recorded facts
             that referenced these chunks will keep their content but lose the
             "from document" link.
@@ -423,33 +435,4 @@ function DeleteConfirmDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-/**
- * Parse the comma-separated key:value tag input into the API's
- * Record<string, string | string[]> shape. Repeated keys collect
- * into an array. Whitespace is trimmed; entries without a colon are
- * dropped silently rather than erroring — admin gets a single Tags
- * input and the result is best-effort.
- */
-function parseTagInput(raw: string): Record<string, string | string[]> {
-  const out: Record<string, string | string[]> = {};
-  for (const part of raw.split(",")) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    const idx = trimmed.indexOf(":");
-    if (idx <= 0) continue;
-    const key = trimmed.slice(0, idx).trim();
-    const value = trimmed.slice(idx + 1).trim();
-    if (!key || !value) continue;
-    const existing = out[key];
-    if (existing === undefined) {
-      out[key] = value;
-    } else if (Array.isArray(existing)) {
-      existing.push(value);
-    } else {
-      out[key] = [existing, value];
-    }
-  }
-  return out;
 }

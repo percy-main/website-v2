@@ -1,4 +1,4 @@
-export const MAX_LOGO_BYTES = 150_000;
+const MAX_LOGO_BYTES = 150_000;
 
 export function resizeLogo(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

@@ -38,7 +38,7 @@ export function ReportsView() {
 
   if (reportsQuery.isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-gray-500">
+      <div className="flex flex-1 items-center justify-center text-sm text-stone-500">
         Loading reports…
       </div>
     );
@@ -57,10 +57,10 @@ export function ReportsView() {
   const reports = reportsQuery.data?.reports ?? [];
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4">
-      <h2 className="mb-3 text-sm font-medium text-gray-700">Reports</h2>
+    <div className="flex-1 overflow-y-auto p-4">
+      <h2 className="mb-3 text-sm font-medium text-stone-700">Reports</h2>
       {reports.length === 0 ? (
-        <div className="mt-12 text-center text-sm text-gray-500">
+        <div className="mt-12 text-center text-sm text-stone-500">
           No reports yet. In a scouting thread, click{" "}
           <strong>Generate report</strong> in the composer to create one.
         </div>
@@ -99,7 +99,7 @@ function ReportListItem({ report }: { report: ReportRow }) {
 function ReportFooter({ report }: { report: ReportRow }) {
   const created = new Date(report.createdAt);
   return (
-    <div className="-mt-1 flex items-center justify-between gap-2 px-3 pb-2 text-[11px] text-gray-600">
+    <div className="-mt-1 flex items-center justify-between gap-2 px-3 pb-2 text-[11px] text-stone-600">
       <div className="min-w-0 truncate">
         {created.toLocaleString(undefined, {
           day: "numeric",

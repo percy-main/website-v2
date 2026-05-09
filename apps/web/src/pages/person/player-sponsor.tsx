@@ -26,7 +26,7 @@ export function PlayerSponsor({ slug }: { slug: string }) {
   });
 
   if (sponsorQuery.isPending) {
-    return <div className="h-24 animate-pulse rounded-lg bg-gray-100" />;
+    return <div className="h-24 animate-pulse rounded-lg bg-stone-100" />;
   }
 
   const sponsor = sponsorQuery.data?.sponsor;
