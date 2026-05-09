@@ -174,12 +174,68 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled          = true
   performance_insights_retention_period = 7
 
+  # Export postgresql + upgrade logs to CloudWatch so they're reachable
+  # for alarming and downstream NR forwarding (#200). The parameter
+  # group already enables log_min_duration_statement / log_connections
+  # / log_disconnections — without exports those logs never leave the
+  # instance.
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+
+  # Enhanced monitoring — 60s OS-level metrics (load avg, IOPS by
+  # process, network). Performance Insights covers query-level; this
+  # covers the host. Valid intervals: 1/5/10/15/30/60.
+  monitoring_interval = 60
+  monitoring_role_arn = aws_iam_role.rds_enhanced_monitoring.arn
+
   skip_final_snapshot       = var.environment != "production"
   final_snapshot_identifier = var.environment == "production" ? "${local.name_prefix}-db-final" : null
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-db"
   })
+}
+
+# -----------------------------------------------------------------------------
+# Enhanced Monitoring IAM role
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "rds_em_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["monitoring.rds.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "rds_enhanced_monitoring" {
+  name               = "${local.name_prefix}-rds-enhanced-monitoring"
+  assume_role_policy = data.aws_iam_policy_document.rds_em_assume.json
+  tags               = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
+  role       = aws_iam_role.rds_enhanced_monitoring.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+}
+
+# -----------------------------------------------------------------------------
+# CloudWatch log groups for RDS log exports — explicit so we can control
+# retention. RDS would otherwise create them with infinite retention.
+# -----------------------------------------------------------------------------
+
+resource "aws_cloudwatch_log_group" "rds_postgres" {
+  name              = "/aws/rds/instance/${local.name_prefix}-db/postgresql"
+  retention_in_days = 30
+  tags              = local.common_tags
+}
+
+resource "aws_cloudwatch_log_group" "rds_upgrade" {
+  name              = "/aws/rds/instance/${local.name_prefix}-db/upgrade"
+  retention_in_days = 30
+  tags              = local.common_tags
 }
 
 # -----------------------------------------------------------------------------
