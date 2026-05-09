@@ -943,7 +943,7 @@ resource "aws_cloudwatch_log_metric_filter" "nri_ecs_errors" {
   # If the sidecar's failure vocabulary changes in a future NR Infra
   # release this filter needs updating — track via a periodic alarm
   # smoke test rather than relying on the alarm itself to never trip.
-  filter_pattern = "?\"failed to send metrics\" ?\"License key not valid\" ?\"unauthorized\" ?\"InvalidLicenseKey\""
+  pattern = "?\"failed to send metrics\" ?\"License key not valid\" ?\"unauthorized\" ?\"InvalidLicenseKey\""
 
   metric_transformation {
     name          = "NriEcsErrors"
