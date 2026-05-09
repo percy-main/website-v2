@@ -586,10 +586,12 @@ resource "aws_sns_topic" "shared_reliability_alarms_us_east_1" {
 # from R53's globally-distributed checkers, so it catches DNS / TLS /
 # edge problems that ALB target health cannot.
 resource "aws_route53_health_check" "api" {
-  fqdn              = "api.v2.${var.domain_name}"
-  port              = 443
-  type              = "HTTPS"
-  resource_path     = "/health"
+  fqdn = "api.v2.${var.domain_name}"
+  port = 443
+  type = "HTTPS"
+  # /health/ready returns 503 on DB outage, so this health check fires
+  # the alarm on a real outage rather than just process death (#193).
+  resource_path     = "/health/ready"
   request_interval  = 30
   failure_threshold = 3
   measure_latency   = false

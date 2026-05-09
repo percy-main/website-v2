@@ -70,8 +70,9 @@ variable "secrets" {
 }
 
 variable "health_check_path" {
-  type    = string
-  default = "/health"
+  type        = string
+  default     = "/health/ready"
+  description = "ALB target group health check path. Defaults to /health/ready (returns 503 on DB outage so the instance drains). Set to /health/live for pure liveness; legacy /health is also still served."
 }
 
 variable "log_retention_days" {

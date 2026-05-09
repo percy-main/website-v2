@@ -143,7 +143,7 @@ module "ecs" {
   public_subnet_ids        = module.vpc.public_subnet_ids
   ecs_security_group_id    = module.vpc.ecs_security_group_id
   alb_security_group_id    = module.vpc.alb_security_group_id
-  health_check_path        = "/health"
+  health_check_path        = "/health/ready"
   log_retention_days       = 30
   assign_public_ip         = true
   ses_identity_arn         = local.shared.ses_identity_arn
