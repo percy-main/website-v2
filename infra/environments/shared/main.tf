@@ -168,7 +168,14 @@ data "aws_iam_policy_document" "terraform_plan_assume" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:pull_request"]
+      # Accept both PR runs (terraform-plan job) and main-branch
+      # scheduled / workflow_dispatch runs (terraform-drift workflow).
+      # The role grants ReadOnlyAccess + state-lock + secrets-read
+      # only — appropriate for both plan and drift.
+      values = [
+        "repo:${var.github_repo}:pull_request",
+        "repo:${var.github_repo}:ref:refs/heads/main",
+      ]
     }
 
     condition {
