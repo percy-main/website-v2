@@ -20,61 +20,12 @@ env:
   AWS_REGION: eu-west-2
 
 jobs:
-  # ── Stage 1: CI ──────────────────────────────────────────────────────
+  # ── Stage 1: CI (lint + test + build, shared with PR CI) ────────────
+  # `pnpm build` is a hard gate before any deploy work begins so a build
+  # break that only manifests with prod env vars or a missing workspace
+  # export fails fast instead of mid-deploy.
   ci:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        # pgvector/pgvector:pg16 = official Postgres 16 image with the
-        # vector extension pre-built. Drop-in for postgres:16-alpine —
-        # required since the scout_fact migration runs CREATE EXTENSION
-        # vector.
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: percy
-          POSTGRES_PASSWORD: percy
-          POSTGRES_DB: percy_main
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U percy -d percy_main"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Run migrations
-        run: pnpm db:up
-        env:
-          DATABASE_URL: postgres://percy:percy@localhost:5432/percy_main
-
-      - name: Format check
-        run: pnpm format:check
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Type check
-        run: pnpm typecheck
-
-      - name: Unit tests
-        run: pnpm test
-        env:
-          DATABASE_URL: postgres://percy:percy@localhost:5432/percy_main
-
-      - name: Integration tests
-        run: pnpm --filter api test:integration
+    uses: ./.github/workflows/_lint-test-build.yml
 
   # ── Detect changed paths (runs parallel with Terraform) ──────────────
   changes:
