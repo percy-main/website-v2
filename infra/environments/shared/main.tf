@@ -489,3 +489,159 @@ resource "aws_acm_certificate_validation" "cloudfront" {
   certificate_arn         = aws_acm_certificate.cloudfront.arn
   validation_record_fqdns = [for record in aws_route53_record.cloudfront_cert_validation : record.fqdn]
 }
+
+# -----------------------------------------------------------------------------
+# Security event notifications
+# -----------------------------------------------------------------------------
+# EventBridge rules that catch security-sensitive API calls (SG changes,
+# IAM policy edits) and route them to per-region SNS topics. Topics
+# carry no terraform-managed subscription — operators add an email /
+# Slack / Lambda subscription out of band so the audit channel can be
+# reconfigured without a TF change. Depends on CloudTrail being on
+# (#214).
+#
+# IMPORTANT: IAM is a global service. CloudTrail/EventBridge IAM API
+# events are delivered exclusively to us-east-1, so the IAM rule + its
+# SNS target both live there. SG events are regional and stay in the
+# default eu-west-2 provider.
+#
+# SNS topics are intentionally NOT encrypted with `alias/aws/sns` (the
+# AWS-managed SNS KMS key cannot have its policy edited, and EventBridge
+# needs `kms:GenerateDataKey` against a key that allows
+# `events.amazonaws.com` — only a customer-managed CMK can do that).
+# Event payloads are CloudTrail event metadata (no secrets), so leaving
+# encryption-at-rest off is an acceptable trade. Add a CMK here if the
+# threat model later requires it.
+
+# eu-west-2 topic — receives SG-change events.
+resource "aws_sns_topic" "security_events" {
+  name = "percy-main-shared-security-events"
+
+  tags = {
+    Environment = "shared"
+    Module      = "shared"
+    ManagedBy   = "terraform"
+    Purpose     = "security-event-notifications"
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "sg_changes" {
+  name        = "percy-main-shared-sg-changes"
+  description = "Security group ingress/egress/lifecycle changes"
+
+  event_pattern = jsonencode({
+    source        = ["aws.ec2"]
+    "detail-type" = ["AWS API Call via CloudTrail"]
+    detail = {
+      eventSource = ["ec2.amazonaws.com"]
+      eventName = [
+        "AuthorizeSecurityGroupIngress",
+        "AuthorizeSecurityGroupEgress",
+        "RevokeSecurityGroupIngress",
+        "RevokeSecurityGroupEgress",
+        "CreateSecurityGroup",
+        "DeleteSecurityGroup",
+      ]
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "sg_changes_to_sns" {
+  rule      = aws_cloudwatch_event_rule.sg_changes.name
+  target_id = "sns"
+  arn       = aws_sns_topic.security_events.arn
+}
+
+# Allow EventBridge to publish to the eu-west-2 topic.
+data "aws_iam_policy_document" "security_events_topic" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.security_events.arn]
+  }
+}
+
+resource "aws_sns_topic_policy" "security_events" {
+  arn    = aws_sns_topic.security_events.arn
+  policy = data.aws_iam_policy_document.security_events_topic.json
+}
+
+# us-east-1 topic + IAM rule — IAM API events surface only in us-east-1.
+resource "aws_sns_topic" "security_events_us_east_1" {
+  provider = aws.us_east_1
+  name     = "percy-main-shared-security-events"
+
+  tags = {
+    Environment = "shared"
+    Module      = "shared"
+    ManagedBy   = "terraform"
+    Purpose     = "security-event-notifications-us-east-1"
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "iam_changes" {
+  provider    = aws.us_east_1
+  name        = "percy-main-shared-iam-changes"
+  description = "IAM policy / role / user mutation API calls (delivered to us-east-1)"
+
+  event_pattern = jsonencode({
+    source        = ["aws.iam"]
+    "detail-type" = ["AWS API Call via CloudTrail"]
+    detail = {
+      eventSource = ["iam.amazonaws.com"]
+      eventName = [
+        "CreatePolicy",
+        "DeletePolicy",
+        "CreatePolicyVersion",
+        "DeletePolicyVersion",
+        "AttachUserPolicy",
+        "AttachRolePolicy",
+        "AttachGroupPolicy",
+        "DetachUserPolicy",
+        "DetachRolePolicy",
+        "DetachGroupPolicy",
+        "PutUserPolicy",
+        "PutRolePolicy",
+        "PutGroupPolicy",
+        "DeleteUserPolicy",
+        "DeleteRolePolicy",
+        "DeleteGroupPolicy",
+        "CreateUser",
+        "DeleteUser",
+        "CreateAccessKey",
+        "DeleteAccessKey",
+      ]
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "iam_changes_to_sns" {
+  provider  = aws.us_east_1
+  rule      = aws_cloudwatch_event_rule.iam_changes.name
+  target_id = "sns"
+  arn       = aws_sns_topic.security_events_us_east_1.arn
+}
+
+# Allow EventBridge in us-east-1 to publish to the us-east-1 topic.
+data "aws_iam_policy_document" "security_events_us_east_1_topic" {
+  provider = aws.us_east_1
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.security_events_us_east_1.arn]
+  }
+}
+
+resource "aws_sns_topic_policy" "security_events_us_east_1" {
+  provider = aws.us_east_1
+  arn      = aws_sns_topic.security_events_us_east_1.arn
+  policy   = data.aws_iam_policy_document.security_events_us_east_1_topic.json
+}
