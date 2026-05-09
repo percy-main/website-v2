@@ -86,11 +86,30 @@ jobs:
             exit 1
           fi
 
+      - name: Terraform Plan
+        id: plan
+        working-directory: infra/environments/shared
+        # See ADR 035 — apply-time plan recorded for audit.
+        run: |
+          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Plan summary
+        if: always()
+        working-directory: infra/environments/shared
+        run: |
+          {
+            echo "## Terraform plan (shared, manual, apply-time) — ${{ steps.plan.outcome }}"
+            echo '```'
+            tail -n 200 plan.txt 2>/dev/null || echo "(no plan.txt)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Terraform Apply
         id: apply
         working-directory: infra/environments/shared
         run: |
-          terraform apply -auto-approve -no-color 2>&1 | tee apply.log
+          terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
           exit ${PIPESTATUS[0]}
 
       - name: Apply summary
@@ -177,11 +196,29 @@ jobs:
         working-directory: infra/environments/production
         run: terraform init
 
+      - name: Terraform Plan
+        id: plan
+        working-directory: infra/environments/production
+        run: |
+          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Plan summary
+        if: always()
+        working-directory: infra/environments/production
+        run: |
+          {
+            echo "## Terraform plan (production, manual, apply-time) — ${{ steps.plan.outcome }}"
+            echo '```'
+            tail -n 200 plan.txt 2>/dev/null || echo "(no plan.txt)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Terraform Apply
         id: apply
         working-directory: infra/environments/production
         run: |
-          terraform apply -auto-approve -no-color 2>&1 | tee apply.log
+          terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
           exit ${PIPESTATUS[0]}
 
       - name: Apply summary
