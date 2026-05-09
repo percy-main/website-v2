@@ -292,16 +292,29 @@ jobs:
 
       - name: Register new task definition
         id: task-def
+        env:
+          IMAGE_URI: ${{ steps.build.outputs.image }}
+          RELEASE_SHA: ${{ github.sha }}
         run: |
           TASK_DEF=$(aws ecs describe-task-definition \
             --task-definition $ECS_SERVICE \
             --query 'taskDefinition' \
             --output json)
 
-          NEW_TASK_DEF=$(echo $TASK_DEF | jq \
-            --arg IMAGE "${{ steps.build.outputs.image }}" \
-            '.containerDefinitions[0].image = $IMAGE |
-             del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          # Patch image + add RELEASE_SHA / NEW_RELIC_LABELS env vars so
+          # NR APM and OTel can filter logs/traces by release. Replaces
+          # any existing entries with the same name (jq's group_by keeps
+          # the last occurrence after our additions are appended).
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq \
+            --arg IMAGE "$IMAGE_URI" \
+            --arg SHA "$RELEASE_SHA" \
+            '.containerDefinitions[0].image = $IMAGE
+             | .containerDefinitions[0].environment = (
+                 ((.containerDefinitions[0].environment // []) | map(select(.name != "RELEASE_SHA" and .name != "NEW_RELIC_LABELS"))) +
+                 [{name: "RELEASE_SHA", value: $SHA},
+                  {name: "NEW_RELIC_LABELS", value: ("release:" + $SHA)}]
+               )
+             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
 
           TASK_DEF_ARN=$(aws ecs register-task-definition \
             --cli-input-json "$NEW_TASK_DEF" \
