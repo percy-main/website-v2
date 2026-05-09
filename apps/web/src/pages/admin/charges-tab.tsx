@@ -21,12 +21,16 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
+import {
+  type ChargeStatus,
+  chargesFilterReducer,
+  initialChargesFilterState,
+  isFiltered,
+} from "./charges-tab.reducer";
 import { formatDate, formatPence } from "./status-pill";
 
 const PAGE_SIZE = 20;
-
-type ChargeStatus = "all" | "unpaid" | "pending" | "paid" | "abandoned";
 
 const statusBadgeMap: Record<
   string,
@@ -50,13 +54,12 @@ const statusBadgeMap: Record<
 
 export function ChargesTab() {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<ChargeStatus>("all");
-  const [showDeleted, setShowDeleted] = useState(false);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filters, dispatch] = useReducer(
+    chargesFilterReducer,
+    initialChargesFilterState,
+  );
+  const { page, status, showDeleted, dateFrom, dateTo, search, debouncedSearch } =
+    filters;
   const [chasingChargeId, setChasingChargeId] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -65,8 +68,7 @@ export function ChargesTab() {
       clearTimeout(debounceTimerRef.current);
     }
     debounceTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
+      dispatch({ type: "commitSearch", value: search });
     }, 300);
     return () => {
       if (debounceTimerRef.current) {
@@ -139,8 +141,7 @@ export function ChargesTab() {
     ? Math.max(1, Math.ceil(result.total / PAGE_SIZE))
     : 1;
 
-  const hasFilters =
-    dateFrom || dateTo || search || status !== "all" || showDeleted;
+  const hasFilters = isFiltered(filters);
 
   return (
     <div className="flex flex-col gap-4">
@@ -189,15 +190,16 @@ export function ChargesTab() {
           type="text"
           placeholder="Search member or description…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setSearch", value: e.target.value })
+          }
           className="w-full max-w-xs"
         />
         <Select
           value={status}
-          onValueChange={(value) => {
-            setStatus(value as ChargeStatus);
-            setPage(1);
-          }}
+          onValueChange={(value) =>
+            dispatch({ type: "setStatus", value: value as ChargeStatus })
+          }
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="All Statuses" />
@@ -218,10 +220,9 @@ export function ChargesTab() {
             id="charges-date-from"
             type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) =>
+              dispatch({ type: "setDateFrom", value: e.target.value })
+            }
             className="w-auto"
           />
         </div>
@@ -233,10 +234,9 @@ export function ChargesTab() {
             id="charges-date-to"
             type="date"
             value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) =>
+              dispatch({ type: "setDateTo", value: e.target.value })
+            }
             className="w-auto"
           />
         </div>
@@ -244,10 +244,9 @@ export function ChargesTab() {
           <Checkbox
             id="charges-show-deleted"
             checked={showDeleted}
-            onCheckedChange={(checked) => {
-              setShowDeleted(checked === true);
-              setPage(1);
-            }}
+            onCheckedChange={(checked) =>
+              dispatch({ type: "setShowDeleted", value: checked === true })
+            }
           />
           <Label htmlFor="charges-show-deleted" className="text-stone-600">
             Show deleted
@@ -257,15 +256,7 @@ export function ChargesTab() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setSearch("");
-              setDebouncedSearch("");
-              setStatus("all");
-              setDateFrom("");
-              setDateTo("");
-              setShowDeleted(false);
-              setPage(1);
-            }}
+            onClick={() => dispatch({ type: "clearFilters" })}
           >
             Clear filters
           </Button>
@@ -397,7 +388,9 @@ export function ChargesTab() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() =>
+                  dispatch({ type: "setPage", value: Math.max(1, page - 1) })
+                }
                 disabled={page <= 1}
               >
                 Previous
@@ -408,7 +401,12 @@ export function ChargesTab() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() =>
+                  dispatch({
+                    type: "setPage",
+                    value: Math.min(totalPages, page + 1),
+                  })
+                }
                 disabled={page >= totalPages}
               >
                 Next

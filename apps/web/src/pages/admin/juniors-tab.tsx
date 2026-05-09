@@ -25,13 +25,14 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
-import { AGE_GROUPS, type AgeGroup } from "@percy-main/shared";
+import { AGE_GROUPS } from "@percy-main/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  initialJuniorsFilterState,
+  juniorsFilterReducer,
+} from "./juniors-tab.reducer";
 import { formatDate } from "./status-pill";
-
-type MembershipFilter = "all" | "paid" | "unpaid";
-type SexFilter = "all" | "male" | "female";
 
 type JuniorsResponse =
   paths["/api/admin/juniors"]["get"]["responses"]["200"]["content"]["application/json"];
@@ -52,13 +53,18 @@ const PAGE_SIZE = 100;
 
 export function JuniorsTab() {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [ageGroupFilter, setAgeGroupFilter] = useState<AgeGroup | "all">("all");
-  const [sexFilter, setSexFilter] = useState<SexFilter>("all");
-  const [membershipFilter, setMembershipFilter] =
-    useState<MembershipFilter>("all");
-  const [page, setPage] = useState(1);
+  const [filters, dispatch] = useReducer(
+    juniorsFilterReducer,
+    initialJuniorsFilterState,
+  );
+  const {
+    page,
+    search,
+    debouncedSearch,
+    ageGroupFilter,
+    sexFilter,
+    membershipFilter,
+  } = filters;
   const [selectedJunior, setSelectedJunior] = useState<Junior | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -67,8 +73,7 @@ export function JuniorsTab() {
       clearTimeout(debounceTimerRef.current);
     }
     debounceTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
+      dispatch({ type: "commitSearch", value: search });
     }, 300);
     return () => {
       if (debounceTimerRef.current) {
@@ -149,15 +154,19 @@ export function JuniorsTab() {
           type="text"
           placeholder="Search by junior or parent name…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setSearch", value: e.target.value })
+          }
           className="max-w-xs"
         />
         <Select
           value={ageGroupFilter}
-          onValueChange={(value) => {
-            setAgeGroupFilter(value as AgeGroup | "all");
-            setPage(1);
-          }}
+          onValueChange={(value) =>
+            dispatch({
+              type: "setAgeGroupFilter",
+              value: value as typeof ageGroupFilter,
+            })
+          }
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All Age Groups" />
@@ -173,10 +182,12 @@ export function JuniorsTab() {
         </Select>
         <Select
           value={sexFilter}
-          onValueChange={(value) => {
-            setSexFilter(value as SexFilter);
-            setPage(1);
-          }}
+          onValueChange={(value) =>
+            dispatch({
+              type: "setSexFilter",
+              value: value as typeof sexFilter,
+            })
+          }
         >
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="All Genders" />
@@ -189,10 +200,12 @@ export function JuniorsTab() {
         </Select>
         <Select
           value={membershipFilter}
-          onValueChange={(value) => {
-            setMembershipFilter(value as MembershipFilter);
-            setPage(1);
-          }}
+          onValueChange={(value) =>
+            dispatch({
+              type: "setMembershipFilter",
+              value: value as typeof membershipFilter,
+            })
+          }
         >
           <SelectTrigger className="w-[170px]">
             <SelectValue placeholder="All Memberships" />
@@ -240,7 +253,9 @@ export function JuniorsTab() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() =>
+              dispatch({ type: "setPage", value: Math.max(1, page - 1) })
+            }
             disabled={page <= 1}
           >
             Previous
@@ -251,7 +266,12 @@ export function JuniorsTab() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() =>
+              dispatch({
+                type: "setPage",
+                value: Math.min(totalPages, page + 1),
+              })
+            }
             disabled={page >= totalPages}
           >
             Next

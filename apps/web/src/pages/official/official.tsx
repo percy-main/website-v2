@@ -15,8 +15,17 @@ import { useSession } from "@/lib/auth-client";
 import { compressImage } from "@/lib/image-utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parse } from "date-fns";
-import { useRef, useState } from "react";
+import { useReducer, useRef, useState } from "react";
 import { Link } from "react-router";
+import {
+  buildAddExpensePayload,
+  buildConfirmPayload,
+  confirmationFormReducer,
+  expenseFormReducer,
+  initialConfirmationFormState,
+  initialExpenseFormState,
+  type ExpenseType as ReducerExpenseType,
+} from "./official.reducer";
 
 // ── Constants ──
 
@@ -491,10 +500,12 @@ function MatchdayView({
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [adHocName, setAdHocName] = useState("");
-  const [confirmingTeam, setConfirmingTeam] = useState(false);
-  const [playerStatuses, setPlayerStatuses] = useState<
-    Record<string, "playing" | "dropped_out" | "no_show">
-  >({});
+  const [confirmation, dispatchConfirmation] = useReducer(
+    confirmationFormReducer,
+    initialConfirmationFormState,
+  );
+  const confirmingTeam = confirmation.confirming;
+  const playerStatuses = confirmation.playerStatuses;
   const [payingPlayerId, setPayingPlayerId] = useState<string | null>(null);
   type ResultType = "W" | "L" | "D" | "T" | "A" | "C" | "N";
   const [selectedResultType, setSelectedResultType] = useState<ResultType | "">(
@@ -567,8 +578,7 @@ function MatchdayView({
         }),
       ),
     onSuccess: () => {
-      setConfirmingTeam(false);
-      setPlayerStatuses({});
+      dispatchConfirmation({ type: "reset" });
       void queryClient.invalidateQueries({
         queryKey: ["official", "matchday", matchdayId],
       });
@@ -678,23 +688,14 @@ function MatchdayView({
   );
 
   const handleStartConfirm = () => {
-    const initial: Record<string, "playing" | "dropped_out" | "no_show"> = {};
-    for (const p of players) {
-      if (p.id) initial[p.id] = "playing";
-    }
-    setPlayerStatuses(initial);
-    setConfirmingTeam(true);
+    dispatchConfirmation({
+      type: "start",
+      playerIds: players.flatMap((p) => (p.id ? [p.id] : [])),
+    });
   };
 
   const handleConfirm = () => {
-    confirmTeamMutation.mutate({
-      playerStatuses: Object.entries(playerStatuses).map(
-        ([matchdayPlayerId, status]) => ({
-          matchdayPlayerId,
-          status,
-        }),
-      ),
-    });
+    confirmTeamMutation.mutate(buildConfirmPayload(confirmation));
   };
 
   const statusColors: Record<string, string> = {
@@ -820,10 +821,11 @@ function MatchdayView({
                         onValueChange={(
                           value: "playing" | "dropped_out" | "no_show",
                         ) =>
-                          setPlayerStatuses((prev) => ({
-                            ...prev,
-                            [player.id]: value,
-                          }))
+                          dispatchConfirmation({
+                            type: "setStatus",
+                            playerId: player.id,
+                            status: value,
+                          })
                         }
                       >
                         <SelectTrigger className="w-36">
@@ -850,7 +852,7 @@ function MatchdayView({
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => setConfirmingTeam(false)}
+                      onClick={() => dispatchConfirmation({ type: "cancel" })}
                     >
                       Cancel
                     </Button>
@@ -1176,12 +1178,7 @@ function MatchdayView({
   );
 }
 
-type ExpenseType =
-  | "umpire_fee"
-  | "scorer_fee"
-  | "match_ball"
-  | "teas"
-  | "miscellaneous";
+type ExpenseType = ReducerExpenseType;
 
 function ExpensesSection({
   expenses,
@@ -1207,26 +1204,26 @@ function ExpensesSection({
   deleteExpenseMutation: ReturnType<typeof useMutation<unknown, Error, string>>;
 }) {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [expenseType, setExpenseType] = useState<ExpenseType>("umpire_fee");
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [matchBallUsed, setMatchBallUsed] = useState(true);
-  const [matchBallCost, setMatchBallCost] = useState("");
-  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
-  const [compressing, setCompressing] = useState(false);
+  const [expenseForm, dispatchExpense] = useReducer(
+    expenseFormReducer,
+    initialExpenseFormState,
+  );
+  const {
+    expenseType,
+    description,
+    amount,
+    matchBallUsed,
+    matchBallCost,
+    receiptPreview,
+    compressing,
+  } = expenseForm;
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount_pence, 0);
 
   const resetForm = () => {
-    setDescription("");
-    setAmount("");
-    setMatchBallCost("");
-    setMatchBallUsed(true);
-    setReceiptPreview(null);
-    setReceiptDataUrl(null);
+    dispatchExpense({ type: "resetFields" });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -1236,67 +1233,36 @@ function ExpensesSection({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setCompressing(true);
+    dispatchExpense({ type: "setCompressing", value: true });
     try {
       const dataUrl = await compressImage(file, {
         maxDimension: 1200,
         maxBytes: 400_000,
       });
-      setReceiptPreview(dataUrl);
-      setReceiptDataUrl(dataUrl);
+      dispatchExpense({ type: "setReceipt", preview: dataUrl, dataUrl });
     } catch {
       // Image processing failed
-      setReceiptPreview(null);
-      setReceiptDataUrl(null);
+      dispatchExpense({ type: "setReceipt", preview: null, dataUrl: null });
     } finally {
-      setCompressing(false);
+      dispatchExpense({ type: "setCompressing", value: false });
     }
   };
 
   const handleExpenseTypeChange = (newType: ExpenseType) => {
-    setExpenseType(newType);
-    resetForm();
+    dispatchExpense({ type: "setExpenseType", value: newType });
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleAddExpense = () => {
-    if (expenseType === "match_ball") {
-      if (!matchBallUsed) return;
-      const amountPence = Math.round(parseFloat(matchBallCost || "0") * 100);
-      if (amountPence <= 0) return;
-      addExpenseMutation.mutate(
-        {
-          type: "match_ball",
-          description: "New match ball",
-          amountPence,
-          receiptImage: receiptDataUrl ?? undefined,
-        },
-        {
-          onSuccess: () => {
-            resetForm();
-            setShowAddForm(false);
-          },
-        },
-      );
-      return;
-    }
+    const payload = buildAddExpensePayload(expenseForm);
+    if (!payload) return;
 
-    const amountPence = Math.round(parseFloat(amount) * 100);
-    if (isNaN(amountPence) || amountPence < 0) return;
-
-    addExpenseMutation.mutate(
-      {
-        type: expenseType,
-        description: description.trim() || undefined,
-        amountPence,
-        receiptImage: receiptDataUrl ?? undefined,
+    addExpenseMutation.mutate(payload, {
+      onSuccess: () => {
+        resetForm();
+        setShowAddForm(false);
       },
-      {
-        onSuccess: () => {
-          resetForm();
-          setShowAddForm(false);
-        },
-      },
-    );
+    });
   };
 
   const hasMatchBall = expenses.some((e) => e.expense_type === "match_ball");
@@ -1422,7 +1388,12 @@ function ExpensesSection({
                     <input
                       type="checkbox"
                       checked={matchBallUsed}
-                      onChange={(e) => setMatchBallUsed(e.target.checked)}
+                      onChange={(e) =>
+                        dispatchExpense({
+                          type: "setMatchBallUsed",
+                          value: e.target.checked,
+                        })
+                      }
                       className="rounded"
                     />
                     New match ball used
@@ -1443,7 +1414,12 @@ function ExpensesSection({
                         step="0.01"
                         placeholder="0.00"
                         value={matchBallCost}
-                        onChange={(e) => setMatchBallCost(e.target.value)}
+                        onChange={(e) =>
+                          dispatchExpense({
+                            type: "setMatchBallCost",
+                            value: e.target.value,
+                          })
+                        }
                       />
                     </div>
                   )}
@@ -1473,7 +1449,12 @@ function ExpensesSection({
                             : "Description"
                       }
                       value={description}
-                      onChange={(e) => setDescription(e.target.value)}
+                      onChange={(e) =>
+                        dispatchExpense({
+                          type: "setDescription",
+                          value: e.target.value,
+                        })
+                      }
                     />
                   </div>
                   <div>
@@ -1491,7 +1472,12 @@ function ExpensesSection({
                       step="0.01"
                       placeholder="0.00"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={(e) =>
+                        dispatchExpense({
+                          type: "setAmount",
+                          value: e.target.value,
+                        })
+                      }
                     />
                   </div>
                 </>
@@ -1530,8 +1516,11 @@ function ExpensesSection({
                       type="button"
                       className="mt-1 text-xs text-red-600 hover:underline"
                       onClick={() => {
-                        setReceiptPreview(null);
-                        setReceiptDataUrl(null);
+                        dispatchExpense({
+                          type: "setReceipt",
+                          preview: null,
+                          dataUrl: null,
+                        });
                         if (fileInputRef.current)
                           fileInputRef.current.value = "";
                       }}

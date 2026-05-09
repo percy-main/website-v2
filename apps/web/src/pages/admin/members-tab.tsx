@@ -17,8 +17,13 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { MemberDetailModal } from "./member-detail-modal";
+import {
+  initialMembersFilterState,
+  isFiltered,
+  membersFilterReducer,
+} from "./members-tab.reducer";
 import {
   StatusPill,
   getMemberCategoryDisplay,
@@ -29,22 +34,27 @@ import {
 const PAGE_SIZE = 20;
 
 export function MembersTab() {
-  const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [includeArchived, setIncludeArchived] = useState(false);
-  const [isMember, setIsMember] = useState("");
-  const [membershipStatus, setMembershipStatus] = useState("");
-  const [membershipType, setMembershipType] = useState("");
-  const [memberCategory, setMemberCategory] = useState("");
-  const [role, setRole] = useState("");
+  const [filters, dispatch] = useReducer(
+    membersFilterReducer,
+    initialMembersFilterState,
+  );
+  const {
+    page,
+    searchInput,
+    debouncedSearch,
+    includeArchived,
+    isMember,
+    membershipStatus,
+    membershipType,
+    memberCategory,
+    role,
+  } = filters;
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   // Debounce search input
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setDebouncedSearch(searchInput);
-      setPage(1);
+      dispatch({ type: "commitSearch", value: searchInput });
     }, 300);
     return () => clearTimeout(timeout);
   }, [searchInput]);
@@ -91,28 +101,7 @@ export function MembersTab() {
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
-  const hasActiveFilters =
-    debouncedSearch !== "" ||
-    includeArchived ||
-    isMember !== "" ||
-    membershipStatus !== "" ||
-    membershipType !== "" ||
-    memberCategory !== "" ||
-    role !== "";
-
-  const clearFilters = () => {
-    setSearchInput("");
-    setDebouncedSearch("");
-    setIncludeArchived(false);
-    setIsMember("");
-    setMembershipStatus("");
-    setMembershipType("");
-    setMemberCategory("");
-    setRole("");
-    setPage(1);
-  };
-
-  const resetPage = () => setPage(1);
+  const hasActiveFilters = isFiltered(filters);
 
   return (
     <div className="space-y-4">
@@ -121,7 +110,9 @@ export function MembersTab() {
         <Input
           placeholder="Search by name or email…"
           value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setSearchInput", value: e.target.value })
+          }
           className="w-64"
         />
 
@@ -129,20 +120,21 @@ export function MembersTab() {
           <input
             type="checkbox"
             checked={includeArchived}
-            onChange={(e) => {
-              setIncludeArchived(e.target.checked);
-              resetPage();
-            }}
+            onChange={(e) =>
+              dispatch({ type: "setIncludeArchived", value: e.target.checked })
+            }
           />
           Show archived
         </label>
 
         <Select
           value={isMember}
-          onValueChange={(v) => {
-            setIsMember(v === "__all__" ? "" : v);
-            resetPage();
-          }}
+          onValueChange={(v) =>
+            dispatch({
+              type: "setIsMember",
+              value: v === "__all__" ? "" : v,
+            })
+          }
         >
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="All Members" />
@@ -156,14 +148,12 @@ export function MembersTab() {
 
         <Select
           value={membershipStatus}
-          onValueChange={(v) => {
-            const newStatus = v === "__all__" ? "" : v;
-            setMembershipStatus(newStatus);
-            if (newStatus === "none") {
-              setMembershipType("");
-            }
-            resetPage();
-          }}
+          onValueChange={(v) =>
+            dispatch({
+              type: "setMembershipStatus",
+              value: v === "__all__" ? "" : v,
+            })
+          }
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="All Statuses" />
@@ -178,10 +168,12 @@ export function MembersTab() {
 
         <Select
           value={membershipType}
-          onValueChange={(v) => {
-            setMembershipType(v === "__all__" ? "" : v);
-            resetPage();
-          }}
+          onValueChange={(v) =>
+            dispatch({
+              type: "setMembershipType",
+              value: v === "__all__" ? "" : v,
+            })
+          }
           disabled={membershipStatus === "none"}
         >
           <SelectTrigger className="w-[180px]">
@@ -201,10 +193,12 @@ export function MembersTab() {
 
         <Select
           value={memberCategory}
-          onValueChange={(v) => {
-            setMemberCategory(v === "__all__" ? "" : v);
-            resetPage();
-          }}
+          onValueChange={(v) =>
+            dispatch({
+              type: "setMemberCategory",
+              value: v === "__all__" ? "" : v,
+            })
+          }
         >
           <SelectTrigger className="w-[170px]">
             <SelectValue placeholder="All Categories" />
@@ -221,10 +215,12 @@ export function MembersTab() {
 
         <Select
           value={role}
-          onValueChange={(v) => {
-            setRole(v === "__all__" ? "" : v);
-            resetPage();
-          }}
+          onValueChange={(v) =>
+            dispatch({
+              type: "setRole",
+              value: v === "__all__" ? "" : v,
+            })
+          }
         >
           <SelectTrigger className="w-[170px]">
             <SelectValue placeholder="All Roles" />
@@ -239,7 +235,11 @@ export function MembersTab() {
         </Select>
 
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => dispatch({ type: "clearFilters" })}
+          >
             Clear filters
           </Button>
         )}
@@ -338,7 +338,7 @@ export function MembersTab() {
               variant="outline"
               size="sm"
               disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => dispatch({ type: "setPage", value: page - 1 })}
             >
               Previous
             </Button>
@@ -346,7 +346,7 @@ export function MembersTab() {
               variant="outline"
               size="sm"
               disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => dispatch({ type: "setPage", value: page + 1 })}
             >
               Next
             </Button>

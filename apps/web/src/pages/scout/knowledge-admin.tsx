@@ -10,7 +10,12 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer, useState } from "react";
+import {
+  initialUploadFormState,
+  parseTags,
+  uploadFormReducer,
+} from "./knowledge-admin.reducer";
 
 /**
  * Scout knowledge base admin — list / upload / delete / reingest the
@@ -188,33 +193,21 @@ interface UploadFormProps {
 }
 
 function UploadForm({ onUploaded }: UploadFormProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  // Tags: simple "key:value, key:value2" syntax — array values via repeat.
-  // Empty when admin doesn't care; service stores {} regardless.
-  const [tagsRaw, setTagsRaw] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const reset = () => {
-    setFile(null);
-    setTitle("");
-    setDescription("");
-    setTagsRaw("");
-    setError(null);
-  };
+  // Tags syntax: "key:value, key:value2" — array values via repeat.
+  // Empty tags raw is fine; service stores {} regardless.
+  const [form, dispatch] = useReducer(uploadFormReducer, initialUploadFormState);
+  const { file, title, description, tagsRaw, error, busy } = form;
 
   const submit = async () => {
     if (!file) return;
-    setError(null);
-    setBusy(true);
+    dispatch({ type: "setError", value: null });
+    dispatch({ type: "setBusy", value: true });
     try {
       const contentType = file.type as (typeof ACCEPTED_TYPES)[number];
       if (!ACCEPTED_TYPES.includes(contentType)) {
         throw new Error(`Unsupported content type: ${file.type}`);
       }
-      const tags = parseTagInput(tagsRaw);
+      const tags = parseTags(tagsRaw);
 
       const mint = await callApi(
         api.POST("/api/scout/knowledge/documents", {
@@ -246,12 +239,15 @@ function UploadForm({ onUploaded }: UploadFormProps) {
         }),
       );
 
-      reset();
+      dispatch({ type: "reset" });
       onUploaded();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      dispatch({
+        type: "setError",
+        value: err instanceof Error ? err.message : String(err),
+      });
     } finally {
-      setBusy(false);
+      dispatch({ type: "setBusy", value: false });
     }
   };
 
@@ -264,7 +260,12 @@ function UploadForm({ onUploaded }: UploadFormProps) {
             type="file"
             accept={ACCEPT_ATTR}
             className="mt-1 text-sm"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={(e) =>
+              dispatch({
+                type: "setFile",
+                value: e.target.files?.[0] ?? null,
+              })
+            }
           />
         </label>
         <label className="flex min-w-[12rem] flex-1 flex-col text-xs text-stone-600">
@@ -272,7 +273,9 @@ function UploadForm({ onUploaded }: UploadFormProps) {
           <input
             className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) =>
+              dispatch({ type: "setTitle", value: e.target.value })
+            }
             placeholder="2026 league handbook"
           />
         </label>
@@ -283,7 +286,9 @@ function UploadForm({ onUploaded }: UploadFormProps) {
           rows={2}
           className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setDescription", value: e.target.value })
+          }
         />
       </label>
       <label className="flex flex-col text-xs text-stone-600">
@@ -291,7 +296,9 @@ function UploadForm({ onUploaded }: UploadFormProps) {
         <input
           className="mt-1 rounded border border-stone-300 px-2 py-1 text-sm"
           value={tagsRaw}
-          onChange={(e) => setTagsRaw(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setTagsRaw", value: e.target.value })
+          }
           placeholder="topic:rules, season:2026"
         />
       </label>
@@ -425,31 +432,3 @@ function DeleteConfirmDialog({
   );
 }
 
-/**
- * Parse the comma-separated key:value tag input into the API's
- * Record<string, string | string[]> shape. Repeated keys collect
- * into an array. Whitespace is trimmed; entries without a colon are
- * dropped silently rather than erroring — admin gets a single Tags
- * input and the result is best-effort.
- */
-function parseTagInput(raw: string): Record<string, string | string[]> {
-  const out: Record<string, string | string[]> = {};
-  for (const part of raw.split(",")) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    const idx = trimmed.indexOf(":");
-    if (idx <= 0) continue;
-    const key = trimmed.slice(0, idx).trim();
-    const value = trimmed.slice(idx + 1).trim();
-    if (!key || !value) continue;
-    const existing = out[key];
-    if (existing === undefined) {
-      out[key] = value;
-    } else if (Array.isArray(existing)) {
-      existing.push(value);
-    } else {
-      out[key] = [existing, value];
-    }
-  }
-  return out;
-}

@@ -19,7 +19,12 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
+import {
+  chaosWeekFormReducer,
+  initialChaosWeekFormState,
+  showsRuleConfig,
+} from "./fantasy-tab.reducer";
 
 const CURRENT_SEASON =
   new Date().getMonth() >= 3
@@ -33,15 +38,6 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   scoring_threshold: "Scoring Threshold",
   reverse_scoring: "Reverse Scoring",
   random_captain: "Random Captain",
-};
-
-const DEFAULT_CONFIGS: Record<string, string> = {
-  scoring_modifier: JSON.stringify(
-    { sandwich_cost_min: 1, sandwich_cost_max: 1, multiplier: 2 },
-    null,
-    2,
-  ),
-  scoring_threshold: JSON.stringify({ min_runs: 30, min_wickets: 3 }, null, 2),
 };
 
 function PlayCricketSyncSection() {
@@ -294,12 +290,12 @@ function PlayerManagementSection() {
 
 function ChaosWeeksSection() {
   const queryClient = useQueryClient();
-  const [gameweekId, setGameweekId] = useState("");
-  const [ruleType, setRuleType] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [ruleConfig, setRuleConfig] = useState("");
-  const [sendEmail, setSendEmail] = useState(false);
+  const [form, dispatch] = useReducer(
+    chaosWeekFormReducer,
+    initialChaosWeekFormState,
+  );
+  const { gameweekId, ruleType, name, description, ruleConfig, sendEmail } =
+    form;
 
   const { data } = useQuery({
     queryKey: ["admin", "chaosWeeks", CURRENT_SEASON],
@@ -326,7 +322,7 @@ function ChaosWeeksSection() {
     }) => callApi(api.POST("/api/fantasy/admin/chaos-weeks", { body })),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "chaosWeeks"] });
-      resetForm();
+      dispatch({ type: "reset" });
     },
   });
 
@@ -349,23 +345,11 @@ function ChaosWeeksSection() {
     },
   });
 
-  function resetForm() {
-    setGameweekId("");
-    setRuleType("");
-    setName("");
-    setDescription("");
-    setRuleConfig("");
-    setSendEmail(false);
-  }
-
   function handleRuleTypeChange(value: string) {
-    const newType = value === "__none__" ? "" : value;
-    setRuleType(newType);
-    if (newType in DEFAULT_CONFIGS) {
-      setRuleConfig(DEFAULT_CONFIGS[newType]);
-    } else {
-      setRuleConfig("");
-    }
+    dispatch({
+      type: "setRuleType",
+      value: value === "__none__" ? "" : value,
+    });
   }
 
   function handleSubmit(e: React.SyntheticEvent) {
@@ -385,8 +369,7 @@ function ChaosWeeksSection() {
   }
 
   const weeks = data?.weeks ?? [];
-  const showRuleConfig =
-    ruleType === "scoring_modifier" || ruleType === "scoring_threshold";
+  const showRuleConfig = showsRuleConfig(ruleType);
 
   return (
     <div className="space-y-4">
@@ -409,7 +392,9 @@ function ChaosWeeksSection() {
                   type="number"
                   min={1}
                   value={gameweekId}
-                  onChange={(e) => setGameweekId(e.target.value)}
+                  onChange={(e) =>
+                    dispatch({ type: "setGameweekId", value: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -453,7 +438,9 @@ function ChaosWeeksSection() {
                 <Input
                   id="chaos-name"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) =>
+                    dispatch({ type: "setName", value: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -468,7 +455,9 @@ function ChaosWeeksSection() {
                   id="chaos-description"
                   className="flex min-h-[80px] w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm placeholder:text-stone-500 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) =>
+                    dispatch({ type: "setDescription", value: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -484,7 +473,12 @@ function ChaosWeeksSection() {
                     id="chaos-rule-config"
                     className="flex min-h-[80px] w-full rounded-md border border-stone-300 bg-white px-3 py-2 font-mono text-sm placeholder:text-stone-500 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                     value={ruleConfig}
-                    onChange={(e) => setRuleConfig(e.target.value)}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "setRuleConfig",
+                        value: e.target.value,
+                      })
+                    }
                   />
                 </div>
               )}
@@ -493,7 +487,12 @@ function ChaosWeeksSection() {
                   <input
                     type="checkbox"
                     checked={sendEmail}
-                    onChange={(e) => setSendEmail(e.target.checked)}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "setSendEmail",
+                        value: e.target.checked,
+                      })
+                    }
                   />
                   Allow sending announcement email
                 </label>

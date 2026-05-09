@@ -15,12 +15,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDocumentMeta } from "@/hooks/use-document-meta";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { differenceInYears, format } from "date-fns";
-import { useState } from "react";
+import { format } from "date-fns";
+import { useReducer } from "react";
 import { Link } from "react-router";
-
-const FIRST_CHILD_PRICE = 50;
-const ADDITIONAL_CHILD_PRICE = 40;
+import {
+  type Dependent,
+  type Step,
+  STEPS,
+  STEP_LABELS,
+  calculateTotal,
+  initialJuniorWizardState,
+  juniorWizardReducer,
+  priceForChild,
+} from "./membership-junior.reducer";
 
 const SCHOOL_YEARS = [
   "Year 4",
@@ -51,153 +58,6 @@ const DISABILITY_TYPES = [
   "Learning Disability",
   "Multiple Disability",
 ];
-
-interface Dependent {
-  // Stable client-side id for React keys; not sent to the API.
-  clientId: string;
-  name: string;
-  sex: string;
-  dob: string;
-  school_year: string;
-  played_before: boolean | null;
-  previous_cricket: string;
-  whatsapp_consent: boolean | null;
-  alt_contact_name: string;
-  alt_contact_phone: string;
-  alt_contact_whatsapp_consent: boolean | null;
-  gp_surgery: string;
-  gp_phone: string;
-  has_disability: boolean | null;
-  disability_type: string;
-  medical_info: string;
-  emergency_medical_consent: boolean | null;
-  medical_fitness_declaration: boolean | null;
-  data_protection_consent: boolean | null;
-  photo_consent: boolean | null;
-}
-
-const emptyDependent = (): Dependent => ({
-  clientId: crypto.randomUUID(),
-  name: "",
-  sex: "",
-  dob: "",
-  school_year: "",
-  played_before: null,
-  previous_cricket: "",
-  whatsapp_consent: null,
-  alt_contact_name: "",
-  alt_contact_phone: "",
-  alt_contact_whatsapp_consent: null,
-  gp_surgery: "",
-  gp_phone: "",
-  has_disability: null,
-  disability_type: "",
-  medical_info: "",
-  emergency_medical_consent: null,
-  medical_fitness_declaration: null,
-  data_protection_consent: null,
-  photo_consent: null,
-});
-
-const priceForChild = (existingCount: number, newIndex: number) =>
-  existingCount + newIndex === 0 ? FIRST_CHILD_PRICE : ADDITIONAL_CHILD_PRICE;
-
-const calculateTotal = (existingCount: number, newCount: number) => {
-  let total = 0;
-  for (let i = 0; i < newCount; i++) {
-    total += priceForChild(existingCount, i);
-  }
-  return total;
-};
-
-type Step =
-  | "children"
-  | "cricket"
-  | "contact"
-  | "medical"
-  | "consents"
-  | "review"
-  | "payment"
-  | "done";
-
-const STEPS: Step[] = [
-  "children",
-  "cricket",
-  "contact",
-  "medical",
-  "consents",
-  "review",
-  "payment",
-];
-
-const STEP_LABELS: Record<Step, string> = {
-  children: "Children",
-  cricket: "Cricket",
-  contact: "Contact",
-  medical: "Medical",
-  consents: "Consents",
-  review: "Review",
-  payment: "Payment",
-  done: "Done",
-};
-
-const validateChildrenStep = (deps: Dependent[]): string[] =>
-  deps.map((dep) => {
-    if (!dep.name.trim()) return "Name is required.";
-    if (!dep.sex) return "Gender is required.";
-    if (!dep.dob) return "Date of birth is required.";
-    if (!dep.school_year) return "School year is required.";
-    const age = differenceInYears(new Date(), new Date(dep.dob));
-    if (age >= 18) return `${dep.name} must be under 18.`;
-    if (age < 0) return `Invalid date of birth for ${dep.name}.`;
-    return "";
-  });
-
-const validateCricketStep = (deps: Dependent[]): string[] =>
-  deps.map((dep) => {
-    if (dep.played_before === null)
-      return "Please indicate if your child has played cricket before.";
-    return "";
-  });
-
-const validateContactStep = (deps: Dependent[]): string[] =>
-  deps.map((dep) => {
-    if (dep.whatsapp_consent === null) return "WhatsApp consent is required.";
-    if (!dep.alt_contact_name.trim())
-      return "Alternative contact name is required.";
-    if (!dep.alt_contact_phone.trim())
-      return "Alternative contact phone number is required.";
-    if (dep.alt_contact_whatsapp_consent === null)
-      return "Alternative contact WhatsApp consent is required.";
-    return "";
-  });
-
-const validateMedicalStep = (deps: Dependent[]): string[] =>
-  deps.map((dep) => {
-    if (!dep.gp_surgery.trim()) return "GP surgery name is required.";
-    if (!dep.gp_phone.trim()) return "GP phone number is required.";
-    if (dep.has_disability === null)
-      return "Please indicate whether your child has a disability.";
-    if (dep.emergency_medical_consent === null)
-      return "Emergency medical consent is required.";
-    if (!dep.emergency_medical_consent)
-      return "You must consent to emergency medical treatment to register.";
-    if (dep.medical_fitness_declaration === null)
-      return "Medical fitness declaration is required.";
-    if (!dep.medical_fitness_declaration)
-      return "You must confirm the medical fitness declaration to register.";
-    return "";
-  });
-
-const validateConsentsStep = (deps: Dependent[]): string[] =>
-  deps.map((dep) => {
-    if (dep.data_protection_consent === null)
-      return "Data protection consent is required.";
-    if (!dep.data_protection_consent)
-      return "You must consent to data processing to register.";
-    if (dep.photo_consent === null) return "Photo consent is required.";
-    return "";
-  });
 
 function StepIndicator({ currentStep }: { currentStep: Step }) {
   const currentIndex = STEPS.indexOf(currentStep);
@@ -348,9 +208,13 @@ function SocialMembershipUpsell() {
 }
 
 function JuniorRegistrationInner() {
-  const [step, setStep] = useState<Step>("children");
-  const [dependents, setDependents] = useState<Dependent[]>([emptyDependent()]);
-  const [errors, setErrors] = useState<string[]>([]);
+  const [wizard, dispatch] = useReducer(
+    juniorWizardReducer,
+    undefined,
+    () => initialJuniorWizardState(),
+  );
+  const { step, dependents, errors, paymentData, paymentError } = wizard;
+  const setStep = (next: Step) => dispatch({ type: "goToStep", step: next });
   const queryClient = useQueryClient();
 
   const existingDepsQuery = useQuery({
@@ -358,13 +222,6 @@ function JuniorRegistrationInner() {
     queryFn: () => callApi(api.GET("/api/junior/dependents")),
   });
   const existingCount = existingDepsQuery.data?.currentYearCount ?? 0;
-
-  const [paymentData, setPaymentData] = useState<{
-    clientSecret: string;
-    totalAmountPence: number;
-    paymentIntentId: string;
-  } | null>(null);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const addDependentsMutation = useMutation({
     mutationFn: async (deps: Dependent[]) =>
@@ -402,62 +259,35 @@ function JuniorRegistrationInner() {
     onSuccess: (data) => {
       if (!data.clientSecret) return;
       const piId = data.clientSecret.split("_secret_")[0];
-      setPaymentData({
-        clientSecret: data.clientSecret,
-        totalAmountPence: data.totalAmountPence,
-        paymentIntentId: piId,
+      dispatch({
+        type: "setPaymentData",
+        data: {
+          clientSecret: data.clientSecret,
+          totalAmountPence: data.totalAmountPence,
+          paymentIntentId: piId,
+        },
       });
-      setPaymentError(null);
+      dispatch({ type: "setPaymentError", message: null });
       void queryClient.invalidateQueries({ queryKey: ["myCharges"] });
     },
     onError: () => {
-      setPaymentError("Failed to create payment. Please try again.");
+      dispatch({
+        type: "setPaymentError",
+        message: "Failed to create payment. Please try again.",
+      });
     },
   });
 
-  const updateDependent = (index: number, updates: Partial<Dependent>) => {
-    setDependents((prev) =>
-      prev.map((d, i) => (i === index ? { ...d, ...updates } : d)),
-    );
-    setErrors((prev) => prev.map((e, i) => (i === index ? "" : e)));
-  };
+  const updateDependent = (index: number, updates: Partial<Dependent>) =>
+    dispatch({ type: "updateDependent", index, updates });
 
-  const addChild = () => {
-    setDependents((prev) => [...prev, emptyDependent()]);
-    setErrors((prev) => [...prev, ""]);
-  };
+  const addChild = () => dispatch({ type: "addChild" });
 
-  const removeChild = (index: number) => {
-    if (dependents.length <= 1) return;
-    setDependents((prev) => prev.filter((_, i) => i !== index));
-    setErrors((prev) => prev.filter((_, i) => i !== index));
-  };
+  const removeChild = (index: number) =>
+    dispatch({ type: "removeChild", index });
 
-  const validateAndAdvance = (nextStep: Step) => {
-    let newErrors: string[] = [];
-
-    switch (step) {
-      case "children":
-        newErrors = validateChildrenStep(dependents);
-        break;
-      case "cricket":
-        newErrors = validateCricketStep(dependents);
-        break;
-      case "contact":
-        newErrors = validateContactStep(dependents);
-        break;
-      case "medical":
-        newErrors = validateMedicalStep(dependents);
-        break;
-      case "consents":
-        newErrors = validateConsentsStep(dependents);
-        break;
-    }
-
-    setErrors(newErrors);
-    if (newErrors.some((e) => e !== "")) return;
-    setStep(nextStep);
-  };
+  const validateAndAdvance = (nextStep: Step) =>
+    dispatch({ type: "advanceIfValid", next: nextStep });
 
   const handleSubmit = async () => {
     await addDependentsMutation.mutateAsync(dependents);
@@ -1125,7 +955,7 @@ function JuniorRegistrationInner() {
                 <Button
                   type="button"
                   onClick={() => {
-                    setPaymentError(null);
+                    dispatch({ type: "setPaymentError", message: null });
                     payMutation.mutate();
                   }}
                 >

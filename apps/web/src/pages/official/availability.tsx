@@ -22,8 +22,14 @@ import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
-import { useCallback, useState } from "react";
+import { useCallback, useReducer, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import {
+  buildPreviewPayload,
+  buildSendRecipients,
+  initialNotifyFormState,
+  notifyFormReducer,
+} from "./availability.reducer";
 
 // ── Derived API types ──
 
@@ -965,20 +971,20 @@ function PlayerPool({
 
 // ── Notify Dialog ──
 
-interface Recipient {
-  email: string;
-  name: string | null;
-  source: "filter" | "manual";
-}
-
 function NotifyDialog({ requestId }: { requestId: string }) {
   const [open, setOpen] = useState(false);
-  const [memberCategory, setMemberCategory] = useState<string>("");
-  const [membershipStatus, setMembershipStatus] = useState<string>("");
-  const [manualEmails, setManualEmails] = useState("");
-  const [recipients, setRecipients] = useState<Recipient[]>([]);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [previewed, setPreviewed] = useState(false);
+  const [form, dispatch] = useReducer(
+    notifyFormReducer,
+    initialNotifyFormState,
+  );
+  const {
+    memberCategory,
+    membershipStatus,
+    manualEmails,
+    recipients,
+    checked,
+    previewed,
+  } = form;
 
   // Fire-and-forget: returns a recipient preview into local state; no cached
   // queries to invalidate.
@@ -987,23 +993,11 @@ function NotifyDialog({ requestId }: { requestId: string }) {
       callApi(
         api.POST("/api/availability/requests/{requestId}/notify/preview", {
           params: { path: { requestId } },
-          body: {
-            memberCategory: memberCategory || undefined,
-            membershipStatus:
-              (membershipStatus as "active" | "lapsed") || undefined,
-            additionalEmails: manualEmails
-              ? manualEmails.split(",").flatMap((e) => {
-                  const trimmed = e.trim();
-                  return trimmed ? [trimmed] : [];
-                })
-              : undefined,
-          },
+          body: buildPreviewPayload(form),
         }),
       ),
     onSuccess: (data) => {
-      setRecipients(data.recipients);
-      setChecked(new Set(data.recipients.map((r) => r.email)));
-      setPreviewed(true);
+      dispatch({ type: "previewSucceeded", recipients: data.recipients });
     },
   });
 
@@ -1013,13 +1007,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
       callApi(
         api.POST("/api/availability/requests/{requestId}/notify/send", {
           params: { path: { requestId } },
-          body: {
-            recipients: recipients.flatMap((r) =>
-              checked.has(r.email)
-                ? [{ email: r.email, name: r.name }]
-                : [],
-            ),
-          },
+          body: { recipients: buildSendRecipients(form) },
         }),
       ),
     onSuccess: () => {
@@ -1028,33 +1016,15 @@ function NotifyDialog({ requestId }: { requestId: string }) {
   });
 
   const toggleRecipient = useCallback((email: string) => {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(email)) {
-        next.delete(email);
-      } else {
-        next.add(email);
-      }
-      return next;
-    });
+    dispatch({ type: "toggleRecipient", email });
   }, []);
 
   const toggleAll = useCallback(() => {
-    setChecked((prev) => {
-      if (prev.size === recipients.length) {
-        return new Set();
-      }
-      return new Set(recipients.map((r) => r.email));
-    });
-  }, [recipients]);
+    dispatch({ type: "toggleAll" });
+  }, []);
 
   const reset = useCallback(() => {
-    setRecipients([]);
-    setChecked(new Set());
-    setPreviewed(false);
-    setMemberCategory("");
-    setMembershipStatus("");
-    setManualEmails("");
+    dispatch({ type: "reset" });
     sendMutation.reset();
     previewMutation.reset();
   }, [sendMutation, previewMutation]);
@@ -1102,7 +1072,10 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                 <Select
                   value={memberCategory || "__all__"}
                   onValueChange={(v) =>
-                    setMemberCategory(v === "__all__" ? "" : v)
+                    dispatch({
+                      type: "setMemberCategory",
+                      value: v === "__all__" ? "" : v,
+                    })
                   }
                 >
                   <SelectTrigger id="notify-member-category">
@@ -1129,7 +1102,10 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                 <Select
                   value={membershipStatus || "__any__"}
                   onValueChange={(v) =>
-                    setMembershipStatus(v === "__any__" ? "" : v)
+                    dispatch({
+                      type: "setMembershipStatus",
+                      value: v === "__any__" ? "" : v,
+                    })
                   }
                 >
                   <SelectTrigger id="notify-membership-status">
@@ -1154,7 +1130,12 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                   id="notify-additional-emails"
                   placeholder="email1@example.com, email2@example.com"
                   value={manualEmails}
-                  onChange={(e) => setManualEmails(e.target.value)}
+                  onChange={(e) =>
+                    dispatch({
+                      type: "setManualEmails",
+                      value: e.target.value,
+                    })
+                  }
                 />
                 <p className="mt-1 text-xs text-stone-500">
                   Comma-separated. These will be added to the filtered list.

@@ -25,7 +25,13 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
+import {
+  expenseFiltersReducer,
+  getFinancialYearDefaults,
+  isFiltered,
+  makeInitialExpenseFiltersState,
+} from "./expense-history-tab.reducer";
 import { formatDate, formatPence } from "./status-pill";
 
 // --- Types ---
@@ -60,27 +66,17 @@ const STATUS_CONFIG: Record<
   reimbursed: { label: "Reimbursed", variant: "secondary" },
 };
 
-function getFinancialYearDefaults(): { dateFrom: string; dateTo: string } {
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1;
-  const year = currentMonth >= 4 ? now.getFullYear() : now.getFullYear() - 1;
-  return {
-    dateFrom: `${year}-04-01`,
-    dateTo: `${year + 1}-03-31`,
-  };
-}
-
 // --- Component ---
 
 export function ExpenseHistoryTab() {
-  const defaults = getFinancialYearDefaults();
-  const [dateFrom, setDateFrom] = useState(defaults.dateFrom);
-  const [dateTo, setDateTo] = useState(defaults.dateTo);
-  const [status, setStatus] = useState("all");
-  const [expenseType, setExpenseType] = useState("all");
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [defaults] = useState(() => getFinancialYearDefaults(new Date()));
+  const [filters, dispatch] = useReducer(
+    expenseFiltersReducer,
+    defaults,
+    makeInitialExpenseFiltersState,
+  );
+  const { page, status, expenseType, search, debouncedSearch, dateFrom, dateTo } =
+    filters;
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(
     null,
   );
@@ -93,8 +89,7 @@ export function ExpenseHistoryTab() {
       clearTimeout(debounceTimerRef.current);
     }
     debounceTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
+      dispatch({ type: "commitSearch", value: search });
     }, 300);
     return () => {
       if (debounceTimerRef.current) {
@@ -125,22 +120,9 @@ export function ExpenseHistoryTab() {
 
   const totalPages = Math.ceil((expensesQuery.data?.total ?? 0) / PAGE_SIZE);
 
-  const hasFilters =
-    status !== "all" ||
-    expenseType !== "all" ||
-    debouncedSearch !== "" ||
-    dateFrom !== defaults.dateFrom ||
-    dateTo !== defaults.dateTo;
+  const hasFilters = isFiltered(filters, defaults);
 
-  const clearFilters = () => {
-    setStatus("all");
-    setExpenseType("all");
-    setSearch("");
-    setDebouncedSearch("");
-    setDateFrom(defaults.dateFrom);
-    setDateTo(defaults.dateTo);
-    setPage(1);
-  };
+  const clearFilters = () => dispatch({ type: "clearFilters", defaults });
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -202,10 +184,9 @@ export function ExpenseHistoryTab() {
             id="expense-history-date-from"
             type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) =>
+              dispatch({ type: "setDateFrom", value: e.target.value })
+            }
             className="w-40"
           />
         </div>
@@ -220,10 +201,9 @@ export function ExpenseHistoryTab() {
             id="expense-history-date-to"
             type="date"
             value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) =>
+              dispatch({ type: "setDateTo", value: e.target.value })
+            }
             className="w-40"
           />
         </div>
@@ -236,10 +216,7 @@ export function ExpenseHistoryTab() {
           </label>
           <Select
             value={status}
-            onValueChange={(v) => {
-              setStatus(v);
-              setPage(1);
-            }}
+            onValueChange={(v) => dispatch({ type: "setStatus", value: v })}
           >
             <SelectTrigger id="expense-history-status" className="w-40">
               <SelectValue />
@@ -263,10 +240,9 @@ export function ExpenseHistoryTab() {
           </label>
           <Select
             value={expenseType}
-            onValueChange={(v) => {
-              setExpenseType(v);
-              setPage(1);
-            }}
+            onValueChange={(v) =>
+              dispatch({ type: "setExpenseType", value: v })
+            }
           >
             <SelectTrigger id="expense-history-type" className="w-40">
               <SelectValue />
@@ -292,7 +268,9 @@ export function ExpenseHistoryTab() {
             id="expense-history-search"
             placeholder="Description or opposition…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) =>
+              dispatch({ type: "setSearch", value: e.target.value })
+            }
             className="w-56"
           />
         </div>
@@ -386,7 +364,7 @@ export function ExpenseHistoryTab() {
               variant="outline"
               size="sm"
               disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => dispatch({ type: "setPage", value: page - 1 })}
             >
               Previous
             </Button>
@@ -394,7 +372,7 @@ export function ExpenseHistoryTab() {
               variant="outline"
               size="sm"
               disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => dispatch({ type: "setPage", value: page + 1 })}
             >
               Next
             </Button>

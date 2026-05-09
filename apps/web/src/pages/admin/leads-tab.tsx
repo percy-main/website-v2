@@ -11,7 +11,11 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import { campaigns } from "@percy-main/shared/marketing";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useReducer, useRef, useState } from "react";
+import {
+  initialLeadsFilterState,
+  leadsFilterReducer,
+} from "./leads-tab.reducer";
 import { formatDate } from "./status-pill";
 
 const PAGE_SIZE = 25;
@@ -36,13 +40,12 @@ const SOURCE_OPTIONS = [
 ];
 
 export function LeadsTab() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [campaignId, setCampaignId] = useState<string>("");
-  const [segment, setSegment] = useState<string>("");
-  const [status, setStatus] = useState<string>("");
-  const [source, setSource] = useState<string>("");
+  const [filters, dispatch] = useReducer(
+    leadsFilterReducer,
+    initialLeadsFilterState,
+  );
+  const { page, search, debouncedSearch, campaignId, segment, status, source } =
+    filters;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [memberLinkLeadId, setMemberLinkLeadId] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,8 +54,7 @@ export function LeadsTab() {
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
+      dispatch({ type: "commitSearch", value: search });
     }, 300);
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -124,17 +126,17 @@ export function LeadsTab() {
           type="text"
           placeholder="Search by name or email…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) =>
+            dispatch({ type: "setSearch", value: e.target.value })
+          }
           className="max-w-sm"
         />
         <select
           className="border-border rounded border px-2 py-1 text-sm"
           value={campaignId}
-          onChange={(e) => {
-            setCampaignId(e.target.value);
-            setSegment("");
-            setPage(1);
-          }}
+          onChange={(e) =>
+            dispatch({ type: "setCampaignId", value: e.target.value })
+          }
         >
           <option value="">All campaigns</option>
           {Object.entries(campaigns).map(([id, c]) => (
@@ -146,10 +148,9 @@ export function LeadsTab() {
         <select
           className="border-border rounded border px-2 py-1 text-sm"
           value={segment}
-          onChange={(e) => {
-            setSegment(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) =>
+            dispatch({ type: "setSegment", value: e.target.value })
+          }
           disabled={!campaignId}
         >
           <option value="">All segments</option>
@@ -162,10 +163,9 @@ export function LeadsTab() {
         <select
           className="border-border rounded border px-2 py-1 text-sm"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) =>
+            dispatch({ type: "setStatus", value: e.target.value })
+          }
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -176,10 +176,9 @@ export function LeadsTab() {
         <select
           className="border-border rounded border px-2 py-1 text-sm"
           value={source}
-          onChange={(e) => {
-            setSource(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) =>
+            dispatch({ type: "setSource", value: e.target.value })
+          }
         >
           {SOURCE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -318,7 +317,9 @@ export function LeadsTab() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() =>
+                  dispatch({ type: "setPage", value: Math.max(1, page - 1) })
+                }
                 disabled={page <= 1}
               >
                 Previous
@@ -329,7 +330,12 @@ export function LeadsTab() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() =>
+                  dispatch({
+                    type: "setPage",
+                    value: Math.min(totalPages, page + 1),
+                  })
+                }
                 disabled={page >= totalPages}
               >
                 Next
