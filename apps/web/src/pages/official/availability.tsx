@@ -470,6 +470,7 @@ function RequestDetailView({ requestId }: { requestId: string }) {
 
 // ── Team Selection View ──
 
+// eslint-disable-next-line react-doctor/no-giant-component -- per-date team selection: roster table + drag/drop selection + send-notify dialog + override modals all share the selection state and the date's mutations. The notify dialog already lives in its own helper; the selection grid is the cohesive remainder.
 function TeamSelectionView({
   requestId,
   date,
@@ -993,6 +994,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
 
   // Fire-and-forget: returns a recipient preview into local state; no cached
   // queries to invalidate.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- returns a recipient preview into the local reducer; nothing in queryClient cache changes
   const previewMutation = useMutation({
     mutationFn: () =>
       callApi(
@@ -1007,6 +1009,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
   });
 
   // Fire-and-forget: dispatches notification emails; no cached data changes.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- dispatches notification emails; no cached data changes
   const sendMutation = useMutation({
     mutationFn: () =>
       callApi(

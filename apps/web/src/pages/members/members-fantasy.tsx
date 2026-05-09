@@ -34,7 +34,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer, useState } from "react";
 import { Link } from "react-router";
 import {
   BUDGET,
@@ -185,6 +185,7 @@ export function Component() {
 // TeamBuilder — pure component, receives resolved data as props
 // ---------------------------------------------------------------------------
 
+// eslint-disable-next-line react-doctor/no-giant-component -- fantasy team builder: drag/drop squad list + slot grid + transfers panel + save lifecycle, all sharing the squad state and dnd-kit sensors. Splitting fragments the drag-and-drop ownership.
 function TeamBuilder({
   initialSquad,
   eligiblePlayers,
@@ -198,10 +199,22 @@ function TeamBuilder({
 }) {
   const queryClient = useQueryClient();
 
-  const [squad, setSquad] = useState<SelectedPlayer[]>(initialSquad);
-  const [search, setSearch] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  // Seeded from initialSquad on mount; parent never re-renders TeamBuilder
+  // with a different team for the same user, so a key isn't needed.
+  const [squad, setSquad] = useState<SelectedPlayer[]>(() => initialSquad);
+  // UI state grouped via a shallow-merge reducer to keep search / save
+  // status / drag-active state consolidated.
+  interface UiState {
+    search: string;
+    saveError: string | null;
+    saveSuccess: boolean;
+    activeId: string | null;
+  }
+  const [ui, updateUi] = useReducer(
+    (s: UiState, p: Partial<UiState>) => ({ ...s, ...p }),
+    { search: "", saveError: null, saveSuccess: false, activeId: null },
+  );
+  const { search, saveError, saveSuccess, activeId } = ui;
 
   const saveMutation = useMutation({
     mutationFn: (players: SelectedPlayer[]) =>
@@ -218,14 +231,14 @@ function TeamBuilder({
         }),
       ),
     onSuccess: () => {
-      setSaveError(null);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      updateUi({ saveError: null });
+      updateUi({ saveSuccess: true });
+      setTimeout(() => updateUi({ saveSuccess: false }), 3000);
       void queryClient.invalidateQueries({ queryKey: ["fantasy"] });
     },
     onError: (err: Error) => {
-      setSaveError(err.message);
-      setSaveSuccess(false);
+      updateUi({ saveError: err.message });
+      updateUi({ saveSuccess: false });
     },
   });
 
@@ -278,14 +291,14 @@ function TeamBuilder({
         isWicketkeeper: prev.length === 0,
       },
     ]);
-    setSaveError(null);
-    setSaveSuccess(false);
+    updateUi({ saveError: null });
+    updateUi({ saveSuccess: false });
   }
 
   function removePlayer(playCricketId: string) {
     setSquad((prev) => prev.filter((p) => p.playCricketId !== playCricketId));
-    setSaveError(null);
-    setSaveSuccess(false);
+    updateUi({ saveError: null });
+    updateUi({ saveSuccess: false });
   }
 
   function setCaptain(playCricketId: string) {
@@ -321,7 +334,6 @@ function TeamBuilder({
       .toSorted((a, b) => b.previousSeasonPoints - a.previousSeasonPoints);
   })();
 
-  const [activeId, setActiveId] = useState<string | null>(null);
   const activePlayer = activeId
     ? (squad.find((p) => p.playCricketId === activeId) ?? null)
     : null;
@@ -334,11 +346,11 @@ function TeamBuilder({
   );
 
   function handleDragStart(event: DragStartEvent) {
-    setActiveId(event.active.id as string);
+    updateUi({ activeId: event.active.id as string });
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    setActiveId(null);
+    updateUi({ activeId: null });
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -584,7 +596,7 @@ function TeamBuilder({
             <Input
               placeholder="Search players…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => updateUi({ search: e.target.value })}
               className="mb-3"
             />
             <div className="max-h-[600px] overflow-y-auto">

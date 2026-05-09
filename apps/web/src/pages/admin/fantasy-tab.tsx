@@ -337,7 +337,6 @@ function ChaosWeeksSection() {
   // Note: send-email endpoint does not exist in the OpenAPI spec.
   // Keeping the mutation structure for future implementation.
   const sendEmailMutation = useMutation({
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     mutationFn: (_id: number) =>
       Promise.reject(new Error("send-email endpoint not yet implemented")),
     onSuccess: () => {

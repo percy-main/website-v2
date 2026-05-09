@@ -27,7 +27,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer, useState } from "react";
 import { formatDate } from "./status-pill";
 
 const PAGE_SIZE = 20;
@@ -329,9 +329,17 @@ function IncidentDetailBody({
   if (detail.isError || !detail.data)
     return <p className="text-red-600">Failed to load report.</p>;
 
-  return <IncidentEditForm id={id} initial={detail.data} onClose={onClose} />;
+  return (
+    <IncidentEditForm
+      key={id}
+      id={id}
+      initial={detail.data}
+      onClose={onClose}
+    />
+  );
 }
 
+// eslint-disable-next-line react-doctor/no-giant-component -- incident review form: 12 fields all submit together as a PATCH with one validation/mutation lifecycle; splitting fragments a single H&S record's edit semantics. TODO: extract the safeguarding sub-section once it grows attachments.
 function IncidentEditForm({
   id,
   initial,
@@ -343,42 +351,59 @@ function IncidentEditForm({
 }) {
   const queryClient = useQueryClient();
 
-  const [status, setStatus] = useState<Status>(initial.status);
-  const [severity, setSeverity] = useState<Severity | "unset">(
-    initial.severity ?? "unset",
+  // All state seeded from `initial` on mount. The parent passes
+  // `key={id}` so opening a different incident remounts this form
+  // with fresh state — no need to sync state to props on update.
+  interface IncidentFormState {
+    status: Status;
+    severity: Severity | "unset";
+    internalNotes: string;
+    actionsTaken: string;
+    targetCompletionDate: string;
+    riddorRequired: RiddorState;
+    riddorReportedAt: string;
+    closureReason: string;
+    closedAt: string;
+    safeguardingDiscussed: boolean;
+    safeguardingDiscussedAt: string;
+    safeguardingNotes: string;
+  }
+  const [form, update] = useReducer(
+    (s: IncidentFormState, p: Partial<IncidentFormState>) => ({ ...s, ...p }),
+    {
+      status: initial.status,
+      severity: initial.severity ?? "unset",
+      internalNotes: initial.internalNotes ?? "",
+      actionsTaken: initial.actionsTaken ?? "",
+      targetCompletionDate: toDateInput(initial.targetCompletionDate),
+      riddorRequired:
+        initial.riddorRequired === true
+          ? "yes"
+          : initial.riddorRequired === false
+            ? "no"
+            : "unset",
+      riddorReportedAt: toDateInput(initial.riddorReportedAt),
+      closureReason: initial.closureReason ?? "",
+      closedAt: toDateTimeLocal(initial.closedAt),
+      safeguardingDiscussed: initial.safeguardingDiscussed,
+      safeguardingDiscussedAt: toDateTimeLocal(initial.safeguardingDiscussedAt),
+      safeguardingNotes: initial.safeguardingNotes ?? "",
+    },
   );
-  const [internalNotes, setInternalNotes] = useState(
-    initial.internalNotes ?? "",
-  );
-  const [actionsTaken, setActionsTaken] = useState(initial.actionsTaken ?? "");
-  const [targetCompletionDate, setTargetCompletionDate] = useState(() =>
-    toDateInput(initial.targetCompletionDate),
-  );
-  const [riddorRequired, setRiddorRequired] = useState<RiddorState>(
-    initial.riddorRequired === true
-      ? "yes"
-      : initial.riddorRequired === false
-        ? "no"
-        : "unset",
-  );
-  const [riddorReportedAt, setRiddorReportedAt] = useState(() =>
-    toDateInput(initial.riddorReportedAt),
-  );
-  const [closureReason, setClosureReason] = useState(
-    initial.closureReason ?? "",
-  );
-  const [closedAt, setClosedAt] = useState(() =>
-    toDateTimeLocal(initial.closedAt),
-  );
-  const [safeguardingDiscussed, setSafeguardingDiscussed] = useState(
-    initial.safeguardingDiscussed,
-  );
-  const [safeguardingDiscussedAt, setSafeguardingDiscussedAt] = useState(() =>
-    toDateTimeLocal(initial.safeguardingDiscussedAt),
-  );
-  const [safeguardingNotes, setSafeguardingNotes] = useState(
-    initial.safeguardingNotes ?? "",
-  );
+  const {
+    status,
+    severity,
+    internalNotes,
+    actionsTaken,
+    targetCompletionDate,
+    riddorRequired,
+    riddorReportedAt,
+    closureReason,
+    closedAt,
+    safeguardingDiscussed,
+    safeguardingDiscussedAt,
+    safeguardingNotes,
+  } = form;
 
   const save = useMutation({
     mutationFn: () =>
@@ -552,7 +577,7 @@ function IncidentEditForm({
               <Label className="mb-1 block">Status</Label>
               <Select
                 value={status}
-                onValueChange={(v) => setStatus(v as Status)}
+                onValueChange={(v) => update({ status: v as Status })}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -568,7 +593,9 @@ function IncidentEditForm({
               <Label className="mb-1 block">Severity</Label>
               <Select
                 value={severity}
-                onValueChange={(v) => setSeverity(v as Severity | "unset")}
+                onValueChange={(v) =>
+                  update({ severity: v as Severity | "unset" })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -586,7 +613,7 @@ function IncidentEditForm({
               <Textarea
                 rows={3}
                 value={actionsTaken}
-                onChange={(e) => setActionsTaken(e.target.value)}
+                onChange={(e) => update({ actionsTaken: e.target.value })}
               />
             </div>
             <div>
@@ -595,14 +622,18 @@ function IncidentEditForm({
                 type="date"
                 className="border-border bg-surface text-dark w-full rounded-md border px-3 py-2 text-sm"
                 value={targetCompletionDate}
-                onChange={(e) => setTargetCompletionDate(e.target.value)}
+                onChange={(e) =>
+                  update({ targetCompletionDate: e.target.value })
+                }
               />
             </div>
             <div>
               <Label className="mb-1 block">RIDDOR reporting required?</Label>
               <Select
                 value={riddorRequired}
-                onValueChange={(v) => setRiddorRequired(v as RiddorState)}
+                onValueChange={(v) =>
+                  update({ riddorRequired: v as RiddorState })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -621,7 +652,7 @@ function IncidentEditForm({
                   type="date"
                   className="border-border bg-surface text-dark w-full rounded-md border px-3 py-2 text-sm"
                   value={riddorReportedAt}
-                  onChange={(e) => setRiddorReportedAt(e.target.value)}
+                  onChange={(e) => update({ riddorReportedAt: e.target.value })}
                 />
               </div>
             )}
@@ -630,7 +661,7 @@ function IncidentEditForm({
               <Textarea
                 rows={3}
                 value={internalNotes}
-                onChange={(e) => setInternalNotes(e.target.value)}
+                onChange={(e) => update({ internalNotes: e.target.value })}
               />
             </div>
             <div>
@@ -639,7 +670,7 @@ function IncidentEditForm({
                 type="datetime-local"
                 className="border-border bg-surface text-dark w-full rounded-md border px-3 py-2 text-sm"
                 value={closedAt}
-                onChange={(e) => setClosedAt(e.target.value)}
+                onChange={(e) => update({ closedAt: e.target.value })}
               />
             </div>
             <div>
@@ -648,14 +679,16 @@ function IncidentEditForm({
                 type="text"
                 className="border-border bg-surface text-dark w-full rounded-md border px-3 py-2 text-sm"
                 value={closureReason}
-                onChange={(e) => setClosureReason(e.target.value)}
+                onChange={(e) => update({ closureReason: e.target.value })}
               />
             </div>
             <div className="flex items-center gap-2 md:col-span-2">
               <Checkbox
                 id="safeguarding-discussed"
                 checked={safeguardingDiscussed}
-                onCheckedChange={(v) => setSafeguardingDiscussed(v === true)}
+                onCheckedChange={(v) =>
+                  update({ safeguardingDiscussed: v === true })
+                }
               />
               <Label htmlFor="safeguarding-discussed">
                 Discussed with club safeguarding officer
@@ -669,7 +702,9 @@ function IncidentEditForm({
                     type="datetime-local"
                     className="border-border bg-surface text-dark w-full rounded-md border px-3 py-2 text-sm"
                     value={safeguardingDiscussedAt}
-                    onChange={(e) => setSafeguardingDiscussedAt(e.target.value)}
+                    onChange={(e) =>
+                      update({ safeguardingDiscussedAt: e.target.value })
+                    }
                   />
                 </div>
                 <div>
@@ -678,7 +713,9 @@ function IncidentEditForm({
                     type="text"
                     className="border-border bg-surface text-dark w-full rounded-md border px-3 py-2 text-sm"
                     value={safeguardingNotes}
-                    onChange={(e) => setSafeguardingNotes(e.target.value)}
+                    onChange={(e) =>
+                      update({ safeguardingNotes: e.target.value })
+                    }
                   />
                 </div>
               </>

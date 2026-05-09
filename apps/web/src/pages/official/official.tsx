@@ -149,7 +149,7 @@ function RoleSelectors({
 
   return (
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2 text-sm" htmlFor="role-captain">
         <span className="text-stone-700">Captain (*)</span>
         <Select
           value={captain}
@@ -162,7 +162,7 @@ function RoleSelectors({
             })
           }
         >
-          <SelectTrigger className="w-48">
+          <SelectTrigger id="role-captain" className="w-48">
             <SelectValue placeholder="Select captain" />
           </SelectTrigger>
           <SelectContent>
@@ -175,7 +175,10 @@ function RoleSelectors({
           </SelectContent>
         </Select>
       </label>
-      <label className="flex items-center gap-2 text-sm">
+      <label
+        className="flex items-center gap-2 text-sm"
+        htmlFor="role-wicketkeeper"
+      >
         <span className="text-stone-700">Wicketkeeper (†)</span>
         <Select
           value={wicketkeeper}
@@ -187,7 +190,7 @@ function RoleSelectors({
             })
           }
         >
-          <SelectTrigger className="w-48">
+          <SelectTrigger id="role-wicketkeeper" className="w-48">
             <SelectValue placeholder="Select wicketkeeper" />
           </SelectTrigger>
           <SelectContent>
@@ -485,6 +488,7 @@ function TeamMatchesView({
   );
 }
 
+// eslint-disable-next-line react-doctor/no-giant-component -- captain/official matchday view: player roster + add/remove + payment confirmation + result selector + expense management + team-news image; all sections share the matchday query and 6+ mutations. Sub-sections (RoleSelectors, DownloadTeamNewsButton, ExpensesSection) are already siblings. TODO: extract the result-entry bar once additional result-types are added.
 function MatchdayView({
   matchdayId,
   isHome,
@@ -497,20 +501,37 @@ function MatchdayView({
   onBack: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [adHocName, setAdHocName] = useState("");
+  type ResultType = "W" | "L" | "D" | "T" | "A" | "C" | "N";
+  interface MatchdayLocalState {
+    searchQuery: string;
+    showAddForm: boolean;
+    adHocName: string;
+    payingPlayerId: string | null;
+    selectedResultType: ResultType | "";
+  }
+  const [local, updateLocal] = useReducer(
+    (s: MatchdayLocalState, p: Partial<MatchdayLocalState>) => ({ ...s, ...p }),
+    {
+      searchQuery: "",
+      showAddForm: false,
+      adHocName: "",
+      payingPlayerId: null,
+      selectedResultType: "",
+    },
+  );
+  const {
+    searchQuery,
+    showAddForm,
+    adHocName,
+    payingPlayerId,
+    selectedResultType,
+  } = local;
   const [confirmation, dispatchConfirmation] = useReducer(
     confirmationFormReducer,
     initialConfirmationFormState,
   );
   const confirmingTeam = confirmation.confirming;
   const playerStatuses = confirmation.playerStatuses;
-  const [payingPlayerId, setPayingPlayerId] = useState<string | null>(null);
-  type ResultType = "W" | "L" | "D" | "T" | "A" | "C" | "N";
-  const [selectedResultType, setSelectedResultType] = useState<ResultType | "">(
-    "",
-  );
 
   const matchdayQuery = useQuery({
     queryKey: ["official", "matchday", matchdayId],
@@ -542,8 +563,8 @@ function MatchdayView({
         }),
       ),
     onSuccess: () => {
-      setSearchQuery("");
-      setAdHocName("");
+      updateLocal({ searchQuery: "" });
+      updateLocal({ adHocName: "" });
       void queryClient.invalidateQueries({
         queryKey: ["official", "matchday", matchdayId],
       });
@@ -599,7 +620,7 @@ function MatchdayView({
         }),
       ),
     onSuccess: () => {
-      setPayingPlayerId(null);
+      updateLocal({ payingPlayerId: null });
       void queryClient.invalidateQueries({
         queryKey: ["official", "matchday", matchdayId],
       });
@@ -769,7 +790,9 @@ function MatchdayView({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setShowAddForm(!showAddForm)}
+                        onClick={() =>
+                          updateLocal({ showAddForm: !showAddForm })
+                        }
                       >
                         {showAddForm ? "Cancel" : "Add Player"}
                       </Button>
@@ -941,7 +964,9 @@ function MatchdayView({
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => setPayingPlayerId(null)}
+                                    onClick={() =>
+                                      updateLocal({ payingPlayerId: null })
+                                    }
                                   >
                                     Cancel
                                   </Button>
@@ -950,7 +975,9 @@ function MatchdayView({
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => setPayingPlayerId(player.id)}
+                                  onClick={() =>
+                                    updateLocal({ payingPlayerId: player.id })
+                                  }
                                 >
                                   Mark Paid
                                 </Button>
@@ -1007,7 +1034,9 @@ function MatchdayView({
                   <Input
                     placeholder="Search members by name…"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) =>
+                      updateLocal({ searchQuery: e.target.value })
+                    }
                   />
                   {searchMembersQuery.isPending && searchQuery.length >= 2 && (
                     <p className="mt-2 text-sm text-stone-500">Searching…</p>
@@ -1058,7 +1087,9 @@ function MatchdayView({
                     <Input
                       placeholder="Player name"
                       value={adHocName}
-                      onChange={(e) => setAdHocName(e.target.value)}
+                      onChange={(e) =>
+                        updateLocal({ adHocName: e.target.value })
+                      }
                     />
                     <Button
                       size="sm"
@@ -1111,7 +1142,7 @@ function MatchdayView({
                   <Select
                     value={selectedResultType}
                     onValueChange={(v) =>
-                      setSelectedResultType(v as ResultType)
+                      updateLocal({ selectedResultType: v as ResultType })
                     }
                   >
                     <SelectTrigger className="w-48">
@@ -1180,6 +1211,7 @@ function MatchdayView({
 
 type ExpenseType = ReducerExpenseType;
 
+// eslint-disable-next-line react-doctor/no-giant-component -- per-matchday expenses panel: expense list + add form (driven by expenseFormReducer) + receipt upload + delete. The reducer + form share validation and mutation lifecycle.
 function ExpensesSection({
   expenses,
   isFinished,
@@ -1502,7 +1534,7 @@ function ExpensesSection({
                 />
                 {compressing && (
                   <p className="mt-1 text-xs text-stone-500">
-                    Processing image...
+                    Processing image…
                   </p>
                 )}
                 {receiptPreview && (

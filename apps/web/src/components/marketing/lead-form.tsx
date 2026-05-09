@@ -63,6 +63,7 @@ function emptyToUndefined(value: string): string | undefined {
   return trimmed.length === 0 ? undefined : trimmed;
 }
 
+// eslint-disable-next-line react-doctor/no-giant-component -- single conversion form whose adult/junior variants share submit logic, validation, attribution capture and analytics; splitting would just thread props between halves of one cohesive form. TODO: revisit if a third variant is added.
 export const LeadForm: FC<LeadFormProps> = ({
   campaignId,
   segment,

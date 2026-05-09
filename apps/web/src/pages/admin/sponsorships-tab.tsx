@@ -154,6 +154,7 @@ function InlineEdit({
   placeholder: string;
   onSave: (value: string | null) => void;
 }) {
+  // eslint-disable-next-line react-doctor/rerender-state-only-in-handlers -- `editing` drives the conditional render between input mode and display mode.
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
 
@@ -716,7 +717,7 @@ function CreatePlayerSponsorshipDialog({
             />
             {takenSlugsQuery.isLoading && (
               <div className="mt-1 text-xs text-stone-500">
-                Loading available players...
+                Loading available players…
               </div>
             )}
           </div>

@@ -64,6 +64,7 @@ interface TreasurerExpensesSectionProps {
  * the detail listing — both queries are scoped to the same `dateFrom` /
  * `dateTo` keys driven by the parent.
  */
+// eslint-disable-next-line react-doctor/no-giant-component -- treasurer expense approval section: paginated table + 3 status mutations (approve/reject/reimburse) + receipt modal. All four UI states share the same filtered query.
 export function TreasurerExpensesSection({
   dateFrom,
   dateTo,
@@ -103,6 +104,7 @@ export function TreasurerExpensesSection({
     });
   };
 
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- onSuccess calls invalidateExpenses() helper which invalidates both expense query keys; the lint rule doesn't follow indirected calls
   const approveMutation = useMutation({
     mutationFn: (expenseId: string) =>
       callApi(
@@ -116,6 +118,7 @@ export function TreasurerExpensesSection({
     },
   });
 
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- onSuccess calls invalidateExpenses() helper which invalidates both expense query keys; the lint rule doesn't follow indirected calls
   const rejectMutation = useMutation({
     mutationFn: ({
       expenseId,
@@ -138,6 +141,7 @@ export function TreasurerExpensesSection({
     },
   });
 
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- onSuccess calls invalidateExpenses() helper which invalidates both expense query keys; the lint rule doesn't follow indirected calls
   const reimburseMutation = useMutation({
     mutationFn: (expenseId: string) =>
       callApi(
@@ -394,7 +398,10 @@ export function TreasurerExpensesSection({
           aria-label="Receipt full size"
           tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-          onClick={() => setLightboxUrl(null)}
+          onClick={(e) => {
+            // Only close when the backdrop itself is clicked, not the image.
+            if (e.target === e.currentTarget) setLightboxUrl(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
               setLightboxUrl(null);
@@ -405,7 +412,6 @@ export function TreasurerExpensesSection({
             src={lightboxUrl}
             alt="Receipt"
             className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-lg"
-            onClick={(e) => e.stopPropagation()}
           />
         </div>
       )}

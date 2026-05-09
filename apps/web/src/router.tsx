@@ -79,10 +79,6 @@ export const router = createBrowserRouter([
         lazy: () => import("./pages/game/be-the-keeper-leaderboard.js"),
       },
       {
-        path: "legal/privacy",
-        lazy: () => import("./pages/legal/privacy.js"),
-      },
-      {
         path: "report-incident",
         lazy: () => import("./pages/report-incident.js"),
       },

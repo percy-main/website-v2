@@ -33,6 +33,7 @@ import {
 
 const PAGE_SIZE = 20;
 
+// eslint-disable-next-line react-doctor/no-giant-component -- admin members tab: filter bar + paginated table + bulk-action menu + member detail modal trigger; share the filters reducer and a single query. The detail modal already lives in its own file.
 export function MembersTab() {
   const [filters, dispatch] = useReducer(
     membersFilterReducer,

@@ -83,7 +83,7 @@ export function ScoutLauncher({ onLaunch }: ScoutLauncherProps) {
                     }${m.competition ? ` (${m.competition})` : ""}.`,
                   )
                 }
-                className="block w-full rounded border border-emerald-200 bg-white px-3 py-2 text-left text-sm text-stone-900 shadow-sm hover:border-emerald-400 hover:bg-emerald-100"
+                className="block w-full rounded border border-emerald-200 bg-white px-3 py-2 text-left text-sm text-stone-900 shadow-sm hover:border-emerald-400 hover:shadow-md"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate font-medium">

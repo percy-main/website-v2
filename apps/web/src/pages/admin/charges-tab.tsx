@@ -52,6 +52,7 @@ const statusBadgeMap: Record<
   deleted: { variant: "secondary", label: "Deleted" },
 };
 
+// eslint-disable-next-line react-doctor/no-giant-component -- admin charges tab: filter bar + paginated table + row actions (refund, void, edit) all share the filters reducer + table query; splitting would mean lifting the reducer and queryClient through props for marginal benefit. TODO: extract row-level mutations into a hook if more action verbs are added.
 export function ChargesTab() {
   const queryClient = useQueryClient();
   const [filters, dispatch] = useReducer(

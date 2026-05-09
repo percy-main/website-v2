@@ -4,7 +4,7 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { authClient } from "@/lib/auth-client.js";
 import { trackEvent } from "@/lib/marketing/gtag.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type FC } from "react";
+import { useReducer, type FC } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 const GoogleIcon: FC = () => (
@@ -28,14 +28,28 @@ const GoogleIcon: FC = () => (
   </svg>
 );
 
+interface RegisterFormState {
+  name: string;
+  email: string;
+  password: string;
+  ageConfirmed: boolean;
+  ageError: boolean;
+}
+
 export function Component() {
   useDocumentMeta("Create an Account");
   const [searchParams] = useSearchParams();
-  const [name, setName] = useState(() => searchParams.get("name") ?? "");
-  const [email, setEmail] = useState(() => searchParams.get("email") ?? "");
-  const [password, setPassword] = useState("");
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [ageError, setAgeError] = useState(false);
+  const [form, update] = useReducer(
+    (s: RegisterFormState, p: Partial<RegisterFormState>) => ({ ...s, ...p }),
+    {
+      name: searchParams.get("name") ?? "",
+      email: searchParams.get("email") ?? "",
+      password: "",
+      ageConfirmed: false,
+      ageError: false,
+    },
+  );
+  const { name, email, password, ageConfirmed, ageError } = form;
   const navigate = useNavigate();
   const returnTo = searchParams.get("returnTo");
   const queryClient = useQueryClient();
@@ -67,6 +81,7 @@ export function Component() {
 
   // Fire-and-forget: redirects out to Google's OAuth flow; the page reloads on
   // return, so there's no in-page cache to invalidate here.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- redirects out to Google OAuth and the page reloads on return
   const googleSignUp = useMutation({
     mutationFn: () =>
       authClient.signIn.social({
@@ -82,10 +97,10 @@ export function Component() {
   const handleSubmit = (event: React.SyntheticEvent) => {
     event.preventDefault();
     if (!ageConfirmed) {
-      setAgeError(true);
+      update({ ageError: true });
       return;
     }
-    setAgeError(false);
+    update({ ageError: false });
     register.mutate();
   };
 
@@ -127,7 +142,7 @@ export function Component() {
             type="text"
             label="Name"
             value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
+            onChange={(e) => update({ name: e.currentTarget.value })}
             required
           />
           <SimpleInput
@@ -135,7 +150,7 @@ export function Component() {
             type="email"
             label="Email"
             value={email}
-            onChange={(e) => setEmail(e.currentTarget.value)}
+            onChange={(e) => update({ email: e.currentTarget.value })}
             required
           />
           <SimpleInput
@@ -143,7 +158,7 @@ export function Component() {
             type="password"
             label="Password"
             value={password}
-            onChange={(e) => setPassword(e.currentTarget.value)}
+            onChange={(e) => update({ password: e.currentTarget.value })}
             required
           />
 
@@ -181,8 +196,10 @@ export function Component() {
               id="age-confirmed"
               checked={ageConfirmed}
               onChange={(e) => {
-                setAgeConfirmed(e.target.checked);
-                if (e.target.checked) setAgeError(false);
+                update({
+                  ageConfirmed: e.target.checked,
+                  ...(e.target.checked ? { ageError: false } : {}),
+                });
               }}
               className="mt-1 size-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500"
               required

@@ -84,6 +84,7 @@ export function SeasonLeaders() {
   const seasonQuery = useQuery({
     queryKey: ["season-leaders", season],
     queryFn: async () => {
+      // eslint-disable-next-line react-doctor/async-defer-await -- the awaited results drive the early-return decision below; can't be deferred
       const [batting, bowling] = await Promise.all([
         fetchBatting(season, 3),
         fetchBowling(season, 3),

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 export function ConsentBanner() {
+  // eslint-disable-next-line react-doctor/rerender-state-only-in-handlers -- `open` drives the early-return below; useRef would not trigger the unmount.
   const [open, setOpen] = useState<boolean>(() => needsConsent());
   const [reopened, setReopened] = useState(false);
 

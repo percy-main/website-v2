@@ -156,6 +156,7 @@ function Skeleton({ className = "" }: { className?: string }) {
 // Home Tab
 // ---------------------------------------------------------------------------
 
+// eslint-disable-next-line react-doctor/no-giant-component -- fantasy public home tab: 5 stats hooks driving 4 visual sections (transfer window banner, leaderboards, ownership chart, sandwich efficiency). The hooks are already extracted; what remains is presentational layout.
 function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
   const tw = useTransferWindow();
   const stats = usePreSeasonStats();

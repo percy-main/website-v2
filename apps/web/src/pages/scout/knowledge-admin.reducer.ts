@@ -75,6 +75,7 @@ export function parseTags(raw: string): Record<string, string | string[]> {
   for (const part of raw.split(",")) {
     const trimmed = part.trim();
     if (!trimmed) continue;
+    // eslint-disable-next-line react-doctor/js-set-map-lookups -- String.prototype.indexOf finds char position for splitting; can't be replaced by Set.has
     const idx = trimmed.indexOf(":");
     if (idx <= 0) continue;
     const key = trimmed.slice(0, idx).trim();

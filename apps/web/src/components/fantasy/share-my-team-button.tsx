@@ -58,6 +58,7 @@ export function ShareMyTeamButton() {
 
   // Fire-and-forget: client-side image generation + share/download. No server
   // state changes, so there's nothing to invalidate.
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- pure client-side image generation; no server state to invalidate
   const shareMutation = useMutation({
     mutationFn: async () => {
       const data = await fetchShareData();

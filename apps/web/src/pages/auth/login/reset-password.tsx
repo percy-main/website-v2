@@ -28,6 +28,7 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
 
   // Fire-and-forget: success transitions to the login phase; no cached data
   // changes (the user has to re-authenticate after reset).
+  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- transitions to the login phase; no cached data changes (the user has to re-authenticate after reset)
   const resetPassword = useMutation({
     mutationFn: () =>
       authClient.resetPassword(

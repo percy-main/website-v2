@@ -158,7 +158,9 @@ function EditDocumentDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const [title, setTitle] = useState(currentTitle);
+  // Seeded from `currentTitle` on mount; the parent passes a `key` tied to
+  // (title, version) so a new doc opening remounts this dialog with fresh state.
+  const [title, setTitle] = useState(() => currentTitle);
   const [file, setFile] = useState<File | null>(null);
 
   const mutation = useMutation({
@@ -623,6 +625,7 @@ function DocumentDetailModal({
             )}
 
             <EditDocumentDialog
+              key={`${data.title}-${data.version}`}
               documentId={documentId}
               currentTitle={data.title}
               currentVersion={data.version}

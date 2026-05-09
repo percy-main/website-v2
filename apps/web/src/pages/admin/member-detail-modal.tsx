@@ -520,7 +520,9 @@ function JuniorManagerTeamsSection({
   selectedTeamIds: string[];
 }) {
   const queryClient = useQueryClient();
-  const [localIds, setLocalIds] = useState<string[]>(selectedTeamIds);
+  // Seeded once on mount; parent passes a `key` derived from the selected
+  // ids so a different selection remounts this section with fresh state.
+  const [localIds, setLocalIds] = useState<string[]>(() => selectedTeamIds);
   const [hasChanges, setHasChanges] = useState(false);
 
   const { data: teams } = useQuery({
@@ -638,7 +640,9 @@ function OfficialTeamsSection({
   selectedTeamIds: string[];
 }) {
   const queryClient = useQueryClient();
-  const [localIds, setLocalIds] = useState<string[]>(selectedTeamIds);
+  // Seeded once on mount; parent passes a `key` derived from the selected
+  // ids so a different selection remounts this section with fresh state.
+  const [localIds, setLocalIds] = useState<string[]>(() => selectedTeamIds);
   const [hasChanges, setHasChanges] = useState(false);
 
   const { data: teams } = useQuery({

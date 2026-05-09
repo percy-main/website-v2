@@ -1,6 +1,7 @@
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
+import { cn } from "@/lib/utils.js";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
@@ -1482,6 +1483,7 @@ function update(s: GS, dt: number, w: number, h: number) {
 
 // ── React Component ─────────────────────────────────────────
 
+// eslint-disable-next-line react-doctor/no-giant-component -- canvas-driven game loop: a single requestAnimationFrame loop owns the keeper, ball, audio, scoring, leaderboard, and DOM event listeners. Splitting forces refs and game state through props/context, which is worse than the current single owner.
 function BeTheKeeper() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<GS>(initState());
@@ -1498,6 +1500,7 @@ function BeTheKeeper() {
     isLoggedInRef.current = isLoggedIn;
   }, [isLoggedIn]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleGameOver has no deps of its own and is stabilised by the React Compiler; the canvas/RAF setup effect below depends on its identity but the compiler keeps it stable across renders
   const handleGameOver = async (s: GS) => {
     // Guard: only write back if the game hasn't been restarted
     const isStillOver = () => s.phase === "over";
@@ -1697,7 +1700,9 @@ function BeTheKeeper() {
     }
 
     canvas.addEventListener("mousemove", onMouse);
+    // eslint-disable-next-line react-doctor/client-passive-event-listeners -- onTouch calls preventDefault to lock the keeper to the touch position; passive listeners would silently ignore that
     canvas.addEventListener("touchmove", onTouch, { passive: false });
+    // eslint-disable-next-line react-doctor/client-passive-event-listeners -- onTouch calls preventDefault to block the synthetic click; passive listeners would silently ignore that
     canvas.addEventListener("touchstart", onTouch, { passive: false });
     canvas.addEventListener("click", handleClick);
     window.addEventListener("resize", resize);
@@ -1714,19 +1719,25 @@ function BeTheKeeper() {
   }, [handleGameOver]);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isPortrait, setIsPortrait] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [layout, setLayout] = useState<{
+    isMobile: boolean;
+    isPortrait: boolean;
+  }>({
+    isMobile: false,
+    isPortrait: false,
+  });
+  const { isMobile, isPortrait } = layout;
 
   // On mobile landscape, expand canvas to fill viewport
   const expanded = isMobile && !isPortrait;
 
   useEffect(() => {
-    const checkMobile = () =>
-      "ontouchstart" in window || navigator.maxTouchPoints > 0;
     const checkOrientation = () => {
-      const mobile = checkMobile();
-      setIsMobile(mobile);
-      setIsPortrait(mobile && window.innerHeight > window.innerWidth);
+      const mobile = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      setLayout({
+        isMobile: mobile,
+        isPortrait: mobile && window.innerHeight > window.innerWidth,
+      });
     };
     checkOrientation();
 
@@ -1755,55 +1766,30 @@ function BeTheKeeper() {
   return (
     <div
       ref={containerRef}
-      style={{
-        position: expanded ? "fixed" : "relative",
-        inset: expanded ? 0 : undefined,
-        width: expanded ? "100vw" : "100%",
-        height: expanded ? "100vh" : undefined,
-        maxWidth: expanded ? "none" : 900,
-        margin: expanded ? 0 : "0 auto",
-        background: expanded ? "#000" : undefined,
-        zIndex: expanded ? 9999 : undefined,
-      }}
+      className={cn(
+        "relative mx-auto w-full",
+        expanded
+          ? "fixed inset-0 z-[9999] m-0 h-screen w-screen max-w-none bg-black"
+          : "max-w-[900px]",
+      )}
     >
       <canvas
         ref={canvasRef}
-        style={{
-          width: "100%",
-          height: expanded ? "100%" : undefined,
-          maxWidth: expanded ? "none" : 900,
-          aspectRatio: expanded ? undefined : "16/10",
-          display: "block",
-          margin: "0 auto",
-          cursor: "pointer",
-          touchAction: "none",
-          borderRadius: expanded ? 0 : 12,
-          boxShadow: expanded ? "none" : "0 8px 32px rgba(0,0,0,0.25)",
-          background: "#0c0a09",
-        }}
+        className={cn(
+          "mx-auto block w-full cursor-pointer touch-none bg-[#0c0a09]",
+          expanded
+            ? "h-full max-w-none rounded-none shadow-none"
+            : "aspect-[16/10] max-w-[900px] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.25)]",
+        )}
       />
       {isMobile && isPortrait && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "rgba(27,61,47,0.95)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 12,
-            zIndex: 20,
-            gap: 16,
-            padding: 24,
-          }}
-        >
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-xl bg-[rgba(27,61,47,0.95)] p-6">
           <svg
             width="64"
             height="64"
             viewBox="0 0 64 64"
             fill="none"
-            style={{ animation: "keeper-rotate 2s ease-in-out infinite" }}
+            style={{ animation: "keeper-rotate 900ms ease-in-out infinite" }}
           >
             <rect
               x="16"
