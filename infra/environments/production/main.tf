@@ -85,6 +85,17 @@ data "terraform_remote_state" "shared" {
 
 locals {
   shared = data.terraform_remote_state.shared.outputs
+
+  # Reliability alarms SNS topic in us-east-1 (added by #211 fixup).
+  # try() lets PR plans pass before the shared layer has been re-applied
+  # with this new output. The deploy chain on main applies
+  # terraform-shared before terraform-production, so by apply time on
+  # main the output exists. Until then, the affected alarms have an
+  # empty action list — they'll evaluate but won't notify.
+  reliability_alarms_topic_arn_us_east_1 = try(
+    data.terraform_remote_state.shared.outputs.reliability_alarms_topic_arn_us_east_1,
+    null
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -334,8 +345,8 @@ resource "aws_cloudwatch_metric_alarm" "cdn_5xx_rate" {
     Region         = "Global"
   }
 
-  alarm_actions = [local.shared.reliability_alarms_topic_arn_us_east_1]
-  ok_actions    = [local.shared.reliability_alarms_topic_arn_us_east_1]
+  alarm_actions = compact([local.reliability_alarms_topic_arn_us_east_1])
+  ok_actions    = compact([local.reliability_alarms_topic_arn_us_east_1])
 }
 
 resource "aws_cloudwatch_metric_alarm" "cdn_origin_latency" {
@@ -357,8 +368,8 @@ resource "aws_cloudwatch_metric_alarm" "cdn_origin_latency" {
     Region         = "Global"
   }
 
-  alarm_actions = [local.shared.reliability_alarms_topic_arn_us_east_1]
-  ok_actions    = [local.shared.reliability_alarms_topic_arn_us_east_1]
+  alarm_actions = compact([local.reliability_alarms_topic_arn_us_east_1])
+  ok_actions    = compact([local.reliability_alarms_topic_arn_us_east_1])
 }
 
 resource "aws_cloudwatch_metric_alarm" "cdn_cache_hit_rate" {
@@ -380,8 +391,8 @@ resource "aws_cloudwatch_metric_alarm" "cdn_cache_hit_rate" {
     Region         = "Global"
   }
 
-  alarm_actions = [local.shared.reliability_alarms_topic_arn_us_east_1]
-  ok_actions    = [local.shared.reliability_alarms_topic_arn_us_east_1]
+  alarm_actions = compact([local.reliability_alarms_topic_arn_us_east_1])
+  ok_actions    = compact([local.reliability_alarms_topic_arn_us_east_1])
 }
 
 # ---------------------------------------------------------------------------
