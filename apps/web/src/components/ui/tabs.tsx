@@ -9,7 +9,7 @@ interface TabsContextValue {
 const TabsContext = React.createContext<TabsContextValue | null>(null);
 
 function useTabs() {
-  const ctx = React.useContext(TabsContext);
+  const ctx = React.use(TabsContext);
   if (!ctx)
     throw new Error("Tabs compound components must be used within <Tabs>");
   return ctx;

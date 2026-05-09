@@ -73,15 +73,6 @@ export default tseslint.config(
     },
   },
   {
-    // shadcn ui/* primitives intentionally use forwardRef and other React 18
-    // patterns to stay aligned with the upstream registry. Don't push them
-    // onto React 19's bare `ref` prop.
-    files: ["apps/web/src/components/ui/**/*.{ts,tsx}"],
-    rules: {
-      "react-doctor/no-react19-deprecated-apis": "off",
-    },
-  },
-  {
     ignores: [
       "**/dist/**",
       "**/node_modules/**",
