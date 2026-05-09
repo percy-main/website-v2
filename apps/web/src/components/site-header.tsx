@@ -2,7 +2,6 @@ import { useSession } from "@/lib/auth-client.js";
 import { getMainMenuItems } from "@/lib/content.js";
 import { getPriceId } from "@/lib/stripe-env.js";
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -164,39 +163,35 @@ export const SiteHeader: FC = () => {
     };
   }, [drawerOpen]);
 
-  const openDrawer = useCallback(() => setDrawerOpen(true), []);
-  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const openDrawer = () => setDrawerOpen(true);
+  const closeDrawer = () => setDrawerOpen(false);
 
-  // Focus trap: loop Tab between first and last focusable elements, Escape closes
-  const handleDrawerKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLDivElement>) => {
-      if (e.key === "Escape") {
-        closeDrawer();
-        return;
-      }
-      if (e.key !== "Tab") return;
+  const handleDrawerKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      closeDrawer();
+      return;
+    }
+    if (e.key !== "Tab") return;
 
-      const drawer = drawerRef.current;
-      if (!drawer) return;
+    const drawer = drawerRef.current;
+    if (!drawer) return;
 
-      const focusable = drawer.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusable.length === 0) return;
+    const focusable = drawer.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusable.length === 0) return;
 
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
 
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    },
-    [closeDrawer],
-  );
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   return (
     <>

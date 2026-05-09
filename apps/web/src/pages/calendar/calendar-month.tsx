@@ -14,7 +14,7 @@ import {
   startOfMonth,
 } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useParams } from "react-router";
 import {
@@ -433,10 +433,9 @@ export function Component() {
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
-  const date = useMemo(
-    () => (parsed ? new Date(parsed.year, parsed.monthIndex, 1) : new Date()),
-    [parsed],
-  );
+  const date = parsed
+    ? new Date(parsed.year, parsed.monthIndex, 1)
+    : new Date();
   const season = parsed?.year ?? new Date().getFullYear();
 
   const { data: games } = useQuery({
@@ -459,10 +458,9 @@ export function Component() {
   };
 
   // Build calendar items: merge games (from API) + events (from MDX)
-  const allItems = useMemo((): CalendarItem[] => {
+  const allItems: CalendarItem[] = (() => {
     const items: CalendarItem[] = [];
 
-    // Add games for this month
     if (games) {
       for (const game of games) {
         if (!game.when) continue;
@@ -491,7 +489,6 @@ export function Component() {
       }
     }
 
-    // Add events for this month
     const events = getAllEvents();
     for (const event of events) {
       const eventDate = new Date(event.when);
@@ -511,31 +508,13 @@ export function Component() {
     }
 
     return sortCalendarItems(items);
-  }, [games, date]);
+  })();
 
-  // Filter
-  const filteredItems = useMemo(
-    () => filterItemsByCategory(allItems, activeFilter),
-    [allItems, activeFilter],
-  );
-
-  // Group by date
-  const grouped = useMemo(
-    () => groupItemsByDate(filteredItems),
-    [filteredItems],
-  );
-
-  // Items by day number for mini calendar
-  const itemsByDay = useMemo(() => groupItemsByDay(allItems), [allItems]);
-
-  // Stats
-  const stats = useMemo(() => summariseMonth(allItems, new Date()), [allItems]);
-
-  // Divider position
-  const dividerIndex = useMemo(
-    () => findDividerIndex(grouped, new Date()),
-    [grouped],
-  );
+  const filteredItems = filterItemsByCategory(allItems, activeFilter);
+  const grouped = groupItemsByDate(filteredItems);
+  const itemsByDay = groupItemsByDay(allItems);
+  const stats = summariseMonth(allItems, new Date());
+  const dividerIndex = findDividerIndex(grouped, new Date());
 
   // Navigation
   const prevDate = addMonths(date, -1);

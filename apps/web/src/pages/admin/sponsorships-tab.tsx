@@ -27,7 +27,7 @@ import { api, callApi } from "@/lib/api-client";
 import { resizeLogo } from "@/lib/logo-resize";
 import { getAllPeople } from "@/lib/people";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useReducer, useRef, useState } from "react";
+import { useReducer, useRef, useState } from "react";
 import {
   buildGameSponsorshipPayload,
   buildPlayerSponsorshipPayload,
@@ -62,11 +62,9 @@ function PlayerSelect({
   const [query, setQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const available = useMemo(() => {
-    return getAllPeople()
-      .filter((p) => !p.hasLeftClub && !takenSlugs.has(p.slug))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [takenSlugs]);
+  const available = getAllPeople()
+    .filter((p) => !p.hasLeftClub && !takenSlugs.has(p.slug))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const filtered = query.trim()
     ? available.filter((p) =>
@@ -663,10 +661,7 @@ function CreatePlayerSponsorshipDialog({
     enabled: open,
   });
 
-  const takenSlugs = useMemo(
-    () => new Set(takenSlugsQuery.data?.slugs ?? []),
-    [takenSlugsQuery.data],
-  );
+  const takenSlugs = new Set(takenSlugsQuery.data?.slugs ?? []);
 
   const createMutation = useMutation({
     mutationFn: (body: PlayerSponsorshipPayload) =>

@@ -10,7 +10,6 @@ import { getPriceId } from "@/lib/stripe-env.js";
 import { useQuery } from "@tanstack/react-query";
 import { format, isAfter } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { useMemo } from "react";
 import { Link } from "react-router";
 
 const DONATE_URL = `/purchase/${getPriceId("donation")}`;
@@ -155,7 +154,7 @@ function UpcomingStrip() {
     staleTime: 5 * 60_000,
   });
 
-  const items = useMemo((): UpcomingItem[] => {
+  const items: UpcomingItem[] = (() => {
     const now = new Date();
     const upcoming: UpcomingItem[] = [];
 
@@ -209,7 +208,7 @@ function UpcomingStrip() {
     });
 
     return upcoming.slice(0, 5);
-  }, [games]);
+  })();
 
   if (items.length === 0) return null;
 

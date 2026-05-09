@@ -22,7 +22,7 @@ import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
-import { useCallback, useReducer, useState } from "react";
+import { useReducer, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   buildPreviewPayload,
@@ -1020,19 +1020,19 @@ function NotifyDialog({ requestId }: { requestId: string }) {
     },
   });
 
-  const toggleRecipient = useCallback((email: string) => {
+  const toggleRecipient = (email: string) => {
     dispatch({ type: "toggleRecipient", email });
-  }, []);
+  };
 
-  const toggleAll = useCallback(() => {
+  const toggleAll = () => {
     dispatch({ type: "toggleAll" });
-  }, []);
+  };
 
-  const reset = useCallback(() => {
+  const reset = () => {
     dispatch({ type: "reset" });
     sendMutation.reset();
     previewMutation.reset();
-  }, [sendMutation, previewMutation]);
+  };
 
   return (
     <>

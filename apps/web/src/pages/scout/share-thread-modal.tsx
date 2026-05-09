@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 interface ShareActor {
   id: string;
@@ -64,12 +64,11 @@ export function ShareThreadModal({
     enabled: open,
   });
 
-  const sharedIds = useMemo(
-    () => new Set(shareesQuery.data?.sharees.map((s) => s.id) ?? []),
-    [shareesQuery.data],
+  const sharedIds = new Set(
+    shareesQuery.data?.sharees.map((s) => s.id) ?? [],
   );
 
-  const candidates = useMemo(() => {
+  const candidates = (() => {
     const all = officialsQuery.data?.officials ?? [];
     const q = filter.trim().toLowerCase();
     return all.filter(
@@ -79,7 +78,7 @@ export function ShareThreadModal({
           o.name.toLowerCase().includes(q) ||
           o.email.toLowerCase().includes(q)),
     );
-  }, [officialsQuery.data, sharedIds, filter]);
+  })();
 
   const shareMutation = useMutation({
     mutationFn: (userIds: string[]) =>

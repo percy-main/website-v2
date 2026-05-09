@@ -7,7 +7,7 @@ import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { IoLockClosed } from "react-icons/io5";
 import { Link, useParams } from "react-router";
 
@@ -70,7 +70,7 @@ export function Component() {
   const isSignedIn = !!session;
 
   // Load draft from localStorage (once, on mount — for users returning after sign-up)
-  const initialResponses = useMemo(() => {
+  const initialResponses = (() => {
     if (!requestId || !isSignedIn) return new Map<string, DraftResponse>();
     const draft = loadDraft(requestId);
     if (!draft) return new Map<string, DraftResponse>();
@@ -79,14 +79,14 @@ export function Component() {
       map.set(r.matchDate, r);
     }
     return map;
-  }, [requestId, isSignedIn]);
+  })();
 
   const [responses, setResponses] =
     useState<Map<string, DraftResponse>>(initialResponses);
   const [submitted, setSubmitted] = useState(false);
 
   // Populate from server responses if signed in and no draft exists
-  const serverResponses = useMemo(() => {
+  const serverResponses = (() => {
     if (!memberQuery.data || !requestId) return null;
     if (initialResponses.size > 0) return null;
     const activeRequest = memberQuery.data.items.find(
@@ -102,44 +102,41 @@ export function Component() {
       });
     }
     return map;
-  }, [memberQuery.data, requestId, initialResponses.size]);
+  })();
 
   // Use server responses if we haven't interacted yet
   const effectiveResponses =
     responses.size > 0 ? responses : (serverResponses ?? responses);
 
-  const setDateResponse = useCallback(
-    (matchDate: string, status: "available" | "unavailable") => {
-      setResponses((prev) => {
-        // Merge with server responses if user hasn't interacted yet
-        const base = prev.size > 0 ? prev : (serverResponses ?? prev);
-        const next = new Map(base);
-        const existing = next.get(matchDate);
-        next.set(matchDate, {
-          matchDate,
-          status,
-          note: existing?.note,
-        });
-        return next;
+  const setDateResponse = (
+    matchDate: string,
+    status: "available" | "unavailable",
+  ) => {
+    setResponses((prev) => {
+      // Merge with server responses if user hasn't interacted yet
+      const base = prev.size > 0 ? prev : (serverResponses ?? prev);
+      const next = new Map(base);
+      const existing = next.get(matchDate);
+      next.set(matchDate, {
+        matchDate,
+        status,
+        note: existing?.note,
       });
-    },
-    [serverResponses],
-  );
+      return next;
+    });
+  };
 
-  const setDateNote = useCallback(
-    (matchDate: string, note: string) => {
-      setResponses((prev) => {
-        const base = prev.size > 0 ? prev : (serverResponses ?? prev);
-        const next = new Map(base);
-        const existing = next.get(matchDate);
-        if (existing) {
-          next.set(matchDate, { ...existing, note });
-        }
-        return next;
-      });
-    },
-    [serverResponses],
-  );
+  const setDateNote = (matchDate: string, note: string) => {
+    setResponses((prev) => {
+      const base = prev.size > 0 ? prev : (serverResponses ?? prev);
+      const next = new Map(base);
+      const existing = next.get(matchDate);
+      if (existing) {
+        next.set(matchDate, { ...existing, note });
+      }
+      return next;
+    });
+  };
 
   const queryClient = useQueryClient();
 
@@ -166,10 +163,10 @@ export function Component() {
     },
   });
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = () => {
     if (!requestId) return;
     submitMutation.mutate();
-  }, [requestId, submitMutation]);
+  };
 
   if (query.isPending || sessionPending) {
     return (

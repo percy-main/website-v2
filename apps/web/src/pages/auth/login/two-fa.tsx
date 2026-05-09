@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/input-otp.js";
 import { authClient } from "@/lib/auth-client.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState, type FC } from "react";
+import { useState, type FC } from "react";
 import { useNavigate } from "react-router";
 import type { LoginPhase } from "../login.js";
 
@@ -36,13 +36,10 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
     },
   });
 
-  const handleSubmit = useCallback(
-    (event: React.SyntheticEvent) => {
-      event.preventDefault();
-      signin.mutate();
-    },
-    [signin],
-  );
+  const handleSubmit = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    signin.mutate();
+  };
 
   const error = signin.error ?? signin.data?.error;
 

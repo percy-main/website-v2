@@ -1,5 +1,5 @@
 import { api, callApi } from "@/lib/api-client";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 const ACCEPTED_TYPES = [
   "image/png",
@@ -54,130 +54,118 @@ export function useAttachmentUpload({
 }: UseAttachmentUploadArgs) {
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
 
-  const update = useCallback(
-    (localId: string, patch: Partial<PendingAttachment>) => {
-      setAttachments((prev) =>
-        prev.map((a) => (a.localId === localId ? { ...a, ...patch } : a)),
+  const update = (localId: string, patch: Partial<PendingAttachment>) => {
+    setAttachments((prev) =>
+      prev.map((a) => (a.localId === localId ? { ...a, ...patch } : a)),
+    );
+  };
+
+  const upload = async (file: File): Promise<void> => {
+    if (!isAcceptedAttachment(file)) return;
+
+    const localId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `local-${Date.now()}-${Math.random()}`;
+    const contentType = file.type as AcceptedContentType;
+    const kind: "image" | "pdf" =
+      contentType === "application/pdf" ? "pdf" : "image";
+    const previewUrl = kind === "image" ? URL.createObjectURL(file) : null;
+
+    const pending: PendingAttachment = {
+      localId,
+      id: null,
+      filename: file.name,
+      contentType,
+      sizeBytes: file.size,
+      kind,
+      previewUrl,
+      status: "uploading",
+      error: null,
+    };
+
+    // Reject before mint if the cap would be exceeded so we don't burn an
+    // S3 PUT only to silently drop the chip.
+    let exceeded = false;
+    setAttachments((prev) => {
+      if (prev.length >= maxPerTurn) {
+        exceeded = true;
+        return prev;
+      }
+      return [...prev, pending];
+    });
+    if (exceeded) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      return;
+    }
+
+    try {
+      const mint = await callApi(
+        api.POST("/api/scout/threads/{threadId}/attachments", {
+          params: { path: { threadId } },
+          body: {
+            filename: file.name,
+            contentType,
+            sizeBytes: file.size,
+          },
+        }),
       );
-    },
-    [],
-  );
+      update(localId, { id: mint.id });
 
-  const upload = useCallback(
-    async (file: File): Promise<void> => {
-      if (!isAcceptedAttachment(file)) return;
-
-      const localId =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `local-${Date.now()}-${Math.random()}`;
-      const contentType = file.type as AcceptedContentType;
-      const kind: "image" | "pdf" =
-        contentType === "application/pdf" ? "pdf" : "image";
-      const previewUrl = kind === "image" ? URL.createObjectURL(file) : null;
-
-      const pending: PendingAttachment = {
-        localId,
-        id: null,
-        filename: file.name,
-        contentType,
-        sizeBytes: file.size,
-        kind,
-        previewUrl,
-        status: "uploading",
-        error: null,
-      };
-
-      // Reject before mint if the cap would be exceeded so we don't burn an
-      // S3 PUT only to silently drop the chip.
-      let exceeded = false;
-      setAttachments((prev) => {
-        if (prev.length >= maxPerTurn) {
-          exceeded = true;
-          return prev;
-        }
-        return [...prev, pending];
+      const putRes = await fetch(mint.uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": contentType },
       });
-      if (exceeded) {
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        return;
-      }
-
-      try {
-        const mint = await callApi(
-          api.POST("/api/scout/threads/{threadId}/attachments", {
-            params: { path: { threadId } },
-            body: {
-              filename: file.name,
-              contentType,
-              sizeBytes: file.size,
-            },
-          }),
+      if (!putRes.ok) {
+        throw new Error(
+          `Upload to S3 failed (${putRes.status} ${putRes.statusText})`,
         );
-        update(localId, { id: mint.id });
-
-        const putRes = await fetch(mint.uploadUrl, {
-          method: "PUT",
-          body: file,
-          headers: { "Content-Type": contentType },
-        });
-        if (!putRes.ok) {
-          throw new Error(
-            `Upload to S3 failed (${putRes.status} ${putRes.statusText})`,
-          );
-        }
-
-        update(localId, { status: "processing" });
-
-        const committed = await callApi(
-          api.POST(
-            "/api/scout/threads/{threadId}/attachments/{attachmentId}/commit",
-            {
-              params: {
-                path: { threadId, attachmentId: mint.id },
-              },
-            },
-          ),
-        );
-        update(localId, {
-          status: committed.processingState === "ready" ? "ready" : "failed",
-          error: committed.processingError,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        update(localId, { status: "failed", error: message });
       }
-    },
-    [threadId, maxPerTurn, update],
-  );
 
-  const remove = useCallback(
-    (localId: string) => {
-      const target = attachments.find((a) => a.localId === localId);
-      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
-      setAttachments((prev) => prev.filter((a) => a.localId !== localId));
-      // Best-effort: ask the server to drop the row + S3 bytes if mint
-      // already returned. Not awaited — the chip is gone locally either way.
-      if (target?.id) {
-        void callApi(
-          api.DELETE(
-            "/api/scout/threads/{threadId}/attachments/{attachmentId}",
-            {
-              params: { path: { threadId, attachmentId: target.id } },
+      update(localId, { status: "processing" });
+
+      const committed = await callApi(
+        api.POST(
+          "/api/scout/threads/{threadId}/attachments/{attachmentId}/commit",
+          {
+            params: {
+              path: { threadId, attachmentId: mint.id },
             },
-          ),
-        ).catch(() => undefined);
-      }
-    },
-    [attachments, threadId],
-  );
+          },
+        ),
+      );
+      update(localId, {
+        status: committed.processingState === "ready" ? "ready" : "failed",
+        error: committed.processingError,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      update(localId, { status: "failed", error: message });
+    }
+  };
 
-  const clear = useCallback(() => {
+  const remove = (localId: string) => {
+    const target = attachments.find((a) => a.localId === localId);
+    if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+    setAttachments((prev) => prev.filter((a) => a.localId !== localId));
+    // Best-effort: ask the server to drop the row + S3 bytes if mint
+    // already returned. Not awaited — the chip is gone locally either way.
+    if (target?.id) {
+      void callApi(
+        api.DELETE("/api/scout/threads/{threadId}/attachments/{attachmentId}", {
+          params: { path: { threadId, attachmentId: target.id } },
+        }),
+      ).catch(() => undefined);
+    }
+  };
+
+  const clear = () => {
     for (const a of attachments) {
       if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
     }
     setAttachments([]);
-  }, [attachments]);
+  };
 
   const readyIds = attachments.flatMap((a) =>
     a.status === "ready" && a.id ? [a.id] : [],

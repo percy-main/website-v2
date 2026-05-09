@@ -2,7 +2,7 @@ import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
 import { authClient } from "@/lib/auth-client.js";
 import { useMutation } from "@tanstack/react-query";
-import { useCallback, useState, type FC } from "react";
+import { useState, type FC } from "react";
 import { match, P } from "ts-pattern";
 
 export const ForgotPassword: FC = () => {
@@ -17,13 +17,10 @@ export const ForgotPassword: FC = () => {
       }),
   });
 
-  const handleSubmit = useCallback(
-    (event: React.SyntheticEvent) => {
-      event.preventDefault();
-      requestReset.mutate();
-    },
-    [requestReset],
-  );
+  const handleSubmit = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    requestReset.mutate();
+  };
 
   const error = requestReset.error ?? requestReset.data?.error;
 

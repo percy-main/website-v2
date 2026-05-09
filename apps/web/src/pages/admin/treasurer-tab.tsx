@@ -13,7 +13,7 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { useQuery } from "@tanstack/react-query";
-import { Suspense, lazy, useMemo, useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { formatPence } from "./status-pill";
 import { TreasurerExpensesSection } from "./treasurer-expenses-section";
 import { TreasurerOutstandingSection } from "./treasurer-outstanding-section";
@@ -112,32 +112,28 @@ export function TreasurerTab() {
 
   // --- Derived data ---
 
-  const totalChargesIncome = useMemo(() => {
-    if (!incomeQuery.data) return 0;
-    return incomeQuery.data.charges.reduce((sum, c) => sum + c.total_pence, 0);
-  }, [incomeQuery.data]);
+  const totalChargesIncome = incomeQuery.data
+    ? incomeQuery.data.charges.reduce((sum, c) => sum + c.total_pence, 0)
+    : 0;
 
-  const totalSponsorIncome = useMemo(() => {
-    if (!incomeQuery.data) return 0;
-    const game = incomeQuery.data.gameSponsorIncome.reduce(
-      (sum, s) => sum + s.total_pence,
-      0,
-    );
-    const player = incomeQuery.data.playerSponsorIncome.reduce(
-      (sum, s) => sum + s.total_pence,
-      0,
-    );
-    return game + player;
-  }, [incomeQuery.data]);
+  const totalSponsorIncome = incomeQuery.data
+    ? incomeQuery.data.gameSponsorIncome.reduce(
+        (sum, s) => sum + s.total_pence,
+        0,
+      ) +
+      incomeQuery.data.playerSponsorIncome.reduce(
+        (sum, s) => sum + s.total_pence,
+        0,
+      )
+    : 0;
 
   const totalIncome = totalChargesIncome + totalSponsorIncome;
 
-  const membershipIncome = useMemo(() => {
-    if (!incomeQuery.data) return 0;
-    return incomeQuery.data.charges
-      .filter((c) => c.type === "membership")
-      .reduce((sum, c) => sum + c.total_pence, 0);
-  }, [incomeQuery.data]);
+  const membershipIncome = incomeQuery.data
+    ? incomeQuery.data.charges
+        .filter((c) => c.type === "membership")
+        .reduce((sum, c) => sum + c.total_pence, 0)
+    : 0;
 
   const outstandingTotal = outstandingQuery.data?.total ?? 0;
 
@@ -145,7 +141,7 @@ export function TreasurerTab() {
 
   // --- Chart data ---
 
-  const chartData = useMemo(() => {
+  const chartData = (() => {
     if (!incomeQuery.data) return [];
 
     const monthMap = new Map<
@@ -209,7 +205,7 @@ export function TreasurerTab() {
     return Array.from(monthMap.values()).sort((a, b) =>
       a.month.localeCompare(b.month),
     );
-  }, [incomeQuery.data]);
+  })();
 
   // --- Reset handler ---
 
