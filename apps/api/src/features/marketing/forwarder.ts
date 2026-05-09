@@ -257,6 +257,11 @@ export function startForwarder(deps: DrainDeps): ForwarderHandle {
   };
 
   const handle = setInterval(tick, TICK_INTERVAL_MS);
+  // Belt and braces: app.onClose calls stop() in the common shutdown path,
+  // but if onClose ever doesn't fire (SIGKILL during deploy, unhandled
+  // crash before the hook runs), an active interval would keep the event
+  // loop alive. unref() lets node exit cleanly.
+  handle.unref();
   // Run once immediately on boot so we don't wait 30s for the first drain.
   tick();
   return {
