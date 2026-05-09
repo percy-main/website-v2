@@ -11,14 +11,14 @@ Branch: `react-compiler-trial`
 
 ## Versions before / after
 
-| Package | Before | After |
-| --- | --- | --- |
-| `vite` | `^6.4.2` | `^8.0.11` |
-| `@vitejs/plugin-react` | `^4.3.4` | `^6.0.1` |
-| `@rolldown/plugin-babel` | — | `^0.2.3` (new) |
-| `babel-plugin-react-compiler` | — | `^1.0.0` (new) |
-| `@tailwindcss/vite` | `^4.0.0` | `^4.3.0` |
-| `tailwindcss` | `^4.0.0` | `^4.3.0` |
+| Package                       | Before   | After          |
+| ----------------------------- | -------- | -------------- |
+| `vite`                        | `^6.4.2` | `^8.0.11`      |
+| `@vitejs/plugin-react`        | `^4.3.4` | `^6.0.1`       |
+| `@rolldown/plugin-babel`      | —        | `^0.2.3` (new) |
+| `babel-plugin-react-compiler` | —        | `^1.0.0` (new) |
+| `@tailwindcss/vite`           | `^4.0.0` | `^4.3.0`       |
+| `tailwindcss`                 | `^4.0.0` | `^4.3.0`       |
 
 Node engine requirement is unchanged (Vite 8 needs 20.19+/22.12+; we're on 22.21).
 
@@ -36,7 +36,7 @@ plugins: [
   babel({ presets: [reactCompilerPreset()] }),
   tailwindcss(),
   // …
-]
+];
 ```
 
 One Rolldown gotcha caught in this branch: object-form `manualChunks` is unsupported. Converted to function form keyed off `node_modules/(@tanstack/react-query|react|react-dom|react-router|scheduler)`.
@@ -49,44 +49,44 @@ The api / email packages keep the legacy `recommended` ruleset.
 
 ## Verification
 
-| Check | Result |
-| --- | --- |
-| `pnpm --filter web typecheck` | clean |
-| `pnpm --filter web lint` | 0 errors, 106 warnings (all pre-existing `react-doctor`) |
-| `pnpm --filter web build` | ~8s (down from ~13.5s on Vite 6); compiler runtime present in main + vendor chunks; per-component cache scaffolding in 70+ chunks |
-| `pnpm --filter web test` | 514/514 pass |
-| HMR dev server | serves compiler-transformed components (`useMemoCache` calls visible in transformed source) |
+| Check                         | Result                                                                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter web typecheck` | clean                                                                                                                             |
+| `pnpm --filter web lint`      | 0 errors, 106 warnings (all pre-existing `react-doctor`)                                                                          |
+| `pnpm --filter web build`     | ~8s (down from ~13.5s on Vite 6); compiler runtime present in main + vendor chunks; per-component cache scaffolding in 70+ chunks |
+| `pnpm --filter web test`      | 514/514 pass                                                                                                                      |
+| HMR dev server                | serves compiler-transformed components (`useMemoCache` calls visible in transformed source)                                       |
 
 ## Memoization stripped
 
 19 files. All call-sites where the wrapper was pure-derivation or a plain handler were converted to either an inlined expression or a non-memoized function. The compiler now caches them automatically.
 
-| File | Removed |
-| --- | --- |
-| `components/map.tsx` | 2× `useCallback` |
-| `components/marketing/lead-form.tsx` | 1× `useCallback` |
-| `components/members/two-factor.tsx` | 1× `useCallback` |
-| `components/site-header.tsx` | 3× `useCallback` |
-| `hooks/use-theme.tsx` | 2× `useCallback` |
-| `pages/admin/juniors-tab.tsx` | 2× `useMemo` |
-| `pages/admin/record-linking-tab.tsx` | 5× `useMemo` |
-| `pages/admin/sponsorships-tab.tsx` | 2× `useMemo` |
-| `pages/admin/treasurer-tab.tsx` | 4× `useMemo` |
-| `pages/auth/login/email-password.tsx` | 1× `useCallback` |
-| `pages/auth/login/forgot-password.tsx` | 1× `useCallback` |
-| `pages/auth/login/recovery.tsx` | 1× `useCallback` |
-| `pages/auth/login/reset-password.tsx` | 1× `useCallback` |
-| `pages/auth/login/two-fa.tsx` | 1× `useCallback` |
-| `pages/auth/register.tsx` | 2× `useCallback` |
-| `pages/availability/public-availability.tsx` | 2× `useMemo`, 3× `useCallback` |
-| `pages/calendar/calendar-month.tsx` | 7× `useMemo` |
-| `pages/game/be-the-keeper.tsx` | 1× `useCallback` |
-| `pages/home.tsx` | 1× `useMemo` |
-| `pages/members/members-fantasy.tsx` | 2× `useMemo` |
-| `pages/official/availability.tsx` | 3× `useCallback` |
-| `pages/scout/attachments/use-attachment-upload.ts` | 4× `useCallback` |
-| `pages/scout/scout.tsx` | 3× `useMemo` |
-| `pages/scout/share-thread-modal.tsx` | 2× `useMemo` |
+| File                                               | Removed                        |
+| -------------------------------------------------- | ------------------------------ |
+| `components/map.tsx`                               | 2× `useCallback`               |
+| `components/marketing/lead-form.tsx`               | 1× `useCallback`               |
+| `components/members/two-factor.tsx`                | 1× `useCallback`               |
+| `components/site-header.tsx`                       | 3× `useCallback`               |
+| `hooks/use-theme.tsx`                              | 2× `useCallback`               |
+| `pages/admin/juniors-tab.tsx`                      | 2× `useMemo`                   |
+| `pages/admin/record-linking-tab.tsx`               | 5× `useMemo`                   |
+| `pages/admin/sponsorships-tab.tsx`                 | 2× `useMemo`                   |
+| `pages/admin/treasurer-tab.tsx`                    | 4× `useMemo`                   |
+| `pages/auth/login/email-password.tsx`              | 1× `useCallback`               |
+| `pages/auth/login/forgot-password.tsx`             | 1× `useCallback`               |
+| `pages/auth/login/recovery.tsx`                    | 1× `useCallback`               |
+| `pages/auth/login/reset-password.tsx`              | 1× `useCallback`               |
+| `pages/auth/login/two-fa.tsx`                      | 1× `useCallback`               |
+| `pages/auth/register.tsx`                          | 2× `useCallback`               |
+| `pages/availability/public-availability.tsx`       | 2× `useMemo`, 3× `useCallback` |
+| `pages/calendar/calendar-month.tsx`                | 7× `useMemo`                   |
+| `pages/game/be-the-keeper.tsx`                     | 1× `useCallback`               |
+| `pages/home.tsx`                                   | 1× `useMemo`                   |
+| `pages/members/members-fantasy.tsx`                | 2× `useMemo`                   |
+| `pages/official/availability.tsx`                  | 3× `useCallback`               |
+| `pages/scout/attachments/use-attachment-upload.ts` | 4× `useCallback`               |
+| `pages/scout/scout.tsx`                            | 3× `useMemo`                   |
+| `pages/scout/share-thread-modal.tsx`               | 2× `useMemo`                   |
 
 ## Memoization kept (intentional)
 
@@ -100,6 +100,7 @@ Verified across the codebase: no `React.memo`, no `forwardRef`, no `"use no memo
 ## Pre-existing manual `exhaustive-deps` suppressions
 
 Two suppressions remain (unchanged by this branch):
+
 - `pages/admin/record-linking-tab.tsx:158` — `// eslint-disable-next-line react-hooks/exhaustive-deps -- same pattern as v1`. Could be re-evaluated now that the surrounding `useMemo`s are gone.
 - `pages/scout/facts-admin.tsx:442` — closes over latest fact via the hook caller. The compiler now stabilises identity; the suppression is likely unnecessary.
 

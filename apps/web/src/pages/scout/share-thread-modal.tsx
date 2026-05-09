@@ -64,9 +64,7 @@ export function ShareThreadModal({
     enabled: open,
   });
 
-  const sharedIds = new Set(
-    shareesQuery.data?.sharees.map((s) => s.id) ?? [],
-  );
+  const sharedIds = new Set(shareesQuery.data?.sharees.map((s) => s.id) ?? []);
 
   const candidates = (() => {
     const all = officialsQuery.data?.officials ?? [];
