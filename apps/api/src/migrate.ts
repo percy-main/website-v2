@@ -6,11 +6,16 @@
  * (injected by the ECS task definition).
  */
 
-import { Kysely, PostgresDialect, FileMigrationProvider, Migrator } from "kysely";
 import type { DB } from "@percy-main/db";
-import pg from "pg";
+import {
+  FileMigrationProvider,
+  Kysely,
+  Migrator,
+  PostgresDialect,
+} from "kysely";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import pg from "pg";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 

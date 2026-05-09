@@ -23,7 +23,7 @@ If #200 / #215 stall for >90 days, revisit and add S3 server access logs as a ta
 
 - **The integration story matters more than ingest cost.** Server access logs land as text in S3; they're query-able via Athena but disconnected from the rest of the observability stack (NR APM/Logs/Browser, GitHub Actions issues). CloudTrail data events flow through the same NR pipe as everything else, so an "object deleted by X" event sits in the same dashboard as "deploy by Y rolled back" and "auth failure on Z account".
 - **CloudTrail is already planned (#214 / #215)**, so the marginal change is small: add the documents bucket to the data-events selectors when the trail lands.
-- **Doing both adds a permanent operational tax** (extra logs bucket, lifecycle, periodic Athena cost review) for low marginal value. If CloudTrail data events prove too expensive at our document volume we can switch direction; the regulator only requires *some* audit trail, not a specific format.
+- **Doing both adds a permanent operational tax** (extra logs bucket, lifecycle, periodic Athena cost review) for low marginal value. If CloudTrail data events prove too expensive at our document volume we can switch direction; the regulator only requires _some_ audit trail, not a specific format.
 
 ## Consequences
 
