@@ -7,6 +7,7 @@ on:
 permissions:
   id-token: write
   contents: read
+  issues: write
 
 concurrency:
   group: deploy-production
@@ -161,6 +162,14 @@ jobs:
             echo "Infrastructure (shared) recorded in New Relic"
           fi
 
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          job: terraform-shared
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
   terraform-production:
     needs: terraform-shared
     runs-on: ubuntu-latest
@@ -252,6 +261,14 @@ jobs:
           else
             echo "Infrastructure (production) recorded in New Relic"
           fi
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          job: terraform-production
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
 
   # ── Stage 3: Deploy API ─────────────────────────────────────────────
   deploy-api:
@@ -486,6 +503,14 @@ jobs:
             echo "- NR deploy: \`${{ steps.nr-deploy.outputs.deployment_id || 'skipped' }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          job: deploy-api
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
   # ── Stage 4: Deploy Frontend ────────────────────────────────────────
   deploy-web:
     needs: [deploy-api, changes]
@@ -632,3 +657,11 @@ jobs:
             echo "- Invalidation: \`${{ steps.invalidate.outputs.invalidation_id || 'skipped' }}\`"
             echo "- Smoke: \`${{ steps.smoke-web.outcome || 'skipped' }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          job: deploy-web
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
