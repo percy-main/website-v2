@@ -132,7 +132,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
         });
       }
 
-      const image = await generateTeamNewsImage(data);
+      const image = await generateTeamNewsImage(data, request.log);
 
       return await reply
         .header("Content-Type", "image/png")
