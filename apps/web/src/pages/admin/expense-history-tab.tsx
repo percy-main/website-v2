@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
+import { noticedFetch } from "@/lib/newrelic";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useReducer, useRef, useState } from "react";
 import {
@@ -135,31 +136,37 @@ export function ExpenseHistoryTab() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const response = await fetch(
-        `/api/treasurer/expenses/export?${new URLSearchParams(
-          Object.entries({
-            dateFrom: dateFrom || "",
-            dateTo: dateTo || "",
-            status: status === "all" ? "" : status,
-            expenseType: expenseType === "all" ? "" : expenseType,
-            search: debouncedSearch || "",
-          }).filter(([, v]) => v !== ""),
-        ).toString()}`,
-        { credentials: "include" },
-      );
-      if (!response.ok) {
+      const url = `/api/treasurer/expenses/export?${new URLSearchParams(
+        Object.entries({
+          dateFrom: dateFrom || "",
+          dateTo: dateTo || "",
+          status: status === "all" ? "" : status,
+          expenseType: expenseType === "all" ? "" : expenseType,
+          search: debouncedSearch || "",
+        }).filter(([, v]) => v !== ""),
+      ).toString()}`;
+      let response: Response;
+      try {
+        response = await noticedFetch(
+          url,
+          { credentials: "include" },
+          { kind: "expenses_csv_export" },
+        );
+      } catch {
+        // noticedFetch already noticed the error in NR. Surface to user
+        // and bail.
         alert("Failed to export expenses. Please try again.");
         return;
       }
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
+      a.href = blobUrl;
       a.download = "expenses-export.csv";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(blobUrl);
     } finally {
       setIsExporting(false);
     }

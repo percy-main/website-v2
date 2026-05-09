@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
+import { noticedFetch } from "@/lib/newrelic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 import {
@@ -227,16 +228,17 @@ function UploadForm({ onUploaded }: UploadFormProps) {
         }),
       );
 
-      const putRes = await fetch(mint.uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": contentType },
-      });
-      if (!putRes.ok) {
-        throw new Error(
-          `S3 upload failed (${putRes.status} ${putRes.statusText})`,
-        );
-      }
+      // Presigned PUT — bypasses the typed client; noticedFetch
+      // surfaces failures (CORS, status, network) in NR Browser.
+      await noticedFetch(
+        mint.uploadUrl,
+        {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": contentType },
+        },
+        { kind: "scout_kb_s3_put" },
+      );
 
       await callApi(
         api.POST("/api/scout/knowledge/documents/{id}/commit", {
