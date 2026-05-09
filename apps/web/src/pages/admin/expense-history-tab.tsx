@@ -185,14 +185,14 @@ export function ExpenseHistoryTab() {
           onClick={() => void handleExport()}
           disabled={isExporting}
         >
-          {isExporting ? "Exporting..." : "Export CSV"}
+          {isExporting ? "Exporting…" : "Export CSV"}
         </Button>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">From</label>
+          <label className="text-xs text-stone-500">From</label>
           <Input
             type="date"
             value={dateFrom}
@@ -204,7 +204,7 @@ export function ExpenseHistoryTab() {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">To</label>
+          <label className="text-xs text-stone-500">To</label>
           <Input
             type="date"
             value={dateTo}
@@ -216,7 +216,7 @@ export function ExpenseHistoryTab() {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">Status</label>
+          <label className="text-xs text-stone-500">Status</label>
           <Select
             value={status}
             onValueChange={(v) => {
@@ -238,7 +238,7 @@ export function ExpenseHistoryTab() {
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">Type</label>
+          <label className="text-xs text-stone-500">Type</label>
           <Select
             value={expenseType}
             onValueChange={(v) => {
@@ -260,9 +260,9 @@ export function ExpenseHistoryTab() {
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">Search</label>
+          <label className="text-xs text-stone-500">Search</label>
           <Input
-            placeholder="Description or opposition..."
+            placeholder="Description or opposition…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-56"
@@ -276,11 +276,11 @@ export function ExpenseHistoryTab() {
       </div>
 
       {/* Results count */}
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-stone-500">
         {expensesQuery.data
           ? `${expensesQuery.data.total} expense${expensesQuery.data.total === 1 ? "" : "s"} found`
           : expensesQuery.isLoading
-            ? "Loading..."
+            ? "Loading…"
             : ""}
       </div>
 
@@ -337,7 +337,7 @@ export function ExpenseHistoryTab() {
               <TableRow>
                 <TableCell
                   colSpan={8}
-                  className="py-8 text-center text-gray-500"
+                  className="py-8 text-center text-stone-500"
                 >
                   No expenses found matching your filters.
                 </TableCell>
@@ -350,7 +350,7 @@ export function ExpenseHistoryTab() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-stone-500">
             Page {page} of {totalPages}
           </p>
           <div className="flex gap-2">
@@ -389,32 +389,32 @@ export function ExpenseHistoryTab() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <p className="text-gray-500">Match Date</p>
+                  <p className="text-stone-500">Match Date</p>
                   <p>{formatDate(selectedExpense.match_date)}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Opposition</p>
+                  <p className="text-stone-500">Opposition</p>
                   <p>{selectedExpense.opposition}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Team</p>
+                  <p className="text-stone-500">Team</p>
                   <p>{selectedExpense.team_name}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Type</p>
+                  <p className="text-stone-500">Type</p>
                   <p>
                     {EXPENSE_TYPE_LABELS[selectedExpense.expense_type] ??
                       selectedExpense.expense_type}
                   </p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Amount</p>
+                  <p className="text-stone-500">Amount</p>
                   <p className="font-medium">
                     {formatPence(selectedExpense.amount_pence)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Status</p>
+                  <p className="text-stone-500">Status</p>
                   <Badge
                     variant={
                       STATUS_CONFIG[selectedExpense.status]?.variant ??
@@ -427,7 +427,7 @@ export function ExpenseHistoryTab() {
                 </div>
                 {selectedExpense.description && (
                   <div className="col-span-2">
-                    <p className="text-gray-500">Description</p>
+                    <p className="text-stone-500">Description</p>
                     <p>{selectedExpense.description}</p>
                   </div>
                 )}
@@ -438,7 +438,7 @@ export function ExpenseHistoryTab() {
                 <h4 className="mb-2 text-sm font-medium">Audit Trail</h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-500">
+                    <span className="text-stone-500">
                       {selectedExpense.submitted_at
                         ? "Submitted by"
                         : "Created by"}
@@ -451,7 +451,7 @@ export function ExpenseHistoryTab() {
                   </div>
                   {selectedExpense.approved_at && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Approved by</span>
+                      <span className="text-stone-500">Approved by</span>
                       <span>
                         {selectedExpense.approved_by_name ?? "Unknown"}
                         {` on ${formatDate(selectedExpense.approved_at, true)}`}
@@ -460,7 +460,7 @@ export function ExpenseHistoryTab() {
                   )}
                   {selectedExpense.reimbursed_at && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Reimbursed by</span>
+                      <span className="text-stone-500">Reimbursed by</span>
                       <span>
                         {selectedExpense.reimbursed_by_name ?? "Unknown"}
                         {` on ${formatDate(selectedExpense.reimbursed_at, true)}`}
@@ -469,7 +469,7 @@ export function ExpenseHistoryTab() {
                   )}
                   {selectedExpense.rejected_reason && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Rejected reason</span>
+                      <span className="text-stone-500">Rejected reason</span>
                       <span className="text-red-600">
                         {selectedExpense.rejected_reason}
                       </span>

@@ -19,7 +19,7 @@ export function Component() {
   return (
     <div className="w-full rounded-lg bg-white shadow-sm sm:max-w-md">
       <div className="p-6 text-center sm:p-8">
-        <p className="text-gray-600">Logging out...</p>
+        <p className="text-stone-600">Logging out…</p>
       </div>
     </div>
   );

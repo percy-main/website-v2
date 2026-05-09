@@ -80,22 +80,22 @@ export function DebriefLauncher({ onLaunch }: DebriefLauncherProps) {
                     } ${m.opposition} on ${formatMatchDate(m.matchDate)}.`,
                   )
                 }
-                className="block w-full rounded border border-amber-200 bg-white px-3 py-2 text-left text-sm text-gray-900 shadow-sm hover:border-amber-400 hover:bg-amber-100"
+                className="block w-full rounded border border-amber-200 bg-white px-3 py-2 text-left text-sm text-stone-900 shadow-sm hover:border-amber-400 hover:bg-amber-100"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate font-medium">
                     {m.ourTeam}{" "}
-                    <span className="text-gray-500">
+                    <span className="text-stone-500">
                       {m.homeAway === "home" ? "vs" : "at"}
                     </span>{" "}
                     {m.opposition}
                   </span>
-                  <span className="shrink-0 text-xs text-gray-500">
+                  <span className="shrink-0 text-xs text-stone-500">
                     {formatMatchDate(m.matchDate)}
                   </span>
                 </div>
                 {m.result && (
-                  <div className="mt-0.5 text-xs text-gray-600">{m.result}</div>
+                  <div className="mt-0.5 text-xs text-stone-600">{m.result}</div>
                 )}
               </button>
             </li>

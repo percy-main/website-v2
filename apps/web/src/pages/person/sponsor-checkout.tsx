@@ -122,7 +122,7 @@ export function Component() {
               Your sponsorship of <strong>{person.name}</strong> has been
               received.
             </p>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-stone-600">
               A confirmation has been sent to {sponsorEmail}. Your details will
               be reviewed by an admin before being displayed on the site.
             </p>
@@ -158,17 +158,17 @@ export function Component() {
     <div className="container mx-auto max-w-md px-4 py-6">
       {/* Breadcrumbs */}
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/people" className="hover:text-primary text-gray-600">
+        <Link to="/people" className="hover:text-primary text-stone-600">
           People
         </Link>
-        <IoChevronForward className="text-gray-400" size={14} />
+        <IoChevronForward className="text-stone-400" size={14} />
         <Link
           to={`/person/${slug}`}
-          className="hover:text-primary text-gray-600"
+          className="hover:text-primary text-stone-600"
         >
           {person.name}
         </Link>
-        <IoChevronForward className="text-gray-400" size={14} />
+        <IoChevronForward className="text-stone-400" size={14} />
         <span className="text-dark font-medium">Sponsor</span>
       </div>
 
@@ -181,14 +181,14 @@ export function Component() {
                 <OptimisedImage
                   picture={picture}
                   alt={person.name}
-                  className="h-10 w-10 rounded-full"
+                  className="size-10 rounded-full"
                   sizes="40px"
                 />
               ) : (
                 <img
                   src={person.photo ?? ANON_IMAGE}
                   alt={person.name}
-                  className="h-10 w-10 rounded-full"
+                  className="size-10 rounded-full"
                 />
               );
             })()}
@@ -279,7 +279,7 @@ export function Component() {
                 onChange={(e) => setSponsorMessage(e.target.value)}
                 maxLength={MAX_MESSAGE_CHARS}
               />
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-stone-400">
                 {sponsorMessage.length}/{MAX_MESSAGE_CHARS}
               </p>
             </div>
@@ -297,7 +297,7 @@ export function Component() {
         <CardFooter className="flex justify-between">
           <Link
             to={`/person/${slug}`}
-            className="text-sm text-gray-500 hover:underline"
+            className="text-sm text-stone-500 hover:underline"
           >
             Cancel
           </Link>
@@ -306,7 +306,7 @@ export function Component() {
             disabled={!isFormValid || paymentMutation.isPending}
           >
             {paymentMutation.isPending
-              ? "Processing..."
+              ? "Processing…"
               : "Continue to Payment"}
           </Button>
         </CardFooter>

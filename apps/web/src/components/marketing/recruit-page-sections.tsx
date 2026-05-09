@@ -43,7 +43,7 @@ export const RecruitHero: FC<RecruitHeroProps> = ({
       <div className="absolute inset-0 flex items-center">
         <div className="container mx-auto px-6">
           <div className="max-w-2xl text-white">
-            <h1 className="text-h2 md:text-h1 mb-4 leading-tight font-extrabold tracking-tight text-white">
+            <h1 className="text-h2 md:text-h1 mb-4 leading-tight font-semibold tracking-tight text-white">
               {title}
             </h1>
             <p className="mb-6 text-lg text-balance text-white/90 md:text-xl">
@@ -78,10 +78,10 @@ export const ReassuranceList: FC<ReassuranceListProps> = ({ items }) => (
         {items.map((item) => (
           <div
             key={item.heading}
-            className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
+            className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm"
           >
-            <h2 className="text-dark mb-2 text-lg font-bold">{item.heading}</h2>
-            <div className="text-sm text-gray-700">{item.body}</div>
+            <h2 className="text-dark mb-2 text-lg font-semibold">{item.heading}</h2>
+            <div className="text-sm text-stone-700">{item.body}</div>
           </div>
         ))}
       </div>
@@ -110,7 +110,7 @@ export const SafeguardingLine: FC<SafeguardingLineProps> = ({
 }) => (
   <section className="bg-white py-6">
     <div className="container mx-auto px-6">
-      <p className="mx-auto max-w-3xl text-center text-sm text-gray-700">
+      <p className="mx-auto max-w-3xl text-center text-sm text-stone-700">
         All junior sessions are run by DBS-checked coaches and a Level 3 Club
         Safeguarding Officer.{" "}
         <Link to={href} className="text-blue-900 underline">

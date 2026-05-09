@@ -254,23 +254,23 @@ export function RecordLinkingTab() {
       {/* Header stats */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap gap-3">
-          <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-            <span className="text-gray-500">Members:</span>{" "}
+          <div className="rounded border border-stone-200 bg-stone-50 px-3 py-2 text-sm">
+            <span className="text-stone-500">Members:</span>{" "}
             <span className="font-medium">{totalMembers}</span>
           </div>
-          <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-            <span className="text-gray-500">Play-Cricket:</span>{" "}
+          <div className="rounded border border-stone-200 bg-stone-50 px-3 py-2 text-sm">
+            <span className="text-stone-500">Play-Cricket:</span>{" "}
             <span className="font-medium">
               {linkedPcMembers}/{totalMembers}
             </span>{" "}
-            <span className="text-gray-400">members</span>
+            <span className="text-stone-400">members</span>
             {totalDependents > 0 && (
               <>
                 {", "}
                 <span className="font-medium">
                   {linkedPcDeps}/{totalDependents}
                 </span>{" "}
-                <span className="text-gray-400">juniors</span>
+                <span className="text-stone-400">juniors</span>
               </>
             )}
           </div>
@@ -284,7 +284,7 @@ export function RecordLinkingTab() {
             variant="outline"
           >
             {refreshMutation.isPending
-              ? "Fetching..."
+              ? "Fetching…"
               : pcPlayers
                 ? "Refresh PC Players"
                 : "Load PC Players"}
@@ -309,7 +309,7 @@ export function RecordLinkingTab() {
       <div className="flex flex-wrap items-center gap-4">
         <Input
           type="text"
-          placeholder="Search by name..."
+          placeholder="Search by name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-md"
@@ -350,7 +350,7 @@ export function RecordLinkingTab() {
       </div>
 
       {/* Table */}
-      {isLoading && <p className="text-gray-500">Loading...</p>}
+      {isLoading && <p className="text-stone-500">Loading…</p>}
 
       {linkingData && (
         <Table>
@@ -367,7 +367,7 @@ export function RecordLinkingTab() {
               <TableRow>
                 <TableCell
                   colSpan={4}
-                  className="py-6 text-center text-gray-500"
+                  className="py-6 text-center text-stone-500"
                 >
                   No matching people found.
                 </TableCell>
@@ -382,7 +382,7 @@ export function RecordLinkingTab() {
                 <TableCell>
                   <div className="font-medium">{person.name}</div>
                   {person.parentName && (
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-stone-500">
                       Parent: {person.parentName}
                     </div>
                   )}
@@ -403,7 +403,7 @@ export function RecordLinkingTab() {
                       &#10003;
                     </span>
                   ) : (
-                    <span className="inline-block text-gray-300">&#10007;</span>
+                    <span className="inline-block text-stone-300">&#10007;</span>
                   )}
                 </TableCell>
                 <TableCell className="text-center">
@@ -415,7 +415,7 @@ export function RecordLinkingTab() {
                       &#10003;
                     </span>
                   ) : (
-                    <span className="inline-block text-gray-300">
+                    <span className="inline-block text-stone-300">
                       {person.type === "member" ? "\u2717" : "\u2014"}
                     </span>
                   )}
@@ -558,7 +558,7 @@ function DetailModal({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{person.name}</DialogTitle>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-stone-500">
             <StatusPill variant={person.type === "member" ? "blue" : "green"}>
               {person.type === "member" ? "Member" : "Junior"}
             </StatusPill>
@@ -567,19 +567,19 @@ function DetailModal({
         </DialogHeader>
 
         {/* Play-Cricket section */}
-        <div className="rounded border border-gray-200 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">
+        <div className="rounded border border-stone-200 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-stone-700">
             Play-Cricket
           </h3>
           {person.playCricketId ? (
             <div className="flex items-center justify-between">
               <div>
                 <StatusPill variant="green">Linked</StatusPill>
-                <span className="ml-2 font-mono text-xs text-gray-500">
+                <span className="ml-2 font-mono text-xs text-stone-500">
                   #{person.playCricketId}
                 </span>
                 {playerNameById.get(person.playCricketId) && (
-                  <span className="ml-1 text-sm text-gray-700">
+                  <span className="ml-1 text-sm text-stone-700">
                     {playerNameById.get(person.playCricketId)}
                   </span>
                 )}
@@ -599,7 +599,7 @@ function DetailModal({
               <div className="mb-2 flex items-center gap-2">
                 <Input
                   type="text"
-                  placeholder="Search Play-Cricket players..."
+                  placeholder="Search Play-Cricket players…"
                   value={linkSearch}
                   onChange={(e) => onLinkSearchChange(e.target.value)}
                   className="flex-1"
@@ -616,18 +616,18 @@ function DetailModal({
               )}
               <div className="flex max-h-60 flex-col gap-1 overflow-y-auto">
                 {suggestedPcPlayers.length === 0 && pcPlayers && (
-                  <p className="py-2 text-center text-sm text-gray-500">
+                  <p className="py-2 text-center text-sm text-stone-500">
                     No matching players found.
                   </p>
                 )}
                 {suggestedPcPlayers.map((player) => (
                   <div
                     key={player.memberId}
-                    className="flex items-center justify-between rounded px-3 py-2 hover:bg-gray-50"
+                    className="flex items-center justify-between rounded px-3 py-2 hover:bg-stone-50"
                   >
                     <div>
                       <span className="font-medium">{player.name}</span>
-                      <span className="ml-2 font-mono text-xs text-gray-400">
+                      <span className="ml-2 font-mono text-xs text-stone-400">
                         #{player.memberId}
                       </span>
                       {player.score >= 0.7 && (
@@ -671,15 +671,15 @@ function DetailModal({
 
         {/* Slug section (members only) */}
         {person.type === "member" && (
-          <div className="rounded border border-gray-200 p-4">
-            <h3 className="mb-2 text-sm font-semibold text-gray-700">
+          <div className="rounded border border-stone-200 p-4">
+            <h3 className="mb-2 text-sm font-semibold text-stone-700">
               Person Page Slug
             </h3>
             {person.slug ? (
               <div className="flex items-center justify-between">
                 <div>
                   <StatusPill variant="green">Linked</StatusPill>
-                  <span className="ml-2 font-mono text-xs text-gray-500">
+                  <span className="ml-2 font-mono text-xs text-stone-500">
                     {person.slug}
                   </span>
                 </div>

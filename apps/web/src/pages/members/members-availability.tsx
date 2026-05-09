@@ -23,21 +23,21 @@ export function Component() {
       <div className="flex items-center justify-between">
         <h1>Availability</h1>
         <Link
-          className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+          className="rounded border border-stone-800 px-4 py-2 text-sm text-stone-900 hover:bg-stone-200"
           to="/members"
         >
           Members Area
         </Link>
       </div>
 
-      {query.isPending && <p className="mt-4 text-gray-500">Loading...</p>}
+      {query.isPending && <p className="mt-4 text-stone-500">Loading…</p>}
       {query.isError && (
         <p className="mt-4 text-red-600">Failed to load availability.</p>
       )}
 
       {query.data && !query.data.memberId && (
         <Card className="mt-4">
-          <CardContent className="py-6 text-center text-gray-500">
+          <CardContent className="py-6 text-center text-stone-500">
             You need to complete your membership registration before you can
             respond to availability requests.
           </CardContent>
@@ -46,7 +46,7 @@ export function Component() {
 
       {query.data?.items.length === 0 && query.data?.memberId && (
         <Card className="mt-4">
-          <CardContent className="py-6 text-center text-gray-500">
+          <CardContent className="py-6 text-center text-stone-500">
             No active availability requests right now. Check back later.
           </CardContent>
         </Card>
@@ -149,10 +149,10 @@ function DateCard({
       </p>
       <div className="mb-3 flex flex-col gap-1">
         {fixtures.map((f) => (
-          <p key={f.id} className="text-sm text-gray-600">
+          <p key={f.id} className="text-sm text-stone-600">
             {f.team_name ?? "Team"} {f.is_home ? "vs" : "@"} {f.opposition}
             {f.competition_name && (
-              <span className="text-gray-400"> ({f.competition_name})</span>
+              <span className="text-stone-400"> ({f.competition_name})</span>
             )}
           </p>
         ))}
@@ -163,7 +163,7 @@ function DateCard({
           className={`rounded px-3 py-1 text-sm ${
             status === "available"
               ? "bg-green-600 text-white"
-              : "border bg-white text-gray-700 hover:bg-green-50"
+              : "border bg-white text-stone-700 hover:bg-green-50"
           }`}
           onClick={() => setStatus("available")}
         >
@@ -173,7 +173,7 @@ function DateCard({
           className={`rounded px-3 py-1 text-sm ${
             status === "unavailable"
               ? "bg-red-600 text-white"
-              : "border bg-white text-gray-700 hover:bg-red-50"
+              : "border bg-white text-stone-700 hover:bg-red-50"
           }`}
           onClick={() => setStatus("unavailable")}
         >
@@ -198,7 +198,7 @@ function DateCard({
         size="sm"
       >
         {mutation.isPending
-          ? "Saving..."
+          ? "Saving…"
           : existing
             ? "Update Response"
             : "Submit Response"}

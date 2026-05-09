@@ -84,14 +84,14 @@ function RequestListView() {
         <div className="flex gap-2">
           {session?.user.role === "admin" && (
             <Link
-              className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+              className="rounded border border-stone-800 px-4 py-2 text-sm text-stone-900 hover:bg-stone-200"
               to="/admin"
             >
               Admin Panel
             </Link>
           )}
           <Link
-            className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+            className="rounded border border-stone-800 px-4 py-2 text-sm text-stone-900 hover:bg-stone-200"
             to="/matchday"
           >
             Matchday
@@ -105,14 +105,14 @@ function RequestListView() {
         </div>
       </div>
 
-      {query.isPending && <p className="mt-4 text-gray-500">Loading...</p>}
+      {query.isPending && <p className="mt-4 text-stone-500">Loading…</p>}
       {query.isError && (
         <p className="mt-4 text-red-600">Failed to load requests.</p>
       )}
 
       {query.data?.items.length === 0 && (
         <Card className="mt-4">
-          <CardContent className="py-8 text-center text-gray-500">
+          <CardContent className="py-8 text-center text-stone-500">
             No availability requests yet. Create one to get started.
           </CardContent>
         </Card>
@@ -122,14 +122,14 @@ function RequestListView() {
         <div className="mt-4 flex flex-col gap-3">
           {query.data.items.map((req) => (
             <Link key={req.id} to={`/matchday/availability/${req.id}`}>
-              <Card className="transition-colors hover:bg-gray-50">
+              <Card className="transition-colors hover:bg-stone-50">
                 <CardContent className="flex items-center justify-between py-4">
                   <div>
                     <p className="font-medium">
                       {format(new Date(req.date_from), "d MMM")} &ndash;{" "}
                       {format(new Date(req.date_to), "d MMM yyyy")}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-stone-500">
                       {req.fixtureCount} fixture
                       {req.fixtureCount !== 1 ? "s" : ""} &middot;{" "}
                       {req.respondentCount} responded
@@ -202,7 +202,7 @@ function CreateRequestView() {
       <div className="mb-4 flex items-center gap-2">
         <Link
           to="/matchday/availability"
-          className="text-sm text-gray-500 hover:text-gray-900"
+          className="text-sm text-stone-500 hover:text-stone-900"
         >
           &larr; Back
         </Link>
@@ -237,11 +237,11 @@ function CreateRequestView() {
           )}
 
           {previewQuery.isPending && (
-            <p className="text-sm text-gray-500">Loading fixtures...</p>
+            <p className="text-sm text-stone-500">Loading fixtures…</p>
           )}
 
           {previewQuery.data?.fixtures.length === 0 && (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-stone-500">
               No senior fixtures found in this date range.
             </p>
           )}
@@ -266,7 +266,7 @@ function CreateRequestView() {
                       <p key={f.playCricketMatchId} className="text-sm">
                         {f.teamName} {f.isHome ? "vs" : "@"} {f.opposition}
                         {f.competitionName && (
-                          <span className="text-gray-500">
+                          <span className="text-stone-500">
                             {" "}
                             ({f.competitionName})
                           </span>
@@ -287,7 +287,7 @@ function CreateRequestView() {
             }
             className="self-start"
           >
-            {createMutation.isPending ? "Creating..." : "Create Request"}
+            {createMutation.isPending ? "Creating…" : "Create Request"}
           </Button>
 
           {createMutation.isError && (
@@ -336,7 +336,7 @@ function RequestDetailView({ requestId }: { requestId: string }) {
   if (query.isPending) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-stone-500">Loading…</p>
       </div>
     );
   }
@@ -356,7 +356,7 @@ function RequestDetailView({ requestId }: { requestId: string }) {
       <div className="mb-4 flex items-center gap-2">
         <Link
           to="/matchday/availability"
-          className="text-sm text-gray-500 hover:text-gray-900"
+          className="text-sm text-stone-500 hover:text-stone-900"
         >
           &larr; Back
         </Link>
@@ -406,7 +406,7 @@ function RequestDetailView({ requestId }: { requestId: string }) {
       </div>
 
       {dates.length === 0 && (
-        <p className="text-gray-500">No fixture dates in this request.</p>
+        <p className="text-stone-500">No fixture dates in this request.</p>
       )}
 
       <div className="flex flex-col gap-3">
@@ -415,12 +415,12 @@ function RequestDetailView({ requestId }: { requestId: string }) {
             key={d.date}
             to={`/matchday/availability/${requestId}/${d.date}`}
           >
-            <Card className="transition-colors hover:bg-gray-50">
+            <Card className="transition-colors hover:bg-stone-50">
               <CardContent className="py-4">
                 <p className="font-medium">
                   {format(new Date(d.date), "EEEE d MMMM yyyy")}
                 </p>
-                <div className="mt-1 flex flex-wrap gap-4 text-sm text-gray-500">
+                <div className="mt-1 flex flex-wrap gap-4 text-sm text-stone-500">
                   <span>
                     {d.fixtures.length} fixture
                     {d.fixtures.length !== 1 ? "s" : ""}
@@ -433,7 +433,7 @@ function RequestDetailView({ requestId }: { requestId: string }) {
                     <p key={f.id} className="text-sm">
                       {f.opposition}
                       {f.competition_name && (
-                        <span className="text-gray-400">
+                        <span className="text-stone-400">
                           {" "}
                           ({f.competition_name})
                         </span>
@@ -552,7 +552,7 @@ function TeamSelectionView({
   if (query.isPending) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-stone-500">Loading…</p>
       </div>
     );
   }
@@ -586,7 +586,7 @@ function TeamSelectionView({
       <div className="mb-4 flex items-center gap-2">
         <Link
           to={`/matchday/availability/${requestId}`}
-          className="text-sm text-gray-500 hover:text-gray-900"
+          className="text-sm text-stone-500 hover:text-stone-900"
         >
           &larr; Back
         </Link>
@@ -602,11 +602,11 @@ function TeamSelectionView({
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
                   {fixture.team_name ?? "Unknown Team"}
-                  <span className="text-sm font-normal text-gray-400">
+                  <span className="text-sm font-normal text-stone-400">
                     {fixture.assignments.length}/11
                   </span>
                 </CardTitle>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-stone-500">
                   {fixture.is_home ? "vs" : "@"} {fixture.opposition}
                   {fixture.competition_name && ` (${fixture.competition_name})`}
                   {fixture.match_time && ` · ${fixture.match_time}`}
@@ -614,7 +614,7 @@ function TeamSelectionView({
               </CardHeader>
               <CardContent>
                 {fixture.assignments.length === 0 ? (
-                  <p className="text-sm text-gray-400">No players assigned</p>
+                  <p className="text-sm text-stone-400">No players assigned</p>
                 ) : (
                   <ol className="flex flex-col gap-1">
                     {fixture.assignments.map((a) => (
@@ -625,7 +625,7 @@ function TeamSelectionView({
                         <span>
                           {a.position}. {a.player_name}
                           {!a.member_id && (
-                            <span className="ml-1 text-xs text-gray-400">
+                            <span className="ml-1 text-xs text-stone-400">
                               (guest)
                             </span>
                           )}
@@ -663,7 +663,7 @@ function TeamSelectionView({
             }
           >
             {confirmMutation.isPending
-              ? "Confirming..."
+              ? "Confirming…"
               : "Confirm Teams \u2192 Create Matchdays"}
           </Button>
           {confirmMutation.isSuccess && (
@@ -689,7 +689,7 @@ function TeamSelectionView({
           <h2 className="text-lg font-semibold">Players</h2>
 
           <Input
-            placeholder="Search players..."
+            placeholder="Search players…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -792,14 +792,14 @@ function TeamSelectionView({
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
                 No Response
-                <Badge variant="outline" className="bg-gray-100 text-gray-600">
+                <Badge variant="outline" className="bg-stone-100 text-stone-600">
                   {filteredNoResponse.length}
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
               {filteredNoResponse.length === 0 ? (
-                <p className="text-sm text-gray-400">None</p>
+                <p className="text-sm text-stone-400">None</p>
               ) : (
                 <div className="flex flex-col gap-1">
                   {filteredNoResponse.slice(0, 50).map((p) => (
@@ -837,7 +837,7 @@ function TeamSelectionView({
                     </div>
                   ))}
                   {filteredNoResponse.length > 50 && (
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-stone-400">
                       +{filteredNoResponse.length - 50} more
                     </p>
                   )}
@@ -892,7 +892,7 @@ function PlayerPool({
       </CardHeader>
       <CardContent>
         {players.length === 0 ? (
-          <p className="text-sm text-gray-400">None</p>
+          <p className="text-sm text-stone-400">None</p>
         ) : (
           <div className="flex flex-col gap-1">
             {players.map((p) => (
@@ -903,7 +903,7 @@ function PlayerPool({
                 <div>
                   <span>{p.name}</span>
                   {p.note && (
-                    <span className="ml-2 text-xs text-gray-400">{p.note}</span>
+                    <span className="ml-2 text-xs text-stone-400">{p.note}</span>
                   )}
                   {p.overridden && (
                     <span className="ml-1 text-xs text-amber-500">
@@ -913,7 +913,7 @@ function PlayerPool({
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    className="text-xs text-gray-400 hover:text-gray-600"
+                    className="text-xs text-stone-400 hover:text-stone-600"
                     onClick={() => onSetAvailability(p.id, overrideStatus)}
                   >
                     {overrideStatus === "available"
@@ -1127,7 +1127,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                   value={manualEmails}
                   onChange={(e) => setManualEmails(e.target.value)}
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-stone-500">
                   Comma-separated. These will be added to the filtered list.
                 </p>
               </div>
@@ -1137,7 +1137,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                 disabled={previewMutation.isPending}
               >
                 {previewMutation.isPending
-                  ? "Loading..."
+                  ? "Loading…"
                   : "Preview Recipients"}
               </Button>
 
@@ -1167,7 +1167,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                 {recipients.map((r) => (
                   <label
                     key={r.email}
-                    className="flex cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-gray-50"
+                    className="flex cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-stone-50"
                   >
                     <Checkbox
                       checked={checked.has(r.email)}
@@ -1177,13 +1177,13 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                       <p className="truncate text-sm">
                         {r.name ?? r.email}
                         {r.source === "manual" && (
-                          <span className="ml-1 text-xs text-gray-400">
+                          <span className="ml-1 text-xs text-stone-400">
                             (manual)
                           </span>
                         )}
                       </p>
                       {r.name && (
-                        <p className="truncate text-xs text-gray-500">
+                        <p className="truncate text-xs text-stone-500">
                           {r.email}
                         </p>
                       )}
@@ -1198,7 +1198,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                   disabled={sendMutation.isPending || checked.size === 0}
                 >
                   {sendMutation.isPending
-                    ? "Sending..."
+                    ? "Sending…"
                     : `Send to ${checked.size} recipient${checked.size !== 1 ? "s" : ""}`}
                 </Button>
                 <Button variant="outline" onClick={reset}>

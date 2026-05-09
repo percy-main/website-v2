@@ -28,7 +28,7 @@ export const ForgotPassword: FC = () => {
 
   return (
     <section>
-      <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+      <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
         Forgotten your password?
       </h1>
       {match(requestReset)
@@ -39,7 +39,7 @@ export const ForgotPassword: FC = () => {
         ))
         .otherwise(() => (
           <form
-            className="flex flex-col items-center justify-center space-y-4 md:space-y-6"
+            className="flex flex-col items-center justify-center gap-y-4 md:gap-y-6"
             onSubmit={handleSubmit}
           >
             <p>

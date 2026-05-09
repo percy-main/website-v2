@@ -119,7 +119,7 @@ export function MembersTab() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <Input
-          placeholder="Search by name or email..."
+          placeholder="Search by name or email…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           className="w-64"
@@ -247,7 +247,7 @@ export function MembersTab() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="py-12 text-center text-gray-500">Loading...</div>
+        <div className="py-12 text-center text-stone-500">Loading…</div>
       ) : (
         <Table>
           <TableHeader>
@@ -314,7 +314,7 @@ export function MembersTab() {
               <TableRow>
                 <TableCell
                   colSpan={7}
-                  className="py-12 text-center text-gray-500"
+                  className="py-12 text-center text-stone-500"
                 >
                   No users found.
                 </TableCell>
@@ -327,10 +327,10 @@ export function MembersTab() {
       {/* Pagination */}
       {data && data.total > 0 && (
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             {data.total} users total
           </span>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             Page {page} of {totalPages}
           </span>
           <div className="flex gap-2">

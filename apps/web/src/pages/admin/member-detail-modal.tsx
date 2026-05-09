@@ -75,7 +75,7 @@ export function MemberDetailModal({ userId, onClose }: MemberDetailModalProps) {
     <Dialog open={true} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-2xl">
         {isLoading || !data ? (
-          <div className="py-12 text-center text-gray-500">Loading...</div>
+          <div className="py-12 text-center text-stone-500">Loading…</div>
         ) : (
           <MemberDetailContent
             data={data}
@@ -232,28 +232,28 @@ function AccountSection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">Account</h3>
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">Account</h3>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <div>
-          <span className="text-gray-500">Name</span>
+          <span className="text-stone-500">Name</span>
           <p>{user.name}</p>
         </div>
         <div>
-          <span className="text-gray-500">Email</span>
+          <span className="text-stone-500">Email</span>
           <p>{user.email}</p>
         </div>
         <div>
-          <span className="text-gray-500">Role</span>
+          <span className="text-stone-500">Role</span>
           <p>
             <RolePill role={user.role ?? "user"} />
           </p>
         </div>
         <div>
-          <span className="text-gray-500">Email Verified</span>
+          <span className="text-stone-500">Email Verified</span>
           <p>{user.emailVerified ? "Yes" : "No"}</p>
         </div>
         <div>
-          <span className="text-gray-500">Created</span>
+          <span className="text-stone-500">Created</span>
           <p>{formatDate(user.createdAt, true)}</p>
         </div>
       </div>
@@ -312,10 +312,10 @@ function MemberDetailsSection({ member }: { member: UserDetail["member"] }) {
   if (!member) {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">
           Member Details
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-stone-500">
           No member record found for this user.
         </p>
       </section>
@@ -344,13 +344,13 @@ function MemberDetailsSection({ member }: { member: UserDetail["member"] }) {
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Member Details
       </h3>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         {fields.map((f) => (
           <div key={f.label}>
-            <span className="text-gray-500">{f.label}</span>
+            <span className="text-stone-500">{f.label}</span>
             <p>{f.value ?? "-"}</p>
           </div>
         ))}
@@ -388,7 +388,7 @@ function MemberCategorySection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Member Category
       </h3>
       <div className="flex items-center gap-3">
@@ -428,8 +428,8 @@ function MembershipSection({
   if (!membership) {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">Membership</h3>
-        <p className="text-sm text-gray-500">No membership record found.</p>
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">Membership</h3>
+        <p className="text-sm text-stone-500">No membership record found.</p>
       </section>
     );
   }
@@ -439,10 +439,10 @@ function MembershipSection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">Membership</h3>
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">Membership</h3>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <div>
-          <span className="text-gray-500">Type</span>
+          <span className="text-stone-500">Type</span>
           <p>
             <StatusPill variant={typeDisplay.variant}>
               {typeDisplay.label}
@@ -450,19 +450,19 @@ function MembershipSection({
           </p>
         </div>
         <div>
-          <span className="text-gray-500">Paid Until</span>
+          <span className="text-stone-500">Paid Until</span>
           <p>
             {membership.paid_until ? formatDate(membership.paid_until) : "-"}
           </p>
         </div>
         <div>
-          <span className="text-gray-500">Status</span>
+          <span className="text-stone-500">Status</span>
           <p>
             <StatusPill variant={status.variant}>{status.label}</StatusPill>
           </p>
         </div>
         <div>
-          <span className="text-gray-500">Created</span>
+          <span className="text-stone-500">Created</span>
           <p>{formatDate(membership.created_at)}</p>
         </div>
       </div>
@@ -481,11 +481,11 @@ function JuniorMembersSection({
 }) {
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Junior Members ({dependents.length})
       </h3>
       {dependents.length === 0 ? (
-        <p className="text-sm text-gray-500">No junior members.</p>
+        <p className="text-sm text-stone-500">No junior members.</p>
       ) : (
         <div className="space-y-3">
           {dependents.map((dep) => (
@@ -560,7 +560,7 @@ function DependentCard({
   ];
 
   return (
-    <div className="rounded-md border border-gray-200 p-3">
+    <div className="rounded-md border border-stone-200 p-3">
       <div className="mb-2 flex items-center gap-2">
         <span className="font-semibold">{name}</span>
         {hasPaid && paidUntil ? (
@@ -576,14 +576,14 @@ function DependentCard({
           .filter((f) => f.value !== null)
           .map((f) => (
             <div key={f.label}>
-              <span className="text-gray-500">{f.label}</span>
+              <span className="text-stone-500">{f.label}</span>
               <p>{f.value}</p>
             </div>
           ))}
       </div>
       {dependent.medical_info && (
         <div className="mt-2 text-sm">
-          <span className="text-gray-500">Medical Info</span>
+          <span className="text-stone-500">Medical Info</span>
           <p className="whitespace-pre-wrap">{dependent.medical_info}</p>
         </div>
       )}
@@ -645,10 +645,10 @@ function JuniorManagerTeamsSection({
   if (userRole === "admin") {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">
           Junior Manager Teams
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-stone-500">
           Admins have access to all teams. Team assignment is only for the
           Junior Manager role.
         </p>
@@ -658,7 +658,7 @@ function JuniorManagerTeamsSection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Junior Manager Teams
       </h3>
       {teams && teams.length > 0 ? (
@@ -674,7 +674,7 @@ function JuniorManagerTeamsSection({
                   className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
                     selected
                       ? "border-blue-500 bg-blue-50 text-blue-800"
-                      : "border-gray-200 hover:bg-gray-50"
+                      : "border-stone-200 hover:bg-stone-50"
                   }`}
                 >
                   {team.name}
@@ -701,7 +701,7 @@ function JuniorManagerTeamsSection({
           </div>
         </>
       ) : (
-        <p className="text-sm text-gray-500">No junior teams available.</p>
+        <p className="text-sm text-stone-500">No junior teams available.</p>
       )}
     </section>
   );
@@ -761,10 +761,10 @@ function OfficialTeamsSection({
   if (userRole === "admin") {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">
           Match Official Teams
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-stone-500">
           Admins have access to all teams. Team assignment is only for the
           Official role.
         </p>
@@ -774,7 +774,7 @@ function OfficialTeamsSection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Match Official Teams
       </h3>
       {teams && teams.length > 0 ? (
@@ -790,7 +790,7 @@ function OfficialTeamsSection({
                   className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
                     selected
                       ? "border-blue-500 bg-blue-50 text-blue-800"
-                      : "border-gray-200 hover:bg-gray-50"
+                      : "border-stone-200 hover:bg-stone-50"
                   }`}
                 >
                   {team.name}
@@ -817,7 +817,7 @@ function OfficialTeamsSection({
           </div>
         </>
       ) : (
-        <p className="text-sm text-gray-500">No teams available.</p>
+        <p className="text-sm text-stone-500">No teams available.</p>
       )}
     </section>
   );
@@ -878,7 +878,7 @@ function PaymentsSection({
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900">Payments</h3>
+        <h3 className="text-sm font-semibold text-stone-900">Payments</h3>
         <Button
           variant="outline"
           size="sm"
@@ -891,10 +891,10 @@ function PaymentsSection({
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="mb-4 space-y-3 rounded-md border border-gray-200 p-3"
+          className="mb-4 space-y-3 rounded-md border border-stone-200 p-3"
         >
           <div>
-            <label className="mb-1 block text-sm text-gray-600">
+            <label className="mb-1 block text-sm text-stone-600">
               Description
             </label>
             <Input
@@ -905,7 +905,7 @@ function PaymentsSection({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-sm text-gray-600">
+              <label className="mb-1 block text-sm text-stone-600">
                 Amount (GBP)
               </label>
               <Input
@@ -918,7 +918,7 @@ function PaymentsSection({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-gray-600">Date</label>
+              <label className="mb-1 block text-sm text-stone-600">Date</label>
               <Input
                 type="date"
                 value={chargeDate}
@@ -934,7 +934,7 @@ function PaymentsSection({
       )}
 
       {charges.length === 0 ? (
-        <p className="text-sm text-gray-500">No charges recorded.</p>
+        <p className="text-sm text-stone-500">No charges recorded.</p>
       ) : (
         <Table>
           <TableHeader>
@@ -1019,7 +1019,7 @@ function ChargeRow({
         {showDelete && (
           <div className="flex items-center gap-1">
             <Input
-              placeholder="Reason..."
+              placeholder="Reason…"
               value={deleteReason}
               onChange={(e) => setDeleteReason(e.target.value)}
               className="h-8 w-32 text-xs"
@@ -1095,10 +1095,10 @@ function ArchiveSection({
   if (isArchived) {
     return (
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        <h3 className="mb-3 text-sm font-semibold text-stone-900">
           Archive Status
         </h3>
-        <p className="mb-3 text-sm text-gray-500">
+        <p className="mb-3 text-sm text-stone-500">
           This member is currently archived. Restoring will make them active
           again.
         </p>
@@ -1116,10 +1116,10 @@ function ArchiveSection({
 
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+      <h3 className="mb-3 text-sm font-semibold text-stone-900">
         Archive Status
       </h3>
-      <p className="mb-3 text-sm text-gray-500">
+      <p className="mb-3 text-sm text-stone-500">
         Archiving a member will hide them from the default member list.
       </p>
       {!showArchiveForm ? (
@@ -1133,8 +1133,8 @@ function ArchiveSection({
       ) : (
         <div className="space-y-2">
           <textarea
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none"
-            placeholder="Reason for archiving..."
+            className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
+            placeholder="Reason for archiving…"
             rows={3}
             value={archiveReason}
             onChange={(e) => setArchiveReason(e.target.value)}

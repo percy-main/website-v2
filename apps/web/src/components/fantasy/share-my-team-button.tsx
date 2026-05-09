@@ -114,7 +114,7 @@ export function ShareMyTeamButton() {
       disabled={shareMutation.isPending}
     >
       {shareMutation.isPending
-        ? "Generating..."
+        ? "Generating…"
         : shared
           ? "Done!"
           : "Share My Team"}

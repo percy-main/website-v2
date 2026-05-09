@@ -36,10 +36,10 @@ export function Component() {
     <div className="container mx-auto px-4 py-6">
       {/* Breadcrumbs */}
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/people" className="hover:text-primary text-gray-600">
+        <Link to="/people" className="hover:text-primary text-stone-600">
           People
         </Link>
-        <IoChevronForward className="text-gray-400" size={14} />
+        <IoChevronForward className="text-stone-400" size={14} />
         <span className="text-dark font-medium">{person.name}</span>
       </div>
 

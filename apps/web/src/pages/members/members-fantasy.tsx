@@ -155,10 +155,10 @@ export function Component() {
   if (playersQuery.isPending || teamQuery.isPending) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
-        <h1 className="mb-6 text-3xl font-bold">My Fantasy Team</h1>
+        <h1 className="mb-6 text-3xl font-semibold">My Fantasy Team</h1>
         <div className="space-y-2">
           {Array.from({ length: 11 }).map((_, i) => (
-            <div key={i} className="h-10 animate-pulse rounded bg-gray-200" />
+            <div key={i} className="h-10 animate-pulse rounded bg-stone-200" />
           ))}
         </div>
       </div>
@@ -168,7 +168,7 @@ export function Component() {
   if (playersQuery.error || teamQuery.error) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
-        <h1 className="mb-6 text-3xl font-bold">My Fantasy Team</h1>
+        <h1 className="mb-6 text-3xl font-semibold">My Fantasy Team</h1>
         <p className="text-center text-red-600">
           Failed to load fantasy data. Please try again.
         </p>
@@ -495,7 +495,7 @@ function TeamBuilder({
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">My Fantasy Team</h1>
+        <h1 className="text-3xl font-semibold">My Fantasy Team</h1>
         <div className="flex gap-2">
           {teamData.team &&
             initialSquad.length === 11 &&
@@ -512,7 +512,7 @@ function TeamBuilder({
 
       {chaosWeek && (
         <Alert className="mb-4 border-amber-400 bg-amber-50 text-amber-800">
-          <strong>Chaos Week: {chaosWeek.name}</strong> —{" "}
+          <strong>Chaos Week: {chaosWeek.name}.</strong>{" "}
           {chaosWeek.description}
         </Alert>
       )}
@@ -550,7 +550,7 @@ function TeamBuilder({
               disabled={!canSave || saveMutation.isPending}
               onClick={() => saveMutation.mutate(squad)}
             >
-              {saveMutation.isPending ? "Saving..." : "Save Team"}
+              {saveMutation.isPending ? "Saving…" : "Save Team"}
             </Button>
           </div>
         </CardContent>
@@ -580,7 +580,7 @@ function TeamBuilder({
         <Card className="mb-4">
           <CardContent className="flex items-center justify-between py-3">
             <div className="text-sm">
-              <strong>Triple Captain</strong> — 3x captain multiplier.{" "}
+              <strong>Triple Captain:</strong> 3x captain multiplier.{" "}
               {tripleCaptain.usedThisSeason}/{tripleCaptain.maxPerSeason} used
               this season.
             </div>
@@ -696,7 +696,7 @@ function TeamBuilder({
           </CardHeader>
           <CardContent>
             <Input
-              placeholder="Search players..."
+              placeholder="Search players…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="mb-3"
@@ -765,7 +765,7 @@ function EmptySlotRow({
   return (
     <div
       ref={setNodeRef}
-      className={`mb-1 rounded border border-dashed p-2 text-center text-xs text-gray-400 ${
+      className={`mb-1 rounded border border-dashed p-2 text-center text-xs text-stone-400 ${
         isOver ? "border-blue-400 bg-blue-50" : ""
       }`}
     >
@@ -833,7 +833,7 @@ function SortableSquadRow({
       <Button
         size="sm"
         variant={player.isCaptain ? "default" : "ghost"}
-        className="h-6 w-6 p-0 text-xs"
+        className="size-6 p-0 text-xs"
         onClick={onSetCaptain}
         title="Set as Captain"
       >
@@ -842,7 +842,7 @@ function SortableSquadRow({
       <Button
         size="sm"
         variant={player.isWicketkeeper ? "default" : "ghost"}
-        className="h-6 w-6 p-0 text-xs"
+        className="size-6 p-0 text-xs"
         onClick={onSetWk}
         title="Set as Wicketkeeper"
       >
@@ -851,7 +851,7 @@ function SortableSquadRow({
       <Button
         size="sm"
         variant="ghost"
-        className="h-6 w-6 p-0 text-xs text-red-500"
+        className="size-6 p-0 text-xs text-red-500"
         onClick={onRemove}
         title="Remove"
       >

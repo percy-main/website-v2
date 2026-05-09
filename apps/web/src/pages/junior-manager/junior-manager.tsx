@@ -65,14 +65,14 @@ export function Component() {
           <div className="flex gap-2">
             {user.role === "admin" && (
               <Link
-                className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+                className="rounded border border-stone-800 px-4 py-2 text-sm text-stone-900 hover:bg-stone-200"
                 to="/admin"
               >
                 Admin Panel
               </Link>
             )}
             <Link
-              className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+              className="rounded border border-stone-800 px-4 py-2 text-sm text-stone-900 hover:bg-stone-200"
               to="/members"
             >
               Members Area
@@ -89,7 +89,7 @@ function TeamsDashboard() {
   const { data: teams, isPending, isError } = useTeams();
 
   if (isPending) {
-    return <p className="text-gray-500">Loading teams...</p>;
+    return <p className="text-stone-500">Loading teams…</p>;
   }
 
   if (isError) {
@@ -98,7 +98,7 @@ function TeamsDashboard() {
 
   if (!teams || teams.length === 0) {
     return (
-      <p className="text-gray-500">
+      <p className="text-stone-500">
         You have not been assigned to any teams. Contact an admin to get access.
       </p>
     );
@@ -126,7 +126,7 @@ function TeamCard({ teamId, teamName }: { teamId: string; teamName: string }) {
       </CardHeader>
       <CardContent>
         {isPending && (
-          <p className="text-sm text-gray-500">Loading players...</p>
+          <p className="text-sm text-stone-500">Loading players…</p>
         )}
         {isError && (
           <p className="text-sm text-red-600">Failed to load players.</p>
@@ -155,7 +155,7 @@ function PlayersTable({ players }: { players: Player[] }) {
           {players.map((player) => (
             <TableRow
               key={player.id}
-              className="cursor-pointer hover:bg-gray-50"
+              className="cursor-pointer hover:bg-stone-50"
               onClick={() => setSelectedPlayerId(player.id)}
             >
               <TableCell className="font-medium">{player.name}</TableCell>
@@ -205,7 +205,7 @@ function DetailRow({
   }
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-xs font-medium text-gray-500">{label}</dt>
+      <dt className="text-xs font-medium text-stone-500">{label}</dt>
       <dd className="text-sm">{children}</dd>
     </div>
   );
@@ -220,7 +220,7 @@ function DetailSection({
 }) {
   return (
     <div>
-      <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
+      <h3 className="mb-2 text-sm font-semibold text-stone-700">{title}</h3>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3">{children}</dl>
     </div>
   );
@@ -240,7 +240,7 @@ function ContactRow({
   if (!name && !phone && !email) return null;
   return (
     <div className="col-span-2 flex flex-col gap-0.5">
-      <dt className="text-xs font-medium text-gray-500">{label}</dt>
+      <dt className="text-xs font-medium text-stone-500">{label}</dt>
       <dd className="text-sm">
         <span>{name}</span>
         {phone && (
@@ -278,10 +278,10 @@ function ConsentRow({
 }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-xs font-medium text-gray-500">{label}</dt>
+      <dt className="text-xs font-medium text-stone-500">{label}</dt>
       <dd className="text-sm">
         <span>{value ? "Yes" : "No"}</span>
-        <p className="mt-0.5 text-xs text-gray-400">{description}</p>
+        <p className="mt-0.5 text-xs text-stone-400">{description}</p>
       </dd>
     </div>
   );
@@ -300,7 +300,7 @@ function PlayerDetailModal({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl">
         {isLoading || !data ? (
-          <div className="py-12 text-center text-gray-500">Loading...</div>
+          <div className="py-12 text-center text-stone-500">Loading…</div>
         ) : (
           <PlayerDetailContent player={data} />
         )}
@@ -335,7 +335,7 @@ function PlayerDetailContent({ player }: { player: PlayerDetail }) {
         />
       </DetailSection>
 
-      <hr className="border-gray-200" />
+      <hr className="border-stone-200" />
 
       <DetailSection title="Health">
         <DetailRow label="GP Surgery">{player.gp_surgery}</DetailRow>
@@ -355,7 +355,7 @@ function PlayerDetailContent({ player }: { player: PlayerDetail }) {
         </DetailRow>
       </DetailSection>
 
-      <hr className="border-gray-200" />
+      <hr className="border-stone-200" />
 
       <DetailSection title="Details">
         <DetailRow label="Date of Birth">
@@ -374,7 +374,7 @@ function PlayerDetailContent({ player }: { player: PlayerDetail }) {
         </DetailRow>
       </DetailSection>
 
-      <hr className="border-gray-200" />
+      <hr className="border-stone-200" />
 
       <DetailSection title="Cricket">
         <DetailRow label="Played Before">
@@ -389,7 +389,7 @@ function PlayerDetailContent({ player }: { player: PlayerDetail }) {
         </DetailRow>
       </DetailSection>
 
-      <hr className="border-gray-200" />
+      <hr className="border-stone-200" />
 
       <DetailSection title="Consents">
         <ConsentRow

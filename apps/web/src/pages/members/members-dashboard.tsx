@@ -66,7 +66,7 @@ export function Component() {
           <div className="flex flex-wrap gap-2">
             {user.role === "admin" && (
               <Link
-                className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
+                className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
                 to="/admin"
               >
                 Admin Panel
@@ -75,7 +75,7 @@ export function Component() {
 
             {(user.role === "junior_manager" || user.role === "admin") && (
               <Link
-                className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
+                className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
                 to="/junior-manager"
               >
                 Junior Teams
@@ -83,20 +83,20 @@ export function Component() {
             )}
 
             <Link
-              className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
+              className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
               to="/matchday"
             >
               Matchday
             </Link>
             <Link
-              className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
+              className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
               to="/members/fantasy"
             >
               Fantasy Cricket
             </Link>
             <ScoutLink />
             <Link
-              className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
+              className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
               to="/auth/logout"
             >
               Sign Out
@@ -176,7 +176,7 @@ function OnboardingModal({ onGoToDetails }: { onGoToDetails: () => void }) {
           <DialogTitle>Welcome to Percy Main!</DialogTitle>
           <DialogDescription>
             Thanks for creating an account. To get the most out of your
-            membership, we recommend completing your details — but you can do
+            membership, we recommend completing your details, but you can do
             this at any time.
           </DialogDescription>
         </DialogHeader>
@@ -260,7 +260,7 @@ function ScoutLink() {
 
   return (
     <Link
-      className="rounded border border-gray-800 px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-200"
+      className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
       to="/scout"
     >
       ImbuzAI

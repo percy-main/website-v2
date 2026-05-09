@@ -72,7 +72,7 @@ export function Composer({
 
   return (
     <form
-      className="border-t border-gray-200 bg-white p-3"
+      className="border-t border-stone-200 bg-white p-3"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -137,7 +137,7 @@ export function Composer({
           }
           rows={3}
           disabled={isStreaming}
-          className="flex-1 resize-y rounded border border-gray-300 p-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50"
+          className="flex-1 resize-y rounded border border-stone-300 p-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-stone-50"
         />
         <div className="flex flex-col gap-2">
           <ThinkingModeToggle
@@ -150,9 +150,9 @@ export function Composer({
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming}
             title="Attach an image or PDF (max 10 MB)"
-            className="inline-flex items-center justify-center gap-1.5 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5 rounded border border-stone-300 bg-white px-2.5 py-1 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-50 disabled:opacity-50"
           >
-            <PaperclipIcon className="h-3.5 w-3.5" />
+            <PaperclipIcon className="size-3.5" />
             Attach
           </button>
           <input
@@ -174,7 +174,7 @@ export function Composer({
               onClick={onStop}
               title="Stop the in-flight turn. The partial assistant message stays in the thread."
             >
-              <StopIcon className="mr-1 h-3.5 w-3.5" />
+              <StopIcon className="mr-1 size-3.5" />
               Stop
             </Button>
           ) : (
@@ -258,13 +258,13 @@ function ThinkingModeToggle({
         "inline-flex items-center justify-center gap-1.5 rounded border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 " +
         (isThinking
           ? "border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100"
-          : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50")
+          : "border-stone-300 bg-white text-stone-600 hover:bg-stone-50")
       }
     >
       {isThinking ? (
-        <ThoughtIcon className="h-3.5 w-3.5" />
+        <ThoughtIcon className="size-3.5" />
       ) : (
-        <BoltIcon className="h-3.5 w-3.5" />
+        <BoltIcon className="size-3.5" />
       )}
       <span>{isThinking ? "Thinking" : "Fast"}</span>
     </button>

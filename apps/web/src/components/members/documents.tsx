@@ -29,7 +29,7 @@ export function Documents() {
   });
 
   if (isLoading) {
-    return <div className="py-8 text-center text-gray-500">Loading...</div>;
+    return <div className="py-8 text-center text-stone-500">Loading…</div>;
   }
 
   const needsReview =
@@ -42,7 +42,7 @@ export function Documents() {
       <div>
         <h2 className="mb-2 text-lg font-semibold">Needs Review</h2>
         {needsReview.length === 0 ? (
-          <p className="text-sm text-gray-500">All documents are up to date.</p>
+          <p className="text-sm text-stone-500">All documents are up to date.</p>
         ) : (
           <Table>
             <TableHeader>
@@ -89,7 +89,7 @@ export function Documents() {
       <div>
         <h2 className="mb-2 text-lg font-semibold">Accepted</h2>
         {accepted.length === 0 ? (
-          <p className="text-sm text-gray-500">No accepted documents yet.</p>
+          <p className="text-sm text-stone-500">No accepted documents yet.</p>
         ) : (
           <Table>
             <TableHeader>
@@ -107,7 +107,7 @@ export function Documents() {
                   <TableCell className="font-medium">{doc.title}</TableCell>
                   <TableCell>v{doc.version}</TableCell>
                   <TableCell>
-                    {doc.confirmedAt ? formatDate(doc.confirmedAt) : "—"}
+                    {doc.confirmedAt ? formatDate(doc.confirmedAt) : "-"}
                   </TableCell>
                   <TableCell>
                     <Badge variant="success">

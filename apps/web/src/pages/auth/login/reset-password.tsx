@@ -51,7 +51,7 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
   if (paramError) {
     return (
       <section>
-        <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+        <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
           Something went wrong
         </h1>
         <p>We can&apos;t reset your password right now.</p>
@@ -65,7 +65,7 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
   if (!token) {
     return (
       <section>
-        <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+        <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
           How did you get here?
         </h1>
         <p>You sneaky devil.</p>
@@ -79,11 +79,11 @@ export const ResetPassword: FC<Props> = ({ setPhase }) => {
 
   return (
     <section>
-      <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+      <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
         Set your new password
       </h1>
       <form
-        className="flex flex-col items-center justify-center space-y-4 md:space-y-6"
+        className="flex flex-col items-center justify-center gap-y-4 md:gap-y-6"
         onSubmit={handleSubmit}
       >
         <SimpleInput

@@ -83,23 +83,23 @@ export function ScoutLauncher({ onLaunch }: ScoutLauncherProps) {
                     }${m.competition ? ` (${m.competition})` : ""}.`,
                   )
                 }
-                className="block w-full rounded border border-emerald-200 bg-white px-3 py-2 text-left text-sm text-gray-900 shadow-sm hover:border-emerald-400 hover:bg-emerald-100"
+                className="block w-full rounded border border-emerald-200 bg-white px-3 py-2 text-left text-sm text-stone-900 shadow-sm hover:border-emerald-400 hover:bg-emerald-100"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate font-medium">
                     {m.ourTeam}{" "}
-                    <span className="text-gray-500">
+                    <span className="text-stone-500">
                       {m.homeAway === "home" ? "vs" : "at"}
                     </span>{" "}
                     {m.opposition}
                   </span>
-                  <span className="shrink-0 text-xs text-gray-500">
+                  <span className="shrink-0 text-xs text-stone-500">
                     {formatMatchDate(m.matchDate)}
                     {m.matchTime ? ` · ${m.matchTime}` : ""}
                   </span>
                 </div>
                 {m.competition && (
-                  <div className="mt-0.5 text-xs text-gray-600">
+                  <div className="mt-0.5 text-xs text-stone-600">
                     {m.competition}
                   </div>
                 )}

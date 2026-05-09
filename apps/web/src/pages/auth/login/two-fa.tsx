@@ -43,11 +43,11 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
 
   return (
     <section>
-      <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+      <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
         Two-factor Authentication Required
       </h1>
       <form
-        className="flex flex-col items-center justify-center space-y-4 md:space-y-6"
+        className="flex flex-col items-center justify-center gap-y-4 md:gap-y-6"
         onSubmit={handleSubmit}
       >
         <InputOTP maxLength={6} value={otp} onChange={setOtp}>

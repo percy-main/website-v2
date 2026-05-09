@@ -44,7 +44,7 @@ export function DuplicatesTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      {isLoading && <p className="text-gray-500">Loading...</p>}
+      {isLoading && <p className="text-stone-500">Loading…</p>}
       {isError && (
         <p className="text-red-600">Failed to load duplicate members.</p>
       )}
@@ -57,7 +57,7 @@ export function DuplicatesTab() {
 
       {groups && groups.length > 0 && (
         <div className="flex flex-col gap-6">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-stone-600">
             Found {groups.length} group{groups.length !== 1 ? "s" : ""} of
             potential duplicate member records. Select which record to keep for
             each group.
@@ -108,7 +108,7 @@ function DuplicateGroupCard({
   const isEmailMatch = group.matchType === "email";
 
   return (
-    <div className="rounded border border-gray-200 bg-white p-4">
+    <div className="rounded border border-stone-200 bg-white p-4">
       <div className="mb-3 flex items-center gap-2">
         <h3 className="text-sm font-semibold">{group.matchKey}</h3>
         <StatusPill variant={isEmailMatch ? "green" : "yellow"}>
@@ -142,15 +142,15 @@ function DuplicateGroupCard({
                   name={`keep-${group.matchType}-${group.matchKey}`}
                   checked={keepId === member.id}
                   onChange={() => setKeepId(member.id)}
-                  className="h-4 w-4 text-blue-600"
+                  className="size-4 text-blue-600"
                 />
               </TableCell>
-              <TableCell className="font-mono text-xs text-gray-500">
+              <TableCell className="font-mono text-xs text-stone-500">
                 {member.id.slice(0, 8)}...
               </TableCell>
               <TableCell>{member.name}</TableCell>
               {!isEmailMatch && (
-                <TableCell className="text-gray-600">{member.email}</TableCell>
+                <TableCell className="text-stone-600">{member.email}</TableCell>
               )}
               <TableCell>
                 {member.stripeCustomerId ? (
@@ -233,7 +233,7 @@ function MergePreviewModal({
           <DialogTitle>Merge Preview</DialogTitle>
         </DialogHeader>
 
-        {isLoading && <p className="text-gray-500">Loading preview...</p>}
+        {isLoading && <p className="text-stone-500">Loading preview…</p>}
         {isError && (
           <p className="text-red-600">Failed to load merge preview.</p>
         )}
@@ -327,7 +327,7 @@ function MergePreviewModal({
                   }
                   onClick={() => mergeMutation.mutate()}
                 >
-                  {mergeMutation.isPending ? "Merging..." : "Merge Members"}
+                  {mergeMutation.isPending ? "Merging…" : "Merge Members"}
                 </Button>
               </div>
               {mergeMutation.isError && (
@@ -374,46 +374,46 @@ function MemberCard({
     <div className={`rounded border ${borderColor} ${bgColor} p-3`}>
       <div className="mb-2 flex items-center gap-2">
         <StatusPill variant={variant}>{label}</StatusPill>
-        <span className="font-mono text-xs text-gray-500">
+        <span className="font-mono text-xs text-stone-500">
           {member.id.slice(0, 8)}...
         </span>
       </div>
 
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-        <dt className="font-medium text-gray-500">Name</dt>
+        <dt className="font-medium text-stone-500">Name</dt>
         <dd>{member.name}</dd>
-        <dt className="font-medium text-gray-500">Email</dt>
+        <dt className="font-medium text-stone-500">Email</dt>
         <dd>{member.email}</dd>
-        <dt className="font-medium text-gray-500">Title</dt>
+        <dt className="font-medium text-stone-500">Title</dt>
         <dd>{member.title}</dd>
-        <dt className="font-medium text-gray-500">Address</dt>
+        <dt className="font-medium text-stone-500">Address</dt>
         <dd>{member.address}</dd>
-        <dt className="font-medium text-gray-500">DOB</dt>
+        <dt className="font-medium text-stone-500">DOB</dt>
         <dd>{member.dob}</dd>
-        <dt className="font-medium text-gray-500">Phone</dt>
+        <dt className="font-medium text-stone-500">Phone</dt>
         <dd>{member.telephone}</dd>
-        <dt className="font-medium text-gray-500">Stripe</dt>
+        <dt className="font-medium text-stone-500">Stripe</dt>
         <dd>{member.stripe_customer_id ?? "None"}</dd>
       </dl>
 
       <div className="mt-2 flex flex-wrap gap-2 text-xs">
-        <span className="rounded bg-gray-200 px-2 py-0.5">
+        <span className="rounded bg-stone-200 px-2 py-0.5">
           {memberships.length} membership(s)
         </span>
-        <span className="rounded bg-gray-200 px-2 py-0.5">
+        <span className="rounded bg-stone-200 px-2 py-0.5">
           {dependents.length} dependent(s)
         </span>
-        <span className="rounded bg-gray-200 px-2 py-0.5">
+        <span className="rounded bg-stone-200 px-2 py-0.5">
           {charges.length} charge(s)
         </span>
       </div>
 
       {memberships.length > 0 && (
         <div className="mt-2">
-          <p className="text-xs font-medium text-gray-500">Memberships:</p>
+          <p className="text-xs font-medium text-stone-500">Memberships:</p>
           {memberships.map((m) => (
-            <p key={m.id} className="text-xs text-gray-600">
-              {m.type ?? "adult"} — paid until {m.paid_until}
+            <p key={m.id} className="text-xs text-stone-600">
+              {m.type ?? "adult"}, paid until {m.paid_until}
             </p>
           ))}
         </div>
@@ -421,9 +421,9 @@ function MemberCard({
 
       {dependents.length > 0 && (
         <div className="mt-2">
-          <p className="text-xs font-medium text-gray-500">Dependents:</p>
+          <p className="text-xs font-medium text-stone-500">Dependents:</p>
           {dependents.map((d) => (
-            <p key={d.id} className="text-xs text-gray-600">
+            <p key={d.id} className="text-xs text-stone-600">
               {d.name} (DOB: {d.dob})
             </p>
           ))}

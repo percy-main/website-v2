@@ -53,7 +53,7 @@ const AuthNav: FC<{ variant: "utility" | "nav" }> = ({ variant }) => {
 
   if (session.isPending) {
     if (variant === "utility") {
-      return <span className="text-sm text-white/70">...</span>;
+      return <span className="text-sm text-white/70">…</span>;
     }
     return null;
   }
@@ -240,7 +240,7 @@ export const SiteHeader: FC = () => {
       >
         <div className="container mx-auto flex flex-col items-center justify-center gap-3 px-8">
           <Logo size="lg" />
-          <h1 className="text-h4 text-dark md:text-h3 mb-0 text-center font-bold">
+          <h1 className="text-h4 text-dark md:text-h3 mb-0 text-center font-semibold">
             Percy Main Community Sports Club
           </h1>
         </div>
@@ -333,7 +333,7 @@ export const SiteHeader: FC = () => {
             onClick={(e) => e.stopPropagation()}
             onKeyDown={handleDrawerKeyDown}
           >
-            <div className="border-border flex items-center justify-between border-b px-4 py-4">
+            <div className="border-border flex items-center justify-between border-b p-4">
               <span className="font-secondary text-dark text-lg font-bold">
                 Menu
               </span>
@@ -346,7 +346,7 @@ export const SiteHeader: FC = () => {
                 <CloseIcon />
               </button>
             </div>
-            <ul className="flex flex-col px-4 py-4">
+            <ul className="flex flex-col p-4">
               {menu.map((item) => (
                 <li key={item.name} className="border-border-light border-b">
                   <NavItem
@@ -378,13 +378,13 @@ export const SiteHeader: FC = () => {
 };
 
 const HamburgerIcon: FC = () => (
-  <svg className="h-5 w-5 fill-current" viewBox="0 0 20 20">
+  <svg className="size-5 fill-current" viewBox="0 0 20 20">
     <path d="M0 3h20v2H0V3zm0 6h20v2H0V9zm0 6h20v2H0v-2z" />
   </svg>
 );
 
 const CloseIcon: FC = () => (
-  <svg className="h-5 w-5 fill-current" viewBox="0 0 20 20">
+  <svg className="size-5 fill-current" viewBox="0 0 20 20">
     <polygon
       points="11 9 22 9 22 11 11 11 11 22 9 22 9 11 -2 11 -2 9 9 9 9 -2 11 -2"
       transform="rotate(45 10 10)"

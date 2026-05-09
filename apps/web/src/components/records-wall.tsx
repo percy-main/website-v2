@@ -63,7 +63,7 @@ function RecordCard({ record }: { record: RecordItem }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-gray-500">
+        <CardTitle className="text-sm font-medium text-stone-500">
           {record.title}
         </CardTitle>
       </CardHeader>
@@ -73,7 +73,7 @@ function RecordCard({ record }: { record: RecordItem }) {
           <PlayerLink name={record.playerName} slug={record.slug} />
         </div>
         {record.season > 0 && (
-          <div className="mt-0.5 text-sm text-gray-500">{record.season}</div>
+          <div className="mt-0.5 text-sm text-stone-500">{record.season}</div>
         )}
       </CardContent>
     </Card>
@@ -86,11 +86,11 @@ function RecordsSkeleton() {
       {Array.from({ length: 7 }).map((_, i) => (
         <Card key={i}>
           <CardHeader className="pb-2">
-            <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
+            <div className="h-4 w-24 animate-pulse rounded bg-stone-200" />
           </CardHeader>
           <CardContent>
-            <div className="h-8 w-16 animate-pulse rounded bg-gray-200" />
-            <div className="mt-2 h-4 w-32 animate-pulse rounded bg-gray-200" />
+            <div className="h-8 w-16 animate-pulse rounded bg-stone-200" />
+            <div className="mt-2 h-4 w-32 animate-pulse rounded bg-stone-200" />
           </CardContent>
         </Card>
       ))}
@@ -107,7 +107,7 @@ function HonoursTable({
 }) {
   if (entries.length === 0) {
     return (
-      <p className="py-8 text-center text-gray-500">
+      <p className="py-8 text-center text-stone-500">
         {type === "batting"
           ? "No centuries recorded yet."
           : "No five-wicket hauls recorded yet."}
@@ -161,7 +161,7 @@ export function RecordsWall() {
     <div className="space-y-10">
       {/* All-Time Records */}
       <section>
-        <h2 className="mb-4 text-2xl font-bold">All-Time Records</h2>
+        <h2 className="mb-4 text-2xl font-semibold">All-Time Records</h2>
         {recordsQuery.isPending ? (
           <RecordsSkeleton />
         ) : records ? (
@@ -175,11 +175,11 @@ export function RecordsWall() {
 
       {/* Honours Board */}
       <section>
-        <h2 className="mb-4 text-2xl font-bold">Honours Board</h2>
+        <h2 className="mb-4 text-2xl font-semibold">Honours Board</h2>
         {honoursQuery.isPending ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-10 animate-pulse rounded bg-gray-200" />
+              <div key={i} className="h-10 animate-pulse rounded bg-stone-200" />
             ))}
           </div>
         ) : honours ? (

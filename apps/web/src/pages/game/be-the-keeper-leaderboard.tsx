@@ -19,7 +19,7 @@ function useLeaderboard() {
 
 export function Component() {
   useDocumentMeta(
-    "Be The Keeper — Leaderboard",
+    "Be The Keeper: Leaderboard",
     "Top scorers in Percy Main's Be The Keeper cricket game.",
   );
   const query = useLeaderboard();
@@ -37,19 +37,19 @@ export function Component() {
       </nav>
 
       <h1
-        className="mb-2 text-3xl font-bold"
+        className="mb-2 text-3xl font-semibold"
         style={{ fontFamily: "var(--font-secondary), serif" }}
       >
-        Be The Keeper — Leaderboard
+        Be The Keeper: Leaderboard
       </h1>
-      <p className="mb-8 text-gray-600">Top 25 keepers at Percy Main CC</p>
+      <p className="mb-8 text-stone-600">Top 25 keepers at Percy Main CC</p>
 
       {query.isLoading && (
-        <p className="py-12 text-center text-gray-400">Loading scores...</p>
+        <p className="py-12 text-center text-stone-400">Loading scores…</p>
       )}
 
       {!query.isLoading && (!entries || entries.length === 0) && (
-        <p className="rounded-lg bg-gray-50 p-8 text-center text-gray-500">
+        <p className="rounded-lg bg-stone-50 p-8 text-center text-stone-500">
           No scores yet.{" "}
           <Link to="/game/be-the-keeper" className="text-green-800 underline">
             Be the first!
@@ -58,7 +58,7 @@ export function Component() {
       )}
 
       {entries && entries.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <div className="overflow-x-auto rounded-lg border border-stone-200">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="bg-[#1B3D2F] text-white">
@@ -80,7 +80,7 @@ export function Component() {
               {entries.map((row, i) => (
                 <tr
                   key={i}
-                  className={`border-t border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"} ${i < 3 ? "font-semibold" : ""}`}
+                  className={`border-t border-stone-100 ${i % 2 === 0 ? "bg-white" : "bg-stone-50"} ${i < 3 ? "font-semibold" : ""}`}
                 >
                   <td className="px-4 py-3">{medals[i] ?? i + 1}</td>
                   <td className="px-4 py-3">{row.name ?? "Unknown"}</td>

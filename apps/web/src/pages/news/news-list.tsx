@@ -40,7 +40,7 @@ function FeaturedArticleCard({ article }: { article: NewsArticle }) {
         <div className="flex items-center gap-3">
           <span className="bg-primary inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-[11px] font-bold tracking-wider text-white uppercase">
             <svg
-              className="h-3 w-3"
+              className="size-3"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -52,12 +52,12 @@ function FeaturedArticleCard({ article }: { article: NewsArticle }) {
             </svg>
             Latest
           </span>
-          <span className="text-[13px] text-gray-500">
+          <span className="text-[13px] text-stone-500">
             {format(article.date, "d MMMM yyyy")}
           </span>
         </div>
 
-        <h2 className="font-secondary text-dark m-0 text-[22px] leading-snug font-bold sm:text-[28px]">
+        <h2 className="font-secondary text-dark m-0 text-[22px] leading-snug font-semibold sm:text-[28px]">
           {article.title}
         </h2>
 
@@ -67,17 +67,17 @@ function FeaturedArticleCard({ article }: { article: NewsArticle }) {
               <OptimisedImage
                 picture={article.author.photoPicture}
                 alt={article.author.name}
-                className="h-8 w-8 shrink-0 rounded-full object-cover"
+                className="size-8 shrink-0 rounded-full object-cover"
                 sizes="32px"
               />
             ) : article.author?.photo ? (
               <img
-                className="h-8 w-8 shrink-0 rounded-full object-cover"
+                className="size-8 shrink-0 rounded-full object-cover"
                 src={article.author.photo}
                 alt={article.author.name}
               />
             ) : (
-              <div className="bg-home-bg text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold">
+              <div className="bg-home-bg text-primary flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold">
                 {initials}
               </div>
             )}
@@ -87,9 +87,9 @@ function FeaturedArticleCard({ article }: { article: NewsArticle }) {
           </div>
           <span className="text-primary inline-flex items-center gap-2 text-sm font-semibold">
             Read article
-            <span className="bg-home-bg flex h-7 w-7 items-center justify-center rounded-full transition-all duration-200">
+            <span className="bg-home-bg flex size-7 items-center justify-center rounded-full transition-all duration-200">
               <svg
-                className="h-3.5 w-3.5"
+                className="size-3.5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -122,7 +122,7 @@ function ArticleCard({ article }: { article: NewsArticle }) {
       to={`/news/article/${article.slug}`}
       className="article-card relative mb-3.5 block cursor-pointer overflow-hidden rounded-[14px] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-[250ms] hover:-translate-y-[3px] hover:shadow-[0_12px_32px_rgba(27,61,47,0.08),0_4px_8px_rgba(0,0,0,0.04)]"
     >
-      <div className="flex flex-col gap-3 px-5 py-5 sm:px-6">
+      <div className="flex flex-col gap-3 p-5 sm:px-6">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
             {article.tags.map((tag) => {
@@ -138,12 +138,12 @@ function ArticleCard({ article }: { article: NewsArticle }) {
               );
             })}
           </div>
-          <span className="shrink-0 text-[13px] whitespace-nowrap text-gray-500 max-md:hidden">
+          <span className="shrink-0 text-[13px] whitespace-nowrap text-stone-500 max-md:hidden">
             {format(article.date, "EEEE, d MMMM yyyy")}
           </span>
         </div>
 
-        <h3 className="font-secondary text-dark m-0 text-[20px] leading-snug font-bold transition-colors duration-150">
+        <h3 className="font-secondary text-dark m-0 text-[20px] leading-snug font-semibold transition-colors duration-150">
           {article.title}
         </h3>
 
@@ -153,17 +153,17 @@ function ArticleCard({ article }: { article: NewsArticle }) {
               <OptimisedImage
                 picture={article.author.photoPicture}
                 alt={article.author.name}
-                className="h-7 w-7 shrink-0 rounded-full object-cover"
+                className="size-7 shrink-0 rounded-full object-cover"
                 sizes="28px"
               />
             ) : article.author?.photo ? (
               <img
-                className="h-7 w-7 shrink-0 rounded-full object-cover"
+                className="size-7 shrink-0 rounded-full object-cover"
                 src={article.author.photo}
                 alt={article.author.name}
               />
             ) : (
-              <div className="bg-home-bg text-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">
+              <div className="bg-home-bg text-primary flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">
                 {initials}
               </div>
             )}
@@ -210,7 +210,7 @@ function Pagination({
       {currentPage > 1 ? (
         <Link
           to={`/news/${currentPage - 1}`}
-          className="text-text hover:border-primary hover:text-primary flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white transition-all duration-150"
+          className="text-text hover:border-primary hover:text-primary flex size-9 items-center justify-center rounded-full border-[1.5px] border-stone-200 bg-white transition-all duration-150"
         >
           <svg
             width="16"
@@ -226,7 +226,7 @@ function Pagination({
           </svg>
         </Link>
       ) : (
-        <span className="text-text pointer-events-none flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white opacity-30">
+        <span className="text-text pointer-events-none flex size-9 items-center justify-center rounded-full border-[1.5px] border-stone-200 bg-white opacity-30">
           <svg
             width="16"
             height="16"
@@ -247,7 +247,7 @@ function Pagination({
       {currentPage < lastPage ? (
         <Link
           to={`/news/${currentPage + 1}`}
-          className="text-text hover:border-primary hover:text-primary flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white transition-all duration-150"
+          className="text-text hover:border-primary hover:text-primary flex size-9 items-center justify-center rounded-full border-[1.5px] border-stone-200 bg-white transition-all duration-150"
         >
           <svg
             width="16"
@@ -263,7 +263,7 @@ function Pagination({
           </svg>
         </Link>
       ) : (
-        <span className="text-text pointer-events-none flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-gray-200 bg-white opacity-30">
+        <span className="text-text pointer-events-none flex size-9 items-center justify-center rounded-full border-[1.5px] border-stone-200 bg-white opacity-30">
           <svg
             width="16"
             height="16"
@@ -295,7 +295,7 @@ function NewsSidebar({
     <aside className="hidden w-[260px] shrink-0 lg:block">
       <div className="sticky top-4 flex flex-col gap-4">
         <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          <h3 className="mb-3 text-sm font-bold">Overview</h3>
+          <h3 className="mb-3 text-sm font-semibold">Overview</h3>
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-home-bg text-primary rounded-lg p-2.5 text-center">
               <div className="font-secondary text-xl leading-none font-bold">
@@ -317,7 +317,7 @@ function NewsSidebar({
         </div>
 
         <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          <h3 className="mb-3 text-sm font-bold">Archive</h3>
+          <h3 className="mb-3 text-sm font-semibold">Archive</h3>
           <div className="flex flex-col">
             {archiveMonths.map((m) => (
               <div
@@ -351,7 +351,7 @@ function FilterPills({
         className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-all ${
           activeTag === null
             ? "bg-primary text-white"
-            : "text-text bg-white hover:bg-gray-50"
+            : "text-text bg-white hover:bg-stone-50"
         }`}
       >
         All <span className="text-[11px] opacity-70">{allNews.length}</span>
@@ -364,11 +364,11 @@ function FilterPills({
             key={tag.name}
             onClick={() => onTagChange(isActive ? null : tag.name)}
             className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-all ${
-              isActive ? "ring-primary/30 ring-2" : "bg-white hover:bg-gray-50"
+              isActive ? "ring-primary/30 ring-2" : "bg-white hover:bg-stone-50"
             }`}
           >
             <span
-              className="h-2 w-2 rounded-full"
+              className="size-2 rounded-full"
               style={{ background: c.dot }}
             />
             {tag.name}
@@ -480,7 +480,7 @@ export function Component() {
           ))}
 
           {filteredNews.length === 0 && (
-            <p className="py-8 text-center text-gray-500">
+            <p className="py-8 text-center text-stone-500">
               No articles found for this tag.
             </p>
           )}

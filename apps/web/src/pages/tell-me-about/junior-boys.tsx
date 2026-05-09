@@ -22,10 +22,10 @@ const REASSURANCE: readonly ReassuranceItem[] = [
         Percy Main, North Shields, NE29 6HS:
         <ul className="mt-2 ml-5 list-disc space-y-1">
           <li>
-            <strong>Under 11s</strong> — 4:30pm to 5:45pm
+            <strong>Under 11s:</strong> 4:30pm to 5:45pm
           </li>
           <li>
-            <strong>Under 13 / Under 15 / Under 19</strong> — 6pm to 7:30pm
+            <strong>Under 13 / Under 15 / Under 19:</strong> 6pm to 7:30pm
           </li>
         </ul>
       </>
@@ -33,7 +33,7 @@ const REASSURANCE: readonly ReassuranceItem[] = [
   },
   {
     heading: "What to bring",
-    body: "Nothing for the first session — we'll provide a bat, pads and a helmet. Your child should wear comfortable sportswear and trainers.",
+    body: "Nothing for the first session; we'll provide a bat, pads and a helmet. Your child should wear comfortable sportswear and trainers.",
   },
   {
     heading: "What happens next",
@@ -43,7 +43,7 @@ const REASSURANCE: readonly ReassuranceItem[] = [
 
 export function Component() {
   useDocumentMeta(
-    "Junior Boys Cricket — Percy Main Community Sports Club",
+    "Junior Boys Cricket | Percy Main Community Sports Club",
     "Free first session of junior boys cricket at Percy Main, North Tyneside. DBS-checked coaches. We'll be in touch within one working day.",
   );
 

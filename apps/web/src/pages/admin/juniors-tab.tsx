@@ -147,7 +147,7 @@ export function JuniorsTab() {
       <div className="flex flex-wrap items-center gap-3">
         <Input
           type="text"
-          placeholder="Search by junior or parent name..."
+          placeholder="Search by junior or parent name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
@@ -206,20 +206,20 @@ export function JuniorsTab() {
       </div>
 
       {/* Summary */}
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-stone-500">
         Showing {juniors.length} of {total} junior
         {total !== 1 ? "s" : ""}
       </p>
 
       {/* Loading / Error */}
-      {isLoading && <p className="text-gray-500">Loading...</p>}
+      {isLoading && <p className="text-stone-500">Loading…</p>}
       {error && <p className="text-red-600">Failed to load juniors.</p>}
 
       {/* Grouped teams */}
       {!isLoading && !error && (
         <div className="flex flex-col gap-4">
           {grouped.size === 0 && (
-            <p className="py-6 text-center text-gray-500">
+            <p className="py-6 text-center text-stone-500">
               No juniors found matching the current filters.
             </p>
           )}
@@ -245,7 +245,7 @@ export function JuniorsTab() {
           >
             Previous
           </Button>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             Page {page} of {totalPages}
           </span>
           <Button
@@ -297,7 +297,7 @@ function TeamCard({
             {teamName}
             <Badge variant="secondary">{members.length}</Badge>
           </CardTitle>
-          <span className="text-sm text-gray-400">
+          <span className="text-sm text-stone-400">
             {expanded ? "Collapse" : "Expand"}
           </span>
         </div>
@@ -348,7 +348,7 @@ function TeamCard({
                           Linked
                         </Badge>
                       ) : (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-xs text-stone-400">-</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -356,7 +356,7 @@ function TeamCard({
                         {paid ? "Paid" : "Unpaid"}
                       </Badge>
                       {junior.paidUntil && (
-                        <span className="ml-1 text-xs text-gray-500">
+                        <span className="ml-1 text-xs text-stone-500">
                           until {formatDate(junior.paidUntil)}
                         </span>
                       )}
@@ -451,8 +451,8 @@ function LinkingDialog({
         </DialogHeader>
 
         {/* Current status */}
-        <div className="rounded border border-gray-200 p-3">
-          <p className="text-sm text-gray-600">
+        <div className="rounded border border-stone-200 p-3">
+          <p className="text-sm text-stone-600">
             <span className="font-medium">Parent:</span> {junior.parentName} (
             {junior.parentEmail})
           </p>
@@ -473,7 +473,7 @@ function LinkingDialog({
               </Button>
             </div>
           ) : (
-            <p className="mt-1 text-sm text-gray-400">No linked account</p>
+            <p className="mt-1 text-sm text-stone-400">No linked account</p>
           )}
         </div>
 
@@ -481,14 +481,14 @@ function LinkingDialog({
         <div className="mt-2">
           <Input
             type="text"
-            placeholder="Search by name or email..."
+            placeholder="Search by name or email…"
             value={userSearch}
             onChange={(e) => setUserSearch(e.target.value)}
             className="mb-2"
           />
 
           {suggestedUsersQuery.isLoading && (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-stone-500">
               Searching for matching users...
             </p>
           )}
@@ -498,18 +498,18 @@ function LinkingDialog({
 
           <div className="flex max-h-60 flex-col gap-1 overflow-y-auto">
             {users.length === 0 && !suggestedUsersQuery.isLoading && (
-              <p className="py-2 text-center text-sm text-gray-500">
+              <p className="py-2 text-center text-sm text-stone-500">
                 No matching users found.
               </p>
             )}
             {users.map((user) => (
               <div
                 key={user.id}
-                className="flex items-center justify-between rounded px-3 py-2 hover:bg-gray-50"
+                className="flex items-center justify-between rounded px-3 py-2 hover:bg-stone-50"
               >
                 <div>
                   <span className="font-medium">{user.name}</span>
-                  <span className="ml-2 text-xs text-gray-500">
+                  <span className="ml-2 text-xs text-stone-500">
                     {user.email}
                   </span>
                   {user.score >= 0.7 && (

@@ -67,7 +67,7 @@ function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
       to={`/news/article/${article.slug}`}
       className="group relative block overflow-hidden rounded-[14px] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-[250ms] hover:-translate-y-[3px] hover:shadow-[0_12px_32px_rgba(27,61,47,0.08),0_4px_8px_rgba(0,0,0,0.04)]"
     >
-      <div className="flex flex-col gap-3 px-5 py-5 sm:px-6">
+      <div className="flex flex-col gap-3 p-5 sm:px-6">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
             {article.tags.map((tag) => {
@@ -83,12 +83,12 @@ function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
               );
             })}
           </div>
-          <span className="shrink-0 text-[13px] whitespace-nowrap text-gray-500 max-md:hidden">
+          <span className="shrink-0 text-[13px] whitespace-nowrap text-stone-500 max-md:hidden">
             {format(article.date, "d MMM yyyy")}
           </span>
         </div>
 
-        <h3 className="font-secondary text-dark group-hover:text-primary m-0 text-[20px] leading-snug font-bold transition-colors duration-150">
+        <h3 className="font-secondary text-dark group-hover:text-primary m-0 text-[20px] leading-snug font-semibold transition-colors duration-150">
           {article.title}
         </h3>
 
@@ -98,18 +98,18 @@ function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
               <OptimisedImage
                 picture={article.author.photoPicture}
                 alt={article.author.name}
-                className="h-7 w-7 shrink-0 rounded-full object-cover"
+                className="size-7 shrink-0 rounded-full object-cover"
                 sizes="28px"
               />
             ) : article.author?.photo ? (
               <img
-                className="h-7 w-7 shrink-0 rounded-full object-cover"
+                className="size-7 shrink-0 rounded-full object-cover"
                 src={article.author.photo}
                 alt={article.author.name}
               />
             ) : (
               <div
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                className="flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
                 style={{
                   background: accentColor.bg,
                   color: accentColor.text,
@@ -222,7 +222,7 @@ function UpcomingStrip() {
             <Link
               key={item.id}
               to={item.href}
-              className="flex min-w-[220px] snap-start flex-col justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md"
+              className="flex min-w-[220px] snap-start flex-col justify-between rounded-lg border border-stone-200 bg-white p-4 shadow-sm transition hover:shadow-md"
             >
               <div className="mb-2 gap-2">
                 <div className="mb-2 flex items-center gap-2">
@@ -260,7 +260,7 @@ function UpcomingStrip() {
                   {item.displayName}
                 </p>
                 {item.when && (
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-stone-500">
                     {formatInTimeZone(
                       new Date(item.when),
                       "Europe/London",
@@ -271,8 +271,8 @@ function UpcomingStrip() {
               </div>
               {item.type === "game" &&
                 (item.sponsorName ?? item.sponsorLogoUrl) && (
-                  <div className="flex flex-col items-center gap-1 border-t border-gray-100 pt-2">
-                    <span className="text-[10px] leading-tight text-gray-500">
+                  <div className="flex flex-col items-center gap-1 border-t border-stone-100 pt-2">
+                    <span className="text-[10px] leading-tight text-stone-500">
                       Sponsored
                     </span>
                     {item.sponsorLogoUrl ? (
@@ -284,7 +284,7 @@ function UpcomingStrip() {
                         className="h-6 max-w-[60px] object-contain"
                       />
                     ) : (
-                      <span className="h-6 text-[10px] leading-tight font-medium text-gray-500">
+                      <span className="h-6 text-[10px] leading-tight font-medium text-stone-500">
                         {item.sponsorName}
                       </span>
                     )}
@@ -321,11 +321,11 @@ export function Component() {
               alt="The cricket pitch at Percy Main"
             />
           )}
-          <div className="absolute inset-0 bg-black opacity-40" />
+          <div className="absolute inset-0 bg-stone-950 opacity-40" />
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
             <div className="mx-auto max-w-screen-xl px-4 pt-6 pb-16 lg:px-6">
               <div className="mx-auto max-w-screen-md text-center">
-                <h2 className="text-h2 md:text-h1 mb-4 leading-tight font-extrabold tracking-tight text-white">
+                <h2 className="text-h2 md:text-h1 mb-4 leading-tight font-semibold tracking-tight text-white">
                   Sport For Everyone At The Main
                 </h2>
                 <p className="mb-12 text-lg text-balance text-white/90 md:text-xl">
@@ -414,10 +414,10 @@ export function Component() {
                 className="rounded-lg bg-white p-6 shadow-sm transition hover:shadow-md"
               >
                 <span className="mb-3 block text-3xl">{sport.icon}</span>
-                <h4 className="text-dark mb-2 text-lg font-bold">
+                <h4 className="text-dark mb-2 text-lg font-semibold">
                   {sport.name}
                 </h4>
-                <p className="text-sm text-gray-600">{sport.description}</p>
+                <p className="text-sm text-stone-600">{sport.description}</p>
               </Link>
             ))}
           </div>

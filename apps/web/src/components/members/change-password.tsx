@@ -74,7 +74,7 @@ export function ChangePassword() {
     return (
       <section>
         <h2 className="text-h4">Password</h2>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-stone-600">
           You sign in with Google. No password is required.
         </p>
       </section>
@@ -146,7 +146,7 @@ export function ChangePassword() {
           disabled={changePassword.isPending}
           className="justify-self-start"
         >
-          {changePassword.isPending ? "Changing..." : "Change Password"}
+          {changePassword.isPending ? "Changing…" : "Change Password"}
         </Button>
       </form>
     </section>

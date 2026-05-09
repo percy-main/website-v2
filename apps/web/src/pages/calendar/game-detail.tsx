@@ -117,7 +117,7 @@ function ResultSummary({
         <div className="flex items-center gap-2">
           {result.outcome && <OutcomeBadge outcome={result.outcome} />}
           {result.toss && (
-            <span className="text-sm text-gray-600">{result.toss}</span>
+            <span className="text-sm text-stone-600">{result.toss}</span>
           )}
         </div>
         <div className="flex flex-col gap-2">
@@ -223,19 +223,19 @@ function GameDetailContent({ game }: { game: GameData }) {
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/calendar" className="hover:text-primary text-gray-600">
+        <Link to="/calendar" className="hover:text-primary text-stone-600">
           Calendar
         </Link>
-        <IoChevronForward className="text-gray-400" size={14} />
+        <IoChevronForward className="text-stone-400" size={14} />
         {year && month && (
           <>
             <Link
               to={`/calendar/${year}/${month.toLowerCase()}`}
-              className="hover:text-primary text-gray-600"
+              className="hover:text-primary text-stone-600"
             >
               {month} {year}
             </Link>
-            <IoChevronForward className="text-gray-400" size={14} />
+            <IoChevronForward className="text-stone-400" size={14} />
           </>
         )}
         <span className="text-dark font-medium">{title}</span>
@@ -367,7 +367,7 @@ function GameDetailContent({ game }: { game: GameData }) {
             <Card>
               <CardContent className="flex items-center gap-2 p-4">
                 <OutcomeBadge outcome={game.outcome} />
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-stone-600">
                   Full scorecard pending
                 </span>
               </CardContent>
@@ -436,9 +436,9 @@ export function Component() {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="flex flex-col gap-4">
-          <div className="h-6 w-64 animate-pulse rounded bg-gray-200" />
-          <div className="h-4 w-48 animate-pulse rounded bg-gray-100" />
-          <div className="h-32 animate-pulse rounded bg-gray-100" />
+          <div className="h-6 w-64 animate-pulse rounded bg-stone-200" />
+          <div className="h-4 w-48 animate-pulse rounded bg-stone-100" />
+          <div className="h-32 animate-pulse rounded bg-stone-100" />
         </div>
       </div>
     );
@@ -447,8 +447,8 @@ export function Component() {
   if (!game) {
     return (
       <div className="container mx-auto px-4 py-12">
-        <h1 className="text-2xl font-bold">Game Not Found</h1>
-        <p className="mt-2 text-gray-600">This game could not be found.</p>
+        <h1 className="text-2xl font-semibold">Game Not Found</h1>
+        <p className="mt-2 text-stone-600">This game could not be found.</p>
         <Link
           to="/calendar"
           className="text-primary mt-4 inline-block hover:underline"

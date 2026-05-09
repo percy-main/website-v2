@@ -394,9 +394,9 @@ export function TreasurerTab() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <Card className="border-l-4 border-l-green-500">
+        <Card className="border-t-2 border-t-green-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-stone-500">
               Total Income
             </CardTitle>
           </CardHeader>
@@ -405,9 +405,9 @@ export function TreasurerTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-yellow-500">
+        <Card className="border-t-2 border-t-yellow-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-stone-500">
               Outstanding
             </CardTitle>
           </CardHeader>
@@ -418,9 +418,9 @@ export function TreasurerTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500">
+        <Card className="border-t-2 border-t-blue-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-stone-500">
               Membership
             </CardTitle>
           </CardHeader>
@@ -431,9 +431,9 @@ export function TreasurerTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
+        <Card className="border-t-2 border-t-green-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-stone-500">
               Sponsorship
             </CardTitle>
           </CardHeader>
@@ -444,9 +444,9 @@ export function TreasurerTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-red-500">
+        <Card className="border-t-2 border-t-red-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-stone-500">
               Matchday Expenses
             </CardTitle>
           </CardHeader>
@@ -465,7 +465,7 @@ export function TreasurerTab() {
         </CardHeader>
         <CardContent>
           {chartData.length === 0 ? (
-            <p className="py-12 text-center text-gray-500">
+            <p className="py-12 text-center text-stone-500">
               No income data for this period.
             </p>
           ) : (
@@ -523,7 +523,7 @@ export function TreasurerTab() {
           </CardHeader>
           <CardContent>
             {membershipQuery.isLoading ? (
-              <p className="py-8 text-center text-gray-500">Loading...</p>
+              <p className="py-8 text-center text-stone-500">Loading…</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -592,7 +592,7 @@ export function TreasurerTab() {
           </CardHeader>
           <CardContent>
             {sponsorshipQuery.isLoading ? (
-              <p className="py-8 text-center text-gray-500">Loading...</p>
+              <p className="py-8 text-center text-stone-500">Loading…</p>
             ) : sponsorshipQuery.data ? (
               <SponsorshipTable data={sponsorshipQuery.data} />
             ) : null}
@@ -612,10 +612,10 @@ export function TreasurerTab() {
         </CardHeader>
         <CardContent>
           {expensesDetailQuery.isLoading ? (
-            <p className="py-8 text-center text-gray-500">Loading...</p>
+            <p className="py-8 text-center text-stone-500">Loading…</p>
           ) : !expensesDetailQuery.data ||
             expensesDetailQuery.data.expenses.length === 0 ? (
-            <p className="py-8 text-center text-gray-500">
+            <p className="py-8 text-center text-stone-500">
               No expenses for this period.
             </p>
           ) : (
@@ -686,25 +686,25 @@ export function TreasurerTab() {
             </DialogHeader>
             <div className="space-y-4">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <dt className="font-medium text-gray-500">Match</dt>
+                <dt className="font-medium text-stone-500">Match</dt>
                 <dd>
                   {selectedExpense.opposition} (
                   {formatDate(selectedExpense.match_date)})
                 </dd>
-                <dt className="font-medium text-gray-500">Type</dt>
+                <dt className="font-medium text-stone-500">Type</dt>
                 <dd>
                   {EXPENSE_TYPE_LABELS[selectedExpense.expense_type] ??
                     selectedExpense.expense_type}
                 </dd>
-                <dt className="font-medium text-gray-500">Description</dt>
+                <dt className="font-medium text-stone-500">Description</dt>
                 <dd>{selectedExpense.description ?? "-"}</dd>
-                <dt className="font-medium text-gray-500">Amount</dt>
+                <dt className="font-medium text-stone-500">Amount</dt>
                 <dd className="font-semibold">
                   {formatPence(selectedExpense.amount_pence)}
                 </dd>
-                <dt className="font-medium text-gray-500">Submitted by</dt>
+                <dt className="font-medium text-stone-500">Submitted by</dt>
                 <dd>{selectedExpense.submitted_by_name}</dd>
-                <dt className="font-medium text-gray-500">Status</dt>
+                <dt className="font-medium text-stone-500">Status</dt>
                 <dd>
                   <Badge
                     variant={
@@ -726,7 +726,7 @@ export function TreasurerTab() {
                 </dd>
                 {selectedExpense.rejected_reason && (
                   <>
-                    <dt className="font-medium text-gray-500">
+                    <dt className="font-medium text-stone-500">
                       Rejection reason
                     </dt>
                     <dd className="text-red-600">
@@ -738,7 +738,7 @@ export function TreasurerTab() {
 
               {selectedExpense.receipt_image_url && (
                 <div>
-                  <p className="mb-1 text-sm font-medium text-gray-500">
+                  <p className="mb-1 text-sm font-medium text-stone-500">
                     Receipt
                   </p>
                   <img
@@ -833,7 +833,7 @@ export function TreasurerTab() {
         </CardHeader>
         <CardContent>
           {outstandingQuery.isLoading ? (
-            <p className="py-8 text-center text-gray-500">Loading...</p>
+            <p className="py-8 text-center text-stone-500">Loading…</p>
           ) : (
             <Table>
               <TableHeader>
@@ -859,7 +859,7 @@ export function TreasurerTab() {
                     <TableRow key={item.id}>
                       <TableCell>
                         <div>{item.member_name}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-stone-500">
                           {item.member_email}
                         </div>
                       </TableCell>
@@ -912,7 +912,7 @@ export function TreasurerTab() {
                   <TableRow>
                     <TableCell
                       colSpan={5}
-                      className="py-12 text-center text-gray-500"
+                      className="py-12 text-center text-stone-500"
                     >
                       No outstanding payments.
                     </TableCell>
@@ -924,7 +924,7 @@ export function TreasurerTab() {
         </CardContent>
         {outstandingQuery.data && outstandingQuery.data.total > 0 && (
           <CardFooter className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-stone-600">
               {outstandingQuery.data.total} payment(s) total
             </span>
             <div className="flex gap-2">

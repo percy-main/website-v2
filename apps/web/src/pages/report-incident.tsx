@@ -168,7 +168,7 @@ export function Component() {
         </AlertDescription>
       </Alert>
 
-      <p className="mt-4 text-sm text-gray-700">
+      <p className="mt-4 text-sm text-stone-700">
         This form is for reporting something that has already happened at, or in
         connection with, the club. The information you submit will be used by
         the club to record, review and respond to accidents, incidents and
@@ -305,7 +305,7 @@ export function Component() {
                 }
               >
                 <SelectTrigger id="affectedRelationship">
-                  <SelectValue placeholder="Select..." />
+                  <SelectValue placeholder="Select…" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="trustee">Trustee</SelectItem>
@@ -456,7 +456,7 @@ export function Component() {
                     }
                   >
                     <SelectTrigger id="injurySeverity">
-                      <SelectValue placeholder="Select..." />
+                      <SelectValue placeholder="Select…" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="minor">Minor</SelectItem>
@@ -530,7 +530,7 @@ export function Component() {
           </Field>
           <Field>
             <Label htmlFor="witnesses">
-              Witnesses — names, relationship and contact details if known
+              Witnesses: names, relationship and contact details if known
             </Label>
             <Textarea
               id="witnesses"
@@ -582,7 +582,7 @@ export function Component() {
             type="submit"
             disabled={submit.isPending || !declarationConfirmed}
           >
-            {submit.isPending ? "Submitting..." : "Submit report"}
+            {submit.isPending ? "Submitting…" : "Submit report"}
           </Button>
         </div>
       </form>

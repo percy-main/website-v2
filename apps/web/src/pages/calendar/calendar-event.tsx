@@ -46,8 +46,8 @@ export function Component() {
   if (!event) {
     return (
       <div className="container mx-auto px-4 py-12">
-        <h1 className="text-2xl font-bold">Event Not Found</h1>
-        <p className="mt-2 text-gray-600">This event could not be found.</p>
+        <h1 className="text-2xl font-semibold">Event Not Found</h1>
+        <p className="mt-2 text-stone-600">This event could not be found.</p>
         <Link
           to="/calendar"
           className="text-primary mt-4 inline-block hover:underline"
@@ -69,17 +69,17 @@ export function Component() {
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/calendar" className="hover:text-primary text-gray-600">
+        <Link to="/calendar" className="hover:text-primary text-stone-600">
           Calendar
         </Link>
-        <IoChevronForward className="text-gray-400" size={14} />
+        <IoChevronForward className="text-stone-400" size={14} />
         <Link
           to={`/calendar/${year}/${month.toLowerCase()}`}
-          className="hover:text-primary text-gray-600"
+          className="hover:text-primary text-stone-600"
         >
           {month} {year}
         </Link>
-        <IoChevronForward className="text-gray-400" size={14} />
+        <IoChevronForward className="text-stone-400" size={14} />
         <span className="text-dark font-medium">{event.name}</span>
       </div>
 

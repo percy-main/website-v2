@@ -69,7 +69,7 @@ function ReportLoadingCard({ data }: { data: ReportData }) {
 function Spinner() {
   return (
     <svg
-      className="h-4 w-4 shrink-0 animate-spin text-emerald-700"
+      className="size-4 shrink-0 animate-spin text-emerald-700"
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden="true"
@@ -139,14 +139,14 @@ function ReportReadyCard({ data }: { data: ReportData }) {
   return (
     <div className="my-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-blue-600 text-xs font-semibold text-white">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded bg-blue-600 text-xs font-semibold text-white">
           PDF
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-gray-900">
+          <div className="truncate text-sm font-medium text-stone-900">
             {data.title}
           </div>
-          <div className="text-[11px] text-gray-600">
+          <div className="text-[11px] text-stone-600">
             Scouting report{sizeKb !== null && <> · {sizeKb} KB</>}
           </div>
           {error && (
@@ -174,7 +174,7 @@ function ReportFailedCard({ data }: { data: ReportData }) {
   return (
     <div className="my-3 rounded-lg border border-red-200 bg-red-50 p-3">
       <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-red-600 text-xs font-semibold text-white">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded bg-red-600 text-xs font-semibold text-white">
           ✗
         </div>
         <div className="min-w-0 flex-1">

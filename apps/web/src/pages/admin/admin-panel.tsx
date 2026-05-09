@@ -167,7 +167,7 @@ export function Component() {
           <h1>Admin Panel</h1>
           <div className="flex flex-row flex-wrap gap-4">
             <Link
-              className="rounded border border-gray-800 px-4 py-2 text-sm text-gray-900 hover:bg-gray-200"
+              className="rounded border border-stone-800 px-4 py-2 text-sm text-stone-900 hover:bg-stone-200"
               to="/members"
             >
               Members Area

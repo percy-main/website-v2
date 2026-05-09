@@ -171,7 +171,7 @@ export function Component() {
     return (
       <div className="container mx-auto max-w-lg px-4 py-8">
         <Card>
-          <CardContent className="py-8 text-center text-sm text-gray-500">
+          <CardContent className="py-8 text-center text-sm text-stone-500">
             Loading...
           </CardContent>
         </Card>
@@ -250,7 +250,7 @@ export function Component() {
             disabled={purchaseMutation.isPending || !isValidAmount}
           >
             {purchaseMutation.isPending
-              ? "Processing..."
+              ? "Processing…"
               : `Pay ${currencyFormatter.format(totalAmount / 100)}`}
           </Button>
         </CardFooter>

@@ -130,7 +130,7 @@ export function MatchFeesTab() {
               </label>
               <Select value={newCategory} onValueChange={setNewCategory}>
                 <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Select..." />
+                  <SelectValue placeholder="Select…" />
                 </SelectTrigger>
                 <SelectContent>
                   {MEMBER_CATEGORIES.map((cat) => (
@@ -180,7 +180,7 @@ export function MatchFeesTab() {
               onClick={handleAdd}
               disabled={!newCategory || !newAmount || addRateMutation.isPending}
             >
-              {addRateMutation.isPending ? "Adding..." : "Add Rate"}
+              {addRateMutation.isPending ? "Adding…" : "Add Rate"}
             </Button>
           </div>
           {addRateMutation.isError && (
@@ -195,9 +195,9 @@ export function MatchFeesTab() {
         </CardHeader>
         <CardContent>
           {ratesQuery.isLoading ? (
-            <p className="text-sm text-gray-500">Loading...</p>
+            <p className="text-sm text-stone-500">Loading…</p>
           ) : rates.length === 0 ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-stone-500">
               No fee rates configured. Add rates above so match fees can be
               generated when a team is confirmed.
             </p>

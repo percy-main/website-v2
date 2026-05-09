@@ -187,7 +187,7 @@ export function ChargesTab() {
       <div className="flex flex-wrap items-center gap-3">
         <Input
           type="text"
-          placeholder="Search member or description..."
+          placeholder="Search member or description…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full max-w-xs"
@@ -211,7 +211,7 @@ export function ChargesTab() {
           </SelectContent>
         </Select>
         <div className="flex items-center gap-1">
-          <Label htmlFor="charges-date-from" className="text-gray-500">
+          <Label htmlFor="charges-date-from" className="text-stone-500">
             From
           </Label>
           <Input
@@ -226,7 +226,7 @@ export function ChargesTab() {
           />
         </div>
         <div className="flex items-center gap-1">
-          <Label htmlFor="charges-date-to" className="text-gray-500">
+          <Label htmlFor="charges-date-to" className="text-stone-500">
             To
           </Label>
           <Input
@@ -249,7 +249,7 @@ export function ChargesTab() {
               setPage(1);
             }}
           />
-          <Label htmlFor="charges-show-deleted" className="text-gray-600">
+          <Label htmlFor="charges-show-deleted" className="text-stone-600">
             Show deleted
           </Label>
         </div>
@@ -273,7 +273,7 @@ export function ChargesTab() {
       </div>
 
       {/* Loading / Error */}
-      {chargesQuery.isLoading && <p className="text-gray-500">Loading...</p>}
+      {chargesQuery.isLoading && <p className="text-stone-500">Loading…</p>}
       {chargesQuery.isError && (
         <p className="text-red-600">Failed to load charges.</p>
       )}
@@ -297,7 +297,7 @@ export function ChargesTab() {
             <TableBody>
               {result.charges.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-gray-500">
+                  <TableCell colSpan={8} className="text-center text-stone-500">
                     No charges found.
                   </TableCell>
                 </TableRow>
@@ -313,7 +313,7 @@ export function ChargesTab() {
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium">{charge.memberName}</span>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-stone-500">
                           {charge.memberEmail}
                         </span>
                       </div>
@@ -321,7 +321,7 @@ export function ChargesTab() {
                     <TableCell>
                       {charge.description}
                       {charge.deletedReason && (
-                        <div className="text-xs text-gray-400">
+                        <div className="text-xs text-stone-400">
                           Deleted: {charge.deletedReason}
                         </div>
                       )}
@@ -353,7 +353,7 @@ export function ChargesTab() {
                                 onClick={() => chaseMutation.mutate(charge.id)}
                               >
                                 {chaseMutation.isPending
-                                  ? "Sending..."
+                                  ? "Sending…"
                                   : "Send"}
                               </Button>
                               <Button
@@ -390,7 +390,7 @@ export function ChargesTab() {
 
           {/* Pagination */}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">
+            <span className="text-stone-500">
               {result.total} charge{result.total !== 1 ? "s" : ""} total
             </span>
             <div className="flex items-center gap-2">
@@ -402,7 +402,7 @@ export function ChargesTab() {
               >
                 Previous
               </Button>
-              <span className="text-gray-600">
+              <span className="text-stone-600">
                 Page {page} of {totalPages}
               </span>
               <Button
@@ -442,13 +442,13 @@ function SummaryCard({
   return (
     <Card className={`border-l-4 ${borderColorMap[variant]}`}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-gray-500">
+        <CardTitle className="text-sm font-medium text-stone-500">
           {title}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="text-xl font-bold">{formatPence(amount)}</div>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-stone-500">
           {count} charge{count !== 1 ? "s" : ""}
         </p>
       </CardContent>

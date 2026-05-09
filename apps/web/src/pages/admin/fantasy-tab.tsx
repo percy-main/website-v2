@@ -68,7 +68,7 @@ function PlayCricketSyncSection() {
         <CardTitle>Play Cricket Sync</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-stone-600">
           Manually trigger a Play Cricket sync. Pulls latest match scorecards
           and recomputes fantasy scores. Runs automatically Sun/Mon/Tue at
           03:00.
@@ -183,7 +183,7 @@ function PlayerManagementSection() {
               }}
             >
               {populateMutation.isPending
-                ? "Refreshing..."
+                ? "Refreshing…"
                 : "Refresh from Play Cricket"}
             </Button>
             <Button
@@ -195,7 +195,7 @@ function PlayerManagementSection() {
               }}
             >
               {calculateCostsMutation.isPending
-                ? "Calculating..."
+                ? "Calculating…"
                 : "Calculate Sandwich Costs"}
             </Button>
           </div>
@@ -218,14 +218,14 @@ function PlayerManagementSection() {
         </CardHeader>
         <CardContent className="space-y-4">
           <Input
-            placeholder="Search players..."
+            placeholder="Search players…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="w-64"
           />
 
           {players.length === 0 ? (
-            <p className="py-12 text-center text-gray-500">
+            <p className="py-12 text-center text-stone-500">
               No players found. Click &quot;Refresh from Play Cricket&quot; to
               populate the player list.
             </p>
@@ -246,7 +246,7 @@ function PlayerManagementSection() {
                     <TableCell className="font-medium">
                       {player.player_name}
                     </TableCell>
-                    <TableCell className="text-gray-500">
+                    <TableCell className="text-stone-500">
                       {player.play_cricket_id}
                     </TableCell>
                     <TableCell className="text-center">
@@ -442,7 +442,7 @@ function ChaosWeeksSection() {
                   Description
                 </label>
                 <textarea
-                  className="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex min-h-[80px] w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm placeholder:text-stone-500 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   required
@@ -454,7 +454,7 @@ function ChaosWeeksSection() {
                     Rule Config JSON
                   </label>
                   <textarea
-                    className="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-mono text-sm placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex min-h-[80px] w-full rounded-md border border-stone-300 bg-white px-3 py-2 font-mono text-sm placeholder:text-stone-500 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                     value={ruleConfig}
                     onChange={(e) => setRuleConfig(e.target.value)}
                   />
@@ -472,7 +472,7 @@ function ChaosWeeksSection() {
               </div>
             </div>
             <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Creating..." : "Create Chaos Week"}
+              {createMutation.isPending ? "Creating…" : "Create Chaos Week"}
             </Button>
           </form>
         </CardContent>
@@ -484,7 +484,7 @@ function ChaosWeeksSection() {
         </CardHeader>
         <CardContent>
           {weeks.length === 0 ? (
-            <p className="py-12 text-center text-gray-500">
+            <p className="py-12 text-center text-stone-500">
               No chaos weeks configured yet. Create one above.
             </p>
           ) : (
@@ -507,7 +507,7 @@ function ChaosWeeksSection() {
                     <TableCell>
                       <div>
                         <div className="font-medium">{week.name}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-stone-500">
                           {week.description}
                         </div>
                       </div>
@@ -530,7 +530,7 @@ function ChaosWeeksSection() {
                           Send Email
                         </Button>
                       ) : (
-                        <span className="text-gray-500">Disabled</span>
+                        <span className="text-stone-500">Disabled</span>
                       )}
                     </TableCell>
                     <TableCell>

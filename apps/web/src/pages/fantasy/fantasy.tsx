@@ -142,7 +142,7 @@ function usePlayerHistory(playCricketId: string | null) {
 // ---------------------------------------------------------------------------
 
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded bg-gray-200 ${className}`} />;
+  return <div className={`animate-pulse rounded bg-stone-200 ${className}`} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,7 +244,7 @@ function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
         <Card>
           <CardContent className="flex flex-col items-center gap-1 py-6">
             <span className="text-lg font-semibold text-green-600">
-              Transfer window open — Gameweek {tw.data?.gameweek}
+              Transfer window open: Gameweek {tw.data?.gameweek}
             </span>
             <span className="text-muted-foreground text-sm">
               Locks in {tw.data?.daysUntilLock} day
@@ -1107,7 +1107,7 @@ function LoadingTable({ rows, cols }: { rows: number; cols: number }) {
 export function Component() {
   useDocumentMeta(
     "Fantasy Cricket",
-    "Percy Main Fantasy Cricket — pick your team, track scores, and compete on the leaderboard.",
+    "Percy Main Fantasy Cricket: pick your team, track scores, and compete on the leaderboard.",
   );
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") ?? "home";
@@ -1160,7 +1160,7 @@ export function Component() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="mb-6 text-3xl font-bold">Fantasy Cricket</h1>
+      <h1 className="mb-6 text-3xl font-semibold">Fantasy Cricket</h1>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-4 w-full justify-start">

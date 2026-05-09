@@ -38,7 +38,7 @@ export function ConsentBanner() {
       >
         <div className="container mx-auto flex flex-col gap-3 px-6 py-4 text-sm md:flex-row md:items-center md:justify-between">
           <p className="leading-relaxed">
-            A quick note — we run Google Ads to bring new players to the club,
+            A quick note: we run Google Ads to bring new players to the club,
             and we use a couple of cookies to see which ones work. You can say
             no; the site works the same either way.{" "}
             <Link

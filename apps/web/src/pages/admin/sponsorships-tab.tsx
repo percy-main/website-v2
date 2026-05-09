@@ -65,7 +65,7 @@ function PlayerSelect({
     return (
       <div className="flex items-center gap-2">
         <div className="border-border bg-muted/30 flex-1 rounded border px-3 py-2 text-sm">
-          {playerName} <span className="text-gray-500">({value})</span>
+          {playerName} <span className="text-stone-500">({value})</span>
         </div>
         <button
           type="button"
@@ -88,12 +88,12 @@ function PlayerSelect({
         }}
         onFocus={() => setDropdownOpen(true)}
         onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
-        placeholder="Search players..."
+        placeholder="Search players…"
       />
       {dropdownOpen && (
         <div className="border-border bg-surface absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded border shadow-lg">
           {filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500">
+            <div className="px-3 py-2 text-sm text-stone-500">
               {query.trim()
                 ? "No matching players available"
                 : "No players available"}
@@ -103,7 +103,7 @@ function PlayerSelect({
               <button
                 key={p.slug}
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-stone-100"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   onChange(p.slug, p.name);
@@ -193,7 +193,7 @@ function InlineEdit({
   if (value) {
     return (
       <button
-        className="block cursor-pointer text-left text-xs text-gray-700 hover:underline"
+        className="block cursor-pointer text-left text-xs text-stone-700 hover:underline"
         onClick={() => {
           setDraft(value);
           setEditing(true);
@@ -278,7 +278,7 @@ function LogoEdit({
           className="cursor-pointer text-xs text-blue-600 hover:underline disabled:opacity-50"
           onClick={() => fileInputRef.current?.click()}
         >
-          {busy ? "Uploading..." : logoUrl ? "Change logo" : "Add logo"}
+          {busy ? "Uploading…" : logoUrl ? "Change logo" : "Add logo"}
         </button>
         {logoUrl && (
           <button
@@ -321,7 +321,7 @@ function SponsorColumn({
   return (
     <div className="space-y-0.5">
       <div className="font-bold">{name}</div>
-      <div className="text-xs text-gray-500">{email}</div>
+      <div className="text-xs text-stone-500">{email}</div>
       {onWebsiteChange ? (
         <div>
           <InlineEdit
@@ -331,7 +331,7 @@ function SponsorColumn({
           />
           {website && !isValidUrl(website) && (
             <div className="text-xs font-medium text-amber-600">
-              Invalid URL — fix before approving
+              Invalid URL: fix before approving
             </div>
           )}
         </div>
@@ -346,7 +346,7 @@ function SponsorColumn({
             {website}
           </a>
         ) : (
-          <span className="text-xs text-gray-500">{website}</span>
+          <span className="text-xs text-stone-500">{website}</span>
         )
       ) : null}
       {onPhoneChange ? (
@@ -519,7 +519,7 @@ function CreateGameSponsorshipDialog({
               placeholder="Optional (max 100 chars)"
               maxLength={100}
             />
-            <div className="mt-0.5 text-right text-xs text-gray-400">
+            <div className="mt-0.5 text-right text-xs text-stone-400">
               {message.length}/100
             </div>
           </div>
@@ -563,7 +563,7 @@ function CreateGameSponsorshipDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Creating..." : "Create"}
+              {createMutation.isPending ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>
         </form>
@@ -680,7 +680,7 @@ function CreatePlayerSponsorshipDialog({
               }}
             />
             {takenSlugsQuery.isLoading && (
-              <div className="mt-1 text-xs text-gray-500">
+              <div className="mt-1 text-xs text-stone-500">
                 Loading available players...
               </div>
             )}
@@ -733,7 +733,7 @@ function CreatePlayerSponsorshipDialog({
               placeholder="Optional (max 100 chars)"
               maxLength={100}
             />
-            <div className="mt-0.5 text-right text-xs text-gray-400">
+            <div className="mt-0.5 text-right text-xs text-stone-400">
               {message.length}/100
             </div>
           </div>
@@ -780,7 +780,7 @@ function CreatePlayerSponsorshipDialog({
               type="submit"
               disabled={createMutation.isPending || !slug || !playerName}
             >
-              {createMutation.isPending ? "Creating..." : "Create"}
+              {createMutation.isPending ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>
         </form>
@@ -865,7 +865,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
   if (isLoading) {
-    return <div className="py-12 text-center text-gray-500">Loading...</div>;
+    return <div className="py-12 text-center text-stone-500">Loading…</div>;
   }
 
   return (
@@ -918,7 +918,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
                 {s.sponsor_message ? (
                   <span className="italic">"{s.sponsor_message}"</span>
                 ) : (
-                  <span className="text-gray-400">-</span>
+                  <span className="text-stone-400">-</span>
                 )}
               </TableCell>
               <TableCell>{formatPence(s.amount_pence)}</TableCell>
@@ -991,7 +991,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
             <TableRow>
               <TableCell
                 colSpan={8}
-                className="py-12 text-center text-gray-500"
+                className="py-12 text-center text-stone-500"
               >
                 No game sponsorships found.
               </TableCell>
@@ -1002,10 +1002,10 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
 
       {data && data.total > 0 && (
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             {data.total} sponsorships total
           </span>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             Page {page} of {totalPages}
           </span>
           <div className="flex gap-2">
@@ -1108,7 +1108,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
   if (isLoading) {
-    return <div className="py-12 text-center text-gray-500">Loading...</div>;
+    return <div className="py-12 text-center text-stone-500">Loading…</div>;
   }
 
   return (
@@ -1132,7 +1132,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
               <TableCell>
                 <div>
                   <div className="font-bold">{s.player_name}</div>
-                  <div className="text-xs text-gray-500">{s.season}</div>
+                  <div className="text-xs text-stone-500">{s.season}</div>
                 </div>
               </TableCell>
               <TableCell>
@@ -1166,7 +1166,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
                 {s.sponsor_message ? (
                   <span className="italic">"{s.sponsor_message}"</span>
                 ) : (
-                  <span className="text-gray-400">-</span>
+                  <span className="text-stone-400">-</span>
                 )}
               </TableCell>
               <TableCell>{formatPence(s.amount_pence)}</TableCell>
@@ -1239,7 +1239,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
             <TableRow>
               <TableCell
                 colSpan={8}
-                className="py-12 text-center text-gray-500"
+                className="py-12 text-center text-stone-500"
               >
                 No player sponsorships found.
               </TableCell>
@@ -1250,10 +1250,10 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
 
       {data && data.total > 0 && (
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             {data.total} sponsorships total
           </span>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-stone-600">
             Page {page} of {totalPages}
           </span>
           <div className="flex gap-2">

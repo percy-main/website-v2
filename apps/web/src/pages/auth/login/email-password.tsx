@@ -11,7 +11,7 @@ interface Props {
 }
 
 const GoogleIcon: FC = () => (
-  <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+  <svg className="mr-2 size-5" viewBox="0 0 24 24" aria-hidden="true">
     <path
       d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
       fill="#4285F4"
@@ -92,7 +92,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
 
   return (
     <section>
-      <h1 className="text-xl leading-tight font-bold tracking-tight text-gray-900 md:text-2xl">
+      <h1 className="text-xl leading-tight font-semibold tracking-tight text-stone-900 md:text-2xl">
         Sign in to your account
       </h1>
       <div className="space-y-4 md:space-y-6">
@@ -107,9 +107,9 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
           Sign in with Google
         </Button>
         <div className="flex items-center">
-          <div className="h-px flex-1 bg-gray-300" />
-          <span className="px-4 text-sm text-gray-500">or</span>
-          <div className="h-px flex-1 bg-gray-300" />
+          <div className="h-px flex-1 bg-stone-300" />
+          <span className="px-4 text-sm text-stone-500">or</span>
+          <div className="h-px flex-1 bg-stone-300" />
         </div>
         <form className="space-y-4 md:space-y-6" onSubmit={handleSubmit}>
           <SimpleInput
@@ -145,7 +145,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
           {error && (
             <p className="text-sm font-light text-red-800">{error.message}</p>
           )}
-          <p className="text-sm font-light text-gray-500">
+          <p className="text-sm font-light text-stone-500">
             Don&apos;t have an account yet?{" "}
             <Link
               to={

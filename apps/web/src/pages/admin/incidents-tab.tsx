@@ -88,7 +88,7 @@ function InjurySeverityBadge({
 }: {
   severity: InjurySeverity | null;
 }) {
-  if (!severity) return <>—</>;
+  if (!severity) return <>-</>;
   if (severity === "fatal") return <Badge variant="destructive">Fatal</Badge>;
   if (severity === "serious")
     return <Badge variant="destructive">Serious</Badge>;
@@ -175,7 +175,7 @@ export function IncidentsTab() {
         </Select>
       </div>
 
-      {query.isLoading && <p className="text-gray-500">Loading...</p>}
+      {query.isLoading && <p className="text-stone-500">Loading…</p>}
       {query.isError && (
         <p className="text-red-600">Failed to load incident reports.</p>
       )}
@@ -200,7 +200,7 @@ export function IncidentsTab() {
                 <TableRow>
                   <TableCell
                     colSpan={8}
-                    className="py-6 text-center text-gray-500"
+                    className="py-6 text-center text-stone-500"
                   >
                     No incident reports found.
                   </TableCell>
@@ -245,7 +245,7 @@ export function IncidentsTab() {
           </Table>
 
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">
+            <span className="text-stone-500">
               {query.data.total} report{query.data.total !== 1 ? "s" : ""} total
             </span>
             <div className="flex items-center gap-2">
@@ -257,7 +257,7 @@ export function IncidentsTab() {
               >
                 Previous
               </Button>
-              <span className="text-gray-600">
+              <span className="text-stone-600">
                 Page {page} of {totalPages}
               </span>
               <Button
@@ -325,7 +325,7 @@ function IncidentDetailBody({
     queryFn: () => loadIncidentDetail(id),
   });
 
-  if (detail.isLoading) return <p className="text-gray-500">Loading...</p>;
+  if (detail.isLoading) return <p className="text-stone-500">Loading…</p>;
   if (detail.isError || !detail.data)
     return <p className="text-red-600">Failed to load report.</p>;
 
@@ -422,7 +422,7 @@ function IncidentEditForm({
             {formatDate(initial.occurredAt, true)}
           </ReadField>
           <ReadField label="Location">{initial.location}</ReadField>
-          <ReadField label="Activity">{initial.activity ?? "—"}</ReadField>
+          <ReadField label="Activity">{initial.activity ?? "-"}</ReadField>
           <ReadField label="Type">
             {INCIDENT_TYPE_LABELS[initial.incidentType]}
           </ReadField>
@@ -453,7 +453,7 @@ function IncidentEditForm({
                   {initial.reporterPhone}
                 </a>
               ) : (
-                "—"
+                "-"
               )}
             </ReadField>
           </div>
@@ -469,15 +469,15 @@ function IncidentEditForm({
             Injured / affected person
           </h3>
           <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
-            <ReadField label="Name">{initial.affectedName ?? "—"}</ReadField>
+            <ReadField label="Name">{initial.affectedName ?? "-"}</ReadField>
             <ReadField label="Role / relationship">
               {initial.affectedRelationship
                 ? (AFFECTED_RELATIONSHIP_LABELS[initial.affectedRelationship] ??
                   initial.affectedRelationship)
-                : "—"}
+                : "-"}
             </ReadField>
             <ReadField label="Contact">
-              {initial.affectedContact ?? "—"}
+              {initial.affectedContact ?? "-"}
             </ReadField>
             <ReadField label="Under 18">
               {initial.affectedIsMinor ? "Yes" : "No"}
@@ -502,19 +502,19 @@ function IncidentEditForm({
               <InjurySeverityBadge severity={initial.injurySeverity} />
             </ReadField>
             <ReadField label="Nature">
-              {initial.natureOfInjury ?? "—"}
+              {initial.natureOfInjury ?? "-"}
             </ReadField>
             <ReadField label="Body parts affected">
-              {initial.bodyPartsAffected ?? "—"}
+              {initial.bodyPartsAffected ?? "-"}
             </ReadField>
             <ReadField label="First aid given">
               {initial.firstAidGiven ? "Yes" : "No"}
             </ReadField>
             <ReadField label="First aider">
-              {initial.firstAiderName ?? "—"}
+              {initial.firstAiderName ?? "-"}
             </ReadField>
             <ReadField label="First aid details">
-              {initial.firstAidDetails ?? "—"}
+              {initial.firstAidDetails ?? "-"}
             </ReadField>
             <ReadField label="Medical treatment required">
               {initial.medicalTreatmentRequired ? "Yes" : "No"}
@@ -528,13 +528,13 @@ function IncidentEditForm({
           </h3>
           <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
             <ReadField label="Immediate actions">
-              {initial.immediateActions ?? "—"}
+              {initial.immediateActions ?? "-"}
             </ReadField>
-            <ReadField label="Witnesses">{initial.witnesses ?? "—"}</ReadField>
+            <ReadField label="Witnesses">{initial.witnesses ?? "-"}</ReadField>
           </div>
         </section>
 
-        <section className="border-border bg-muted/30 rounded border p-3 text-xs text-gray-600">
+        <section className="border-border bg-muted/30 rounded border p-3 text-xs text-stone-600">
           <strong>Declaration:</strong>{" "}
           {initial.declarationConfirmed
             ? "Reporter confirmed the information is true and accurate to the best of their knowledge and belief."
@@ -690,7 +690,7 @@ function IncidentEditForm({
           Cancel
         </Button>
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending ? "Saving..." : "Save changes"}
+          {save.isPending ? "Saving…" : "Save changes"}
         </Button>
       </DialogFooter>
     </>
@@ -706,7 +706,7 @@ function ReadField({
 }) {
   return (
     <div>
-      <div className="text-xs font-medium text-gray-500">{label}</div>
+      <div className="text-xs font-medium text-stone-500">{label}</div>
       <div className="text-sm">{children}</div>
     </div>
   );

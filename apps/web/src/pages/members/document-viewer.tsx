@@ -42,7 +42,7 @@ export function Component() {
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="py-12 text-center text-gray-500">Loading...</div>
+        <div className="py-12 text-center text-stone-500">Loading…</div>
       </div>
     );
   }
@@ -50,7 +50,7 @@ export function Component() {
   if (error || !data) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="py-12 text-center text-gray-500">
+        <div className="py-12 text-center text-stone-500">
           Document not found or not assigned to you.
         </div>
         <div className="text-center">
@@ -100,7 +100,7 @@ export function Component() {
       </div>
 
       {!alreadyConfirmed && (
-        <div className="rounded border bg-gray-50 p-4">
+        <div className="rounded border bg-stone-50 p-4">
           <label className="flex items-start gap-3">
             <Checkbox
               checked={agreed}
@@ -131,7 +131,7 @@ export function Component() {
             }
             onClick={() => confirmMutation.mutate()}
           >
-            {confirmMutation.isPending ? "Confirming..." : "Confirm"}
+            {confirmMutation.isPending ? "Confirming…" : "Confirm"}
           </Button>
         </div>
       )}

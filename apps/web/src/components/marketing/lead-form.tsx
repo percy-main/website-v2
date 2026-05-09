@@ -219,7 +219,7 @@ export const LeadForm: FC<LeadFormProps> = ({
           <Field
             id="lead-phone"
             label="Phone"
-            hint="Add a number if you'd like us to call — we'll email otherwise."
+            hint="Add a number if you'd like us to call; we'll email otherwise."
           >
             <Input
               id="lead-phone"
@@ -303,7 +303,7 @@ export const LeadForm: FC<LeadFormProps> = ({
           <Field
             id="lead-parent-phone"
             label="Parent / guardian phone"
-            hint="Optional — add a number if you'd prefer a call."
+            hint="Optional: add a number if you'd prefer a call."
           >
             <Input
               id="lead-parent-phone"
@@ -402,7 +402,7 @@ const SuccessMessage: FC<SuccessMessageProps> = ({ variant, displayName }) => {
       {variant === "junior" ? (
         <>
           <p>
-            Thanks — we'll be in touch about{" "}
+            Thanks, we'll be in touch about{" "}
             <strong>{safeName ? `${safeName}'s` : "your child's"}</strong> trial
             within <strong>1 working day</strong>.
           </p>
@@ -420,7 +420,7 @@ const SuccessMessage: FC<SuccessMessageProps> = ({ variant, displayName }) => {
       ) : (
         <>
           <p>
-            Thanks{safeName ? <> {safeName}</> : null} — someone from Percy Main
+            Thanks{safeName ? <> {safeName}</> : null}, someone from Percy Main
             will be in touch within <strong>1 working day</strong>.
           </p>
           <p className="mt-2">

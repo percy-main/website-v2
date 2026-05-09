@@ -142,25 +142,25 @@ function buildMarkdownComponents(
       </div>
     ),
     thead: ({ children, ...rest }) => (
-      <thead className="border-b border-gray-300 bg-gray-50" {...rest}>
+      <thead className="border-b border-stone-300 bg-stone-50" {...rest}>
         {children}
       </thead>
     ),
     th: ({ children, ...rest }) => (
       <th
-        className="border border-gray-200 px-2 py-1 text-left font-medium text-gray-700"
+        className="border border-stone-200 px-2 py-1 text-left font-medium text-stone-700"
         {...rest}
       >
         {children}
       </th>
     ),
     td: ({ children, ...rest }) => (
-      <td className="border border-gray-200 px-2 py-1 align-top" {...rest}>
+      <td className="border border-stone-200 px-2 py-1 align-top" {...rest}>
         {cite(children)}
       </td>
     ),
     tr: ({ children, ...rest }) => (
-      <tr className="even:bg-gray-50" {...rest}>
+      <tr className="even:bg-stone-50" {...rest}>
         {children}
       </tr>
     ),
@@ -201,7 +201,7 @@ function buildMarkdownComponents(
     ),
     code: ({ children, ...rest }) => (
       <code
-        className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.85em]"
+        className="rounded bg-stone-100 px-1 py-0.5 font-mono text-[0.85em]"
         {...rest}
       >
         {children}
@@ -209,7 +209,7 @@ function buildMarkdownComponents(
     ),
     pre: ({ children, ...rest }) => (
       <pre
-        className="my-2 overflow-x-auto rounded bg-gray-100 p-2 text-xs"
+        className="my-2 overflow-x-auto rounded bg-stone-100 p-2 text-xs"
         {...rest}
       >
         {children}
@@ -333,8 +333,8 @@ export function MessageView({
       <div
         className={`max-w-3xl rounded-lg px-4 py-3 ${
           isUser
-            ? "bg-blue-100 text-gray-900"
-            : "w-full border border-gray-200 bg-white text-gray-900"
+            ? "bg-blue-100 text-stone-900"
+            : "w-full border border-stone-200 bg-white text-stone-900"
         }`}
       >
         {(() => {
@@ -509,7 +509,7 @@ function PartView({
 }) {
   if (part.type === "text") {
     return (
-      <div className="text-sm leading-relaxed text-gray-900">
+      <div className="text-sm leading-relaxed text-stone-900">
         <ReactMarkdown
           remarkPlugins={REMARK_PLUGINS}
           components={buildMarkdownComponents(numberByKey, onChipClick)}
@@ -644,7 +644,7 @@ function ThoughtBubble({ text, active }: { text: string; active: boolean }) {
     return (
       <div className="my-2 rounded border border-purple-200 bg-purple-50/50 px-3 py-2">
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-purple-700">
-          <ThoughtIcon className="h-3.5 w-3.5" />
+          <ThoughtIcon className="size-3.5" />
           <span>Thinking…</span>
         </div>
         <div
@@ -667,16 +667,16 @@ function ThoughtBubble({ text, active }: { text: string; active: boolean }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100"
+        className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs text-stone-600 hover:bg-stone-100"
       >
-        <ThoughtIcon className="h-3 w-3" />
+        <ThoughtIcon className="size-3" />
         <span>
           {elapsedSec != null ? `Thought for ${elapsedSec}s` : "Thought"}
         </span>
-        <span className="text-gray-400">{open ? "▾" : "▸"}</span>
+        <span className="text-stone-400">{open ? "▾" : "▸"}</span>
       </button>
       {open && (
-        <div className="mt-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs whitespace-pre-wrap text-gray-600">
+        <div className="mt-1 rounded border border-stone-200 bg-stone-50 px-2 py-1 font-mono text-xs whitespace-pre-wrap text-stone-600">
           {text}
         </div>
       )}
@@ -719,8 +719,8 @@ function SourcesPanel({
   onFlashEnd,
 }: SourcesPanelProps) {
   return (
-    <div className="mt-3 border-t border-gray-200 pt-3">
-      <div className="mb-2 text-xs font-semibold tracking-wide text-gray-600 uppercase">
+    <div className="mt-3 border-t border-stone-200 pt-3">
+      <div className="mb-2 text-xs font-semibold tracking-wide text-stone-600 uppercase">
         Sources
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -756,7 +756,7 @@ function SourceCard({
   onFlashEnd,
 }: SourceCardProps) {
   const baseClass =
-    "relative rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-sm transition-colors";
+    "relative rounded-lg border border-stone-200 bg-white p-3 text-xs shadow-sm transition-colors";
   // animate-cite-flash is registered in app.css's @theme block. We toggle it
   // by adding the class only when this card is the flashing target; the
   // animationend handler clears the parent state so the class drops off.
@@ -803,11 +803,11 @@ function KbCardBody({ citation: c }: { citation: KbCitation }) {
       <div className="mb-1 flex items-center gap-1.5">
         <Pill tone="purple">Knowledge</Pill>
         {pageRange && (
-          <span className="text-[10px] text-gray-500">{pageRange}</span>
+          <span className="text-[10px] text-stone-500">{pageRange}</span>
         )}
       </div>
-      <div className="font-medium text-gray-900">{c.documentTitle}</div>
-      <div className="mt-1 text-[11px] leading-relaxed text-gray-600 italic">
+      <div className="font-medium text-stone-900">{c.documentTitle}</div>
+      <div className="mt-1 text-[11px] leading-relaxed text-stone-600 italic">
         {excerpt}
       </div>
     </div>
@@ -822,14 +822,14 @@ function FactCardBody({ citation: c }: { citation: FactCitation }) {
     <div>
       <div className="mb-1 flex items-center gap-1.5">
         <Pill tone="green">Fact</Pill>
-        <span className="text-[10px] text-gray-500">
+        <span className="text-[10px] text-stone-500">
           {c.scope === "user" ? "personal" : "club"} · confidence {c.confidence}
           /5
         </span>
       </div>
-      <div className="font-medium text-gray-900">{c.content}</div>
+      <div className="font-medium text-stone-900">{c.content}</div>
       {tagPairs && (
-        <div className="mt-1 text-[10px] text-gray-500">{tagPairs}</div>
+        <div className="mt-1 text-[10px] text-stone-500">{tagPairs}</div>
       )}
     </div>
   );
@@ -845,25 +845,25 @@ function MatchCardBody({ citation: c }: { citation: MatchCitation }) {
       <div className="mb-1 flex items-center gap-1.5">
         <Pill tone="blue">Match</Pill>
         {c.matchDate && (
-          <span className="text-[10px] text-gray-500">{c.matchDate}</span>
+          <span className="text-[10px] text-stone-500">{c.matchDate}</span>
         )}
       </div>
       <a
         href={buildMatchUrl(c)}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-medium text-gray-900 hover:text-blue-700 hover:underline"
+        className="font-medium text-stone-900 hover:text-blue-700 hover:underline"
       >
         {teams}
       </a>
       {c.competition && (
-        <div className="mt-0.5 text-[10px] text-gray-500">{c.competition}</div>
+        <div className="mt-0.5 text-[10px] text-stone-500">{c.competition}</div>
       )}
       {c.groundName && (
-        <div className="text-[10px] text-gray-500">{c.groundName}</div>
+        <div className="text-[10px] text-stone-500">{c.groundName}</div>
       )}
       {c.result && (
-        <div className="mt-1 text-[11px] font-medium text-gray-700">
+        <div className="mt-1 text-[11px] font-medium text-stone-700">
           {c.result}
         </div>
       )}
@@ -890,19 +890,19 @@ function PlayerStatsCardBody({
       <div className="mb-1 flex items-center gap-1.5">
         <Pill tone="purple">{capitalise(c.statType)} stats</Pill>
         {c.season && (
-          <span className="text-[10px] text-gray-500">{c.season}</span>
+          <span className="text-[10px] text-stone-500">{c.season}</span>
         )}
       </div>
       <a
         href={buildPlayerStatsUrl(c)}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-medium text-gray-900 hover:text-blue-700 hover:underline"
+        className="font-medium text-stone-900 hover:text-blue-700 hover:underline"
       >
         {label}
       </a>
       {filters.length > 0 && (
-        <div className="mt-0.5 text-[10px] text-gray-500">
+        <div className="mt-0.5 text-[10px] text-stone-500">
           {filters.join(" · ")}
         </div>
       )}
@@ -981,7 +981,7 @@ function QuestionCard({
               className={
                 picked
                   ? "rounded border border-amber-500 bg-amber-200 px-2.5 py-1 text-xs font-medium text-amber-900"
-                  : "rounded border border-amber-300 bg-white px-2.5 py-1 text-xs text-gray-800 hover:border-amber-500 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-amber-300 disabled:hover:bg-white"
+                  : "rounded border border-amber-300 bg-white px-2.5 py-1 text-xs text-stone-800 hover:border-amber-500 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-amber-300 disabled:hover:bg-white"
               }
             >
               {opt.label}
@@ -1076,7 +1076,7 @@ function AskDbCard({ part }: { part: Part }) {
     return (
       <div className="my-2 rounded border border-blue-200 bg-blue-50/50 px-3 py-2">
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-blue-700">
-          <DatabaseIcon className="h-3.5 w-3.5" />
+          <DatabaseIcon className="size-3.5" />
           <span>Database query</span>
         </div>
         <div
@@ -1104,7 +1104,7 @@ function AskDbCard({ part }: { part: Part }) {
         onClick={() => setOpen((v) => !v)}
         className={pillClass}
       >
-        <DatabaseIcon className="h-3 w-3" />
+        <DatabaseIcon className="size-3" />
         <span>
           {isError ? "Database query failed" : "Database query"}
           {!isError && elapsedSec != null ? ` · ${elapsedSec}s` : ""}
@@ -1191,24 +1191,24 @@ function ToolPartView({ part }: { part: Part }) {
   return (
     <div
       data-scout-tool-card
-      className="my-2 rounded border border-gray-200 bg-gray-50 text-xs"
+      className="my-2 rounded border border-stone-200 bg-stone-50 text-xs"
     >
       <button
         type="button"
-        className="flex w-full items-center justify-between px-2 py-1 text-left font-mono text-gray-700 hover:bg-gray-100"
+        className="flex w-full items-center justify-between px-2 py-1 text-left font-mono text-stone-700 hover:bg-stone-100"
         onClick={() => setOpen((v) => !v)}
       >
         <span>
-          <span className="mr-1 text-gray-400">{stateLabel}</span>
+          <span className="mr-1 text-stone-400">{stateLabel}</span>
           {toolName}
         </span>
-        <span className="text-gray-400">{open ? "▾" : "▸"}</span>
+        <span className="text-stone-400">{open ? "▾" : "▸"}</span>
       </button>
       {open && (
-        <div className="border-t border-gray-200 px-2 py-1">
+        <div className="border-t border-stone-200 px-2 py-1">
           {tool.input !== undefined && (
             <details open>
-              <summary className="cursor-pointer text-gray-500">input</summary>
+              <summary className="cursor-pointer text-stone-500">input</summary>
               <pre className="mt-1 max-h-48 overflow-auto rounded bg-white p-1 font-mono text-[11px]">
                 {JSON.stringify(tool.input, null, 2)}
               </pre>
@@ -1221,7 +1221,7 @@ function ToolPartView({ part }: { part: Part }) {
           )}
           {tool.output !== undefined && (
             <details>
-              <summary className="cursor-pointer text-gray-500">output</summary>
+              <summary className="cursor-pointer text-stone-500">output</summary>
               <pre className="mt-1 max-h-72 overflow-auto rounded bg-white p-1 font-mono text-[11px]">
                 {JSON.stringify(tool.output, null, 2)}
               </pre>

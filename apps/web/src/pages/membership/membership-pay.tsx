@@ -28,7 +28,7 @@ function PayMembershipInner() {
 
   if (isLoading || !options) {
     return (
-      <div className="text-center text-sm text-gray-500">Loading prices...</div>
+      <div className="text-center text-sm text-stone-500">Loading prices…</div>
     );
   }
 

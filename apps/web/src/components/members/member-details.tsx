@@ -57,7 +57,7 @@ function DisplayView({
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
         {fields.map(({ key, label }) => (
           <div key={key} className="contents">
-            <dt className="font-medium text-gray-500">{label}</dt>
+            <dt className="font-medium text-stone-500">{label}</dt>
             <dd>{member[key] ?? "-"}</dd>
           </div>
         ))}
@@ -191,7 +191,7 @@ function EditView({
 
         <section className="flex flex-col gap-4">
           <h3 className="text-h5">Emergency Contact</h3>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-stone-500">
             We'd like to know some details of an emergency contact so we can
             help ensure you stay safe at the club.
           </p>
@@ -222,7 +222,7 @@ function EditView({
 
         <div className="flex gap-3">
           <Button type="submit" variant="outline" disabled={mutation.isPending}>
-            {mutation.isPending ? "Saving..." : "Save Details"}
+            {mutation.isPending ? "Saving…" : "Save Details"}
           </Button>
           {member && (
             <Button type="button" variant="ghost" onClick={onCancel}>
