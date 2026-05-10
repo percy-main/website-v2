@@ -1,4 +1,5 @@
 import type { DB } from "@percy-main/db";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { RvClient } from "./rv-client.ts";
 import { parseMsDate } from "./rv-client.ts";
@@ -39,6 +40,7 @@ export async function ingestRvDataForMatch(
   rv: RvClient,
   pcMatchId: string,
   matchDateIso: string,
+  log: FastifyBaseLogger,
 ): Promise<boolean> {
   const mapping = await rv.getMatchMapping(pcMatchId);
   if (!mapping) return false;
@@ -74,6 +76,7 @@ export async function ingestRvDataForMatch(
         rvMatchId: mapping.rvMatchId,
         rvResultId: String(team.result_id),
         anchorMs: anchor?.getTime() ?? null,
+        log,
       });
     }
   }
@@ -189,6 +192,7 @@ interface UpsertBallsContext {
   rvMatchId: string;
   rvResultId: string;
   anchorMs: number | null;
+  log: FastifyBaseLogger;
 }
 
 async function upsertBalls(
@@ -223,8 +227,15 @@ async function upsertBalls(
       // store null and surface a warning so we notice and add the
       // mapping. Match + ball coordinates are enough to find the row in
       // RV later for verification.
-      console.warn(
-        `[rv-ingest] unmapped extras_type ${JSON.stringify(b.extras_type)} on match=${ctx.matchId} innings=${String(b.innings_number)} over=${String(b.over_no)} ball=${String(b.ball_no)}`,
+      ctx.log.warn(
+        {
+          extrasType: b.extras_type,
+          matchId: ctx.matchId,
+          innings: b.innings_number,
+          over: b.over_no,
+          ball: b.ball_no,
+        },
+        "rv_ingest_unmapped_extras_type",
       );
     }
     return {

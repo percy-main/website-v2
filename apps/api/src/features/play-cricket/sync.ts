@@ -1,4 +1,5 @@
 import type { DB } from "@percy-main/db";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 
 import type { z } from "zod";
@@ -351,6 +352,7 @@ async function syncMatches(
   rv: RvClient | null,
   config: SyncConfig,
   startTime: number,
+  log: FastifyBaseLogger,
 ): Promise<SyncResult> {
   const { siteId } = config;
   const errors: string[] = [];
@@ -573,7 +575,7 @@ async function syncMatches(
       // up once the result lands.
       if (rv && shouldWriteResult) {
         try {
-          await ingestRvDataForMatch(db, rv, matchId, matchDateIso);
+          await ingestRvDataForMatch(db, rv, matchId, matchDateIso, log);
         } catch (rvErr) {
           errors.push(
             `RV ingest failed for match ${matchId}: ${
@@ -607,6 +609,7 @@ export function runSync(
   db: Kysely<DB>,
   api: PlayCricketApiClient,
   rv: RvClient | null = null,
+  log: FastifyBaseLogger,
 ) {
   return async (config: SyncConfig): Promise<SyncResult> => {
     const logId = crypto.randomUUID();
@@ -614,7 +617,7 @@ export function runSync(
     const startTime = Date.now();
 
     try {
-      const result = await syncMatches(db, api, rv, config, startTime);
+      const result = await syncMatches(db, api, rv, config, startTime, log);
 
       // Log the sync
       await db

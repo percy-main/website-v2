@@ -10,6 +10,9 @@ import { createClient } from "@percy-main/db";
 import { createApiClient } from "./features/play-cricket/api-client.ts";
 import { createRvClient } from "./features/play-cricket/rv-client.ts";
 import { runSync } from "./features/play-cricket/sync.ts";
+import { createWorkerLogger } from "./lib/worker-logger.ts";
+
+const logger = createWorkerLogger("sync-runner");
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const PLAY_CRICKET_API_TOKEN = process.env.PLAY_CRICKET_API_TOKEN;
@@ -36,26 +39,30 @@ const rv = RV_SHARED_SECRET
   : null;
 
 try {
-  console.log(
-    `Starting Play Cricket sync${rv ? " (with RV ingest)" : " (PC only)"}...`,
+  logger.info(
+    { withRv: Boolean(rv) },
+    "play_cricket_sync_started",
   );
 
-  const sync = runSync(client, api, rv);
+  const sync = runSync(client, api, rv, logger);
   const result = await sync({ siteId: PLAY_CRICKET_SITE_ID });
 
-  console.log(`Sync complete: ${result.matchesProcessed} matches processed`);
+  logger.info(
+    { matchesProcessed: result.matchesProcessed },
+    "play_cricket_sync_complete",
+  );
 
   if (result.errors.length > 0) {
-    console.error(`Sync completed with ${result.errors.length} error(s):`);
-    for (const err of result.errors) {
-      console.error(`  - ${err}`);
-    }
+    logger.error(
+      { errorCount: result.errors.length, errors: result.errors },
+      "play_cricket_sync_completed_with_errors",
+    );
   }
 
   await client.destroy();
   process.exit(result.errors.length > 0 ? 1 : 0);
 } catch (error) {
-  console.error("Sync failed:", error);
+  logger.error({ err: error }, "play_cricket_sync_failed");
   await client.destroy().catch(() => undefined);
   process.exit(1);
 }

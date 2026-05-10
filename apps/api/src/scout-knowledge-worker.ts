@@ -39,17 +39,19 @@ function extractTraceContext() {
   return propagation.extract(ROOT_CONTEXT, carrier);
 }
 
+const logger = createWorkerLogger("scout-knowledge-worker");
+
 const DOCUMENT_ID = process.env.KB_DOCUMENT_ID;
 if (!DOCUMENT_ID) {
-  console.error("Missing required env var: KB_DOCUMENT_ID");
+  logger.error("scout_kb_worker_missing_env: KB_DOCUMENT_ID");
   process.exit(1);
 }
 
 const config = parseConfig(process.env);
 
 if (!config.VOYAGE_API_KEY) {
-  console.error(
-    "Missing required env var: VOYAGE_API_KEY (KB ingest needs embeddings)",
+  logger.error(
+    "scout_kb_worker_missing_env: VOYAGE_API_KEY (KB ingest needs embeddings)",
   );
   process.exit(1);
 }
@@ -68,7 +70,6 @@ const anthropicModel = config.ANTHROPIC_API_KEY
   ? resolveModel("anthropic", config.SCOUT_ATTACHMENT_DERIVE_MODEL).model
   : null;
 const scoutKnowledgeBase = createS3KnowledgeBaseStore(config);
-const logger = createWorkerLogger("scout-knowledge-worker");
 const parentCtx = extractTraceContext();
 
 logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_started");

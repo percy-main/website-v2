@@ -42,22 +42,26 @@ function extractTraceContext() {
 
 const RENDER_MARGIN_MS = 90_000;
 
+const logger = createWorkerLogger("scout-report-worker");
+
 const REPORT_ID = process.env.REPORT_ID;
 if (!REPORT_ID) {
-  console.error("Missing required env var: REPORT_ID");
+  logger.error("scout_report_worker_missing_env: REPORT_ID");
   process.exit(1);
 }
 
 const config = parseConfig(process.env);
 
 if (!config.PLAY_CRICKET_API_TOKEN || !config.PLAY_CRICKET_SITE_ID) {
-  console.error(
-    "Missing required env vars: PLAY_CRICKET_API_TOKEN / PLAY_CRICKET_SITE_ID",
+  logger.error(
+    "scout_report_worker_missing_env: PLAY_CRICKET_API_TOKEN / PLAY_CRICKET_SITE_ID",
   );
   process.exit(1);
 }
 if (!config.SCOUT_DB_URL) {
-  console.error("Missing required env var: SCOUT_DB_URL (read-only DB role)");
+  logger.error(
+    "scout_report_worker_missing_env: SCOUT_DB_URL (read-only DB role)",
+  );
   process.exit(1);
 }
 
@@ -67,8 +71,9 @@ if (!config.SCOUT_DB_URL) {
 // outside the agent loop (boot, DB connect, render, S3 upload) stalls.
 const HARD_KILL_MS = config.SCOUT_REPORT_TIMEOUT_MS + RENDER_MARGIN_MS;
 setTimeout(() => {
-  console.error(
-    `scout_report_worker_wall_clock_kill reportId=${REPORT_ID} after ${HARD_KILL_MS}ms`,
+  logger.error(
+    { reportId: REPORT_ID, hardKillMs: HARD_KILL_MS },
+    "scout_report_worker_wall_clock_kill",
   );
   process.exit(2);
 }, HARD_KILL_MS).unref();
@@ -87,7 +92,6 @@ const voyage = config.VOYAGE_API_KEY
     })
   : undefined;
 const scoutReports = createScoutReportStore(config);
-const logger = createWorkerLogger("scout-report-worker");
 const parentCtx = extractTraceContext();
 
 logger.info({ reportId: REPORT_ID }, "scout_report_worker_started");

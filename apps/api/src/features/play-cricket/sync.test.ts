@@ -1,6 +1,7 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createNoopLogger } from "../../lib/worker-logger.ts";
 import type { PlayCricketApiClient } from "./api-client.ts";
 import {
   didBat,
@@ -9,6 +10,8 @@ import {
   parseDismissalType,
   runSync,
 } from "./sync.ts";
+
+const log = createNoopLogger();
 
 // --- Helper tests ---
 
@@ -169,7 +172,7 @@ describe("runSync", () => {
   });
 
   it("returns zero matches when no matches exist", async () => {
-    const sync = runSync(mockDb, mockApi);
+    const sync = runSync(mockDb, mockApi, null, log);
     const result = await sync({ siteId: "134" });
 
     expect(result.matchesProcessed).toBe(0);
@@ -181,7 +184,7 @@ describe("runSync", () => {
   });
 
   it("syncs extra seasons", async () => {
-    const sync = runSync(mockDb, mockApi);
+    const sync = runSync(mockDb, mockApi, null, log);
     await sync({ siteId: "134", extraSeasons: [2024, 2025] });
 
     /* eslint-disable @typescript-eslint/unbound-method -- vi.fn() mocks */
@@ -220,7 +223,7 @@ describe("runSync", () => {
     // Mark it as already processed
     mockSelectExecute.mockResolvedValueOnce([{ match_id: "12345" }]);
 
-    const sync = runSync(mockDb, mockApi);
+    const sync = runSync(mockDb, mockApi, null, log);
     const result = await sync({ siteId: "134" });
 
     expect(result.matchesProcessed).toBe(0);
@@ -281,7 +284,7 @@ describe("runSync", () => {
     // Mark it as already processed
     mockSelectExecute.mockResolvedValueOnce([{ match_id: "12345" }]);
 
-    const sync = runSync(mockDb, mockApi);
+    const sync = runSync(mockDb, mockApi, null, log);
     await sync({ siteId: "134" });
 
     // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn() mock
@@ -293,7 +296,7 @@ describe("runSync", () => {
       getTeams: vi.fn().mockRejectedValue(new Error("Unauthorized")),
     });
 
-    const sync = runSync(mockDb, mockApi);
+    const sync = runSync(mockDb, mockApi, null, log);
     const result = await sync({ siteId: "134" });
 
     expect(result.errors).toHaveLength(1);
@@ -302,7 +305,7 @@ describe("runSync", () => {
   });
 
   it("logs sync result to play_cricket_sync_log", async () => {
-    const sync = runSync(mockDb, mockApi);
+    const sync = runSync(mockDb, mockApi, null, log);
     await sync({ siteId: "134" });
 
     // Should have called insertInto for the sync log

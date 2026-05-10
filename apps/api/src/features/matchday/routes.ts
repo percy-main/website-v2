@@ -490,7 +490,13 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      return await finish(user.id, role, request.params.matchId, request.body);
+      return await finish(
+        user.id,
+        role,
+        request.params.matchId,
+        request.body,
+        request.log,
+      );
     },
   );
 };
