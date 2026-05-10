@@ -743,7 +743,7 @@ jobs:
       - name: Smoke test web
         id: smoke-web
         env:
-          URL: https://v2.percymain.org/
+          URL: https://percymain.org/
         run: |
           curl -fsSL --max-time 15 "$URL" -o /tmp/index.html
           # Marker that the SPA shell rendered correctly.
@@ -753,7 +753,7 @@ jobs:
           # is handled by the `if -n` branch below).
           ASSET=$(grep -oE 'src="(/[^"]+\.js)"' /tmp/index.html | head -1 | sed 's/src="//;s/"//' || true)
           if [ -n "$ASSET" ]; then
-            curl -fsSL --max-time 15 "https://v2.percymain.org${ASSET}" -o /dev/null
+            curl -fsSL --max-time 15 "https://percymain.org${ASSET}" -o /dev/null
           else
             echo "::warning::No JS chunk found in index.html — skipping asset reachability check"
           fi
