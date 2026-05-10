@@ -19,7 +19,10 @@ vi.stubGlobal("crypto", {
   randomUUID: vi.fn().mockReturnValue("test-uuid-1234"),
 });
 
+import { createNoopLogger } from "../../lib/worker-logger.ts";
 import { createContactSubmission, createEventSubscriber } from "./service.ts";
+
+const log = createNoopLogger();
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 
@@ -40,7 +43,10 @@ describe("contact service", () => {
         page: "/about",
       };
 
-      await createContactSubmission(db, { slackWebhookUrl: undefined })(data);
+      await createContactSubmission(db, { slackWebhookUrl: undefined })(
+        data,
+        log,
+      );
 
       expect(mockQueryBuilder.insertInto).toHaveBeenCalledWith(
         "contact_submission",
@@ -64,7 +70,7 @@ describe("contact service", () => {
 
       const result = await createContactSubmission(db, {
         slackWebhookUrl: undefined,
-      })(data);
+      })(data, log);
 
       expect(result).toEqual({ id: "test-uuid-1234" });
     });

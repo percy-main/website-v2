@@ -25,14 +25,14 @@ export function createLeadSlackNotifier(slackWebhookUrl?: string) {
       .filter(Boolean)
       .join("\n");
 
-    try {
-      await fetch(slackWebhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-    } catch {
-      // Fire-and-forget — Slack failures must not affect the API response.
-    }
+    // No internal catch — let the caller's `.catch()` handle it so
+    // failures land in NR with a structured log line. The marketing
+    // route (#187) and contact service (#174) both wrap this with a
+    // .catch(err => log.warn(...)) at the call site.
+    await fetch(slackWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
   };
 }

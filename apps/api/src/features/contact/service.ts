@@ -1,5 +1,6 @@
 import type { DB } from "@percy-main/db";
 import { isCampaignId } from "@percy-main/shared/marketing";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { emitMarketingEvent } from "../marketing/service.ts";
 import type { ContactSubmission, EventSubscriber } from "./schemas.ts";
@@ -30,7 +31,7 @@ export function createContactSubmission(
   const sendSlackNotification = createSlackNotifier(config.slackWebhookUrl);
   const emit = emitMarketingEvent(db);
 
-  return async (data: ContactSubmission) => {
+  return async (data: ContactSubmission, log: FastifyBaseLogger) => {
     const id = crypto.randomUUID();
 
     await db
@@ -67,13 +68,15 @@ export function createContactSubmission(
             }
           : null,
       });
-    } catch {
-      // Marketing pipeline failures must not affect the contact form response.
+    } catch (err) {
+      // Marketing pipeline failures must not affect the contact form
+      // response, but log so an SLI / alarm can fire on the warn rate.
+      log.warn({ err, submissionId: id }, "marketing_emit_failed");
     }
 
     // Fire-and-forget — don't block the response on Slack delivery
-    sendSlackNotification(data).catch(() => {
-      // Silently ignore Slack failures
+    sendSlackNotification(data).catch((err: unknown) => {
+      log.warn({ err, submissionId: id }, "slack_notify_failed");
     });
 
     return { id };
