@@ -1068,7 +1068,7 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                   <ul className="space-y-1 text-xs text-amber-900">
                     {sendMutation.data.failures.map((f) => (
                       <li key={f.email}>
-                        <code>{f.email}</code> — {f.reason}
+                        <code>{f.email}</code>: {f.reason}
                       </li>
                     ))}
                   </ul>

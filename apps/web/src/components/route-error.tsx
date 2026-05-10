@@ -15,7 +15,7 @@ import { isRouteErrorResponse, useLocation, useRouteError } from "react-router";
  */
 export function RouteError() {
   const error = useRouteError();
-  const location = useLocation();
+  const { pathname } = useLocation();
 
   useEffect(() => {
     const err =
@@ -29,15 +29,15 @@ export function RouteError() {
     if (window.newrelic) {
       window.newrelic.noticeError(err, {
         kind: "route_error",
-        route: location.pathname,
+        route: pathname,
         status: isRouteErrorResponse(error) ? error.status : 0,
       });
     } else {
       console.error("route_error (NR not loaded):", err.message, {
-        route: location.pathname,
+        route: pathname,
       });
     }
-  }, [error, location.pathname]);
+  }, [error, pathname]);
 
   if (isRouteErrorResponse(error)) {
     return (

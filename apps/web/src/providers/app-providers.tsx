@@ -34,8 +34,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
             noticeQueryError(err, {
               kind: "query",
               queryKey: query.queryKey
-                .map((part) => (typeof part === "string" ? part : ""))
-                .filter(Boolean)
+                .flatMap((part) => (typeof part === "string" ? [part] : []))
                 .join(":"),
             }),
         }),
@@ -45,8 +44,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
               kind: "mutation",
               mutationKey:
                 mutation.options.mutationKey
-                  ?.map((part) => (typeof part === "string" ? part : ""))
-                  .filter(Boolean)
+                  ?.flatMap((part) => (typeof part === "string" ? [part] : []))
                   .join(":") ?? "unknown",
             }),
         }),
