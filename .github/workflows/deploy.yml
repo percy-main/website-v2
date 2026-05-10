@@ -109,9 +109,22 @@ jobs:
         # the PR's plan comment; this records the apply-time plan in
         # the run summary so any drift between PR plan and apply is
         # auditable post hoc. See ADR 035.
+        # -lock-timeout: queue briefly behind a concurrent in-flight
+        # PR plan rather than failing instantly on lock contention.
         run: |
-          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+          terraform plan -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if plan didn't release its own
+        # Belt-and-braces against a runner being killed mid-plan.
+        # cancel-in-progress is false on this workflow but a job can
+        # still die from runner OOM / GH outage / 6h timeout / manual
+        # cancellation. On success terraform releases the lock itself
+        # — this only runs on the failure paths.
+        if: always() && steps.plan.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: shared
 
       - name: Plan summary
         if: always()
@@ -128,8 +141,14 @@ jobs:
         id: apply
         working-directory: infra/environments/shared
         run: |
-          terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
+          terraform apply -auto-approve -lock-timeout=2m -no-color tfplan 2>&1 | tee apply.log
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if apply didn't release its own
+        if: always() && steps.apply.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: shared
 
       - name: Apply summary
         if: always()
@@ -210,8 +229,14 @@ jobs:
         id: plan
         working-directory: infra/environments/production
         run: |
-          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+          terraform plan -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if plan didn't release its own
+        if: always() && steps.plan.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: production
 
       - name: Plan summary
         if: always()
@@ -228,8 +253,14 @@ jobs:
         id: apply
         working-directory: infra/environments/production
         run: |
-          terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
+          terraform apply -auto-approve -lock-timeout=2m -no-color tfplan 2>&1 | tee apply.log
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if apply didn't release its own
+        if: always() && steps.apply.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: production
 
       - name: Apply summary
         if: always()
