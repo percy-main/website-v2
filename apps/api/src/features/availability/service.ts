@@ -1016,7 +1016,7 @@ export function sendAvailabilityNotification(
     const url = `${baseUrl}/availability/${requestId}`;
 
     let sent = 0;
-    const failures: { email: string; reason: string }[] = [];
+    const failures: Array<{ email: string; reason: string }> = [];
     for (const recipient of data.recipients) {
       // Render INSIDE the try so a render-time failure for one
       // recipient (template throw, missing locale, etc) doesn't abort

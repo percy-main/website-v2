@@ -8,10 +8,10 @@ import { runIngest, type RunIngestDeps } from "./run-ingest.ts";
  * worker can extract them and create its root span as a child. See
  * launch.ts in scout/report for the full rationale.
  */
-function tracepartEnvOverrides(): { name: string; value: string }[] {
+function tracepartEnvOverrides(): Array<{ name: string; value: string }> {
   const carrier: Record<string, string> = {};
   propagation.inject(context.active(), carrier);
-  const out: { name: string; value: string }[] = [];
+  const out: Array<{ name: string; value: string }> = [];
   if (carrier.traceparent) {
     out.push({ name: "OTEL_TRACEPARENT", value: carrier.traceparent });
   }

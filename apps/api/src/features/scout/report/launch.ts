@@ -14,10 +14,10 @@ import { runReport, type RunReportDeps } from "./run-report.ts";
  * no traceparent is available (instrumentation not booted, or this
  * request runs outside a span).
  */
-function tracepartEnvOverrides(): { name: string; value: string }[] {
+function tracepartEnvOverrides(): Array<{ name: string; value: string }> {
   const carrier: Record<string, string> = {};
   propagation.inject(context.active(), carrier);
-  const out: { name: string; value: string }[] = [];
+  const out: Array<{ name: string; value: string }> = [];
   if (carrier.traceparent) {
     out.push({ name: "OTEL_TRACEPARENT", value: carrier.traceparent });
   }

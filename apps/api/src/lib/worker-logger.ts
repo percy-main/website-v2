@@ -28,7 +28,7 @@ export function createWorkerLogger(name: string): FastifyBaseLogger {
  * need to satisfy a non-optional `logger` dep.
  */
 export function createNoopLogger(): FastifyBaseLogger {
-  const noop = () => {};
+  const noop = () => undefined;
   const logger = {
     level: "silent" as const,
     silent: noop,
