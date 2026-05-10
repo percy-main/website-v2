@@ -1,6 +1,7 @@
 import type { DB } from "@percy-main/db";
 import { AvailabilityRequest } from "@percy-main/email";
 import { render } from "@react-email/render";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { createElement } from "react";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
@@ -989,7 +990,11 @@ export function sendAvailabilityNotification(
   }) => Promise<void>,
   baseUrl: string,
 ) {
-  return async (requestId: string, data: NotifySend) => {
+  return async (
+    requestId: string,
+    data: NotifySend,
+    log: FastifyBaseLogger,
+  ) => {
     // Fetch request details
     const request = await db
       .selectFrom("availability_request")
@@ -1011,27 +1016,54 @@ export function sendAvailabilityNotification(
     const url = `${baseUrl}/availability/${requestId}`;
 
     let sent = 0;
+    const failures: { email: string; reason: string }[] = [];
     for (const recipient of data.recipients) {
-      const html = await render(
-        createElement(AvailabilityRequest.component, {
-          imageBaseUrl,
-          name: recipient.name,
-          dateFrom: request.date_from,
-          dateTo: request.date_to,
-          fixtureCount,
-          url,
-        }),
-      );
-
-      await sendEmail({
-        to: recipient.email,
-        subject: AvailabilityRequest.subject,
-        html,
-      });
-      sent++;
+      // Render INSIDE the try so a render-time failure for one
+      // recipient (template throw, missing locale, etc) doesn't abort
+      // the rest of the batch — same isolation as a SES send failure.
+      try {
+        const html = await render(
+          createElement(AvailabilityRequest.component, {
+            imageBaseUrl,
+            name: recipient.name,
+            dateFrom: request.date_from,
+            dateTo: request.date_to,
+            fixtureCount,
+            url,
+          }),
+        );
+        await sendEmail({
+          to: recipient.email,
+          subject: AvailabilityRequest.subject,
+          html,
+        });
+        sent++;
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        failures.push({ email: recipient.email, reason });
+        log.warn(
+          {
+            err,
+            requestId,
+            recipientEmail: recipient.email,
+          },
+          "availability_notification_failed",
+        );
+      }
     }
 
-    return { sent };
+    if (failures.length > 0) {
+      log.warn(
+        {
+          requestId,
+          failureCount: failures.length,
+          totalCount: data.recipients.length,
+        },
+        "availability_notification_partial",
+      );
+    }
+
+    return { sent, failed: failures.length, failures };
   };
 }
 

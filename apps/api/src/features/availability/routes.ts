@@ -285,7 +285,11 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await sendNotification(request.params.requestId, request.body);
+      return await sendNotification(
+        request.params.requestId,
+        request.body,
+        request.log,
+      );
     },
   );
 

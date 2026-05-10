@@ -263,6 +263,13 @@ export const notifySendSchema = z.object({
 
 export const notifySendResponseSchema = z.object({
   sent: z.number(),
+  failed: z.number(),
+  failures: z.array(
+    z.object({
+      email: z.string(),
+      reason: z.string(),
+    }),
+  ),
 });
 
 // ── Public request schema ──
