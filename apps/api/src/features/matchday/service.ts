@@ -1,5 +1,4 @@
 import type { DB } from "@percy-main/db";
-import type { FastifyBaseLogger } from "fastify";
 import {
   format as formatDate,
   isBefore,
@@ -7,6 +6,7 @@ import {
   startOfDay,
   subDays,
 } from "date-fns";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { S3Uploader } from "../../lib/s3-upload.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";

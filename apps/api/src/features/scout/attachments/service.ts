@@ -184,121 +184,125 @@ export function commitAttachment(deps: AttachmentDeps) {
       "scout.attachment.commit",
       { attachmentId: input.attachmentId, threadId: input.threadId },
       async () => {
-    const row = await loadOwnedRow(deps, input);
+        const row = await loadOwnedRow(deps, input);
 
-    // Idempotent: re-calling on a 'ready' row is a no-op. Failed rows can
-    // be retried by re-uploading from scratch (FE removes the chip first).
-    if (row.processing_state === "ready") {
-      return rowToSummary(row);
-    }
-    if (row.processing_state !== "awaiting-upload") {
-      throw new AttachmentInvalidStateError(
-        row.processing_state as ProcessingState,
-      );
-    }
-    if (!row.pending_key) {
-      // Defensive: mint always sets pending_key. If we hit this branch,
-      // the row is corrupt — fail closed rather than silently re-upload.
-      throw new AttachmentInvalidStateError("failed");
-    }
+        // Idempotent: re-calling on a 'ready' row is a no-op. Failed rows can
+        // be retried by re-uploading from scratch (FE removes the chip first).
+        if (row.processing_state === "ready") {
+          return rowToSummary(row);
+        }
+        if (row.processing_state !== "awaiting-upload") {
+          throw new AttachmentInvalidStateError(
+            row.processing_state as ProcessingState,
+          );
+        }
+        if (!row.pending_key) {
+          // Defensive: mint always sets pending_key. If we hit this branch,
+          // the row is corrupt — fail closed rather than silently re-upload.
+          throw new AttachmentInvalidStateError("failed");
+        }
 
-    // Race guard: only the first concurrent caller flips
-    // awaiting-upload → processing. Subsequent callers find 0 affected
-    // rows and bail with the row's current state (likely 'processing' or
-    // 'ready') so we never run derive twice or clobber a sibling's ready
-    // row with our own failure.
-    const claimResult = await deps.db
-      .updateTable("scout_attachment")
-      .set({ processing_state: "processing" satisfies ProcessingState })
-      .where("id", "=", row.id)
-      .where(
-        "processing_state",
-        "=",
-        "awaiting-upload" satisfies ProcessingState,
-      )
-      .executeTakeFirst();
-    if (Number(claimResult.numUpdatedRows) === 0) {
-      // Another caller has already claimed this attachment. Re-load and
-      // either return the ready summary (idempotent) or surface the
-      // current state.
-      const fresh = await loadOwnedRow(deps, input);
-      if (fresh.processing_state === "ready") return rowToSummary(fresh);
-      throw new AttachmentInvalidStateError(
-        fresh.processing_state as ProcessingState,
-      );
-    }
+        // Race guard: only the first concurrent caller flips
+        // awaiting-upload → processing. Subsequent callers find 0 affected
+        // rows and bail with the row's current state (likely 'processing' or
+        // 'ready') so we never run derive twice or clobber a sibling's ready
+        // row with our own failure.
+        const claimResult = await deps.db
+          .updateTable("scout_attachment")
+          .set({ processing_state: "processing" satisfies ProcessingState })
+          .where("id", "=", row.id)
+          .where(
+            "processing_state",
+            "=",
+            "awaiting-upload" satisfies ProcessingState,
+          )
+          .executeTakeFirst();
+        if (Number(claimResult.numUpdatedRows) === 0) {
+          // Another caller has already claimed this attachment. Re-load and
+          // either return the ready summary (idempotent) or surface the
+          // current state.
+          const fresh = await loadOwnedRow(deps, input);
+          if (fresh.processing_state === "ready") return rowToSummary(fresh);
+          throw new AttachmentInvalidStateError(
+            fresh.processing_state as ProcessingState,
+          );
+        }
 
-    try {
-      const head = await deps.store.headPending(row.pending_key);
-      if (!head) {
-        throw new AttachmentMissingError();
-      }
-      if (head.contentLength !== row.size_bytes) {
-        throw new AttachmentSizeMismatchError(
-          row.size_bytes,
-          head.contentLength,
-        );
-      }
+        try {
+          const head = await deps.store.headPending(row.pending_key);
+          if (!head) {
+            throw new AttachmentMissingError();
+          }
+          if (head.contentLength !== row.size_bytes) {
+            throw new AttachmentSizeMismatchError(
+              row.size_bytes,
+              head.contentLength,
+            );
+          }
 
-      const bytes = await deps.store.getPending(row.pending_key);
-      const contentHash = createHash("sha256").update(bytes).digest("hex");
+          const bytes = await deps.store.getPending(row.pending_key);
+          const contentHash = createHash("sha256").update(bytes).digest("hex");
 
-      const derived = await deps.derive({
-        kind: row.kind as AttachmentKind,
-        contentHash,
-        contentType: row.content_type,
-        bytes,
-      });
+          const derived = await deps.derive({
+            kind: row.kind as AttachmentKind,
+            contentHash,
+            contentType: row.content_type,
+            bytes,
+          });
 
-      const ext = extensionForContentType(row.content_type);
-      const permanentKey = await deps.store.copyToPermanent(
-        row.pending_key,
-        row.thread_id,
-        row.id,
-        ext,
-        row.content_type,
-      );
+          const ext = extensionForContentType(row.content_type);
+          const permanentKey = await deps.store.copyToPermanent(
+            row.pending_key,
+            row.thread_id,
+            row.id,
+            ext,
+            row.content_type,
+          );
 
-      const updated = await deps.db
-        .updateTable("scout_attachment")
-        .set({
-          processing_state: "ready" satisfies ProcessingState,
-          derived_text: derived.derivedText,
-          content_hash: contentHash,
-          s3_key: permanentKey,
-        })
-        .where("id", "=", row.id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+          const updated = await deps.db
+            .updateTable("scout_attachment")
+            .set({
+              processing_state: "ready" satisfies ProcessingState,
+              derived_text: derived.derivedText,
+              content_hash: contentHash,
+              s3_key: permanentKey,
+            })
+            .where("id", "=", row.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
 
-      // Best-effort: 24h S3 lifecycle reaps the object if this fails.
-      void deps.store
-        .deletePending(row.pending_key)
-        .catch((err: unknown) =>
-          deps.log.warn(
-            { err, key: row.pending_key, kind: "s3_cleanup" },
-            "s3_cleanup_failed",
-          ),
-        );
+          // Best-effort: 24h S3 lifecycle reaps the object if this fails.
+          void deps.store
+            .deletePending(row.pending_key)
+            .catch((err: unknown) =>
+              deps.log.warn(
+                { err, key: row.pending_key, kind: "s3_cleanup" },
+                "s3_cleanup_failed",
+              ),
+            );
 
-      return rowToSummary(updated);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // Only flip to failed if we still own the row (state = 'processing').
-      // A concurrent caller that won the claim race is responsible for its
-      // own state — without this guard, a late-failing call could overwrite
-      // a sibling's 'ready' state.
-      await deps.db
-        .updateTable("scout_attachment")
-        .set({
-          processing_state: "failed" satisfies ProcessingState,
-          processing_error: message.slice(0, 500),
-        })
-        .where("id", "=", row.id)
-        .where("processing_state", "=", "processing" satisfies ProcessingState)
-        .execute();
-      throw err;
-    }
+          return rowToSummary(updated);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          // Only flip to failed if we still own the row (state = 'processing').
+          // A concurrent caller that won the claim race is responsible for its
+          // own state — without this guard, a late-failing call could overwrite
+          // a sibling's 'ready' state.
+          await deps.db
+            .updateTable("scout_attachment")
+            .set({
+              processing_state: "failed" satisfies ProcessingState,
+              processing_error: message.slice(0, 500),
+            })
+            .where("id", "=", row.id)
+            .where(
+              "processing_state",
+              "=",
+              "processing" satisfies ProcessingState,
+            )
+            .execute();
+          throw err;
+        }
       },
     );
 }

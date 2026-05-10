@@ -66,10 +66,7 @@ try {
     process.exit(1);
   }
 
-  logger.info(
-    { count: results?.length ?? 0 },
-    "migrate_complete",
-  );
+  logger.info({ count: results?.length ?? 0 }, "migrate_complete");
   await client.destroy();
   process.exit(0);
 } catch (error) {

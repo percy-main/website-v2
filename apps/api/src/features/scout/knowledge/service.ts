@@ -280,90 +280,90 @@ export function commitDocument(deps: KbDeps) {
     withSpan("scout.kb.commit", { documentId: id }, async () => {
       const row = await loadRow(deps, id);
 
-    if (row.status === "queued" || row.status === "ingesting") {
-      // Idempotent: already past commit. Surface what we have.
-      if (!row.s3_key || !row.content_hash) {
-        throw new KbDocumentInvalidStateError(row.status);
+      if (row.status === "queued" || row.status === "ingesting") {
+        // Idempotent: already past commit. Surface what we have.
+        if (!row.s3_key || !row.content_hash) {
+          throw new KbDocumentInvalidStateError(row.status);
+        }
+        return {
+          id: row.id,
+          status: row.status,
+          contentHash: row.content_hash,
+          s3Key: row.s3_key,
+        };
       }
-      return {
-        id: row.id,
-        status: row.status,
-        contentHash: row.content_hash,
-        s3Key: row.s3_key,
-      };
-    }
-    if (row.status !== "awaiting-upload" && row.status !== "failed") {
-      throw new KbDocumentInvalidStateError(row.status as DocumentStatus);
-    }
-    if (!row.pending_key) {
-      throw new KbDocumentInvalidStateError(row.status as DocumentStatus);
-    }
+      if (row.status !== "awaiting-upload" && row.status !== "failed") {
+        throw new KbDocumentInvalidStateError(row.status as DocumentStatus);
+      }
+      if (!row.pending_key) {
+        throw new KbDocumentInvalidStateError(row.status as DocumentStatus);
+      }
 
-    const ct = ALLOWED_CONTENT_TYPES[row.content_type];
-    if (!ct) {
-      throw new KbUnsupportedContentTypeError(row.content_type);
-    }
+      const ct = ALLOWED_CONTENT_TYPES[row.content_type];
+      if (!ct) {
+        throw new KbUnsupportedContentTypeError(row.content_type);
+      }
 
-    const head = await deps.store.headPending(row.pending_key);
-    if (!head) {
-      throw new KbUploadMissingError();
-    }
-    if (head.contentLength !== row.size_bytes) {
-      throw new KbUploadSizeMismatchError(row.size_bytes, head.contentLength);
-    }
+      const head = await deps.store.headPending(row.pending_key);
+      if (!head) {
+        throw new KbUploadMissingError();
+      }
+      if (head.contentLength !== row.size_bytes) {
+        throw new KbUploadSizeMismatchError(row.size_bytes, head.contentLength);
+      }
 
-    const bytes = await deps.store.getPending(row.pending_key);
-    const contentHash = createHash("sha256").update(bytes).digest("hex");
+      const bytes = await deps.store.getPending(row.pending_key);
+      const contentHash = createHash("sha256").update(bytes).digest("hex");
 
-    // Hash dedup: another committed (= populated content_hash) doc
-    // with the same bytes already exists.
-    const existing = await deps.db
-      .selectFrom("scout_kb_document")
-      .where("content_hash", "=", contentHash)
-      .where("id", "!=", id)
-      .select(["id"])
-      .executeTakeFirst();
-    if (existing) {
-      throw new KbDuplicateContentError(existing.id);
-    }
+      // Hash dedup: another committed (= populated content_hash) doc
+      // with the same bytes already exists.
+      const existing = await deps.db
+        .selectFrom("scout_kb_document")
+        .where("content_hash", "=", contentHash)
+        .where("id", "!=", id)
+        .select(["id"])
+        .executeTakeFirst();
+      if (existing) {
+        throw new KbDuplicateContentError(existing.id);
+      }
 
-    const permanentKey = await deps.store.copyToPermanent(
-      row.pending_key,
-      id,
-      ct.ext,
-      row.content_type,
-    );
-
-    await deps.db
-      .updateTable("scout_kb_document")
-      .set({
-        status: "queued" satisfies DocumentStatus,
-        content_hash: contentHash,
-        s3_key: permanentKey,
-        pending_key: null,
-        error_message: null,
-        updated_at: new Date(),
-      })
-      .where("id", "=", id)
-      .execute();
-
-    // Best-effort cleanup of the uploads-bucket object. The 24h
-    // lifecycle is the safety net.
-    void deps.store
-      .deletePending(row.pending_key)
-      .catch((err: unknown) =>
-        deps.log.warn(
-          { err, key: row.pending_key, kind: "s3_cleanup" },
-          "s3_cleanup_failed",
-        ),
+      const permanentKey = await deps.store.copyToPermanent(
+        row.pending_key,
+        id,
+        ct.ext,
+        row.content_type,
       );
 
-    return {
-      id,
-      status: "queued",
-      contentHash,
-      s3Key: permanentKey,
-    };
+      await deps.db
+        .updateTable("scout_kb_document")
+        .set({
+          status: "queued" satisfies DocumentStatus,
+          content_hash: contentHash,
+          s3_key: permanentKey,
+          pending_key: null,
+          error_message: null,
+          updated_at: new Date(),
+        })
+        .where("id", "=", id)
+        .execute();
+
+      // Best-effort cleanup of the uploads-bucket object. The 24h
+      // lifecycle is the safety net.
+      void deps.store
+        .deletePending(row.pending_key)
+        .catch((err: unknown) =>
+          deps.log.warn(
+            { err, key: row.pending_key, kind: "s3_cleanup" },
+            "s3_cleanup_failed",
+          ),
+        );
+
+      return {
+        id,
+        status: "queued",
+        contentHash,
+        s3Key: permanentKey,
+      };
     });
 }
 

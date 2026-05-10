@@ -38,8 +38,6 @@ const { mockExecute, mockExecuteTakeFirst, mockQueryBuilder } = vi.hoisted(
 
 import { noopS3Uploader } from "../../lib/s3-upload.ts";
 import { createNoopLogger } from "../../lib/worker-logger.ts";
-
-const log = createNoopLogger();
 import {
   addPlayer,
   approveExpense,
@@ -55,6 +53,8 @@ import {
   searchMembers,
   submitExpenseClaim,
 } from "./service.ts";
+
+const log = createNoopLogger();
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 const s3 = noopS3Uploader;
@@ -445,9 +445,15 @@ describe("expense approval workflow", () => {
       // unpaid players query
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await finish("user-1", "admin", "match-1", {
-        resultType: "W",
-      }, log);
+      const result = await finish(
+        "user-1",
+        "admin",
+        "match-1",
+        {
+          resultType: "W",
+        },
+        log,
+      );
 
       expect(result.success).toBe(true);
       expect(mockQueryBuilder.set).toHaveBeenCalledWith(
@@ -474,9 +480,15 @@ describe("expense approval workflow", () => {
       // update matchday
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await finish("user-1", "admin", "match-1", {
-        resultType: "L",
-      }, log);
+      const result = await finish(
+        "user-1",
+        "admin",
+        "match-1",
+        {
+          resultType: "L",
+        },
+        log,
+      );
 
       expect(result.success).toBe(true);
       expect(result.emailsSent).toBe(0);

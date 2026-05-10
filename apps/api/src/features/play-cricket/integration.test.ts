@@ -10,14 +10,14 @@ import {
 import type { PlayCricketApiClient } from "./api-client.ts";
 import type { RvClient } from "./rv-client.ts";
 import { ingestRvDataForMatch } from "./rv-ingest.ts";
-
-const log = createNoopLogger();
 import type {
   RvBall,
   RvMatchOverview as RvMatchOverviewT,
 } from "./rv-schemas.ts";
 import { getMatchDetail, getPlayerCareerStats, getTeams } from "./service.ts";
 import { runSync } from "./sync.ts";
+
+const log = createNoopLogger();
 
 // Mock RV client for the ingest tests below — wired with the same
 // curried-deps pattern as the real createRvClient. Each method returns
@@ -826,7 +826,13 @@ describe("ingestRvDataForMatch (integration)", () => {
       balls: [[], [ball1, ball2, wicket], []],
     });
 
-    const wrote = await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02", log);
+    const wrote = await ingestRvDataForMatch(
+      ctx.db,
+      rv,
+      matchId,
+      "2026-05-02",
+      log,
+    );
 
     expect(wrote).toBe(true);
 
@@ -912,7 +918,13 @@ describe("ingestRvDataForMatch (integration)", () => {
     await seedMatchResult(matchId);
 
     const rv = makeMockRv({ mapping: null });
-    const wrote = await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02", log);
+    const wrote = await ingestRvDataForMatch(
+      ctx.db,
+      rv,
+      matchId,
+      "2026-05-02",
+      log,
+    );
 
     expect(wrote).toBe(false);
     expect(rv.calls.mapping).toBe(1);
@@ -934,7 +946,13 @@ describe("ingestRvDataForMatch (integration)", () => {
       mapping: { rvMatchId: "7464451" },
       match: null,
     });
-    const wrote = await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02", log);
+    const wrote = await ingestRvDataForMatch(
+      ctx.db,
+      rv,
+      matchId,
+      "2026-05-02",
+      log,
+    );
 
     expect(wrote).toBe(false);
     expect(rv.calls.match).toBe(1);
@@ -949,7 +967,13 @@ describe("ingestRvDataForMatch (integration)", () => {
       mapping: { rvMatchId: "7464451" },
       match: makeOverview({ MatchTeams: [] }),
     });
-    const wrote = await ingestRvDataForMatch(ctx.db, rv, matchId, "2026-05-02", log);
+    const wrote = await ingestRvDataForMatch(
+      ctx.db,
+      rv,
+      matchId,
+      "2026-05-02",
+      log,
+    );
 
     expect(wrote).toBe(false);
     expect(rv.calls.balls).toBe(0);

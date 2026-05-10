@@ -40,10 +40,7 @@ const rv = RV_SHARED_SECRET
   : null;
 
 try {
-  logger.info(
-    { withRv: Boolean(rv) },
-    "play_cricket_sync_started",
-  );
+  logger.info({ withRv: Boolean(rv) }, "play_cricket_sync_started");
 
   const sync = runSync(client, api, rv, logger);
   // Throw out of withSpan if the sync returned a non-empty errors
@@ -69,7 +66,9 @@ try {
       },
     );
   } catch (err) {
-    const syncResult = (err as { syncResult?: { errors: string[]; matchesProcessed: number } }).syncResult;
+    const syncResult = (
+      err as { syncResult?: { errors: string[]; matchesProcessed: number } }
+    ).syncResult;
     if (syncResult) {
       // Treat as completed-with-errors: log + exit 1, span already
       // marked ERROR by withSpan.
