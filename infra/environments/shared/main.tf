@@ -911,10 +911,9 @@ resource "newrelic_cloud_aws_integrations" "main" {
   # narrow what gets ingested.
   alb {}
   cloudfront {}
-  cloudwatch_metric_streams {}
   ec2 {}
   ecs {}
-  elasticloadbalancing {}
+  elb {}
   iam {}
   rds {}
   route53 {}
