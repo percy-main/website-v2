@@ -48,16 +48,62 @@ jobs:
         working-directory: infra/environments/${{ matrix.environment }}
         run: terraform init
 
+      - name: Record job start (for stale-lock detection)
+        id: jobstart
+        run: echo "ts=$(date -u +%s)" >> "$GITHUB_OUTPUT"
+
       - name: Terraform Plan
         id: plan
         working-directory: infra/environments/${{ matrix.environment }}
         # Use PIPESTATUS so a non-zero from terraform isn't masked by tee's 0.
         # (setup-terraform's wrapper appears to break the runner's default
         # `pipefail`, so we have to check explicitly.)
+        # -lock-timeout: queue briefly behind a concurrent in-flight plan
+        # rather than failing immediately on lock contention.
         run: |
-          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+          terraform plan -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
           exit ${PIPESTATUS[0]}
         continue-on-error: true
+
+      - name: Release stale state lock left by cancelled plan
+        # cancel-in-progress above SIGKILLs an in-flight terraform when
+        # a new commit lands, leaving the DynamoDB lock orphaned forever.
+        # Run unconditionally: on success terraform already released the
+        # lock so this no-ops; on cancel/fail it cleans up our own mess.
+        # Guards against clobbering an unrelated active lock by checking
+        # both that the holder is a CI runner AND that the lock predates
+        # this job's start time.
+        if: always()
+        working-directory: infra/environments/${{ matrix.environment }}
+        env:
+          JOB_START_TS: ${{ steps.jobstart.outputs.ts }}
+        run: |
+          KEY="percy-main-terraform-state-bucket/${{ matrix.environment }}/terraform.tfstate-md5"
+          INFO=$(aws dynamodb get-item \
+            --region "${AWS_REGION}" \
+            --table-name percy-main-terraform-locks \
+            --key "{\"LockID\":{\"S\":\"$KEY\"}}" \
+            --query 'Item.Info.S' --output text 2>/dev/null) || INFO=""
+          if [ -z "$INFO" ] || [ "$INFO" = "None" ]; then
+            echo "No state lock held — nothing to do."
+            exit 0
+          fi
+          LOCK_ID=$(jq -r '.ID' <<<"$INFO")
+          LOCK_WHO=$(jq -r '.Who' <<<"$INFO")
+          LOCK_CREATED=$(jq -r '.Created' <<<"$INFO")
+          case "$LOCK_WHO" in
+            runner@*) ;;
+            *)
+              echo "Lock holder $LOCK_WHO is not a CI runner — leaving alone."
+              exit 0 ;;
+          esac
+          LOCK_TS=$(date -u -d "$LOCK_CREATED" +%s 2>/dev/null || echo 0)
+          if [ "$LOCK_TS" -ge "$JOB_START_TS" ]; then
+            echo "Lock was created at/after this job started ($LOCK_CREATED ≥ $JOB_START_TS) — likely active, leaving alone."
+            exit 0
+          fi
+          echo "Stale CI lock $LOCK_ID (held by $LOCK_WHO since $LOCK_CREATED) — force-unlocking."
+          terraform force-unlock -force "$LOCK_ID"
 
       - name: Plan summary
         if: always()
