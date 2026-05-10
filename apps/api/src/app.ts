@@ -90,6 +90,44 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   const app = Fastify({
     logger: {
       level: config.LOG_LEVEL,
+      // Strip PII / secrets at the Pino layer. We need both the
+      // top-level paths (log.info({ email })) and the `*.X` wildcards
+      // (log.info({ user: { email } })) — Pino wildcards match exactly
+      // one path segment, so the bare and prefixed forms are not
+      // interchangeable. Headers paths cover OIDC / cookie auth.
+      // Add new paths here when a new sensitive field appears in any
+      // log call.
+      redact: {
+        paths: [
+          "email",
+          "password",
+          "passwordHash",
+          "token",
+          "apiKey",
+          "authorization",
+          "recipientEmail",
+          "*.email",
+          "*.password",
+          "*.passwordHash",
+          "*.token",
+          "*.apiKey",
+          "*.authorization",
+          "*.recipientEmail",
+          "*.*.email",
+          "*.*.password",
+          "*.*.token",
+          "req.headers.authorization",
+          "req.headers.cookie",
+          "req.headers['set-cookie']",
+        ],
+        censor: "[REDACTED]",
+      },
+      // Fastify's default req/res serializers + Pino's default err
+      // serializer (which captures stack, type, cause, and enumerable
+      // own props on Error subclasses) are inherited when not
+      // explicitly overridden — leaving serializers off means we get
+      // those defaults plus any custom Error subclass fields
+      // (AdsValidationError.fieldErrors, etc).
       transport:
         config.NODE_ENV !== "production"
           ? { target: "pino-pretty" }
