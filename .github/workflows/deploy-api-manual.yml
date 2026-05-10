@@ -205,6 +205,62 @@ jobs:
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE
 
+      - name: Verify deployed task definition matches the one we registered
+        # Mirrors the same step in deploy.yml — services-stable returns
+        # 0 even after an ECS rollback to the prior revision, so assert
+        # the PRIMARY deployment is the task def we just registered.
+        env:
+          REGISTERED: ${{ steps.task-def.outputs.task-definition-arn }}
+        run: |
+          ACTIVE=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+            --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition' \
+            --output text)
+          if [ "$ACTIVE" = "$REGISTERED" ]; then
+            echo "Active task def matches registered: $ACTIVE"
+            exit 0
+          fi
+          echo "::error::ECS rolled back. Active task def: $ACTIVE; expected: $REGISTERED"
+          set +e
+          LOG_GROUP=$(aws ecs describe-task-definition --task-definition "$REGISTERED" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options."awslogs-group"' --output text)
+          STREAM_PREFIX=$(aws ecs describe-task-definition --task-definition "$REGISTERED" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options."awslogs-stream-prefix"' --output text)
+          # Find the most recent stopped task that ran the rolled-forward
+          # task def (filtering avoids tailing an unrelated older crash).
+          STOPPED_TASK=$(aws ecs list-tasks --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
+            --desired-status STOPPED --query 'taskArns[]' --output text)
+          MATCHED=""
+          if [ -n "$STOPPED_TASK" ]; then
+            MATCHED=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks $STOPPED_TASK \
+              --query "sort_by(tasks[?taskDefinitionArn=='$REGISTERED'], &stoppedAt)[-1].taskArn" \
+              --output text)
+          fi
+          LOG_TAIL="(no stopped task matching the rolled-forward revision found)"
+          if [ -n "$MATCHED" ] && [ "$MATCHED" != "None" ]; then
+            TASK_ID=$(echo "$MATCHED" | awk -F/ '{print $NF}')
+            STREAM="${STREAM_PREFIX}/api/${TASK_ID}"
+            LOG_TAIL=$(aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$STREAM" \
+              --limit 50 --no-start-from-head \
+              --query 'events[].message' --output text 2>&1)
+          fi
+          set -e
+          {
+            echo "## Deploy rolled back by ECS"
+            echo "- Registered (rolled forward to): \`${REGISTERED}\`"
+            echo "- Active (rolled back to): \`${ACTIVE}\`"
+            echo "- Log group: \`${LOG_GROUP}\`"
+            echo "- Stopped task tailed: \`${MATCHED:-none}\`"
+            echo ""
+            echo '### Last 50 log lines from rolled-forward task'
+            echo '```'
+            echo "${LOG_TAIL}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
       - name: Smoke test
         id: smoke
         run: |
