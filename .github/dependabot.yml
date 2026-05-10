@@ -1,0 +1,77 @@
+# Dependabot version-update config. Security updates run regardless
+# of this file (they're enabled at the repo settings level); this
+# adds weekly proactive bumps for non-security versions.
+#
+# See https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+  # Application + tooling deps. Single root pnpm workspace covers all
+  # apps/ and packages/ subtrees, so one entry handles the whole tree.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    groups:
+      # Batch related minor/patch bumps to keep PR volume manageable.
+      # Major bumps stay individual so we review them deliberately.
+      production-minor-patch:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      development-minor-patch:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions used in workflows under .github/workflows/.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+
+  # Docker base images — apps/api/Dockerfile uses node:slim. Pulls in
+  # base-image security patches as upstream cuts new tags.
+  - package-ecosystem: "docker"
+    directory: "/apps/api"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # Terraform providers (aws, newrelic, tailscale, random). Bumps the
+  # version constraints in infra/environments/*/main.tf and
+  # .terraform.lock.hcl together.
+  - package-ecosystem: "terraform"
+    directories:
+      - "/infra/environments/shared"
+      - "/infra/environments/production"
+      - "/infra/environments/staging"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "infra"

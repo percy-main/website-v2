@@ -1,0 +1,27 @@
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+#
+# Single-maintainer repo today, but explicit ownership rules document
+# which areas need extra care on review and route auto-requested
+# reviews when more contributors arrive. Order matters — last matching
+# pattern wins.
+
+# Default: anything not matched below
+*                                              @alsiola
+
+# Infrastructure + CI/CD: changes here can break deploys or expose
+# credentials. Always reviewed by infra owner.
+/infra/                                        @alsiola
+/.github/                                      @alsiola
+
+# Auth + payments + safeguarding (incident reports): security and legal
+# blast radius. Route to the relevant owner explicitly.
+/apps/api/src/features/auth/                   @alsiola
+/apps/api/src/features/payments/               @alsiola
+/apps/api/src/features/incident-report/        @alsiola
+
+# Database migrations: irreversible in prod (forward-only deploys).
+/packages/db/src/migrations/                   @alsiola
+
+# Architecture decision records: review for accuracy of "rejected
+# alternatives" since they shape future decisions.
+/docs/adrs/                                    @alsiola
