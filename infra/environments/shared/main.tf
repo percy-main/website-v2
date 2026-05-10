@@ -881,10 +881,15 @@ resource "aws_iam_role_policy_attachment" "newrelic_readonly" {
 }
 
 # Grants the additional permissions NR needs beyond ReadOnlyAccess
-# (mainly billing / budget metadata).
+# (mainly billing / budget metadata). The previous ARN ("AWSBilling")
+# does not exist as an AWS-managed policy; AWSBillingReadOnlyAccess
+# is the read-only managed policy that NR's docs recommend for the
+# billing integration. We're not yet enabling NR's `billing {}` block
+# in newrelic_cloud_aws_integrations, but attaching this now means
+# enabling billing later is a one-line change to that resource.
 resource "aws_iam_role_policy_attachment" "newrelic_budgets" {
   role       = aws_iam_role.newrelic_integration.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSBilling"
+  policy_arn = "arn:aws:iam::aws:policy/AWSBillingReadOnlyAccess"
 }
 
 # Tell New Relic about the role. NR begins polling CloudWatch via this
