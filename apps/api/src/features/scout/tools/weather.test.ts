@@ -34,10 +34,9 @@ async function runWeather(input: {
 }) {
   const exec = tools.weather_get.execute;
   if (!exec) throw new Error("no execute");
-  return exec(
-    { timezone: "Europe/London", ...input },
-    opts as never,
-  ) as Promise<{ source: "forecast" | "archive" }>;
+  return exec({ timezone: "Europe/London", ...input }, opts) as Promise<{
+    source: "forecast" | "archive";
+  }>;
 }
 
 let fetchSpy: MockInstance<typeof fetch>;
@@ -144,7 +143,7 @@ describe("weather_geocode", () => {
   function runGeocode(name: string) {
     const exec = tools.weather_geocode.execute;
     if (!exec) throw new Error("no execute");
-    return exec({ name }, opts as never);
+    return exec({ name }, opts);
   }
 
   it("calls the geocoding endpoint with the place name", async () => {

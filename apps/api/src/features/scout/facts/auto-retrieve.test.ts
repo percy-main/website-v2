@@ -38,7 +38,7 @@ function userMsg(text: string): UIMessage {
     id: crypto.randomUUID(),
     role: "user",
     parts: [{ type: "text", text }],
-  } as UIMessage;
+  };
 }
 
 describe("applyAutoRetrieval", () => {

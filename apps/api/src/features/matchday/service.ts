@@ -143,7 +143,7 @@ export function listMatches(db: Kysely<DB>) {
           "team_official.play_cricket_team_id",
           "matchday.play_cricket_team_id",
         )
-        .where("team_official.user_id", "=", userId) as typeof query;
+        .where("team_official.user_id", "=", userId);
     }
 
     if (teamId) {

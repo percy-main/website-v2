@@ -40,5 +40,5 @@ export function createNoopLogger(): FastifyBaseLogger {
     fatal: noop,
     child: () => logger,
   };
-  return logger as unknown as FastifyBaseLogger;
+  return logger;
 }

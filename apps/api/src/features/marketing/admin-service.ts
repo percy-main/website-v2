@@ -162,6 +162,10 @@ export function getLeadEvents(db: Kysely<DB>) {
         valuePence: r.value_pence,
         currency: r.currency,
         adsConversionAction: r.ads_conversion_action,
+        // Cast required: kysely's inferred JSON type cannot be named
+        // without referencing __generated__/db.ts (TS2742). The lint
+        // rule sees the cast as redundant; the inference does not.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
         payload: r.payload as unknown,
         createdAt: r.created_at,
       })),

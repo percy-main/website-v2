@@ -84,8 +84,7 @@ class GoogleAdsApiClient implements AdsClient {
         .uploadClickConversions as unknown as UploadFn;
       const response = await upload(request);
 
-      const partial = (response as { partial_failure_error?: unknown })
-        .partial_failure_error;
+      const partial = response.partial_failure_error;
       if (partial) {
         let detail: string;
         let stringifyError: unknown;

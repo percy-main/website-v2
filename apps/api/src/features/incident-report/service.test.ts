@@ -282,7 +282,7 @@ describe("createIncidentReportSubmission", () => {
         // simulate the insert-time guard directly.
         ...validSubmission(),
         website: "http://spam.example.com",
-      } as IncidentReportSubmission,
+      },
       log,
     );
 

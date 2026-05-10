@@ -24,7 +24,7 @@ async function runChart(spec: unknown) {
   const { chart_render } = createChartTool({ writer });
   const exec = chart_render.execute;
   if (!exec) throw new Error("no execute");
-  const result = await exec({ chart: spec } as never, opts as never);
+  const result = await exec({ chart: spec } as never, opts);
   return { result, writer };
 }
 

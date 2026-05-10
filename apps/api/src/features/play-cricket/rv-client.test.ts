@@ -32,7 +32,7 @@ describe("createRvClient construction", () => {
     expect(() =>
       createRvClient({
         sharedSecret: "too-short",
-        fetch: vi.fn() as unknown as typeof fetch,
+        fetch: vi.fn(),
       }),
     ).toThrow(/24 ASCII bytes/);
   });
@@ -129,7 +129,7 @@ describe("createRvClient.getMatchMapping", () => {
       .mockResolvedValue(jsonResponse(200, { object_id1: 7464451 }));
     const client = createRvClient({
       sharedSecret: TEST_SECRET,
-      fetch: fetchMock as unknown as typeof fetch,
+      fetch: fetchMock,
     });
 
     const out = await client.getMatchMapping("7262912");
@@ -152,7 +152,7 @@ describe("createRvClient.getMatchMapping", () => {
       .mockResolvedValue(jsonResponse(200, { object_id1: 0 }));
     const client = createRvClient({
       sharedSecret: TEST_SECRET,
-      fetch: fetchMock as unknown as typeof fetch,
+      fetch: fetchMock,
     });
 
     expect(await client.getMatchMapping("9999999")).toBeNull();
@@ -162,7 +162,7 @@ describe("createRvClient.getMatchMapping", () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(404, null));
     const client = createRvClient({
       sharedSecret: TEST_SECRET,
-      fetch: fetchMock as unknown as typeof fetch,
+      fetch: fetchMock,
     });
 
     expect(await client.getMatchMapping("9999999")).toBeNull();
@@ -176,7 +176,7 @@ describe("createRvClient.getMatchMapping", () => {
       );
     const client = createRvClient({
       sharedSecret: TEST_SECRET,
-      fetch: fetchMock as unknown as typeof fetch,
+      fetch: fetchMock,
     });
 
     await expect(client.getMatchMapping("123")).rejects.toMatchObject({
@@ -232,7 +232,7 @@ describe("createRvClient.getMatch", () => {
     );
     const client = createRvClient({
       sharedSecret: TEST_SECRET,
-      fetch: fetchMock as unknown as typeof fetch,
+      fetch: fetchMock,
     });
 
     const out = await client.getMatch("7464451");
@@ -249,7 +249,7 @@ describe("createRvClient.getMatch", () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(404, null));
     const client = createRvClient({
       sharedSecret: TEST_SECRET,
-      fetch: fetchMock as unknown as typeof fetch,
+      fetch: fetchMock,
     });
 
     expect(await client.getMatch("9999999")).toBeNull();
@@ -295,7 +295,7 @@ describe("createRvClient.getBalls", () => {
     );
     const client = createRvClient({
       sharedSecret: TEST_SECRET,
-      fetch: fetchMock as unknown as typeof fetch,
+      fetch: fetchMock,
     });
 
     const out = await client.getBalls("7464451", 25398668, 1);
@@ -317,7 +317,7 @@ describe("createRvClient.getBalls", () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(404, null));
     const client = createRvClient({
       sharedSecret: TEST_SECRET,
-      fetch: fetchMock as unknown as typeof fetch,
+      fetch: fetchMock,
     });
 
     expect(await client.getBalls("9999999", 1, 1)).toEqual([]);
