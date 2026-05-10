@@ -83,6 +83,7 @@ The following status check is required by branch protection on `main`:
 Other checks run on every PR but are advisory only:
 
 - `react-doctor` — React/UI lint and architecture diagnostics
+- `dependency-review` — flags new deps with known high-severity advisories or copyleft licences (config in [`.github/workflows/ci.yml`](.github/workflows/ci.yml))
 - `unsafe-ddl-check` — flags risky DDL in migrations; bypass with a `safe-ddl-ack:` line in the commit message body when intentional
 - `plan (shared)` / `plan (production)` — `terraform plan` against each environment, posted to the PR as a comment
 - `CodeQL` / `Analyze (actions)` / `Analyze (javascript-typescript)` — GitHub's static analysis

@@ -50,3 +50,23 @@ jobs:
         with:
           diff: main
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-review:
+    # Scans dependency manifest changes (pnpm-lock.yaml diffs, etc) for
+    # known vulnerable advisories. Fails the PR on `high`+ severity.
+    # CodeQL handles SAST separately (configured via repo default
+    # setup, not in workflow files).
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          # Block GPL/AGPL/etc copyleft licences in production deps —
+          # we ship code under a permissive setup. Add allow-list entries
+          # if a needed dep is mis-classified.
+          deny-licenses: AGPL-1.0-only, AGPL-1.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later
+          comment-summary-in-pr: on-failure
