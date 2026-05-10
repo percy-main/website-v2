@@ -24,10 +24,10 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@libsql/client": "^0.17.0",
-    "@types/node": "^25.5.0",
-    "@types/pg": "^8.18.0",
-    "dotenv": "^17.3.0",
+    "@libsql/client": "^0.17.3",
+    "@types/node": "^25.6.2",
+    "@types/pg": "^8.20.0",
+    "dotenv": "^17.4.2",
     "kysely-codegen": "^0.20.0",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"
