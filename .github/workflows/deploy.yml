@@ -26,6 +26,12 @@ jobs:
   # break that only manifests with prod env vars or a missing workspace
   # export fails fast instead of mid-deploy.
   ci:
+    permissions:
+      contents: read
+      # Required by publish-unit-test-result-action inside the reusable
+      # workflow.
+      checks: write
+      pull-requests: write
     uses: ./.github/workflows/_lint-test-build.yml
 
   # ── Detect changed paths (runs parallel with Terraform) ──────────────
@@ -314,6 +320,44 @@ jobs:
             .
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
+      - name: Trivy scan (CRITICAL/HIGH, fixed-only)
+        # Gates the deploy on known CVEs in the freshly-built image.
+        # ignore-unfixed: true keeps us from blocking on advisories
+        # nobody upstream can fix yet — those still surface in ECR's
+        # scan_on_push results for awareness. ~30s on a slim node base.
+        #
+        # Pinned to v0.35.0 by commit SHA. The trivy-action repo was
+        # supply-chain compromised on 2026-03-19 (CVE-2026-33634 /
+        # GHSA-69fq-xp46-6x23) — the attacker force-pushed 76 of 77
+        # version tags to credential-stealer commits. v0.35.0 (commit
+        # 57a97c7) is the post-incident recovery release per the
+        # advisory; pinning by SHA avoids the same class of attack
+        # going forward (mutable tags can be force-pushed again).
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: ${{ steps.build.outputs.image }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          format: table
+
+      - name: Generate SBOM (SPDX JSON)
+        id: sbom
+        # Snapshot of every package in the image at deploy time. Useful
+        # for forensics when a future CVE drops ("did the version we
+        # shipped on $SHA include vulnerable lib X?") without needing
+        # to re-pull the image months later.
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.build.outputs.image }}
+          format: spdx-json
+          artifact-name: api-sbom-${{ github.sha }}.spdx.json
+          upload-artifact: true
+          # Don't push results to GH Dependency Graph for the workspace —
+          # we already track app deps via package.json; this would add
+          # base-image system packages and inflate the dep list.
+          dependency-snapshot: false
+
       - name: Register new task definition
         id: task-def
         env:
@@ -444,6 +488,70 @@ jobs:
           aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE
+
+      - name: Verify deployed task definition matches the one we registered
+        # `aws ecs wait services-stable` only checks runningCount ==
+        # desiredCount; it returns 0 even if ECS rolled back to the prior
+        # revision after the new task crashed at boot (deployment circuit
+        # breaker). This step asserts the PRIMARY deployment is actually
+        # the task def we just registered. On mismatch, dumps the last 50
+        # log lines from the API task's CloudWatch stream into the run
+        # summary so the boot failure is visible without console-hopping.
+        env:
+          REGISTERED: ${{ steps.task-def.outputs.task-definition-arn }}
+        run: |
+          ACTIVE=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+            --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition' \
+            --output text)
+          if [ "$ACTIVE" = "$REGISTERED" ]; then
+            echo "Active task def matches registered: $ACTIVE"
+            exit 0
+          fi
+          echo "::error::ECS rolled back. Active task def: $ACTIVE; expected: $REGISTERED"
+          set +e
+          LOG_GROUP=$(aws ecs describe-task-definition --task-definition "$REGISTERED" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options."awslogs-group"' --output text)
+          STREAM_PREFIX=$(aws ecs describe-task-definition --task-definition "$REGISTERED" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options."awslogs-stream-prefix"' --output text)
+          # Boot-failed tasks were stopped by ECS; find the most recent
+          # task that ran the registered (rolled-forward) revision and
+          # tail its log stream. Filter by taskDefinitionArn so we don't
+          # tail an unrelated older stopped task (e.g. a Fargate
+          # platform replacement from hours ago) and mislead the
+          # rollback triage.
+          STOPPED_TASK=$(aws ecs list-tasks --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
+            --desired-status STOPPED --query 'taskArns[]' --output text)
+          MATCHED=""
+          if [ -n "$STOPPED_TASK" ]; then
+            MATCHED=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks $STOPPED_TASK \
+              --query "sort_by(tasks[?taskDefinitionArn=='$REGISTERED'], &stoppedAt)[-1].taskArn" \
+              --output text)
+          fi
+          LOG_TAIL="(no stopped task matching the rolled-forward revision found)"
+          if [ -n "$MATCHED" ] && [ "$MATCHED" != "None" ]; then
+            TASK_ID=$(echo "$MATCHED" | awk -F/ '{print $NF}')
+            STREAM="${STREAM_PREFIX}/api/${TASK_ID}"
+            LOG_TAIL=$(aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$STREAM" \
+              --limit 50 --no-start-from-head \
+              --query 'events[].message' --output text 2>&1)
+          fi
+          set -e
+          {
+            echo "## Deploy rolled back by ECS"
+            echo "- Registered (rolled forward to): \`${REGISTERED}\`"
+            echo "- Active (rolled back to): \`${ACTIVE}\`"
+            echo "- Log group: \`${LOG_GROUP}\`"
+            echo "- Stopped task tailed: \`${MATCHED:-none}\`"
+            echo ""
+            echo '### Last 50 log lines from rolled-forward task'
+            echo '```'
+            echo "${LOG_TAIL}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
       - name: Smoke test
         id: smoke
@@ -635,7 +743,7 @@ jobs:
       - name: Smoke test web
         id: smoke-web
         env:
-          URL: https://v2.percymain.org/
+          URL: https://percymain.org/
         run: |
           curl -fsSL --max-time 15 "$URL" -o /tmp/index.html
           # Marker that the SPA shell rendered correctly.
@@ -645,7 +753,7 @@ jobs:
           # is handled by the `if -n` branch below).
           ASSET=$(grep -oE 'src="(/[^"]+\.js)"' /tmp/index.html | head -1 | sed 's/src="//;s/"//' || true)
           if [ -n "$ASSET" ]; then
-            curl -fsSL --max-time 15 "https://v2.percymain.org${ASSET}" -o /dev/null
+            curl -fsSL --max-time 15 "https://percymain.org${ASSET}" -o /dev/null
           else
             echo "::warning::No JS chunk found in index.html — skipping asset reachability check"
           fi

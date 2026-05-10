@@ -8,6 +8,7 @@ dist/
 .emails/
 .DS_Store
 coverage/
+test-results/
 *.tsbuildinfo
 
 # Terraform

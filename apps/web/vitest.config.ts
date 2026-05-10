@@ -6,6 +6,9 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["**/node_modules/**", "**/dist/**"],
+    reporters: process.env.CI
+      ? ["default", ["junit", { outputFile: "./test-results/web-unit.xml" }]]
+      : ["default"],
   },
   resolve: {
     alias: {

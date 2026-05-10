@@ -4,6 +4,15 @@ name: Lint, Test, Build
 # deploy gate). Runs the same lint/typecheck/test/build set in both
 # places so a build break that only manifests with prod env vars or a
 # missing workspace export fails fast before any deploy work begins.
+#
+# Permissions design: the test job below intentionally only requests
+# `contents: read` and uses `persist-credentials: false` on checkout,
+# because it executes branch code (lint/test/build of arbitrary PR
+# diffs). The JUnit XML is uploaded as an artifact and consumed by a
+# separate `publish-test-results` job that runs no PR code but does
+# have the elevated checks/PR-comment perms. This split prevents a
+# malicious PR from reading the GITHUB_TOKEN that would let it write
+# checks or comments back to the repo.
 
 on:
   workflow_call:
@@ -18,6 +27,8 @@ defaults:
 jobs:
   lint-test-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     services:
       postgres:
         # pgvector/pgvector:pg16 = official Postgres 16 image with the
@@ -39,6 +50,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Don't leave the GITHUB_TOKEN in .git/config where executed
+          # PR code (tests, lint plugins, build scripts) could read it
+          # and use it for unintended writes back to the repo.
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
 
@@ -67,9 +83,51 @@ jobs:
         run: pnpm test
         env:
           DATABASE_URL: postgres://percy:percy@localhost:5432/percy_main
+          CI: "true"
 
       - name: Integration tests
         run: pnpm --filter api test:integration
+        env:
+          CI: "true"
 
       - name: Build
         run: pnpm build
+
+      - name: Upload JUnit XML artefact
+        # Always upload — even when a test step failed — so the publish
+        # job below can post the failure summary to the PR.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-xml
+          path: "**/test-results/*.xml"
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish-test-results:
+    # Runs in a separate job with the elevated checks/PR-comment perms
+    # so the executing-PR-code job above doesn't get a token capable
+    # of writing back to the repo. This job pulls the JUnit XML from
+    # the artefact and publishes — no checkout, no PR code execution.
+    needs: lint-test-build
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Download JUnit XML artefact
+        uses: actions/download-artifact@v4
+        with:
+          name: junit-xml
+          path: junit-xml
+        continue-on-error: true
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          junit_files: "junit-xml/**/*.xml"
+          check_name: "Vitest results"
+          comment_mode: changes in failures
+          action_fail: false

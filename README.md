@@ -73,3 +73,29 @@ Infrastructure is in [`infra/`](infra/). Production DB access for operators is v
 ## Contributing
 
 Development workflow, testing patterns, and common tasks are codified as Claude Code skills under [`.claude/skills/`](.claude/skills/). Humans can follow the same patterns by reading each `SKILL.md`.
+
+### Required PR checks
+
+The following status check is required by branch protection on `main`:
+
+- **`lint-test-build / lint-test-build`** — runs `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` across all workspaces (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+
+Other checks run on every PR but are advisory only:
+
+- `react-doctor` — React/UI lint and architecture diagnostics
+- `dependency-review` — flags new deps with known high-severity advisories or copyleft licences (config in [`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+- `unsafe-ddl-check` — flags risky DDL in migrations; bypass with a `safe-ddl-ack:` line in the commit message body when intentional
+- `plan (shared)` / `plan (production)` — `terraform plan` against each environment, posted to the PR as a comment
+- `CodeQL` / `Analyze (actions)` / `Analyze (javascript-typescript)` — GitHub's static analysis
+
+### Code ownership
+
+Sensitive paths (auth, payments, incident reports, infrastructure, migrations, ADRs) are routed via [`.github/CODEOWNERS`](.github/CODEOWNERS). PRs touching these paths auto-request review from the listed owner.
+
+### Dependency updates
+
+Dependabot opens grouped weekly version-update PRs (Mondays 06:00 Europe/London) for npm, GitHub Actions, Docker base images, and Terraform providers — see [`.github/dependabot.yml`](.github/dependabot.yml). Security updates land regardless of this config.
+
+### Reporting security issues
+
+See [`SECURITY.md`](SECURITY.md) — please do not file public GitHub issues for vulnerabilities.
