@@ -1,0 +1,79 @@
+name: Release stale Terraform state lock
+description: >
+  Force-unlock a Terraform state lock left behind by a cancelled or
+  killed CI run. Intended to run with `if: always() && <plan-outcome
+  != success>` after a terraform plan or apply step — terraform
+  releases its own lock on success, so the only locks this step ever
+  finds are stale.
+
+inputs:
+  environment:
+    description: TF environment name (matches infra/environments/<name>/).
+    required: true
+  bucket:
+    description: S3 state bucket name.
+    required: false
+    default: percy-main-terraform-state-bucket
+  table:
+    description: DynamoDB lock table name.
+    required: false
+    default: percy-main-terraform-locks
+  region:
+    description: AWS region for DynamoDB calls.
+    required: false
+    default: eu-west-2
+
+runs:
+  using: composite
+  steps:
+    - name: Force-unlock if a CI runner left a stale lock
+      shell: bash
+      working-directory: infra/environments/${{ inputs.environment }}
+      env:
+        BUCKET: ${{ inputs.bucket }}
+        TABLE: ${{ inputs.table }}
+        REGION: ${{ inputs.region }}
+        ENV: ${{ inputs.environment }}
+      run: |
+        # The s3 backend's DynamoDB lock row uses LockID = "<bucket>/<key>"
+        # (no -md5 suffix; that suffix is the separate state-digest row
+        # whose Info field is always None).
+        KEY="${BUCKET}/${ENV}/terraform.tfstate"
+
+        # Don't suppress stderr from get-item — IAM / table / region
+        # errors should be visible, not silently masked as "no lock".
+        # When the item is absent, get-item returns 0 with empty
+        # output, which we handle below.
+        set +e
+        OUT=$(aws dynamodb get-item \
+          --region "$REGION" \
+          --table-name "$TABLE" \
+          --key "{\"LockID\":{\"S\":\"$KEY\"}}" \
+          --query 'Item.Info.S' --output text)
+        STATUS=$?
+        set -e
+        if [ $STATUS -ne 0 ]; then
+          echo "::warning::aws dynamodb get-item failed (exit $STATUS) — cannot check for stale lock."
+          exit 0
+        fi
+        if [ -z "$OUT" ] || [ "$OUT" = "None" ]; then
+          echo "No state lock held — nothing to do."
+          exit 0
+        fi
+
+        LOCK_ID=$(jq -r '.ID' <<<"$OUT")
+        LOCK_WHO=$(jq -r '.Who' <<<"$OUT")
+        LOCK_CREATED=$(jq -r '.Created' <<<"$OUT")
+
+        # Only release locks held by GitHub Actions runners. A lock held
+        # by a real person (someone running terraform locally during an
+        # incident) is never something CI should clobber.
+        case "$LOCK_WHO" in
+          runner@*) ;;
+          *)
+            echo "Lock holder $LOCK_WHO is not a CI runner — refusing to force-unlock."
+            exit 0 ;;
+        esac
+
+        echo "Force-unlocking stale CI lock $LOCK_ID (held by $LOCK_WHO since $LOCK_CREATED)"
+        terraform force-unlock -force "$LOCK_ID"
