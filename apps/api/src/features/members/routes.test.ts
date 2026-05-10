@@ -228,7 +228,7 @@ describe("members service", () => {
     it("returns empty array when no Stripe customer exists", async () => {
       mockCustomersList.mockResolvedValue({
         data: [],
-      } as never);
+      });
 
       const result = await getMySubscriptions(mockStripe)("nobody@example.com");
 
@@ -242,7 +242,7 @@ describe("members service", () => {
     it("returns transformed subscriptions for an existing customer", async () => {
       mockCustomersList.mockResolvedValue({
         data: [{ id: "cus_123" }],
-      } as never);
+      });
 
       mockSubscriptionsList.mockResolvedValue({
         data: [
@@ -263,12 +263,12 @@ describe("members service", () => {
             },
           },
         ],
-      } as never);
+      });
 
       mockProductsRetrieve.mockResolvedValue({
         id: "prod_1",
         name: "Social Membership",
-      } as never);
+      });
 
       const result = await getMySubscriptions(mockStripe)("user@example.com");
 
@@ -287,7 +287,7 @@ describe("members service", () => {
     it("uses product name as fallback when price nickname is null", async () => {
       mockCustomersList.mockResolvedValue({
         data: [{ id: "cus_456" }],
-      } as never);
+      });
 
       mockSubscriptionsList.mockResolvedValue({
         data: [
@@ -308,12 +308,12 @@ describe("members service", () => {
             },
           },
         ],
-      } as never);
+      });
 
       mockProductsRetrieve.mockResolvedValue({
         id: "prod_2",
         name: "Playing Membership",
-      } as never);
+      });
 
       const result = await getMySubscriptions(mockStripe)("user@example.com");
 

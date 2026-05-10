@@ -33,7 +33,7 @@ describe("cite_match — Play Cricket match citation", () => {
         groundName: "Preston Avenue",
         competition: "NTCL Premier Division",
         result: "Percy Main won by 47 runs",
-      } as never,
+      },
       opts,
     )) as { cited: boolean; matchId: string; citationId: string };
 
@@ -75,7 +75,7 @@ describe("cite_match — Play Cricket match citation", () => {
     if (!exec) throw new Error("no execute");
 
     const result = (await exec(
-      { matchId: "1234", claim: "Match cited" } as never,
+      { matchId: "1234", claim: "Match cited" },
       opts,
     )) as { cited: boolean };
 
@@ -91,10 +91,9 @@ describe("cite_match — Play Cricket match citation", () => {
     const { cite_match } = createPlayCricketCitationTools({});
     const exec = cite_match.execute;
     if (!exec) throw new Error("no execute");
-    const result = (await exec(
-      { matchId: "1234", claim: "x" } as never,
-      opts,
-    )) as { cited: boolean };
+    const result = (await exec({ matchId: "1234", claim: "x" }, opts)) as {
+      cited: boolean;
+    };
     expect(result.cited).toBe(true);
   });
 });

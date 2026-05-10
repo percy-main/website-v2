@@ -510,7 +510,7 @@ describe("cite_fact tool — visibility check + writer emission", () => {
       {
         factId: recorded.id,
         claim: "Mitford have no covers",
-      } as never,
+      },
       opts,
     )) as { cited: boolean; citationId?: string; factId?: string };
 
@@ -554,10 +554,10 @@ describe("cite_fact tool — visibility check + writer emission", () => {
     });
     const exec = tools.cite_fact.execute;
     if (!exec) throw new Error("no execute");
-    const result = (await exec(
-      { factId: recorded.id, claim: "x" } as never,
-      opts,
-    )) as { cited: boolean; error?: string };
+    const result = (await exec({ factId: recorded.id, claim: "x" }, opts)) as {
+      cited: boolean;
+      error?: string;
+    };
 
     expect(result.cited).toBe(false);
     expect(result.error).toMatch(/not found or not visible/);
@@ -581,10 +581,10 @@ describe("cite_fact tool — visibility check + writer emission", () => {
     const tools = createFactTools({ db: ctx.db, voyage, userId, writer });
     const exec = tools.cite_fact.execute;
     if (!exec) throw new Error("no execute");
-    const result = (await exec(
-      { factId: first.id, claim: "x" } as never,
-      opts,
-    )) as { cited: boolean; error?: string };
+    const result = (await exec({ factId: first.id, claim: "x" }, opts)) as {
+      cited: boolean;
+      error?: string;
+    };
 
     expect(result.cited).toBe(false);
     expect(writer.write).not.toHaveBeenCalled();

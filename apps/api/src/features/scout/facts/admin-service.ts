@@ -195,11 +195,11 @@ export function getFact(db: Kysely<DB>) {
 
 export function updateFact(db: Kysely<DB>, voyage: VoyageClient) {
   return async (factId: string, body: UpdateBody): Promise<AdminItem> => {
-    const existing = (await db
+    const existing = await db
       .selectFrom("scout_fact")
       .select(["id", "content"])
       .where("id", "=", factId)
-      .executeTakeFirst()) as { id: string; content: string } | undefined;
+      .executeTakeFirst();
     if (!existing) throw new FactNotFoundError();
 
     const contentChanged =

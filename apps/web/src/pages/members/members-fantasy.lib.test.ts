@@ -12,7 +12,6 @@ import {
   SLOT_COUNTS,
   validateSquadComposition,
   type SelectedPlayer,
-  type SlotType,
 } from "./members-fantasy.lib";
 
 function makePlayer(
@@ -263,11 +262,7 @@ describe("moveSquadPlayerToSlot", () => {
 
   it("is a no-op when the player isn't in the squad", () => {
     const squad = [makePlayer("a", { slotType: "batting", isCaptain: true })];
-    const result = moveSquadPlayerToSlot(
-      squad,
-      "missing",
-      "bowling" as SlotType,
-    );
+    const result = moveSquadPlayerToSlot(squad, "missing", "bowling");
     expect(result).toEqual(squad);
   });
 });

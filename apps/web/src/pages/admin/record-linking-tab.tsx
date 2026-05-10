@@ -102,7 +102,7 @@ export function RecordLinkingTab() {
   const refreshMutation = useMutation({
     mutationFn: () => callApi(api.GET("/api/admin/play-cricket-players")),
     onSuccess: (result) => {
-      update({ pcPlayers: result.players as PlayCricketPlayer[] });
+      update({ pcPlayers: result.players });
     },
   });
 

@@ -95,7 +95,7 @@ export function findInFlightReport(
         typeof part !== "object" ||
         part === null ||
         !("type" in part) ||
-        (part as { type: unknown }).type !== "data-report"
+        part.type !== "data-report"
       ) {
         continue;
       }

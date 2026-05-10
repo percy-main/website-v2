@@ -296,7 +296,7 @@ export function commitDocument(deps: KbDeps) {
         throw new KbDocumentInvalidStateError(row.status as DocumentStatus);
       }
       if (!row.pending_key) {
-        throw new KbDocumentInvalidStateError(row.status as DocumentStatus);
+        throw new KbDocumentInvalidStateError(row.status);
       }
 
       const ct = ALLOWED_CONTENT_TYPES[row.content_type];
@@ -789,7 +789,7 @@ async function loadRow(deps: KbDeps, id: string): Promise<RawRow> {
     .selectAll()
     .executeTakeFirst();
   if (!row) throw new KbDocumentNotFoundError();
-  return row as RawRow;
+  return row;
 }
 
 function rowToDocument(row: RawRow): DocumentRow {

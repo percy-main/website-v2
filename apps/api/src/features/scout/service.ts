@@ -332,7 +332,7 @@ export function appendMessage(db: Kysely<DB>) {
     return {
       id: row.id,
       role: row.role as PersistedMessage["role"],
-      parts: Array.isArray(row.parts) ? (row.parts as unknown[]) : [row.parts],
+      parts: Array.isArray(row.parts) ? row.parts : [row.parts],
       createdAt: toIso(row.created_at),
       attachmentIds: row.attachment_ids ?? [],
     };

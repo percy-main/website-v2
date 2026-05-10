@@ -166,7 +166,7 @@ describe("incident-report (integration)", () => {
       {
         ...validSubmission({ reporterEmail: "bot@example.com" }),
         website: "http://spam.example.com",
-      } as IncidentReportSubmission,
+      },
       log,
     );
 

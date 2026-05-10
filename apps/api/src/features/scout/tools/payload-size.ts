@@ -62,7 +62,7 @@ function walk(value: unknown, seen: WeakSet<object>): number {
   }
 
   // From here, value is a non-null object or array.
-  const obj = value as object;
+  const obj = value;
   if (seen.has(obj)) return 4; // cycle / repeated DAG node
   seen.add(obj);
 

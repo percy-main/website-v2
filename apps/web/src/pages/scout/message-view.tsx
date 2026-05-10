@@ -416,7 +416,7 @@ function renderParts(
         out[target] = {
           ...t,
           text: `${t.text}[[CITE:${key}]]`,
-        } as Part;
+        };
         continue;
       }
       // No preceding text — fall through; PartView will render a standalone

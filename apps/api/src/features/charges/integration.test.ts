@@ -180,7 +180,7 @@ describe("charges service (integration)", () => {
       mockPaymentIntentsCreate.mockResolvedValue({
         id: "pi_test_123",
         client_secret: "pi_test_123_secret_abc",
-      } as never);
+      });
 
       const result = await payOutstandingCharges(ctx.db, mockStripe)(email);
 
@@ -244,12 +244,12 @@ describe("charges service (integration)", () => {
       mockPaymentIntentsRetrieve.mockResolvedValue({
         id: "pi_existing",
         status: "requires_confirmation",
-      } as never);
+      });
 
       mockPaymentIntentsCreate.mockResolvedValue({
         id: "pi_new_456",
         client_secret: "pi_new_456_secret",
-      } as never);
+      });
 
       const result = await payOutstandingCharges(ctx.db, mockStripe)(email);
 
@@ -301,7 +301,7 @@ describe("charges service (integration)", () => {
       mockPaymentIntentsCreate.mockResolvedValue({
         id: "pi_scoped_789",
         client_secret: "pi_scoped_789_secret",
-      } as never);
+      });
 
       const result = await payOutstandingCharges(ctx.db, mockStripe)(email, [
         targetId,

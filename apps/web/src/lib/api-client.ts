@@ -54,7 +54,7 @@ export async function callApi<T>(
       typeof error === "string"
         ? error
         : typeof error === "object" && error !== null && "message" in error
-          ? String((error as { message: unknown }).message)
+          ? String(error.message)
           : res.statusText,
     );
   }

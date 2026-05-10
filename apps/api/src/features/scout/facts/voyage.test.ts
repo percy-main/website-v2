@@ -13,7 +13,7 @@ import {
 function mockFetch(
   impl: (...args: Parameters<typeof fetch>) => Promise<Response>,
 ): MockedFunction<typeof fetch> {
-  return vi.fn(impl) as MockedFunction<typeof fetch>;
+  return vi.fn(impl);
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
