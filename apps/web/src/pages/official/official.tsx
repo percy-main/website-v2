@@ -84,7 +84,7 @@ function DownloadTeamNewsButton({
   const handleDownload = () => {
     setDownloading(true);
     // Raw fetch: endpoint returns a PNG blob, not JSON — openapi-fetch can't handle binary downloads
-    void fetch(
+    fetch(
       `${API_BASE}/matchday/${encodeURIComponent(matchdayId)}/team-news-image?isHome=${isHome}${matchTime ? `&matchTime=${encodeURIComponent(matchTime)}` : ""}`,
       { credentials: "include" },
     )
@@ -99,6 +99,20 @@ function DownloadTeamNewsButton({
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+      })
+      .catch((err: unknown) => {
+        const error = err instanceof Error ? err : new Error(String(err));
+        // Surface to NR Browser. Without this, the void-discarded chain
+        // hides failures from observability — the spinner just resets.
+        if (window.newrelic) {
+          window.newrelic.noticeError(error, {
+            kind: "team_news_image_download",
+            matchdayId,
+          });
+        }
+        // No toast library in the web app today (#194); console.error
+        // gives local-dev visibility, NR captures via noticeError.
+        console.error("team_news_image_download failed:", error.message);
       })
       .finally(() => {
         setDownloading(false);
