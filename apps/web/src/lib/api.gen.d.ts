@@ -545,7 +545,13 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        chargeIds?: string[];
+                    };
+                };
+            };
             responses: {
                 /** @description Default Response */
                 200: {

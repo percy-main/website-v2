@@ -6,6 +6,7 @@ import {
   confirmPaymentResponseSchema,
   confirmPaymentSchema,
   payOutstandingResponseSchema,
+  payOutstandingSchema,
 } from "./schemas.ts";
 import {
   confirmPayment,
@@ -42,12 +43,13 @@ export const chargeRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       preHandler: [requireAuth],
       schema: {
+        body: payOutstandingSchema,
         response: { 200: payOutstandingResponseSchema },
       },
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      return await payOutstanding(user.email);
+      return await payOutstanding(user.email, request.body.chargeIds);
     },
   );
 

@@ -254,7 +254,13 @@ function JuniorRegistrationInner() {
   });
 
   const payMutation = useMutation({
-    mutationFn: () => callApi(api.POST("/api/charges/pay-outstanding")),
+    // Junior registration pays only the charge just created for these
+    // dependents — passing chargeIds prevents bundling unrelated
+    // outstanding charges (#93) like a parent's own membership fee.
+    mutationFn: (chargeIds: string[]) =>
+      callApi(
+        api.POST("/api/charges/pay-outstanding", { body: { chargeIds } }),
+      ),
     onSuccess: (data) => {
       if (!data.clientSecret) return;
       const piId = data.clientSecret.split("_secret_")[0];
@@ -289,9 +295,9 @@ function JuniorRegistrationInner() {
     dispatch({ type: "advanceIfValid", next: nextStep });
 
   const handleSubmit = async () => {
-    await addDependentsMutation.mutateAsync(dependents);
+    const result = await addDependentsMutation.mutateAsync(dependents);
     setStep("payment");
-    payMutation.mutate();
+    payMutation.mutate([result.chargeId]);
   };
 
   if (step === "done") {
@@ -953,9 +959,12 @@ function JuniorRegistrationInner() {
               <div className="flex flex-wrap gap-3">
                 <Button
                   type="button"
+                  disabled={!addDependentsMutation.data?.chargeId}
                   onClick={() => {
+                    const chargeId = addDependentsMutation.data?.chargeId;
+                    if (!chargeId) return;
                     dispatch({ type: "setPaymentError", message: null });
-                    payMutation.mutate();
+                    payMutation.mutate([chargeId]);
                   }}
                 >
                   Try Again
