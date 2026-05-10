@@ -681,7 +681,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           // tools to recover. Voyage errors carry structured detail
           // (status, endpoint, raw body) on the error itself; pino picks
           // them up automatically from the err field.
-          app.log.error(
+          request.log.error(
             { err, threadId },
             "scout: auto-retrieval failed; continuing without fact injection",
           );
@@ -731,7 +731,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             });
             await bump(threadId);
             if (isAborted) {
-              app.log.warn(
+              request.log.warn(
                 { event: "scout.turn_aborted", threadId },
                 "scout turn aborted; persisted partial assistant message",
               );
@@ -753,7 +753,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               inputTokens > 0 && cacheRead != null
                 ? Number((cacheRead / (inputTokens + cacheRead)).toFixed(3))
                 : null;
-            app.log.info(
+            request.log.info(
               {
                 event: "scout.turn",
                 threadId,
@@ -770,7 +770,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               "scout turn complete",
             );
           } catch (err) {
-            app.log.error(
+            request.log.error(
               { err, threadId },
               "scout: failed to persist assistant message",
             );
@@ -804,7 +804,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             prepareStep: agent.prepareStep,
             providerOptions: agent.providerOptions,
             onError: ({ error }) => {
-              app.log.error(
+              request.log.error(
                 { err: sanitizeError(error) },
                 "scout streamText error",
               );
@@ -838,7 +838,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           // Returning that to the FE leaks operational state of our account
           // to anyone with Scout access, so we log the full sanitized error
           // server-side and surface a generic string to the UI.
-          app.log.error({ err: sanitizeError(error) }, "scout UI stream error");
+          request.log.error({ err: sanitizeError(error) }, "scout UI stream error");
           return "Scout failed to respond. Please try again.";
         },
       });
@@ -975,7 +975,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         // as 500. The service has already flipped the row to 'failed' and
         // populated processing_error, so the FE can show a chip with a
         // retry option.
-        app.log.error(
+        request.log.error(
           { err, threadId, attachmentId },
           "scout: attachment commit failed",
         );
@@ -1278,7 +1278,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         try {
           await app.scoutReports.deleteReport(s3Key);
         } catch (s3Err) {
-          app.log.warn(
+          request.log.warn(
             { err: s3Err, s3Key },
             "scout report S3 delete failed; lifecycle rule will clean up",
           );
@@ -1414,7 +1414,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             documentId: id,
           });
         } catch (launchErr) {
-          app.log.error(
+          request.log.error(
             { err: launchErr, documentId: id },
             "scout KB worker launch failed",
           );
@@ -1573,7 +1573,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             documentId: id,
           });
         } catch (launchErr) {
-          app.log.error(
+          request.log.error(
             { err: launchErr, documentId: id },
             "scout KB reingest worker launch failed",
           );
@@ -1700,7 +1700,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             documentId: result.documentId,
           });
         } catch (launchErr) {
-          app.log.error(
+          request.log.error(
             { err: launchErr, documentId: result.documentId },
             "scout KB bridge worker launch failed",
           );
