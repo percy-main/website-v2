@@ -4,7 +4,7 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import { createClient as createDbClient, type DB } from "@percy-main/db";
 import { createSend, type Email } from "@percy-main/email";
-import Fastify from "fastify";
+import Fastify, { type FastifyError } from "fastify";
 import {
   jsonSchemaTransform,
   serializerCompiler,
@@ -225,6 +225,31 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
     ],
   });
   await app.register(cookie);
+
+  // Custom error handler. Reasons over Fastify's default:
+  //  - Stops 4xx (deliberately thrown via Object.assign(new Error,
+  //    { statusCode: 4xx })) from polluting NR's error-rate alarm.
+  //    400/401/403/404 log at warn with kind=http_client_error.
+  //  - 5xx and unknown statuses log at error with kind=http_error.
+  //  - Pino redact (#171) handles PII in the err object;
+  //    setErrorHandler doesn't need to re-redact.
+  //  - Reply body keeps the existing { error: message } shape so
+  //    clients aren't broken.
+  app.setErrorHandler((err: FastifyError, request, reply) => {
+    const status = err.statusCode ?? 500;
+    if (status >= 500) {
+      request.log.error(
+        { err, event: "http_error", status },
+        err.message || "internal_server_error",
+      );
+    } else {
+      request.log.warn(
+        { err, event: "http_client_error", status },
+        err.message,
+      );
+    }
+    return reply.status(status).send({ error: err.message });
+  });
 
   // Register all feature routes
   await app.register(healthRoutes);
