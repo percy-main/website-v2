@@ -2,6 +2,14 @@ import type { DB } from "@percy-main/db";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import Stripe from "stripe";
+import type {
+  GameSponsorshipManual,
+  GameSponsorshipPayment,
+  PlayerSponsorshipManual,
+  PlayerSponsorshipPayment,
+  SponsorshipList,
+  SponsorshipUpdate,
+} from "./schemas.ts";
 
 /**
  * Cancel a Stripe payment intent, swallowing the expected
@@ -30,14 +38,6 @@ async function cancelPaymentIntentTolerantly(
     throw err;
   }
 }
-import type {
-  GameSponsorshipManual,
-  GameSponsorshipPayment,
-  PlayerSponsorshipManual,
-  PlayerSponsorshipPayment,
-  SponsorshipList,
-  SponsorshipUpdate,
-} from "./schemas.ts";
 
 async function fetchStripePriceInfo(stripe: Stripe, priceId: string) {
   const price = await stripe.prices.retrieve(priceId, {

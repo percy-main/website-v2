@@ -433,13 +433,13 @@ export function deleteDocument(deps: KbDeps) {
     }
     if (row.pending_key) {
       void deps.store
-      .deletePending(row.pending_key)
-      .catch((err: unknown) =>
-        deps.log.warn(
-          { err, key: row.pending_key, kind: "s3_cleanup" },
-          "s3_cleanup_failed",
-        ),
-      );
+        .deletePending(row.pending_key)
+        .catch((err: unknown) =>
+          deps.log.warn(
+            { err, key: row.pending_key, kind: "s3_cleanup" },
+            "s3_cleanup_failed",
+          ),
+        );
     }
   };
 }

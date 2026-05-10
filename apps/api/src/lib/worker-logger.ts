@@ -7,8 +7,8 @@
  * uses, with no extra dependency.
  */
 
-import Fastify from "fastify";
 import type { FastifyBaseLogger } from "fastify";
+import Fastify from "fastify";
 
 export function createWorkerLogger(name: string): FastifyBaseLogger {
   // `genReqId` is required by the type but never called outside the

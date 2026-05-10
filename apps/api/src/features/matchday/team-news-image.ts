@@ -295,10 +295,7 @@ async function fetchImage(
   try {
     const res = await fetch(url);
     if (!res.ok) {
-      log.warn(
-        { url, status: res.status },
-        "team_news_image_fetch_non_ok",
-      );
+      log.warn({ url, status: res.status }, "team_news_image_fetch_non_ok");
       return null;
     }
     return Buffer.from(await res.arrayBuffer());
@@ -388,10 +385,7 @@ export async function generateTeamNewsImage(
       blend: "over",
     });
   } catch (err) {
-    log.warn(
-      { err, asset: CLUB_LOGO_PATH },
-      "team_news_image_asset_skipped",
-    );
+    log.warn({ err, asset: CLUB_LOGO_PATH }, "team_news_image_asset_skipped");
   }
 
   // Club sponsor (Crossling) — bottom-right corner, on a semi-transparent
