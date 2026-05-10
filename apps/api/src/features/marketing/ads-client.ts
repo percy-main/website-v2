@@ -8,8 +8,9 @@ export class AdsValidationError extends Error {
   constructor(
     message: string,
     public readonly fieldErrors?: unknown,
+    options?: { cause?: unknown },
   ) {
-    super(message);
+    super(message, options);
     this.name = "AdsValidationError";
   }
 }
@@ -87,14 +88,19 @@ class GoogleAdsApiClient implements AdsClient {
         .partial_failure_error;
       if (partial) {
         let detail: string;
+        let stringifyError: unknown;
         try {
           detail = JSON.stringify(partial);
-        } catch {
+        } catch (err) {
+          // Likely a circular ref. Fall back to a stable string but
+          // preserve the original error so the chain ends up in NR.
           detail = Object.prototype.toString.call(partial);
+          stringifyError = err;
         }
         throw new AdsValidationError(
           `Google Ads partial_failure_error on uploadClickConversions: ${detail}`,
           partial,
+          stringifyError ? { cause: stringifyError } : undefined,
         );
       }
     } catch (err) {
