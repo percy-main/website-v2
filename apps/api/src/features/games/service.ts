@@ -245,10 +245,7 @@ export function getGame(
       api.getMatchDetail(matchId).catch((err: unknown) => {
         // Continue with degraded behaviour but log so a PC outage
         // can be detected via the warn rate.
-        log.warn(
-          { err, matchId },
-          "play_cricket_match_detail_unavailable",
-        );
+        log.warn({ err, matchId }, "play_cricket_match_detail_unavailable");
         return null;
       }),
       db

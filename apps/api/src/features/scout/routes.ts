@@ -838,7 +838,10 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           // Returning that to the FE leaks operational state of our account
           // to anyone with Scout access, so we log the full sanitized error
           // server-side and surface a generic string to the UI.
-          request.log.error({ err: sanitizeError(error) }, "scout UI stream error");
+          request.log.error(
+            { err: sanitizeError(error) },
+            "scout UI stream error",
+          );
           return "Scout failed to respond. Please try again.";
         },
       });

@@ -60,7 +60,8 @@ describe("incident-report (integration)", () => {
       send,
     });
 
-    const { id } = await submit(validSubmission({
+    const { id } = await submit(
+      validSubmission({
         reporterName: "Full Submission",
         reporterPhone: "07123456789",
         affectedName: "Junior Player",
@@ -75,7 +76,9 @@ describe("incident-report (integration)", () => {
         firstAidDetails: "Ice pack applied",
         immediateActions: "Stopped training, contacted parent",
         witnesses: "Coach Smith, Player B",
-      }), log);
+      }),
+      log,
+    );
 
     const row = await ctx.db
       .selectFrom("accident_incident_report")
@@ -113,21 +116,24 @@ describe("incident-report (integration)", () => {
       send,
     });
 
-    const { id } = await submit({
-      reporterName: "Minimal",
-      reporterEmail: "minimal@example.com",
-      reporterRelationship: "visitor",
-      prefersNoContact: false,
-      affectedIsMinor: false,
-      occurredAt: "2026-04-24T10:00:00.000Z",
-      location: "Car park",
-      incidentType: "near_miss",
-      description: "Almost slipped on wet floor.",
-      injuryOccurred: false,
-      firstAidGiven: false,
-      medicalTreatmentRequired: false,
-      declarationConfirmed: true,
-    }, log);
+    const { id } = await submit(
+      {
+        reporterName: "Minimal",
+        reporterEmail: "minimal@example.com",
+        reporterRelationship: "visitor",
+        prefersNoContact: false,
+        affectedIsMinor: false,
+        occurredAt: "2026-04-24T10:00:00.000Z",
+        location: "Car park",
+        incidentType: "near_miss",
+        description: "Almost slipped on wet floor.",
+        injuryOccurred: false,
+        firstAidGiven: false,
+        medicalTreatmentRequired: false,
+        declarationConfirmed: true,
+      },
+      log,
+    );
 
     const row = await ctx.db
       .selectFrom("accident_incident_report")
@@ -183,7 +189,10 @@ describe("incident-report (integration)", () => {
       send,
     });
 
-    const { id } = await submit(validSubmission({ reporterName: "Round-trip Tester" }), log);
+    const { id } = await submit(
+      validSubmission({ reporterName: "Round-trip Tester" }),
+      log,
+    );
 
     // List finds it (status=new).
     const list = await listIncidentReports(ctx.db)({

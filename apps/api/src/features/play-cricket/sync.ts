@@ -656,7 +656,9 @@ export function runSync(
         );
         result.errors.push(
           `Fantasy scoring failed: ${
-            scoringErr instanceof Error ? scoringErr.message : String(scoringErr)
+            scoringErr instanceof Error
+              ? scoringErr.message
+              : String(scoringErr)
           }`,
         );
       }

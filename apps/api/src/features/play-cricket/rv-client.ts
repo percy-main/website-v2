@@ -1,4 +1,11 @@
 import crypto from "node:crypto";
+import {
+  RvBallsResponse,
+  RvMappingInfo,
+  RvMatchOverview,
+  type RvBall,
+  type RvMatchOverview as RvMatchOverviewType,
+} from "./rv-schemas.ts";
 
 /**
  * Static-message errors so NR Errors view groups RV failures
@@ -27,13 +34,6 @@ export class RvApiTimeoutError extends Error {
     this.name = "RvApiTimeoutError";
   }
 }
-import {
-  RvBallsResponse,
-  RvMappingInfo,
-  RvMatchOverview,
-  type RvBall,
-  type RvMatchOverview as RvMatchOverviewType,
-} from "./rv-schemas.ts";
 
 // ResultsVault read-only client. Reverse-engineered from InteractSport's
 // Match Centre SPA — see BALL_BY_BALL_FETCHING.md (local, gitignored) for

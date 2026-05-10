@@ -158,8 +158,7 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
             await withSpan(
               "stripe.payment_intent.succeeded",
               { eventId: event.id },
-              () =>
-                onPaymentIntentSucceeded(event.data.object, event.created),
+              () => onPaymentIntentSucceeded(event.data.object, event.created),
             );
             break;
           default:

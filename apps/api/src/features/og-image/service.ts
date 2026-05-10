@@ -245,15 +245,17 @@ async function getMatchTime(
 ): Promise<string | null> {
   const currentYear = new Date().getFullYear();
   for (const season of [currentYear, currentYear - 1]) {
-    const response = await api.getMatchesSummary(season).catch((err: unknown) => {
-      // Continue with degraded behaviour (no match_time) but log so a
-      // PC outage can be detected via the warn rate.
-      log.warn(
-        { err, matchId, season },
-        "play_cricket_matches_summary_unavailable",
-      );
-      return null;
-    });
+    const response = await api
+      .getMatchesSummary(season)
+      .catch((err: unknown) => {
+        // Continue with degraded behaviour (no match_time) but log so a
+        // PC outage can be detected via the warn rate.
+        log.warn(
+          { err, matchId, season },
+          "play_cricket_matches_summary_unavailable",
+        );
+        return null;
+      });
     if (!response) continue;
     const match = response.matches.find((m) => m.id.toString() === matchId);
     if (match?.match_time) return match.match_time;
@@ -294,10 +296,7 @@ export function generateOgImage(
     const matchDetail = await api
       .getMatchDetail(matchId)
       .catch((err: unknown) => {
-        log.warn(
-          { err, matchId },
-          "play_cricket_match_detail_unavailable",
-        );
+        log.warn({ err, matchId }, "play_cricket_match_detail_unavailable");
         return null;
       });
     if (!matchDetail) return null;

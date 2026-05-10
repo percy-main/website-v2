@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createNoopLogger } from "../../lib/worker-logger.ts";
 import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
 } from "../../test/containers.ts";
-import { createNoopLogger } from "../../lib/worker-logger.ts";
 import { createContactSubmission, createEventSubscriber } from "./service.ts";
 
 const log = createNoopLogger();
