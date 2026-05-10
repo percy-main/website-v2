@@ -133,7 +133,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   app.decorate("send", send);
 
   // Create and decorate the auth instance
-  const auth = createAuth(config, dialect, send);
+  const auth = createAuth(config, dialect, send, app.log);
   app.decorate("auth", auth);
 
   // Create and decorate the S3 uploader (receipt images)
