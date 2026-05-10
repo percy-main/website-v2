@@ -577,6 +577,12 @@ async function syncMatches(
         try {
           await ingestRvDataForMatch(db, rv, matchId, matchDateIso, log);
         } catch (rvErr) {
+          // Log via Pino so the stack + cause survive (the array push
+          // stringifies and loses both — kept for the DB log row).
+          log.error(
+            { err: rvErr, matchId },
+            "play_cricket_sync_rv_ingest_failed",
+          );
           errors.push(
             `RV ingest failed for match ${matchId}: ${
               rvErr instanceof Error ? rvErr.message : String(rvErr)
@@ -587,6 +593,7 @@ async function syncMatches(
 
       matchesProcessed++;
     } catch (err) {
+      log.error({ err, matchId }, "play_cricket_sync_match_failed");
       const msg = `Error processing match ${matchId}: ${err instanceof Error ? err.message : String(err)}`;
       errors.push(msg);
     }
@@ -641,12 +648,26 @@ export function runSync(
         const season = String(new Date().getFullYear());
         await calculateFantasyScores(db)(season);
       } catch (scoringErr) {
-        result.errors.push(`Fantasy scoring failed: ${String(scoringErr)}`);
+        // Log via Pino so the stack survives — the array push
+        // String()s the error and loses the trace.
+        log.error(
+          { err: scoringErr },
+          "play_cricket_sync_fantasy_scoring_failed",
+        );
+        result.errors.push(
+          `Fantasy scoring failed: ${
+            scoringErr instanceof Error ? scoringErr.message : String(scoringErr)
+          }`,
+        );
       }
 
       return result;
     } catch (err) {
-      // Try to log the failure
+      // Top-level sync failure. Log via Pino BEFORE the DB write so
+      // the breadcrumb survives even if the DB itself is the cause
+      // of the failure.
+      log.error({ err }, "play_cricket_sync_failed");
+
       try {
         await db
           .insertInto("play_cricket_sync_log")
@@ -656,11 +677,19 @@ export function runSync(
             completed_at: new Date().toISOString(),
             season: new Date().getFullYear(),
             matches_processed: 0,
-            errors: JSON.stringify([String(err)]),
+            errors: JSON.stringify([
+              err instanceof Error ? err.message : String(err),
+            ]),
           })
           .execute();
-      } catch {
-        // Swallow logging failure
+      } catch (logErr) {
+        // The DB write itself failed. Surface it instead of swallowing
+        // — without this, an outage that takes down both the sync and
+        // the log table is invisible.
+        log.error(
+          { err: logErr, originalErr: err },
+          "play_cricket_sync_log_write_failed",
+        );
       }
 
       throw err;

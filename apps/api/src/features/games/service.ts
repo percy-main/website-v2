@@ -1,4 +1,5 @@
 import type { DB } from "@percy-main/db";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 
@@ -228,7 +229,10 @@ export function getGame(
   api: PlayCricketApiClient,
   siteId: string,
 ) {
-  return async (matchId: string): Promise<GameDetail | null> => {
+  return async (
+    matchId: string,
+    log: FastifyBaseLogger,
+  ): Promise<GameDetail | null> => {
     // Fetch match detail, DB data, and sponsorship in parallel
     // Match detail is the primary source — no season search needed
     const [
@@ -238,7 +242,15 @@ export function getGame(
       manualResult,
       confirmedMatchday,
     ] = await Promise.all([
-      api.getMatchDetail(matchId).catch(() => null),
+      api.getMatchDetail(matchId).catch((err: unknown) => {
+        // Continue with degraded behaviour but log so a PC outage
+        // can be detected via the warn rate.
+        log.warn(
+          { err, matchId },
+          "play_cricket_match_detail_unavailable",
+        );
+        return null;
+      }),
       db
         .selectFrom("match_result")
         .where("match_id", "=", matchId)

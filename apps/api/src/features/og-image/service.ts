@@ -1,4 +1,5 @@
 import type { DB } from "@percy-main/db";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -240,10 +241,19 @@ async function getMatchTime(
   api: PlayCricketApiClient,
   siteId: string,
   matchId: string,
+  log: FastifyBaseLogger,
 ): Promise<string | null> {
   const currentYear = new Date().getFullYear();
   for (const season of [currentYear, currentYear - 1]) {
-    const response = await api.getMatchesSummary(season).catch(() => null);
+    const response = await api.getMatchesSummary(season).catch((err: unknown) => {
+      // Continue with degraded behaviour (no match_time) but log so a
+      // PC outage can be detected via the warn rate.
+      log.warn(
+        { err, matchId, season },
+        "play_cricket_matches_summary_unavailable",
+      );
+      return null;
+    });
     if (!response) continue;
     const match = response.matches.find((m) => m.id.toString() === matchId);
     if (match?.match_time) return match.match_time;
@@ -252,12 +262,19 @@ async function getMatchTime(
   return null;
 }
 
-async function fetchImage(url: string): Promise<Buffer | null> {
+async function fetchImage(
+  url: string,
+  log: FastifyBaseLogger,
+): Promise<Buffer | null> {
   try {
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      log.warn({ url, status: res.status }, "og_image_asset_fetch_non_ok");
+      return null;
+    }
     return Buffer.from(await res.arrayBuffer());
-  } catch {
+  } catch (err) {
+    log.warn({ err, url }, "og_image_asset_fetch_failed");
     return null;
   }
 }
@@ -269,9 +286,20 @@ export function generateOgImage(
   api: PlayCricketApiClient,
   siteId: string,
 ) {
-  return async (matchId: string): Promise<Buffer | null> => {
+  return async (
+    matchId: string,
+    log: FastifyBaseLogger,
+  ): Promise<Buffer | null> => {
     // Fetch match detail from Play Cricket API
-    const matchDetail = await api.getMatchDetail(matchId).catch(() => null);
+    const matchDetail = await api
+      .getMatchDetail(matchId)
+      .catch((err: unknown) => {
+        log.warn(
+          { err, matchId },
+          "play_cricket_match_detail_unavailable",
+        );
+        return null;
+      });
     if (!matchDetail) return null;
 
     const detail = matchDetail.match_details[0];
@@ -369,7 +397,7 @@ export function generateOgImage(
       teamName,
       oppositionName,
       matchDate: detail.match_date || "",
-      matchTime: await getMatchTime(api, siteId, matchId),
+      matchTime: await getMatchTime(api, siteId, matchId, log),
       outcome,
       resultDescription: detail.result_description,
       competitionName,
@@ -405,7 +433,7 @@ export function generateOgImage(
 
     // Composite sponsor logo into the footer if available
     if (matchData.sponsor?.logoUrl) {
-      const logoBuffer = await fetchImage(matchData.sponsor.logoUrl);
+      const logoBuffer = await fetchImage(matchData.sponsor.logoUrl, log);
       if (logoBuffer) {
         const resizedLogo = await sharp(logoBuffer)
           .resize({ height: 50, fit: "inside" })
