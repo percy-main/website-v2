@@ -179,7 +179,10 @@ describe("createRvClient.getMatchMapping", () => {
       fetch: fetchMock as unknown as typeof fetch,
     });
 
-    await expect(client.getMatchMapping("123")).rejects.toThrow(/HTTP 401/);
+    await expect(client.getMatchMapping("123")).rejects.toMatchObject({
+      name: "RvApiError",
+      status: 401,
+    });
   });
 });
 

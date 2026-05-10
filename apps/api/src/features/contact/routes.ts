@@ -23,7 +23,7 @@ export const contactRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await submitContact(request.body);
+      return await submitContact(request.body, request.log);
     },
   );
 

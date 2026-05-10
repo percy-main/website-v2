@@ -6,6 +6,7 @@ import {
   startOfDay,
   subDays,
 } from "date-fns";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { S3Uploader } from "../../lib/s3-upload.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
@@ -903,6 +904,7 @@ export function finishMatch(
     role: string,
     matchdayId: string,
     data: FinishMatch,
+    log: FastifyBaseLogger,
   ) => {
     const matchday = await db
       .selectFrom("matchday")
@@ -1073,9 +1075,9 @@ export function finishMatch(
           const msg =
             err instanceof Error ? err.message : "Unknown email error";
           emailErrors.push(`${player.member_email}: ${msg}`);
-          console.error(
-            `Failed to send charge notification to ${player.member_email}:`,
-            err,
+          log.error(
+            { err, recipientEmail: player.member_email, matchdayId },
+            "matchday_charge_notification_failed",
           );
         }
       }

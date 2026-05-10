@@ -1,6 +1,7 @@
 import type { DB } from "@percy-main/db";
 import { IncidentReportConfirmation, type Email } from "@percy-main/email";
 import { render } from "@react-email/render";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { createElement } from "react";
 import type {
@@ -73,7 +74,7 @@ export function createIncidentReportSubmission(
   const sendSlack = createSlackNotifier(config.slackWebhookUrl);
   const imageBaseUrl = `${config.baseUrl}/images`;
 
-  return async (data: IncidentReportSubmission) => {
+  return async (data: IncidentReportSubmission, log: FastifyBaseLogger) => {
     // Honeypot tripped — silently accept but don't persist or notify.
     if (data.website && data.website.length > 0) {
       return { id: crypto.randomUUID() };
@@ -128,8 +129,13 @@ export function createIncidentReportSubmission(
           }),
         ),
       });
-    } catch {
-      // Don't block submission on email failure.
+    } catch (err) {
+      // Don't block submission on email failure — but log at error
+      // level so safeguarding officers can chase missing audit trails.
+      log.error(
+        { err, reportId: id },
+        "incident_report_confirmation_email_failed",
+      );
     }
 
     // Fire-and-forget Slack notification.
@@ -144,8 +150,12 @@ export function createIncidentReportSubmission(
       injurySeverity: data.injurySeverity ?? null,
       description: data.description,
       adminUrl: `${config.baseUrl}/admin?tab=incidents`,
-    }).catch(() => {
-      // Silently ignore Slack failures.
+    }).catch((err: unknown) => {
+      // Don't block submission on Slack failure — but log at error
+      // level so admins can chase missing notifications. Safeguarding
+      // criticality means any failure should page on a single
+      // occurrence.
+      log.error({ err, reportId: id }, "incident_report_admin_slack_failed");
     });
 
     return { id };

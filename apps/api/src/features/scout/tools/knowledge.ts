@@ -59,7 +59,7 @@ export interface KbToolDeps {
   threadId?: string;
   /** Optional UI stream writer; cite_kb streams citation parts when present. */
   writer?: UIMessageStreamWriter;
-  logger?: FastifyBaseLogger;
+  logger: FastifyBaseLogger;
 }
 
 export function createKnowledgeTools(deps: KbToolDeps) {
@@ -73,6 +73,7 @@ export function createKnowledgeTools(deps: KbToolDeps) {
     // route layer and tool layer; we pass dummy non-zero defaults.
     maxDocumentBytes: 1,
     uploadUrlExpirySeconds: 1,
+    log: logger,
   });
 
   return {

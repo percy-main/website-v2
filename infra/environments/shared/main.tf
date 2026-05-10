@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    newrelic = {
+      source  = "newrelic/newrelic"
+      version = "~> 3.49"
+    }
   }
 
   backend "s3" {
@@ -24,6 +28,14 @@ provider "aws" {
 provider "aws" {
   alias  = "us_east_1"
   region = "us-east-1"
+}
+
+# New Relic provider — auth via NEW_RELIC_API_KEY env var (set on the
+# CI runner from secrets.NEW_RELIC_API_KEY). Account ID + region come
+# from variables so they're declarative rather than env-dependent.
+provider "newrelic" {
+  account_id = var.newrelic_account_id
+  region     = var.newrelic_region
 }
 
 # -----------------------------------------------------------------------------
@@ -586,10 +598,12 @@ resource "aws_sns_topic" "shared_reliability_alarms_us_east_1" {
 # from R53's globally-distributed checkers, so it catches DNS / TLS /
 # edge problems that ALB target health cannot.
 resource "aws_route53_health_check" "api" {
-  fqdn              = "api.v2.${var.domain_name}"
-  port              = 443
-  type              = "HTTPS"
-  resource_path     = "/health"
+  fqdn = "api.v2.${var.domain_name}"
+  port = 443
+  type = "HTTPS"
+  # /health/ready returns 503 on DB outage, so this health check fires
+  # the alarm on a real outage rather than just process death (#193).
+  resource_path     = "/health/ready"
   request_interval  = 30
   failure_threshold = 3
   measure_latency   = false
@@ -822,4 +836,89 @@ resource "aws_sns_topic_policy" "security_events_us_east_1" {
   provider = aws.us_east_1
   arn      = aws_sns_topic.security_events_us_east_1.arn
   policy   = data.aws_iam_policy_document.security_events_us_east_1_topic.json
+}
+
+
+# -----------------------------------------------------------------------------
+# New Relic ↔ AWS account integration (API poll)
+# -----------------------------------------------------------------------------
+# Cross-account IAM role assumed by NR to poll CloudWatch metrics from
+# AWS namespace dashboards (RDS, ALB, CloudFront, SES, S3, Route 53,
+# etc). API poll over CloudWatch Metric Streams: 5-min granularity but
+# free; revisit when budget allows.
+#
+# The link account resource also tracks the integration in NR so a
+# console-side change shows as drift in the daily drift workflow
+# (#228) rather than silently diverging.
+
+data "aws_iam_policy_document" "newrelic_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type = "AWS"
+      # New Relic's integration account. Same value across all NR
+      # tenants — they assume into our account using ExternalId for
+      # tenant separation.
+      identifiers = ["arn:aws:iam::754728514883:root"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "sts:ExternalId"
+      values   = [tostring(var.newrelic_account_id)]
+    }
+  }
+}
+
+resource "aws_iam_role" "newrelic_integration" {
+  name               = "NewRelicInfrastructure-Integrations"
+  description        = "Allows New Relic to poll CloudWatch on this account"
+  assume_role_policy = data.aws_iam_policy_document.newrelic_assume.json
+}
+
+resource "aws_iam_role_policy_attachment" "newrelic_readonly" {
+  role       = aws_iam_role.newrelic_integration.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+# Grants the additional permissions NR needs beyond ReadOnlyAccess
+# (mainly billing / budget metadata).
+resource "aws_iam_role_policy_attachment" "newrelic_budgets" {
+  role       = aws_iam_role.newrelic_integration.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSBilling"
+}
+
+# Tell New Relic about the role. NR begins polling CloudWatch via this
+# role on the next poll cycle (every 5 min by default).
+resource "newrelic_cloud_aws_link_account" "main" {
+  account_id             = var.newrelic_account_id
+  arn                    = aws_iam_role.newrelic_integration.arn
+  metric_collection_mode = "PULL"
+  name                   = "percy-main-aws"
+  depends_on = [
+    aws_iam_role_policy_attachment.newrelic_readonly,
+    aws_iam_role_policy_attachment.newrelic_budgets,
+  ]
+}
+
+# Enable the per-service AWS integrations we actually use. Cheap to
+# leave the others off — NR only polls services listed here.
+resource "newrelic_cloud_aws_integrations" "main" {
+  account_id        = var.newrelic_account_id
+  linked_account_id = newrelic_cloud_aws_link_account.main.id
+
+  # Per-service blocks — empty config blocks accept defaults (5-min
+  # poll, all regions). Add tag filters here later if we want to
+  # narrow what gets ingested.
+  alb {}
+  cloudfront {}
+  ec2 {}
+  ecs {}
+  elb {}
+  iam {}
+  rds {}
+  route53 {}
+  s3 {}
+  ses {}
+  sns {}
+  vpc {}
 }

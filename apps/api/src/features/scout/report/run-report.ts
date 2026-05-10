@@ -21,7 +21,7 @@ export interface RunReportDeps {
   config: Config;
   voyage?: VoyageClient;
   scoutReports: ScoutReportStore;
-  logger?: FastifyBaseLogger;
+  logger: FastifyBaseLogger;
 }
 
 export class ReportCancelledError extends Error {
@@ -99,7 +99,7 @@ export async function runReport(
       .where("id", "=", reportId)
       .executeTakeFirst();
     if (!existing) throw new ReportNotFoundError(reportId);
-    logger?.warn(
+    logger.warn(
       { reportId, status: existing.status },
       "scout_report_worker_skip_already_claimed_or_finished",
     );
@@ -148,7 +148,7 @@ export async function runReport(
         abortController.abort(new ReportCancelledError());
       }
     } catch (err) {
-      logger?.warn({ err, reportId }, "scout_report_flush_failed");
+      logger.warn({ err, reportId }, "scout_report_flush_failed");
     }
   };
 
@@ -231,7 +231,7 @@ export async function runReport(
       try {
         await deps.scoutReports.deleteReport(s3Key);
       } catch (cleanupErr) {
-        logger?.warn(
+        logger.warn(
           { err: cleanupErr, reportId, s3Key },
           "scout_report_s3_cleanup_after_db_failure_also_failed; lifecycle rule will sweep",
         );
@@ -239,7 +239,7 @@ export async function runReport(
       throw updateErr;
     }
 
-    logger?.info(
+    logger.info(
       { reportId, bytes: pdf.length, ms: Date.now() - startedAt },
       "scout_report_generated",
     );
@@ -261,17 +261,17 @@ export async function runReport(
       .where("id", "=", reportId)
       .execute()
       .catch((dbErr: unknown) => {
-        logger?.error(
+        logger.error(
           { err: dbErr, reportId },
           "scout_report_failed_status_update_failed",
         );
       });
 
     if (cancelled) {
-      logger?.info({ reportId }, "scout_report_cancelled");
+      logger.info({ reportId }, "scout_report_cancelled");
       return;
     }
-    logger?.error(
+    logger.error(
       { err, reportId, ms: Date.now() - startedAt },
       "scout_report_failed",
     );

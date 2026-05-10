@@ -264,6 +264,84 @@ describe("charges service (integration)", () => {
         }),
       );
     });
+
+    it("scopes to the supplied chargeIds when provided (#93)", async () => {
+      const email = `scoped-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+
+      const targetId = `ch-target-${crypto.randomUUID()}`;
+      const otherId = `ch-other-${crypto.randomUUID()}`;
+
+      await ctx.db
+        .insertInto("charge")
+        .values([
+          {
+            id: targetId,
+            member_id: memberId ?? "",
+            description: "Junior signup just created",
+            amount_pence: 4000,
+            charge_date: "2026-05-01",
+            created_by: "system",
+            type: "junior_membership",
+            source: "website",
+          },
+          {
+            id: otherId,
+            member_id: memberId ?? "",
+            description: "Parent's own outstanding fee",
+            amount_pence: 9000,
+            charge_date: "2026-04-01",
+            created_by: "system",
+            type: "membership",
+            source: "admin",
+          },
+        ])
+        .execute();
+
+      mockPaymentIntentsCreate.mockResolvedValue({
+        id: "pi_scoped_789",
+        client_secret: "pi_scoped_789_secret",
+      } as never);
+
+      const result = await payOutstandingCharges(ctx.db, mockStripe)(email, [
+        targetId,
+      ]);
+
+      expect(result.chargeIds).toEqual([targetId]);
+      expect(result.totalAmountPence).toBe(4000);
+
+      const charges = await getMyCharges(ctx.db)(email);
+      const other = charges.find((c) => c.id === otherId);
+      expect(other?.stripe_payment_intent_id).toBeNull();
+    });
+
+    it("ignores chargeIds belonging to a different member", async () => {
+      const email = `safety-${crypto.randomUUID()}@test.com`;
+      await seedTestUser(ctx.db, { email });
+
+      const otherEmail = `other-${crypto.randomUUID()}@test.com`;
+      const { memberId: otherMemberId } = await seedTestUser(ctx.db, {
+        email: otherEmail,
+      });
+      const otherChargeId = `ch-foreign-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: otherChargeId,
+          member_id: otherMemberId ?? "",
+          description: "Foreign charge",
+          amount_pence: 5000,
+          charge_date: "2026-04-01",
+          created_by: "system",
+          type: "manual",
+          source: "admin",
+        })
+        .execute();
+
+      await expect(
+        payOutstandingCharges(ctx.db, mockStripe)(email, [otherChargeId]),
+      ).rejects.toThrow("No unpaid charges found");
+    });
   });
 
   describe("confirmPayment", () => {

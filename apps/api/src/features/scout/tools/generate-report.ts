@@ -21,7 +21,7 @@ export interface GenerateReportToolDeps {
   writer: UIMessageStreamWriter;
   userId: string;
   threadId: string;
-  logger?: FastifyBaseLogger;
+  logger: FastifyBaseLogger;
 }
 
 const generateReportInputSchema = z.object({

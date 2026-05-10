@@ -27,7 +27,7 @@ export function getMyCharges(db: Kysely<DB>) {
 }
 
 export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
-  return async (email: string) => {
+  return async (email: string, scopeChargeIds?: string[]) => {
     const member = await db
       .selectFrom("member")
       .where("email", "=", email)
@@ -45,12 +45,21 @@ export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
     // Use a transaction with FOR UPDATE to prevent concurrent requests
     // from creating duplicate PaymentIntents for the same charges
     return await db.transaction().execute(async (trx) => {
-      const unpaidCharges = await trx
+      // When scopeChargeIds is provided (#93 — junior registration
+      // pays only the charge it created), narrow the bundle. The
+      // member_id WHERE still applies, so a malicious client passing
+      // someone else's chargeIds can only affect rows it already
+      // owned.
+      let query = trx
         .selectFrom("charge")
         .where("member_id", "=", member.id)
         .where("deleted_at", "is", null)
         .where("paid_at", "is", null)
-        .where("payment_confirmed_at", "is", null)
+        .where("payment_confirmed_at", "is", null);
+      if (scopeChargeIds && scopeChargeIds.length > 0) {
+        query = query.where("id", "in", scopeChargeIds);
+      }
+      const unpaidCharges = await query
         .select(["id", "amount_pence", "stripe_payment_intent_id"])
         .forUpdate()
         .execute();

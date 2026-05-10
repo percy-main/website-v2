@@ -4,7 +4,7 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import { createClient as createDbClient, type DB } from "@percy-main/db";
 import { createSend, type Email } from "@percy-main/email";
-import Fastify from "fastify";
+import Fastify, { type FastifyError } from "fastify";
 import {
   jsonSchemaTransform,
   serializerCompiler,
@@ -90,6 +90,44 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   const app = Fastify({
     logger: {
       level: config.LOG_LEVEL,
+      // Strip PII / secrets at the Pino layer. We need both the
+      // top-level paths (log.info({ email })) and the `*.X` wildcards
+      // (log.info({ user: { email } })) — Pino wildcards match exactly
+      // one path segment, so the bare and prefixed forms are not
+      // interchangeable. Headers paths cover OIDC / cookie auth.
+      // Add new paths here when a new sensitive field appears in any
+      // log call.
+      redact: {
+        paths: [
+          "email",
+          "password",
+          "passwordHash",
+          "token",
+          "apiKey",
+          "authorization",
+          "recipientEmail",
+          "*.email",
+          "*.password",
+          "*.passwordHash",
+          "*.token",
+          "*.apiKey",
+          "*.authorization",
+          "*.recipientEmail",
+          "*.*.email",
+          "*.*.password",
+          "*.*.token",
+          "req.headers.authorization",
+          "req.headers.cookie",
+          "req.headers['set-cookie']",
+        ],
+        censor: "[REDACTED]",
+      },
+      // Fastify's default req/res serializers + Pino's default err
+      // serializer (which captures stack, type, cause, and enumerable
+      // own props on Error subclasses) are inherited when not
+      // explicitly overridden — leaving serializers off means we get
+      // those defaults plus any custom Error subclass fields
+      // (AdsValidationError.fieldErrors, etc).
       transport:
         config.NODE_ENV !== "production"
           ? { target: "pino-pretty" }
@@ -133,7 +171,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   app.decorate("send", send);
 
   // Create and decorate the auth instance
-  const auth = createAuth(config, dialect, send);
+  const auth = createAuth(config, dialect, send, app.log);
   app.decorate("auth", auth);
 
   // Create and decorate the S3 uploader (receipt images)
@@ -187,6 +225,31 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
     ],
   });
   await app.register(cookie);
+
+  // Custom error handler. Reasons over Fastify's default:
+  //  - Stops 4xx (deliberately thrown via Object.assign(new Error,
+  //    { statusCode: 4xx })) from polluting NR's error-rate alarm.
+  //    400/401/403/404 log at warn with kind=http_client_error.
+  //  - 5xx and unknown statuses log at error with kind=http_error.
+  //  - Pino redact (#171) handles PII in the err object;
+  //    setErrorHandler doesn't need to re-redact.
+  //  - Reply body keeps the existing { error: message } shape so
+  //    clients aren't broken.
+  app.setErrorHandler((err: FastifyError, request, reply) => {
+    const status = err.statusCode ?? 500;
+    if (status >= 500) {
+      request.log.error(
+        { err, event: "http_error", status },
+        err.message || "internal_server_error",
+      );
+    } else {
+      request.log.warn(
+        { err, event: "http_client_error", status },
+        err.message,
+      );
+    }
+    return reply.status(status).send({ error: err.message });
+  });
 
   // Register all feature routes
   await app.register(healthRoutes);

@@ -219,7 +219,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
         }
       }
 
-      return await createGamePayment(data);
+      return await createGamePayment(data, request.log);
     },
   );
 
@@ -259,7 +259,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await createPayment(request.body);
+      return await createPayment(request.body, request.log);
     },
   );
 

@@ -1,6 +1,7 @@
 import type { DB } from "@percy-main/db";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
-import type Stripe from "stripe";
+import Stripe from "stripe";
 import type {
   GameSponsorshipManual,
   GameSponsorshipPayment,
@@ -9,6 +10,34 @@ import type {
   SponsorshipList,
   SponsorshipUpdate,
 } from "./schemas.ts";
+
+/**
+ * Cancel a Stripe payment intent, swallowing the expected
+ * "already cancelled / never existed" cases (which Stripe returns as
+ * StripeInvalidRequestError with code payment_intent_unexpected_state
+ * or resource_missing) and logging+rethrowing genuine errors so a
+ * Stripe outage isn't silently masked.
+ */
+async function cancelPaymentIntentTolerantly(
+  stripe: Stripe,
+  paymentIntentId: string,
+  log: FastifyBaseLogger,
+): Promise<void> {
+  try {
+    await stripe.paymentIntents.cancel(paymentIntentId);
+  } catch (err) {
+    if (
+      err instanceof Stripe.errors.StripeInvalidRequestError &&
+      (err.code === "payment_intent_unexpected_state" ||
+        err.code === "resource_missing")
+    ) {
+      // Already cancelled or never existed — expected; nothing to do.
+      return;
+    }
+    log.warn({ err, paymentIntentId }, "stripe_cancel_failed");
+    throw err;
+  }
+}
 
 async function fetchStripePriceInfo(stripe: Stripe, priceId: string) {
   const price = await stripe.prices.retrieve(priceId, {
@@ -391,7 +420,7 @@ export function createGameSponsorshipPayment(
   stripe: Stripe,
   gameSponsorshipPriceId: string,
 ) {
-  return async (data: GameSponsorshipPayment) => {
+  return async (data: GameSponsorshipPayment, log: FastifyBaseLogger) => {
     // Validate logo size
     if (data.sponsorLogoDataUrl && data.sponsorLogoDataUrl.length > 150_000) {
       throw Object.assign(new Error("Logo must be under 150KB"), {
@@ -441,11 +470,11 @@ export function createGameSponsorshipPayment(
 
     for (const row of stale) {
       if (row.stripe_payment_intent_id) {
-        try {
-          await stripe.paymentIntents.cancel(row.stripe_payment_intent_id);
-        } catch {
-          // Ignore cancellation errors for already-cancelled intents
-        }
+        await cancelPaymentIntentTolerantly(
+          stripe,
+          row.stripe_payment_intent_id,
+          log,
+        );
       }
       await db
         .deleteFrom("game_sponsorship")
@@ -509,7 +538,7 @@ export function createPlayerSponsorshipPayment(
   stripe: Stripe,
   playerSponsorshipPriceId: string,
 ) {
-  return async (data: PlayerSponsorshipPayment) => {
+  return async (data: PlayerSponsorshipPayment, log: FastifyBaseLogger) => {
     const currentYear = new Date().getFullYear();
 
     // Validate logo size
@@ -566,11 +595,11 @@ export function createPlayerSponsorshipPayment(
 
     for (const row of stale) {
       if (row.stripe_payment_intent_id) {
-        try {
-          await stripe.paymentIntents.cancel(row.stripe_payment_intent_id);
-        } catch {
-          // Ignore cancellation errors for already-cancelled intents
-        }
+        await cancelPaymentIntentTolerantly(
+          stripe,
+          row.stripe_payment_intent_id,
+          log,
+        );
       }
       await db
         .deleteFrom("player_sponsorship")

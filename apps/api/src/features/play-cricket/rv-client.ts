@@ -7,6 +7,34 @@ import {
   type RvMatchOverview as RvMatchOverviewType,
 } from "./rv-schemas.ts";
 
+/**
+ * Static-message errors so NR Errors view groups RV failures
+ * together. Variable values (path / status / bodyPreview / timeout)
+ * live as properties.
+ */
+export class RvApiError extends Error {
+  constructor(
+    public readonly path: string,
+    public readonly status: number,
+    public readonly bodyPreview: string,
+    options?: { cause?: unknown },
+  ) {
+    super("rv_api_error", options);
+    this.name = "RvApiError";
+  }
+}
+
+export class RvApiTimeoutError extends Error {
+  constructor(
+    public readonly path: string,
+    public readonly timeoutMs: number,
+    options?: { cause?: unknown },
+  ) {
+    super("rv_api_timeout", options);
+    this.name = "RvApiTimeoutError";
+  }
+}
+
 // ResultsVault read-only client. Reverse-engineered from InteractSport's
 // Match Centre SPA — see BALL_BY_BALL_FETCHING.md (local, gitignored) for
 // the full how-and-why. This module deliberately knows nothing about our
@@ -130,10 +158,7 @@ export function createRvClient(config: RvClientConfig): RvClient {
       });
     } catch (err) {
       if (ac.signal.aborted) {
-        throw new Error(
-          `ResultsVault API timeout (${String(timeoutMs)}ms) for ${url.pathname}`,
-          { cause: err },
-        );
+        throw new RvApiTimeoutError(url.pathname, timeoutMs, { cause: err });
       }
       throw err;
     } finally {
@@ -142,17 +167,15 @@ export function createRvClient(config: RvClientConfig): RvClient {
     if (res.status === 404) return { status: 404, body: null };
     const text = await res.text();
     if (!res.ok) {
-      throw new Error(
-        `ResultsVault API error (HTTP ${String(res.status)}) for ${url.pathname}: ${text.slice(0, 300)}`,
-      );
+      throw new RvApiError(url.pathname, res.status, text.slice(0, 300));
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);
-    } catch {
-      throw new Error(
-        `ResultsVault API returned non-JSON for ${url.pathname}: ${text.slice(0, 300)}`,
-      );
+    } catch (err) {
+      throw new RvApiError(url.pathname, res.status, text.slice(0, 300), {
+        cause: err,
+      });
     }
     return { status: res.status, body: parsed };
   }

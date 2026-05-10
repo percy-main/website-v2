@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
+import { noticedFetch } from "@/lib/newrelic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 import {
@@ -214,6 +215,10 @@ function UploadForm({ onUploaded }: UploadFormProps) {
       }
       const tags = parseTags(tagsRaw);
 
+      // 3-step sequence — each await depends on the previous result
+      // (mint.uploadUrl → S3 PUT → commit by mint.id), so the
+      // async-parallel lint rule's auto-detection is a false positive.
+      // eslint-disable-next-line react-doctor/async-parallel
       const mint = await callApi(
         api.POST("/api/scout/knowledge/documents", {
           body: {
@@ -227,16 +232,17 @@ function UploadForm({ onUploaded }: UploadFormProps) {
         }),
       );
 
-      const putRes = await fetch(mint.uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": contentType },
-      });
-      if (!putRes.ok) {
-        throw new Error(
-          `S3 upload failed (${putRes.status} ${putRes.statusText})`,
-        );
-      }
+      // Presigned PUT — bypasses the typed client; noticedFetch
+      // surfaces failures (CORS, status, network) in NR Browser.
+      await noticedFetch(
+        mint.uploadUrl,
+        {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": contentType },
+        },
+        { kind: "scout_kb_s3_put" },
+      );
 
       await callApi(
         api.POST("/api/scout/knowledge/documents/{id}/commit", {

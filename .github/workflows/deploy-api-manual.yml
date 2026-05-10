@@ -208,20 +208,18 @@ jobs:
       - name: Smoke test
         id: smoke
         run: |
-          # Assert /health returns { status: "ok", database: "connected" }.
-          # 200 alone proves only the LB reaches the task; the body fields
-          # additionally prove DB connectivity. Until #193 splits to
-          # /health/ready and switches to 503-on-degraded, we body-grep.
+          # /health/ready returns 200 when ready, 503 on DB outage
+          # (#193). curl -fsSL fails non-zero on the 5xx so status
+          # alone is sufficient.
           for i in $(seq 1 10); do
-            BODY=$(curl -fsSL --max-time 10 https://api.v2.percymain.org/health || true)
-            if echo "$BODY" | jq -e '.status == "ok" and .database == "connected"' >/dev/null 2>&1; then
-              echo "Smoke test passed: $BODY"
+            if curl -fsSL --max-time 10 https://api.v2.percymain.org/health/ready -o /tmp/health.json; then
+              echo "Smoke test passed: $(cat /tmp/health.json)"
               exit 0
             fi
-            echo "Attempt $i: body=$BODY, retrying..."
+            echo "Attempt $i failed; retrying..."
             sleep 5
           done
-          echo "Smoke test failed (last body: $BODY)"
+          echo "Smoke test failed"
           exit 1
 
       - name: Record deployment in New Relic

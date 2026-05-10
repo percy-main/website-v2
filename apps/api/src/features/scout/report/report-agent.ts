@@ -37,7 +37,7 @@ export interface ReportAgentDeps {
   config: Config;
   voyage?: VoyageClient;
   userId: string;
-  logger?: FastifyBaseLogger;
+  logger: FastifyBaseLogger;
   /** Optional external cancellation signal — combined with the internal
    *  timeout so a worker-level cancel (user clicked Stop on an in-flight
    *  report) aborts the AI SDK loop. */
@@ -232,7 +232,7 @@ Build the report now via the tool surface above. Stop calling tools when you've 
 
   const runOnce = async (extra: string, attempt: number): Promise<void> => {
     const stepStart = Date.now();
-    deps.logger?.info(
+    deps.logger.info(
       {
         matchId: params.matchId,
         attempt,
@@ -259,7 +259,7 @@ Build the report now via the tool surface above. Stop calling tools when you've 
           : AbortSignal.timeout(deps.config.SCOUT_REPORT_TIMEOUT_MS),
         onStepFinish: ({ toolCalls, finishReason }) => {
           stepIndex += 1;
-          deps.logger?.info(
+          deps.logger.info(
             {
               matchId: params.matchId,
               attempt,
@@ -272,7 +272,7 @@ Build the report now via the tool surface above. Stop calling tools when you've 
           );
         },
       });
-      deps.logger?.info(
+      deps.logger.info(
         {
           matchId: params.matchId,
           attempt,
@@ -298,9 +298,9 @@ Build the report now via the tool surface above. Stop calling tools when you've 
         elapsedMs: Date.now() - stepStart,
       };
       if (isCancelled) {
-        deps.logger?.info(logFields, "scout_report_agent_step_cancelled");
+        deps.logger.info(logFields, "scout_report_agent_step_cancelled");
       } else {
-        deps.logger?.error(logFields, "scout_report_agent_step_failed");
+        deps.logger.error(logFields, "scout_report_agent_step_failed");
       }
       if (isTimeout) {
         throw new Error(
@@ -323,7 +323,7 @@ Build the report now via the tool surface above. Stop calling tools when you've 
     // for a long-tail recovery. Hard-fail loud; runReport persists the
     // message to scout_report.error_message so the captain sees it.
     if (assembled.reason === "missing") {
-      deps.logger?.error(
+      deps.logger.error(
         { matchId: params.matchId, missing: assembled.missing },
         "scout_report_agent_missing_sections",
       );
@@ -331,7 +331,7 @@ Build the report now via the tool surface above. Stop calling tools when you've 
         `Report agent finished without calling required sections: ${assembled.missing.join(", ")}.`,
       );
     }
-    deps.logger?.error(
+    deps.logger.error(
       { matchId: params.matchId, schemaError: assembled.message },
       "scout_report_agent_schema_invalid",
     );
@@ -340,7 +340,7 @@ Build the report now via the tool surface above. Stop calling tools when you've 
     );
   }
 
-  deps.logger?.info(
+  deps.logger.info(
     {
       matchId: params.matchId,
       citations: citations.size(),

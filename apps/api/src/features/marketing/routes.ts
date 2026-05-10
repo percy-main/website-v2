@@ -79,8 +79,11 @@ export const marketingRoutes: FastifyPluginAsyncZod = async (app) => {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- generate_lead always creates a lead
       const leadId = result.leadId!;
 
-      // Fire-and-forget Slack notification.
-      void slackNotify({
+      // Fire-and-forget Slack notification. slackNotify currently
+      // catches internally so this `.catch` is defensive — if the body
+      // is ever changed to throw, this prevents an unhandled rejection
+      // and keeps the failure visible in NR.
+      slackNotify({
         baseUrl: app.config.BASE_URL,
         campaignId: body.campaignId,
         segment: body.segment,
@@ -90,7 +93,9 @@ export const marketingRoutes: FastifyPluginAsyncZod = async (app) => {
         notes:
           typeof body.fields?.notes === "string" ? body.fields.notes : null,
         leadId,
-      });
+      }).catch((err: unknown) =>
+        request.log.warn({ err, leadId }, "slack_notify_failed"),
+      );
 
       return { leadId };
     },

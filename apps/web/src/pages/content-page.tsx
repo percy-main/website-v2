@@ -7,7 +7,7 @@ import {
   type ContentNode,
 } from "@/lib/content.js";
 import { MDXProvider } from "@mdx-js/react";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useLocation } from "react-router";
 
@@ -129,6 +129,23 @@ export function Component() {
   const page = contentPageMap.get(path);
 
   useDocumentMeta(page?.title, page?.description);
+
+  // 404s land here because router.tsx's catch-all `path: "*"` routes
+  // unknown paths through ContentPage rather than triggering the
+  // root errorElement (#182). Forward the miss to NR so the not-
+  // found rate is observable.
+  useEffect(() => {
+    if (!page) {
+      if (window.newrelic) {
+        window.newrelic.noticeError(new Error(`route_not_found ${path}`), {
+          kind: "route_not_found",
+          route: path,
+        });
+      } else {
+        console.warn("route_not_found (NR not loaded):", path);
+      }
+    }
+  }, [page, path]);
 
   if (!page) {
     return (

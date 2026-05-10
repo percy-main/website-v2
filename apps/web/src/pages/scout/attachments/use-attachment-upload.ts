@@ -1,4 +1,5 @@
 import { api, callApi } from "@/lib/api-client";
+import { noticedFetch } from "@/lib/newrelic";
 import { useState } from "react";
 
 const ACCEPTED_TYPES = [
@@ -112,16 +113,17 @@ export function useAttachmentUpload({
       );
       update(localId, { id: mint.id });
 
-      const putRes = await fetch(mint.uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": contentType },
-      });
-      if (!putRes.ok) {
-        throw new Error(
-          `Upload to S3 failed (${putRes.status} ${putRes.statusText})`,
-        );
-      }
+      // Presigned PUT — bypasses the typed client; noticedFetch
+      // surfaces failures (CORS, status, network) in NR Browser.
+      await noticedFetch(
+        mint.uploadUrl,
+        {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": contentType },
+        },
+        { kind: "scout_attachment_s3_put" },
+      );
 
       update(localId, { status: "processing" });
 

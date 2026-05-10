@@ -15,24 +15,44 @@
  * backstop the report worker carries.
  */
 
+import { context, propagation, ROOT_CONTEXT } from "@opentelemetry/api";
 import { createClient } from "@percy-main/db";
 import { parseConfig } from "./config.ts";
 import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runIngest } from "./features/scout/knowledge/run-ingest.ts";
 import { resolveModel } from "./features/scout/provider.ts";
 import { createS3KnowledgeBaseStore } from "./lib/s3-knowledge-base.ts";
+import { withSpan } from "./lib/tracing.ts";
+import { createWorkerLogger } from "./lib/worker-logger.ts";
+
+/**
+ * Extract the propagated W3C trace context from env vars set by the
+ * launcher (#197). See scout-report-worker.ts for the full rationale.
+ */
+function extractTraceContext() {
+  const carrier: Record<string, string> = {};
+  if (process.env.OTEL_TRACEPARENT) {
+    carrier.traceparent = process.env.OTEL_TRACEPARENT;
+  }
+  if (process.env.OTEL_TRACESTATE) {
+    carrier.tracestate = process.env.OTEL_TRACESTATE;
+  }
+  return propagation.extract(ROOT_CONTEXT, carrier);
+}
+
+const logger = createWorkerLogger("scout-knowledge-worker");
 
 const DOCUMENT_ID = process.env.KB_DOCUMENT_ID;
 if (!DOCUMENT_ID) {
-  console.error("Missing required env var: KB_DOCUMENT_ID");
+  logger.error("scout_kb_worker_missing_env: KB_DOCUMENT_ID");
   process.exit(1);
 }
 
 const config = parseConfig(process.env);
 
 if (!config.VOYAGE_API_KEY) {
-  console.error(
-    "Missing required env var: VOYAGE_API_KEY (KB ingest needs embeddings)",
+  logger.error(
+    "scout_kb_worker_missing_env: VOYAGE_API_KEY (KB ingest needs embeddings)",
   );
   process.exit(1);
 }
@@ -51,15 +71,23 @@ const anthropicModel = config.ANTHROPIC_API_KEY
   ? resolveModel("anthropic", config.SCOUT_ATTACHMENT_DERIVE_MODEL).model
   : null;
 const scoutKnowledgeBase = createS3KnowledgeBaseStore(config);
+const parentCtx = extractTraceContext();
 
-console.log(`scout_kb_worker_started documentId=${DOCUMENT_ID}`);
+logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_started");
 
 try {
-  await runIngest(
-    { db, voyage, anthropicModel, scoutKnowledgeBase, config },
-    DOCUMENT_ID,
+  await context.with(parentCtx, () =>
+    // Named root span for the whole ingest run so the trace tree
+    // shows scout.kb.ingest as the parent of S3 / DB / Voyage /
+    // Anthropic spans rather than implicit per-call siblings.
+    withSpan("scout.kb.ingest", { documentId: DOCUMENT_ID }, () =>
+      runIngest(
+        { db, voyage, anthropicModel, scoutKnowledgeBase, config, logger },
+        DOCUMENT_ID,
+      ),
+    ),
   );
-  console.log(`scout_kb_worker_done documentId=${DOCUMENT_ID}`);
+  logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_done");
   await db.destroy();
   process.exit(0);
 } catch (err) {
@@ -67,7 +95,7 @@ try {
   // catch is purely about exit code + log. Unhandled errors here mean
   // something outside the pipeline (boot, DB connect) blew up; the
   // row's status is the source of truth for downstream observers.
-  console.error("scout_kb_worker_failed", err);
+  logger.error({ err, documentId: DOCUMENT_ID }, "scout_kb_worker_failed");
   await db.destroy().catch(() => undefined);
   process.exit(1);
 }

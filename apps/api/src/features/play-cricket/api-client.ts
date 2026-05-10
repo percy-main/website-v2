@@ -12,6 +12,24 @@ export interface PlayCricketApiConfig {
   siteId: string;
 }
 
+/**
+ * Static-message error so NR Errors view groups all Play Cricket
+ * failures together (path / status / bodyPreview live as properties,
+ * not in the message string). The original parse error is chained
+ * via `cause` when wrapping a JSON.parse failure.
+ */
+export class PlayCricketApiError extends Error {
+  constructor(
+    public readonly path: string,
+    public readonly status: number,
+    public readonly bodyPreview: string,
+    options?: { cause?: unknown },
+  ) {
+    super("play_cricket_api_error", options);
+    this.name = "PlayCricketApiError";
+  }
+}
+
 async function fetchPlayCricket(
   config: PlayCricketApiConfig,
   path: string,
@@ -28,16 +46,14 @@ async function fetchPlayCricket(
   const res = await fetch(url);
   const body = await res.text();
   if (!res.ok) {
-    throw new Error(
-      `Play Cricket API error (HTTP ${res.status}): ${body.slice(0, 500)}`,
-    );
+    throw new PlayCricketApiError(path, res.status, body.slice(0, 500));
   }
   try {
     return JSON.parse(body) as unknown;
-  } catch {
-    throw new Error(
-      `Play Cricket API returned non-JSON (HTTP ${res.status}): ${body.slice(0, 500)}`,
-    );
+  } catch (err) {
+    throw new PlayCricketApiError(path, res.status, body.slice(0, 500), {
+      cause: err,
+    });
   }
 }
 

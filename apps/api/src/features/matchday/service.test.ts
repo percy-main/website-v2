@@ -37,6 +37,7 @@ const { mockExecute, mockExecuteTakeFirst, mockQueryBuilder } = vi.hoisted(
 );
 
 import { noopS3Uploader } from "../../lib/s3-upload.ts";
+import { createNoopLogger } from "../../lib/worker-logger.ts";
 import {
   addPlayer,
   approveExpense,
@@ -52,6 +53,8 @@ import {
   searchMembers,
   submitExpenseClaim,
 } from "./service.ts";
+
+const log = createNoopLogger();
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 const s3 = noopS3Uploader;
@@ -388,7 +391,7 @@ describe("expense approval workflow", () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
 
       await expect(
-        finish("user-1", "admin", "match-1", { resultType: "W" }),
+        finish("user-1", "admin", "match-1", { resultType: "W" }, log),
       ).rejects.toThrow("Matchday not found");
     });
 
@@ -402,7 +405,7 @@ describe("expense approval workflow", () => {
       mockExecute.mockResolvedValueOnce([{ id: "team-1" }]);
 
       await expect(
-        finish("user-1", "admin", "match-1", { resultType: "W" }),
+        finish("user-1", "admin", "match-1", { resultType: "W" }, log),
       ).rejects.toThrow("Can only finish a confirmed matchday");
     });
 
@@ -416,7 +419,7 @@ describe("expense approval workflow", () => {
       mockExecute.mockResolvedValueOnce([]);
 
       await expect(
-        finish("user-1", "admin", "match-1", { resultType: "W" }),
+        finish("user-1", "admin", "match-1", { resultType: "W" }, log),
       ).rejects.toThrow("You do not have access to this matchday");
     });
 
@@ -442,9 +445,15 @@ describe("expense approval workflow", () => {
       // unpaid players query
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await finish("user-1", "admin", "match-1", {
-        resultType: "W",
-      });
+      const result = await finish(
+        "user-1",
+        "admin",
+        "match-1",
+        {
+          resultType: "W",
+        },
+        log,
+      );
 
       expect(result.success).toBe(true);
       expect(mockQueryBuilder.set).toHaveBeenCalledWith(
@@ -471,9 +480,15 @@ describe("expense approval workflow", () => {
       // update matchday
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await finish("user-1", "admin", "match-1", {
-        resultType: "L",
-      });
+      const result = await finish(
+        "user-1",
+        "admin",
+        "match-1",
+        {
+          resultType: "L",
+        },
+        log,
+      );
 
       expect(result.success).toBe(true);
       expect(result.emailsSent).toBe(0);

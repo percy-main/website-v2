@@ -54,7 +54,7 @@ export const gamesRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { matchId } = request.params;
-      const game = await detail(matchId);
+      const game = await detail(matchId, request.log);
       if (!game) {
         const error = new Error("Game not found") as Error & {
           statusCode: number;

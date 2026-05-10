@@ -6,6 +6,23 @@ export const confirmPaymentSchema = z.object({
 
 export type ConfirmPayment = z.infer<typeof confirmPaymentSchema>;
 
+/**
+ * Optional scope for pay-outstanding (#93). When `chargeIds` is set,
+ * the bundle is restricted to those charges (and only the
+ * authenticated member's). When omitted, every unpaid charge for the
+ * member is bundled — the original behaviour, kept for the members
+ * "Pay outstanding" page where the user explicitly wants \"all of it
+ * at once\".
+ */
+export const payOutstandingSchema = z.object({
+  // .min(1) so an explicit empty array doesn't silently fall through
+  // to "pay everything outstanding" — that contract requires the
+  // chargeIds key to be omitted entirely.
+  chargeIds: z.array(z.string()).min(1).optional(),
+});
+
+export type PayOutstanding = z.infer<typeof payOutstandingSchema>;
+
 const chargeSchema = z.object({
   id: z.string(),
   member_id: z.string(),

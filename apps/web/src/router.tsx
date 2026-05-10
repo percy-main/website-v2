@@ -2,12 +2,17 @@ import { createBrowserRouter } from "react-router";
 import { RequireAuth } from "./components/require-auth.js";
 import { RequireRole } from "./components/require-role.js";
 import { RequireVerifiedEmail } from "./components/require-verified-email.js";
+import { RouteError } from "./components/route-error.js";
 import { AuthLayout } from "./layouts/auth-layout.js";
 import { RootLayout } from "./layouts/root-layout.js";
 
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
+    // Catches render exceptions in any descendant route, plus
+    // route-not-found. Reports to NR with the route path so the white-
+    // screen failure mode is at least observable. (#182)
+    errorElement: <RouteError />,
     children: [
       // Public routes
       {

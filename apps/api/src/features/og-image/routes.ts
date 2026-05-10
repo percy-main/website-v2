@@ -26,7 +26,7 @@ export const ogImageRoutes: FastifyPluginAsync = async (app) => {
   // OG image endpoint — returns PNG
   app.get("/og/game/:matchId", async (request, reply) => {
     const { matchId } = parseParams(request, ogImageParamsSchema);
-    const image = await generate(matchId);
+    const image = await generate(matchId, request.log);
 
     if (!image) {
       const error = new Error("Match not found") as Error & {

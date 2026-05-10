@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
+import { noticedFetch } from "@/lib/newrelic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -56,13 +57,17 @@ function CreateDocumentDialog({
       const { uploadUrl, pendingKey } = await callApi(
         api.POST("/api/admin/documents/upload-url"),
       );
-      // Step 2: Upload PDF directly to S3
-      const res = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": "application/pdf" },
-      });
-      if (!res.ok) throw new Error("Failed to upload file");
+      // Step 2: Upload PDF directly to S3 (presigned PUT — bypasses
+      // the typed client; noticedFetch surfaces failures in NR Browser).
+      await noticedFetch(
+        uploadUrl,
+        {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": "application/pdf" },
+        },
+        { kind: "documents_s3_put", phase: "create" },
+      );
       // Step 3: Create document record with pending key
       return callApi(
         api.POST("/api/admin/documents", {
@@ -173,13 +178,17 @@ function EditDocumentDialog({
             params: { path: { documentId } },
           }),
         );
-        // Step 2: Upload PDF directly to S3
-        const res = await fetch(upload.uploadUrl, {
-          method: "PUT",
-          body: file,
-          headers: { "Content-Type": "application/pdf" },
-        });
-        if (!res.ok) throw new Error("Failed to upload file");
+        // Step 2: Upload PDF directly to S3 (presigned PUT — bypasses
+        // the typed client; noticedFetch surfaces failures in NR Browser).
+        await noticedFetch(
+          upload.uploadUrl,
+          {
+            method: "PUT",
+            body: file,
+            headers: { "Content-Type": "application/pdf" },
+          },
+          { kind: "documents_s3_put", phase: "update" },
+        );
         pendingKey = upload.pendingKey;
       }
       return callApi(

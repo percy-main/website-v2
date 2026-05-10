@@ -1060,6 +1060,20 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                 Sent {sendMutation.data.sent} email
                 {sendMutation.data.sent !== 1 ? "s" : ""}.
               </p>
+              {sendMutation.data.failed > 0 && (
+                <div className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3">
+                  <p className="text-sm font-medium text-amber-800">
+                    {sendMutation.data.failed} failed:
+                  </p>
+                  <ul className="space-y-1 text-xs text-amber-900">
+                    {sendMutation.data.failures.map((f) => (
+                      <li key={f.email}>
+                        <code>{f.email}</code>: {f.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <Button
                 size="sm"
                 variant="outline"

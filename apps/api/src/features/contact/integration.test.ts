@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createNoopLogger } from "../../lib/worker-logger.ts";
 import {
   startTestContainer,
   stopTestContainer,
   type TestContext,
 } from "../../test/containers.ts";
 import { createContactSubmission, createEventSubscriber } from "./service.ts";
+
+const log = createNoopLogger();
 
 let ctx: TestContext;
 
@@ -21,12 +24,15 @@ describe("contact service (integration)", () => {
     it("stores a submission in the database and returns an id", async () => {
       const result = await createContactSubmission(ctx.db, {
         slackWebhookUrl: undefined,
-      })({
-        name: "Jane Doe",
-        email: "jane@example.com",
-        message: "Hello, I have a question.",
-        page: "/contact",
-      });
+      })(
+        {
+          name: "Jane Doe",
+          email: "jane@example.com",
+          message: "Hello, I have a question.",
+          page: "/contact",
+        },
+        log,
+      );
 
       expect(result.id).toBeDefined();
       expect(typeof result.id).toBe("string");

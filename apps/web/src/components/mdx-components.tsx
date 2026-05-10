@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { api, callApi } from "@/lib/api-client.js";
+import type { paths } from "@/lib/api.gen.js";
 import { getImageUrl, getPicture } from "@/lib/image-map.js";
 import {
   CURRENT_CONSENT_VERSION,
@@ -196,30 +197,18 @@ function EventPreview({
   );
 }
 
-// /api/games/{matchId} is not yet in the generated OpenAPI spec, so we keep
-// local types and use a direct fetch until the spec is regenerated.
-type Outcome = "W" | "L" | "D" | "T" | "A" | "C" | "N";
-
-interface GameListItem {
-  id: string;
-  home: boolean;
-  team: { name: string };
-  opposition: {
-    club: { name: string };
-    team: { name: string };
-  };
-  league: { name: string };
-  competition: { name: string };
-  when: string | null;
-  outcome: Outcome | null;
-  scoreDescription: string | null;
-  sponsorName: string | null;
-}
+// Use the OpenAPI-generated response type directly per CLAUDE.md
+// (\"Never use raw fetch or define local response type interfaces —
+// types are generated from the OpenAPI spec\"). The component below
+// only reads a subset of these fields.
+type GameListItem = NonNullable<
+  paths["/api/games/{matchId}"]["get"]["responses"][200]["content"]["application/json"]
+>;
 
 async function fetchGame(matchId: string): Promise<GameListItem> {
-  const res = await fetch(`/api/games/${matchId}`, { credentials: "include" });
-  if (!res.ok) throw new Error(res.statusText);
-  return res.json() as Promise<GameListItem>;
+  return await callApi(
+    api.GET("/api/games/{matchId}", { params: { path: { matchId } } }),
+  );
 }
 
 function GamePreview({ playCricketId }: { playCricketId: string }) {

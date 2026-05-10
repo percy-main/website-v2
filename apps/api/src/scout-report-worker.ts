@@ -14,31 +14,55 @@
  * stalled outside the agent loop.
  */
 
+import { context, propagation, ROOT_CONTEXT } from "@opentelemetry/api";
 import { createClient } from "@percy-main/db";
 import { parseConfig } from "./config.ts";
 import { createApiClient } from "./features/play-cricket/api-client.ts";
 import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runReport } from "./features/scout/report/run-report.ts";
 import { createScoutReportStore } from "./lib/s3-scout-reports.ts";
+import { withSpan } from "./lib/tracing.ts";
+import { createWorkerLogger } from "./lib/worker-logger.ts";
+
+/**
+ * Extract the propagated W3C trace context from env vars set by the
+ * launcher (#197). Returns a Context that the rest of the worker
+ * should run inside via context.with(...) so any spans/metrics it
+ * emits are children of the API span that triggered this run.
+ */
+function extractTraceContext() {
+  const carrier: Record<string, string> = {};
+  if (process.env.OTEL_TRACEPARENT) {
+    carrier.traceparent = process.env.OTEL_TRACEPARENT;
+  }
+  if (process.env.OTEL_TRACESTATE) {
+    carrier.tracestate = process.env.OTEL_TRACESTATE;
+  }
+  return propagation.extract(ROOT_CONTEXT, carrier);
+}
 
 const RENDER_MARGIN_MS = 90_000;
 
+const logger = createWorkerLogger("scout-report-worker");
+
 const REPORT_ID = process.env.REPORT_ID;
 if (!REPORT_ID) {
-  console.error("Missing required env var: REPORT_ID");
+  logger.error("scout_report_worker_missing_env: REPORT_ID");
   process.exit(1);
 }
 
 const config = parseConfig(process.env);
 
 if (!config.PLAY_CRICKET_API_TOKEN || !config.PLAY_CRICKET_SITE_ID) {
-  console.error(
-    "Missing required env vars: PLAY_CRICKET_API_TOKEN / PLAY_CRICKET_SITE_ID",
+  logger.error(
+    "scout_report_worker_missing_env: PLAY_CRICKET_API_TOKEN / PLAY_CRICKET_SITE_ID",
   );
   process.exit(1);
 }
 if (!config.SCOUT_DB_URL) {
-  console.error("Missing required env var: SCOUT_DB_URL (read-only DB role)");
+  logger.error(
+    "scout_report_worker_missing_env: SCOUT_DB_URL (read-only DB role)",
+  );
   process.exit(1);
 }
 
@@ -48,8 +72,9 @@ if (!config.SCOUT_DB_URL) {
 // outside the agent loop (boot, DB connect, render, S3 upload) stalls.
 const HARD_KILL_MS = config.SCOUT_REPORT_TIMEOUT_MS + RENDER_MARGIN_MS;
 setTimeout(() => {
-  console.error(
-    `scout_report_worker_wall_clock_kill reportId=${REPORT_ID} after ${HARD_KILL_MS}ms`,
+  logger.error(
+    { reportId: REPORT_ID, hardKillMs: HARD_KILL_MS },
+    "scout_report_worker_wall_clock_kill",
   );
   process.exit(2);
 }, HARD_KILL_MS).unref();
@@ -68,22 +93,32 @@ const voyage = config.VOYAGE_API_KEY
     })
   : undefined;
 const scoutReports = createScoutReportStore(config);
+const parentCtx = extractTraceContext();
 
-console.log(`scout_report_worker_started reportId=${REPORT_ID}`);
+logger.info({ reportId: REPORT_ID }, "scout_report_worker_started");
 
 try {
-  await runReport(
-    {
-      db,
-      dbReadonly,
-      playCricket,
-      config,
-      voyage,
-      scoutReports,
-    },
-    REPORT_ID,
+  await context.with(parentCtx, () =>
+    // Named root span for the whole worker run so the trace tree in
+    // NR shows scout.report.run as the parent of everything (DB,
+    // PlayCricket, Anthropic, S3) rather than implicit per-call
+    // siblings. Attaches reportId for filtering.
+    withSpan("scout.report.run", { reportId: REPORT_ID }, () =>
+      runReport(
+        {
+          db,
+          dbReadonly,
+          playCricket,
+          config,
+          voyage,
+          scoutReports,
+          logger,
+        },
+        REPORT_ID,
+      ),
+    ),
   );
-  console.log(`scout_report_worker_done reportId=${REPORT_ID}`);
+  logger.info({ reportId: REPORT_ID }, "scout_report_worker_done");
   await db.destroy();
   await dbReadonly.destroy();
   process.exit(0);
@@ -95,7 +130,7 @@ try {
   // the first phase write. ECS will retry per task settings (currently
   // none — the row just stays orphaned and a future operator query can
   // sweep it).
-  console.error("scout_report_worker_failed", err);
+  logger.error({ err, reportId: REPORT_ID }, "scout_report_worker_failed");
   await db.destroy().catch(() => undefined);
   await dbReadonly.destroy().catch(() => undefined);
   process.exit(1);

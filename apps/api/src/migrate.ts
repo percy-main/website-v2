@@ -16,6 +16,9 @@ import {
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import { createWorkerLogger } from "./lib/worker-logger.ts";
+
+const logger = createWorkerLogger("migrate");
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -45,29 +48,29 @@ const migrator = new Migrator({
 });
 
 try {
-  console.log("Running database migrations...");
+  logger.info("migrate_started");
 
   const { error, results } = await migrator.migrateToLatest();
 
   results?.forEach((it) => {
     if (it.status === "Success") {
-      console.log(`  ✓ ${it.migrationName}`);
+      logger.info({ migrationName: it.migrationName }, "migrate_step_success");
     } else if (it.status === "Error") {
-      console.error(`  ✗ ${it.migrationName}`);
+      logger.error({ migrationName: it.migrationName }, "migrate_step_failed");
     }
   });
 
   if (error) {
-    console.error("Migration failed:", error);
+    logger.error({ err: error }, "migrate_failed");
     await client.destroy().catch(noop);
     process.exit(1);
   }
 
-  console.log(`Migrations complete (${results?.length ?? 0} applied)`);
+  logger.info({ count: results?.length ?? 0 }, "migrate_complete");
   await client.destroy();
   process.exit(0);
 } catch (error) {
-  console.error("Migration failed:", error);
+  logger.error({ err: error }, "migrate_failed");
   await client.destroy().catch(noop);
   process.exit(1);
 }

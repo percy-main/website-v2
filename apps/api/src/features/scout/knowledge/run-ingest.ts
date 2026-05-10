@@ -28,7 +28,7 @@ export interface RunIngestDeps {
   anthropicModel: LanguageModel | null;
   scoutKnowledgeBase: S3KnowledgeBaseStore;
   config: Config;
-  logger?: FastifyBaseLogger;
+  logger: FastifyBaseLogger;
 }
 
 export class IngestNotFoundError extends Error {
@@ -64,7 +64,7 @@ export async function runIngest(
     if (!exists) {
       throw new IngestNotFoundError(documentId);
     }
-    logger?.info(
+    logger.info(
       { documentId, status: exists.status },
       "scout_kb_ingest_skipped_non_queued",
     );
@@ -117,7 +117,7 @@ export async function runIngest(
       .where("id", "=", documentId)
       .execute();
 
-    logger?.info(
+    logger.info(
       {
         documentId,
         filename: claimed.filename,
@@ -133,7 +133,7 @@ export async function runIngest(
         : err instanceof Error
           ? err.message
           : String(err);
-    logger?.error(
+    logger.error(
       { err, documentId, filename: claimed.filename },
       "scout_kb_ingest_failed",
     );

@@ -1,3 +1,4 @@
+import type { FastifyBaseLogger } from "fastify";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -287,18 +288,26 @@ ${playerPaths.join("\n")}
 </svg>`;
 }
 
-async function fetchImage(url: string): Promise<Buffer | null> {
+async function fetchImage(
+  url: string,
+  log: Pick<FastifyBaseLogger, "warn">,
+): Promise<Buffer | null> {
   try {
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      log.warn({ url, status: res.status }, "team_news_image_fetch_non_ok");
+      return null;
+    }
     return Buffer.from(await res.arrayBuffer());
-  } catch {
+  } catch (err) {
+    log.warn({ err, url }, "team_news_image_fetch_failed");
     return null;
   }
 }
 
 export async function generateTeamNewsImage(
   data: TeamNewsData,
+  log: Pick<FastifyBaseLogger, "warn">,
 ): Promise<Buffer> {
   // Resize the photo to the canvas width preserving aspect so the entire
   // image is shown without cropping. Pad the top with a colour sampled from
@@ -338,7 +347,7 @@ export async function generateTeamNewsImage(
     left: number;
   } | null = null;
   if (data.matchSponsor?.logoUrl) {
-    const logoBuffer = await fetchImage(data.matchSponsor.logoUrl);
+    const logoBuffer = await fetchImage(data.matchSponsor.logoUrl, log);
     if (logoBuffer) {
       const resizedLogo = await sharp(logoBuffer)
         .resize({ height: 55, fit: "inside" })
@@ -375,8 +384,8 @@ export async function generateTeamNewsImage(
       left: 20,
       blend: "over",
     });
-  } catch {
-    // Skip if not found
+  } catch (err) {
+    log.warn({ err, asset: CLUB_LOGO_PATH }, "team_news_image_asset_skipped");
   }
 
   // Club sponsor (Crossling) — bottom-right corner, on a semi-transparent
@@ -409,8 +418,11 @@ export async function generateTeamNewsImage(
       left: logoLeft,
       blend: "over",
     });
-  } catch {
-    // Skip if not found
+  } catch (err) {
+    log.warn(
+      { err, asset: CLUB_SPONSOR_PATH },
+      "team_news_image_asset_skipped",
+    );
   }
 
   // Match sponsor logo — sky band above the pitch (if present)

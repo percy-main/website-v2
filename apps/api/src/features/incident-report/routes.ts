@@ -39,7 +39,7 @@ export const incidentReportRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await submit(request.body);
+      return await submit(request.body, request.log);
     },
   );
 

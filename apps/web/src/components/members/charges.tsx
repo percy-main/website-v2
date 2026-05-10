@@ -43,7 +43,10 @@ export function Charges() {
   });
 
   const payMutation = useMutation({
-    mutationFn: () => callApi(api.POST("/api/charges/pay-outstanding")),
+    // Members "Pay outstanding" page intentionally pays everything
+    // unpaid for the user — no chargeIds scope.
+    mutationFn: () =>
+      callApi(api.POST("/api/charges/pay-outstanding", { body: {} })),
     onSuccess: (data) => {
       if (data.clientSecret) {
         const piId = data.clientSecret.split("_secret_")[0];
