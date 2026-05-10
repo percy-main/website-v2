@@ -814,6 +814,14 @@ export interface Session {
   userId: string;
 }
 
+export interface StripeWebhookEvent {
+  attempts: Generated<number>;
+  id: string;
+  processed_at: Timestamp | null;
+  received_at: Generated<Timestamp>;
+  type: string;
+}
+
 export interface TeamOfficial {
   play_cricket_team_id: string;
   user_id: string;
@@ -908,6 +916,7 @@ export interface DB {
   scout_thread_share: ScoutThreadShare;
   scout_tool_cache: ScoutToolCache;
   session: Session;
+  stripe_webhook_event: StripeWebhookEvent;
   team_official: TeamOfficial;
   twoFactor: TwoFactor;
   user: User;

@@ -30,7 +30,10 @@ function logChargeResult(
   log: FastifyBaseLogger,
 ) {
   if (!result.created && result.reason === "no_member") {
-    log.warn(context, "Charge not created: no member found for email");
+    // Financial reconciliation issue: paid customer, no member row.
+    // Bumped from warn to error so this fires the on-call alarm —
+    // every dropped charge means a manual reconciliation later.
+    log.error(context, "charge_not_created_no_member");
   }
 }
 
@@ -592,9 +595,12 @@ export function handlePaymentIntentSucceeded({
       });
       logChargeResult(result, { email, type: "sponsorship" }, log);
     } else {
-      log.warn(
+      // Same reason as charge_not_created_no_member: paid sponsor with
+      // no email = manual reconciliation needed. Error level fires
+      // the alarm.
+      log.error(
         { paymentIntentId: paymentIntent.id, gameId: meta.gameId },
-        "Game sponsorship payment has no email — charge record not created",
+        "sponsorship_charge_not_created_no_email",
       );
     }
   }
@@ -658,12 +664,13 @@ export function handlePaymentIntentSucceeded({
       });
       logChargeResult(result, { email, type: "sponsorship" }, log);
     } else {
-      log.warn(
+      // Same reason as charge_not_created_no_member.
+      log.error(
         {
           paymentIntentId: paymentIntent.id,
           sponsorshipId: meta.sponsorshipId,
         },
-        "Player sponsorship payment has no email — charge record not created",
+        "player_sponsorship_charge_not_created_no_email",
       );
     }
   }
