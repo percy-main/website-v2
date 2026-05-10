@@ -8,7 +8,7 @@ versions or back-ports.
 ## Reporting a vulnerability
 
 If you've found a security issue in this codebase or any of the
-services it operates (api.v2.percymain.org, v2.percymain.org), please
+services it operates (percymain.org, api.v2.percymain.org), please
 **do not open a public GitHub issue**.
 
 Instead, report privately via one of:
@@ -57,15 +57,15 @@ External-service credentials stored as GitHub Actions secrets / variables are ro
 
 A quarterly reminder issue is auto-opened by [`.github/workflows/rotate-secrets-reminder.yml`](.github/workflows/rotate-secrets-reminder.yml) so the cadence stays visible. Don't dismiss it without either rotating or filing the next dated TODO.
 
-| Secret / variable | Scope | What it does | Rotation procedure |
-| --- | --- | --- | --- |
-| `MAPS_API_KEY` (secret) | Repo | Google Maps JS SDK key for the public site map | Google Cloud Console → APIs & Services → Credentials → "Maps JS API key" → Regenerate. Update repo secret. Old key remains valid for ~5 min while CDN caches drain. |
-| `NEW_RELIC_API_KEY` (secret) | Repo | NR User key for the Terraform provider (cloud_aws_link_account, integrations) and the `changeTrackingCreateDeployment` GraphQL calls in deploy workflows | NR UI → Account dropdown → API keys → User key → "Rotate". Update repo secret. NR keeps the old key valid for 30 days for graceful overlap. |
-| `NEW_RELIC_ACCOUNT_ID` (variable) | Repo | NR account number — not sensitive, but documented here for completeness | Doesn't rotate; only changes if we move account. |
-| `SLACK_WEBHOOK_URL` (secret) | `production` env | Incoming webhook for the deploy-failure / contact-form / incident-report Slack notifier | Slack workspace → Apps → Incoming Webhooks → revoke + recreate. Update env secret. |
-| `DEPLOY_ROLE_ARN` / `TERRAFORM_ROLE_ARN` / `TERRAFORM_PLAN_ROLE_ARN` (variables) | Repo | OIDC-assumed AWS role ARNs — not credentials, just identifiers | Don't rotate; only change if the role itself is recreated. The OIDC trust relationship is the actual auth boundary. |
-| `STRIPE_PUBLIC_KEY` (variable) | Repo | Publishable Stripe key (intentionally public — embedded in the web bundle) | Rotate from Stripe dashboard if compromised; not on a schedule. |
-| `NEW_RELIC_BROWSER_LICENSE_KEY` (variable) | `production` env | NR Browser ingest key (intentionally public — embedded in the web bundle per NR's design) | NR UI → Browser app → Settings → "Generate new". Update env variable. |
+| Secret / variable                                                                | Scope            | What it does                                                                                                                                             | Rotation procedure                                                                                                                                                  |
+| -------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MAPS_API_KEY` (secret)                                                          | Repo             | Google Maps JS SDK key for the public site map                                                                                                           | Google Cloud Console → APIs & Services → Credentials → "Maps JS API key" → Regenerate. Update repo secret. Old key remains valid for ~5 min while CDN caches drain. |
+| `NEW_RELIC_API_KEY` (secret)                                                     | Repo             | NR User key for the Terraform provider (cloud_aws_link_account, integrations) and the `changeTrackingCreateDeployment` GraphQL calls in deploy workflows | NR UI → Account dropdown → API keys → User key → "Rotate". Update repo secret. NR keeps the old key valid for 30 days for graceful overlap.                         |
+| `NEW_RELIC_ACCOUNT_ID` (variable)                                                | Repo             | NR account number — not sensitive, but documented here for completeness                                                                                  | Doesn't rotate; only changes if we move account.                                                                                                                    |
+| `SLACK_WEBHOOK_URL` (secret)                                                     | `production` env | Incoming webhook for the deploy-failure / contact-form / incident-report Slack notifier                                                                  | Slack workspace → Apps → Incoming Webhooks → revoke + recreate. Update env secret.                                                                                  |
+| `DEPLOY_ROLE_ARN` / `TERRAFORM_ROLE_ARN` / `TERRAFORM_PLAN_ROLE_ARN` (variables) | Repo             | OIDC-assumed AWS role ARNs — not credentials, just identifiers                                                                                           | Don't rotate; only change if the role itself is recreated. The OIDC trust relationship is the actual auth boundary.                                                 |
+| `STRIPE_PUBLIC_KEY` (variable)                                                   | Repo             | Publishable Stripe key (intentionally public — embedded in the web bundle)                                                                               | Rotate from Stripe dashboard if compromised; not on a schedule.                                                                                                     |
+| `NEW_RELIC_BROWSER_LICENSE_KEY` (variable)                                       | `production` env | NR Browser ingest key (intentionally public — embedded in the web bundle per NR's design)                                                                | NR UI → Browser app → Settings → "Generate new". Update env variable.                                                                                               |
 
 **Stripe restricted/secret keys, AWS root credentials, and the database password are not stored in GitHub Actions** — they live in AWS Secrets Manager / Stripe dashboard / RDS-managed-password and are accessed at runtime. Rotation procedures for those live in the runbook (TBD), not here.
 
