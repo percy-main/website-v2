@@ -21,5 +21,11 @@ export default defineConfig({
       ],
     },
     setupFiles: ["./src/test/setup.ts"],
+    // CI-only JUnit output → consumed by publish-unit-test-result-action
+    // in _lint-test-build.yml so failed tests annotate the PR on the
+    // offending line. Local runs keep the default streaming reporter.
+    reporters: process.env.CI
+      ? ["default", ["junit", { outputFile: "./test-results/api-unit.xml" }]]
+      : ["default"],
   },
 });

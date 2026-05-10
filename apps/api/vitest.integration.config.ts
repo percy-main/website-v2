@@ -9,5 +9,11 @@ export default defineConfig({
     testTimeout: 60_000,
     hookTimeout: 60_000,
     setupFiles: ["./src/test/setup.ts"],
+    reporters: process.env.CI
+      ? [
+          "default",
+          ["junit", { outputFile: "./test-results/api-integration.xml" }],
+        ]
+      : ["default"],
   },
 });

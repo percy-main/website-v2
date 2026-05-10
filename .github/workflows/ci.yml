@@ -21,6 +21,11 @@ jobs:
   lint-test-build:
     permissions:
       contents: read
+      # Required by publish-unit-test-result-action inside the reusable
+      # workflow — reusable workflows can't request perms the caller
+      # doesn't grant.
+      checks: write
+      pull-requests: write
     uses: ./.github/workflows/_lint-test-build.yml
 
   unsafe-ddl-check:

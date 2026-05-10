@@ -26,6 +26,12 @@ jobs:
   # break that only manifests with prod env vars or a missing workspace
   # export fails fast instead of mid-deploy.
   ci:
+    permissions:
+      contents: read
+      # Required by publish-unit-test-result-action inside the reusable
+      # workflow.
+      checks: write
+      pull-requests: write
     uses: ./.github/workflows/_lint-test-build.yml
 
   # ── Detect changed paths (runs parallel with Terraform) ──────────────
