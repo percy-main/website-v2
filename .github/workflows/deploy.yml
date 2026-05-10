@@ -314,6 +314,44 @@ jobs:
             .
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
+      - name: Trivy scan (CRITICAL/HIGH, fixed-only)
+        # Gates the deploy on known CVEs in the freshly-built image.
+        # ignore-unfixed: true keeps us from blocking on advisories
+        # nobody upstream can fix yet — those still surface in ECR's
+        # scan_on_push results for awareness. ~30s on a slim node base.
+        #
+        # Pinned to v0.35.0 by commit SHA. The trivy-action repo was
+        # supply-chain compromised on 2026-03-19 (CVE-2026-33634 /
+        # GHSA-69fq-xp46-6x23) — the attacker force-pushed 76 of 77
+        # version tags to credential-stealer commits. v0.35.0 (commit
+        # 57a97c7) is the post-incident recovery release per the
+        # advisory; pinning by SHA avoids the same class of attack
+        # going forward (mutable tags can be force-pushed again).
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: ${{ steps.build.outputs.image }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          format: table
+
+      - name: Generate SBOM (SPDX JSON)
+        id: sbom
+        # Snapshot of every package in the image at deploy time. Useful
+        # for forensics when a future CVE drops ("did the version we
+        # shipped on $SHA include vulnerable lib X?") without needing
+        # to re-pull the image months later.
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.build.outputs.image }}
+          format: spdx-json
+          artifact-name: api-sbom-${{ github.sha }}.spdx.json
+          upload-artifact: true
+          # Don't push results to GH Dependency Graph for the workspace —
+          # we already track app deps via package.json; this would add
+          # base-image system packages and inflate the dep list.
+          dependency-snapshot: false
+
       - name: Register new task definition
         id: task-def
         env:
