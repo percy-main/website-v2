@@ -55,6 +55,7 @@ const {
   };
 });
 
+import { createNoopLogger } from "../../lib/worker-logger.ts";
 import {
   incidentReportSubmissionSchema,
   type IncidentReportSubmission,
@@ -67,6 +68,7 @@ import {
 } from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
+const log = createNoopLogger();
 
 function validSubmission(
   overrides: Partial<IncidentReportSubmission> = {},
@@ -153,7 +155,7 @@ describe("createIncidentReportSubmission", () => {
     const result = await createIncidentReportSubmission(db, {
       baseUrl: "https://percymain.org",
       send,
-    })(validSubmission());
+    })(validSubmission(), log);
 
     expect(result.id).toBeDefined();
     expect(typeof result.id).toBe("string");
@@ -184,7 +186,7 @@ describe("createIncidentReportSubmission", () => {
     await createIncidentReportSubmission(db, {
       baseUrl: "https://percymain.org",
       send,
-    })(validSubmission({ reporterEmail: "reporter@example.com" }));
+    })(validSubmission({ reporterEmail: "reporter@example.com" }), log);
 
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledTimes(1);
@@ -207,7 +209,7 @@ describe("createIncidentReportSubmission", () => {
     await createIncidentReportSubmission(db, {
       baseUrl: "https://percymain.org",
       send,
-    })(validSubmission({ prefersNoContact: true }));
+    })(validSubmission({ prefersNoContact: true }), log);
 
     // Transactional receipt is always sent — see design Q3.
     expect(send).toHaveBeenCalledTimes(1);
@@ -220,7 +222,7 @@ describe("createIncidentReportSubmission", () => {
     const result = await createIncidentReportSubmission(db, {
       baseUrl: "https://percymain.org",
       send,
-    })(validSubmission());
+    })(validSubmission(), log);
 
     expect(typeof result.id).toBe("string");
     expect(result.id.length).toBeGreaterThan(0);
@@ -237,7 +239,7 @@ describe("createIncidentReportSubmission", () => {
       slackWebhookUrl: "https://hooks.slack.test/XYZ",
       baseUrl: "https://percymain.org",
       send,
-    })(validSubmission());
+    })(validSubmission(), log);
 
     // Slack fires fire-and-forget; give the microtask queue a tick.
     await new Promise((r) => setImmediate(r));
@@ -258,7 +260,7 @@ describe("createIncidentReportSubmission", () => {
     await createIncidentReportSubmission(db, {
       baseUrl: "https://percymain.org",
       send,
-    })(validSubmission());
+    })(validSubmission(), log);
 
     await new Promise((r) => setImmediate(r));
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -274,12 +276,15 @@ describe("createIncidentReportSubmission", () => {
       slackWebhookUrl: "https://hooks.slack.test/XYZ",
       baseUrl: "https://percymain.org",
       send,
-    })({
-      // Service receives parsed data; we bypass the schema's maxLength to
-      // simulate the insert-time guard directly.
-      ...validSubmission(),
-      website: "http://spam.example.com",
-    } as IncidentReportSubmission);
+    })(
+      {
+        // Service receives parsed data; we bypass the schema's maxLength to
+        // simulate the insert-time guard directly.
+        ...validSubmission(),
+        website: "http://spam.example.com",
+      } as IncidentReportSubmission,
+      log,
+    );
 
     // Fake id returned so the bot can't distinguish success from a drop.
     expect(result.id).toBeDefined();

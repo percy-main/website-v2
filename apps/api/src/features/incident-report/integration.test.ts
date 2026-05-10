@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createNoopLogger } from "../../lib/worker-logger.ts";
 import {
   startTestContainer,
   stopTestContainer,
@@ -11,6 +12,8 @@ import {
   listIncidentReports,
   updateIncidentReport,
 } from "./service.ts";
+
+const log = createNoopLogger();
 
 // Render is React-heavy; stub it out for the integration test. We're not
 // testing email rendering here — only the DB round-trip.
@@ -57,8 +60,7 @@ describe("incident-report (integration)", () => {
       send,
     });
 
-    const { id } = await submit(
-      validSubmission({
+    const { id } = await submit(validSubmission({
         reporterName: "Full Submission",
         reporterPhone: "07123456789",
         affectedName: "Junior Player",
@@ -73,8 +75,7 @@ describe("incident-report (integration)", () => {
         firstAidDetails: "Ice pack applied",
         immediateActions: "Stopped training, contacted parent",
         witnesses: "Coach Smith, Player B",
-      }),
-    );
+      }), log);
 
     const row = await ctx.db
       .selectFrom("accident_incident_report")
@@ -126,7 +127,7 @@ describe("incident-report (integration)", () => {
       firstAidGiven: false,
       medicalTreatmentRequired: false,
       declarationConfirmed: true,
-    });
+    }, log);
 
     const row = await ctx.db
       .selectFrom("accident_incident_report")
@@ -155,10 +156,13 @@ describe("incident-report (integration)", () => {
       .select((eb) => eb.fn.countAll<string>().as("total"))
       .executeTakeFirstOrThrow();
 
-    const result = await submit({
-      ...validSubmission({ reporterEmail: "bot@example.com" }),
-      website: "http://spam.example.com",
-    } as IncidentReportSubmission);
+    const result = await submit(
+      {
+        ...validSubmission({ reporterEmail: "bot@example.com" }),
+        website: "http://spam.example.com",
+      } as IncidentReportSubmission,
+      log,
+    );
 
     // Fake id so bots can't detect rejection from the response.
     expect(result.id).toBeDefined();
@@ -179,9 +183,7 @@ describe("incident-report (integration)", () => {
       send,
     });
 
-    const { id } = await submit(
-      validSubmission({ reporterName: "Round-trip Tester" }),
-    );
+    const { id } = await submit(validSubmission({ reporterName: "Round-trip Tester" }), log);
 
     // List finds it (status=new).
     const list = await listIncidentReports(ctx.db)({
@@ -228,7 +230,7 @@ describe("incident-report (integration)", () => {
       send,
     });
 
-    const { id } = await submit(validSubmission());
+    const { id } = await submit(validSubmission(), log);
 
     await updateIncidentReport(ctx.db)(id, { riddorRequired: true });
     expect((await getIncidentReport(ctx.db)(id))?.riddorRequired).toBe(true);
