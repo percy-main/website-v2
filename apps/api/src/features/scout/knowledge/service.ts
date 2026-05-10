@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from "fastify";
 import { CompiledQuery, type Kysely, sql } from "kysely";
 import { createHash } from "node:crypto";
 import type { S3KnowledgeBaseStore } from "../../../lib/s3-knowledge-base.ts";
+import { withSpan } from "../../../lib/tracing.ts";
 import { type FactTags, factTagsSchema } from "../facts/service.ts";
 import { type VoyageClient, toVectorLiteral } from "../facts/voyage.ts";
 
@@ -275,8 +276,9 @@ export interface CommitResult {
 }
 
 export function commitDocument(deps: KbDeps) {
-  return async (id: string): Promise<CommitResult> => {
-    const row = await loadRow(deps, id);
+  return async (id: string): Promise<CommitResult> =>
+    withSpan("scout.kb.commit", { documentId: id }, async () => {
+      const row = await loadRow(deps, id);
 
     if (row.status === "queued" || row.status === "ingesting") {
       // Idempotent: already past commit. Surface what we have.
@@ -362,7 +364,7 @@ export function commitDocument(deps: KbDeps) {
       contentHash,
       s3Key: permanentKey,
     };
-  };
+    });
 }
 
 // ── Patch ──

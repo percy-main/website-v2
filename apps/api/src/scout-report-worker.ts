@@ -21,6 +21,7 @@ import { createApiClient } from "./features/play-cricket/api-client.ts";
 import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runReport } from "./features/scout/report/run-report.ts";
 import { createScoutReportStore } from "./lib/s3-scout-reports.ts";
+import { withSpan } from "./lib/tracing.ts";
 import { createWorkerLogger } from "./lib/worker-logger.ts";
 
 /**
@@ -98,17 +99,23 @@ logger.info({ reportId: REPORT_ID }, "scout_report_worker_started");
 
 try {
   await context.with(parentCtx, () =>
-    runReport(
-      {
-        db,
-        dbReadonly,
-        playCricket,
-        config,
-        voyage,
-        scoutReports,
-        logger,
-      },
-      REPORT_ID,
+    // Named root span for the whole worker run so the trace tree in
+    // NR shows scout.report.run as the parent of everything (DB,
+    // PlayCricket, Anthropic, S3) rather than implicit per-call
+    // siblings. Attaches reportId for filtering.
+    withSpan("scout.report.run", { reportId: REPORT_ID }, () =>
+      runReport(
+        {
+          db,
+          dbReadonly,
+          playCricket,
+          config,
+          voyage,
+          scoutReports,
+          logger,
+        },
+        REPORT_ID,
+      ),
     ),
   );
   logger.info({ reportId: REPORT_ID }, "scout_report_worker_done");

@@ -5,6 +5,7 @@ import type { Kysely } from "kysely";
 import { createHash } from "node:crypto";
 import type { z } from "zod";
 import type { ScoutAttachmentStore } from "../../../lib/s3-scout-attachments.ts";
+import { withSpan } from "../../../lib/tracing.ts";
 import type {
   AttachmentKind,
   attachmentProcessingStateSchema,
@@ -178,7 +179,11 @@ export interface CommitInput {
 }
 
 export function commitAttachment(deps: AttachmentDeps) {
-  return async (input: CommitInput): Promise<AttachmentSummary> => {
+  return async (input: CommitInput): Promise<AttachmentSummary> =>
+    withSpan(
+      "scout.attachment.commit",
+      { attachmentId: input.attachmentId, threadId: input.threadId },
+      async () => {
     const row = await loadOwnedRow(deps, input);
 
     // Idempotent: re-calling on a 'ready' row is a no-op. Failed rows can
@@ -294,7 +299,8 @@ export function commitAttachment(deps: AttachmentDeps) {
         .execute();
       throw err;
     }
-  };
+      },
+    );
 }
 
 export function getAttachment(deps: AttachmentDeps) {

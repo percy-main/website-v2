@@ -22,6 +22,7 @@ import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runIngest } from "./features/scout/knowledge/run-ingest.ts";
 import { resolveModel } from "./features/scout/provider.ts";
 import { createS3KnowledgeBaseStore } from "./lib/s3-knowledge-base.ts";
+import { withSpan } from "./lib/tracing.ts";
 import { createWorkerLogger } from "./lib/worker-logger.ts";
 
 /**
@@ -76,9 +77,14 @@ logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_started");
 
 try {
   await context.with(parentCtx, () =>
-    runIngest(
-      { db, voyage, anthropicModel, scoutKnowledgeBase, config, logger },
-      DOCUMENT_ID,
+    // Named root span for the whole ingest run so the trace tree
+    // shows scout.kb.ingest as the parent of S3 / DB / Voyage /
+    // Anthropic spans rather than implicit per-call siblings.
+    withSpan("scout.kb.ingest", { documentId: DOCUMENT_ID }, () =>
+      runIngest(
+        { db, voyage, anthropicModel, scoutKnowledgeBase, config, logger },
+        DOCUMENT_ID,
+      ),
     ),
   );
   logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_done");
