@@ -2,6 +2,56 @@ import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import type Stripe from "stripe";
 
+export interface ChargeOnBehalfOf {
+  memberId: string;
+  name: string | null;
+}
+
+/**
+ * Resolve which member rows a given member can see (and pay) charges
+ * for. A member with parent links is treated as a junior whose charges
+ * are routed to their parent(s) — they see nothing themselves. A
+ * member who is named as a parent_member_id in any link absorbs those
+ * juniors' charges into their own list.
+ */
+async function getVisibleMembers(db: Kysely<DB>, memberId: string) {
+  const parents = await db
+    .selectFrom("member_parent_link")
+    .where("member_id", "=", memberId)
+    .select("parent_member_id")
+    .execute();
+
+  const juniors = await db
+    .selectFrom("member_parent_link")
+    .innerJoin("member", "member.id", "member_parent_link.member_id")
+    .where("member_parent_link.parent_member_id", "=", memberId)
+    .select(["member.id", "member.name"])
+    .execute();
+
+  const ownVisible = parents.length === 0;
+  const ids = [...(ownVisible ? [memberId] : []), ...juniors.map((j) => j.id)];
+  const juniorNameById = new Map(juniors.map((j) => [j.id, j.name]));
+
+  return { ids, juniorNameById };
+}
+
+function attributeOnBehalfOf<T extends { member_id: string }>(
+  charges: T[],
+  selfMemberId: string,
+  juniorNameById: Map<string, string | null>,
+): Array<T & { on_behalf_of: ChargeOnBehalfOf | null }> {
+  return charges.map((c) => ({
+    ...c,
+    on_behalf_of:
+      c.member_id === selfMemberId
+        ? null
+        : {
+            memberId: c.member_id,
+            name: juniorNameById.get(c.member_id) ?? null,
+          },
+  }));
+}
+
 export function getMyCharges(db: Kysely<DB>) {
   return async (email: string) => {
     const member = await db
@@ -14,15 +64,20 @@ export function getMyCharges(db: Kysely<DB>) {
       return [];
     }
 
+    const { ids, juniorNameById } = await getVisibleMembers(db, member.id);
+    if (ids.length === 0) {
+      return [];
+    }
+
     const charges = await db
       .selectFrom("charge")
-      .where("member_id", "=", member.id)
+      .where("member_id", "in", ids)
       .where("deleted_at", "is", null)
       .selectAll()
       .orderBy("charge_date", "desc")
       .execute();
 
-    return charges;
+    return attributeOnBehalfOf(charges, member.id, juniorNameById);
   };
 }
 
@@ -42,17 +97,24 @@ export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
       throw error;
     }
 
-    // Use a transaction with FOR UPDATE to prevent concurrent requests
-    // from creating duplicate PaymentIntents for the same charges
     return await db.transaction().execute(async (trx) => {
+      const { ids: visibleIds } = await getVisibleMembers(trx, member.id);
+      if (visibleIds.length === 0) {
+        const error = new Error("No unpaid charges found") as Error & {
+          statusCode: number;
+        };
+        error.statusCode = 400;
+        throw error;
+      }
+
       // When scopeChargeIds is provided (#93 — junior registration
       // pays only the charge it created), narrow the bundle. The
       // member_id WHERE still applies, so a malicious client passing
-      // someone else's chargeIds can only affect rows it already
-      // owned.
+      // someone else's chargeIds can only affect rows owned by a
+      // member they are entitled to pay for (self or linked junior).
       let query = trx
         .selectFrom("charge")
-        .where("member_id", "=", member.id)
+        .where("member_id", "in", visibleIds)
         .where("deleted_at", "is", null)
         .where("paid_at", "is", null)
         .where("payment_confirmed_at", "is", null);
@@ -73,17 +135,25 @@ export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
       }
 
       // Charges with an existing PI might be retryable if the PI was
-      // abandoned/expired. Check Stripe and clear stale ones so they
+      // abandoned/cancelled. Check Stripe and clear stale ones so they
       // can be bundled into a new PI.
+      //
+      // For linked-junior charges (shared between multiple parents),
+      // only clear if the existing PI was started by THIS user — a
+      // mid-flight PI started by the other parent must not be
+      // overwritten or we'd risk double-charging (their PI succeeds
+      // against an unrelated charge row). `canceled` is always safe
+      // to clear because the PI cannot succeed.
       for (const charge of unpaidCharges) {
         if (!charge.stripe_payment_intent_id) continue;
         const pi = await stripe.paymentIntents.retrieve(
           charge.stripe_payment_intent_id,
         );
-        if (
-          pi.status === "requires_payment_method" ||
-          pi.status === "canceled"
-        ) {
+        const startedByThisUser = pi.metadata?.memberEmail === email;
+        const shouldClear =
+          pi.status === "canceled" ||
+          (pi.status === "requires_payment_method" && startedByThisUser);
+        if (shouldClear) {
           await trx
             .updateTable("charge")
             .set({ stripe_payment_intent_id: null })
@@ -93,7 +163,6 @@ export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
         }
       }
 
-      // Only include charges that are now unlinked
       const payableCharges = unpaidCharges.filter(
         (c) => !c.stripe_payment_intent_id,
       );
@@ -123,7 +192,6 @@ export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
         },
       });
 
-      // Link charges to the payment intent within the same transaction
       await trx
         .updateTable("charge")
         .set({ stripe_payment_intent_id: paymentIntent.id })
@@ -155,10 +223,15 @@ export function confirmPayment(db: Kysely<DB>) {
       throw error;
     }
 
+    const { ids: visibleIds } = await getVisibleMembers(db, member.id);
+    if (visibleIds.length === 0) {
+      return;
+    }
+
     await db
       .updateTable("charge")
       .set({ payment_confirmed_at: new Date().toISOString() })
-      .where("member_id", "=", member.id)
+      .where("member_id", "in", visibleIds)
       .where("stripe_payment_intent_id", "=", paymentIntentId)
       .where("paid_at", "is", null)
       .where("payment_confirmed_at", "is", null)

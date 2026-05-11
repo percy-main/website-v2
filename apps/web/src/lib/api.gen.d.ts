@@ -515,6 +515,10 @@ export interface paths {
                                 deleted_reason: string | null;
                                 created_at: string;
                                 created_by: string;
+                                on_behalf_of: {
+                                    memberId: string;
+                                    name: string | null;
+                                } | null;
                             }[];
                         };
                     };
@@ -6107,6 +6111,17 @@ export interface paths {
                                 id: string;
                                 name: string;
                             }[];
+                            linkedParents: {
+                                memberId: string;
+                                name: string | null;
+                                email: string;
+                            }[];
+                            linkedJuniors: {
+                                memberId: string;
+                                name: string | null;
+                                email: string;
+                                dob: string | null;
+                            }[];
                         };
                     };
                 };
@@ -6954,6 +6969,12 @@ export interface paths {
                                 deletedReason: string | null;
                                 memberName: string | null;
                                 memberEmail: string;
+                                memberCategory: string | null;
+                                paidByParents: {
+                                    memberId: string;
+                                    name: string | null;
+                                    email: string;
+                                }[];
                                 /** @enum {string} */
                                 status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted";
                             }[];
@@ -7287,6 +7308,140 @@ export interface paths {
                 content: {
                     "application/json": {
                         dependentId: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/members/parent-search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    juniorMemberId: string;
+                    search?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            juniorName: string | null;
+                            members: {
+                                id: string;
+                                name: string | null;
+                                email: string;
+                                score: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/members/parent-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        memberId: string;
+                        parentMemberId: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/members/parent-unlink": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        memberId: string;
+                        parentMemberId: string;
                     };
                 };
             };

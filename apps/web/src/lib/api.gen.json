@@ -604,6 +604,24 @@
                           },
                           "created_by": {
                             "type": "string"
+                          },
+                          "on_behalf_of": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "memberId": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "nullable": true,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "memberId",
+                              "name"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -622,7 +640,8 @@
                           "deleted_by",
                           "deleted_reason",
                           "created_at",
-                          "created_by"
+                          "created_by",
+                          "on_behalf_of"
                         ],
                         "additionalProperties": false
                       }
@@ -10751,6 +10770,59 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "linkedParents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "memberId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "memberId",
+                          "name",
+                          "email"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "linkedJuniors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "memberId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "dob": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "memberId",
+                          "name",
+                          "email",
+                          "dob"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -10760,7 +10832,9 @@
                     "dependents",
                     "charges",
                     "juniorManagerTeams",
-                    "officialTeams"
+                    "officialTeams",
+                    "linkedParents",
+                    "linkedJuniors"
                   ],
                   "additionalProperties": false
                 }
@@ -11866,6 +11940,34 @@
                           "memberEmail": {
                             "type": "string"
                           },
+                          "memberCategory": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "paidByParents": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "email": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "name",
+                                "email"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
                           "status": {
                             "type": "string",
                             "enum": [
@@ -11893,6 +11995,8 @@
                           "deletedReason",
                           "memberName",
                           "memberEmail",
+                          "memberCategory",
+                          "paidByParents",
                           "status"
                         ],
                         "additionalProperties": false
@@ -12462,6 +12566,178 @@
                 },
                 "required": [
                   "dependentId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/members/parent-search": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "juniorMemberId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "search",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "juniorName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "score": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "email",
+                          "score"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "juniorName",
+                    "members"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/members/parent-link": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "parentMemberId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "parentMemberId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/members/parent-unlink": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "parentMemberId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "parentMemberId"
                 ]
               }
             }

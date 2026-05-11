@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,7 +25,7 @@ import {
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   buildDependentFields,
   buildMemberDetailFields,
@@ -91,7 +92,15 @@ function MemberDetailContent({
   data: UserDetail;
   userId: string;
 }) {
-  const { user, member, membership, dependents, charges } = data;
+  const {
+    user,
+    member,
+    membership,
+    dependents,
+    charges,
+    linkedParents,
+    linkedJuniors,
+  } = data;
 
   return (
     <div className="space-y-6">
@@ -131,8 +140,23 @@ function MemberDetailContent({
 
       <hr />
 
-      {/* 6. Junior Members */}
-      <JuniorMembersSection dependents={dependents} />
+      {/* 6a. Linked parents (admin-managed) */}
+      {member && (
+        <>
+          <LinkedParentsSection
+            userId={userId}
+            memberId={member.id}
+            linkedParents={linkedParents}
+          />
+          <hr />
+        </>
+      )}
+
+      {/* 6b. Junior Members (self-registered dependents + linked juniors) */}
+      <JuniorMembersSection
+        dependents={dependents}
+        linkedJuniors={linkedJuniors}
+      />
 
       <hr />
 
@@ -440,24 +464,76 @@ function MembershipSection({
 
 function JuniorMembersSection({
   dependents,
+  linkedJuniors,
 }: {
   dependents: UserDetail["dependents"];
+  linkedJuniors: UserDetail["linkedJuniors"];
 }) {
+  const total = dependents.length + linkedJuniors.length;
   return (
     <section>
       <h3 className="mb-3 text-sm font-semibold text-stone-900">
-        Junior Members ({dependents.length})
+        Junior Members ({total})
       </h3>
-      {dependents.length === 0 ? (
+      {total === 0 ? (
         <p className="text-sm text-stone-500">No junior members.</p>
       ) : (
-        <div className="space-y-3">
-          {dependents.map((dep) => (
-            <DependentCard key={dep.id} dependent={dep} />
-          ))}
+        <div className="space-y-4">
+          {dependents.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium tracking-wide text-stone-500 uppercase">
+                Registered dependents
+              </p>
+              {dependents.map((dep) => (
+                <DependentCard key={dep.id} dependent={dep} />
+              ))}
+            </div>
+          )}
+          {linkedJuniors.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium tracking-wide text-stone-500 uppercase">
+                Linked junior members
+              </p>
+              {linkedJuniors.map((j) => (
+                <LinkedJuniorCard key={j.memberId} junior={j} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </section>
+  );
+}
+
+function LinkedJuniorCard({
+  junior,
+}: {
+  junior: UserDetail["linkedJuniors"][number];
+}) {
+  return (
+    <div className="rounded-md border border-stone-200 bg-stone-50 p-3">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="font-semibold">{junior.name ?? "(no name)"}</span>
+        <Badge
+          variant="outline"
+          className="border-blue-300 text-xs text-blue-700"
+        >
+          Linked account
+        </Badge>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+        <div>
+          <span className="text-stone-500">Email</span>
+          <p>{junior.email}</p>
+        </div>
+        {junior.dob && (
+          <div>
+            <span className="text-stone-500">DOB</span>
+            <p>{junior.dob}</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -977,6 +1053,221 @@ function ChargeRow({
         )}
       </TableCell>
     </TableRow>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* 6a. Linked Parents Section                                          */
+/* ------------------------------------------------------------------ */
+
+function LinkedParentsSection({
+  userId,
+  memberId,
+  linkedParents,
+}: {
+  userId: string;
+  memberId: string;
+  linkedParents: UserDetail["linkedParents"];
+}) {
+  const queryClient = useQueryClient();
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const unlinkMutation = useMutation({
+    mutationFn: (parentMemberId: string) =>
+      callApi(
+        api.POST("/api/admin/members/parent-unlink", {
+          body: { memberId, parentMemberId },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+    },
+  });
+
+  return (
+    <section>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-stone-900">
+          Linked Parents ({linkedParents.length})
+        </h3>
+        <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+          Link to parent
+        </Button>
+      </div>
+      <p className="mb-3 text-xs text-stone-500">
+        Charges raised against this member will surface on the linked
+        parent(s)&apos; outstanding payments instead of this member&apos;s.
+      </p>
+      {linkedParents.length === 0 ? (
+        <p className="text-sm text-stone-500">No linked parents.</p>
+      ) : (
+        <div className="space-y-2">
+          {linkedParents.map((p) => (
+            <div
+              key={p.memberId}
+              className="flex items-center justify-between rounded-md border border-stone-200 p-3 text-sm"
+            >
+              <div>
+                <span className="font-medium">{p.name ?? "(no name)"}</span>
+                <span className="ml-2 text-stone-500">{p.email}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => unlinkMutation.mutate(p.memberId)}
+                disabled={unlinkMutation.isPending}
+                className="border-red-300 text-red-700 hover:bg-red-50"
+              >
+                Unlink
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {pickerOpen && (
+        <ParentLinkDialog
+          userId={userId}
+          memberId={memberId}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </section>
+  );
+}
+
+function ParentLinkDialog({
+  userId,
+  memberId,
+  onClose,
+}: {
+  userId: string;
+  memberId: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebounced(search);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [search]);
+
+  const candidatesQuery = useQuery({
+    queryKey: ["admin", "parentSearch", memberId, debounced],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/members/parent-search", {
+          params: {
+            query: {
+              juniorMemberId: memberId,
+              ...(debounced ? { search: debounced } : {}),
+            },
+          },
+        }),
+      ),
+  });
+
+  const linkMutation = useMutation({
+    mutationFn: (parentMemberId: string) =>
+      callApi(
+        api.POST("/api/admin/members/parent-link", {
+          body: { memberId, parentMemberId },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "userDetail", userId],
+      });
+      onClose();
+    },
+  });
+
+  const members = candidatesQuery.data?.members ?? [];
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Link to parent</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-stone-500">
+          Pick a parent member. Once linked, this member&apos;s charges will
+          surface on the parent&apos;s outstanding payments list.
+        </p>
+
+        <Input
+          type="text"
+          placeholder="Search by name or email…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="mt-2"
+        />
+
+        {candidatesQuery.isLoading && (
+          <p className="text-sm text-stone-500">Searching…</p>
+        )}
+        {candidatesQuery.error && (
+          <p className="text-sm text-red-600">Failed to search members.</p>
+        )}
+
+        <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+          {members.length === 0 && !candidatesQuery.isLoading && (
+            <p className="py-2 text-center text-sm text-stone-500">
+              No matching members.
+            </p>
+          )}
+          {members.map((m) => (
+            <div
+              key={m.id}
+              className="flex items-center justify-between rounded px-3 py-2 hover:bg-stone-50"
+            >
+              <div>
+                <span className="font-medium">{m.name ?? "(no name)"}</span>
+                <span className="ml-2 text-xs text-stone-500">{m.email}</span>
+                {m.score >= 0.7 && (
+                  <Badge
+                    variant="outline"
+                    className="ml-2 border-green-300 text-green-700"
+                  >
+                    Strong match
+                  </Badge>
+                )}
+                {m.score >= 0.4 && m.score < 0.7 && (
+                  <Badge
+                    variant="outline"
+                    className="ml-2 border-yellow-300 text-yellow-700"
+                  >
+                    Possible match
+                  </Badge>
+                )}
+              </div>
+              <Button
+                size="sm"
+                onClick={() => linkMutation.mutate(m.id)}
+                disabled={linkMutation.isPending}
+              >
+                Link
+              </Button>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -13,6 +13,7 @@ import type {
   CreateCharge,
   CreateMember,
   LinkDependent,
+  LinkParent,
   ListCharges,
   ListContactSubmissions,
   ListJuniors,
@@ -20,9 +21,11 @@ import type {
   MergeMembers,
   MergePreview,
   RecordLinking,
+  SearchMembersForParentLink,
   SearchUsersForLinking,
   Unlink,
   UnlinkDependent,
+  UnlinkParent,
   UpdateUser,
 } from "./schemas.ts";
 
@@ -396,6 +399,37 @@ export function getUserDetail(db: Kysely<DB>) {
       .select(["play_cricket_team.id", "play_cricket_team.name"])
       .execute();
 
+    const linkedParents = member
+      ? await db
+          .selectFrom("member_parent_link")
+          .innerJoin(
+            "member as parent",
+            "parent.id",
+            "member_parent_link.parent_member_id",
+          )
+          .where("member_parent_link.member_id", "=", member.id)
+          .select(["parent.id as memberId", "parent.name", "parent.email"])
+          .execute()
+      : [];
+
+    const linkedJuniors = member
+      ? await db
+          .selectFrom("member_parent_link")
+          .innerJoin(
+            "member as junior",
+            "junior.id",
+            "member_parent_link.member_id",
+          )
+          .where("member_parent_link.parent_member_id", "=", member.id)
+          .select([
+            "junior.id as memberId",
+            "junior.name",
+            "junior.email",
+            "junior.dob",
+          ])
+          .execute()
+      : [];
+
     return {
       user,
       member: member ?? null,
@@ -404,7 +438,134 @@ export function getUserDetail(db: Kysely<DB>) {
       charges,
       juniorManagerTeams,
       officialTeams,
+      linkedParents,
+      linkedJuniors,
     };
+  };
+}
+
+export function searchMembersForParentLink(db: Kysely<DB>) {
+  return async (params: SearchMembersForParentLink) => {
+    const { juniorMemberId, search } = params;
+
+    const junior = await db
+      .selectFrom("member")
+      .select(["id", "name"])
+      .where("id", "=", juniorMemberId)
+      .executeTakeFirst();
+
+    if (!junior) {
+      const error = new Error("Member not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    let query = db
+      .selectFrom("member")
+      .select(["id", "name", "email"])
+      .where("id", "<>", juniorMemberId)
+      .where("deleted_at", "is", null);
+
+    if (search && search.trim().length > 0) {
+      const term = `%${search.trim()}%`;
+      query = query.where((eb) =>
+        eb.or([eb("name", "ilike", term), eb("email", "ilike", term)]),
+      );
+    }
+
+    const members = await query.execute();
+
+    const scored = members
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        score: nameSimilarity(junior.name ?? "", m.name ?? ""),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+
+    return { juniorName: junior.name, members: scored };
+  };
+}
+
+export function linkMemberParent(db: Kysely<DB>) {
+  return async (params: LinkParent, createdBy: string | null) => {
+    const { memberId, parentMemberId } = params;
+
+    if (memberId === parentMemberId) {
+      const error = new Error(
+        "A member cannot be their own parent",
+      ) as Error & { statusCode: number };
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const found = await db
+      .selectFrom("member")
+      .select("id")
+      .where("id", "in", [memberId, parentMemberId])
+      .where("deleted_at", "is", null)
+      .execute();
+    if (found.length !== 2) {
+      const error = new Error("Member not found") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // Reject the reciprocal case (A↔B). A multi-hop cycle (A→B→C→A)
+    // is theoretically possible but unrealistic under admin-managed
+    // linking; we keep the cheap single-hop guard for now.
+    const reverse = await db
+      .selectFrom("member_parent_link")
+      .where("member_id", "=", parentMemberId)
+      .where("parent_member_id", "=", memberId)
+      .select("member_id")
+      .executeTakeFirst();
+    if (reverse) {
+      const error = new Error(
+        "Cannot link: the proposed parent is already linked as this member's junior",
+      ) as Error & { statusCode: number };
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const existing = await db
+      .selectFrom("member_parent_link")
+      .where("member_id", "=", memberId)
+      .where("parent_member_id", "=", parentMemberId)
+      .select("member_id")
+      .executeTakeFirst();
+    if (existing) {
+      return { success: true };
+    }
+
+    await db
+      .insertInto("member_parent_link")
+      .values({
+        member_id: memberId,
+        parent_member_id: parentMemberId,
+        created_by: createdBy,
+      })
+      .execute();
+
+    return { success: true };
+  };
+}
+
+export function unlinkMemberParent(db: Kysely<DB>) {
+  return async (params: UnlinkParent) => {
+    const { memberId, parentMemberId } = params;
+    await db
+      .deleteFrom("member_parent_link")
+      .where("member_id", "=", memberId)
+      .where("parent_member_id", "=", parentMemberId)
+      .execute();
+    return { success: true };
   };
 }
 
@@ -1051,12 +1212,50 @@ export function listAllCharges(db: Kysely<DB>) {
           "charge.deleted_reason",
           "member.name as memberName",
           "member.email as memberEmail",
+          "member.member_category as memberCategory",
         ])
         .orderBy("charge.charge_date", "desc")
         .limit(pageSize)
         .offset(offset)
         .execute(),
     ]);
+
+    // Resolve which parent(s) absorb each charge: a single batched
+    // lookup against member_parent_link for every member appearing on
+    // this page.
+    const memberIds = Array.from(new Set(charges.map((c) => c.member_id)));
+    const parentLinks =
+      memberIds.length > 0
+        ? await db
+            .selectFrom("member_parent_link")
+            .innerJoin(
+              "member as parent",
+              "parent.id",
+              "member_parent_link.parent_member_id",
+            )
+            .where("member_parent_link.member_id", "in", memberIds)
+            .select([
+              "member_parent_link.member_id",
+              "parent.id as parentMemberId",
+              "parent.name as parentName",
+              "parent.email as parentEmail",
+            ])
+            .execute()
+        : [];
+
+    const parentsByMember = new Map<
+      string,
+      Array<{ memberId: string; name: string | null; email: string }>
+    >();
+    for (const link of parentLinks) {
+      const arr = parentsByMember.get(link.member_id) ?? [];
+      arr.push({
+        memberId: link.parentMemberId,
+        name: link.parentName,
+        email: link.parentEmail,
+      });
+      parentsByMember.set(link.member_id, arr);
+    }
 
     return {
       charges: charges.map((c) => ({
@@ -1075,6 +1274,8 @@ export function listAllCharges(db: Kysely<DB>) {
         deletedReason: c.deleted_reason,
         memberName: c.memberName,
         memberEmail: c.memberEmail,
+        memberCategory: c.memberCategory,
+        paidByParents: parentsByMember.get(c.member_id) ?? [],
         status: getChargeStatus(
           c.paid_at,
           c.payment_confirmed_at,
