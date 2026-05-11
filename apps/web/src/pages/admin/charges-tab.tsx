@@ -83,9 +83,11 @@ export function ChargesTab() {
     search,
     debouncedSearch,
   } = filters;
+  type PaymentMethod = "cash" | "bank_transfer" | "card";
   type ConfirmAction =
     | { kind: "chase"; chargeId: string }
-    | { kind: "void"; chargeId: string; reason: string };
+    | { kind: "void"; chargeId: string; reason: string }
+    | { kind: "markPaid"; chargeId: string; paymentMethod: PaymentMethod };
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(
     null,
   );
@@ -169,6 +171,23 @@ export function ChargesTab() {
         api.DELETE("/api/admin/charges/{chargeId}", {
           params: { path: { chargeId: input.chargeId } },
           body: { reason: input.reason },
+        }),
+      ),
+    onSuccess: () => {
+      setConfirmAction(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin", "charges"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "chargeAggregates"],
+      });
+    },
+  });
+
+  const markPaidMutation = useMutation({
+    mutationFn: (input: { chargeId: string; paymentMethod: PaymentMethod }) =>
+      callApi(
+        api.POST("/api/admin/charges/{chargeId}/mark-paid", {
+          params: { path: { chargeId: input.chargeId } },
+          body: { paymentMethod: input.paymentMethod },
         }),
       ),
     onSuccess: () => {
@@ -422,6 +441,17 @@ export function ChargesTab() {
                               Chase
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                              onSelect={() =>
+                                setConfirmAction({
+                                  kind: "markPaid",
+                                  chargeId: charge.id,
+                                  paymentMethod: "cash",
+                                })
+                              }
+                            >
+                              Mark paid…
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               className="text-red-700 focus:bg-red-50 focus:text-red-800"
                               onSelect={() =>
                                 setConfirmAction({
@@ -504,7 +534,108 @@ export function ChargesTab() {
         isPending={voidMutation.isPending}
         isError={voidMutation.isError}
       />
+
+      <MarkPaidConfirmDialog
+        action={confirmAction?.kind === "markPaid" ? confirmAction : null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}
+        onPaymentMethodChange={(paymentMethod) =>
+          setConfirmAction((prev) =>
+            prev?.kind === "markPaid" ? { ...prev, paymentMethod } : prev,
+          )
+        }
+        onConfirm={(input) => markPaidMutation.mutate(input)}
+        isPending={markPaidMutation.isPending}
+        isError={markPaidMutation.isError}
+      />
     </div>
+  );
+}
+
+type PaymentMethod = "cash" | "bank_transfer" | "card";
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: "Cash",
+  bank_transfer: "Bank transfer",
+  card: "Card",
+};
+
+function MarkPaidConfirmDialog({
+  action,
+  onOpenChange,
+  onPaymentMethodChange,
+  onConfirm,
+  isPending,
+  isError,
+}: {
+  action: { chargeId: string; paymentMethod: PaymentMethod } | null;
+  onOpenChange: (open: boolean) => void;
+  onPaymentMethodChange: (paymentMethod: PaymentMethod) => void;
+  onConfirm: (input: {
+    chargeId: string;
+    paymentMethod: PaymentMethod;
+  }) => void;
+  isPending: boolean;
+  isError: boolean;
+}) {
+  return (
+    <Dialog open={action !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Mark this charge as paid?</DialogTitle>
+          <DialogDescription>
+            Records the charge as paid outside Stripe, for cash or bank
+            transfers collected directly. No payment confirmation email is sent.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-4 flex flex-col gap-2">
+          <Label htmlFor="mark-paid-method" className="text-sm font-medium">
+            Payment method
+          </Label>
+          <Select
+            value={action?.paymentMethod ?? "cash"}
+            onValueChange={(v) => onPaymentMethodChange(v as PaymentMethod)}
+          >
+            <SelectTrigger id="mark-paid-method" className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map(
+                (m) => (
+                  <SelectItem key={m} value={m}>
+                    {PAYMENT_METHOD_LABELS[m]}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        {isError && (
+          <p className="mt-2 text-sm text-red-600">
+            Failed to mark paid. Try again.
+          </p>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!action || isPending}
+            onClick={() => {
+              if (action) {
+                onConfirm({
+                  chargeId: action.chargeId,
+                  paymentMethod: action.paymentMethod,
+                });
+              }
+            }}
+          >
+            {isPending ? "Marking…" : "Mark paid"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

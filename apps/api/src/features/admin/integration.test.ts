@@ -21,6 +21,7 @@ import {
   listContactSubmissions,
   listJuniors,
   listUsers,
+  markChargePaid,
   mergeMembers,
   searchMembersForParentLink,
   searchUsersForLinking,
@@ -815,6 +816,122 @@ describe("admin service (integration)", () => {
       await expect(chasePayment(ctx.db)(chargeId)).rejects.toThrow(
         "Charge not found or already paid/deleted",
       );
+    });
+  });
+
+  describe("markChargePaid", () => {
+    it("marks an unpaid charge as paid with the given payment method", async () => {
+      const email = `mark-paid-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Cash payment",
+          amount_pence: 1500,
+          charge_date: "2026-03-15",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      const result = await markChargePaid(ctx.db)(chargeId, {
+        paymentMethod: "cash",
+      });
+      expect(result).toEqual({ success: true });
+
+      const after = await ctx.db
+        .selectFrom("charge")
+        .where("id", "=", chargeId)
+        .select(["paid_at", "payment_method"])
+        .executeTakeFirstOrThrow();
+      expect(after.paid_at).not.toBeNull();
+      expect(after.payment_method).toBe("cash");
+    });
+
+    it("throws 404 for an already-paid charge", async () => {
+      const email = `mark-paid-already-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Already paid",
+          amount_pence: 1500,
+          charge_date: "2026-03-15",
+          paid_at: new Date().toISOString(),
+          payment_method: "card",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await expect(
+        markChargePaid(ctx.db)(chargeId, { paymentMethod: "cash" }),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
+    });
+
+    it("throws 404 for a deleted (voided) charge", async () => {
+      const email = `mark-paid-voided-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Voided",
+          amount_pence: 1500,
+          charge_date: "2026-03-15",
+          deleted_at: new Date().toISOString(),
+          deleted_reason: "raised in error",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await expect(
+        markChargePaid(ctx.db)(chargeId, { paymentMethod: "cash" }),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
+    });
+
+    it("throws 404 for a charge with payment in flight", async () => {
+      const email = `mark-paid-pending-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Pending Stripe confirmation",
+          amount_pence: 1500,
+          charge_date: "2026-03-15",
+          payment_confirmed_at: new Date().toISOString(),
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await expect(
+        markChargePaid(ctx.db)(chargeId, { paymentMethod: "cash" }),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
     });
   });
 

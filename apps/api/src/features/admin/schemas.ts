@@ -141,6 +141,12 @@ export const chasePaymentSchema = z.object({
   chargeId: z.string(),
 });
 
+export const markChargePaidSchema = z.object({
+  paymentMethod: z.enum(["cash", "bank_transfer", "card"]),
+});
+
+export type MarkChargePaid = z.infer<typeof markChargePaidSchema>;
+
 export type ListCharges = z.infer<typeof listChargesSchema>;
 export type ChargeAggregates = z.infer<typeof chargeAggregatesSchema>;
 export type ChasePayment = z.infer<typeof chasePaymentSchema>;
@@ -481,6 +487,8 @@ export const chargeAggregatesResponseSchema = z.object({
 });
 
 export const chasePaymentResponseSchema = successResponseSchema;
+
+export const markChargePaidResponseSchema = successResponseSchema;
 
 export const listContactSubmissionsResponseSchema = z.object({
   submissions: z.array(
