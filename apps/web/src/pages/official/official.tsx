@@ -949,8 +949,9 @@ function MatchdayView({
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {/* Match fee payment controls for confirmed matchdays */}
-                        {data.matchday.status === "confirmed" &&
+                        {/* Match fee payment controls for confirmed and finished matchdays */}
+                        {(data.matchday.status === "confirmed" ||
+                          data.matchday.status === "finished") &&
                           player.status === "playing" &&
                           player.charge_id &&
                           !player.chargePaidAt && (
