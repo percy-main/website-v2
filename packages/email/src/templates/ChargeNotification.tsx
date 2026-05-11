@@ -91,7 +91,7 @@ export const ChargeNotification = email<Props>("New Charge Added", {
   preview: {
     imageBaseUrl: "http://localhost:5173/images",
     name: "Alex",
-    description: "Match fee - Senior XI vs Benwell Hill",
+    description: "Match donation - Senior XI vs Benwell Hill",
     amount: "\u00a35.00",
     chargeDate: "25/02/2026",
     loginUrl: "http://localhost:5173/auth/login",

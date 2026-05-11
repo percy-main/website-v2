@@ -101,7 +101,7 @@ export function MatchFeesTab() {
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>Add Fee Rate</CardTitle>
+          <CardTitle>Add Donation Rate</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-end gap-3">
@@ -227,8 +227,8 @@ export function MatchFeesTab() {
             <p className="text-sm text-stone-500">Loading…</p>
           ) : rates.length === 0 ? (
             <p className="text-sm text-stone-500">
-              No fee rates configured. Add rates above so match fees can be
-              generated when a team is confirmed.
+              No donation rates configured. Add rates above so match donations
+              can be generated when a team is confirmed.
             </p>
           ) : (
             <Table>

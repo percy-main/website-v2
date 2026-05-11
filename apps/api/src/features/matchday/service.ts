@@ -775,7 +775,7 @@ export function confirmTeam(db: Kysely<DB>) {
           .values({
             id: chargeId,
             member_id: player.member_id,
-            description: `Match fee - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
+            description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
             amount_pence: rate.amount_pence,
             charge_date: matchday.match_date,
             created_by: userId,
@@ -908,7 +908,7 @@ export function markFeePaid(db: Kysely<DB>) {
     }
 
     if (!player.charge_id) {
-      throwHttpError(400, "No match fee charge found for this player");
+      throwHttpError(400, "No match donation charge found for this player");
     }
 
     await db
@@ -969,7 +969,7 @@ export function cancelMatchday(db: Kysely<DB>) {
     if (existingCharge) {
       throwHttpError(
         400,
-        "Cannot cancel: match fee charges already exist. Void them via the Charges admin first.",
+        "Cannot cancel: match donation charges already exist. Void them via the Charges admin first.",
       );
     }
 
@@ -1100,7 +1100,7 @@ export function finishMatch(
             .values({
               id: chargeId,
               member_id: player.member_id,
-              description: `Match fee - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
+              description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
               amount_pence: rate.amount_pence,
               charge_date: matchday.match_date,
               created_by: userId,
