@@ -2,6 +2,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useReducer, useRef, useState } from "react";
@@ -68,7 +83,12 @@ export function ChargesTab() {
     search,
     debouncedSearch,
   } = filters;
-  const [chasingChargeId, setChasingChargeId] = useState<string | null>(null);
+  type ConfirmAction =
+    | { kind: "chase"; chargeId: string }
+    | { kind: "void"; chargeId: string; reason: string };
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(
+    null,
+  );
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -138,8 +158,25 @@ export function ChargesTab() {
         }),
       ),
     onSuccess: () => {
-      setChasingChargeId(null);
+      setConfirmAction(null);
       void queryClient.invalidateQueries({ queryKey: ["admin", "charges"] });
+    },
+  });
+
+  const voidMutation = useMutation({
+    mutationFn: (input: { chargeId: string; reason: string }) =>
+      callApi(
+        api.DELETE("/api/admin/charges/{chargeId}", {
+          params: { path: { chargeId: input.chargeId } },
+          body: { reason: input.reason },
+        }),
+      ),
+    onSuccess: () => {
+      setConfirmAction(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin", "charges"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "chargeAggregates"],
+      });
     },
   });
 
@@ -342,41 +379,42 @@ export function ChargesTab() {
                     <TableCell>
                       {(charge.status === "abandoned" ||
                         charge.status === "unpaid") && (
-                        <>
-                          {chasingChargeId === charge.id ? (
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                disabled={chaseMutation.isPending}
-                                onClick={() => chaseMutation.mutate(charge.id)}
-                              >
-                                {chaseMutation.isPending ? "Sending…" : "Send"}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setChasingChargeId(null)}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          ) : (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
-                              onClick={() => setChasingChargeId(charge.id)}
+                              aria-label="Charge actions"
+                              className="size-8 p-0"
+                            >
+                              <EllipsisIcon className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                setConfirmAction({
+                                  kind: "chase",
+                                  chargeId: charge.id,
+                                })
+                              }
                             >
                               Chase
-                            </Button>
-                          )}
-                          {chaseMutation.isError &&
-                            chasingChargeId === charge.id && (
-                              <p className="mt-1 text-xs text-red-600">
-                                Failed to send reminder.
-                              </p>
-                            )}
-                        </>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-700 focus:bg-red-50 focus:text-red-800"
+                              onSelect={() =>
+                                setConfirmAction({
+                                  kind: "void",
+                                  chargeId: charge.id,
+                                  reason: "",
+                                })
+                              }
+                            >
+                              Void…
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </TableCell>
                   </TableRow>
@@ -421,7 +459,164 @@ export function ChargesTab() {
           </div>
         </>
       )}
+
+      <ChaseConfirmDialog
+        action={confirmAction?.kind === "chase" ? confirmAction : null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}
+        onConfirm={(chargeId) => chaseMutation.mutate(chargeId)}
+        isPending={chaseMutation.isPending}
+        isError={chaseMutation.isError}
+      />
+
+      <VoidConfirmDialog
+        action={confirmAction?.kind === "void" ? confirmAction : null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}
+        onReasonChange={(reason) =>
+          setConfirmAction((prev) =>
+            prev?.kind === "void" ? { ...prev, reason } : prev,
+          )
+        }
+        onConfirm={(input) => voidMutation.mutate(input)}
+        isPending={voidMutation.isPending}
+        isError={voidMutation.isError}
+      />
     </div>
+  );
+}
+
+function EllipsisIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+      <circle cx="5" cy="12" r="1" />
+    </svg>
+  );
+}
+
+function ChaseConfirmDialog({
+  action,
+  onOpenChange,
+  onConfirm,
+  isPending,
+  isError,
+}: {
+  action: { chargeId: string } | null;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (chargeId: string) => void;
+  isPending: boolean;
+  isError: boolean;
+}) {
+  return (
+    <Dialog open={action !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Chase this charge?</DialogTitle>
+          <DialogDescription>
+            Sends a payment-reminder email to the member. The charge stays
+            outstanding.
+          </DialogDescription>
+        </DialogHeader>
+        {isError && (
+          <p className="mt-2 text-sm text-red-600">
+            Failed to send reminder. Try again.
+          </p>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!action || isPending}
+            onClick={() => {
+              if (action) onConfirm(action.chargeId);
+            }}
+          >
+            {isPending ? "Sending…" : "Send reminder"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VoidConfirmDialog({
+  action,
+  onOpenChange,
+  onReasonChange,
+  onConfirm,
+  isPending,
+  isError,
+}: {
+  action: { chargeId: string; reason: string } | null;
+  onOpenChange: (open: boolean) => void;
+  onReasonChange: (reason: string) => void;
+  onConfirm: (input: { chargeId: string; reason: string }) => void;
+  isPending: boolean;
+  isError: boolean;
+}) {
+  const reason = action?.reason ?? "";
+  const trimmed = reason.trim();
+  return (
+    <Dialog open={action !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Void this charge?</DialogTitle>
+          <DialogDescription>
+            Soft-deletes the charge so it no longer counts as outstanding and
+            the member is not chased. Cannot be undone from the UI.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-4 flex flex-col gap-2">
+          <Label htmlFor="void-reason" className="text-sm font-medium">
+            Reason (required)
+          </Label>
+          <Textarea
+            id="void-reason"
+            value={reason}
+            onChange={(e) => onReasonChange(e.target.value)}
+            placeholder="e.g. matchday cancelled, charge raised in error"
+            rows={3}
+            maxLength={500}
+          />
+        </div>
+        {isError && (
+          <p className="mt-2 text-sm text-red-600">
+            Failed to void. Try again.
+          </p>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={!action || isPending || trimmed.length === 0}
+            onClick={() => {
+              if (action && trimmed.length > 0) {
+                onConfirm({ chargeId: action.chargeId, reason: trimmed });
+              }
+            }}
+          >
+            {isPending ? "Voiding…" : "Void charge"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
