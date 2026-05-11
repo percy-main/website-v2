@@ -136,7 +136,9 @@ export function GameReportsTab() {
                             ? "bg-yellow-100 text-yellow-800"
                             : matchday.status === "confirmed"
                               ? "bg-green-100 text-green-800"
-                              : "bg-stone-100 text-stone-800"
+                              : matchday.status === "cancelled"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-stone-100 text-stone-800"
                         }`}
                       >
                         {matchday.status}

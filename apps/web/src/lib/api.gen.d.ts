@@ -3971,7 +3971,7 @@ export interface paths {
                     teamId?: string;
                     limit?: number;
                     offset?: number;
-                    statusFilter?: "all" | "pending" | "confirmed" | "finished";
+                    statusFilter?: "all" | "pending" | "confirmed" | "finished" | "cancelled";
                 };
                 header?: never;
                 path?: never;
@@ -4004,6 +4004,9 @@ export interface paths {
                                 result_confirmed_at: string | null;
                                 result_confirmed_by: string | null;
                                 result_source: string | null;
+                                cancelled_at: string | null;
+                                cancelled_by: string | null;
+                                cancelled_reason: string | null;
                             }[];
                         };
                     };
@@ -4092,6 +4095,9 @@ export interface paths {
                                 result_confirmed_at: string | null;
                                 result_confirmed_by: string | null;
                                 result_source: string | null;
+                                cancelled_at: string | null;
+                                cancelled_by: string | null;
+                                cancelled_reason: string | null;
                             };
                             team: {
                                 id: string;
@@ -4922,6 +4928,51 @@ export interface paths {
                             success: boolean;
                             emailsSent: number;
                             emailErrors: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/matchday/{matchId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
                         };
                     };
                 };

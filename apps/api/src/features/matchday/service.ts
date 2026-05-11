@@ -12,6 +12,7 @@ import type { S3Uploader } from "../../lib/s3-upload.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type {
   AddPlayer,
+  CancelMatchday,
   ConfirmTeam,
   CreateMatchday,
   FinishMatch,
@@ -431,10 +432,13 @@ export function getUpcomingMatches(
         return dateA.getTime() - dateB.getTime();
       });
 
-    // Check which matches already have a matchday record
+    // Check which matches already have a matchday record. Cancelled
+    // matchdays are hidden so a rescheduled fixture surfaces as
+    // creatable again.
     const existingMatchdays = await db
       .selectFrom("matchday")
       .where("play_cricket_team_id", "=", teamId)
+      .where("status", "!=", "cancelled")
       .selectAll()
       .execute();
 
@@ -463,11 +467,14 @@ export function createMatchday(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this team");
     }
 
-    // Check no existing matchday for this team + date
+    // Check no existing matchday for this team + date. A previously
+    // cancelled matchday is ignored so a rescheduled fixture on the
+    // same date can be re-created.
     const existing = await db
       .selectFrom("matchday")
       .where("play_cricket_team_id", "=", data.teamId)
       .where("match_date", "=", data.matchDate)
+      .where("status", "!=", "cancelled")
       .select("id")
       .executeTakeFirst();
 
@@ -884,6 +891,69 @@ export function markFeePaid(db: Kysely<DB>) {
       })
       .where("id", "=", player.charge_id)
       .where("paid_at", "is", null)
+      .execute();
+
+    return { success: true };
+  };
+}
+
+export function cancelMatchday(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    role: string,
+    matchdayId: string,
+    data: CancelMatchday,
+  ) => {
+    const matchday = await db
+      .selectFrom("matchday")
+      .where("id", "=", matchdayId)
+      .select(["id", "play_cricket_team_id", "status"])
+      .executeTakeFirst();
+
+    if (!matchday) throwHttpError(404, "Matchday not found");
+
+    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
+    if (!accessibleIds.includes(matchday.play_cricket_team_id)) {
+      throwHttpError(403, "You do not have access to this matchday");
+    }
+
+    if (matchday.status !== "pending" && matchday.status !== "confirmed") {
+      throwHttpError(
+        400,
+        matchday.status === "cancelled"
+          ? "Matchday is already cancelled"
+          : "Cannot cancel a finished matchday",
+      );
+    }
+
+    // Block if any non-deleted match-fee charge already exists. The
+    // user-facing rule is "close off without charging" — if charges
+    // already exist, treasurer needs to void/refund them through the
+    // normal flow first.
+    const existingCharge = await db
+      .selectFrom("matchday_player")
+      .innerJoin("charge", "charge.id", "matchday_player.charge_id")
+      .where("matchday_player.matchday_id", "=", matchdayId)
+      .where("charge.deleted_at", "is", null)
+      .select("charge.id")
+      .executeTakeFirst();
+
+    if (existingCharge) {
+      throwHttpError(
+        400,
+        "Cannot cancel: match fee charges already exist. Void them via the Charges admin first.",
+      );
+    }
+
+    await db
+      .updateTable("matchday")
+      .set({
+        status: "cancelled",
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: userId,
+        cancelled_reason: data.reason ?? null,
+      })
+      .where("id", "=", matchdayId)
       .execute();
 
     return { success: true };
