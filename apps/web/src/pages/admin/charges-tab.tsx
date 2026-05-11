@@ -348,10 +348,30 @@ export function ChargesTab() {
                     <TableCell>{formatDate(charge.chargeDate)}</TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-medium">{charge.memberName}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium">
+                            {charge.memberName}
+                          </span>
+                          {charge.memberCategory === "junior" && (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-300 text-xs text-amber-700"
+                            >
+                              Junior
+                            </Badge>
+                          )}
+                        </div>
                         <span className="text-xs text-stone-500">
                           {charge.memberEmail}
                         </span>
+                        {charge.paidByParents.length > 0 && (
+                          <span className="mt-0.5 text-xs text-blue-700">
+                            Paid by{" "}
+                            {charge.paidByParents
+                              .map((p) => p.name ?? p.email)
+                              .join(", ")}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>

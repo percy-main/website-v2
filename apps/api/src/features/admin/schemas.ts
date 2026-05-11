@@ -344,6 +344,21 @@ export const getUserDetailResponseSchema = z.object({
       name: z.string(),
     }),
   ),
+  linkedParents: z.array(
+    z.object({
+      memberId: z.string(),
+      name: z.string().nullable(),
+      email: z.string(),
+    }),
+  ),
+  linkedJuniors: z.array(
+    z.object({
+      memberId: z.string(),
+      name: z.string().nullable(),
+      email: z.string(),
+      dob: z.string().nullable(),
+    }),
+  ),
 });
 
 export const setMemberCategoryResponseSchema = successResponseSchema;
@@ -436,6 +451,14 @@ export const listChargesResponseSchema = z.object({
       deletedReason: z.string().nullable(),
       memberName: z.string().nullable(),
       memberEmail: z.string(),
+      memberCategory: z.string().nullable(),
+      paidByParents: z.array(
+        z.object({
+          memberId: z.string(),
+          name: z.string().nullable(),
+          email: z.string(),
+        }),
+      ),
       status: chargeStatusSchema,
     }),
   ),
@@ -512,6 +535,37 @@ export const searchUsersForLinkingResponseSchema = z.object({
 
 export const linkDependentResponseSchema = successResponseSchema;
 export const unlinkDependentResponseSchema = successResponseSchema;
+
+export const searchMembersForParentLinkSchema = z.object({
+  juniorMemberId: z.string().min(1),
+  search: z.string().optional(),
+});
+export type SearchMembersForParentLink = z.infer<
+  typeof searchMembersForParentLinkSchema
+>;
+
+export const searchMembersForParentLinkResponseSchema = z.object({
+  juniorName: z.string().nullable(),
+  members: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string().nullable(),
+      email: z.string(),
+      score: z.number(),
+    }),
+  ),
+});
+
+export const linkParentSchema = z.object({
+  memberId: z.string().min(1),
+  parentMemberId: z.string().min(1),
+});
+export type LinkParent = z.infer<typeof linkParentSchema>;
+export const linkParentResponseSchema = successResponseSchema;
+
+export const unlinkParentSchema = linkParentSchema;
+export type UnlinkParent = z.infer<typeof unlinkParentSchema>;
+export const unlinkParentResponseSchema = successResponseSchema;
 
 const duplicateGroupMemberSchema = z.object({
   id: z.string(),

@@ -26,6 +26,8 @@ import {
   juniorTeamsResponseSchema,
   linkDependentResponseSchema,
   linkDependentSchema,
+  linkParentResponseSchema,
+  linkParentSchema,
   linkPlayCricketResponseSchema,
   linkSlugResponseSchema,
   listChargesResponseSchema,
@@ -51,6 +53,8 @@ import {
   recordLinkingResponseSchema,
   recordLinkingSchema,
   restoreMemberResponseSchema,
+  searchMembersForParentLinkResponseSchema,
+  searchMembersForParentLinkSchema,
   searchUsersForLinkingResponseSchema,
   searchUsersForLinkingSchema,
   setJuniorManagerTeamsResponseSchema,
@@ -63,6 +67,8 @@ import {
   slugUnlinkSchema,
   unlinkDependentResponseSchema,
   unlinkDependentSchema,
+  unlinkParentResponseSchema,
+  unlinkParentSchema,
   unlinkPlayCricketResponseSchema,
   unlinkSchema,
   unlinkSlugResponseSchema,
@@ -86,6 +92,7 @@ import {
   getRecordLinking,
   getUserDetail,
   linkDependentToUser,
+  linkMemberParent,
   linkPlayCricketPlayer,
   linkSlug,
   listAllCharges,
@@ -95,12 +102,14 @@ import {
   listUsers,
   mergeMembers,
   restoreMember,
+  searchMembersForParentLink,
   searchUsersForLinking,
   sendChargeNotification,
   setJuniorManagerTeams,
   setMemberCategory,
   setOfficialTeams,
   unlinkDependentUser,
+  unlinkMemberParent,
   unlinkPlayCricketPlayer,
   unlinkSlug,
   updateUser,
@@ -131,6 +140,9 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const searchForLinking = searchUsersForLinking(app.db);
   const linkDep = linkDependentToUser(app.db);
   const unlinkDep = unlinkDependentUser(app.db);
+  const searchForParent = searchMembersForParentLink(app.db);
+  const linkParent = linkMemberParent(app.db);
+  const unlinkParent = unlinkMemberParent(app.db);
   const listCharges = listAllCharges(app.db);
   const chargeAggregates = getChargeAggregates(app.db);
   const chase = chasePayment(app.db);
@@ -574,6 +586,49 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       return await unlinkDep(request.body);
+    },
+  );
+
+  app.get(
+    "/admin/members/parent-search",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        querystring: searchMembersForParentLinkSchema,
+        response: { 200: searchMembersForParentLinkResponseSchema },
+      },
+    },
+    async (request) => {
+      return await searchForParent(request.query);
+    },
+  );
+
+  app.post(
+    "/admin/members/parent-link",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: linkParentSchema,
+        response: { 200: linkParentResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      return await linkParent(request.body, user.id);
+    },
+  );
+
+  app.post(
+    "/admin/members/parent-unlink",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        body: unlinkParentSchema,
+        response: { 200: unlinkParentResponseSchema },
+      },
+    },
+    async (request) => {
+      return await unlinkParent(request.body);
     },
   );
 

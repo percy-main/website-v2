@@ -583,6 +583,13 @@ export interface Member {
   title: string | null;
 }
 
+export interface MemberParentLink {
+  created_at: Generated<string>;
+  created_by: string | null;
+  member_id: string;
+  parent_member_id: string;
+}
+
 export interface Membership {
   created_at: Generated<string>;
   dependent_id: string | null;
@@ -900,6 +907,7 @@ export interface DB {
   matchday_expense: MatchdayExpense;
   matchday_player: MatchdayPlayer;
   member: Member;
+  member_parent_link: MemberParentLink;
   membership: Membership;
   passkey: Passkey;
   play_cricket_match_cache: PlayCricketMatchCache;

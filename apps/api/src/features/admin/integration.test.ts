@@ -13,15 +13,19 @@ import {
   findDuplicateMembers,
   getChargeAggregates,
   getMergePreview,
+  getUserDetail,
   linkDependentToUser,
+  linkMemberParent,
   linkPlayCricketPlayer,
   listAllCharges,
   listContactSubmissions,
   listJuniors,
   listUsers,
   mergeMembers,
+  searchMembersForParentLink,
   searchUsersForLinking,
   unlinkDependentUser,
+  unlinkMemberParent,
   unlinkPlayCricketPlayer,
 } from "./service.ts";
 
@@ -348,6 +352,124 @@ describe("admin service (integration)", () => {
       await expect(
         unlinkDependentUser(ctx.db)({ dependentId: "non-existent" }),
       ).rejects.toThrow("Dependent not found");
+    });
+  });
+
+  describe("member-parent linking", () => {
+    it("links a junior to a parent and exposes the relationship via getUserDetail", async () => {
+      const parentSeed = await seedTestUser(ctx.db, {
+        email: `mp-parent-${crypto.randomUUID()}@test.com`,
+        name: "Pat Parent",
+      });
+      const juniorSeed = await seedTestUser(ctx.db, {
+        email: `mp-junior-${crypto.randomUUID()}@test.com`,
+        name: "Jamie Junior",
+      });
+
+      await linkMemberParent(ctx.db)(
+        {
+          memberId: juniorSeed.memberId ?? "",
+          parentMemberId: parentSeed.memberId ?? "",
+        },
+        null,
+      );
+
+      const parentDetail = await getUserDetail(ctx.db)(parentSeed.userId);
+      expect(parentDetail.linkedJuniors).toHaveLength(1);
+      expect(parentDetail.linkedJuniors[0]).toMatchObject({
+        memberId: juniorSeed.memberId,
+        name: "Jamie Junior",
+      });
+      expect(parentDetail.linkedParents).toEqual([]);
+
+      const juniorDetail = await getUserDetail(ctx.db)(juniorSeed.userId);
+      expect(juniorDetail.linkedParents).toHaveLength(1);
+      expect(juniorDetail.linkedParents[0]).toMatchObject({
+        memberId: parentSeed.memberId,
+        name: "Pat Parent",
+      });
+      expect(juniorDetail.linkedJuniors).toEqual([]);
+    });
+
+    it("rejects self-linking", async () => {
+      const seed = await seedTestUser(ctx.db, {
+        email: `mp-self-${crypto.randomUUID()}@test.com`,
+      });
+      await expect(
+        linkMemberParent(ctx.db)(
+          {
+            memberId: seed.memberId ?? "",
+            parentMemberId: seed.memberId ?? "",
+          },
+          null,
+        ),
+      ).rejects.toThrow("cannot be their own parent");
+    });
+
+    it("is idempotent — linking twice does not error and produces one row", async () => {
+      const parentSeed = await seedTestUser(ctx.db, {
+        email: `mp-idem-p-${crypto.randomUUID()}@test.com`,
+      });
+      const juniorSeed = await seedTestUser(ctx.db, {
+        email: `mp-idem-j-${crypto.randomUUID()}@test.com`,
+      });
+      const params = {
+        memberId: juniorSeed.memberId ?? "",
+        parentMemberId: parentSeed.memberId ?? "",
+      };
+      await linkMemberParent(ctx.db)(params, null);
+      await linkMemberParent(ctx.db)(params, null);
+
+      const rows = await ctx.db
+        .selectFrom("member_parent_link")
+        .where("member_id", "=", params.memberId)
+        .where("parent_member_id", "=", params.parentMemberId)
+        .select("member_id")
+        .execute();
+      expect(rows).toHaveLength(1);
+    });
+
+    it("unlinks", async () => {
+      const parentSeed = await seedTestUser(ctx.db, {
+        email: `mp-ul-p-${crypto.randomUUID()}@test.com`,
+      });
+      const juniorSeed = await seedTestUser(ctx.db, {
+        email: `mp-ul-j-${crypto.randomUUID()}@test.com`,
+      });
+      const params = {
+        memberId: juniorSeed.memberId ?? "",
+        parentMemberId: parentSeed.memberId ?? "",
+      };
+      await linkMemberParent(ctx.db)(params, null);
+      await unlinkMemberParent(ctx.db)(params);
+
+      const detail = await getUserDetail(ctx.db)(juniorSeed.userId);
+      expect(detail.linkedParents).toEqual([]);
+    });
+
+    it("searches candidate parents by name/email and excludes the junior themselves", async () => {
+      const sharedSurname = `Smithy-${crypto.randomUUID().slice(0, 6)}`;
+      const juniorSeed = await seedTestUser(ctx.db, {
+        email: `mp-search-jr-${crypto.randomUUID()}@test.com`,
+        name: `Junior ${sharedSurname}`,
+      });
+      const parentSeed = await seedTestUser(ctx.db, {
+        email: `mp-search-pa-${crypto.randomUUID()}@test.com`,
+        name: `Adult ${sharedSurname}`,
+      });
+
+      const result = await searchMembersForParentLink(ctx.db)({
+        juniorMemberId: juniorSeed.memberId ?? "",
+        search: sharedSurname,
+      });
+
+      expect(result.juniorName).toBe(`Junior ${sharedSurname}`);
+      expect(result.members.some((m) => m.id === juniorSeed.memberId)).toBe(
+        false,
+      );
+      expect(result.members.some((m) => m.id === parentSeed.memberId)).toBe(
+        true,
+      );
     });
   });
 

@@ -10,6 +10,7 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
     const mockQueryBuilder = {
       selectFrom: vi.fn().mockReturnThis(),
       updateTable: vi.fn().mockReturnThis(),
+      innerJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
       selectAll: vi.fn().mockReturnThis(),
@@ -44,6 +45,7 @@ describe("charges service", () => {
     vi.clearAllMocks();
     mockQueryBuilder.selectFrom.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.updateTable.mockReturnValue(mockQueryBuilder);
+    mockQueryBuilder.innerJoin.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.where.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.select.mockReturnValue(mockQueryBuilder);
     mockQueryBuilder.selectAll.mockReturnValue(mockQueryBuilder);
@@ -67,16 +69,31 @@ describe("charges service", () => {
 
     it("returns charges ordered by date desc", async () => {
       const charges = [
-        { id: "c1", charge_date: "2026-03-14", amount: 50 },
-        { id: "c2", charge_date: "2026-02-01", amount: 25 },
+        {
+          id: "c1",
+          member_id: "member-1",
+          charge_date: "2026-03-14",
+          amount: 50,
+        },
+        {
+          id: "c2",
+          member_id: "member-1",
+          charge_date: "2026-02-01",
+          amount: 25,
+        },
       ];
 
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
-      mockExecute.mockResolvedValue(charges);
+      mockExecute
+        .mockResolvedValueOnce([]) // parents
+        .mockResolvedValueOnce([]) // linked juniors
+        .mockResolvedValueOnce(charges);
 
       const result = await getMyCharges(db)("user@example.com");
 
-      expect(result).toEqual(charges);
+      expect(result).toEqual(
+        charges.map((c) => ({ ...c, on_behalf_of: null })),
+      );
       expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
         "charge_date",
         "desc",
@@ -85,7 +102,10 @@ describe("charges service", () => {
 
     it("excludes soft-deleted charges", async () => {
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
-      mockExecute.mockResolvedValue([]);
+      mockExecute
+        .mockResolvedValueOnce([]) // parents
+        .mockResolvedValueOnce([]) // linked juniors
+        .mockResolvedValueOnce([]);
 
       await getMyCharges(db)("user@example.com");
 
@@ -108,7 +128,10 @@ describe("charges service", () => {
 
     it("updates matching charges", async () => {
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
-      mockExecute.mockResolvedValue([]);
+      mockExecute
+        .mockResolvedValueOnce([]) // parents
+        .mockResolvedValueOnce([]) // linked juniors
+        .mockResolvedValueOnce([]);
 
       await confirmPayment(db)("user@example.com", "pi_abc");
 
@@ -127,7 +150,10 @@ describe("charges service", () => {
 
     it("ignores already-confirmed charges", async () => {
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
-      mockExecute.mockResolvedValue([]);
+      mockExecute
+        .mockResolvedValueOnce([]) // parents
+        .mockResolvedValueOnce([]) // linked juniors
+        .mockResolvedValueOnce([]);
 
       await confirmPayment(db)("user@example.com", "pi_abc");
 
@@ -155,7 +181,10 @@ describe("charges service", () => {
 
     it("throws when no unpaid charges exist", async () => {
       mockExecuteTakeFirst.mockResolvedValue({ id: "member-1" });
-      mockExecute.mockResolvedValue([]);
+      mockExecute
+        .mockResolvedValueOnce([]) // parents
+        .mockResolvedValueOnce([]) // linked juniors
+        .mockResolvedValueOnce([]);
 
       await expect(
         payOutstandingCharges(db, mockStripe)("user@example.com"),

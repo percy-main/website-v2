@@ -40,6 +40,12 @@ const chargeSchema = z.object({
   deleted_reason: z.string().nullable(),
   created_at: z.string(),
   created_by: z.string(),
+  // Set when the charge belongs to a linked junior member rather than
+  // the authenticated user — used to label "For [Junior name]" in the
+  // user-facing charges list.
+  on_behalf_of: z
+    .object({ memberId: z.string(), name: z.string().nullable() })
+    .nullable(),
 });
 
 export const chargesResponseSchema = z.object({
