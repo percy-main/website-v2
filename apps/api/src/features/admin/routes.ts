@@ -40,6 +40,8 @@ import {
   listJuniorsSchema,
   listUsersResponseSchema,
   listUsersSchema,
+  markChargePaidResponseSchema,
+  markChargePaidSchema,
   matchFeeRatesResponseSchema,
   matchdayIdParamSchema,
   matchdayReportResponseSchema,
@@ -100,6 +102,7 @@ import {
   listJuniors,
   listMatchFeeRates,
   listUsers,
+  markChargePaid,
   mergeMembers,
   restoreMember,
   searchMembersForParentLink,
@@ -146,6 +149,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const listCharges = listAllCharges(app.db);
   const chargeAggregates = getChargeAggregates(app.db);
   const chase = chasePayment(app.db);
+  const markPaid = markChargePaid(app.db);
   const listContacts = listContactSubmissions(app.db);
   const findDuplicates = findDuplicateMembers(app.db);
   const previewMerge = getMergePreview(app.db);
@@ -512,6 +516,21 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       return await chase(request.body.chargeId);
+    },
+  );
+
+  app.post(
+    "/admin/charges/:chargeId/mark-paid",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: chargeIdParamSchema,
+        body: markChargePaidSchema,
+        response: { 200: markChargePaidResponseSchema },
+      },
+    },
+    async (request) => {
+      return await markPaid(request.params.chargeId, request.body);
     },
   );
 
