@@ -14,6 +14,7 @@ import {
   createMatchday,
   deleteExpense,
   getMatch,
+  getPastUnfinishedMatchdays,
   listMatches,
   listPendingExpenses,
   listTeams,
@@ -943,6 +944,69 @@ describe("matchday service (integration)", () => {
       });
       expect(result.id).toBeDefined();
       expect(result.id).not.toBe(firstId);
+    });
+  });
+
+  describe("getPastUnfinishedMatchdays", () => {
+    it("returns only pending/confirmed matchdays whose date is in the past", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `past-unfinished-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+
+      // Past pending — should show
+      const pastPending = await seedMatchday({
+        teamId,
+        createdBy: userId,
+        status: "pending",
+        matchDate: "2026-04-01",
+      });
+      // Past confirmed — should show
+      const pastConfirmed = await seedMatchday({
+        teamId,
+        createdBy: userId,
+        status: "confirmed",
+        matchDate: "2026-04-15",
+      });
+      // Past finished — should NOT show
+      const pastFinished = await seedMatchday({
+        teamId,
+        createdBy: userId,
+        status: "finished",
+        matchDate: "2026-04-20",
+      });
+      // Future pending — should NOT show
+      const futurePending = await seedMatchday({
+        teamId,
+        createdBy: userId,
+        status: "pending",
+        matchDate: "2099-01-01",
+      });
+
+      const result = await getPastUnfinishedMatchdays(ctx.db)(
+        userId,
+        "admin",
+        teamId,
+      );
+
+      const ids = result.map((m) => m.id);
+      expect(ids).toContain(pastPending);
+      expect(ids).toContain(pastConfirmed);
+      expect(ids).not.toContain(pastFinished);
+      expect(ids).not.toContain(futurePending);
+    });
+
+    it("rejects access to a team the official does not officiate", async () => {
+      const { userId: outsiderId } = await seedTestUser(ctx.db, {
+        email: `outsider-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      const teamId = await seedTeam();
+
+      await expect(
+        getPastUnfinishedMatchdays(ctx.db)(outsiderId, "official", teamId),
+      ).rejects.toThrow("do not have access");
     });
   });
 });

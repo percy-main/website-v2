@@ -19,6 +19,7 @@ import {
   listTeamsResponseSchema,
   markPaidSchema,
   matchIdParamSchema,
+  pastUnfinishedMatchdaysResponseSchema,
   playerIdParamSchema,
   recordExpenseResponseSchema,
   recordExpenseSchema,
@@ -43,6 +44,7 @@ import {
   deleteExpense,
   finishMatch,
   getMatch,
+  getPastUnfinishedMatchdays,
   getTeamNewsData,
   getUpcomingMatches,
   listMatches,
@@ -295,6 +297,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
 
   const teams = listTeams(app.db);
   const create = createMatchday(app.db);
+  const pastUnfinished = getPastUnfinishedMatchdays(app.db);
   const search = searchMembers(app.db);
   const add = addPlayer(app.db);
   const removeP = removePlayer(app.db);
@@ -329,6 +332,22 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
       return await teams(user.id, role);
+    },
+  );
+
+  app.get(
+    "/matchday/teams/:teamId/past-unfinished",
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: teamIdParamSchema,
+        response: { 200: pastUnfinishedMatchdaysResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await pastUnfinished(user.id, role, request.params.teamId);
     },
   );
 

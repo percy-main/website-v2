@@ -460,6 +460,34 @@ export function getUpcomingMatches(
   };
 }
 
+/**
+ * Past unfinished matchdays for a team — matchdays whose match_date is
+ * before today and whose status is still pending or confirmed. Lets
+ * officials find and finish/cancel matchdays they started but never
+ * closed out (the upcoming-matches view only goes forward in time).
+ */
+export function getPastUnfinishedMatchdays(db: Kysely<DB>) {
+  return async (userId: string, role: string, teamId: string) => {
+    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
+    if (!accessibleIds.includes(teamId)) {
+      throwHttpError(403, "You do not have access to this team");
+    }
+
+    const today = formatDate(startOfDay(new Date()), "yyyy-MM-dd");
+
+    const matchdays = await db
+      .selectFrom("matchday")
+      .where("play_cricket_team_id", "=", teamId)
+      .where("status", "in", ["pending", "confirmed"])
+      .where("match_date", "<", today)
+      .select(["id", "match_date", "opposition", "status", "competition_type"])
+      .orderBy("match_date", "desc")
+      .execute();
+
+    return matchdays;
+  };
+}
+
 export function createMatchday(db: Kysely<DB>) {
   return async (userId: string, role: string, data: CreateMatchday) => {
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
