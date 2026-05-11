@@ -87,7 +87,13 @@ export function ChargesTab() {
   type ConfirmAction =
     | { kind: "chase"; chargeId: string }
     | { kind: "void"; chargeId: string; reason: string }
-    | { kind: "markPaid"; chargeId: string; paymentMethod: PaymentMethod };
+    | { kind: "markPaid"; chargeId: string; paymentMethod: PaymentMethod }
+    | {
+        kind: "edit";
+        chargeId: string;
+        amountPence: number;
+        description: string;
+      };
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(
     null,
   );
@@ -188,6 +194,30 @@ export function ChargesTab() {
         api.POST("/api/admin/charges/{chargeId}/mark-paid", {
           params: { path: { chargeId: input.chargeId } },
           body: { paymentMethod: input.paymentMethod },
+        }),
+      ),
+    onSuccess: () => {
+      setConfirmAction(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin", "charges"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "chargeAggregates"],
+      });
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: (input: {
+      chargeId: string;
+      amountPence: number;
+      description: string;
+    }) =>
+      callApi(
+        api.POST("/api/admin/charges/{chargeId}/edit", {
+          params: { path: { chargeId: input.chargeId } },
+          body: {
+            amountPence: input.amountPence,
+            description: input.description,
+          },
         }),
       ),
     onSuccess: () => {
@@ -452,6 +482,18 @@ export function ChargesTab() {
                               Mark paid…
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                              onSelect={() =>
+                                setConfirmAction({
+                                  kind: "edit",
+                                  chargeId: charge.id,
+                                  amountPence: charge.amountPence,
+                                  description: charge.description,
+                                })
+                              }
+                            >
+                              Edit…
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               className="text-red-700 focus:bg-red-50 focus:text-red-800"
                               onSelect={() =>
                                 setConfirmAction({
@@ -549,6 +591,26 @@ export function ChargesTab() {
         isPending={markPaidMutation.isPending}
         isError={markPaidMutation.isError}
       />
+
+      <EditChargeDialog
+        action={confirmAction?.kind === "edit" ? confirmAction : null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}
+        onAmountChange={(amountPence) =>
+          setConfirmAction((prev) =>
+            prev?.kind === "edit" ? { ...prev, amountPence } : prev,
+          )
+        }
+        onDescriptionChange={(description) =>
+          setConfirmAction((prev) =>
+            prev?.kind === "edit" ? { ...prev, description } : prev,
+          )
+        }
+        onConfirm={(input) => editMutation.mutate(input)}
+        isPending={editMutation.isPending}
+        isError={editMutation.isError}
+      />
     </div>
   );
 }
@@ -632,6 +694,115 @@ function MarkPaidConfirmDialog({
             }}
           >
             {isPending ? "Marking…" : "Mark paid"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditChargeDialog({
+  action,
+  onOpenChange,
+  onAmountChange,
+  onDescriptionChange,
+  onConfirm,
+  isPending,
+  isError,
+}: {
+  action: {
+    chargeId: string;
+    amountPence: number;
+    description: string;
+  } | null;
+  onOpenChange: (open: boolean) => void;
+  onAmountChange: (amountPence: number) => void;
+  onDescriptionChange: (description: string) => void;
+  onConfirm: (input: {
+    chargeId: string;
+    amountPence: number;
+    description: string;
+  }) => void;
+  isPending: boolean;
+  isError: boolean;
+}) {
+  const amountPounds =
+    action !== null ? (action.amountPence / 100).toFixed(2) : "";
+  const canSave =
+    action !== null &&
+    action.description.trim() !== "" &&
+    action.amountPence >= 0;
+
+  return (
+    <Dialog open={action !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit charge</DialogTitle>
+          <DialogDescription>
+            Use this to correct a charge raised with the wrong category (for
+            example, an adult match donation applied to a junior). The member
+            and date are unchanged.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-4 flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="edit-charge-amount" className="text-sm font-medium">
+              Amount (£)
+            </Label>
+            <Input
+              id="edit-charge-amount"
+              type="number"
+              step="0.01"
+              min="0"
+              value={amountPounds}
+              onChange={(e) => {
+                const parsed = Number.parseFloat(e.target.value);
+                onAmountChange(
+                  Number.isFinite(parsed) ? Math.round(parsed * 100) : 0,
+                );
+              }}
+              className="w-32"
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label
+              htmlFor="edit-charge-description"
+              className="text-sm font-medium"
+            >
+              Description
+            </Label>
+            <Input
+              id="edit-charge-description"
+              type="text"
+              value={action?.description ?? ""}
+              onChange={(e) => onDescriptionChange(e.target.value)}
+              maxLength={500}
+            />
+          </div>
+        </div>
+        {isError && (
+          <p className="mt-2 text-sm text-red-600">
+            Failed to save. The charge may have been paid or voided in the
+            meantime.
+          </p>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!canSave || isPending}
+            onClick={() => {
+              if (action) {
+                onConfirm({
+                  chargeId: action.chargeId,
+                  amountPence: action.amountPence,
+                  description: action.description.trim(),
+                });
+              }
+            }}
+          >
+            {isPending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

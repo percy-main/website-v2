@@ -1387,6 +1387,35 @@ export function markChargePaid(db: Kysely<DB>) {
   };
 }
 
+export function editCharge(db: Kysely<DB>) {
+  return async (
+    chargeId: string,
+    data: { amountPence: number; description: string },
+  ) => {
+    const result = await db
+      .updateTable("charge")
+      .set({
+        amount_pence: data.amountPence,
+        description: data.description,
+      })
+      .where("id", "=", chargeId)
+      .where("paid_at", "is", null)
+      .where("payment_confirmed_at", "is", null)
+      .where("deleted_at", "is", null)
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows === 0n) {
+      const error = new Error(
+        "Charge not found or already paid/deleted",
+      ) as Error & { statusCode: number };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return { success: true };
+  };
+}
+
 export function chasePayment(db: Kysely<DB>) {
   return async (chargeId: string) => {
     const charge = await db
