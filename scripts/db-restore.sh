@@ -65,5 +65,14 @@ echo ""
 # Use psql to execute the dump (which contains SQL statements from pg_dump --clean --if-exists)
 psql "$TARGET_URL" -f "$DUMP_FILE"
 
+# Re-apply the scout_readonly LOGIN + dev password. The migration creates the
+# role as NOLOGIN; setup-scout flips it to LOGIN with the known dev password
+# that apps/api/.env's SCOUT_DB_URL expects. Dumps from prod strip role state
+# (--no-owner --no-privileges), so without this step Scout's sub-agent gets
+# "password authentication failed for scout_readonly" after every restore.
+echo ""
+echo "Reapplying scout_readonly LOGIN + dev password..."
+DATABASE_URL="$TARGET_URL" pnpm --filter @percy-main/db run db:setup-scout
+
 echo ""
 echo "Restore complete."
