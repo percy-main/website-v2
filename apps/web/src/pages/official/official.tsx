@@ -363,6 +363,16 @@ function TeamMatchesView({
       ),
   });
 
+  const pastUnfinishedQuery = useQuery({
+    queryKey: ["official", "pastUnfinished", teamId],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/matchday/teams/{teamId}/past-unfinished", {
+          params: { path: { teamId } },
+        }),
+      ),
+  });
+
   const createMatchdayMutation = useMutation({
     mutationFn: (input: {
       teamId: string;
@@ -394,6 +404,7 @@ function TeamMatchesView({
   });
 
   const matches = matchesQuery.data ?? [];
+  const pastUnfinished = pastUnfinishedQuery.data ?? [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -403,6 +414,52 @@ function TeamMatchesView({
         </Button>
         <h2 className="text-xl font-semibold">{teamName}</h2>
       </div>
+
+      {pastUnfinished.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              Past unfinished matches
+              <span className="ml-2 rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-800">
+                {pastUnfinished.length}
+              </span>
+            </CardTitle>
+            <p className="text-sm text-stone-500">
+              These matchdays still need to be finished or cancelled.
+            </p>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {pastUnfinished.map((md) => (
+              <div
+                key={md.id}
+                className="flex items-center justify-between rounded border border-stone-200 px-3 py-2"
+              >
+                <div>
+                  <p className="font-medium">vs {md.opposition}</p>
+                  <p className="text-sm text-stone-500">
+                    {format(new Date(md.match_date), "EEEE d MMMM yyyy")}
+                    <span
+                      className={`ml-2 inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                        md.status === "confirmed"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {md.status}
+                    </span>
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => onSelectMatchday(md.id, true, null)}
+                >
+                  Open
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {matchesQuery.isPending && (
         <p className="text-stone-500">Loading matches…</p>

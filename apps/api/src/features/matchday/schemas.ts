@@ -282,6 +282,18 @@ const upcomingMatchSchema = z.object({
 
 export const upcomingMatchesResponseSchema = z.array(upcomingMatchSchema);
 
+const pastUnfinishedMatchdaySchema = z.object({
+  id: z.string(),
+  match_date: z.string(),
+  opposition: z.string(),
+  status: z.string(),
+  competition_type: z.string().nullable(),
+});
+
+export const pastUnfinishedMatchdaysResponseSchema = z.array(
+  pastUnfinishedMatchdaySchema,
+);
+
 export const createMatchdayResponseSchema = z.object({
   id: z.string(),
 });
