@@ -143,7 +143,16 @@ module "ecs" {
   public_subnet_ids        = module.vpc.public_subnet_ids
   ecs_security_group_id    = module.vpc.ecs_security_group_id
   alb_security_group_id    = module.vpc.alb_security_group_id
-  health_check_path        = "/health/ready"
+  # HOTFIX 2026-05-11: temporarily reverted to /health (pairs with #275
+  # R53 revert). The /health/ready route only exists in API commits
+  # >= b37094b, and the production API has been stuck on the May 7 image
+  # since b37094b's deploy failed at terraform-shared and never recovered
+  # (Trivy now flags ~30 deps + a Stripe-pattern placeholder in
+  # generate-openapi.js, fixed in #281). Result: ALB polls
+  # /health/ready, gets 404 from old code, both targets unhealthy,
+  # HTTPCode_ELB_5XX_Count alarm fires. Restore /health/ready once
+  # the API is on a build that serves it.
+  health_check_path        = "/health"
   log_retention_days       = 30
   assign_public_ip         = true
   ses_identity_arn         = local.shared.ses_identity_arn
