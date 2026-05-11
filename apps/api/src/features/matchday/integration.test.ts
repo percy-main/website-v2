@@ -17,6 +17,7 @@ import {
   listPendingExpenses,
   listTeams,
   markExpenseReimbursed,
+  markFeePaid,
   recordExpense,
   rejectExpense,
   removePlayer,
@@ -435,6 +436,73 @@ describe("matchday service (integration)", () => {
         expect(charge?.amount_pence).toBe(500);
         expect(charge?.type).toBe("match_fee");
       }
+    });
+  });
+
+  describe("markFeePaid", () => {
+    it("marks an outstanding match fee as paid after the match is finished", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `markpaid-finished-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+      const memberId = await seedMember(
+        "Late Payer",
+        `late-${crypto.randomUUID()}@test.com`,
+        "senior",
+      );
+
+      await seedFeeRate({ memberCategory: "senior", amountPence: 700 });
+
+      const { id: playerId } = await addPlayer(ctx.db)(
+        userId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Late Payer" },
+      );
+
+      await confirmTeam(ctx.db)(userId, "admin", matchdayId, {
+        playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
+      });
+
+      // Move matchday to "finished" without going through finishMatch
+      // (avoids pulling in the email/render imports for this test).
+      await ctx.db
+        .updateTable("matchday")
+        .set({
+          status: "finished",
+          finished_at: new Date().toISOString(),
+          finished_by: userId,
+          result_type: "W",
+        })
+        .where("id", "=", matchdayId)
+        .execute();
+
+      const result = await markFeePaid(ctx.db)(
+        userId,
+        "admin",
+        matchdayId,
+        playerId,
+        { paymentMethod: "cash" },
+      );
+
+      expect(result.success).toBe(true);
+
+      const player = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .select(["charge_id"])
+        .executeTakeFirst();
+
+      const charge = await ctx.db
+        .selectFrom("charge")
+        .where("id", "=", player?.charge_id ?? "")
+        .selectAll()
+        .executeTakeFirst();
+
+      expect(charge?.paid_at).not.toBeNull();
+      expect(charge?.payment_method).toBe("cash");
     });
   });
 
