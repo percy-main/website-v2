@@ -391,6 +391,57 @@ describe("admin service (integration)", () => {
       expect(juniorDetail.linkedJuniors).toEqual([]);
     });
 
+    it("rejects a reciprocal link that would create a cycle", async () => {
+      const aSeed = await seedTestUser(ctx.db, {
+        email: `mp-cyc-a-${crypto.randomUUID()}@test.com`,
+      });
+      const bSeed = await seedTestUser(ctx.db, {
+        email: `mp-cyc-b-${crypto.randomUUID()}@test.com`,
+      });
+      // A as parent of B
+      await linkMemberParent(ctx.db)(
+        {
+          memberId: bSeed.memberId ?? "",
+          parentMemberId: aSeed.memberId ?? "",
+        },
+        null,
+      );
+      // B as parent of A → would create cycle
+      await expect(
+        linkMemberParent(ctx.db)(
+          {
+            memberId: aSeed.memberId ?? "",
+            parentMemberId: bSeed.memberId ?? "",
+          },
+          null,
+        ),
+      ).rejects.toThrow("already linked as this member's junior");
+    });
+
+    it("refuses to link an archived (soft-deleted) member", async () => {
+      const liveSeed = await seedTestUser(ctx.db, {
+        email: `mp-live-${crypto.randomUUID()}@test.com`,
+      });
+      const archivedSeed = await seedTestUser(ctx.db, {
+        email: `mp-arc-${crypto.randomUUID()}@test.com`,
+      });
+      await ctx.db
+        .updateTable("member")
+        .set({ deleted_at: new Date().toISOString(), deleted_reason: "test" })
+        .where("id", "=", archivedSeed.memberId ?? "")
+        .execute();
+
+      await expect(
+        linkMemberParent(ctx.db)(
+          {
+            memberId: liveSeed.memberId ?? "",
+            parentMemberId: archivedSeed.memberId ?? "",
+          },
+          null,
+        ),
+      ).rejects.toThrow("Member not found");
+    });
+
     it("rejects self-linking", async () => {
       const seed = await seedTestUser(ctx.db, {
         email: `mp-self-${crypto.randomUUID()}@test.com`,

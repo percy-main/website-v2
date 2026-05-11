@@ -507,12 +507,30 @@ export function linkMemberParent(db: Kysely<DB>) {
       .selectFrom("member")
       .select("id")
       .where("id", "in", [memberId, parentMemberId])
+      .where("deleted_at", "is", null)
       .execute();
     if (found.length !== 2) {
       const error = new Error("Member not found") as Error & {
         statusCode: number;
       };
       error.statusCode = 404;
+      throw error;
+    }
+
+    // Reject the reciprocal case (A↔B). A multi-hop cycle (A→B→C→A)
+    // is theoretically possible but unrealistic under admin-managed
+    // linking; we keep the cheap single-hop guard for now.
+    const reverse = await db
+      .selectFrom("member_parent_link")
+      .where("member_id", "=", parentMemberId)
+      .where("parent_member_id", "=", memberId)
+      .select("member_id")
+      .executeTakeFirst();
+    if (reverse) {
+      const error = new Error(
+        "Cannot link: the proposed parent is already linked as this member's junior",
+      ) as Error & { statusCode: number };
+      error.statusCode = 400;
       throw error;
     }
 

@@ -135,17 +135,25 @@ export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
       }
 
       // Charges with an existing PI might be retryable if the PI was
-      // abandoned/expired. Check Stripe and clear stale ones so they
+      // abandoned/cancelled. Check Stripe and clear stale ones so they
       // can be bundled into a new PI.
+      //
+      // For linked-junior charges (shared between multiple parents),
+      // only clear if the existing PI was started by THIS user — a
+      // mid-flight PI started by the other parent must not be
+      // overwritten or we'd risk double-charging (their PI succeeds
+      // against an unrelated charge row). `canceled` is always safe
+      // to clear because the PI cannot succeed.
       for (const charge of unpaidCharges) {
         if (!charge.stripe_payment_intent_id) continue;
         const pi = await stripe.paymentIntents.retrieve(
           charge.stripe_payment_intent_id,
         );
-        if (
-          pi.status === "requires_payment_method" ||
-          pi.status === "canceled"
-        ) {
+        const startedByThisUser = pi.metadata?.memberEmail === email;
+        const shouldClear =
+          pi.status === "canceled" ||
+          (pi.status === "requires_payment_method" && startedByThisUser);
+        if (shouldClear) {
           await trx
             .updateTable("charge")
             .set({ stripe_payment_intent_id: null })

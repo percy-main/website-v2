@@ -466,6 +466,70 @@ describe("charges service (integration)", () => {
       expect(result.chargeIds).toContain(parentChargeId);
     });
 
+    it("does not steal a junior charge's PI while it is mid-flight for another parent", async () => {
+      // Two parents both linked to one junior. Parent A has started
+      // paying — the junior's charge has stripe_payment_intent_id set
+      // and Stripe says the PI is requires_payment_method (the
+      // default state until the cardholder completes the form). When
+      // parent B hits pay-outstanding, we must NOT clear that PI: if
+      // parent A then completes, Stripe succeeds against the original
+      // PI but the charge row would now point at parent B's PI,
+      // breaking confirmation and risking double-payment.
+      const parentAEmail = `parentA-${crypto.randomUUID()}@test.com`;
+      const parentBEmail = `parentB-${crypto.randomUUID()}@test.com`;
+      const juniorEmail = `junior-${crypto.randomUUID()}@test.com`;
+      const { memberId: parentAId } = await seedTestUser(ctx.db, {
+        email: parentAEmail,
+      });
+      const { memberId: parentBId } = await seedTestUser(ctx.db, {
+        email: parentBEmail,
+      });
+      const { memberId: juniorId } = await seedTestUser(ctx.db, {
+        email: juniorEmail,
+      });
+      await ctx.db
+        .insertInto("member_parent_link")
+        .values([
+          { member_id: juniorId ?? "", parent_member_id: parentAId ?? "" },
+          { member_id: juniorId ?? "", parent_member_id: parentBId ?? "" },
+        ])
+        .execute();
+
+      const juniorChargeId = `ch-shared-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: juniorChargeId,
+          member_id: juniorId ?? "",
+          description: "Junior match fee",
+          amount_pence: 500,
+          charge_date: "2026-05-01",
+          created_by: "system",
+          type: "match_fee",
+          source: "matchday",
+          stripe_payment_intent_id: "pi_in_flight_for_A",
+        })
+        .execute();
+
+      mockPaymentIntentsRetrieve.mockResolvedValue({
+        id: "pi_in_flight_for_A",
+        status: "requires_payment_method",
+        metadata: { memberEmail: parentAEmail },
+      });
+
+      await expect(
+        payOutstandingCharges(ctx.db, mockStripe)(parentBEmail),
+      ).rejects.toThrow("No unpaid charges found");
+
+      // Junior's charge still points at parent A's PI, untouched.
+      const charge = await ctx.db
+        .selectFrom("charge")
+        .where("id", "=", juniorChargeId)
+        .select("stripe_payment_intent_id")
+        .executeTakeFirst();
+      expect(charge?.stripe_payment_intent_id).toBe("pi_in_flight_for_A");
+    });
+
     it("confirmPayment confirms charges across the parent + linked juniors", async () => {
       const parentEmail = `parent-conf-${crypto.randomUUID()}@test.com`;
       const juniorEmail = `junior-conf-${crypto.randomUUID()}@test.com`;
