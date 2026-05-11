@@ -601,14 +601,9 @@ resource "aws_route53_health_check" "api" {
   fqdn = "api.v2.${var.domain_name}"
   port = 443
   type = "HTTPS"
-  # HOTFIX 2026-05-10: temporarily reverted to /health from /health/ready.
-  # The /health/ready route only exists in API commits >= b37094b, and the
-  # production API is still on the May 7 image (b37094b's deploy failed at
-  # terraform-shared; subsequent CVE buildup blocks the Trivy gate, so we
-  # can't redeploy until the dep bumps land). Once the API is on a build
-  # with /health/ready, restore that path here so the alarm reflects DB
-  # readiness, not just process death (#193).
-  resource_path     = "/health"
+  # /health/ready returns 503 on DB outage, so this health check fires
+  # the alarm on a real outage rather than just process death (#193).
+  resource_path     = "/health/ready"
   request_interval  = 30
   failure_threshold = 3
   measure_latency   = false
