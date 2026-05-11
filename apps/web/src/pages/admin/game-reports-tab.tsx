@@ -260,7 +260,9 @@ function MatchdayReport({
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded border border-stone-200 p-3">
-                  <p className="text-sm text-stone-500">Match Fee Income</p>
+                  <p className="text-sm text-stone-500">
+                    Match Donation Income
+                  </p>
                   <p className="text-lg font-semibold">
                     {formatPence(data.summary.totalIncoming)}
                   </p>
@@ -336,7 +338,9 @@ function MatchdayReport({
                       <TableHead>Player</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Category</TableHead>
-                      <TableHead className="text-right">Match Fee</TableHead>
+                      <TableHead className="text-right">
+                        Match Donation
+                      </TableHead>
                       <TableHead>Payment</TableHead>
                     </TableRow>
                   </TableHeader>

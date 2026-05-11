@@ -1224,8 +1224,8 @@ function MatchdayView({
               <CardContent className="p-4">
                 <p className="font-medium">Finish Match</p>
                 <p className="mb-3 text-sm text-stone-500">
-                  Select the match result and finish. Unpaid match fees will
-                  remain as charges and notification emails will be sent.
+                  Select the match result and finish. Unpaid match donations
+                  will remain as charges and notification emails will be sent.
                 </p>
                 <div className="flex items-center gap-3">
                   <Select

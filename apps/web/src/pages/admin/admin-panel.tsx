@@ -94,7 +94,7 @@ const SECTIONS = [
       },
       {
         value: "match-fees",
-        label: "Match Fees",
+        label: "Match Donations",
         render: () => <MatchFeesTab />,
       },
       { value: "fantasy", label: "Fantasy", render: () => <FantasyTab /> },
