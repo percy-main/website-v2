@@ -453,7 +453,7 @@ describe("matchday service (integration)", () => {
         "senior",
       );
 
-      await seedFeeRate({ memberCategory: "senior", amountPence: 700 });
+      await seedFeeRate({ teamId, memberCategory: "senior", amountPence: 700 });
 
       const { id: playerId } = await addPlayer(ctx.db)(
         userId,
