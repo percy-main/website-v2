@@ -1079,15 +1079,15 @@ function MatchdayView({
                           payingPlayerId !== player.id &&
                           (player.chargePaidAt ? (
                             <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">
-                              Fee paid
+                              Donation paid
                             </span>
                           ) : player.charge_id ? (
                             <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-800">
-                              Fee pending
+                              Donation pending
                             </span>
                           ) : (
                             <span className="rounded bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-600">
-                              No fee set
+                              No donation set
                             </span>
                           ))}
                         {/* Remove button for pending matchdays */}
@@ -1267,7 +1267,8 @@ function MatchdayView({
                 )}
                 {finishMatchMutation.isSuccess && (
                   <p className="mt-2 text-sm text-green-600">
-                    Match finished. Notification emails sent for unpaid fees.
+                    Match finished. Notification emails sent for unpaid
+                    donations.
                   </p>
                 )}
               </CardContent>
@@ -1351,8 +1352,8 @@ function CancelMatchdaySection({
             Cancel this matchday?
           </p>
           <p className="text-sm text-stone-500">
-            The matchday will be closed without raising any fees. This cannot be
-            undone from the official panel.
+            The matchday will be closed without raising any donations. This
+            cannot be undone from the official panel.
           </p>
           <Input
             placeholder="Reason (optional, e.g. rained off)"
@@ -1385,7 +1386,7 @@ function CancelMatchdaySection({
           <p className="text-sm text-stone-500">
             Need to call off this match?{" "}
             {matchdayStatus === "confirmed" &&
-              "Cancellation is blocked once match-fee charges have been created."}
+              "Cancellation is blocked once match-donation charges have been created."}
           </p>
           <Button
             variant="outline"
