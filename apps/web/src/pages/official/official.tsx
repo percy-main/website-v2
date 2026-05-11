@@ -656,6 +656,21 @@ function MatchdayView({
     },
   });
 
+  const cancelMatchdayMutation = useMutation({
+    mutationFn: (reason: string | undefined) =>
+      callApi(
+        api.POST("/api/matchday/{matchId}/cancel", {
+          params: { path: { matchId: matchdayId } },
+          body: reason ? { reason } : {},
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["official", "matchday", matchdayId],
+      });
+    },
+  });
+
   const setRolesMutation = useMutation({
     mutationFn: (input: {
       captainPlayerId: string | null;
@@ -770,7 +785,9 @@ function MatchdayView({
                     ? "bg-yellow-100 text-yellow-800"
                     : data.matchday.status === "confirmed"
                       ? "bg-green-100 text-green-800"
-                      : "bg-stone-100 text-stone-800"
+                      : data.matchday.status === "cancelled"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-stone-100 text-stone-800"
                 }`}
               >
                 {data.matchday.status}
@@ -1218,9 +1235,111 @@ function MatchdayView({
               </CardContent>
             </Card>
           )}
+
+          {/* Cancel matchday — available while pending or confirmed */}
+          {(data.matchday.status === "pending" ||
+            data.matchday.status === "confirmed") &&
+            !confirmingTeam && (
+              <CancelMatchdaySection
+                matchdayStatus={data.matchday.status}
+                onCancel={(reason) => cancelMatchdayMutation.mutate(reason)}
+                isPending={cancelMatchdayMutation.isPending}
+                error={
+                  cancelMatchdayMutation.error instanceof Error
+                    ? cancelMatchdayMutation.error.message
+                    : null
+                }
+              />
+            )}
+
+          {/* Cancelled status message */}
+          {data.matchday.status === "cancelled" && (
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-sm text-stone-500">
+                  This match was cancelled.
+                  {data.matchday.cancelled_at &&
+                    ` On ${format(new Date(data.matchday.cancelled_at), "dd/MM/yyyy HH:mm")}.`}
+                  {data.matchday.cancelled_reason &&
+                    ` Reason: ${data.matchday.cancelled_reason}.`}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+function CancelMatchdaySection({
+  matchdayStatus,
+  onCancel,
+  isPending,
+  error,
+}: {
+  matchdayStatus: string;
+  onCancel: (reason: string | undefined) => void;
+  isPending: boolean;
+  error: string | null;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState("");
+
+  return (
+    <Card>
+      {confirming ? (
+        <CardContent className="flex flex-col gap-3 p-4">
+          <p className="text-sm font-medium text-stone-800">
+            Cancel this matchday?
+          </p>
+          <p className="text-sm text-stone-500">
+            The matchday will be closed without raising any fees. This cannot be
+            undone from the official panel.
+          </p>
+          <Input
+            placeholder="Reason (optional, e.g. rained off)"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={500}
+          />
+          <div className="flex gap-2">
+            <Button
+              variant="destructive"
+              disabled={isPending}
+              onClick={() => onCancel(reason.trim() || undefined)}
+            >
+              {isPending ? "Cancelling…" : "Confirm cancellation"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConfirming(false);
+                setReason("");
+              }}
+            >
+              Back
+            </Button>
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+        </CardContent>
+      ) : (
+        <CardContent className="flex items-center justify-between p-4">
+          <p className="text-sm text-stone-500">
+            Need to call off this match?{" "}
+            {matchdayStatus === "confirmed" &&
+              "Cancellation is blocked once match-fee charges have been created."}
+          </p>
+          <Button
+            variant="outline"
+            className="text-red-700 hover:bg-red-50 hover:text-red-800"
+            onClick={() => setConfirming(true)}
+          >
+            Cancel Matchday
+          </Button>
+        </CardContent>
+      )}
+    </Card>
   );
 }
 

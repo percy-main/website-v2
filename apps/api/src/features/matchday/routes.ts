@@ -4,6 +4,7 @@ import { createApiClient } from "../play-cricket/api-client.ts";
 import {
   addPlayerResponseSchema,
   addPlayerSchema,
+  cancelMatchdaySchema,
   confirmTeamSchema,
   createMatchdayResponseSchema,
   createMatchdaySchema,
@@ -36,6 +37,7 @@ import {
 import {
   addPlayer,
   approveExpense,
+  cancelMatchday,
   confirmTeam,
   createMatchday,
   deleteExpense,
@@ -300,6 +302,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const setRoles = setMatchRoles(app.db);
   const paid = markFeePaid(app.db);
   const finish = finishMatch(app.db, app.send, app.config);
+  const cancel = cancelMatchday(app.db);
 
   // Play-Cricket API client for upcoming matches — wired at registration time
   const upcoming =
@@ -497,6 +500,23 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
         request.body,
         request.log,
       );
+    },
+  );
+
+  app.post(
+    "/matchday/:matchId/cancel",
+    {
+      preHandler: [officialRole],
+      schema: {
+        params: matchIdParamSchema,
+        body: cancelMatchdaySchema,
+        response: { 200: successResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await cancel(user.id, role, request.params.matchId, request.body);
     },
   );
 };

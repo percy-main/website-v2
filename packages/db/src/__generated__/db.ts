@@ -414,6 +414,9 @@ export interface MatchBall {
 }
 
 export interface Matchday {
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancelled_reason: string | null;
   competition_type: string | null;
   confirmed_at: string | null;
   confirmed_by: string | null;

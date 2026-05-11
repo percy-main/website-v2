@@ -19,7 +19,7 @@ export const listMatchesSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
   statusFilter: z
-    .enum(["all", "pending", "confirmed", "finished"])
+    .enum(["all", "pending", "confirmed", "finished", "cancelled"])
     .default("all"),
 });
 
@@ -119,6 +119,12 @@ export const finishMatchSchema = z.object({
   resultType: resultTypeSchema,
 });
 
+// ── Cancel matchday schemas ──
+
+export const cancelMatchdaySchema = z.object({
+  reason: z.string().trim().min(1).max(500).optional(),
+});
+
 // ── Expense approval workflow schemas ──
 
 export const expenseStatusSchema = z.enum([
@@ -167,6 +173,9 @@ const matchdayItemSchema = z.object({
   result_confirmed_at: z.string().nullable(),
   result_confirmed_by: z.string().nullable(),
   result_source: z.string().nullable(),
+  cancelled_at: z.string().nullable(),
+  cancelled_by: z.string().nullable(),
+  cancelled_reason: z.string().nullable(),
 });
 
 export const listMatchesResponseSchema = z.object({
@@ -313,3 +322,4 @@ export type SubmitExpense = z.infer<typeof submitExpenseSchema>;
 export type RejectExpense = z.infer<typeof rejectExpenseSchema>;
 export type ListPendingExpenses = z.infer<typeof listPendingExpensesSchema>;
 export type FinishMatch = z.infer<typeof finishMatchSchema>;
+export type CancelMatchday = z.infer<typeof cancelMatchdaySchema>;

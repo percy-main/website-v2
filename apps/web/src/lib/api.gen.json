@@ -649,6 +649,7 @@
                 "type": "object",
                 "properties": {
                   "chargeIds": {
+                    "minItems": 1,
                     "type": "array",
                     "items": {
                       "type": "string"
@@ -6833,7 +6834,8 @@
                 "all",
                 "pending",
                 "confirmed",
-                "finished"
+                "finished",
+                "cancelled"
               ]
             },
             "in": "query",
@@ -6914,6 +6916,18 @@
                           "result_source": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "cancelled_at": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "cancelled_by": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "cancelled_reason": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -6933,7 +6947,10 @@
                           "result_type",
                           "result_confirmed_at",
                           "result_confirmed_by",
-                          "result_source"
+                          "result_source",
+                          "cancelled_at",
+                          "cancelled_by",
+                          "cancelled_reason"
                         ],
                         "additionalProperties": false
                       }
@@ -7090,6 +7107,18 @@
                         "result_source": {
                           "nullable": true,
                           "type": "string"
+                        },
+                        "cancelled_at": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "cancelled_by": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "cancelled_reason": {
+                          "nullable": true,
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -7109,7 +7138,10 @@
                         "result_type",
                         "result_confirmed_at",
                         "result_confirmed_by",
-                        "result_source"
+                        "result_source",
+                        "cancelled_at",
+                        "cancelled_by",
+                        "cancelled_reason"
                       ],
                       "additionalProperties": false
                     },
@@ -8364,6 +8396,58 @@
                     "success",
                     "emailsSent",
                     "emailErrors"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matchday/{matchId}/cancel": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "matchId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
                   ],
                   "additionalProperties": false
                 }
