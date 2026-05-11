@@ -28,7 +28,7 @@
     "@fastify/swagger-ui": "^5.2.5",
     "@napi-rs/canvas": "^0.1.100",
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/auto-instrumentations-node": "^0.71.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.75.0",
     "@opentelemetry/exporter-logs-otlp-proto": "^0.213.0",
     "@opentelemetry/exporter-metrics-otlp-proto": "^0.213.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.213.0",
