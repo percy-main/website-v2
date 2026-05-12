@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { getAuthSession, requireRole } from "../auth/middleware.ts";
+import { getAuthSession, requirePermission } from "../auth/middleware.ts";
 import { createStripe } from "../payments/stripe.ts";
 import {
   applyMembershipReliefResponseSchema,
@@ -46,6 +46,10 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   const stripe = createStripe({
     stripeSecretKey: app.config.STRIPE_SECRET_KEY,
   });
+  // Relief is admin-side finance work. Anyone with `finance:manage`
+  // (finance_admin role, superadmin, legacy admin) can decide / close
+  // grants / apply membership / view the report.
+  const financeManage = requirePermission("finance", "manage");
   const eligible = getEligibleMembers(app.db);
   const submit = submitReliefRequest(app.db, {
     baseUrl: app.config.BASE_URL,
@@ -134,7 +138,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/financial-relief/requests",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         querystring: listReliefRequestsSchema,
         response: { 200: listReliefRequestsResponseSchema },
@@ -148,7 +152,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/financial-relief/requests/:requestId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: requestIdParamSchema,
         response: { 200: reliefRequestDetailResponseSchema },
@@ -162,7 +166,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/financial-relief/requests/:requestId/status",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: requestIdParamSchema,
         body: transitionStatusSchema,
@@ -182,7 +186,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/financial-relief/requests/:requestId/decline",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: requestIdParamSchema,
         body: declineRequestSchema,
@@ -202,7 +206,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/financial-relief/requests/:requestId/decide",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: requestIdParamSchema,
         body: decideReliefRequestSchema,
@@ -223,7 +227,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/financial-relief/grants/:grantId/close",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: grantIdParamSchema,
         body: closeGrantSchema,
@@ -243,7 +247,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/financial-relief/grants/:grantId/apply-membership",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: grantIdParamSchema,
         body: applyMembershipReliefSchema,
@@ -263,7 +267,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/financial-relief/report",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         querystring: reliefReportSchema,
         response: { 200: reliefReportResponseSchema },
