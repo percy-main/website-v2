@@ -1,10 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api, callApi } from "@/lib/api-client";
 import { REQUEST_STATUS_LABELS } from "@percy-main/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -64,7 +59,10 @@ export function FinancialReliefStatus() {
               <p className="text-stone-700">
                 Support is in place
                 {r.activeGrant.coversMatchFees ? " for match donations" : ""}
-                {r.activeGrant.coversMembership ? " for membership" : ""}.
+                {r.activeGrant.coversMembership
+                  ? " for membership donations"
+                  : ""}
+                .
               </p>
             ) : null}
           </div>

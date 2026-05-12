@@ -189,10 +189,14 @@ export function FinancialReliefTab() {
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {row.requestedMembershipFull ? (
-                      <Badge variant="secondary">Membership (full)</Badge>
+                      <Badge variant="secondary">
+                        Membership donation (full)
+                      </Badge>
                     ) : null}
                     {row.requestedMembershipPartial ? (
-                      <Badge variant="secondary">Membership (partial)</Badge>
+                      <Badge variant="secondary">
+                        Membership donation (partial)
+                      </Badge>
                     ) : null}
                     {row.requestedMatchFees ? (
                       <Badge variant="secondary">Match donations</Badge>
@@ -358,11 +362,11 @@ function RequestDetailDialog({
               <DetailSection title="Requested support">
                 <ul className="ml-4 list-disc">
                   {detailQuery.data.request.requestedMembershipFull ? (
-                    <li>Full membership fee relief</li>
+                    <li>Full membership donation relief</li>
                   ) : null}
                   {detailQuery.data.request.requestedMembershipPartial ? (
                     <li>
-                      Partial membership relief
+                      Partial membership donation relief
                       {detailQuery.data.request.partialAmountPence != null
                         ? ` (manageable: £${(detailQuery.data.request.partialAmountPence / 100).toFixed(2)})`
                         : ""}
@@ -463,7 +467,7 @@ function RequestDetailDialog({
                     Covers{" "}
                     {[
                       detailQuery.data.grant.coversMembership
-                        ? "membership"
+                        ? "membership donations"
                         : null,
                       detailQuery.data.grant.coversMatchFees
                         ? "match donations"
@@ -805,7 +809,7 @@ function DecideDialog({
                   }))
                 }
               />
-              <Label htmlFor="coversMembership">Membership</Label>
+              <Label htmlFor="coversMembership">Membership donations</Label>
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -1237,7 +1241,7 @@ function ReliefReportPanel() {
             value={formatPounds(query.data.byReliefType.matchFeePence)}
           />
           <SummaryCard
-            label="Membership"
+            label="Membership donations"
             value={formatPounds(query.data.byReliefType.membershipPence)}
           />
           <SummaryCard

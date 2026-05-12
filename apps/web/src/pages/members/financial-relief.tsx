@@ -239,7 +239,10 @@ export function Component() {
                     {r.activeGrant.coversMatchFees
                       ? " for match donations"
                       : ""}
-                    {r.activeGrant.coversMembership ? " for membership" : ""}.
+                    {r.activeGrant.coversMembership
+                      ? " for membership donations"
+                      : ""}
+                    .
                   </p>
                 ) : null}
               </div>
@@ -323,7 +326,7 @@ export function Component() {
                     ...(v ? { requestedMembershipPartial: false } : {}),
                   })
                 }
-                label="Full membership fee relief"
+                label="Full membership donation relief"
               />
               <CheckboxRow
                 id="reqMembershipPartial"
@@ -334,7 +337,7 @@ export function Component() {
                     ...(v ? { requestedMembershipFull: false } : {}),
                   })
                 }
-                label="Partial membership fee relief"
+                label="Partial membership donation relief"
               />
               {form.requestedMembershipPartial ? (
                 <div className="flex flex-col gap-1 pl-7">
