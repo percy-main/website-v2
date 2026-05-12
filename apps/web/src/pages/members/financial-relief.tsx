@@ -40,7 +40,7 @@ import {
   type VolunteerOption,
 } from "@percy-main/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useReducer } from "react";
+import { useMemo, useReducer, type ReactNode } from "react";
 import { Link } from "react-router";
 
 interface FormState {
@@ -594,7 +594,7 @@ export function Component() {
                 id="privacyAck"
                 checked={form.privacyAcknowledged}
                 onChange={(v) => update({ privacyAcknowledged: v })}
-                label="I&rsquo;ve read and understood the above."
+                label="I’ve read and understood the above."
               />
               <CheckboxRow
                 id="declarationConfirmed"
@@ -635,7 +635,7 @@ function CheckboxRow({
   id: string;
   checked: boolean;
   onChange: (v: boolean) => void;
-  label: string;
+  label: ReactNode;
 }) {
   return (
     <div className="flex items-start gap-2">
@@ -645,11 +645,9 @@ function CheckboxRow({
         checked={checked}
         onCheckedChange={(v) => onChange(v === true)}
       />
-      <Label
-        htmlFor={id}
-        className="leading-snug"
-        dangerouslySetInnerHTML={{ __html: label }}
-      />
+      <Label htmlFor={id} className="leading-snug">
+        {label}
+      </Label>
     </div>
   );
 }
