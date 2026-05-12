@@ -1,0 +1,651 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { api, callApi } from "@/lib/api-client";
+import {
+  CONTACT_PREFERENCE_LABELS,
+  CONTRIBUTION_ABILITY_LABELS,
+  DURATION_LABELS,
+  REASON_CATEGORY_LABELS,
+  REQUEST_STATUS_LABELS,
+  VOLUNTEER_OPTION_LABELS,
+  type RequestStatus,
+} from "@percy-main/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
+import {
+  DEFAULT_FILTERS,
+  STATUS_FILTERS,
+  filtersFromSearchParams,
+  filtersToSearchParams,
+  type StatusFilter,
+} from "./financial-relief-tab.reducer";
+
+export function FinancialReliefTab() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(
+    () => filtersFromSearchParams(searchParams),
+    [searchParams],
+  );
+
+  const updateFilters = (
+    next: Partial<typeof DEFAULT_FILTERS>,
+    options: { resetPage?: boolean } = {},
+  ) => {
+    setSearchParams(
+      filtersToSearchParams({
+        ...filters,
+        ...next,
+        page: options.resetPage ? 1 : (next.page ?? filters.page),
+      }),
+      { replace: true },
+    );
+  };
+
+  const listQuery = useQuery({
+    queryKey: [
+      "admin-relief",
+      "list",
+      filters.page,
+      filters.pageSize,
+      filters.status,
+      filters.search,
+    ],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/financial-relief/requests", {
+          params: {
+            query: {
+              page: filters.page,
+              pageSize: filters.pageSize,
+              status: filters.status,
+              search: filters.search || undefined,
+            },
+          },
+        }),
+      ),
+  });
+
+  const selectedRequestId = searchParams.get("requestId") ?? null;
+  const openDetail = (id: string | null) => {
+    const params = filtersToSearchParams(filters);
+    if (id) params.set("requestId", id);
+    setSearchParams(params, { replace: true });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="reliefStatus">Status</Label>
+          <Select
+            value={filters.status}
+            onValueChange={(v) =>
+              updateFilters({ status: v as StatusFilter }, { resetPage: true })
+            }
+          >
+            <SelectTrigger id="reliefStatus" className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_FILTERS.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s === "all" ? "All" : REQUEST_STATUS_LABELS[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="reliefSearch">Search</Label>
+          <Input
+            id="reliefSearch"
+            placeholder="Member or submitter"
+            value={filters.search}
+            onChange={(e) =>
+              updateFilters({ search: e.target.value }, { resetPage: true })
+            }
+            className="w-[260px]"
+          />
+        </div>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Submitted</TableHead>
+            <TableHead>Member</TableHead>
+            <TableHead>Submitter</TableHead>
+            <TableHead>Requested</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Decided</TableHead>
+            <TableHead></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {listQuery.isLoading ? (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center text-stone-600">
+                Loading…
+              </TableCell>
+            </TableRow>
+          ) : listQuery.data?.items.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center text-stone-600">
+                No requests match these filters.
+              </TableCell>
+            </TableRow>
+          ) : (
+            listQuery.data?.items.map((row) => (
+              <TableRow key={row.id}>
+                <TableCell className="text-sm">
+                  {new Date(row.createdAt).toLocaleDateString("en-GB")}
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{row.memberName ?? "—"}</span>
+                    <span className="text-xs text-stone-600">
+                      {row.memberEmail}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col text-sm">
+                    <span>{row.submittedByName ?? "—"}</span>
+                    {row.submittedByEmail !== row.memberEmail ? (
+                      <span className="text-xs text-stone-600">
+                        {row.submittedByEmail}
+                      </span>
+                    ) : null}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {row.requestedMembershipFull ? (
+                      <Badge variant="secondary">Membership (full)</Badge>
+                    ) : null}
+                    {row.requestedMembershipPartial ? (
+                      <Badge variant="secondary">Membership (partial)</Badge>
+                    ) : null}
+                    {row.requestedMatchFees ? (
+                      <Badge variant="secondary">Match donations</Badge>
+                    ) : null}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <StatusPill status={row.status} />
+                </TableCell>
+                <TableCell className="text-sm">
+                  {row.decidedAt ? (
+                    <>
+                      {new Date(row.decidedAt).toLocaleDateString("en-GB")}
+                      {row.decidedByName ? (
+                        <div className="text-xs text-stone-600">
+                          {row.decidedByName}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openDetail(row.id)}
+                  >
+                    Open
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+
+      {listQuery.data && listQuery.data.total > filters.pageSize ? (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={filters.page <= 1}
+            onClick={() => updateFilters({ page: filters.page - 1 })}
+          >
+            Prev
+          </Button>
+          <span className="text-sm text-stone-600">
+            Page {filters.page} of{" "}
+            {Math.ceil(listQuery.data.total / filters.pageSize)}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={filters.page * filters.pageSize >= listQuery.data.total}
+            onClick={() => updateFilters({ page: filters.page + 1 })}
+          >
+            Next
+          </Button>
+        </div>
+      ) : null}
+
+      {selectedRequestId ? (
+        <RequestDetailDialog
+          requestId={selectedRequestId}
+          onClose={() => openDetail(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: RequestStatus }) {
+  const map: Record<
+    RequestStatus,
+    "secondary" | "warning" | "success" | "info"
+  > = {
+    submitted: "warning",
+    in_review: "info",
+    more_info_needed: "warning",
+    approved: "success",
+    declined: "secondary",
+    withdrawn: "secondary",
+    expired: "secondary",
+  };
+  return <Badge variant={map[status]}>{REQUEST_STATUS_LABELS[status]}</Badge>;
+}
+
+function RequestDetailDialog({
+  requestId,
+  onClose,
+}: {
+  requestId: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const detailQuery = useQuery({
+    queryKey: ["admin-relief", "detail", requestId],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/financial-relief/requests/{requestId}", {
+          params: { path: { requestId } },
+        }),
+      ),
+  });
+
+  const transition = useMutation({
+    mutationFn: (body: {
+      toStatus: "in_review" | "more_info_needed";
+      note?: string | null;
+    }) =>
+      callApi(
+        api.POST("/api/admin/financial-relief/requests/{requestId}/status", {
+          params: { path: { requestId } },
+          body,
+        }),
+      ),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["admin-relief", "detail", requestId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["admin-relief", "list"] }),
+      ]),
+  });
+
+  const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
+  const isOpen = detailQuery.data
+    ? ["submitted", "in_review", "more_info_needed"].includes(
+        detailQuery.data.request.status,
+      )
+    : false;
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        {detailQuery.isLoading ? (
+          <p className="text-sm text-stone-600">Loading…</p>
+        ) : !detailQuery.data ? (
+          <p className="text-sm text-stone-600">Request not found.</p>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>
+                {detailQuery.data.request.memberName ?? "—"}
+              </DialogTitle>
+              <DialogDescription>
+                Submitted by {detailQuery.data.request.submittedByName ?? "—"} (
+                {detailQuery.data.request.submittedByEmail}) on{" "}
+                {new Date(
+                  detailQuery.data.request.createdAt,
+                ).toLocaleDateString("en-GB")}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-4 text-sm">
+              <div>
+                <StatusPill status={detailQuery.data.request.status} />
+              </div>
+
+              <DetailSection title="Requested support">
+                <ul className="ml-4 list-disc">
+                  {detailQuery.data.request.requestedMembershipFull ? (
+                    <li>Full membership fee relief</li>
+                  ) : null}
+                  {detailQuery.data.request.requestedMembershipPartial ? (
+                    <li>
+                      Partial membership relief
+                      {detailQuery.data.request.partialAmountPence != null
+                        ? ` (manageable: £${(detailQuery.data.request.partialAmountPence / 100).toFixed(2)})`
+                        : ""}
+                    </li>
+                  ) : null}
+                  {detailQuery.data.request.requestedMatchFees ? (
+                    <li>Match donation relief</li>
+                  ) : null}
+                </ul>
+              </DetailSection>
+
+              <DetailSection title="Reason">
+                {detailQuery.data.request.reasonCategory ? (
+                  <p className="font-medium">
+                    {REASON_CATEGORY_LABELS[
+                      detailQuery.data.request
+                        .reasonCategory as keyof typeof REASON_CATEGORY_LABELS
+                    ] ?? detailQuery.data.request.reasonCategory}
+                  </p>
+                ) : null}
+                {detailQuery.data.request.reasonText ? (
+                  <p className="whitespace-pre-wrap text-stone-700">
+                    {detailQuery.data.request.reasonText}
+                  </p>
+                ) : (
+                  <p className="text-stone-500">No explanation provided.</p>
+                )}
+              </DetailSection>
+
+              <DetailSection title="Duration">
+                <p>
+                  {detailQuery.data.request.duration
+                    ? (DURATION_LABELS[
+                        detailQuery.data.request
+                          .duration as keyof typeof DURATION_LABELS
+                      ] ?? detailQuery.data.request.duration)
+                    : "—"}
+                </p>
+                {detailQuery.data.request.durationOtherText ? (
+                  <p className="text-stone-700">
+                    {detailQuery.data.request.durationOtherText}
+                  </p>
+                ) : null}
+              </DetailSection>
+
+              <DetailSection title="Contribution offered">
+                <p>
+                  {detailQuery.data.request.contributionAbility
+                    ? (CONTRIBUTION_ABILITY_LABELS[
+                        detailQuery.data.request
+                          .contributionAbility as keyof typeof CONTRIBUTION_ABILITY_LABELS
+                      ] ?? detailQuery.data.request.contributionAbility)
+                    : "—"}
+                </p>
+                {detailQuery.data.request.contributionAmountPence != null ? (
+                  <p>
+                    Amount: £
+                    {(
+                      detailQuery.data.request.contributionAmountPence / 100
+                    ).toFixed(2)}
+                  </p>
+                ) : null}
+              </DetailSection>
+
+              <DetailSection title="Non-financial contribution">
+                {detailQuery.data.request.volunteerOptions.length === 0 ? (
+                  <p className="text-stone-500">None selected.</p>
+                ) : (
+                  <ul className="ml-4 list-disc">
+                    {detailQuery.data.request.volunteerOptions.map((o) => (
+                      <li key={o}>
+                        {VOLUNTEER_OPTION_LABELS[
+                          o as keyof typeof VOLUNTEER_OPTION_LABELS
+                        ] ?? o}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {detailQuery.data.request.volunteerNotes ? (
+                  <p className="whitespace-pre-wrap text-stone-700">
+                    {detailQuery.data.request.volunteerNotes}
+                  </p>
+                ) : null}
+              </DetailSection>
+
+              <DetailSection title="Contact preference">
+                <p>
+                  {CONTACT_PREFERENCE_LABELS[
+                    detailQuery.data.request
+                      .contactPreference as keyof typeof CONTACT_PREFERENCE_LABELS
+                  ] ?? detailQuery.data.request.contactPreference}
+                </p>
+              </DetailSection>
+
+              {detailQuery.data.grant ? (
+                <DetailSection title="Active grant">
+                  <p>
+                    Covers{" "}
+                    {[
+                      detailQuery.data.grant.coversMembership
+                        ? "membership"
+                        : null,
+                      detailQuery.data.grant.coversMatchFees
+                        ? "match donations"
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" + ") || "—"}
+                    , from{" "}
+                    {new Date(
+                      detailQuery.data.grant.effectiveFrom,
+                    ).toLocaleDateString("en-GB")}
+                    {detailQuery.data.grant.effectiveToExclusive
+                      ? ` until ${new Date(detailQuery.data.grant.effectiveToExclusive).toLocaleDateString("en-GB")}`
+                      : " (open-ended)"}
+                    .
+                  </p>
+                  {detailQuery.data.grant.memberFacingNote ? (
+                    <p className="text-stone-700">
+                      Note to member: {detailQuery.data.grant.memberFacingNote}
+                    </p>
+                  ) : null}
+                </DetailSection>
+              ) : null}
+
+              <DetailSection title="History">
+                <ul className="ml-4 list-disc">
+                  {detailQuery.data.events.map((e) => (
+                    <li key={e.id}>
+                      <span className="font-medium">{e.eventType}</span>{" "}
+                      &middot; {new Date(e.createdAt).toLocaleString("en-GB")}{" "}
+                      &middot; {e.actorName ?? "—"}
+                      {e.note ? ` — ${e.note}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </DetailSection>
+            </div>
+
+            <DialogFooter className="flex-wrap gap-2">
+              {isOpen ? (
+                <>
+                  {detailQuery.data.request.status !== "in_review" ? (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        transition.mutate({
+                          toStatus: "in_review",
+                          note: null,
+                        })
+                      }
+                      disabled={transition.isPending}
+                    >
+                      Move to in review
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      transition.mutate({
+                        toStatus: "more_info_needed",
+                        note: null,
+                      })
+                    }
+                    disabled={transition.isPending}
+                  >
+                    Request more info
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setDeclineDialogOpen(true)}
+                  >
+                    Decline
+                  </Button>
+                </>
+              ) : null}
+              <Button variant="ghost" onClick={onClose}>
+                Close
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {declineDialogOpen ? (
+          <DeclineDialog
+            requestId={requestId}
+            onClose={() => setDeclineDialogOpen(false)}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeclineDialog({
+  requestId,
+  onClose,
+}: {
+  requestId: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [memberFacingNote, setMemberFacingNote] = useState("");
+  const [adminNote, setAdminNote] = useState("");
+
+  const decline = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/admin/financial-relief/requests/{requestId}/decline", {
+          params: { path: { requestId } },
+          body: {
+            memberFacingNote: memberFacingNote || null,
+            adminNote: adminNote || null,
+          },
+        }),
+      ),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["admin-relief", "detail", requestId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["admin-relief", "list"] }),
+      ]).then(onClose),
+  });
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Decline request</DialogTitle>
+          <DialogDescription>
+            The member-facing note is shown to the requester. The admin note
+            stays internal.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="memberFacingNote">
+              Member-facing note (optional)
+            </Label>
+            <Textarea
+              id="memberFacingNote"
+              rows={3}
+              value={memberFacingNote}
+              onChange={(e) => setMemberFacingNote(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="adminNote">Admin note (optional)</Label>
+            <Textarea
+              id="adminNote"
+              rows={3}
+              value={adminNote}
+              onChange={(e) => setAdminNote(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={decline.isPending}
+            onClick={() => decline.mutate()}
+          >
+            {decline.isPending ? "Declining…" : "Decline"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DetailSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
+      <div className="flex flex-col gap-1">{children}</div>
+    </div>
+  );
+}

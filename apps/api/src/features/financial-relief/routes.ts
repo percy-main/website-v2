@@ -132,8 +132,8 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: listReliefRequestsResponseSchema },
       },
     },
-    async () => {
-      return await listAdmin();
+    async (request) => {
+      return await listAdmin(request.query);
     },
   );
 
@@ -146,8 +146,8 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: reliefRequestDetailResponseSchema },
       },
     },
-    async () => {
-      return await getDetail();
+    async (request) => {
+      return await getDetail(request.params.requestId);
     },
   );
 
@@ -161,8 +161,13 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: transitionStatusResponseSchema },
       },
     },
-    async () => {
-      return await transition();
+    async (request) => {
+      const session = getAuthSession(request);
+      return await transition(
+        session.user.id,
+        request.params.requestId,
+        request.body,
+      );
     },
   );
 
@@ -176,8 +181,13 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: declineRequestResponseSchema },
       },
     },
-    async () => {
-      return await decline();
+    async (request) => {
+      const session = getAuthSession(request);
+      return await decline(
+        session.user.id,
+        request.params.requestId,
+        request.body,
+      );
     },
   );
 

@@ -8,9 +8,13 @@ import {
 } from "../../test/containers.ts";
 import type { SubmitReliefRequest } from "./schemas.ts";
 import {
+  declineReliefRequest,
   getEligibleMembers,
   getMyReliefStatus,
+  getReliefRequestDetail,
+  listReliefRequestsForAdmin,
   submitReliefRequest,
+  transitionReliefRequestStatus,
   withdrawReliefRequest,
 } from "./service.ts";
 
@@ -276,6 +280,110 @@ describe("financial-relief (integration)", () => {
     expect(events).toHaveLength(1);
     expect(events[0].event_type).toBe("withdrawn");
     expect(events[0].to_status).toBe("withdrawn");
+  });
+
+  it("admin list returns open requests first, then closed by recency", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const a = await seedMember();
+    const b = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+
+    const { id: aId } = await submit(
+      a.userId,
+      a.email,
+      validSubmission({ memberId: a.memberId }),
+      log,
+    );
+    const { id: bId } = await submit(
+      b.userId,
+      b.email,
+      validSubmission({ memberId: b.memberId }),
+      log,
+    );
+    await declineReliefRequest(ctx.db)(admin.userId, aId, {
+      memberFacingNote: null,
+      adminNote: "Insufficient grounds",
+    });
+
+    const result = await listReliefRequestsForAdmin(ctx.db)({
+      page: 1,
+      pageSize: 100,
+      status: "all",
+    });
+    const ours = result.items.filter((i) => [aId, bId].includes(i.id));
+    expect(ours.findIndex((i) => i.id === bId)).toBeLessThan(
+      ours.findIndex((i) => i.id === aId),
+    );
+  });
+
+  it("admin status transition records an event and updates the status", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+
+    const { id } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({ memberId: member.memberId }),
+      log,
+    );
+    await transitionReliefRequestStatus(ctx.db)(admin.userId, id, {
+      toStatus: "more_info_needed",
+      note: "Could you confirm whether the junior plays Saturday matches?",
+    });
+
+    const detail = await getReliefRequestDetail(ctx.db)(id);
+    expect(detail.request.status).toBe("more_info_needed");
+    const moreInfo = detail.events.filter(
+      (e) => e.eventType === "more_info_requested",
+    );
+    expect(moreInfo).toHaveLength(1);
+    expect(moreInfo[0].toStatus).toBe("more_info_needed");
+  });
+
+  it("admin decline transitions, stores member-facing note, and blocks re-decline", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+
+    const { id } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({ memberId: member.memberId }),
+      log,
+    );
+    await declineReliefRequest(ctx.db)(admin.userId, id, {
+      memberFacingNote: "Sorry, we've used up this season's relief budget.",
+      adminNote: "Reapply next season.",
+    });
+
+    const detail = await getReliefRequestDetail(ctx.db)(id);
+    expect(detail.request.status).toBe("declined");
+    expect(detail.grant).toBeNull();
+    const declines = detail.events.filter((e) => e.eventType === "declined");
+    expect(declines).toHaveLength(1);
+    expect(declines[0].note).toBe(
+      "Sorry, we've used up this season's relief budget.",
+    );
+
+    await expect(
+      declineReliefRequest(ctx.db)(admin.userId, id, {
+        memberFacingNote: null,
+        adminNote: null,
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
   });
 
   it("getMyReliefStatus returns the caller's own and linked-junior requests", async () => {

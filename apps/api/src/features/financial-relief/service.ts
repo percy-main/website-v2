@@ -5,7 +5,13 @@ import { render } from "@react-email/render";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { createElement } from "react";
-import type { SubmitReliefRequest, WithdrawRequest } from "./schemas.ts";
+import type {
+  DeclineRequest,
+  ListReliefRequests,
+  SubmitReliefRequest,
+  TransitionStatus,
+  WithdrawRequest,
+} from "./schemas.ts";
 
 async function notImplemented(): Promise<never> {
   const err = new Error("Not implemented") as Error & { statusCode: number };
@@ -347,20 +353,349 @@ export function withdrawReliefRequest(db: Kysely<DB>) {
   };
 }
 
-export function listReliefRequestsForAdmin(_db: Kysely<DB>) {
-  return async () => await notImplemented();
+export function listReliefRequestsForAdmin(db: Kysely<DB>) {
+  return async (params: ListReliefRequests) => {
+    const offset = (params.page - 1) * params.pageSize;
+
+    let baseQuery = db
+      .selectFrom("financial_relief_request as r")
+      .innerJoin("member as m", "m.id", "r.member_id")
+      .innerJoin("user as u", "u.id", "r.submitted_by_user_id");
+
+    if (params.status && params.status !== "all") {
+      baseQuery = baseQuery.where("r.status", "=", params.status);
+    }
+    if (params.dateFrom) {
+      baseQuery = baseQuery.where(
+        "r.created_at",
+        ">=",
+        new Date(params.dateFrom),
+      );
+    }
+    if (params.dateTo) {
+      baseQuery = baseQuery.where(
+        "r.created_at",
+        "<=",
+        new Date(params.dateTo),
+      );
+    }
+    if (params.search) {
+      const like = `%${params.search}%`;
+      baseQuery = baseQuery.where((eb) =>
+        eb.or([
+          eb("m.name", "ilike", like),
+          eb("m.email", "ilike", like),
+          eb("u.name", "ilike", like),
+          eb("u.email", "ilike", like),
+        ]),
+      );
+    }
+
+    const [{ total }, rows, grants] = await Promise.all([
+      baseQuery
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .executeTakeFirstOrThrow(),
+      baseQuery
+        .leftJoin("financial_relief_grant as g", (join) =>
+          join.onRef("g.request_id", "=", "r.id"),
+        )
+        .leftJoin("user as decider", "decider.id", "g.decided_by")
+        .select([
+          "r.id",
+          "r.member_id as memberId",
+          "m.name as memberName",
+          "m.email as memberEmail",
+          "r.submitted_by_user_id as submittedByUserId",
+          "u.name as submittedByName",
+          "u.email as submittedByEmail",
+          "r.status",
+          "r.requested_membership_full as requestedMembershipFull",
+          "r.requested_membership_partial as requestedMembershipPartial",
+          "r.requested_match_fees as requestedMatchFees",
+          "r.created_at as createdAt",
+          "r.updated_at as updatedAt",
+          "g.decided_at as decidedAt",
+          "decider.name as decidedByName",
+        ])
+        // Open requests first; within each group, newest first.
+        .orderBy(
+          (eb) =>
+            eb
+              .case()
+              .when("r.status", "in", [
+                "submitted",
+                "in_review",
+                "more_info_needed",
+              ])
+              .then(0)
+              .else(1)
+              .end(),
+          "asc",
+        )
+        .orderBy("r.created_at", "desc")
+        .limit(params.pageSize)
+        .offset(offset)
+        .execute(),
+      // Empty array — grants are loaded inline via leftJoin above. Kept
+      // as a placeholder so future event/grant lookups can join without
+      // a second N+1.
+      Promise.resolve([] as never[]),
+    ]);
+    void grants;
+
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        memberId: r.memberId,
+        memberName: r.memberName,
+        memberEmail: r.memberEmail,
+        submittedByUserId: r.submittedByUserId,
+        submittedByName: r.submittedByName,
+        submittedByEmail: r.submittedByEmail,
+        status: r.status as RequestStatus,
+        requestedMembershipFull: r.requestedMembershipFull,
+        requestedMembershipPartial: r.requestedMembershipPartial,
+        requestedMatchFees: r.requestedMatchFees,
+        createdAt: toIsoString(r.createdAt),
+        updatedAt: toIsoString(r.updatedAt),
+        decidedAt: r.decidedAt ? toIsoString(r.decidedAt) : null,
+        decidedByName: r.decidedByName,
+      })),
+      total: Number(total),
+      page: params.page,
+      pageSize: params.pageSize,
+    };
+  };
 }
 
-export function getReliefRequestDetail(_db: Kysely<DB>) {
-  return async () => await notImplemented();
+export function getReliefRequestDetail(db: Kysely<DB>) {
+  return async (requestId: string) => {
+    const request = await db
+      .selectFrom("financial_relief_request as r")
+      .innerJoin("member as m", "m.id", "r.member_id")
+      .innerJoin("user as u", "u.id", "r.submitted_by_user_id")
+      .where("r.id", "=", requestId)
+      .select([
+        "r.id",
+        "r.member_id as memberId",
+        "m.name as memberName",
+        "m.email as memberEmail",
+        "r.submitted_by_user_id as submittedByUserId",
+        "u.name as submittedByName",
+        "u.email as submittedByEmail",
+        "r.status",
+        "r.requested_membership_full as requestedMembershipFull",
+        "r.requested_membership_partial as requestedMembershipPartial",
+        "r.requested_match_fees as requestedMatchFees",
+        "r.partial_amount_pence as partialAmountPence",
+        "r.reason_category as reasonCategory",
+        "r.reason_text as reasonText",
+        "r.duration",
+        "r.duration_other_text as durationOtherText",
+        "r.contribution_ability as contributionAbility",
+        "r.contribution_amount_pence as contributionAmountPence",
+        "r.volunteer_options as volunteerOptions",
+        "r.volunteer_notes as volunteerNotes",
+        "r.contact_preference as contactPreference",
+        "r.privacy_acknowledged_at as privacyAcknowledgedAt",
+        "r.declaration_confirmed_at as declarationConfirmedAt",
+        "r.withdrawn_at as withdrawnAt",
+        "r.withdrawn_reason as withdrawnReason",
+        "r.created_at as createdAt",
+        "r.updated_at as updatedAt",
+      ])
+      .executeTakeFirst();
+    if (!request) httpError(404, "Request not found");
+
+    const events = await db
+      .selectFrom("financial_relief_event as e")
+      .leftJoin("user as u", "u.id", "e.actor_user_id")
+      .where("e.request_id", "=", requestId)
+      .select([
+        "e.id",
+        "e.event_type as eventType",
+        "e.from_status as fromStatus",
+        "e.to_status as toStatus",
+        "e.note",
+        "e.actor_user_id as actorUserId",
+        "u.name as actorName",
+        "e.created_at as createdAt",
+      ])
+      .orderBy("e.created_at", "asc")
+      .execute();
+
+    const grant = await db
+      .selectFrom("financial_relief_grant as g")
+      .leftJoin("user as decider", "decider.id", "g.decided_by")
+      .where("g.request_id", "=", requestId)
+      .where("g.closed_at", "is", null)
+      .select([
+        "g.id",
+        "g.decision",
+        "g.covers_membership as coversMembership",
+        "g.covers_match_fees as coversMatchFees",
+        "g.membership_partial_pence as membershipPartialPence",
+        "g.effective_from as effectiveFrom",
+        "g.effective_to_exclusive as effectiveToExclusive",
+        "g.admin_notes as adminNotes",
+        "g.member_facing_note as memberFacingNote",
+        "g.decided_by as decidedBy",
+        "decider.name as decidedByName",
+        "g.decided_at as decidedAt",
+        "g.closed_at as closedAt",
+        "g.closed_by as closedBy",
+        "g.closed_reason as closedReason",
+      ])
+      .executeTakeFirst();
+
+    return {
+      request: {
+        ...request,
+        status: request.status as RequestStatus,
+        volunteerOptions: Array.isArray(request.volunteerOptions)
+          ? (request.volunteerOptions as string[])
+          : [],
+        privacyAcknowledgedAt: toIsoString(request.privacyAcknowledgedAt),
+        declarationConfirmedAt: toIsoString(request.declarationConfirmedAt),
+        withdrawnAt: request.withdrawnAt
+          ? toIsoString(request.withdrawnAt)
+          : null,
+        createdAt: toIsoString(request.createdAt),
+        updatedAt: toIsoString(request.updatedAt),
+      },
+      events: events.map((e) => ({
+        ...e,
+        createdAt: toIsoString(e.createdAt),
+      })),
+      grant: grant
+        ? {
+            id: grant.id,
+            decision: grant.decision as
+              | "approved_full"
+              | "approved_partial"
+              | "approved_temporary",
+            coversMembership: grant.coversMembership,
+            coversMatchFees: grant.coversMatchFees,
+            membershipPartialPence: grant.membershipPartialPence,
+            effectiveFrom: toIsoString(grant.effectiveFrom),
+            effectiveToExclusive: grant.effectiveToExclusive
+              ? toIsoString(grant.effectiveToExclusive)
+              : null,
+            adminNotes: grant.adminNotes,
+            memberFacingNote: grant.memberFacingNote,
+            decidedBy: grant.decidedBy,
+            decidedByName: grant.decidedByName,
+            decidedAt: toIsoString(grant.decidedAt),
+            closedAt: grant.closedAt ? toIsoString(grant.closedAt) : null,
+            closedBy: grant.closedBy,
+            closedReason: grant.closedReason,
+          }
+        : null,
+    };
+  };
 }
 
-export function transitionReliefRequestStatus(_db: Kysely<DB>) {
-  return async () => await notImplemented();
+export function transitionReliefRequestStatus(db: Kysely<DB>) {
+  return async (
+    adminUserId: string,
+    requestId: string,
+    data: TransitionStatus,
+  ) => {
+    const current = await db
+      .selectFrom("financial_relief_request")
+      .where("id", "=", requestId)
+      .select(["id", "status"])
+      .executeTakeFirst();
+    if (!current) httpError(404, "Request not found");
+
+    // Only meaningful from an "open" state — moving away from a decided/
+    // declined/withdrawn/expired request loses the audit story.
+    if (
+      !["submitted", "in_review", "more_info_needed"].includes(current.status)
+    ) {
+      httpError(400, "Cannot transition a closed request");
+    }
+    if (current.status === data.toStatus) {
+      return { success: true };
+    }
+
+    const now = new Date().toISOString();
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable("financial_relief_request")
+        .set({ status: data.toStatus, updated_at: now })
+        .where("id", "=", requestId)
+        .execute();
+
+      await trx
+        .insertInto("financial_relief_event")
+        .values({
+          id: crypto.randomUUID(),
+          request_id: requestId,
+          event_type:
+            data.toStatus === "more_info_needed"
+              ? "more_info_requested"
+              : "status_changed",
+          from_status: current.status,
+          to_status: data.toStatus,
+          note: data.note ?? null,
+          actor_user_id: adminUserId,
+        })
+        .execute();
+    });
+
+    return { success: true };
+  };
 }
 
-export function declineReliefRequest(_db: Kysely<DB>) {
-  return async () => await notImplemented();
+export function declineReliefRequest(db: Kysely<DB>) {
+  return async (
+    adminUserId: string,
+    requestId: string,
+    data: DeclineRequest,
+  ) => {
+    const current = await db
+      .selectFrom("financial_relief_request")
+      .where("id", "=", requestId)
+      .select(["id", "status"])
+      .executeTakeFirst();
+    if (!current) httpError(404, "Request not found");
+
+    if (
+      !["submitted", "in_review", "more_info_needed"].includes(current.status)
+    ) {
+      httpError(400, "Cannot decline a request that has already been closed");
+    }
+
+    const now = new Date().toISOString();
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable("financial_relief_request")
+        .set({ status: "declined", updated_at: now })
+        .where("id", "=", requestId)
+        .execute();
+
+      // Member-facing note is stored on a synthetic event row that the
+      // member-facing API surfaces. (Grants are reserved for approvals;
+      // we don't want a row that says "declined grant".)
+      await trx
+        .insertInto("financial_relief_event")
+        .values({
+          id: crypto.randomUUID(),
+          request_id: requestId,
+          event_type: "declined",
+          from_status: current.status,
+          to_status: "declined",
+          note:
+            data.memberFacingNote ??
+            (data.adminNote ? `[admin] ${data.adminNote}` : null),
+          actor_user_id: adminUserId,
+        })
+        .execute();
+    });
+
+    return { success: true };
+  };
 }
 
 export function decideReliefRequest(_db: Kysely<DB>) {

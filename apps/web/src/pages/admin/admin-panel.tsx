@@ -10,6 +10,7 @@ import { DocumentsTab } from "./documents-tab";
 import { DuplicatesTab } from "./duplicates-tab";
 import { ExpenseHistoryTab } from "./expense-history-tab";
 import { FantasyTab } from "./fantasy-tab";
+import { FinancialReliefTab } from "./financial-relief-tab";
 import { GameReportsTab } from "./game-reports-tab";
 import { IncidentsTab } from "./incidents-tab";
 import { JuniorsTab } from "./juniors-tab";
@@ -73,6 +74,11 @@ const SECTIONS = [
         render: () => <TreasurerTab />,
       },
       { value: "charges", label: "Charges", render: () => <ChargesTab /> },
+      {
+        value: "financial-relief",
+        label: "Financial Relief",
+        render: () => <FinancialReliefTab />,
+      },
       {
         value: "sponsorships",
         label: "Sponsorships",
