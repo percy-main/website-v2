@@ -126,11 +126,11 @@ module "ecs" {
     # flash) to favour quality over latency on report runs.
     SCOUT_PROVIDER_CHAT           = "deepseek"
     SCOUT_PROVIDER_SUBAGENT       = "deepseek"
-    SCOUT_PROVIDER_DB             = "anthropic"
+    SCOUT_PROVIDER_DB             = "deepseek"
     SCOUT_PROVIDER_REPORT         = "deepseek"
     SCOUT_MODEL_CHAT              = "deepseek-v4-pro"
     SCOUT_MODEL_SUBAGENT          = "deepseek-v4-pro"
-    SCOUT_MODEL_DB                = "claude-haiku-4-5-20251001"
+    SCOUT_MODEL_DB                = "deepseek-v4-flash"
     SCOUT_MODEL_REPORT            = "deepseek-v4-flash"
     SCOUT_ATTACHMENT_DERIVE_MODEL = "claude-haiku-4-5-20251001"
     VOYAGE_EMBED_MODEL            = "voyage-4"
