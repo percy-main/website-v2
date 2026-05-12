@@ -10,6 +10,7 @@ import { getMatch } from "../matchday/service.ts";
 import { applyReliefIfAny } from "./apply-relief.ts";
 import type { SubmitReliefRequest } from "./schemas.ts";
 import {
+  applyMembershipRelief,
   closeReliefForArchivedMember,
   closeReliefGrant,
   decideReliefRequest,
@@ -815,6 +816,131 @@ describe("financial-relief (integration)", () => {
       .execute();
     expect(events).toHaveLength(1);
     expect(events[0].note).toBe("member archived");
+  });
+
+  it("applyMembershipRelief creates a relieved membership charge and extends paid_until", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+    const { id: requestId } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({ memberId: member.memberId }),
+      log,
+    );
+    const stripeStub = {
+      paymentIntents: { retrieve: vi.fn() },
+    } as unknown as import("stripe").default;
+    const decide = await decideReliefRequest(ctx.db, {
+      stripe: stripeStub,
+      baseUrl: "https://percymain.org",
+      send,
+    })(
+      admin.userId,
+      requestId,
+      {
+        decision: "approved_temporary",
+        coversMembership: true,
+        coversMatchFees: false,
+        membershipPartialPence: null,
+        effectiveFrom: "2026-05-01",
+        effectiveToExclusive: null,
+        adminNotes: null,
+        memberFacingNote: null,
+      },
+      log,
+    );
+
+    const { chargeId } = await applyMembershipRelief(ctx.db)(
+      admin.userId,
+      decide.grantId,
+      {
+        amountPence: 5000,
+        effectiveDate: "2026-05-12",
+        membershipPaidUntil: "2027-03-31",
+        membershipType: "senior_player",
+        description: "Senior membership (relief)",
+      },
+    );
+
+    const charge = await ctx.db
+      .selectFrom("charge")
+      .where("id", "=", chargeId)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(charge.type).toBe("membership");
+    expect(charge.amount_pence).toBe(5000);
+    expect(charge.relieved_at).not.toBeNull();
+    expect(charge.relief_grant_id).toBe(decide.grantId);
+
+    const membership = await ctx.db
+      .selectFrom("membership")
+      .where("member_id", "=", member.memberId)
+      .where("type", "=", "senior_player")
+      .select(["paid_until"])
+      .executeTakeFirstOrThrow();
+    expect(membership.paid_until).toContain("2027-03-31");
+
+    // Event audit row.
+    const event = await ctx.db
+      .selectFrom("financial_relief_event")
+      .where("request_id", "=", requestId)
+      .where("event_type", "=", "membership_relief_applied")
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(event.note).toContain("senior_player");
+  });
+
+  it("applyMembershipRelief rejects when the grant does not cover membership or is closed", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+    const { id: requestId } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({ memberId: member.memberId }),
+      log,
+    );
+    const stripeStub = {
+      paymentIntents: { retrieve: vi.fn() },
+    } as unknown as import("stripe").default;
+    const decide = await decideReliefRequest(ctx.db, {
+      stripe: stripeStub,
+      baseUrl: "https://percymain.org",
+      send,
+    })(
+      admin.userId,
+      requestId,
+      {
+        decision: "approved_temporary",
+        coversMembership: false,
+        coversMatchFees: true,
+        membershipPartialPence: null,
+        effectiveFrom: "2026-05-01",
+        effectiveToExclusive: null,
+        adminNotes: null,
+        memberFacingNote: null,
+      },
+      log,
+    );
+
+    await expect(
+      applyMembershipRelief(ctx.db)(admin.userId, decide.grantId, {
+        amountPence: 5000,
+        effectiveDate: "2026-05-12",
+        membershipPaidUntil: "2027-03-31",
+        membershipType: "senior_player",
+        description: "Senior membership (relief)",
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
   });
 
   it("officials' matchday view reports a relieved match-fee as 'waived' and leaks no application detail", async () => {

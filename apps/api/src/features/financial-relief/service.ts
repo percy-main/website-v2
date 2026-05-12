@@ -11,6 +11,7 @@ import type { Kysely } from "kysely";
 import { createElement } from "react";
 import type Stripe from "stripe";
 import type {
+  ApplyMembershipRelief,
   CloseGrant,
   DecideReliefRequest,
   DeclineRequest,
@@ -1009,8 +1010,120 @@ export function closeReliefForArchivedMember(db: Kysely<DB>) {
   };
 }
 
-export function applyMembershipRelief(_db: Kysely<DB>) {
-  return async () => await notImplemented();
+/**
+ * Manually-applied membership relief.
+ *
+ * Real membership purchases go through Stripe checkout and arrive as
+ * already-paid charge rows via the webhook, so there's no pre-pay
+ * moment for `applyReliefIfAny` to intercept. Instead, when a grant
+ * covers membership, the admin invokes this action to:
+ *   1. insert a relieved `charge` row of the appropriate amount, and
+ *   2. extend the member's membership.paid_until to the chosen date.
+ *
+ * Partial-relief case: the admin uses the existing `createCharge` flow
+ * to bill the member for their share, then this action for the waived
+ * portion.
+ */
+export function applyMembershipRelief(db: Kysely<DB>) {
+  return async (
+    adminUserId: string,
+    grantId: string,
+    data: ApplyMembershipRelief,
+  ) => {
+    const grant = await db
+      .selectFrom("financial_relief_grant")
+      .where("id", "=", grantId)
+      .select([
+        "id",
+        "request_id",
+        "member_id",
+        "covers_membership",
+        "closed_at",
+      ])
+      .executeTakeFirst();
+    if (!grant) httpError(404, "Grant not found");
+    if (grant.closed_at) httpError(400, "Grant is closed");
+    if (!grant.covers_membership) {
+      httpError(400, "This grant does not cover membership");
+    }
+
+    const chargeId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+
+    await db.transaction().execute(async (trx) => {
+      // 1. Relieved membership charge — keeps amount_pence for reporting.
+      await trx
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: grant.member_id,
+          description: data.description,
+          amount_pence: data.amountPence,
+          charge_date: data.effectiveDate,
+          created_by: adminUserId,
+          type: "membership",
+          source: "financial_relief",
+          relieved_at: nowIso,
+          relieved_by: adminUserId,
+          relieved_reason: "financial relief",
+          relief_grant_id: grantId,
+        })
+        .execute();
+
+      // 2. Upsert membership.paid_until.
+      const existing = await trx
+        .selectFrom("membership")
+        .where("member_id", "=", grant.member_id)
+        .where((eb) =>
+          eb.or([eb("type", "=", data.membershipType), eb("type", "is", null)]),
+        )
+        .select(["id", "type", "paid_until"])
+        .executeTakeFirst();
+
+      if (existing) {
+        // Only extend, never shorten. (Admins occasionally call this
+        // twice in a session; second call shouldn't roll back paid_until.)
+        const nextPaidUntil =
+          new Date(data.membershipPaidUntil) > new Date(existing.paid_until)
+            ? data.membershipPaidUntil
+            : existing.paid_until;
+        await trx
+          .updateTable("membership")
+          .set({
+            paid_until: nextPaidUntil,
+            ...(existing.type ? {} : { type: data.membershipType }),
+          })
+          .where("id", "=", existing.id)
+          .execute();
+      } else {
+        await trx
+          .insertInto("membership")
+          .values({
+            id: crypto.randomUUID(),
+            member_id: grant.member_id,
+            type: data.membershipType,
+            paid_until: data.membershipPaidUntil,
+          })
+          .execute();
+      }
+
+      // 3. Audit event.
+      await trx
+        .insertInto("financial_relief_event")
+        .values({
+          id: crypto.randomUUID(),
+          request_id: grant.request_id,
+          event_type: "membership_relief_applied",
+          from_status: null,
+          to_status: null,
+          note: `${data.membershipType} until ${data.membershipPaidUntil} (£${(data.amountPence / 100).toFixed(2)})`,
+          actor_user_id: adminUserId,
+        })
+        .execute();
+    });
+
+    return { chargeId };
+  };
 }
 
 export function getReliefReport(_db: Kysely<DB>) {

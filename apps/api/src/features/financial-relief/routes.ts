@@ -250,8 +250,13 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: applyMembershipReliefResponseSchema },
       },
     },
-    async () => {
-      return await applyMembership();
+    async (request) => {
+      const session = getAuthSession(request);
+      return await applyMembership(
+        session.user.id,
+        request.params.grantId,
+        request.body,
+      );
     },
   );
 

@@ -37,7 +37,7 @@ import {
   type RequestStatus,
 } from "@percy-main/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useReducer, useState } from "react";
 import { useSearchParams } from "react-router";
 import {
   DEFAULT_FILTERS,
@@ -542,10 +542,18 @@ function RequestDetailDialog({
                 </>
               ) : null}
               {detailQuery.data.grant && !detailQuery.data.grant.closedAt ? (
-                <CloseGrantButton
-                  grantId={detailQuery.data.grant.id}
-                  requestId={requestId}
-                />
+                <>
+                  {detailQuery.data.grant.coversMembership ? (
+                    <ApplyMembershipReliefButton
+                      grantId={detailQuery.data.grant.id}
+                      requestId={requestId}
+                    />
+                  ) : null}
+                  <CloseGrantButton
+                    grantId={detailQuery.data.grant.id}
+                    requestId={requestId}
+                  />
+                </>
               ) : null}
               <Button variant="ghost" onClick={onClose}>
                 Close
@@ -964,6 +972,161 @@ function CloseGrantButton({
               onClick={() => close.mutate()}
             >
               {close.isPending ? "Closing…" : "Close grant"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function ApplyMembershipReliefButton({
+  grantId,
+  requestId,
+}: {
+  grantId: string;
+  requestId: string;
+}) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, update] = useReducer(
+    (
+      s: {
+        amountPounds: string;
+        effectiveDate: string;
+        membershipPaidUntil: string;
+        membershipType: string;
+        description: string;
+      },
+      patch: Partial<typeof s>,
+    ) => ({ ...s, ...patch }),
+    null,
+    () => ({
+      amountPounds: "",
+      effectiveDate: todayIso(),
+      membershipPaidUntil: "",
+      membershipType: "",
+      description: "",
+    }),
+  );
+  const {
+    amountPounds,
+    effectiveDate,
+    membershipPaidUntil,
+    membershipType,
+    description,
+  } = form;
+
+  const apply = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST(
+          "/api/admin/financial-relief/grants/{grantId}/apply-membership",
+          {
+            params: { path: { grantId } },
+            body: {
+              amountPence: Math.max(
+                0,
+                Math.round(Number(amountPounds || "0") * 100),
+              ),
+              effectiveDate,
+              membershipPaidUntil,
+              membershipType,
+              description,
+            },
+          },
+        ),
+      ),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["admin-relief", "detail", requestId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["admin-relief", "list"] }),
+      ]).then(() => setOpen(false)),
+  });
+
+  const canSubmit =
+    !!membershipType &&
+    !!membershipPaidUntil &&
+    !!effectiveDate &&
+    !!description &&
+    Number(amountPounds) > 0 &&
+    !apply.isPending;
+
+  return (
+    <>
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        Apply membership relief
+      </Button>
+      <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apply membership relief</DialogTitle>
+            <DialogDescription>
+              Creates a relieved membership charge for reporting and extends
+              this member's paid_until.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="amountPounds">Amount (in £)</Label>
+              <Input
+                id="amountPounds"
+                type="number"
+                min="0"
+                step="1"
+                value={amountPounds}
+                onChange={(e) => update({ amountPounds: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="applyEffective">Charge date</Label>
+                <Input
+                  id="applyEffective"
+                  type="date"
+                  value={effectiveDate}
+                  onChange={(e) => update({ effectiveDate: e.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="paidUntil">Paid until</Label>
+                <Input
+                  id="paidUntil"
+                  type="date"
+                  value={membershipPaidUntil}
+                  onChange={(e) =>
+                    update({ membershipPaidUntil: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="membershipType">Membership type</Label>
+              <Input
+                id="membershipType"
+                placeholder="e.g. senior_player"
+                value={membershipType}
+                onChange={(e) => update({ membershipType: e.target.value })}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="applyDescription">Description</Label>
+              <Input
+                id="applyDescription"
+                placeholder="e.g. Senior membership (relief)"
+                value={description}
+                onChange={(e) => update({ description: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={!canSubmit} onClick={() => apply.mutate()}>
+              {apply.isPending ? "Applying…" : "Apply"}
             </Button>
           </DialogFooter>
         </DialogContent>
