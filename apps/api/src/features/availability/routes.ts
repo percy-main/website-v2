@@ -2,7 +2,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import {
   getAuthSession,
   requireAuth,
-  requireRole,
+  requirePermission,
 } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import {
@@ -51,7 +51,8 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
-  const officialRole = requireRole("official", "admin");
+  const matchdayView = requirePermission("matchday", "view");
+  const matchdayManage = requirePermission("matchday", "manage");
 
   // Build Play Cricket API client (if configured)
   const apiClient =
@@ -72,7 +73,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/availability/requests",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayManage],
       schema: {
         body: createRequestSchema,
         response: { 200: createRequestResponseSchema },
@@ -93,7 +94,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/availability/requests",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayView],
       schema: {
         querystring: listRequestsSchema,
         response: { 200: listRequestsResponseSchema },
@@ -108,7 +109,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/availability/requests/:requestId",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayView],
       schema: {
         params: requestIdParamSchema,
         response: { 200: getRequestResponseSchema },
@@ -123,7 +124,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/availability/requests/:requestId/dates/:date",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayView],
       schema: {
         params: requestDateParamSchema,
         response: { 200: getDateDetailResponseSchema },
@@ -138,7 +139,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/availability/requests/:requestId/dates/:date/assign",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayManage],
       schema: {
         params: requestDateParamSchema,
         body: assignPlayerSchema,
@@ -158,7 +159,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/availability/assignments/:assignmentId",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayManage],
       schema: {
         params: assignmentIdParamSchema,
         response: { 200: successResponseSchema },
@@ -173,7 +174,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     "/availability/requests/:requestId/dates/:date/members/:memberId/availability",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayManage],
       schema: {
         params: requestDateMemberParamSchema,
         body: setAvailabilitySchema,
@@ -196,7 +197,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/availability/requests/:requestId/dates/:date/confirm",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayManage],
       schema: {
         params: requestDateParamSchema,
         response: { 200: confirmDateResponseSchema },
@@ -216,7 +217,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     "/availability/requests/:requestId",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayManage],
       schema: {
         params: requestIdParamSchema,
         body: updateRequestStatusSchema,
@@ -235,7 +236,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/availability/preview",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayView],
       schema: {
         querystring: createRequestSchema,
         response: { 200: previewFixturesResponseSchema },
@@ -257,7 +258,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/availability/requests/:requestId/notify/preview",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayManage],
       schema: {
         params: requestIdParamSchema,
         body: notifyPreviewSchema,
@@ -277,7 +278,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/availability/requests/:requestId/notify/send",
     {
-      preHandler: [officialRole],
+      preHandler: [matchdayManage],
       schema: {
         params: requestIdParamSchema,
         body: notifySendSchema,

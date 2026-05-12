@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { getAuthSession, requireRole } from "../auth/middleware.ts";
+import { getAuthSession, requirePermission } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import {
   addPlayerResponseSchema,
@@ -64,8 +64,8 @@ import { generateTeamNewsImage } from "./team-news-image.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
-  const officialRole = requireRole("official", "admin");
-  const adminRole = requireRole("admin");
+  const officialRole = requirePermission("matchday", "view");
+  const adminRole = requirePermission("matchday", "manage");
 
   // ── Existing routes ──
 

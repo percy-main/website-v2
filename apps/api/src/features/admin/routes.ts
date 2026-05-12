@@ -1,5 +1,9 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { getAuthSession, requireRole } from "../auth/middleware.ts";
+import {
+  getAuthSession,
+  requireAnyPermission,
+  requirePermission,
+} from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import { getMatchdayReport, listGameReports } from "./game-reports-service.ts";
 import {
@@ -32,6 +36,7 @@ import {
   linkParentSchema,
   linkPlayCricketResponseSchema,
   linkSlugResponseSchema,
+  listAccessUsersResponseSchema,
   listChargesResponseSchema,
   listChargesSchema,
   listContactSubmissionsResponseSchema,
@@ -59,14 +64,12 @@ import {
   restoreMemberResponseSchema,
   searchMembersForParentLinkResponseSchema,
   searchMembersForParentLinkSchema,
+  searchUsersForAccessResponseSchema,
+  searchUsersForAccessSchema,
   searchUsersForLinkingResponseSchema,
   searchUsersForLinkingSchema,
-  setJuniorManagerTeamsResponseSchema,
-  setJuniorManagerTeamsSchema,
   setMemberCategoryResponseSchema,
   setMemberCategorySchema,
-  setOfficialTeamsResponseSchema,
-  setOfficialTeamsSchema,
   slugLinkSchema,
   slugUnlinkSchema,
   unlinkDependentResponseSchema,
@@ -76,6 +79,8 @@ import {
   unlinkPlayCricketResponseSchema,
   unlinkSchema,
   unlinkSlugResponseSchema,
+  updateAccessAssignmentsResponseSchema,
+  updateAccessAssignmentsSchema,
   updateUserResponseSchema,
   updateUserSchema,
   userIdParamSchema,
@@ -100,6 +105,7 @@ import {
   linkMemberParent,
   linkPlayCricketPlayer,
   linkSlug,
+  listAccessUsers,
   listAllCharges,
   listContactSubmissions,
   listJuniors,
@@ -109,20 +115,31 @@ import {
   mergeMembers,
   restoreMember,
   searchMembersForParentLink,
+  searchUsersForAccess,
   searchUsersForLinking,
   sendChargeNotification,
-  setJuniorManagerTeams,
   setMemberCategory,
-  setOfficialTeams,
   unlinkDependentUser,
   unlinkMemberParent,
   unlinkPlayCricketPlayer,
   unlinkSlug,
+  updateAccessAssignments,
   updateUser,
 } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
+  // Permission gates used by the admin portal. The legacy `admin` role still
+  // satisfies all of these via the all-perms bundle in shared/permissions.
+  const usersView = requirePermission("users", "view");
+  const usersManage = requirePermission("users", "manage");
+  const usersManageRoles = requirePermission("users", "manage_roles");
+  const financeView = requirePermission("finance", "view");
+  const financeManage = requirePermission("finance", "manage");
+  const matchdayView = requirePermission("matchday", "view");
+  const juniorsView = requirePermission("juniors", "view");
+  const juniorsManage = requirePermission("juniors", "manage");
+  const marketingView = requirePermission("marketing", "view");
   const list = listUsers(app.db);
   const update = updateUser(app.db);
   const create = createMember(app.db);
@@ -138,8 +155,6 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const restore = restoreMember(app.db);
   const addCharge = createCharge(app.db);
   const removeCharge = deleteCharge(app.db);
-  const setJrTeams = setJuniorManagerTeams(app.db);
-  const setOffTeams = setOfficialTeams(app.db);
   const juniorTeams = getAllJuniorTeams(app.db);
   const pcTeams = getAllPlayCricketTeams(app.db);
   const listJr = listJuniors(app.db);
@@ -163,11 +178,60 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const deleteFeeRate = deleteMatchFeeRate(app.db);
   const listReports = listGameReports(app.db);
   const getReport = getMatchdayReport(app.db);
+  const accessUsers = listAccessUsers(app.db);
+  const searchForAccess = searchUsersForAccess(app.db);
+  const updateAssignments = updateAccessAssignments(app.db);
+
+  // --- Access tab endpoints (superadmin only via users.manage_roles) ---
+
+  app.get(
+    "/admin/access/users",
+    {
+      preHandler: [usersManageRoles],
+      schema: {
+        response: { 200: listAccessUsersResponseSchema },
+      },
+    },
+    async () => {
+      return await accessUsers();
+    },
+  );
+
+  app.get(
+    "/admin/access/search",
+    {
+      preHandler: [usersManageRoles],
+      schema: {
+        querystring: searchUsersForAccessSchema,
+        response: { 200: searchUsersForAccessResponseSchema },
+      },
+    },
+    async (request) => {
+      return await searchForAccess(request.query);
+    },
+  );
+
+  // Atomic role + per-team scope update. Bypasses better-auth's setRole so
+  // user.role and the join tables move together in one transaction.
+  app.put(
+    "/admin/access/users/:userId/assignments",
+    {
+      preHandler: [usersManageRoles],
+      schema: {
+        params: userIdParamSchema,
+        body: updateAccessAssignmentsSchema,
+        response: { 200: updateAccessAssignmentsResponseSchema },
+      },
+    },
+    async (request) => {
+      return await updateAssignments(request.params.userId, request.body);
+    },
+  );
 
   app.get(
     "/admin/users",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersView],
       schema: {
         querystring: listUsersSchema,
         response: { 200: listUsersResponseSchema },
@@ -181,7 +245,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/users/:userId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersView],
       schema: {
         params: userIdParamSchema,
         response: { 200: getUserDetailResponseSchema },
@@ -192,10 +256,13 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
+  // Role is no longer a field on updateUserSchema — role assignment lives in
+  // the Access tab. Profile edits (name, email, banned, banReason) are
+  // gated by users.manage rather than users.manage_roles.
   app.put(
     "/admin/users/:userId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         params: userIdParamSchema,
         body: updateUserSchema,
@@ -210,7 +277,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     "/admin/users/:userId/category",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         params: userIdParamSchema,
         body: setMemberCategorySchema,
@@ -228,7 +295,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/users/:userId/archive",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         params: userIdParamSchema,
         body: archiveMemberSchema,
@@ -243,7 +310,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/users/:userId/restore",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         params: userIdParamSchema,
         response: { 200: restoreMemberResponseSchema },
@@ -257,7 +324,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/users/:userId/charges",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: userIdParamSchema,
         body: createChargeSchema,
@@ -273,7 +340,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/admin/charges/:chargeId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: chargeIdParamSchema,
         body: deleteChargeSchema,
@@ -290,40 +357,19 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
-  app.put(
-    "/admin/users/:userId/junior-manager-teams",
-    {
-      preHandler: [requireRole("admin")],
-      schema: {
-        params: userIdParamSchema,
-        body: setJuniorManagerTeamsSchema,
-        response: { 200: setJuniorManagerTeamsResponseSchema },
-      },
-    },
-    async (request) => {
-      return await setJrTeams(request.params.userId, request.body.teamIds);
-    },
-  );
-
-  app.put(
-    "/admin/users/:userId/official-teams",
-    {
-      preHandler: [requireRole("admin")],
-      schema: {
-        params: userIdParamSchema,
-        body: setOfficialTeamsSchema,
-        response: { 200: setOfficialTeamsResponseSchema },
-      },
-    },
-    async (request) => {
-      return await setOffTeams(request.params.userId, request.body.teamIds);
-    },
-  );
-
+  // Team-list endpoints are reference data consumed by feature admins AND
+  // by the Access tab's role-assignment workflow. Open to anyone with the
+  // feature view OR with users.manage_roles (superadmin) so a standalone
+  // superadmin can assign scoped junior_manager / official roles.
   app.get(
     "/admin/junior-teams",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [
+        requireAnyPermission(
+          { resource: "juniors", action: "view" },
+          { resource: "users", action: "manage_roles" },
+        ),
+      ],
       schema: {
         response: { 200: juniorTeamsResponseSchema },
       },
@@ -336,7 +382,12 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/play-cricket-teams",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [
+        requireAnyPermission(
+          { resource: "matchday", action: "view" },
+          { resource: "users", action: "manage_roles" },
+        ),
+      ],
       schema: {
         response: { 200: playCricketTeamsResponseSchema },
       },
@@ -350,7 +401,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/play-cricket-players",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         response: { 200: playCricketPlayersResponseSchema },
       },
@@ -383,7 +434,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/members",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         body: createMemberSchema,
         response: { 200: createMemberResponseSchema },
@@ -397,7 +448,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/charge-notification",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         body: chargeNotificationSchema,
         response: { 200: chargeNotificationResponseSchema },
@@ -411,7 +462,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/record-linking",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersView],
       schema: {
         response: { 200: recordLinkingResponseSchema },
       },
@@ -424,7 +475,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/record-linking/play-cricket/link",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         body: recordLinkingSchema,
         response: { 200: linkPlayCricketResponseSchema },
@@ -439,7 +490,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/record-linking/play-cricket/unlink",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         body: unlinkSchema,
         response: { 200: unlinkPlayCricketResponseSchema },
@@ -454,7 +505,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/record-linking/slug/link",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         body: slugLinkSchema,
         response: { 200: linkSlugResponseSchema },
@@ -468,7 +519,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/record-linking/slug/unlink",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         body: slugUnlinkSchema,
         response: { 200: unlinkSlugResponseSchema },
@@ -484,7 +535,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/charges",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeView],
       schema: {
         querystring: listChargesSchema,
         response: { 200: listChargesResponseSchema },
@@ -498,7 +549,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/charge-aggregates",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeView],
       schema: {
         querystring: chargeAggregatesSchema,
         response: { 200: chargeAggregatesResponseSchema },
@@ -512,7 +563,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/chase-payment",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         body: chasePaymentSchema,
         response: { 200: chasePaymentResponseSchema },
@@ -526,7 +577,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/charges/:chargeId/mark-paid",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: chargeIdParamSchema,
         body: markChargePaidSchema,
@@ -541,7 +592,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/charges/:chargeId/edit",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: chargeIdParamSchema,
         body: editChargeSchema,
@@ -558,7 +609,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/contact-submissions",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [marketingView],
       schema: {
         querystring: listContactSubmissionsSchema,
         response: { 200: listContactSubmissionsResponseSchema },
@@ -574,7 +625,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/juniors",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [juniorsView],
       schema: {
         querystring: listJuniorsSchema,
         response: { 200: listJuniorsResponseSchema },
@@ -588,7 +639,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/juniors/search-users",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [juniorsView],
       schema: {
         querystring: searchUsersForLinkingSchema,
         response: { 200: searchUsersForLinkingResponseSchema },
@@ -602,7 +653,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/juniors/link",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [juniorsManage],
       schema: {
         body: linkDependentSchema,
         response: { 200: linkDependentResponseSchema },
@@ -616,7 +667,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/juniors/unlink",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [juniorsManage],
       schema: {
         body: unlinkDependentSchema,
         response: { 200: unlinkDependentResponseSchema },
@@ -630,7 +681,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/members/parent-search",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersView],
       schema: {
         querystring: searchMembersForParentLinkSchema,
         response: { 200: searchMembersForParentLinkResponseSchema },
@@ -644,7 +695,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/members/parent-link",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         body: linkParentSchema,
         response: { 200: linkParentResponseSchema },
@@ -659,7 +710,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/members/parent-unlink",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         body: unlinkParentSchema,
         response: { 200: unlinkParentResponseSchema },
@@ -675,7 +726,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/duplicates",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         response: { 200: findDuplicatesResponseSchema },
       },
@@ -688,7 +739,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/merge-preview",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         querystring: mergePreviewSchema,
         response: { 200: mergePreviewResponseSchema },
@@ -702,7 +753,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/merge-members",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [usersManage],
       schema: {
         body: mergeMembersSchema,
         response: { 200: mergeMembersResponseSchema },
@@ -718,7 +769,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/match-fee-rates",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeView],
       schema: {
         response: { 200: matchFeeRatesResponseSchema },
       },
@@ -731,7 +782,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/match-fee-rates",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         body: addMatchFeeRateSchema,
         response: { 200: addMatchFeeRateResponseSchema },
@@ -745,7 +796,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/admin/match-fee-rates/:rateId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [financeManage],
       schema: {
         params: rateIdParamSchema,
         response: { 200: deleteMatchFeeRateResponseSchema },
@@ -761,7 +812,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/game-reports",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [matchdayView],
       schema: {
         querystring: listGameReportsSchema,
         response: { 200: listGameReportsResponseSchema },
@@ -775,7 +826,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/game-reports/:matchdayId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [matchdayView],
       schema: {
         params: matchdayIdParamSchema,
         response: { 200: matchdayReportResponseSchema },

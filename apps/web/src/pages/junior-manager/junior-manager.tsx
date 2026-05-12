@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
+import { useHasAnyElevatedRole } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { useSession } from "@/lib/auth-client";
@@ -52,10 +53,9 @@ function usePlayers(teamId: string, enabled: boolean) {
 export function Component() {
   useDocumentMeta("Junior Teams");
   const { data: session } = useSession();
+  const hasAdminAccess = useHasAnyElevatedRole();
 
   if (!session) return null;
-
-  const { user } = session;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -63,7 +63,7 @@ export function Component() {
         <div className="flex items-center justify-between">
           <h1>Junior Teams</h1>
           <div className="flex gap-2">
-            {user.role === "admin" && (
+            {hasAdminAccess && (
               <Link
                 className="rounded border border-stone-800 px-4 py-2 text-sm text-stone-900 hover:bg-stone-200"
                 to="/admin"

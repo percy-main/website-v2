@@ -2,7 +2,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import {
   getAuthSession,
   requireAuth,
-  requireRole,
+  requirePermission,
 } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import { calculateFantasyScores } from "./calculate-scores.ts";
@@ -454,7 +454,7 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/fantasy/admin/players",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("fantasy", "manage")],
       schema: {
         querystring: listPlayersSchema,
         response: { 200: adminListPlayersResponseSchema },
@@ -469,7 +469,7 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/fantasy/admin/toggle-eligibility",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("fantasy", "manage")],
       schema: {
         body: toggleEligibilitySchema,
         response: { 200: toggleEligibilityResponseSchema },
@@ -484,7 +484,7 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/fantasy/admin/populate-players",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("fantasy", "manage")],
       schema: {
         response: { 200: populatePlayersResponseSchema },
       },
@@ -497,7 +497,7 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/fantasy/admin/calculate-costs",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("fantasy", "manage")],
       schema: {
         body: calculateCostsSchema,
         response: { 200: calculateCostsResponseSchema },
@@ -512,7 +512,7 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/fantasy/admin/calculate-scores",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("fantasy", "manage")],
       schema: {
         body: calculateScoresSchema,
         response: { 200: calculateScoresResponseSchema },
@@ -527,7 +527,7 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/fantasy/admin/chaos-weeks",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("fantasy", "manage")],
       schema: {
         querystring: seasonSchema,
         response: { 200: listChaosWeeksResponseSchema },
@@ -542,7 +542,7 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/fantasy/admin/chaos-weeks",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("fantasy", "manage")],
       schema: {
         body: createChaosWeekSchema,
         response: { 200: createChaosWeekResponseSchema },
@@ -556,7 +556,7 @@ export const fantasyRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/fantasy/admin/chaos-weeks",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("fantasy", "manage")],
       schema: {
         body: deleteChaosWeekSchema,
         response: { 200: successResponseSchema },

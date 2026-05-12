@@ -1,3 +1,4 @@
+import { checkPermission } from "@percy-main/shared/auth/permissions";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -7,7 +8,7 @@ import {
   type UIMessage,
 } from "ai";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { getAuthSession } from "../auth/middleware.ts";
+import { getAuthSession, requirePermission } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import { createScoutAgent, type ThinkingMode } from "./agent.ts";
 import { deriveAttachment } from "./attachments/derive.ts";
@@ -25,7 +26,6 @@ import {
   loadReadyAttachmentsForTurn,
   mintAttachment,
 } from "./attachments/service.ts";
-import { requireScoutAccess } from "./auth.ts";
 import {
   deleteFact,
   FactNotFoundError,
@@ -236,10 +236,21 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const kbContentTypeNeedsAnthropic = (contentType: string): boolean =>
     contentType === "application/pdf" || contentType.startsWith("image/");
 
+  // ── Permission gates ──
+  // Each scout sub-area maps to its own access-control statement.
+  const aiChat = requirePermission("ai_chat", "use");
+  const aiScout = requirePermission("ai_scout", "use");
+  const aiFactsView = requirePermission("ai_facts", "view");
+  const aiFactsManage = requirePermission("ai_facts", "manage");
+  const aiKnowledgeView = requirePermission("ai_knowledge", "view");
+  const aiKnowledgeManage = requirePermission("ai_knowledge", "manage");
+
   // ── Access probe ──
   // Always 200 so the FE can call this without a noisy 401 when nobody is
   // logged in — `{ allowed: false }` means "hide the link", regardless of
-  // whether the visitor is anonymous or authed-but-not-roled.
+  // whether the visitor is anonymous or authed-but-not-roled. The Scout
+  // link in the nav surfaces if the user has *any* AI sub-permission;
+  // individual tabs gate themselves on their specific permission.
   app.get(
     "/scout/access",
     {
@@ -255,7 +266,11 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         return { allowed: false, email: null };
       }
       const role = (session.user as { role?: string | null }).role ?? "user";
-      const allowed = role === "admin" || role === "official";
+      const allowed =
+        checkPermission(role, "ai_chat", "use") ||
+        checkPermission(role, "ai_scout", "use") ||
+        checkPermission(role, "ai_facts", "view") ||
+        checkPermission(role, "ai_knowledge", "view");
       return { allowed, email: session.user.email };
     },
   );
@@ -265,7 +280,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/threads",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         response: { 200: listThreadsResponseSchema },
       },
@@ -279,7 +294,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/scout/threads",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         body: createThreadBodySchema,
         response: { 200: createThreadResponseSchema },
@@ -298,7 +313,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/debrief/recent-matches",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         response: { 200: recentDebriefMatchesResponseSchema },
       },
@@ -313,7 +328,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/upcoming-matches",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         response: { 200: upcomingScoutMatchesResponseSchema },
       },
@@ -324,7 +339,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/threads/:threadId",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         params: threadIdParamSchema,
         response: { 200: getThreadResponseSchema },
@@ -348,7 +363,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/scout/threads/:threadId",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         params: threadIdParamSchema,
         response: { 200: deleteThreadResponseSchema },
@@ -380,7 +395,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/officials",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         response: { 200: listOfficialsResponseSchema },
       },
@@ -394,7 +409,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/threads/:threadId/shares",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         params: threadIdParamSchema,
         response: { 200: listShareesResponseSchema },
@@ -426,7 +441,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/scout/threads/:threadId/shares",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         params: threadIdParamSchema,
         body: shareThreadBodySchema,
@@ -467,7 +482,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/scout/threads/:threadId/shares/:userId",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         params: unshareUserParamSchema,
         response: { 200: shareThreadResponseSchema },
@@ -508,7 +523,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/scout/threads/:threadId/messages",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         params: threadIdParamSchema,
         body: chatRequestBodySchema,
@@ -873,7 +888,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/scout/threads/:threadId/attachments",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         params: threadIdParamSchema,
         body: attachmentMintBodySchema,
@@ -930,7 +945,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/scout/threads/:threadId/attachments/:attachmentId/commit",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         params: attachmentIdParamSchema,
         response: { 200: attachmentCommitResponseSchema },
@@ -990,7 +1005,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/threads/:threadId/attachments/:attachmentId",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         params: attachmentIdParamSchema,
         response: { 200: attachmentDetailResponseSchema },
@@ -1024,7 +1039,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/scout/threads/:threadId/attachments/:attachmentId",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiChat],
       schema: {
         params: attachmentIdParamSchema,
         response: { 200: attachmentDeleteResponseSchema },
@@ -1059,7 +1074,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/facts",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiFactsView],
       schema: {
         querystring: listFactsQuerySchema,
         response: { 200: listFactsResponseSchema },
@@ -1071,7 +1086,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     "/scout/facts/:factId",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiFactsManage],
       schema: {
         params: factIdParamSchema,
         body: updateFactBodySchema,
@@ -1117,7 +1132,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/scout/facts/:factId",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiFactsManage],
       schema: {
         params: factIdParamSchema,
         response: { 200: deleteFactResponseSchema },
@@ -1140,7 +1155,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/facts/:factId",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiFactsView],
       schema: {
         params: factIdParamSchema,
         response: { 200: updateFactResponseSchema },
@@ -1165,7 +1180,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/reports",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiScout],
       schema: { response: { 200: listReportsResponseSchema } },
     },
     async (request) => {
@@ -1181,7 +1196,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/reports/:reportId",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiScout],
       schema: {
         params: reportIdParamSchema,
         response: { 200: reportDetailResponseSchema },
@@ -1204,7 +1219,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/scout/reports/:reportId/cancel",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiScout],
       schema: {
         params: reportIdParamSchema,
         response: { 200: cancelReportResponseSchema },
@@ -1229,7 +1244,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/reports/:reportId/download",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiScout],
       schema: {
         params: reportIdParamSchema,
         response: { 200: reportDownloadResponseSchema },
@@ -1265,7 +1280,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/scout/reports/:reportId",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiScout],
       schema: {
         params: reportIdParamSchema,
         response: { 200: deleteReportResponseSchema },
@@ -1299,15 +1314,15 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   );
 
   // ── Knowledge base routes ──
-  // All gated behind requireScoutAccess. The mint route additionally
-  // pre-flights ANTHROPIC_API_KEY + VOYAGE_API_KEY because ingest
-  // depends on both — admins should see a 503 before paying upload
-  // bandwidth on a doc the worker would refuse to process.
+  // Reads gated by ai_knowledge.view, writes by ai_knowledge.manage. The
+  // mint route additionally pre-flights ANTHROPIC_API_KEY + VOYAGE_API_KEY
+  // because ingest depends on both — admins should see a 503 before paying
+  // upload bandwidth on a doc the worker would refuse to process.
 
   app.get(
     "/scout/knowledge/documents",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiKnowledgeView],
       schema: {
         querystring: kbDocumentListQuerySchema,
         response: { 200: kbDocumentListResponseSchema },
@@ -1323,7 +1338,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/scout/knowledge/documents",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiKnowledgeManage],
       schema: {
         body: kbMintBodySchema,
         response: { 201: kbMintResponseSchema },
@@ -1378,7 +1393,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/scout/knowledge/documents/:id/commit",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiKnowledgeManage],
       schema: {
         params: kbDocumentIdParamSchema,
         response: { 200: kbCommitResponseSchema },
@@ -1466,7 +1481,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/scout/knowledge/documents/:id",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiKnowledgeView],
       schema: {
         params: kbDocumentIdParamSchema,
         response: { 200: kbDocumentDetailResponseSchema },
@@ -1493,7 +1508,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     "/scout/knowledge/documents/:id",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiKnowledgeManage],
       schema: {
         params: kbDocumentIdParamSchema,
         body: kbPatchBodySchema,
@@ -1521,7 +1536,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/scout/knowledge/documents/:id",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiKnowledgeManage],
       schema: {
         params: kbDocumentIdParamSchema,
         response: { 200: kbDeleteResponseSchema },
@@ -1544,7 +1559,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/scout/knowledge/documents/:id/reingest",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiKnowledgeManage],
       schema: {
         params: kbDocumentIdParamSchema,
         response: { 200: kbReingestResponseSchema },
@@ -1607,7 +1622,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/scout/threads/:threadId/attachments/:attachmentId/save-to-kb",
     {
-      preHandler: [requireScoutAccess],
+      preHandler: [aiKnowledgeManage],
       schema: {
         params: attachmentIdParamSchema,
         body: kbSaveFromAttachmentBodySchema,

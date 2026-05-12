@@ -26,12 +26,13 @@ import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import {
   buildDependentFields,
   buildMemberDetailFields,
   canDeleteCharge,
   getChargeStatus,
-  getRoleLabel,
+  getRoleLabels,
   isMemberArchived,
   parseNewChargeForm,
 } from "./member-detail-modal.lib";
@@ -121,7 +122,7 @@ function MemberDetailContent({
       )}
 
       {/* 2. Account Section */}
-      <AccountSection user={user} userId={userId} />
+      <AccountSection user={user} />
 
       <hr />
 
@@ -160,26 +161,6 @@ function MemberDetailContent({
 
       <hr />
 
-      {/* 7. Junior Manager Teams */}
-      <JuniorManagerTeamsSection
-        key={`jm-${data.juniorManagerTeams.map((t) => t.id).join(",")}`}
-        userId={userId}
-        userRole={user.role ?? "user"}
-        selectedTeamIds={data.juniorManagerTeams.map((t) => t.id)}
-      />
-
-      <hr />
-
-      {/* 8. Match Official Teams */}
-      <OfficialTeamsSection
-        key={`off-${data.officialTeams.map((t) => t.id).join(",")}`}
-        userId={userId}
-        userRole={user.role ?? "user"}
-        selectedTeamIds={data.officialTeams.map((t) => t.id)}
-      />
-
-      <hr />
-
       {/* 9. Payments */}
       <PaymentsSection userId={userId} charges={charges} />
 
@@ -195,43 +176,7 @@ function MemberDetailContent({
 /* 2. Account Section                                                  */
 /* ------------------------------------------------------------------ */
 
-function AccountSection({
-  user,
-  userId,
-}: {
-  user: UserDetail["user"];
-  userId: string;
-}) {
-  const queryClient = useQueryClient();
-  const [confirmingRole, setConfirmingRole] = useState(false);
-
-  const roleMutation = useMutation({
-    mutationFn: (newRole: string) =>
-      callApi(
-        api.PUT("/api/admin/users/{userId}", {
-          params: { path: { userId } },
-          body: {
-            role: newRole as
-              | "user"
-              | "admin"
-              | "junior_manager"
-              | "official"
-              | null,
-          },
-        }),
-      ),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", userId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
-      setConfirmingRole(false);
-    },
-  });
-
-  const isAdmin = user.role === "admin";
-  const targetRole = isAdmin ? "user" : "admin";
-
+function AccountSection({ user }: { user: UserDetail["user"] }) {
   return (
     <section>
       <h3 className="mb-3 text-sm font-semibold text-stone-900">Account</h3>
@@ -245,9 +190,9 @@ function AccountSection({
           <p>{user.email}</p>
         </div>
         <div>
-          <span className="text-stone-500">Role</span>
-          <p>
-            <RolePill role={user.role ?? "user"} />
+          <span className="text-stone-500">Roles</span>
+          <p className="flex flex-wrap items-center gap-1">
+            <RolePills role={user.role ?? null} />
           </p>
         </div>
         <div>
@@ -259,49 +204,38 @@ function AccountSection({
           <p>{formatDate(user.createdAt, true)}</p>
         </div>
       </div>
-
-      <div className="mt-3 flex items-center gap-2">
-        {!confirmingRole ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setConfirmingRole(true)}
-          >
-            {isAdmin ? "Demote to User" : "Promote to Admin"}
-          </Button>
-        ) : (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={roleMutation.isPending}
-              onClick={() => roleMutation.mutate(targetRole)}
-            >
-              Confirm
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setConfirmingRole(false)}
-            >
-              Cancel
-            </Button>
-          </>
-        )}
-      </div>
+      <p className="mt-3 text-xs text-stone-500">
+        Roles are now managed in the{" "}
+        <Link to="/admin?section=access" className="underline">
+          Access tab
+        </Link>
+        .
+      </p>
     </section>
   );
 }
 
-function RolePill({ role }: { role: string }) {
-  const label = getRoleLabel(role);
-  const variant: "blue" | "green" | "gray" =
-    role === "admin"
-      ? "blue"
-      : role === "junior_manager" || role === "official"
-        ? "green"
-        : "gray";
-  return <StatusPill variant={variant}>{label}</StatusPill>;
+function RolePills({ role }: { role: string | null }) {
+  const labels = getRoleLabels(role);
+  if (labels.length === 0) return <StatusPill variant="gray">User</StatusPill>;
+  return (
+    <>
+      {labels.map(({ name, label }) => (
+        <StatusPill
+          key={name}
+          variant={
+            name === "admin" || name === "superadmin"
+              ? "blue"
+              : name === "junior_manager" || name === "official"
+                ? "green"
+                : "gray"
+          }
+        >
+          {label}
+        </StatusPill>
+      ))}
+    </>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -579,246 +513,6 @@ function DependentCard({
         </div>
       )}
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* 7. Junior Manager Teams Section                                     */
-/* ------------------------------------------------------------------ */
-
-function JuniorManagerTeamsSection({
-  userId,
-  userRole,
-  selectedTeamIds,
-}: {
-  userId: string;
-  userRole: string;
-  selectedTeamIds: string[];
-}) {
-  const queryClient = useQueryClient();
-  // Seeded once on mount; parent passes a `key` derived from the selected
-  // ids so a different selection remounts this section with fresh state.
-  const [localIds, setLocalIds] = useState<string[]>(() => selectedTeamIds);
-  const [hasChanges, setHasChanges] = useState(false);
-
-  const { data: teams } = useQuery({
-    queryKey: ["admin", "juniorTeams"],
-    queryFn: () => callApi(api.GET("/api/admin/junior-teams")),
-  });
-
-  const mutation = useMutation({
-    mutationFn: (teamIds: string[]) =>
-      callApi(
-        api.PUT("/api/admin/users/{userId}/junior-manager-teams", {
-          params: { path: { userId } },
-          body: { userId, teamIds },
-        }),
-      ),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", userId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
-      setHasChanges(false);
-    },
-  });
-
-  const toggleTeam = (teamId: string) => {
-    setLocalIds((prev) =>
-      prev.includes(teamId)
-        ? prev.filter((id) => id !== teamId)
-        : [...prev, teamId],
-    );
-    setHasChanges(true);
-  };
-
-  const removeAll = () => {
-    setLocalIds([]);
-    setHasChanges(true);
-  };
-
-  if (userRole === "admin") {
-    return (
-      <section>
-        <h3 className="mb-3 text-sm font-semibold text-stone-900">
-          Junior Manager Teams
-        </h3>
-        <p className="text-sm text-stone-500">
-          Admins have access to all teams. Team assignment is only for the
-          Junior Manager role.
-        </p>
-      </section>
-    );
-  }
-
-  return (
-    <section>
-      <h3 className="mb-3 text-sm font-semibold text-stone-900">
-        Junior Manager Teams
-      </h3>
-      {teams && teams.length > 0 ? (
-        <>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {teams.map((team) => {
-              const selected = localIds.includes(team.id);
-              return (
-                <button
-                  key={team.id}
-                  type="button"
-                  onClick={() => toggleTeam(team.id)}
-                  className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-                    selected
-                      ? "border-blue-500 bg-blue-50 text-blue-800"
-                      : "border-stone-200 hover:bg-stone-50"
-                  }`}
-                >
-                  {team.name}
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Button
-              size="sm"
-              disabled={!hasChanges || mutation.isPending}
-              onClick={() => mutation.mutate(localIds)}
-            >
-              Save
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={localIds.length === 0}
-              onClick={removeAll}
-            >
-              Remove All Teams
-            </Button>
-          </div>
-        </>
-      ) : (
-        <p className="text-sm text-stone-500">No junior teams available.</p>
-      )}
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* 8. Match Official Teams Section                                     */
-/* ------------------------------------------------------------------ */
-
-function OfficialTeamsSection({
-  userId,
-  userRole,
-  selectedTeamIds,
-}: {
-  userId: string;
-  userRole: string;
-  selectedTeamIds: string[];
-}) {
-  const queryClient = useQueryClient();
-  // Seeded once on mount; parent passes a `key` derived from the selected
-  // ids so a different selection remounts this section with fresh state.
-  const [localIds, setLocalIds] = useState<string[]>(() => selectedTeamIds);
-  const [hasChanges, setHasChanges] = useState(false);
-
-  const { data: teams } = useQuery({
-    queryKey: ["admin", "playCricketTeams"],
-    queryFn: () => callApi(api.GET("/api/admin/play-cricket-teams")),
-  });
-
-  const mutation = useMutation({
-    mutationFn: (teamIds: string[]) =>
-      callApi(
-        api.PUT("/api/admin/users/{userId}/official-teams", {
-          params: { path: { userId } },
-          body: { userId, teamIds },
-        }),
-      ),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", userId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
-      setHasChanges(false);
-    },
-  });
-
-  const toggleTeam = (teamId: string) => {
-    setLocalIds((prev) =>
-      prev.includes(teamId)
-        ? prev.filter((id) => id !== teamId)
-        : [...prev, teamId],
-    );
-    setHasChanges(true);
-  };
-
-  const removeAll = () => {
-    setLocalIds([]);
-    setHasChanges(true);
-  };
-
-  if (userRole === "admin") {
-    return (
-      <section>
-        <h3 className="mb-3 text-sm font-semibold text-stone-900">
-          Match Official Teams
-        </h3>
-        <p className="text-sm text-stone-500">
-          Admins have access to all teams. Team assignment is only for the
-          Official role.
-        </p>
-      </section>
-    );
-  }
-
-  return (
-    <section>
-      <h3 className="mb-3 text-sm font-semibold text-stone-900">
-        Match Official Teams
-      </h3>
-      {teams && teams.length > 0 ? (
-        <>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            {teams.map((team) => {
-              const selected = localIds.includes(team.id);
-              return (
-                <button
-                  key={team.id}
-                  type="button"
-                  onClick={() => toggleTeam(team.id)}
-                  className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-                    selected
-                      ? "border-blue-500 bg-blue-50 text-blue-800"
-                      : "border-stone-200 hover:bg-stone-50"
-                  }`}
-                >
-                  {team.name}
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Button
-              size="sm"
-              disabled={!hasChanges || mutation.isPending}
-              onClick={() => mutation.mutate(localIds)}
-            >
-              Save
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={localIds.length === 0}
-              onClick={removeAll}
-            >
-              Remove All Teams
-            </Button>
-          </div>
-        </>
-      ) : (
-        <p className="text-sm text-stone-500">No teams available.</p>
-      )}
-    </section>
   );
 }
 

@@ -19,6 +19,7 @@ import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useReducer, useState } from "react";
 import { MemberDetailModal } from "./member-detail-modal";
+import { getRoleLabels } from "./member-detail-modal.lib";
 import {
   initialMembersFilterState,
   isFiltered,
@@ -367,14 +368,24 @@ export function MembersTab() {
 }
 
 function RolePills({ role }: { role: string }) {
-  switch (role) {
-    case "admin":
-      return <StatusPill variant="blue">Admin</StatusPill>;
-    case "junior_manager":
-      return <StatusPill variant="green">Junior Manager</StatusPill>;
-    case "official":
-      return <StatusPill variant="green">Official</StatusPill>;
-    default:
-      return <StatusPill variant="gray">User</StatusPill>;
-  }
+  const labels = getRoleLabels(role);
+  if (labels.length === 0) return <StatusPill variant="gray">User</StatusPill>;
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {labels.map(({ name, label }) => (
+        <StatusPill
+          key={name}
+          variant={
+            name === "admin" || name === "superadmin"
+              ? "blue"
+              : name === "junior_manager" || name === "official"
+                ? "green"
+                : "gray"
+          }
+        >
+          {label}
+        </StatusPill>
+      ))}
+    </span>
+  );
 }

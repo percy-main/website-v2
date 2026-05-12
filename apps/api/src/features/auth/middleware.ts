@@ -1,3 +1,8 @@
+import {
+  checkPermission,
+  type Action,
+  type Resource,
+} from "@percy-main/shared/auth/permissions";
 import type { Session, User } from "better-auth";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
@@ -58,16 +63,45 @@ export async function requireVerifiedEmail(
 }
 
 /**
- * Creates a preHandler that checks the user has one of the specified roles.
+ * Creates a preHandler that checks the user has a specific permission.
+ * Resolves locally against the shared roles map — no DB hit.
  */
-export function requireRole(...roles: string[]) {
+export function requirePermission<R extends Resource>(
+  resource: R,
+  action: Action<R>,
+) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     await requireAuth(request, reply);
     if (reply.sent) return;
 
     const userRole =
       (request.authSession?.user as { role?: string | null }).role ?? "user";
-    if (!roles.includes(userRole)) {
+    if (!checkPermission(userRole, resource, action)) {
+      return reply.status(403).send({ error: "Forbidden" });
+    }
+  };
+}
+
+type PermissionCheck = {
+  [R in Resource]: { resource: R; action: Action<R> };
+}[Resource];
+
+/**
+ * Grants access if the user has any of the listed permissions. Used for
+ * reference-data routes consumed by multiple workflows (e.g. team lists
+ * needed by both feature admins and the role-assignment Access tab).
+ */
+export function requireAnyPermission(...checks: PermissionCheck[]) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    await requireAuth(request, reply);
+    if (reply.sent) return;
+
+    const userRole =
+      (request.authSession?.user as { role?: string | null }).role ?? "user";
+    const allowed = checks.some((c) =>
+      checkPermission(userRole, c.resource, c.action),
+    );
+    if (!allowed) {
       return reply.status(403).send({ error: "Forbidden" });
     }
   };

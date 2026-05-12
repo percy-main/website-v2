@@ -32,10 +32,6 @@ export const listUsersSchema = z.object({
 export const updateUserSchema = z.object({
   name: z.string().optional(),
   email: z.email().optional(),
-  role: z
-    .enum(["user", "admin", "junior_manager", "official"])
-    .nullable()
-    .optional(),
   banned: z.boolean().optional(),
   banReason: z.string().optional(),
 });
@@ -97,14 +93,6 @@ export const deleteChargeSchema = z.object({
   reason: z.string().min(1),
 });
 
-export const setJuniorManagerTeamsSchema = z.object({
-  teamIds: z.array(z.string()),
-});
-
-export const setOfficialTeamsSchema = z.object({
-  teamIds: z.array(z.string()),
-});
-
 export type ListUsers = z.infer<typeof listUsersSchema>;
 export type UpdateUser = z.infer<typeof updateUserSchema>;
 export type ChargeNotification = z.infer<typeof chargeNotificationSchema>;
@@ -117,8 +105,6 @@ export type SetMemberCategory = z.infer<typeof setMemberCategorySchema>;
 export type ArchiveMember = z.infer<typeof archiveMemberSchema>;
 export type CreateCharge = z.infer<typeof createChargeSchema>;
 export type DeleteCharge = z.infer<typeof deleteChargeSchema>;
-export type SetJuniorManagerTeams = z.infer<typeof setJuniorManagerTeamsSchema>;
-export type SetOfficialTeams = z.infer<typeof setOfficialTeamsSchema>;
 
 export const listChargesSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -235,6 +221,53 @@ export const matchdayIdParamSchema = z.object({
 
 export type ListGameReports = z.infer<typeof listGameReportsSchema>;
 export type MatchdayIdParam = z.infer<typeof matchdayIdParamSchema>;
+
+// --- Access tab schemas ---
+
+export const listAccessUsersResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      email: z.string(),
+      role: z.string(),
+      emailVerified: z.boolean(),
+      createdAt: z.date(),
+    }),
+  ),
+});
+
+export const searchUsersForAccessSchema = z.object({
+  search: z.string().min(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+export const searchUsersForAccessResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      email: z.string(),
+      role: z.string().nullable(),
+    }),
+  ),
+});
+
+export type SearchUsersForAccess = z.infer<typeof searchUsersForAccessSchema>;
+
+export const updateAccessAssignmentsSchema = z.object({
+  role: z.string(),
+  juniorTeamIds: z.array(z.string()),
+  officialTeamIds: z.array(z.string()),
+});
+
+export const updateAccessAssignmentsResponseSchema = z.object({
+  success: z.boolean(),
+});
+
+export type UpdateAccessAssignments = z.infer<
+  typeof updateAccessAssignmentsSchema
+>;
 
 // --- Response schemas ---
 
@@ -380,9 +413,6 @@ export const restoreMemberResponseSchema = successResponseSchema;
 
 export const createChargeResponseSchema = idResponseSchema;
 export const deleteChargeResponseSchema = successResponseSchema;
-
-export const setJuniorManagerTeamsResponseSchema = successResponseSchema;
-export const setOfficialTeamsResponseSchema = successResponseSchema;
 
 export const juniorTeamsResponseSchema = z.array(
   z.object({

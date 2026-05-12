@@ -1,6 +1,7 @@
 import { dash } from "@better-auth/infra";
 import { passkey } from "@better-auth/passkey";
 import { ResetPassword, VerifyEmail, type Email } from "@percy-main/email";
+import { ac, roles } from "@percy-main/shared/auth/permissions";
 import { render } from "@react-email/render";
 import { betterAuth } from "better-auth";
 import { admin, twoFactor } from "better-auth/plugins";
@@ -41,7 +42,11 @@ export function createAuth(
         rpName: config.BETTER_AUTH_RP_NAME,
       }),
       twoFactor(),
-      admin(),
+      admin({
+        ac,
+        roles,
+        adminRoles: ["admin", "superadmin"],
+      }),
       ...(config.BETTER_AUTH_API_KEY ? [dash()] : []),
     ],
     emailAndPassword: {

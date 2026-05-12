@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router";
 import { RequireAuth } from "./components/require-auth.js";
-import { RequireRole } from "./components/require-role.js";
+import { RequireElevated } from "./components/require-elevated.js";
+import { RequirePermission } from "./components/require-permission.js";
 import { RequireVerifiedEmail } from "./components/require-verified-email.js";
 import { RouteError } from "./components/route-error.js";
 import { AuthLayout } from "./layouts/auth-layout.js";
@@ -222,7 +223,7 @@ export const router = createBrowserRouter([
             element: <RequireVerifiedEmail />,
             children: [
               {
-                element: <RequireRole roles={["admin"]} />,
+                element: <RequireElevated />,
                 children: [
                   {
                     path: "admin",
@@ -243,7 +244,9 @@ export const router = createBrowserRouter([
             element: <RequireVerifiedEmail />,
             children: [
               {
-                element: <RequireRole roles={["official", "admin"]} />,
+                element: (
+                  <RequirePermission resource="matchday" action="view" />
+                ),
                 children: [
                   {
                     path: "matchday/teams",
@@ -276,7 +279,7 @@ export const router = createBrowserRouter([
             element: <RequireVerifiedEmail />,
             children: [
               {
-                element: <RequireRole roles={["junior_manager", "admin"]} />,
+                element: <RequirePermission resource="juniors" action="view" />,
                 children: [
                   {
                     path: "junior-manager",

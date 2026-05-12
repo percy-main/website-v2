@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
+import { useHasAnyElevatedRole } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
@@ -77,7 +78,7 @@ export function Component() {
 // ── Request List ──
 
 function RequestListView() {
-  const { data: session } = useSession();
+  const hasAdminAccess = useHasAnyElevatedRole();
   const query = useQuery({
     queryKey: ["availability", "requests"],
     queryFn: () => callApi(api.GET("/api/availability/requests")),
@@ -88,7 +89,7 @@ function RequestListView() {
       <div className="flex items-center justify-between">
         <h1>Availability</h1>
         <div className="flex gap-2">
-          {session?.user.role === "admin" && (
+          {hasAdminAccess && (
             <Link
               className="rounded border border-stone-800 px-4 py-2 text-sm text-stone-900 hover:bg-stone-200"
               to="/admin"

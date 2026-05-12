@@ -5,6 +5,10 @@ import {
   nameSimilarity,
   normalizeName,
 } from "@percy-main/shared";
+import {
+  parseRoles,
+  serializeRoles,
+} from "@percy-main/shared/auth/permissions";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type {
@@ -22,10 +26,12 @@ import type {
   MergePreview,
   RecordLinking,
   SearchMembersForParentLink,
+  SearchUsersForAccess,
   SearchUsersForLinking,
   Unlink,
   UnlinkDependent,
   UnlinkParent,
+  UpdateAccessAssignments,
   UpdateUser,
 } from "./schemas.ts";
 
@@ -743,110 +749,6 @@ export function deleteCharge(db: Kysely<DB>) {
       };
       error.statusCode = 404;
       throw error;
-    }
-
-    return { success: true };
-  };
-}
-
-export function setJuniorManagerTeams(db: Kysely<DB>) {
-  return async (userId: string, teamIds: string[]) => {
-    await db.transaction().execute(async (trx) => {
-      await trx
-        .deleteFrom("junior_team_manager")
-        .where("user_id", "=", userId)
-        .execute();
-
-      if (teamIds.length > 0) {
-        await trx
-          .insertInto("junior_team_manager")
-          .values(
-            teamIds.map((teamId) => ({
-              user_id: userId,
-              junior_team_id: teamId,
-            })),
-          )
-          .execute();
-
-        await trx
-          .updateTable("user")
-          .set({ role: "junior_manager" })
-          .where("id", "=", userId)
-          .execute();
-      } else {
-        const user = await trx
-          .selectFrom("user")
-          .where("id", "=", userId)
-          .select("role")
-          .executeTakeFirst();
-
-        if (user?.role === "junior_manager") {
-          await trx
-            .updateTable("user")
-            .set({ role: "user" })
-            .where("id", "=", userId)
-            .execute();
-        }
-      }
-    });
-
-    return { success: true };
-  };
-}
-
-export function setOfficialTeams(db: Kysely<DB>) {
-  return async (userId: string, teamIds: string[]) => {
-    const user = await db
-      .selectFrom("user")
-      .where("id", "=", userId)
-      .select("role")
-      .executeTakeFirst();
-
-    if (!user) {
-      const error = new Error("User not found") as Error & {
-        statusCode: number;
-      };
-      error.statusCode = 404;
-      throw error;
-    }
-
-    if (user.role === "admin") {
-      const error = new Error(
-        "Cannot assign official role to an admin. Demote them first.",
-      ) as Error & { statusCode: number };
-      error.statusCode = 400;
-      throw error;
-    }
-
-    await db
-      .deleteFrom("team_official")
-      .where("user_id", "=", userId)
-      .execute();
-
-    if (teamIds.length > 0) {
-      await db
-        .insertInto("team_official")
-        .values(
-          teamIds.map((teamId) => ({
-            user_id: userId,
-            play_cricket_team_id: teamId,
-          })),
-        )
-        .execute();
-
-      await db
-        .updateTable("user")
-        .set({ role: "official" })
-        .where("id", "=", userId)
-        .execute();
-    } else {
-      if (user.role === "official") {
-        await db
-          .updateTable("user")
-          .set({ role: "user" })
-          .where("id", "=", userId)
-          .execute();
-      }
     }
 
     return { success: true };
@@ -1914,6 +1816,135 @@ export function deleteMatchFeeRate(db: Kysely<DB>) {
       error.statusCode = 404;
       throw error;
     }
+
+    return { success: true };
+  };
+}
+
+/**
+ * List users with any non-default role for the Access tab. Anyone whose
+ * `role` column is non-null and contains at least one elevated role slug.
+ */
+export function listAccessUsers(db: Kysely<DB>) {
+  return async () => {
+    const items = await db
+      .selectFrom("user")
+      .where("role", "is not", null)
+      .where("role", "<>", "")
+      .where("role", "<>", "user")
+      .select(["id", "name", "email", "role", "emailVerified", "createdAt"])
+      .orderBy("createdAt", "desc")
+      .execute();
+
+    return {
+      items: items.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role ?? "",
+        emailVerified: u.emailVerified,
+        createdAt: u.createdAt,
+      })),
+    };
+  };
+}
+
+/**
+ * Free-text search for any user (by name or email) — used by the Access tab
+ * "add user" flow to pick someone before assigning roles.
+ */
+export function searchUsersForAccess(db: Kysely<DB>) {
+  return async (params: SearchUsersForAccess) => {
+    const pattern = `%${params.search}%`;
+    const items = await db
+      .selectFrom("user")
+      .where((eb) =>
+        eb.or([
+          eb("user.name", "ilike", pattern),
+          eb("user.email", "ilike", pattern),
+        ]),
+      )
+      .select(["id", "name", "email", "role"])
+      .orderBy("user.name", "asc")
+      .limit(params.limit)
+      .execute();
+
+    return { items };
+  };
+}
+
+/**
+ * Atomically update a user's role string and per-team scope assignments in
+ * a single DB transaction. Bypasses better-auth's setRole so all three
+ * writes (user.role, junior_team_manager, team_official) either commit
+ * together or roll back together — the Access tab can't end up in a state
+ * where teams are assigned but the matching scoped role isn't, or vice
+ * versa.
+ */
+export function updateAccessAssignments(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    data: UpdateAccessAssignments,
+  ): Promise<{ success: boolean }> => {
+    // Normalise + validate the role string: parseRoles drops unknown slugs
+    // so we re-serialise from the parsed list. Reject if the round-trip
+    // changed anything — that means the client sent a malformed string and
+    // we shouldn't silently lose roles.
+    const parsedRoles = parseRoles(data.role);
+    const normalised = serializeRoles(parsedRoles) || "user";
+    const submitted =
+      data.role
+        .split(",")
+        .map((r) => r.trim())
+        .filter(Boolean)
+        .join(",") || "user";
+    if (submitted !== normalised) {
+      const error = new Error(
+        `Unknown role(s) in submitted role string: ${data.role}`,
+      ) as Error & { statusCode: number };
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable("user")
+        .set({ role: normalised })
+        .where("id", "=", userId)
+        .execute();
+
+      await trx
+        .deleteFrom("junior_team_manager")
+        .where("user_id", "=", userId)
+        .execute();
+      if (data.juniorTeamIds.length > 0) {
+        await trx
+          .insertInto("junior_team_manager")
+          .values(
+            data.juniorTeamIds.map((teamId) => ({
+              user_id: userId,
+              junior_team_id: teamId,
+            })),
+          )
+          .execute();
+      }
+
+      await trx
+        .deleteFrom("team_official")
+        .where("user_id", "=", userId)
+        .execute();
+      if (data.officialTeamIds.length > 0) {
+        await trx
+          .insertInto("team_official")
+          .values(
+            data.officialTeamIds.map((teamId) => ({
+              user_id: userId,
+              play_cricket_team_id: teamId,
+            })),
+          )
+          .execute();
+      }
+    });
 
     return { success: true };
   };
