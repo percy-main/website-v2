@@ -34,7 +34,6 @@ import {
 
 const PAGE_SIZE = 20;
 
-// eslint-disable-next-line react-doctor/no-giant-component -- admin members tab: filter bar + paginated table + bulk-action menu + member detail modal trigger; share the filters reducer and a single query. The detail modal already lives in its own file.
 export function MembersTab() {
   const [filters, dispatch] = useReducer(
     membersFilterReducer,
@@ -45,7 +44,6 @@ export function MembersTab() {
     searchInput,
     debouncedSearch,
     includeArchived,
-    isMember,
     membershipStatus,
     membershipType,
     memberCategory,
@@ -68,7 +66,6 @@ export function MembersTab() {
       page,
       debouncedSearch,
       includeArchived,
-      isMember,
       membershipStatus,
       membershipType,
       memberCategory,
@@ -83,7 +80,6 @@ export function MembersTab() {
               pageSize: PAGE_SIZE,
               ...(debouncedSearch ? { search: debouncedSearch } : {}),
               ...(includeArchived ? { includeArchived: true } : {}),
-              ...(isMember ? { isMember: isMember === "true" } : {}),
               ...(membershipStatus
                 ? {
                     membershipStatus: membershipStatus as
@@ -128,25 +124,6 @@ export function MembersTab() {
           />
           Show archived
         </label>
-
-        <Select
-          value={isMember}
-          onValueChange={(v) =>
-            dispatch({
-              type: "setIsMember",
-              value: v === "__all__" ? "" : v,
-            })
-          }
-        >
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="All Members" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All Members</SelectItem>
-            <SelectItem value="true">Member</SelectItem>
-            <SelectItem value="false">Not Member</SelectItem>
-          </SelectContent>
-        </Select>
 
         <Select
           value={membershipStatus}
@@ -256,7 +233,6 @@ export function MembersTab() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Member</TableHead>
               <TableHead>Membership Status</TableHead>
               <TableHead>Membership Type</TableHead>
               <TableHead>Category</TableHead>
@@ -283,15 +259,6 @@ export function MembersTab() {
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>
-                    {isArchived ? (
-                      <StatusPill variant="red">Archived</StatusPill>
-                    ) : user.memberId ? (
-                      <StatusPill variant="green">Member</StatusPill>
-                    ) : (
-                      <StatusPill variant="red">Not Member</StatusPill>
-                    )}
-                  </TableCell>
-                  <TableCell>
                     <StatusPill variant={memberStatus.variant}>
                       {memberStatus.label}
                     </StatusPill>
@@ -315,7 +282,7 @@ export function MembersTab() {
             {data?.items.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={6}
                   className="py-12 text-center text-stone-500"
                 >
                   No users found.

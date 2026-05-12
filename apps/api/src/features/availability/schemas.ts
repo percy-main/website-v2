@@ -239,6 +239,7 @@ export const previewFixturesResponseSchema = z.object({
 export const notifyPreviewSchema = z.object({
   memberCategory: z.string().optional(),
   membershipStatus: z.enum(["active", "lapsed"]).optional(),
+  userGroupId: z.string().optional(),
   additionalEmails: z.array(z.email()).optional(),
 });
 

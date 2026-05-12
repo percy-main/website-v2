@@ -12,6 +12,7 @@ import { ExpenseHistoryTab } from "./expense-history-tab";
 import { FantasyTab } from "./fantasy-tab";
 import { FinancialReliefTab } from "./financial-relief-tab";
 import { GameReportsTab } from "./game-reports-tab";
+import { GroupsTab } from "./groups-tab";
 import { IncidentsTab } from "./incidents-tab";
 import { JuniorsTab } from "./juniors-tab";
 import { LeadsTab } from "./leads-tab";
@@ -50,6 +51,12 @@ const SECTIONS: readonly SectionDef[] = [
         label: "Members",
         visible: (role) => checkPermission(role, "users", "view"),
         render: () => <MembersTab />,
+      },
+      {
+        value: "groups",
+        label: "Groups",
+        visible: (role) => checkPermission(role, "users", "manage"),
+        render: () => <GroupsTab />,
       },
       {
         value: "juniors",

@@ -15,7 +15,6 @@ export interface MembersFilterState {
   searchInput: string;
   debouncedSearch: string;
   includeArchived: boolean;
-  isMember: string;
   membershipStatus: string;
   membershipType: string;
   memberCategory: string;
@@ -27,7 +26,6 @@ export const initialMembersFilterState: MembersFilterState = {
   searchInput: "",
   debouncedSearch: "",
   includeArchived: false,
-  isMember: "",
   membershipStatus: "",
   membershipType: "",
   memberCategory: "",
@@ -38,7 +36,6 @@ export type MembersFilterAction =
   | { type: "setSearchInput"; value: string }
   | { type: "commitSearch"; value: string }
   | { type: "setIncludeArchived"; value: boolean }
-  | { type: "setIsMember"; value: string }
   | { type: "setMembershipStatus"; value: string }
   | { type: "setMembershipType"; value: string }
   | { type: "setMemberCategory"; value: string }
@@ -59,8 +56,6 @@ export function membersFilterReducer(
       return { ...state, debouncedSearch: action.value, page: 1 };
     case "setIncludeArchived":
       return { ...state, includeArchived: action.value, page: 1 };
-    case "setIsMember":
-      return { ...state, isMember: action.value, page: 1 };
     case "setMembershipStatus": {
       // Selecting "none" disables type filter — clear it atomically here
       // rather than leaving a stale value behind.
@@ -89,7 +84,6 @@ export function isFiltered(state: MembersFilterState): boolean {
   return (
     state.debouncedSearch !== "" ||
     state.includeArchived ||
-    state.isMember !== "" ||
     state.membershipStatus !== "" ||
     state.membershipType !== "" ||
     state.memberCategory !== "" ||

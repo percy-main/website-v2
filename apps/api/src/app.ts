@@ -60,6 +60,7 @@ import { recordsRoutes } from "./features/records/routes.ts";
 import { scoutRoutes } from "./features/scout/routes.ts";
 import { sponsorshipRoutes } from "./features/sponsorship/routes.ts";
 import { treasurerRoutes } from "./features/treasurer/routes.ts";
+import { userGroupsRoutes } from "./features/user-groups/routes.ts";
 
 // Extend Fastify types with our decorations
 declare module "fastify" {
@@ -276,6 +277,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(contactRoutes, { prefix: "/api" });
   await app.register(incidentReportRoutes, { prefix: "/api" });
   await app.register(financialReliefRoutes, { prefix: "/api" });
+  await app.register(userGroupsRoutes, { prefix: "/api" });
   await app.register(marketingRoutes, { prefix: "/api" });
   await app.register(webhookRoutes, { prefix: "/api" });
   await app.register(ogImageRoutes, { prefix: "/api" });

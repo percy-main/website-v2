@@ -920,6 +920,21 @@ export interface User {
   updatedAt: Timestamp;
 }
 
+export interface UserGroup {
+  created_at: Generated<Timestamp>;
+  created_by_user_id: string | null;
+  description: string | null;
+  id: string;
+  name: string;
+}
+
+export interface UserGroupMember {
+  added_at: Generated<Timestamp>;
+  added_by_user_id: string | null;
+  group_id: string;
+  member_id: string;
+}
+
 export interface Verification {
   createdAt: Timestamp | null;
   expiresAt: Timestamp;
@@ -995,5 +1010,7 @@ export interface DB {
   team_official: TeamOfficial;
   twoFactor: TwoFactor;
   user: User;
+  user_group: UserGroup;
+  user_group_member: UserGroupMember;
   verification: Verification;
 }

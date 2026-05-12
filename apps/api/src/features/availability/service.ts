@@ -949,6 +949,16 @@ export function previewNotifyRecipients(db: Kysely<DB>) {
       }
     }
 
+    if (data.userGroupId) {
+      query = query
+        .innerJoin(
+          "user_group_member",
+          "user_group_member.member_id",
+          "member.id",
+        )
+        .where("user_group_member.group_id", "=", data.userGroupId);
+    }
+
     const members = await query
       .select(["member.email", "member.name"])
       .orderBy("member.name", "asc")
