@@ -269,8 +269,8 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: reliefReportResponseSchema },
       },
     },
-    async () => {
-      return await report();
+    async (request) => {
+      return await report(request.query);
     },
   );
 };

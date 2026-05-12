@@ -100,7 +100,8 @@ export function FinancialReliefTab() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
+      <ReliefReportPanel />
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
           <Label htmlFor="reliefStatus">Status</Label>
@@ -1132,5 +1133,148 @@ function ApplyMembershipReliefButton({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+const SEASON_BUCKETS: Array<{
+  key: "juniors" | "womensGirls" | "senior" | "other";
+  label: string;
+}> = [
+  { key: "juniors", label: "Juniors" },
+  { key: "womensGirls", label: "Women's / Girls" },
+  { key: "senior", label: "Senior" },
+  { key: "other", label: "Other" },
+];
+
+function startOfYearIso() {
+  return `${new Date().getFullYear()}-01-01`;
+}
+
+function endOfYearIso() {
+  return `${new Date().getFullYear()}-12-31`;
+}
+
+const POUNDS_FORMATTER = new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+});
+
+function formatPounds(pence: number): string {
+  return POUNDS_FORMATTER.format(pence / 100);
+}
+
+function ReliefReportPanel() {
+  const [report, update] = useReducer(
+    (
+      s: { dateFrom: string; dateTo: string; submitted: boolean },
+      patch: Partial<typeof s>,
+    ) => ({ ...s, ...patch }),
+    null,
+    () => ({
+      dateFrom: startOfYearIso(),
+      dateTo: endOfYearIso(),
+      submitted: false,
+    }),
+  );
+
+  const query = useQuery({
+    queryKey: ["admin-relief", "report", report.dateFrom, report.dateTo],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/financial-relief/report", {
+          params: {
+            query: { dateFrom: report.dateFrom, dateTo: report.dateTo },
+          },
+        }),
+      ),
+    enabled: report.submitted,
+  });
+
+  return (
+    <div className="rounded border border-stone-200 p-4">
+      <h2 className="text-base font-semibold">Relief summary</h2>
+      <p className="text-xs text-stone-600">
+        Aggregate totals of forgiven charges by section. No member details are
+        included, so these figures are safe to share publicly.
+      </p>
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="reportFrom">From</Label>
+          <Input
+            id="reportFrom"
+            type="date"
+            value={report.dateFrom}
+            onChange={(e) =>
+              update({ dateFrom: e.target.value, submitted: false })
+            }
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="reportTo">To</Label>
+          <Input
+            id="reportTo"
+            type="date"
+            value={report.dateTo}
+            onChange={(e) =>
+              update({ dateTo: e.target.value, submitted: false })
+            }
+          />
+        </div>
+        <Button onClick={() => update({ submitted: true })}>Summarise</Button>
+      </div>
+
+      {query.isLoading ? (
+        <p className="mt-3 text-sm text-stone-600">Loading…</p>
+      ) : query.data ? (
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <SummaryCard
+            label="Total relief"
+            value={formatPounds(query.data.totalForgivenPence)}
+            sub={`${query.data.forgivenChargeCount} charges`}
+          />
+          <SummaryCard
+            label="Match donations"
+            value={formatPounds(query.data.byReliefType.matchFeePence)}
+          />
+          <SummaryCard
+            label="Membership"
+            value={formatPounds(query.data.byReliefType.membershipPence)}
+          />
+          <SummaryCard
+            label="Members supported"
+            value={String(query.data.membersSupported)}
+          />
+          {SEASON_BUCKETS.map(({ key, label }) => {
+            const b = query.data.bySection[key];
+            return (
+              <SummaryCard
+                key={key}
+                label={label}
+                value={formatPounds(b.pence)}
+                sub={`${b.count} charges · ${b.members} members`}
+              />
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="flex flex-col rounded border border-stone-200 px-3 py-2">
+      <span className="text-xs text-stone-600">{label}</span>
+      <span className="text-lg font-semibold">{value}</span>
+      {sub ? <span className="text-xs text-stone-500">{sub}</span> : null}
+    </div>
   );
 }

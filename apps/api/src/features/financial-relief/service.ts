@@ -7,7 +7,7 @@ import {
 import type { RequestStatus } from "@percy-main/shared";
 import { render } from "@react-email/render";
 import type { FastifyBaseLogger } from "fastify";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { createElement } from "react";
 import type Stripe from "stripe";
 import type {
@@ -16,17 +16,11 @@ import type {
   DecideReliefRequest,
   DeclineRequest,
   ListReliefRequests,
+  ReliefReport,
   SubmitReliefRequest,
   TransitionStatus,
   WithdrawRequest,
 } from "./schemas.ts";
-
-async function notImplemented(): Promise<never> {
-  const err = new Error("Not implemented") as Error & { statusCode: number };
-  err.statusCode = 501;
-  await Promise.resolve();
-  throw err;
-}
 
 function httpError(statusCode: number, message: string): never {
   const err = new Error(message) as Error & { statusCode: number };
@@ -1126,8 +1120,132 @@ export function applyMembershipRelief(db: Kysely<DB>) {
   };
 }
 
-export function getReliefReport(_db: Kysely<DB>) {
-  return async () => await notImplemented();
+/**
+ * Aggregated relief totals for a date range. Sums the reporting value
+ * across relieved charges:
+ *   reporting_value = COALESCE(original_amount_pence, amount_pence)
+ * which equals the original full charge for partial relief and just
+ * amount_pence for full relief.
+ *
+ * Section breakdown is heuristic:
+ *   - match fees → group by the linked matchday's play_cricket_team
+ *     (junior team flag), women's/girls' inferred from team name
+ *   - membership → group by member.member_category
+ * Other rows roll up to "other".
+ *
+ * Public-facing report consumers (e.g. an annual write-up) should use
+ * the aggregate fields only — no member names or notes are returned.
+ */
+export function getReliefReport(db: Kysely<DB>) {
+  return async (params: ReliefReport) => {
+    const reportingValue = sql<string>`COALESCE(charge.original_amount_pence, charge.amount_pence)`;
+
+    const rows = await db
+      .selectFrom("charge")
+      .innerJoin("member", "member.id", "charge.member_id")
+      .leftJoin("matchday_player", "matchday_player.charge_id", "charge.id")
+      .leftJoin("matchday", "matchday.id", "matchday_player.matchday_id")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
+      .where("charge.relieved_at", "is not", null)
+      .where("charge.relieved_at", ">=", params.dateFrom)
+      .where("charge.relieved_at", "<=", params.dateTo)
+      .select([
+        "charge.id as id",
+        "charge.member_id as memberId",
+        "charge.type as type",
+        sql<string>`${reportingValue}`.as("pence"),
+        "member.member_category as memberCategory",
+        "play_cricket_team.is_junior as teamIsJunior",
+        "play_cricket_team.name as teamName",
+      ])
+      .execute();
+
+    function classifySection(
+      row: (typeof rows)[number],
+    ): "juniors" | "womensGirls" | "senior" | "other" {
+      if (row.type === "match_fee") {
+        if (row.teamIsJunior) return "juniors";
+        if (
+          row.teamName &&
+          /\b(women|womens|ladies|girls)\b/i.test(row.teamName)
+        ) {
+          return "womensGirls";
+        }
+        return "senior";
+      }
+      if (
+        row.type === "membership" ||
+        row.type === "junior_membership" ||
+        row.type === "junior_registration"
+      ) {
+        const cat = row.memberCategory ?? "";
+        if (
+          row.type === "junior_membership" ||
+          row.type === "junior_registration" ||
+          cat.startsWith("junior")
+        ) {
+          return "juniors";
+        }
+        if (/women|girls/i.test(cat)) return "womensGirls";
+        return "senior";
+      }
+      return "other";
+    }
+
+    const buckets = {
+      juniors: { pence: 0, count: 0, members: new Set<string>() },
+      womensGirls: { pence: 0, count: 0, members: new Set<string>() },
+      senior: { pence: 0, count: 0, members: new Set<string>() },
+      other: { pence: 0, count: 0, members: new Set<string>() },
+    };
+
+    let totalForgivenPence = 0;
+    let membershipPence = 0;
+    let matchFeePence = 0;
+    const allMembers = new Set<string>();
+
+    for (const row of rows) {
+      const pence = Number(row.pence);
+      totalForgivenPence += pence;
+      if (row.type === "match_fee") matchFeePence += pence;
+      else if (
+        row.type === "membership" ||
+        row.type === "junior_membership" ||
+        row.type === "junior_registration"
+      ) {
+        membershipPence += pence;
+      }
+      const section = classifySection(row);
+      buckets[section].pence += pence;
+      buckets[section].count += 1;
+      buckets[section].members.add(row.memberId);
+      allMembers.add(row.memberId);
+    }
+
+    function freezeBucket(b: typeof buckets.juniors) {
+      return { pence: b.pence, count: b.count, members: b.members.size };
+    }
+
+    return {
+      totalForgivenPence,
+      byReliefType: {
+        membershipPence,
+        matchFeePence,
+      },
+      bySection: {
+        juniors: freezeBucket(buckets.juniors),
+        womensGirls: freezeBucket(buckets.womensGirls),
+        senior: freezeBucket(buckets.senior),
+        other: freezeBucket(buckets.other),
+      },
+      membersSupported: allMembers.size,
+      forgivenChargeCount: rows.length,
+    };
+  };
 }
 
 function toIsoString(v: unknown): string {

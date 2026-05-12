@@ -17,6 +17,7 @@ import {
   declineReliefRequest,
   getEligibleMembers,
   getMyReliefStatus,
+  getReliefReport,
   getReliefRequestDetail,
   listReliefRequestsForAdmin,
   submitReliefRequest,
@@ -941,6 +942,143 @@ describe("financial-relief (integration)", () => {
         description: "Senior membership (relief)",
       }),
     ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("getReliefReport aggregates forgiven charges into type + section buckets", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const memberA = await seedMember();
+    const memberB = await seedMember();
+
+    // Seed teams: one junior, one senior.
+    const juniorTeam = `team-${crypto.randomUUID()}`;
+    const seniorTeam = `team-${crypto.randomUUID()}`;
+    await ctx.db
+      .insertInto("play_cricket_team")
+      .values([
+        {
+          id: juniorTeam,
+          name: "U13",
+          site_id: "site",
+          is_junior: true,
+        },
+        { id: seniorTeam, name: "1st XI", site_id: "site", is_junior: false },
+      ])
+      .execute();
+
+    const juniorMd = `m-${crypto.randomUUID()}`;
+    const seniorMd = `m-${crypto.randomUUID()}`;
+    await ctx.db
+      .insertInto("matchday")
+      .values([
+        {
+          id: juniorMd,
+          play_cricket_team_id: juniorTeam,
+          match_date: "2026-05-01",
+          opposition: "Junior Foo",
+          status: "confirmed",
+          created_by: admin.userId,
+        },
+        {
+          id: seniorMd,
+          play_cricket_team_id: seniorTeam,
+          match_date: "2026-05-02",
+          opposition: "Senior Bar",
+          status: "confirmed",
+          created_by: admin.userId,
+        },
+      ])
+      .execute();
+
+    // Seed three relieved charges. relieved_at is set to a far-future
+    // date so the report query window can isolate them from charges
+    // relieved by other tests in this file.
+    const reliefDate = "2099-05-15T12:00:00.000Z";
+    const charges = [
+      {
+        id: `c1-${crypto.randomUUID()}`,
+        member_id: memberA.memberId,
+        amount: 500,
+        type: "match_fee",
+        matchdayId: juniorMd,
+        chargeDate: "2026-05-01",
+        original: null as number | null,
+      },
+      {
+        id: `c2-${crypto.randomUUID()}`,
+        member_id: memberB.memberId,
+        amount: 800,
+        type: "match_fee",
+        matchdayId: seniorMd,
+        chargeDate: "2026-05-02",
+        original: null,
+      },
+      {
+        id: `c3-${crypto.randomUUID()}`,
+        member_id: memberA.memberId,
+        amount: 1000,
+        type: "membership",
+        matchdayId: null as string | null,
+        chargeDate: "2026-05-03",
+        // Partial: original was 5000, member paid 1000, waived 4000.
+        // Reporting value should report the original.
+        original: 5000,
+      },
+    ];
+    for (const c of charges) {
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: c.id,
+          member_id: c.member_id,
+          description: `desc ${c.id}`,
+          amount_pence: c.amount,
+          charge_date: c.chargeDate,
+          created_by: admin.userId,
+          type: c.type,
+          source: "matchday",
+          relieved_at: reliefDate,
+          relieved_by: admin.userId,
+          relieved_reason: "financial relief",
+          ...(c.original ? { original_amount_pence: c.original } : {}),
+        })
+        .execute();
+      if (c.matchdayId) {
+        await ctx.db
+          .insertInto("matchday_player")
+          .values({
+            id: `mp-${crypto.randomUUID()}`,
+            matchday_id: c.matchdayId,
+            member_id: c.member_id,
+            player_name: "x",
+            status: "playing",
+            charge_id: c.id,
+          })
+          .execute();
+      }
+    }
+
+    const report = await getReliefReport(ctx.db)({
+      dateFrom: "2099-01-01T00:00:00Z",
+      dateTo: "2099-12-31T23:59:59Z",
+    });
+
+    // Reporting value: 500 + 800 + 5000 = 6300
+    expect(report.totalForgivenPence).toBe(6300);
+    expect(report.byReliefType.matchFeePence).toBe(1300);
+    expect(report.byReliefType.membershipPence).toBe(5000);
+    expect(report.forgivenChargeCount).toBe(3);
+    expect(report.membersSupported).toBe(2);
+
+    // Sections: junior match fee in 'juniors', senior in 'senior',
+    // senior-membership in 'senior'.
+    expect(report.bySection.juniors.pence).toBe(500);
+    expect(report.bySection.juniors.count).toBe(1);
+    expect(report.bySection.juniors.members).toBe(1);
+    expect(report.bySection.senior.pence).toBe(800 + 5000);
+    expect(report.bySection.senior.count).toBe(2);
+    expect(report.bySection.senior.members).toBe(2);
+    expect(report.bySection.womensGirls.pence).toBe(0);
+    expect(report.bySection.other.pence).toBe(0);
   });
 
   it("officials' matchday view reports a relieved match-fee as 'waived' and leaks no application detail", async () => {
