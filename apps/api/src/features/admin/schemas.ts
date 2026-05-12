@@ -147,6 +147,13 @@ export const markChargePaidSchema = z.object({
 
 export type MarkChargePaid = z.infer<typeof markChargePaidSchema>;
 
+export const editChargeSchema = z.object({
+  amountPence: z.number().int().min(0).max(1_000_000),
+  description: z.string().min(1).max(500),
+});
+
+export type EditCharge = z.infer<typeof editChargeSchema>;
+
 export type ListCharges = z.infer<typeof listChargesSchema>;
 export type ChargeAggregates = z.infer<typeof chargeAggregatesSchema>;
 export type ChasePayment = z.infer<typeof chasePaymentSchema>;
@@ -489,6 +496,8 @@ export const chargeAggregatesResponseSchema = z.object({
 export const chasePaymentResponseSchema = successResponseSchema;
 
 export const markChargePaidResponseSchema = successResponseSchema;
+
+export const editChargeResponseSchema = successResponseSchema;
 
 export const listContactSubmissionsResponseSchema = z.object({
   submissions: z.array(

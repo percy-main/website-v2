@@ -21,6 +21,8 @@ import {
   deleteChargeResponseSchema,
   deleteChargeSchema,
   deleteMatchFeeRateResponseSchema,
+  editChargeResponseSchema,
+  editChargeSchema,
   findDuplicatesResponseSchema,
   getUserDetailResponseSchema,
   juniorTeamsResponseSchema,
@@ -86,6 +88,7 @@ import {
   createMember,
   deleteCharge,
   deleteMatchFeeRate,
+  editCharge,
   findDuplicateMembers,
   getAllJuniorTeams,
   getAllPlayCricketTeams,
@@ -150,6 +153,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const chargeAggregates = getChargeAggregates(app.db);
   const chase = chasePayment(app.db);
   const markPaid = markChargePaid(app.db);
+  const edit = editCharge(app.db);
   const listContacts = listContactSubmissions(app.db);
   const findDuplicates = findDuplicateMembers(app.db);
   const previewMerge = getMergePreview(app.db);
@@ -531,6 +535,21 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       return await markPaid(request.params.chargeId, request.body);
+    },
+  );
+
+  app.post(
+    "/admin/charges/:chargeId/edit",
+    {
+      preHandler: [requireRole("admin")],
+      schema: {
+        params: chargeIdParamSchema,
+        body: editChargeSchema,
+        response: { 200: editChargeResponseSchema },
+      },
+    },
+    async (request) => {
+      return await edit(request.params.chargeId, request.body);
     },
   );
 

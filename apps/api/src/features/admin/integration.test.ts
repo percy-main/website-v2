@@ -10,6 +10,7 @@ import {
 import {
   chasePayment,
   createMember,
+  editCharge,
   findDuplicateMembers,
   getChargeAggregates,
   getMergePreview,
@@ -931,6 +932,132 @@ describe("admin service (integration)", () => {
 
       await expect(
         markChargePaid(ctx.db)(chargeId, { paymentMethod: "cash" }),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
+    });
+  });
+
+  describe("editCharge", () => {
+    it("updates amount and description on an unpaid charge", async () => {
+      const email = `edit-charge-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Adult match donation",
+          amount_pence: 1500,
+          charge_date: "2026-03-15",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      const result = await editCharge(ctx.db)(chargeId, {
+        amountPence: 500,
+        description: "Junior match donation",
+      });
+      expect(result).toEqual({ success: true });
+
+      const after = await ctx.db
+        .selectFrom("charge")
+        .where("id", "=", chargeId)
+        .select(["amount_pence", "description"])
+        .executeTakeFirstOrThrow();
+      expect(after.amount_pence).toBe(500);
+      expect(after.description).toBe("Junior match donation");
+    });
+
+    it("throws 404 for an already-paid charge", async () => {
+      const email = `edit-charge-paid-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Already paid",
+          amount_pence: 1500,
+          charge_date: "2026-03-15",
+          paid_at: new Date().toISOString(),
+          payment_method: "card",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await expect(
+        editCharge(ctx.db)(chargeId, {
+          amountPence: 500,
+          description: "Junior",
+        }),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
+    });
+
+    it("throws 404 for a deleted (voided) charge", async () => {
+      const email = `edit-charge-voided-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Voided",
+          amount_pence: 1500,
+          charge_date: "2026-03-15",
+          deleted_at: new Date().toISOString(),
+          deleted_reason: "raised in error",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await expect(
+        editCharge(ctx.db)(chargeId, {
+          amountPence: 500,
+          description: "Junior",
+        }),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
+    });
+
+    it("throws 404 for a charge with payment in flight", async () => {
+      const email = `edit-charge-pending-${crypto.randomUUID()}@test.com`;
+      const seed = await seedTestUser(ctx.db, { email });
+      const memberId = seed.memberId ?? "";
+
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Pending Stripe confirmation",
+          amount_pence: 1500,
+          charge_date: "2026-03-15",
+          payment_confirmed_at: new Date().toISOString(),
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      await expect(
+        editCharge(ctx.db)(chargeId, {
+          amountPence: 500,
+          description: "Junior",
+        }),
       ).rejects.toThrow("Charge not found or already paid/deleted");
     });
   });
