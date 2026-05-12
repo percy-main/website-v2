@@ -35,6 +35,37 @@ export { chartSpecSchema, type ChartSpec } from "./scout-chart.ts";
 export { videoSpecSchema, type VideoSpec } from "./scout-video.ts";
 
 export {
+  CONTACT_PREFERENCES,
+  CONTACT_PREFERENCE_LABELS,
+  CONTRIBUTION_ABILITIES,
+  CONTRIBUTION_ABILITY_LABELS,
+  DURATIONS,
+  DURATION_LABELS,
+  GRANT_DECISIONS,
+  GRANT_DECISION_LABELS,
+  REASON_CATEGORIES,
+  REASON_CATEGORY_LABELS,
+  REQUEST_STATUSES,
+  REQUEST_STATUS_LABELS,
+  VOLUNTEER_OPTIONS,
+  VOLUNTEER_OPTION_LABELS,
+  contactPreferenceSchema,
+  contributionAbilitySchema,
+  durationSchema,
+  grantDecisionSchema,
+  reasonCategorySchema,
+  requestStatusSchema,
+  volunteerOptionSchema,
+  type ContactPreference,
+  type ContributionAbility,
+  type Duration,
+  type GrantDecision,
+  type ReasonCategory,
+  type RequestStatus,
+  type VolunteerOption,
+} from "./financial-relief.ts";
+
+export {
   scoutLeagueTableSchema,
   scoutReportContentSchema,
   scoutReportDisplayTitle,

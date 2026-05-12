@@ -19906,6 +19906,1400 @@
         }
       }
     },
+    "/api/financial-relief/eligible-members": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "memberId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "relationship": {
+                            "type": "string",
+                            "enum": [
+                              "self",
+                              "junior"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "memberId",
+                          "name",
+                          "relationship"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "members"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/financial-relief/me": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "requests": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "memberId": {
+                            "type": "string"
+                          },
+                          "memberName": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "submitted",
+                              "in_review",
+                              "more_info_needed",
+                              "approved",
+                              "declined",
+                              "withdrawn",
+                              "expired"
+                            ]
+                          },
+                          "requestedMembershipFull": {
+                            "type": "boolean"
+                          },
+                          "requestedMembershipPartial": {
+                            "type": "boolean"
+                          },
+                          "requestedMatchFees": {
+                            "type": "boolean"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "memberFacingNote": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "activeGrant": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "decision": {
+                                "type": "string",
+                                "enum": [
+                                  "approved_full",
+                                  "approved_partial",
+                                  "approved_temporary"
+                                ]
+                              },
+                              "coversMembership": {
+                                "type": "boolean"
+                              },
+                              "coversMatchFees": {
+                                "type": "boolean"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              },
+                              "effectiveToExclusive": {
+                                "nullable": true,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "decision",
+                              "coversMembership",
+                              "coversMatchFees",
+                              "effectiveFrom",
+                              "effectiveToExclusive"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "memberId",
+                          "memberName",
+                          "status",
+                          "requestedMembershipFull",
+                          "requestedMembershipPartial",
+                          "requestedMatchFees",
+                          "createdAt",
+                          "memberFacingNote",
+                          "activeGrant"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "requests"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/financial-relief/requests": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "requestedMembershipFull": {
+                    "type": "boolean"
+                  },
+                  "requestedMembershipPartial": {
+                    "type": "boolean"
+                  },
+                  "requestedMatchFees": {
+                    "type": "boolean"
+                  },
+                  "partialAmountPence": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "reasonCategory": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "cost_of_living",
+                      "low_income",
+                      "temporary_change",
+                      "multiple_family",
+                      "unemployment",
+                      "caring",
+                      "other_personal",
+                      "prefer_not_to_say"
+                    ]
+                  },
+                  "reasonText": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "duration": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "one_off",
+                      "one_to_three_months",
+                      "season",
+                      "unsure",
+                      "other"
+                    ]
+                  },
+                  "durationOtherText": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "contributionAbility": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "yes_reduced",
+                      "not_currently",
+                      "unsure"
+                    ]
+                  },
+                  "contributionAmountPence": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "volunteerOptions": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "ground_work",
+                        "scoring",
+                        "umpiring",
+                        "junior_sessions",
+                        "womens_girls",
+                        "bbq_kitchen",
+                        "fundraising",
+                        "social_media",
+                        "admin",
+                        "matchday_setup",
+                        "transport",
+                        "other",
+                        "none"
+                      ]
+                    }
+                  },
+                  "volunteerNotes": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "contactPreference": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "email",
+                      "phone",
+                      "in_person"
+                    ]
+                  },
+                  "privacyAcknowledged": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "declarationConfirmed": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "requestedMembershipFull",
+                  "requestedMembershipPartial",
+                  "requestedMatchFees",
+                  "contactPreference",
+                  "privacyAcknowledged",
+                  "declarationConfirmed"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/financial-relief/requests/{requestId}/withdraw": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "requestId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/financial-relief/requests": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "page",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "pageSize",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": "all",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "submitted",
+                    "in_review",
+                    "more_info_needed",
+                    "approved",
+                    "declined",
+                    "withdrawn",
+                    "expired"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "all"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "search",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "dateFrom",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "dateTo",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "memberId": {
+                            "type": "string"
+                          },
+                          "memberName": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "memberEmail": {
+                            "type": "string"
+                          },
+                          "submittedByUserId": {
+                            "type": "string"
+                          },
+                          "submittedByName": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "submittedByEmail": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "submitted",
+                              "in_review",
+                              "more_info_needed",
+                              "approved",
+                              "declined",
+                              "withdrawn",
+                              "expired"
+                            ]
+                          },
+                          "requestedMembershipFull": {
+                            "type": "boolean"
+                          },
+                          "requestedMembershipPartial": {
+                            "type": "boolean"
+                          },
+                          "requestedMatchFees": {
+                            "type": "boolean"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          },
+                          "decidedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "decidedByName": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "memberId",
+                          "memberName",
+                          "memberEmail",
+                          "submittedByUserId",
+                          "submittedByName",
+                          "submittedByEmail",
+                          "status",
+                          "requestedMembershipFull",
+                          "requestedMembershipPartial",
+                          "requestedMatchFees",
+                          "createdAt",
+                          "updatedAt",
+                          "decidedAt",
+                          "decidedByName"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/financial-relief/requests/{requestId}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "requestId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "memberId": {
+                          "type": "string"
+                        },
+                        "memberName": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "memberEmail": {
+                          "type": "string"
+                        },
+                        "submittedByUserId": {
+                          "type": "string"
+                        },
+                        "submittedByName": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "submittedByEmail": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "submitted",
+                            "in_review",
+                            "more_info_needed",
+                            "approved",
+                            "declined",
+                            "withdrawn",
+                            "expired"
+                          ]
+                        },
+                        "requestedMembershipFull": {
+                          "type": "boolean"
+                        },
+                        "requestedMembershipPartial": {
+                          "type": "boolean"
+                        },
+                        "requestedMatchFees": {
+                          "type": "boolean"
+                        },
+                        "partialAmountPence": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "reasonCategory": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "reasonText": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "duration": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "durationOtherText": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "contributionAbility": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "contributionAmountPence": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "volunteerOptions": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "volunteerNotes": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "contactPreference": {
+                          "type": "string"
+                        },
+                        "privacyAcknowledgedAt": {
+                          "type": "string"
+                        },
+                        "declarationConfirmedAt": {
+                          "type": "string"
+                        },
+                        "withdrawnAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "withdrawnReason": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "memberId",
+                        "memberName",
+                        "memberEmail",
+                        "submittedByUserId",
+                        "submittedByName",
+                        "submittedByEmail",
+                        "status",
+                        "requestedMembershipFull",
+                        "requestedMembershipPartial",
+                        "requestedMatchFees",
+                        "partialAmountPence",
+                        "reasonCategory",
+                        "reasonText",
+                        "duration",
+                        "durationOtherText",
+                        "contributionAbility",
+                        "contributionAmountPence",
+                        "volunteerOptions",
+                        "volunteerNotes",
+                        "contactPreference",
+                        "privacyAcknowledgedAt",
+                        "declarationConfirmedAt",
+                        "withdrawnAt",
+                        "withdrawnReason",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "eventType": {
+                            "type": "string"
+                          },
+                          "fromStatus": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "toStatus": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "note": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "actorUserId": {
+                            "type": "string"
+                          },
+                          "actorName": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "eventType",
+                          "fromStatus",
+                          "toStatus",
+                          "note",
+                          "actorUserId",
+                          "actorName",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "grant": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "decision": {
+                          "type": "string",
+                          "enum": [
+                            "approved_full",
+                            "approved_partial",
+                            "approved_temporary"
+                          ]
+                        },
+                        "coversMembership": {
+                          "type": "boolean"
+                        },
+                        "coversMatchFees": {
+                          "type": "boolean"
+                        },
+                        "membershipPartialPence": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "effectiveFrom": {
+                          "type": "string"
+                        },
+                        "effectiveToExclusive": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "adminNotes": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "memberFacingNote": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "decidedBy": {
+                          "type": "string"
+                        },
+                        "decidedByName": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "decidedAt": {
+                          "type": "string"
+                        },
+                        "closedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "closedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "closedReason": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "decision",
+                        "coversMembership",
+                        "coversMatchFees",
+                        "membershipPartialPence",
+                        "effectiveFrom",
+                        "effectiveToExclusive",
+                        "adminNotes",
+                        "memberFacingNote",
+                        "decidedBy",
+                        "decidedByName",
+                        "decidedAt",
+                        "closedAt",
+                        "closedBy",
+                        "closedReason"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "request",
+                    "events",
+                    "grant"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/financial-relief/requests/{requestId}/status": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "toStatus": {
+                    "type": "string",
+                    "enum": [
+                      "in_review",
+                      "more_info_needed"
+                    ]
+                  },
+                  "note": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "toStatus"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "requestId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/financial-relief/requests/{requestId}/decline": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberFacingNote": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "adminNote": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "requestId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/financial-relief/requests/{requestId}/decide": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approved_full",
+                      "approved_partial",
+                      "approved_temporary"
+                    ]
+                  },
+                  "coversMembership": {
+                    "type": "boolean"
+                  },
+                  "coversMatchFees": {
+                    "type": "boolean"
+                  },
+                  "membershipPartialPence": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "effectiveFrom": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "effectiveToExclusive": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "adminNotes": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "memberFacingNote": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "decision",
+                  "coversMembership",
+                  "coversMatchFees",
+                  "effectiveFrom"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "requestId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "grantId": {
+                      "type": "string"
+                    },
+                    "forgivenChargeCount": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "grantId",
+                    "forgivenChargeCount"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/financial-relief/grants/{grantId}/close": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "grantId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/financial-relief/grants/{grantId}/apply-membership": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amountPence": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "effectiveDate": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "membershipPaidUntil": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "membershipType": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "amountPence",
+                  "effectiveDate",
+                  "membershipPaidUntil",
+                  "membershipType",
+                  "description"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "grantId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "chargeId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "chargeId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/financial-relief/report": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "dateFrom",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "dateTo",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalForgivenPence": {
+                      "type": "number"
+                    },
+                    "byReliefType": {
+                      "type": "object",
+                      "properties": {
+                        "membershipPence": {
+                          "type": "number"
+                        },
+                        "matchFeePence": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "membershipPence",
+                        "matchFeePence"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "bySection": {
+                      "type": "object",
+                      "properties": {
+                        "juniors": {
+                          "type": "object",
+                          "properties": {
+                            "pence": {
+                              "type": "number"
+                            },
+                            "count": {
+                              "type": "number"
+                            },
+                            "members": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "pence",
+                            "count",
+                            "members"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "womensGirls": {
+                          "type": "object",
+                          "properties": {
+                            "pence": {
+                              "type": "number"
+                            },
+                            "count": {
+                              "type": "number"
+                            },
+                            "members": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "pence",
+                            "count",
+                            "members"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "senior": {
+                          "type": "object",
+                          "properties": {
+                            "pence": {
+                              "type": "number"
+                            },
+                            "count": {
+                              "type": "number"
+                            },
+                            "members": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "pence",
+                            "count",
+                            "members"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "other": {
+                          "type": "object",
+                          "properties": {
+                            "pence": {
+                              "type": "number"
+                            },
+                            "count": {
+                              "type": "number"
+                            },
+                            "members": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "pence",
+                            "count",
+                            "members"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "juniors",
+                        "womensGirls",
+                        "senior",
+                        "other"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "membersSupported": {
+                      "type": "number"
+                    },
+                    "forgivenChargeCount": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "totalForgivenPence",
+                    "byReliefType",
+                    "bySection",
+                    "membersSupported",
+                    "forgivenChargeCount"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/leads": {
       "get": {
         "parameters": [
