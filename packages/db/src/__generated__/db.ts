@@ -139,9 +139,14 @@ export interface Charge {
   description: string;
   id: string;
   member_id: string;
+  original_amount_pence: number | null;
   paid_at: string | null;
   payment_confirmed_at: string | null;
   payment_method: string | null;
+  relief_grant_id: string | null;
+  relieved_at: string | null;
+  relieved_by: string | null;
+  relieved_reason: string | null;
   source: Generated<string>;
   stripe_payment_intent_id: string | null;
   type: Generated<string>;
@@ -289,6 +294,62 @@ export interface FantasyTeamScore {
   id: Generated<number>;
   season: string;
   total_points: Generated<number>;
+}
+
+export interface FinancialReliefEvent {
+  actor_user_id: string;
+  created_at: Generated<Timestamp>;
+  event_type: string;
+  from_status: string | null;
+  id: string;
+  note: string | null;
+  request_id: string;
+  to_status: string | null;
+}
+
+export interface FinancialReliefGrant {
+  admin_notes: string | null;
+  closed_at: Timestamp | null;
+  closed_by: string | null;
+  closed_reason: string | null;
+  covers_match_fees: boolean;
+  covers_membership: boolean;
+  decided_at: Generated<Timestamp>;
+  decided_by: string;
+  decision: string;
+  effective_from: Timestamp;
+  effective_to_exclusive: Timestamp | null;
+  id: string;
+  member_facing_note: string | null;
+  member_id: string;
+  membership_partial_pence: number | null;
+  request_id: string;
+}
+
+export interface FinancialReliefRequest {
+  contact_preference: string;
+  contribution_ability: string | null;
+  contribution_amount_pence: number | null;
+  created_at: Generated<Timestamp>;
+  declaration_confirmed_at: Timestamp;
+  duration: string | null;
+  duration_other_text: string | null;
+  id: string;
+  member_id: string;
+  partial_amount_pence: number | null;
+  privacy_acknowledged_at: Timestamp;
+  reason_category: string | null;
+  reason_text: string | null;
+  requested_match_fees: boolean;
+  requested_membership_full: boolean;
+  requested_membership_partial: boolean;
+  status: Generated<string>;
+  submitted_by_user_id: string;
+  updated_at: Generated<Timestamp>;
+  volunteer_notes: string | null;
+  volunteer_options: Generated<Json>;
+  withdrawn_at: Timestamp | null;
+  withdrawn_reason: string | null;
 }
 
 export interface GameScore {
@@ -889,6 +950,9 @@ export interface DB {
   fantasy_team: FantasyTeam;
   fantasy_team_player: FantasyTeamPlayer;
   fantasy_team_score: FantasyTeamScore;
+  financial_relief_event: FinancialReliefEvent;
+  financial_relief_grant: FinancialReliefGrant;
+  financial_relief_request: FinancialReliefRequest;
   game_score: GameScore;
   game_sponsorship: GameSponsorship;
   junior_team: JuniorTeam;
