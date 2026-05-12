@@ -1,7 +1,9 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useSession } from "@/lib/auth-client";
+import { checkPermission } from "@percy-main/shared/auth/permissions";
 import { Link, useSearchParams } from "react-router";
+import { AccessTab } from "./access-tab";
 import { ChargesTab } from "./charges-tab";
 import { ContactsTab } from "./contacts-tab";
 import { DocumentsTab } from "./documents-tab";
@@ -116,6 +118,17 @@ const SECTIONS = [
       },
     ],
   },
+  {
+    value: "access",
+    label: "Access",
+    subTabs: [
+      {
+        value: "users",
+        label: "User Roles",
+        render: () => <AccessTab />,
+      },
+    ],
+  },
 ] as const satisfies readonly SectionDef[];
 
 type Section = (typeof SECTIONS)[number];
@@ -131,13 +144,50 @@ function getSection(value: string | null): Section {
   return findSection(value) ?? SECTIONS[0];
 }
 
+/**
+ * Whether a section's tabs are reachable for the current user. Each tab's
+ * backing API still 403s independently, but this filter hides sections the
+ * user can't usefully open so the admin panel doesn't show dead links.
+ */
+function isSectionVisible(value: SectionValue, role: string | null): boolean {
+  switch (value) {
+    case "people":
+      return checkPermission(role, "users", "view");
+    case "outreach":
+      return checkPermission(role, "marketing", "view");
+    case "finance":
+      return checkPermission(role, "finance", "view");
+    case "cricket":
+      return (
+        checkPermission(role, "matchday", "view") ||
+        checkPermission(role, "fantasy", "manage")
+      );
+    case "compliance":
+      return (
+        checkPermission(role, "incidents", "view") ||
+        checkPermission(role, "documents", "manage")
+      );
+    case "access":
+      return checkPermission(role, "users", "manage_roles");
+  }
+}
+
 export function Component() {
   useDocumentMeta("Admin Panel");
   const { data: session } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const role =
+    (session?.user as { role?: string | null } | undefined)?.role ?? null;
+  const visibleSections = SECTIONS.filter((s) =>
+    isSectionVisible(s.value, role),
+  );
+
   const sectionParam = searchParams.get("section");
-  const section = getSection(sectionParam);
+  const requested = getSection(sectionParam);
+  const section = visibleSections.includes(requested)
+    ? requested
+    : (visibleSections[0] ?? SECTIONS[0]);
 
   const subParam = searchParams.get("sub");
   const subTab =
@@ -180,14 +230,14 @@ export function Component() {
           className="w-full"
         >
           <TabsList>
-            {SECTIONS.map((s) => (
+            {visibleSections.map((s) => (
               <TabsTrigger key={s.value} value={s.value}>
                 {s.label}
               </TabsTrigger>
             ))}
           </TabsList>
 
-          {SECTIONS.map((s) => (
+          {visibleSections.map((s) => (
             <TabsContent key={s.value} value={s.value}>
               {s.value === section.value && (
                 <Tabs

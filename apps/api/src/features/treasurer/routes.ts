@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { requireRole } from "../auth/middleware.ts";
+import { requirePermission } from "../auth/middleware.ts";
 import {
   csvExportResponseSchema,
   dateRangeSchema,
@@ -39,7 +39,7 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/treasurer/income-by-month",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         querystring: dateRangeSchema,
         response: { 200: incomeByMonthResponseSchema },
@@ -54,7 +54,7 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/treasurer/membership-summary",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         response: { 200: membershipSummaryResponseSchema },
       },
@@ -67,7 +67,7 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/treasurer/outstanding-payments",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         querystring: paginatedDateRangeSchema,
         response: { 200: outstandingPaymentsResponseSchema },
@@ -82,7 +82,7 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/treasurer/sponsorship-summary",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         querystring: dateRangeSchema,
         response: { 200: sponsorshipSummaryResponseSchema },
@@ -97,7 +97,7 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/treasurer/matchday-expenses-summary",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         querystring: dateRangeSchema,
         response: { 200: matchdayExpensesSummaryResponseSchema },
@@ -112,7 +112,7 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/treasurer/expenses-with-receipts",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         querystring: dateRangeSchema,
         response: { 200: expensesWithReceiptsResponseSchema },
@@ -127,7 +127,7 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/treasurer/expenses",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         querystring: expenseHistoryQuerySchema,
         response: { 200: expenseHistoryResponseSchema },
@@ -141,7 +141,7 @@ export const treasurerRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/treasurer/expenses/export",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         querystring: expenseHistoryFiltersSchema,
         response: { 200: csvExportResponseSchema },

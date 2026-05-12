@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import {
   getAuthSession,
-  requireRole,
+  requirePermission,
   requireVerifiedEmail,
 } from "../auth/middleware.ts";
 import {
@@ -64,7 +64,7 @@ export const juniorRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/junior/teams",
     {
-      preHandler: [requireRole("junior_manager", "admin")],
+      preHandler: [requirePermission("juniors", "view")],
       schema: {
         response: { 200: teamResponseSchema },
       },
@@ -79,7 +79,7 @@ export const juniorRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/junior/teams/:teamId/players",
     {
-      preHandler: [requireRole("junior_manager", "admin")],
+      preHandler: [requirePermission("juniors", "view")],
       schema: {
         params: teamIdParamSchema,
         response: { 200: playersResponseSchema },
@@ -96,7 +96,7 @@ export const juniorRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/junior/players/:dependentId",
     {
-      preHandler: [requireRole("junior_manager", "admin")],
+      preHandler: [requirePermission("juniors", "view")],
       schema: {
         params: dependentIdParamSchema,
         response: { 200: playerDetailResponseSchema },

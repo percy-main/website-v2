@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { requireRole } from "../auth/middleware.ts";
+import { requirePermission } from "../auth/middleware.ts";
 import {
   adminOutcomeBodySchema,
   adminOutcomeResponseSchema,
@@ -39,7 +39,7 @@ export const marketingAdminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/leads",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("marketing", "view")],
       schema: {
         querystring: listLeadsQuerySchema,
         response: { 200: listLeadsResponseSchema },
@@ -53,7 +53,7 @@ export const marketingAdminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/marketing-events",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("marketing", "view")],
       schema: {
         querystring: leadEventsQuerySchema,
         response: { 200: leadEventsResponseSchema },
@@ -67,7 +67,7 @@ export const marketingAdminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/leads/:leadId/outcomes",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("marketing", "manage")],
       schema: {
         params: leadIdParamSchema,
         body: adminOutcomeBodySchema,
@@ -112,7 +112,7 @@ export const marketingAdminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/marketing-outbox",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("marketing", "view")],
       schema: {
         querystring: listOutboxQuerySchema,
         response: { 200: listOutboxResponseSchema },
@@ -126,7 +126,7 @@ export const marketingAdminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/marketing-outbox/:outboxId/retry",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("marketing", "manage")],
       schema: {
         params: retryOutboxParamSchema,
         response: { 200: retryOutboxResponseSchema },

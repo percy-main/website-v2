@@ -1,4 +1,5 @@
 import { passkeyClient } from "@better-auth/passkey/client";
+import { ac, roles } from "@percy-main/shared/auth/permissions";
 import { adminClient, twoFactorClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
@@ -9,7 +10,7 @@ const baseURL = apiUrl.replace(/\/api$/, "");
 
 export const authClient = createAuthClient({
   baseURL,
-  plugins: [passkeyClient(), twoFactorClient(), adminClient()],
+  plugins: [passkeyClient(), twoFactorClient(), adminClient({ ac, roles })],
 });
 
 export const { useSession } = authClient;

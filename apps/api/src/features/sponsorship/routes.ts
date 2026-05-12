@@ -1,6 +1,6 @@
 import { stripeConfig } from "@percy-main/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { requireRole } from "../auth/middleware.ts";
+import { requirePermission } from "../auth/middleware.ts";
 import { createStripe } from "../payments/stripe.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import {
@@ -268,7 +268,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/sponsorship/admin/game",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         querystring: sponsorshipListSchema,
         response: { 200: gameSponsorshipListResponseSchema },
@@ -283,7 +283,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/sponsorship/admin/player",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         querystring: sponsorshipListSchema,
         response: { 200: playerSponsorshipListResponseSchema },
@@ -298,7 +298,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/sponsorship/admin/player/taken-slugs",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         querystring: allApprovedSchema,
         response: { 200: takenSlugsResponseSchema },
@@ -312,7 +312,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/sponsorship/admin/game/approve",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         body: sponsorshipActionSchema,
         response: { 200: successResponseSchema },
@@ -326,7 +326,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/sponsorship/admin/game/reject",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         body: sponsorshipActionSchema,
         response: { 200: successResponseSchema },
@@ -340,7 +340,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/sponsorship/admin/player/approve",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         body: sponsorshipActionSchema,
         response: { 200: successResponseSchema },
@@ -354,7 +354,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/sponsorship/admin/player/reject",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         body: sponsorshipActionSchema,
         response: { 200: successResponseSchema },
@@ -368,7 +368,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/sponsorship/admin/game/manual",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         body: gameSponsorshipManualSchema,
         response: { 200: idResponseSchema },
@@ -382,7 +382,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/sponsorship/admin/player/manual",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         body: playerSponsorshipManualSchema,
         response: { 200: idResponseSchema },
@@ -396,7 +396,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     "/sponsorship/admin/game/:sponsorshipId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         params: sponsorshipIdParamSchema,
         body: sponsorshipUpdateSchema,
@@ -411,7 +411,7 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     "/sponsorship/admin/player/:sponsorshipId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("finance", "manage")],
       schema: {
         params: sponsorshipIdParamSchema,
         body: sponsorshipUpdateSchema,

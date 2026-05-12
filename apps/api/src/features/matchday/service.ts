@@ -1,4 +1,5 @@
 import type { DB } from "@percy-main/db";
+import { hasClubWideAccess } from "@percy-main/shared/auth/permissions";
 import {
   format as formatDate,
   isBefore,
@@ -37,7 +38,7 @@ async function getAccessibleTeamIds(
   userId: string,
   role: string,
 ): Promise<string[]> {
-  if (role === "admin") {
+  if (hasClubWideAccess(role, "matchday", "view")) {
     const allTeams = await db
       .selectFrom("play_cricket_team")
       .select("id")
@@ -137,7 +138,7 @@ export function listMatches(db: Kysely<DB>) {
     let query = db.selectFrom("matchday").selectAll("matchday");
 
     // Non-admin officials can only see matches for their assigned teams
-    if (role !== "admin") {
+    if (!hasClubWideAccess(role, "matchday", "view")) {
       query = query
         .innerJoin(
           "team_official",
@@ -168,7 +169,7 @@ export function listMatches(db: Kysely<DB>) {
 export function getMatch(db: Kysely<DB>) {
   return async (userId: string, role: string, matchId: string) => {
     // Verify access
-    if (role !== "admin") {
+    if (!hasClubWideAccess(role, "matchday", "view")) {
       const access = await db
         .selectFrom("matchday")
         .innerJoin(
@@ -1412,7 +1413,7 @@ export function getTeamNewsData(db: Kysely<DB>) {
     matchTime: string | undefined,
   ): Promise<TeamNewsData> => {
     // Verify access (same pattern as getMatch)
-    if (role !== "admin") {
+    if (!hasClubWideAccess(role, "matchday", "view")) {
       const access = await db
         .selectFrom("matchday")
         .innerJoin(

@@ -1,5 +1,6 @@
 import type { DB } from "@percy-main/db";
 import { getAgeGroup } from "@percy-main/shared";
+import { hasClubWideAccess } from "@percy-main/shared/auth/permissions";
 import type { Kysely } from "kysely";
 import type { DependentInput } from "./schemas.ts";
 
@@ -211,7 +212,7 @@ export function getDependents(db: Kysely<DB>) {
  */
 export function listMyTeams(db: Kysely<DB>) {
   return async (userId: string, role: string) => {
-    if (role === "admin") {
+    if (hasClubWideAccess(role, "juniors", "view")) {
       return db
         .selectFrom("junior_team")
         .selectAll()
@@ -246,8 +247,9 @@ export function listMyTeams(db: Kysely<DB>) {
  */
 export function listPlayers(db: Kysely<DB>) {
   return async (userId: string, role: string, teamId: string) => {
-    // Verify access
-    if (role !== "admin") {
+    // Verify access — club-wide roles see any team, scoped junior_manager
+    // must have an assignment row for this team.
+    if (!hasClubWideAccess(role, "juniors", "view")) {
       const assignment = await db
         .selectFrom("junior_team_manager")
         .where("junior_team_id", "=", teamId)

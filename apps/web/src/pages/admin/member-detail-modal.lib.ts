@@ -225,19 +225,25 @@ export function parseNewChargeForm(input: NewChargeInput): ParsedChargeForm {
   };
 }
 
+import {
+  ROLE_LABELS,
+  parseRoles,
+  type RoleName,
+} from "@percy-main/shared/auth/permissions";
+
 /**
- * Display label for a user role pill. Falls back to "User" for unknown
- * roles (mirroring the default branch of the switch).
+ * Display label for a single user role (or first of a comma-separated list).
+ * Falls back to "User" for unknown roles or no role.
  */
 export function getRoleLabel(role: string | null | undefined): string {
-  switch (role) {
-    case "admin":
-      return "Admin";
-    case "junior_manager":
-      return "Junior Manager";
-    case "official":
-      return "Official";
-    default:
-      return "User";
-  }
+  const parsed = parseRoles(role);
+  if (parsed.length === 0) return "User";
+  return ROLE_LABELS[parsed[0]];
+}
+
+/** Display labels for every role in a comma-separated role string. */
+export function getRoleLabels(
+  role: string | null | undefined,
+): Array<{ name: RoleName; label: string }> {
+  return parseRoles(role).map((name) => ({ name, label: ROLE_LABELS[name] }));
 }

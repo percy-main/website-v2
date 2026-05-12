@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import {
   getAuthSession,
-  requireRole,
+  requirePermission,
   requireVerifiedEmail,
 } from "../auth/middleware.ts";
 import {
@@ -54,7 +54,7 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/documents/upload-url",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("documents", "manage")],
       schema: {
         response: { 200: uploadUrlResponseSchema },
       },
@@ -70,7 +70,7 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/documents",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("documents", "manage")],
       schema: {
         body: createDocumentSchema,
         response: { 200: createDocumentResponseSchema },
@@ -89,7 +89,7 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/documents/:documentId/upload-url",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("documents", "manage")],
       schema: {
         params: documentIdParamSchema,
         response: { 200: uploadUrlResponseSchema },
@@ -109,7 +109,7 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     "/admin/documents/:documentId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("documents", "manage")],
       schema: {
         params: documentIdParamSchema,
         body: updateDocumentSchema,
@@ -131,7 +131,7 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/documents",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("documents", "manage")],
       schema: {
         response: { 200: listDocumentsResponseSchema },
       },
@@ -144,7 +144,7 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/documents/:documentId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("documents", "manage")],
       schema: {
         params: documentIdParamSchema,
         response: { 200: documentDetailResponseSchema },
@@ -158,7 +158,7 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/documents/:documentId/assign",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("documents", "manage")],
       schema: {
         params: documentIdParamSchema,
         body: assignDocumentSchema,
@@ -179,7 +179,7 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/admin/documents/:documentId/assign/:userId",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("documents", "manage")],
       schema: {
         params: assignmentParamSchema,
         response: { 200: unassignDocumentResponseSchema },
@@ -193,7 +193,7 @@ export const documentRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/admin/documents/:documentId/archive",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("documents", "manage")],
       schema: {
         params: documentIdParamSchema,
         response: { 200: archiveDocumentResponseSchema },

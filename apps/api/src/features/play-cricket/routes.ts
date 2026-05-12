@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { requireRole } from "../auth/middleware.ts";
+import { requirePermission } from "../auth/middleware.ts";
 import {
   leagueTableResponseSchema,
   leagueTableSchema,
@@ -40,7 +40,7 @@ export const playCricketRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/play-cricket/admin/sync",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("matchday", "manage")],
       schema: {
         response: { 202: triggerSyncResponseSchema },
       },

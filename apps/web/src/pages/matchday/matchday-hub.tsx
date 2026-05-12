@@ -2,6 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
+import {
+  useHasAnyElevatedRole,
+  useHasPermission,
+} from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
@@ -15,11 +19,10 @@ import { Link } from "react-router";
 export function Component() {
   useDocumentMeta("Matchday");
   const { data: session } = useSession();
+  const hasAdminAccess = useHasAnyElevatedRole();
+  const isOfficial = useHasPermission("matchday", "view").allowed;
 
   if (!session) return null;
-
-  const { user } = session;
-  const isOfficial = user.role === "official" || user.role === "admin";
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -27,7 +30,7 @@ export function Component() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1>Matchday</h1>
           <div className="flex flex-wrap gap-2">
-            {user.role === "admin" && (
+            {hasAdminAccess && (
               <Link
                 className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
                 to="/admin"

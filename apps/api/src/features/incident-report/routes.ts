@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { requireRole } from "../auth/middleware.ts";
+import { requirePermission } from "../auth/middleware.ts";
 import {
   incidentReportAdminUpdateSchema,
   incidentReportDetailSchema,
@@ -48,7 +48,7 @@ export const incidentReportRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/incident-reports",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("incidents", "view")],
       schema: {
         querystring: listIncidentReportsSchema,
         response: { 200: listIncidentReportsResponseSchema },
@@ -62,7 +62,7 @@ export const incidentReportRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/admin/incident-reports/:id",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("incidents", "view")],
       schema: {
         params: incidentReportIdParamSchema,
         response: { 200: incidentReportDetailSchema },
@@ -82,7 +82,7 @@ export const incidentReportRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     "/admin/incident-reports/:id",
     {
-      preHandler: [requireRole("admin")],
+      preHandler: [requirePermission("incidents", "manage")],
       schema: {
         params: incidentReportIdParamSchema,
         body: incidentReportAdminUpdateSchema,

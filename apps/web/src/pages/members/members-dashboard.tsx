@@ -20,6 +20,10 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
+import {
+  useHasAnyElevatedRole,
+  useHasPermission,
+} from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
@@ -52,6 +56,9 @@ export function Component() {
     });
   };
 
+  const hasAdminAccess = useHasAnyElevatedRole();
+  const hasJuniorAccess = useHasPermission("juniors", "view").allowed;
+
   if (!session) return null;
 
   const { user } = session;
@@ -64,7 +71,7 @@ export function Component() {
         <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1>Members Area</h1>
           <div className="flex flex-wrap gap-2">
-            {user.role === "admin" && (
+            {hasAdminAccess && (
               <Link
                 className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
                 to="/admin"
@@ -73,7 +80,7 @@ export function Component() {
               </Link>
             )}
 
-            {(user.role === "junior_manager" || user.role === "admin") && (
+            {hasJuniorAccess && (
               <Link
                 className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
                 to="/junior-manager"
