@@ -12,6 +12,7 @@ import {
   getDateDetail,
   getRequest,
   listRequests,
+  previewNotifyRecipients,
   removeAssignment,
   respond,
   setAvailability,
@@ -56,6 +57,7 @@ async function seedRequest(
   dateFrom: string,
   dateTo: string,
   status = "open",
+  userGroupId: string | null = null,
 ) {
   const id = `req-${crypto.randomUUID()}`;
   await ctx.db
@@ -66,8 +68,24 @@ async function seedRequest(
       date_from: dateFrom,
       date_to: dateTo,
       status,
+      user_group_id: userGroupId,
     })
     .execute();
+  return id;
+}
+
+/** Seed a user_group row and optionally add members to it. */
+async function seedGroup(name: string, memberIds: readonly string[] = []) {
+  const id = `grp-${crypto.randomUUID()}`;
+  await ctx.db.insertInto("user_group").values({ id, name }).execute();
+  if (memberIds.length > 0) {
+    await ctx.db
+      .insertInto("user_group_member")
+      .values(
+        memberIds.map((memberId) => ({ group_id: id, member_id: memberId })),
+      )
+      .execute();
+  }
   return id;
 }
 
@@ -586,6 +604,139 @@ describe("availability service (integration)", () => {
         .select("status")
         .executeTakeFirst();
       expect(opened?.status).toBe("open");
+    });
+  });
+
+  describe("user group scoping", () => {
+    it("getActiveRequests hides group-scoped requests from non-members", async () => {
+      const inGroupEmail = `g-in-${crypto.randomUUID()}@test.com`;
+      const outsiderEmail = `g-out-${crypto.randomUUID()}@test.com`;
+      const inGroup = await seedTestUser(ctx.db, {
+        email: inGroupEmail,
+        withMember: true,
+      });
+      const outsider = await seedTestUser(ctx.db, {
+        email: outsiderEmail,
+        withMember: true,
+      });
+      if (!inGroup.memberId || !outsider.memberId) {
+        throw new Error("expected members");
+      }
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `g-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Group XI");
+      const groupId = await seedGroup("Seniors", [inGroup.memberId]);
+
+      const scopedReq = await seedRequest(
+        admin.userId,
+        "2027-04-01",
+        "2027-04-07",
+        "open",
+        groupId,
+      );
+      await seedFixture(scopedReq, teamId, "2027-04-01");
+
+      const unscopedReq = await seedRequest(
+        admin.userId,
+        "2027-05-01",
+        "2027-05-07",
+        "open",
+        null,
+      );
+      await seedFixture(unscopedReq, teamId, "2027-05-01");
+
+      const insideResult = await getActiveRequests(ctx.db)(inGroupEmail);
+      const insideIds = insideResult.items.map((r) => r.id);
+      expect(insideIds).toContain(scopedReq);
+      expect(insideIds).toContain(unscopedReq);
+
+      const outsideResult = await getActiveRequests(ctx.db)(outsiderEmail);
+      const outsideIds = outsideResult.items.map((r) => r.id);
+      expect(outsideIds).not.toContain(scopedReq);
+      expect(outsideIds).toContain(unscopedReq);
+    });
+
+    it("getDateDetail filters noResponse pool + response list to group members", async () => {
+      const inGroup = await seedTestUser(ctx.db, {
+        email: `dt-in-${crypto.randomUUID()}@test.com`,
+        withMember: true,
+      });
+      const outsider = await seedTestUser(ctx.db, {
+        email: `dt-out-${crypto.randomUUID()}@test.com`,
+        withMember: true,
+      });
+      if (!inGroup.memberId || !outsider.memberId) {
+        throw new Error("expected members");
+      }
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `dt-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Detail XI");
+      const groupId = await seedGroup("Womens", [inGroup.memberId]);
+
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-06-01",
+        "2027-06-01",
+        "open",
+        groupId,
+      );
+      await seedFixture(reqId, teamId, "2027-06-01");
+
+      // Both members respond; only the in-group one should surface.
+      await respond(ctx.db)(inGroup.email, reqId, {
+        responses: [{ matchDate: "2027-06-01", status: "available" }],
+      });
+      await respond(ctx.db)(outsider.email, reqId, {
+        responses: [{ matchDate: "2027-06-01", status: "available" }],
+      });
+
+      const detail = await getDateDetail(ctx.db)(reqId, "2027-06-01");
+
+      const availableIds = detail.pools.available.map((r) => r.member_id);
+      expect(availableIds).toContain(inGroup.memberId);
+      expect(availableIds).not.toContain(outsider.memberId);
+
+      const noResponseIds = detail.pools.noResponse.map((m) => m.id);
+      expect(noResponseIds).not.toContain(outsider.memberId);
+    });
+
+    it("previewNotifyRecipients filters by the request's group", async () => {
+      const inGroup = await seedTestUser(ctx.db, {
+        email: `nf-in-${crypto.randomUUID()}@test.com`,
+        withMember: true,
+      });
+      const outsider = await seedTestUser(ctx.db, {
+        email: `nf-out-${crypto.randomUUID()}@test.com`,
+        withMember: true,
+      });
+      if (!inGroup.memberId || !outsider.memberId) {
+        throw new Error("expected members");
+      }
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `nf-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const groupId = await seedGroup("Notify group", [inGroup.memberId]);
+
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-07-01",
+        "2027-07-07",
+        "open",
+        groupId,
+      );
+
+      const { recipients } = await previewNotifyRecipients(ctx.db)(reqId, {});
+      const recipientEmails = recipients.map((r) => r.email);
+      expect(recipientEmails).toContain(inGroup.email);
+      expect(recipientEmails).not.toContain(outsider.email);
     });
   });
 });

@@ -169,6 +169,12 @@ function CreateRequestView() {
 
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(weekFromNow);
+  const [userGroupId, setUserGroupId] = useState("");
+
+  const groupsQuery = useQuery({
+    queryKey: ["admin", "user-groups"],
+    queryFn: () => callApi(api.GET("/api/admin/user-groups")),
+  });
 
   const previewQuery = useQuery({
     queryKey: ["availability", "preview", dateFrom, dateTo],
@@ -185,7 +191,11 @@ function CreateRequestView() {
     mutationFn: () =>
       callApi(
         api.POST("/api/availability/requests", {
-          body: { dateFrom, dateTo },
+          body: {
+            dateFrom,
+            dateTo,
+            ...(userGroupId ? { userGroupId } : {}),
+          },
         }),
       ),
     onSuccess: (data) => {
@@ -246,6 +256,33 @@ function CreateRequestView() {
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
               />
+            </div>
+            <div>
+              <label
+                htmlFor="availability-new-user-group"
+                className="mb-1 block text-sm font-medium"
+              >
+                Audience
+              </label>
+              <Select
+                value={userGroupId || "__all__"}
+                onValueChange={(v) => setUserGroupId(v === "__all__" ? "" : v)}
+              >
+                <SelectTrigger
+                  id="availability-new-user-group"
+                  className="w-[220px]"
+                >
+                  <SelectValue placeholder="All members" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All members</SelectItem>
+                  {groupsQuery.data?.groups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

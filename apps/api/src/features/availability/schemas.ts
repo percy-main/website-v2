@@ -28,6 +28,7 @@ export const requestDateMemberParamSchema = z.object({
 export const createRequestSchema = z.object({
   dateFrom: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
   dateTo: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
+  userGroupId: z.string().optional(),
 });
 
 export const assignPlayerSchema = z.object({
