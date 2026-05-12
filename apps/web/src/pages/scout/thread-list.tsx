@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api, callApi } from "@/lib/api-client";
+import { checkPermission } from "@percy-main/shared/auth/permissions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -30,25 +31,37 @@ interface ThreadSummary {
   sharedByMe: boolean;
 }
 
-const MODE_OPTIONS: ReadonlyArray<{
+interface ModeOption {
   value: ScoutMode;
   label: string;
   description: string;
-}> = [
+  /**
+   * Predicate over the user's role string. Mirrors the BE permission the
+   * mode ultimately needs — debrief and chat threads create via
+   * `ai_chat:use`, scout threads kick off report generation which is
+   * `ai_scout:use`.
+   */
+  visible: (role: string | null) => boolean;
+}
+
+const MODE_OPTIONS: readonly ModeOption[] = [
   {
     value: "chat",
     label: "Chat",
     description: "Free-form scouting research and Q&A",
+    visible: (role) => checkPermission(role, "ai_chat", "use"),
   },
   {
     value: "debrief",
     label: "Debrief",
     description: "Walk through a recent match — grow the fact corpus",
+    visible: (role) => checkPermission(role, "ai_chat", "use"),
   },
   {
     value: "scout",
     label: "Scout",
     description: "Pick an upcoming fixture, build toward a report PDF",
+    visible: (role) => checkPermission(role, "ai_scout", "use"),
   },
 ];
 
@@ -66,9 +79,17 @@ interface ThreadListProps {
   // are ignored — the sidebar sits in normal flex flow.
   mobileOpen: boolean;
   onMobileClose: () => void;
+  // User's role string, threaded through so the new-thread split-button can
+  // hide modes the user can't actually create (scout mode needs ai_scout:use,
+  // chat/debrief need ai_chat:use).
+  role: string | null;
 }
 
-export function ThreadList({ mobileOpen, onMobileClose }: ThreadListProps) {
+export function ThreadList({
+  mobileOpen,
+  onMobileClose,
+  role,
+}: ThreadListProps) {
   const params = useParams<{ threadId?: string }>();
   const activeThreadId = params.threadId;
   const navigate = useNavigate();
@@ -114,7 +135,7 @@ export function ThreadList({ mobileOpen, onMobileClose }: ThreadListProps) {
           the sidebar/main split, regardless of the natural size of the
           contents on either side. */}
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-stone-200 px-3">
-        <NewThreadButton onCreated={onMobileClose} />
+        <NewThreadButton role={role} onCreated={onMobileClose} />
         <button
           type="button"
           onClick={onMobileClose}
@@ -273,13 +294,29 @@ function ModeBadge({ mode }: { mode: ScoutMode }) {
 // hero without lifting state to a common parent. onCreated is the optional
 // post-success hook — the sidebar uses it to dismiss the mobile drawer
 // once a thread has been created.
-export function NewThreadButton({ onCreated }: { onCreated?: () => void }) {
+export function NewThreadButton({
+  role,
+  onCreated,
+}: {
+  // Caller-supplied because NewThreadButton is reused in the empty-state hero
+  // — keeping the prop explicit avoids tying the component to a useSession
+  // hook call that the hero's parent may not need.
+  role: string | null;
+  onCreated?: () => void;
+}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Filter the dropdown to modes the user can actually use. If the user
+  // somehow lacks every mode permission, render nothing — the empty button
+  // would be a dead-end.
+  const visibleModes = MODE_OPTIONS.filter((m) => m.visible(role));
   // Active mode for the split-button. Local state — survives clicks within
   // the page but not reload; the dropdown is a transient affordance, not a
-  // navigable URL state.
-  const [activeMode, setActiveMode] = useState<ScoutMode>("chat");
+  // navigable URL state. Initialised to the first visible mode so the
+  // create action always corresponds to something the user can do.
+  const [activeMode, setActiveMode] = useState<ScoutMode>(
+    visibleModes[0]?.value ?? "chat",
+  );
 
   const createMutation = useMutation({
     mutationFn: (mode: ScoutMode) =>
@@ -297,12 +334,15 @@ export function NewThreadButton({ onCreated }: { onCreated?: () => void }) {
     },
   });
 
+  if (visibleModes.length === 0) return null;
+
   return (
     <NewThreadSplitButton
       activeMode={activeMode}
       onModeChange={setActiveMode}
       onCreate={() => createMutation.mutate(activeMode)}
       pending={createMutation.isPending}
+      visibleModes={visibleModes}
     />
   );
 }
@@ -318,14 +358,16 @@ function NewThreadSplitButton({
   onModeChange,
   onCreate,
   pending,
+  visibleModes,
 }: {
   activeMode: ScoutMode;
   onModeChange: (mode: ScoutMode) => void;
   onCreate: () => void;
   pending: boolean;
+  visibleModes: readonly ModeOption[];
 }) {
   const activeLabel =
-    MODE_OPTIONS.find((o) => o.value === activeMode)?.label ?? "Chat";
+    visibleModes.find((o) => o.value === activeMode)?.label ?? "Chat";
 
   return (
     <div className="flex flex-1">
@@ -351,7 +393,7 @@ function NewThreadSplitButton({
             value={activeMode}
             onValueChange={(v) => onModeChange(v as ScoutMode)}
           >
-            {MODE_OPTIONS.map((opt) => (
+            {visibleModes.map((opt) => (
               <DropdownMenuRadioItem
                 key={opt.value}
                 value={opt.value}

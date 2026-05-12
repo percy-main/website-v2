@@ -1,8 +1,10 @@
 import { ImbuzaiMascot } from "@/components/imbuzai-mascot.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
+import { useSession } from "@/lib/auth-client";
 import type { UIMessage } from "@ai-sdk/react";
 import type { ReportData } from "@percy-main/shared";
+import { checkPermission } from "@percy-main/shared/auth/permissions";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
@@ -32,9 +34,16 @@ export function Component() {
   useDocumentMeta("ImbuzAI");
   const { threadId } = useParams<{ threadId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { data: session } = useSession();
+  const role =
+    (session?.user as { role?: string | null } | undefined)?.role ?? null;
+  const tabPerms = scoutTabVisibility(role);
   // URL-state per the project's URL-state convention. The non-chat tabs
   // are global (not per-thread) so they survive switching between threads.
-  const view: ScoutView = viewFromParam(searchParams.get("view"));
+  const requestedView: ScoutView = viewFromParam(searchParams.get("view"));
+  const view: ScoutView = tabPerms[requestedView]
+    ? requestedView
+    : (firstVisibleScoutTab(tabPerms) ?? "chat");
 
   const setView = (next: ScoutView) => {
     setSearchParams(
@@ -76,6 +85,11 @@ export function Component() {
     return () => window.removeEventListener("keydown", onKey);
   }, [threadDrawerOpen]);
 
+  // Show the thread sidebar only when the user can actually list threads —
+  // GET /scout/threads is gated by ai_chat:use, so a facts- or knowledge-only
+  // user would just see an error panel in the sidebar.
+  const showThreadSidebar = tabPerms.chat;
+
   return (
     <div className="container mx-auto h-[calc(100vh-8rem)] px-0">
       <div className="relative flex h-full overflow-hidden rounded-lg border border-stone-200 bg-white">
@@ -87,15 +101,20 @@ export function Component() {
             onClick={() => setThreadDrawerOpen(false)}
           />
         )}
-        <ThreadList
-          mobileOpen={threadDrawerOpen}
-          onMobileClose={() => setThreadDrawerOpen(false)}
-        />
+        {showThreadSidebar && (
+          <ThreadList
+            mobileOpen={threadDrawerOpen}
+            onMobileClose={() => setThreadDrawerOpen(false)}
+            role={role}
+          />
+        )}
         <main className="flex min-w-0 flex-1 flex-col">
           <ScoutTabs
             view={view}
             setView={setView}
             onOpenThreadDrawer={() => setThreadDrawerOpen(true)}
+            tabPerms={tabPerms}
+            showThreadsToggle={showThreadSidebar}
           />
           {view === "reports" ? (
             <ReportsView />
@@ -103,10 +122,12 @@ export function Component() {
             <FactsAdminView />
           ) : view === "knowledge" ? (
             <KnowledgeAdminView />
+          ) : !tabPerms.chat ? (
+            <NoAccessState />
           ) : threadId ? (
             <ActiveThread threadId={threadId} />
           ) : (
-            <EmptyState />
+            <EmptyState role={role} />
           )}
         </main>
       </div>
@@ -114,49 +135,93 @@ export function Component() {
   );
 }
 
+interface ScoutTabPerms {
+  chat: boolean;
+  reports: boolean;
+  facts: boolean;
+  knowledge: boolean;
+}
+
+function scoutTabVisibility(role: string | null): ScoutTabPerms {
+  return {
+    chat: checkPermission(role, "ai_chat", "use"),
+    reports: checkPermission(role, "ai_scout", "use"),
+    facts: checkPermission(role, "ai_facts", "view"),
+    knowledge: checkPermission(role, "ai_knowledge", "view"),
+  };
+}
+
+function firstVisibleScoutTab(perms: ScoutTabPerms): ScoutView | undefined {
+  const order: ScoutView[] = ["chat", "reports", "facts", "knowledge"];
+  return order.find((v) => perms[v]);
+}
+
 function ScoutTabs({
   view,
   setView,
   onOpenThreadDrawer,
+  tabPerms,
+  showThreadsToggle,
 }: {
   view: ScoutView;
   setView: (next: ScoutView) => void;
   onOpenThreadDrawer: () => void;
+  tabPerms: ScoutTabPerms;
+  showThreadsToggle: boolean;
 }) {
   // h-12 matches the sidebar's NewThreadSplitButton container so the bottom
   // border on the tabs nav lines up exactly with the bottom border under
   // "New chat".
   return (
     <nav className="flex h-12 shrink-0 items-stretch border-b border-stone-200 bg-stone-50">
-      <button
-        type="button"
-        onClick={onOpenThreadDrawer}
-        aria-label="Open threads"
-        className="inline-flex items-center px-3 text-stone-600 hover:text-stone-900 lg:hidden"
-      >
-        <ThreadsIcon className="size-5" />
-      </button>
-      <TabButton
-        active={view === "chat"}
-        onClick={() => setView("chat")}
-        label="Chat"
-      />
-      <TabButton
-        active={view === "reports"}
-        onClick={() => setView("reports")}
-        label="Reports"
-      />
-      <TabButton
-        active={view === "facts"}
-        onClick={() => setView("facts")}
-        label="Facts"
-      />
-      <TabButton
-        active={view === "knowledge"}
-        onClick={() => setView("knowledge")}
-        label="Knowledge"
-      />
+      {showThreadsToggle && (
+        <button
+          type="button"
+          onClick={onOpenThreadDrawer}
+          aria-label="Open threads"
+          className="inline-flex items-center px-3 text-stone-600 hover:text-stone-900 lg:hidden"
+        >
+          <ThreadsIcon className="size-5" />
+        </button>
+      )}
+      {tabPerms.chat && (
+        <TabButton
+          active={view === "chat"}
+          onClick={() => setView("chat")}
+          label="Chat"
+        />
+      )}
+      {tabPerms.reports && (
+        <TabButton
+          active={view === "reports"}
+          onClick={() => setView("reports")}
+          label="Reports"
+        />
+      )}
+      {tabPerms.facts && (
+        <TabButton
+          active={view === "facts"}
+          onClick={() => setView("facts")}
+          label="Facts"
+        />
+      )}
+      {tabPerms.knowledge && (
+        <TabButton
+          active={view === "knowledge"}
+          onClick={() => setView("knowledge")}
+          label="Knowledge"
+        />
+      )}
     </nav>
+  );
+}
+
+function NoAccessState() {
+  return (
+    <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-stone-500">
+      You don&rsquo;t have access to ImbuzAI chat. Ask a superadmin if you
+      should.
+    </div>
   );
 }
 
@@ -184,7 +249,7 @@ function TabButton({
   );
 }
 
-function EmptyState() {
+function EmptyState({ role }: { role: string | null }) {
   return (
     <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-stone-500">
       <div className="flex flex-col items-center gap-4">
@@ -206,7 +271,7 @@ function EmptyState() {
           </div>
         </div>
         <div className="flex w-64">
-          <NewThreadButton />
+          <NewThreadButton role={role} />
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import {
-  useHasAnyElevatedRole,
+  useHasAdminPanelAccess,
   useHasPermission,
 } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client";
@@ -19,7 +19,7 @@ import { Link } from "react-router";
 export function Component() {
   useDocumentMeta("Matchday");
   const { data: session } = useSession();
-  const hasAdminAccess = useHasAnyElevatedRole();
+  const hasAdminAccess = useHasAdminPanelAccess();
   const isOfficial = useHasPermission("matchday", "view").allowed;
 
   if (!session) return null;

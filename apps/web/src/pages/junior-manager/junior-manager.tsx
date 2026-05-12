@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { useHasAnyElevatedRole } from "@/hooks/use-has-permission.js";
+import { useHasAdminPanelAccess } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { useSession } from "@/lib/auth-client";
@@ -53,7 +53,7 @@ function usePlayers(teamId: string, enabled: boolean) {
 export function Component() {
   useDocumentMeta("Junior Teams");
   const { data: session } = useSession();
-  const hasAdminAccess = useHasAnyElevatedRole();
+  const hasAdminAccess = useHasAdminPanelAccess();
 
   if (!session) return null;
 

@@ -1,5 +1,6 @@
 import {
   checkPermission,
+  hasAdminPanelAccess,
   hasAnyElevatedRole,
   type Action,
   type Resource,
@@ -24,12 +25,27 @@ export function useHasPermission<R extends Resource>(
 }
 
 /**
- * True iff the current user has any non-default role. Used to gate the
- * "Admin Panel" links scattered across the members/matchday/etc. pages.
+ * True iff the current user has any non-default role. Kept for places that
+ * genuinely just need "is this an elevated user" — but for "show the Admin
+ * Panel link" use {@link useHasAdminPanelAccess}, since AI-only roles count
+ * as elevated but don't see anything in /admin.
  */
 export function useHasAnyElevatedRole(): boolean {
   const { data: session } = useSession();
   if (!session) return false;
   const role = (session.user as { role?: string | null }).role ?? null;
   return hasAnyElevatedRole(role);
+}
+
+/**
+ * True iff the current user has at least one admin-panel sub-tab unlocked.
+ * Used to gate the "Admin Panel" links and the /admin route — replaces
+ * useHasAnyElevatedRole at those callsites so AI-only roles (which are
+ * "elevated" but have zero admin-panel surface) don't see a dead link.
+ */
+export function useHasAdminPanelAccess(): boolean {
+  const { data: session } = useSession();
+  if (!session) return false;
+  const role = (session.user as { role?: string | null }).role ?? null;
+  return hasAdminPanelAccess(role);
 }

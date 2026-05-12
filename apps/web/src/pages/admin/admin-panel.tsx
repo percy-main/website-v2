@@ -22,31 +22,51 @@ import { RecordLinkingTab } from "./record-linking-tab";
 import { SponsorshipsTab } from "./sponsorships-tab";
 import { TreasurerTab } from "./treasurer-tab";
 
+interface SubTabDef {
+  value: string;
+  label: string;
+  /**
+   * Whether the current user's role has the BE permission this sub-tab's API
+   * requires. Mirrors the backend requirePermission gates so we never show a
+   * tab whose data won't load. Sub-tabs without an explicit gate return true.
+   */
+  visible: (role: string | null) => boolean;
+  render: () => React.ReactNode;
+}
+
 interface SectionDef {
   value: string;
   label: string;
-  subTabs: Array<{
-    value: string;
-    label: string;
-    render: () => React.ReactNode;
-  }>;
+  subTabs: readonly SubTabDef[];
 }
 
-const SECTIONS = [
+const SECTIONS: readonly SectionDef[] = [
   {
     value: "people",
     label: "People",
     subTabs: [
-      { value: "members", label: "Members", render: () => <MembersTab /> },
-      { value: "juniors", label: "Juniors", render: () => <JuniorsTab /> },
+      {
+        value: "members",
+        label: "Members",
+        visible: (role) => checkPermission(role, "users", "view"),
+        render: () => <MembersTab />,
+      },
+      {
+        value: "juniors",
+        label: "Juniors",
+        visible: (role) => checkPermission(role, "juniors", "view"),
+        render: () => <JuniorsTab />,
+      },
       {
         value: "duplicates",
         label: "Duplicates",
+        visible: (role) => checkPermission(role, "users", "manage"),
         render: () => <DuplicatesTab />,
       },
       {
         value: "record-linking",
         label: "Record Linking",
+        visible: (role) => checkPermission(role, "users", "manage"),
         render: () => <RecordLinkingTab />,
       },
     ],
@@ -55,11 +75,22 @@ const SECTIONS = [
     value: "outreach",
     label: "Outreach",
     subTabs: [
-      { value: "leads", label: "Leads", render: () => <LeadsTab /> },
-      { value: "contacts", label: "Contacts", render: () => <ContactsTab /> },
+      {
+        value: "leads",
+        label: "Leads",
+        visible: (role) => checkPermission(role, "marketing", "view"),
+        render: () => <LeadsTab />,
+      },
+      {
+        value: "contacts",
+        label: "Contacts",
+        visible: (role) => checkPermission(role, "marketing", "view"),
+        render: () => <ContactsTab />,
+      },
       {
         value: "marketing-outbox",
         label: "Marketing Outbox",
+        visible: (role) => checkPermission(role, "marketing", "view"),
         render: () => <MarketingOutboxTab />,
       },
     ],
@@ -71,23 +102,38 @@ const SECTIONS = [
       {
         value: "overview",
         label: "Overview",
+        visible: (role) => checkPermission(role, "finance", "manage"),
         render: () => <TreasurerTab />,
       },
-      { value: "charges", label: "Charges", render: () => <ChargesTab /> },
+      {
+        value: "charges",
+        label: "Charges",
+        visible: (role) => checkPermission(role, "finance", "view"),
+        render: () => <ChargesTab />,
+      },
       {
         value: "financial-relief",
         label: "Financial Relief",
+        visible: (role) => checkPermission(role, "finance", "manage"),
         render: () => <FinancialReliefTab />,
       },
       {
         value: "sponsorships",
         label: "Sponsorships",
+        visible: (role) => checkPermission(role, "finance", "manage"),
         render: () => <SponsorshipsTab />,
       },
       {
         value: "expenses",
         label: "Expenses",
+        visible: (role) => checkPermission(role, "finance", "manage"),
         render: () => <ExpenseHistoryTab />,
+      },
+      {
+        value: "match-fees",
+        label: "Match Donations",
+        visible: (role) => checkPermission(role, "finance", "view"),
+        render: () => <MatchFeesTab />,
       },
     ],
   },
@@ -98,14 +144,15 @@ const SECTIONS = [
       {
         value: "game-reports",
         label: "Game Reports",
+        visible: (role) => checkPermission(role, "matchday", "view"),
         render: () => <GameReportsTab />,
       },
       {
-        value: "match-fees",
-        label: "Match Donations",
-        render: () => <MatchFeesTab />,
+        value: "fantasy",
+        label: "Fantasy",
+        visible: (role) => checkPermission(role, "fantasy", "manage"),
+        render: () => <FantasyTab />,
       },
-      { value: "fantasy", label: "Fantasy", render: () => <FantasyTab /> },
     ],
   },
   {
@@ -115,11 +162,13 @@ const SECTIONS = [
       {
         value: "incidents",
         label: "Incidents",
+        visible: (role) => checkPermission(role, "incidents", "view"),
         render: () => <IncidentsTab />,
       },
       {
         value: "documents",
         label: "Documents",
+        visible: (role) => checkPermission(role, "documents", "manage"),
         render: () => <DocumentsTab />,
       },
     ],
@@ -131,51 +180,36 @@ const SECTIONS = [
       {
         value: "users",
         label: "User Roles",
+        visible: (role) => checkPermission(role, "users", "manage_roles"),
         render: () => <AccessTab />,
       },
     ],
   },
-] as const satisfies readonly SectionDef[];
+];
 
-type Section = (typeof SECTIONS)[number];
-type SectionValue = Section["value"];
+type SectionValue = (typeof SECTIONS)[number]["value"];
 
 const DEFAULT_SECTION: SectionValue = "people";
 
-function findSection(value: string | null): Section | undefined {
+function findSection(value: string | null): SectionDef | undefined {
   return SECTIONS.find((s) => s.value === value);
 }
 
-function getSection(value: string | null): Section {
+function getSection(value: string | null): SectionDef {
   return findSection(value) ?? SECTIONS[0];
 }
 
 /**
- * Whether a section's tabs are reachable for the current user. Each tab's
- * backing API still 403s independently, but this filter hides sections the
- * user can't usefully open so the admin panel doesn't show dead links.
+ * Filter a section's sub-tabs to those the user can actually open. Each
+ * sub-tab declares its own permission gate above, mirroring the backend's
+ * requirePermission. A section is visible iff at least one of its sub-tabs
+ * is.
  */
-function isSectionVisible(value: SectionValue, role: string | null): boolean {
-  switch (value) {
-    case "people":
-      return checkPermission(role, "users", "view");
-    case "outreach":
-      return checkPermission(role, "marketing", "view");
-    case "finance":
-      return checkPermission(role, "finance", "view");
-    case "cricket":
-      return (
-        checkPermission(role, "matchday", "view") ||
-        checkPermission(role, "fantasy", "manage")
-      );
-    case "compliance":
-      return (
-        checkPermission(role, "incidents", "view") ||
-        checkPermission(role, "documents", "manage")
-      );
-    case "access":
-      return checkPermission(role, "users", "manage_roles");
-  }
+function visibleSubTabs(
+  section: SectionDef,
+  role: string | null,
+): readonly SubTabDef[] {
+  return section.subTabs.filter((t) => t.visible(role));
 }
 
 export function Component() {
@@ -185,32 +219,43 @@ export function Component() {
 
   const role =
     (session?.user as { role?: string | null } | undefined)?.role ?? null;
-  const visibleSections = SECTIONS.filter((s) =>
-    isSectionVisible(s.value, role),
-  );
+  const sectionsWithVisibleSubTabs = SECTIONS.reduce<
+    Array<{ section: SectionDef; subTabs: readonly SubTabDef[] }>
+  >((acc, s) => {
+    const subTabs = visibleSubTabs(s, role);
+    if (subTabs.length > 0) acc.push({ section: s, subTabs });
+    return acc;
+  }, []);
 
   const sectionParam = searchParams.get("section");
-  const requested = getSection(sectionParam);
-  const section = visibleSections.includes(requested)
-    ? requested
-    : (visibleSections[0] ?? SECTIONS[0]);
+  const requestedSection = getSection(sectionParam);
+  const current =
+    sectionsWithVisibleSubTabs.find(
+      (s) => s.section.value === requestedSection.value,
+    ) ?? sectionsWithVisibleSubTabs[0];
 
   const subParam = searchParams.get("sub");
-  const subTab =
-    section.subTabs.find((s) => s.value === subParam) ?? section.subTabs[0];
+  const subTab = current
+    ? (current.subTabs.find((s) => s.value === subParam) ?? current.subTabs[0])
+    : undefined;
 
   const onSectionChange = (value: string) => {
-    const next = findSection(value);
+    const next = sectionsWithVisibleSubTabs.find(
+      (s) => s.section.value === value,
+    );
     if (!next) return;
     const params = new URLSearchParams();
-    if (next.value !== DEFAULT_SECTION) params.set("section", next.value);
+    if (next.section.value !== DEFAULT_SECTION)
+      params.set("section", next.section.value);
     setSearchParams(params, { replace: true });
   };
 
   const onSubChange = (value: string) => {
+    if (!current) return;
     const params = new URLSearchParams();
-    if (section.value !== DEFAULT_SECTION) params.set("section", section.value);
-    if (value !== section.subTabs[0].value) params.set("sub", value);
+    if (current.section.value !== DEFAULT_SECTION)
+      params.set("section", current.section.value);
+    if (value !== current.subTabs[0].value) params.set("sub", value);
     setSearchParams(params, { replace: true });
   };
 
@@ -230,44 +275,50 @@ export function Component() {
             </Link>
           </div>
         </div>
-        <Tabs
-          value={section.value}
-          onValueChange={onSectionChange}
-          className="w-full"
-        >
-          <TabsList>
-            {visibleSections.map((s) => (
-              <TabsTrigger key={s.value} value={s.value}>
-                {s.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        {current && subTab ? (
+          <Tabs
+            value={current.section.value}
+            onValueChange={onSectionChange}
+            className="w-full"
+          >
+            <TabsList>
+              {sectionsWithVisibleSubTabs.map((s) => (
+                <TabsTrigger key={s.section.value} value={s.section.value}>
+                  {s.section.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-          {visibleSections.map((s) => (
-            <TabsContent key={s.value} value={s.value}>
-              {s.value === section.value && (
-                <Tabs
-                  value={subTab.value}
-                  onValueChange={onSubChange}
-                  className="w-full"
-                >
-                  <TabsList className="mt-4">
+            {sectionsWithVisibleSubTabs.map((s) => (
+              <TabsContent key={s.section.value} value={s.section.value}>
+                {s.section.value === current.section.value && (
+                  <Tabs
+                    value={subTab.value}
+                    onValueChange={onSubChange}
+                    className="w-full"
+                  >
+                    <TabsList className="mt-4">
+                      {s.subTabs.map((sub) => (
+                        <TabsTrigger key={sub.value} value={sub.value}>
+                          {sub.label}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
                     {s.subTabs.map((sub) => (
-                      <TabsTrigger key={sub.value} value={sub.value}>
-                        {sub.label}
-                      </TabsTrigger>
+                      <TabsContent key={sub.value} value={sub.value}>
+                        {sub.value === subTab.value && sub.render()}
+                      </TabsContent>
                     ))}
-                  </TabsList>
-                  {s.subTabs.map((sub) => (
-                    <TabsContent key={sub.value} value={sub.value}>
-                      {sub.value === subTab.value && sub.render()}
-                    </TabsContent>
-                  ))}
-                </Tabs>
-              )}
-            </TabsContent>
-          ))}
-        </Tabs>
+                  </Tabs>
+                )}
+              </TabsContent>
+            ))}
+          </Tabs>
+        ) : (
+          <p className="text-stone-700">
+            You don&apos;t have access to any admin sections.
+          </p>
+        )}
       </div>
     </div>
   );

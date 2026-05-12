@@ -22,7 +22,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import {
-  useHasAnyElevatedRole,
+  useHasAdminPanelAccess,
   useHasPermission,
 } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client";
@@ -57,7 +57,7 @@ export function Component() {
     });
   };
 
-  const hasAdminAccess = useHasAnyElevatedRole();
+  const hasAdminAccess = useHasAdminPanelAccess();
   const hasJuniorAccess = useHasPermission("juniors", "view").allowed;
 
   if (!session) return null;
