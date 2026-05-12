@@ -513,6 +513,7 @@ export interface paths {
                                 deleted_at: string | null;
                                 deleted_by: string | null;
                                 deleted_reason: string | null;
+                                relieved_at: string | null;
                                 created_at: string;
                                 created_by: string;
                                 on_behalf_of: {

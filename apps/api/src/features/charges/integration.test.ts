@@ -126,6 +126,36 @@ describe("charges service (integration)", () => {
       expect(result).toHaveLength(1);
       expect(result[0].description).toBe("Active charge");
     });
+
+    it("includes relieved charges so members see waived donations in their history", async () => {
+      const email = `relieved-charges-${crypto.randomUUID()}@test.com`;
+      const { memberId, userId } = await seedTestUser(ctx.db, { email });
+
+      const relievedId = `ch-relieved-${crypto.randomUUID()}`;
+
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: relievedId,
+          member_id: memberId ?? "",
+          description: "Match donation",
+          amount_pence: 500,
+          charge_date: "2026-04-01",
+          created_by: "system",
+          type: "match_fee",
+          source: "matchday",
+          relieved_at: new Date().toISOString(),
+          relieved_by: userId,
+          relieved_reason: "financial relief",
+        })
+        .execute();
+
+      const result = await getMyCharges(ctx.db)(email);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe(relievedId);
+      expect(result[0].relieved_at).not.toBeNull();
+    });
   });
 
   describe("payOutstandingCharges", () => {

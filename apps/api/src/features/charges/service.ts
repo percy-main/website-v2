@@ -73,9 +73,10 @@ export function getMyCharges(db: Kysely<DB>) {
       .selectFrom("charge")
       .where("member_id", "in", ids)
       .where("deleted_at", "is", null)
-      // Relieved charges are settled by the club — they should never
-      // appear on the member's "to pay" list.
-      .where("relieved_at", "is", null)
+      // Relieved charges are kept in the response so the member can see
+      // "Waived" in their payment history. The frontend excludes them
+      // from the "Outstanding" list, and payOutstandingCharges below
+      // re-filters relieved on the server so they can never be charged.
       .selectAll()
       .orderBy("charge_date", "desc")
       .execute();
