@@ -11910,7 +11910,8 @@
                 "unpaid",
                 "pending",
                 "paid",
-                "abandoned"
+                "abandoned",
+                "relieved"
               ]
             },
             "in": "query",
@@ -12008,6 +12009,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "relievedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "memberName": {
                             "nullable": true,
                             "type": "string"
@@ -12050,7 +12055,8 @@
                               "pending",
                               "unpaid",
                               "abandoned",
-                              "deleted"
+                              "deleted",
+                              "relieved"
                             ]
                           }
                         },
@@ -12068,6 +12074,7 @@
                           "source",
                           "deletedAt",
                           "deletedReason",
+                          "relievedAt",
                           "memberName",
                           "memberEmail",
                           "memberCategory",
@@ -13852,7 +13859,8 @@
                               "pending",
                               "unpaid",
                               "abandoned",
-                              "deleted"
+                              "deleted",
+                              "relieved"
                             ]
                           }
                         },

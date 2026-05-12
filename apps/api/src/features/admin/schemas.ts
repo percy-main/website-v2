@@ -13,6 +13,7 @@ const chargeStatusSchema = z.enum([
   "unpaid",
   "abandoned",
   "deleted",
+  "relieved",
 ]);
 
 // --- Request schemas ---
@@ -110,7 +111,7 @@ export const listChargesSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   status: z
-    .enum(["all", "unpaid", "pending", "paid", "abandoned"])
+    .enum(["all", "unpaid", "pending", "paid", "abandoned", "relieved"])
     .default("all"),
   showDeleted: z.coerce.boolean().default(false),
   dateFrom: z.string().optional(),
@@ -492,6 +493,7 @@ export const listChargesResponseSchema = z.object({
       source: z.string(),
       deletedAt: z.string().nullable(),
       deletedReason: z.string().nullable(),
+      relievedAt: z.string().nullable(),
       memberName: z.string().nullable(),
       memberEmail: z.string(),
       memberCategory: z.string().nullable(),

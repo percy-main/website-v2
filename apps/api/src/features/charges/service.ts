@@ -73,6 +73,9 @@ export function getMyCharges(db: Kysely<DB>) {
       .selectFrom("charge")
       .where("member_id", "in", ids)
       .where("deleted_at", "is", null)
+      // Relieved charges are settled by the club — they should never
+      // appear on the member's "to pay" list.
+      .where("relieved_at", "is", null)
       .selectAll()
       .orderBy("charge_date", "desc")
       .execute();
@@ -116,6 +119,7 @@ export function payOutstandingCharges(db: Kysely<DB>, stripe: Stripe) {
         .selectFrom("charge")
         .where("member_id", "in", visibleIds)
         .where("deleted_at", "is", null)
+        .where("relieved_at", "is", null)
         .where("paid_at", "is", null)
         .where("payment_confirmed_at", "is", null);
       if (scopeChargeIds && scopeChargeIds.length > 0) {
@@ -235,6 +239,9 @@ export function confirmPayment(db: Kysely<DB>) {
       .where("stripe_payment_intent_id", "=", paymentIntentId)
       .where("paid_at", "is", null)
       .where("payment_confirmed_at", "is", null)
+      // A relief approval mid-flight must not be silently overwritten
+      // by a confirmPayment race.
+      .where("relieved_at", "is", null)
       .execute();
   };
 }

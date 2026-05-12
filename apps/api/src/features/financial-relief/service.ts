@@ -1,11 +1,18 @@
 import type { DB } from "@percy-main/db";
-import { FinancialReliefReceived, type Email } from "@percy-main/email";
+import {
+  FinancialReliefDecision,
+  FinancialReliefReceived,
+  type Email,
+} from "@percy-main/email";
 import type { RequestStatus } from "@percy-main/shared";
 import { render } from "@react-email/render";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { createElement } from "react";
+import type Stripe from "stripe";
 import type {
+  CloseGrant,
+  DecideReliefRequest,
   DeclineRequest,
   ListReliefRequests,
   SubmitReliefRequest,
@@ -698,12 +705,308 @@ export function declineReliefRequest(db: Kysely<DB>) {
   };
 }
 
-export function decideReliefRequest(_db: Kysely<DB>) {
-  return async () => await notImplemented();
+interface DecideDeps {
+  stripe: Stripe;
+  baseUrl: string;
+  send: (email: Email) => Promise<void>;
 }
 
-export function closeReliefGrant(_db: Kysely<DB>) {
-  return async () => await notImplemented();
+export function decideReliefRequest(db: Kysely<DB>, deps: DecideDeps) {
+  return async (
+    adminUserId: string,
+    requestId: string,
+    data: DecideReliefRequest,
+    log: FastifyBaseLogger,
+  ) => {
+    const request = await db
+      .selectFrom("financial_relief_request as r")
+      .innerJoin("member as m", "m.id", "r.member_id")
+      .innerJoin("user as u", "u.id", "r.submitted_by_user_id")
+      .where("r.id", "=", requestId)
+      .select([
+        "r.id",
+        "r.member_id",
+        "r.status",
+        "u.email as submitterEmail",
+        "m.name as memberName",
+      ])
+      .executeTakeFirst();
+    if (!request) httpError(404, "Request not found");
+    if (
+      !["submitted", "in_review", "more_info_needed"].includes(request.status)
+    ) {
+      httpError(400, "This request has already been closed");
+    }
+
+    const result = await db.transaction().execute(async (trx) => {
+      // Lock the member row so two concurrent decides for the same
+      // member serialise — second one sees the new active grant and
+      // aborts. The UNIQUE INDEX is a belt-and-braces backstop.
+      const member = await trx
+        .selectFrom("member")
+        .where("id", "=", request.member_id)
+        .select(["id", "deleted_at"])
+        .forUpdate()
+        .executeTakeFirstOrThrow();
+      if (member.deleted_at) {
+        httpError(400, "Cannot grant relief to an archived member");
+      }
+
+      // Close any existing active grant for this member (superseded).
+      await trx
+        .updateTable("financial_relief_grant")
+        .set({
+          closed_at: new Date().toISOString(),
+          closed_by: adminUserId,
+          closed_reason: "superseded",
+        })
+        .where("member_id", "=", request.member_id)
+        .where("closed_at", "is", null)
+        .execute();
+
+      const grantId = crypto.randomUUID();
+      try {
+        await trx
+          .insertInto("financial_relief_grant")
+          .values({
+            id: grantId,
+            request_id: requestId,
+            member_id: request.member_id,
+            decision: data.decision,
+            covers_membership: data.coversMembership,
+            covers_match_fees: data.coversMatchFees,
+            membership_partial_pence: data.membershipPartialPence ?? null,
+            effective_from: data.effectiveFrom,
+            effective_to_exclusive: data.effectiveToExclusive ?? null,
+            admin_notes: data.adminNotes ?? null,
+            member_facing_note: data.memberFacingNote ?? null,
+            decided_by: adminUserId,
+          })
+          .execute();
+      } catch (err: unknown) {
+        if (
+          err instanceof Error &&
+          err.message.includes("financial_relief_grant_one_active_uidx")
+        ) {
+          httpError(
+            409,
+            "Another active grant exists for this member; close it first",
+          );
+        }
+        throw err;
+      }
+
+      const now = new Date().toISOString();
+      await trx
+        .updateTable("financial_relief_request")
+        .set({ status: "approved", updated_at: now })
+        .where("id", "=", requestId)
+        .execute();
+
+      await trx
+        .insertInto("financial_relief_event")
+        .values({
+          id: crypto.randomUUID(),
+          request_id: requestId,
+          event_type: "grant_created",
+          from_status: request.status,
+          to_status: "approved",
+          note: null,
+          actor_user_id: adminUserId,
+        })
+        .execute();
+
+      // Retroactively forgive unpaid match-fee charges issued on or
+      // after `effective_from`, with no live Stripe PI. A PI in
+      // 'requires_action' / 'processing' / 'succeeded' could result in
+      // money landing — we skip those rather than relieve them out
+      // from under a successful payment.
+      let forgivenCount = 0;
+      if (data.coversMatchFees) {
+        const candidates = await trx
+          .selectFrom("charge")
+          .where("member_id", "=", request.member_id)
+          .where("type", "=", "match_fee")
+          .where("deleted_at", "is", null)
+          .where("relieved_at", "is", null)
+          .where("paid_at", "is", null)
+          .where("payment_confirmed_at", "is", null)
+          .where("charge_date", ">=", data.effectiveFrom)
+          .select(["id", "stripe_payment_intent_id"])
+          .forUpdate()
+          .execute();
+
+        for (const c of candidates) {
+          if (c.stripe_payment_intent_id) {
+            try {
+              const pi = await deps.stripe.paymentIntents.retrieve(
+                c.stripe_payment_intent_id,
+              );
+              if (
+                !["canceled", "requires_payment_method"].includes(pi.status)
+              ) {
+                continue;
+              }
+              await trx
+                .updateTable("charge")
+                .set({ stripe_payment_intent_id: null })
+                .where("id", "=", c.id)
+                .execute();
+            } catch (err) {
+              log.error(
+                { err, chargeId: c.id, requestId },
+                "financial_relief_pi_retrieve_failed",
+              );
+              continue;
+            }
+          }
+
+          await trx
+            .updateTable("charge")
+            .set({
+              relieved_at: now,
+              relieved_by: adminUserId,
+              relieved_reason: "financial relief",
+              relief_grant_id: grantId,
+            })
+            .where("id", "=", c.id)
+            .where("relieved_at", "is", null)
+            .execute();
+          forgivenCount += 1;
+        }
+      }
+
+      return { grantId, forgivenChargeCount: forgivenCount };
+    });
+
+    // Best-effort decision email.
+    try {
+      await deps.send({
+        to: request.submitterEmail,
+        subject: FinancialReliefDecision.subject,
+        html: await render(
+          createElement(FinancialReliefDecision.component, {
+            imageBaseUrl: `${deps.baseUrl}/images`,
+            recipientName: request.memberName ?? "there",
+            outcome: "approved",
+            memberFacingNote: data.memberFacingNote ?? null,
+          }),
+        ),
+      });
+    } catch (err) {
+      log.error({ err, requestId }, "financial_relief_decision_email_failed");
+    }
+
+    return result;
+  };
+}
+
+export function closeReliefGrant(db: Kysely<DB>) {
+  return async (adminUserId: string, grantId: string, data: CloseGrant) => {
+    const grant = await db
+      .selectFrom("financial_relief_grant")
+      .where("id", "=", grantId)
+      .select(["id", "request_id", "closed_at"])
+      .executeTakeFirst();
+    if (!grant) httpError(404, "Grant not found");
+    if (grant.closed_at) httpError(400, "Grant is already closed");
+
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable("financial_relief_grant")
+        .set({
+          closed_at: new Date().toISOString(),
+          closed_by: adminUserId,
+          closed_reason: data.reason,
+        })
+        .where("id", "=", grantId)
+        .where("closed_at", "is", null)
+        .execute();
+
+      await trx
+        .insertInto("financial_relief_event")
+        .values({
+          id: crypto.randomUUID(),
+          request_id: grant.request_id,
+          event_type: "grant_closed",
+          from_status: null,
+          to_status: null,
+          note: data.reason,
+          actor_user_id: adminUserId,
+        })
+        .execute();
+    });
+
+    return { success: true };
+  };
+}
+
+/**
+ * Cleanup hook for admin/service.ts archiveMember. Closes any active
+ * grant for the archived member and force-declines any open relief
+ * request. Pass the same Kysely instance the archive runs against.
+ */
+export function closeReliefForArchivedMember(db: Kysely<DB>) {
+  return async (adminUserId: string, memberId: string) => {
+    const now = new Date().toISOString();
+    await db.transaction().execute(async (trx) => {
+      const openGrants = await trx
+        .selectFrom("financial_relief_grant")
+        .where("member_id", "=", memberId)
+        .where("closed_at", "is", null)
+        .select(["id", "request_id"])
+        .execute();
+      for (const g of openGrants) {
+        await trx
+          .updateTable("financial_relief_grant")
+          .set({
+            closed_at: now,
+            closed_by: adminUserId,
+            closed_reason: "member archived",
+          })
+          .where("id", "=", g.id)
+          .execute();
+        await trx
+          .insertInto("financial_relief_event")
+          .values({
+            id: crypto.randomUUID(),
+            request_id: g.request_id,
+            event_type: "grant_closed",
+            from_status: null,
+            to_status: null,
+            note: "member archived",
+            actor_user_id: adminUserId,
+          })
+          .execute();
+      }
+
+      const openRequests = await trx
+        .selectFrom("financial_relief_request")
+        .where("member_id", "=", memberId)
+        .where("status", "in", ["submitted", "in_review", "more_info_needed"])
+        .select(["id", "status"])
+        .execute();
+      for (const r of openRequests) {
+        await trx
+          .updateTable("financial_relief_request")
+          .set({ status: "declined", updated_at: now })
+          .where("id", "=", r.id)
+          .execute();
+        await trx
+          .insertInto("financial_relief_event")
+          .values({
+            id: crypto.randomUUID(),
+            request_id: r.id,
+            event_type: "declined",
+            from_status: r.status,
+            to_status: "declined",
+            note: "member archived",
+            actor_user_id: adminUserId,
+          })
+          .execute();
+      }
+    });
+  };
 }
 
 export function applyMembershipRelief(_db: Kysely<DB>) {

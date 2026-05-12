@@ -320,6 +320,7 @@ function RequestDetailDialog({
   });
 
   const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
+  const [decideDialogOpen, setDecideDialogOpen] = useState(false);
   const isOpen = detailQuery.data
     ? ["submitted", "in_review", "more_info_needed"].includes(
         detailQuery.data.request.status,
@@ -529,6 +530,9 @@ function RequestDetailDialog({
                   >
                     Request more info
                   </Button>
+                  <Button onClick={() => setDecideDialogOpen(true)}>
+                    Approve…
+                  </Button>
                   <Button
                     variant="destructive"
                     onClick={() => setDeclineDialogOpen(true)}
@@ -536,6 +540,12 @@ function RequestDetailDialog({
                     Decline
                   </Button>
                 </>
+              ) : null}
+              {detailQuery.data.grant && !detailQuery.data.grant.closedAt ? (
+                <CloseGrantButton
+                  grantId={detailQuery.data.grant.id}
+                  requestId={requestId}
+                />
               ) : null}
               <Button variant="ghost" onClick={onClose}>
                 Close
@@ -548,6 +558,12 @@ function RequestDetailDialog({
           <DeclineDialog
             requestId={requestId}
             onClose={() => setDeclineDialogOpen(false)}
+          />
+        ) : null}
+        {decideDialogOpen ? (
+          <DecideDialog
+            requestId={requestId}
+            onClose={() => setDecideDialogOpen(false)}
           />
         ) : null}
       </DialogContent>
@@ -647,5 +663,311 @@ function DetailSection({
       <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
       <div className="flex flex-col gap-1">{children}</div>
     </div>
+  );
+}
+
+interface DecideFormState {
+  decision: "approved_full" | "approved_partial" | "approved_temporary";
+  coversMembership: boolean;
+  coversMatchFees: boolean;
+  membershipPartialPounds: string;
+  effectiveFrom: string;
+  effectiveToExclusive: string;
+  adminNotes: string;
+  memberFacingNote: string;
+}
+
+function todayIso(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function poundsToPenceOrNull(input: string): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.round(parsed * 100);
+}
+
+function DecideDialog({
+  requestId,
+  onClose,
+}: {
+  requestId: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [form, update] = useState<DecideFormState>({
+    decision: "approved_temporary",
+    coversMembership: false,
+    coversMatchFees: true,
+    membershipPartialPounds: "",
+    effectiveFrom: todayIso(),
+    effectiveToExclusive: "",
+    adminNotes: "",
+    memberFacingNote: "",
+  });
+
+  const decide = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/admin/financial-relief/requests/{requestId}/decide", {
+          params: { path: { requestId } },
+          body: {
+            decision: form.decision,
+            coversMembership: form.coversMembership,
+            coversMatchFees: form.coversMatchFees,
+            membershipPartialPence:
+              form.decision === "approved_partial" && form.coversMembership
+                ? poundsToPenceOrNull(form.membershipPartialPounds)
+                : null,
+            effectiveFrom: form.effectiveFrom,
+            effectiveToExclusive: form.effectiveToExclusive || null,
+            adminNotes: form.adminNotes || null,
+            memberFacingNote: form.memberFacingNote || null,
+          },
+        }),
+      ),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["admin-relief", "detail", requestId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["admin-relief", "list"] }),
+      ]).then(onClose),
+  });
+
+  const canSubmit =
+    (form.coversMembership || form.coversMatchFees) &&
+    !!form.effectiveFrom &&
+    !decide.isPending;
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Approve request</DialogTitle>
+          <DialogDescription>
+            The grant takes effect from the chosen date. The member-facing note
+            is shown verbatim to the requester; admin notes stay internal.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="decision">Decision</Label>
+            <Select
+              value={form.decision}
+              onValueChange={(v) =>
+                update((s) => ({
+                  ...s,
+                  decision: v as DecideFormState["decision"],
+                }))
+              }
+            >
+              <SelectTrigger id="decision">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="approved_full">
+                  Approved (full relief)
+                </SelectItem>
+                <SelectItem value="approved_partial">
+                  Approved (partial relief)
+                </SelectItem>
+                <SelectItem value="approved_temporary">
+                  Approved (temporary relief)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium">What does this cover?</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="coversMembership"
+                checked={form.coversMembership}
+                onChange={(e) =>
+                  update((s) => ({
+                    ...s,
+                    coversMembership: e.target.checked,
+                  }))
+                }
+              />
+              <Label htmlFor="coversMembership">Membership</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="coversMatchFees"
+                checked={form.coversMatchFees}
+                onChange={(e) =>
+                  update((s) => ({
+                    ...s,
+                    coversMatchFees: e.target.checked,
+                  }))
+                }
+              />
+              <Label htmlFor="coversMatchFees">Match donations</Label>
+            </div>
+          </div>
+          {form.decision === "approved_partial" && form.coversMembership ? (
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="membershipPartialPounds">
+                Member contributes (in £) towards membership
+              </Label>
+              <Input
+                id="membershipPartialPounds"
+                type="number"
+                min="0"
+                step="1"
+                value={form.membershipPartialPounds}
+                onChange={(e) =>
+                  update((s) => ({
+                    ...s,
+                    membershipPartialPounds: e.target.value,
+                  }))
+                }
+              />
+            </div>
+          ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="effectiveFrom">Effective from</Label>
+              <Input
+                id="effectiveFrom"
+                type="date"
+                value={form.effectiveFrom}
+                onChange={(e) =>
+                  update((s) => ({ ...s, effectiveFrom: e.target.value }))
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="effectiveToExclusive">
+                Until (exclusive, optional)
+              </Label>
+              <Input
+                id="effectiveToExclusive"
+                type="date"
+                value={form.effectiveToExclusive}
+                onChange={(e) =>
+                  update((s) => ({
+                    ...s,
+                    effectiveToExclusive: e.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="memberFacingNote">
+              Member-facing note (shown to requester)
+            </Label>
+            <Textarea
+              id="memberFacingNote"
+              rows={3}
+              value={form.memberFacingNote}
+              onChange={(e) =>
+                update((s) => ({ ...s, memberFacingNote: e.target.value }))
+              }
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="decideAdminNotes">Admin notes (private)</Label>
+            <Textarea
+              id="decideAdminNotes"
+              rows={3}
+              value={form.adminNotes}
+              onChange={(e) =>
+                update((s) => ({ ...s, adminNotes: e.target.value }))
+              }
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!canSubmit} onClick={() => decide.mutate()}>
+            {decide.isPending ? "Approving…" : "Approve"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CloseGrantButton({
+  grantId,
+  requestId,
+}: {
+  grantId: string;
+  requestId: string;
+}) {
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const close = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/admin/financial-relief/grants/{grantId}/close", {
+          params: { path: { grantId } },
+          body: { reason: reason || "closed by admin" },
+        }),
+      ),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["admin-relief", "detail", requestId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["admin-relief", "list"] }),
+      ]).then(() => setConfirming(false)),
+  });
+
+  return (
+    <>
+      <Button variant="outline" onClick={() => setConfirming(true)}>
+        Close grant
+      </Button>
+      <Dialog
+        open={confirming}
+        onOpenChange={(v) => !v && setConfirming(false)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Close grant</DialogTitle>
+            <DialogDescription>
+              Previously-relieved charges stay relieved. Future charges stop
+              being auto-forgiven.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="closeReason">Reason</Label>
+            <Input
+              id="closeReason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. season ended"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={close.isPending}
+              onClick={() => close.mutate()}
+            >
+              {close.isPending ? "Closing…" : "Close grant"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

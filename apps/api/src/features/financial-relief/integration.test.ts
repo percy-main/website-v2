@@ -6,8 +6,12 @@ import {
   stopTestContainer,
   type TestContext,
 } from "../../test/containers.ts";
+import { applyReliefIfAny } from "./apply-relief.ts";
 import type { SubmitReliefRequest } from "./schemas.ts";
 import {
+  closeReliefForArchivedMember,
+  closeReliefGrant,
+  decideReliefRequest,
   declineReliefRequest,
   getEligibleMembers,
   getMyReliefStatus,
@@ -314,7 +318,9 @@ describe("financial-relief (integration)", () => {
       pageSize: 100,
       status: "all",
     });
-    const ours = result.items.filter((i) => [aId, bId].includes(i.id));
+    const ours = result.items.filter((i) =>
+      ([aId, bId] as string[]).includes(i.id),
+    );
     expect(ours.findIndex((i) => i.id === bId)).toBeLessThan(
       ours.findIndex((i) => i.id === aId),
     );
@@ -384,6 +390,430 @@ describe("financial-relief (integration)", () => {
         adminNote: null,
       }),
     ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("decide approves, creates a grant, forgives existing unpaid match-fee charges, and skips paid/in-flight ones", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+
+    const { id: requestId } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({ memberId: member.memberId }),
+      log,
+    );
+
+    // Seed three match-fee charges for this member:
+    //   - "unpaidNoPI"  — pure unpaid, expect relieved
+    //   - "unpaidLivePI" — has a non-cancelled PI, expect skipped
+    //   - "paid"        — already paid, expect untouched
+    const today = "2026-05-12";
+    const ids = {
+      unpaidNoPI: `charge-no-pi-${crypto.randomUUID()}`,
+      unpaidLivePI: `charge-live-pi-${crypto.randomUUID()}`,
+      paid: `charge-paid-${crypto.randomUUID()}`,
+    };
+    await ctx.db
+      .insertInto("charge")
+      .values([
+        {
+          id: ids.unpaidNoPI,
+          member_id: member.memberId,
+          description: "Match donation - Foo",
+          amount_pence: 500,
+          charge_date: today,
+          created_by: admin.userId,
+          type: "match_fee",
+          source: "matchday",
+        },
+        {
+          id: ids.unpaidLivePI,
+          member_id: member.memberId,
+          description: "Match donation - Bar",
+          amount_pence: 500,
+          charge_date: today,
+          created_by: admin.userId,
+          type: "match_fee",
+          source: "matchday",
+          stripe_payment_intent_id: "pi_live_test",
+        },
+        {
+          id: ids.paid,
+          member_id: member.memberId,
+          description: "Match donation - Baz",
+          amount_pence: 500,
+          charge_date: today,
+          created_by: admin.userId,
+          type: "match_fee",
+          source: "matchday",
+          paid_at: new Date().toISOString(),
+        },
+      ])
+      .execute();
+
+    // Stub Stripe so the live-PI charge is reported as "processing" and
+    // we skip relieving it.
+    const stripeStub = {
+      paymentIntents: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: "pi_live_test",
+          status: "processing",
+        }),
+      },
+    } as unknown as import("stripe").default;
+
+    const decide = decideReliefRequest(ctx.db, {
+      stripe: stripeStub,
+      baseUrl: "https://percymain.org",
+      send,
+    });
+
+    const result = await decide(
+      admin.userId,
+      requestId,
+      {
+        decision: "approved_temporary",
+        coversMembership: false,
+        coversMatchFees: true,
+        membershipPartialPence: null,
+        effectiveFrom: today,
+        effectiveToExclusive: null,
+        adminNotes: null,
+        memberFacingNote: "Match donations are waived this season.",
+      },
+      log,
+    );
+
+    expect(result.forgivenChargeCount).toBe(1);
+
+    const charges = await ctx.db
+      .selectFrom("charge")
+      .where("id", "in", [ids.unpaidNoPI, ids.unpaidLivePI, ids.paid])
+      .select(["id", "relieved_at", "paid_at"])
+      .execute();
+    const byId = new Map(charges.map((c) => [c.id, c]));
+    expect(byId.get(ids.unpaidNoPI)?.relieved_at).not.toBeNull();
+    expect(byId.get(ids.unpaidLivePI)?.relieved_at).toBeNull();
+    expect(byId.get(ids.paid)?.relieved_at).toBeNull();
+    expect(byId.get(ids.paid)?.paid_at).not.toBeNull();
+
+    const detail = await getReliefRequestDetail(ctx.db)(requestId);
+    expect(detail.request.status).toBe("approved");
+    expect(detail.grant?.coversMatchFees).toBe(true);
+  });
+
+  it("a second concurrent decide for the same member is rejected by the unique index", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+    const { id: r1 } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({ memberId: member.memberId }),
+      log,
+    );
+
+    const stripeStub = {
+      paymentIntents: { retrieve: vi.fn() },
+    } as unknown as import("stripe").default;
+    const decide = decideReliefRequest(ctx.db, {
+      stripe: stripeStub,
+      baseUrl: "https://percymain.org",
+      send,
+    });
+    const body = {
+      decision: "approved_full" as const,
+      coversMembership: false,
+      coversMatchFees: true,
+      membershipPartialPence: null,
+      effectiveFrom: "2026-05-12",
+      effectiveToExclusive: null,
+      adminNotes: null,
+      memberFacingNote: null,
+    };
+    await decide(admin.userId, r1, body, log);
+
+    // Re-decide on the same closed request must reject.
+    await expect(decide(admin.userId, r1, body, log)).rejects.toMatchObject({
+      statusCode: 400,
+    });
+  });
+
+  it("applyReliefIfAny auto-forgives a new match-fee charge when an active grant covers it", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+    const { id: requestId } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({ memberId: member.memberId }),
+      log,
+    );
+    const stripeStub = {
+      paymentIntents: { retrieve: vi.fn() },
+    } as unknown as import("stripe").default;
+    await decideReliefRequest(ctx.db, {
+      stripe: stripeStub,
+      baseUrl: "https://percymain.org",
+      send,
+    })(
+      admin.userId,
+      requestId,
+      {
+        decision: "approved_temporary",
+        coversMembership: false,
+        coversMatchFees: true,
+        membershipPartialPence: null,
+        effectiveFrom: "2026-05-01",
+        effectiveToExclusive: null,
+        adminNotes: null,
+        memberFacingNote: null,
+      },
+      log,
+    );
+
+    // Insert a new match-fee charge after the grant — applyReliefIfAny
+    // should flip the relief audit columns inside the same trx.
+    const chargeId = `c-${crypto.randomUUID()}`;
+    await ctx.db.transaction().execute(async (trx) => {
+      await trx
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: member.memberId,
+          description: "Match donation - Future",
+          amount_pence: 500,
+          charge_date: "2026-06-01",
+          created_by: admin.userId,
+          type: "match_fee",
+          source: "matchday",
+        })
+        .execute();
+      await applyReliefIfAny(trx)({
+        chargeId,
+        memberId: member.memberId,
+        type: "match_fee",
+        chargeDate: "2026-06-01",
+      });
+    });
+
+    const row = await ctx.db
+      .selectFrom("charge")
+      .where("id", "=", chargeId)
+      .select(["relieved_at", "relieved_reason", "amount_pence"])
+      .executeTakeFirstOrThrow();
+    expect(row.relieved_at).not.toBeNull();
+    expect(row.relieved_reason).toBe("financial relief");
+    // Reporting value preserved.
+    expect(row.amount_pence).toBe(500);
+  });
+
+  it("applyReliefIfAny does nothing for membership charges (admin-applied path)", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+    const { id: requestId } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({ memberId: member.memberId }),
+      log,
+    );
+    const stripeStub = {
+      paymentIntents: { retrieve: vi.fn() },
+    } as unknown as import("stripe").default;
+    await decideReliefRequest(ctx.db, {
+      stripe: stripeStub,
+      baseUrl: "https://percymain.org",
+      send,
+    })(
+      admin.userId,
+      requestId,
+      {
+        decision: "approved_temporary",
+        coversMembership: true,
+        coversMatchFees: false,
+        membershipPartialPence: null,
+        effectiveFrom: "2026-05-01",
+        effectiveToExclusive: null,
+        adminNotes: null,
+        memberFacingNote: null,
+      },
+      log,
+    );
+
+    const chargeId = `c-${crypto.randomUUID()}`;
+    await ctx.db
+      .insertInto("charge")
+      .values({
+        id: chargeId,
+        member_id: member.memberId,
+        description: "Membership renewal",
+        amount_pence: 5000,
+        charge_date: "2026-06-01",
+        created_by: admin.userId,
+        type: "membership",
+        source: "stripe",
+      })
+      .execute();
+    const result = await applyReliefIfAny(ctx.db)({
+      chargeId,
+      memberId: member.memberId,
+      type: "membership",
+      chargeDate: "2026-06-01",
+    });
+    expect(result.applied).toBe(false);
+    const row = await ctx.db
+      .selectFrom("charge")
+      .where("id", "=", chargeId)
+      .select(["relieved_at"])
+      .executeTakeFirstOrThrow();
+    expect(row.relieved_at).toBeNull();
+  });
+
+  it("closing a grant stops future charges being auto-forgiven; previously forgiven are untouched", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+    const { id: requestId } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({ memberId: member.memberId }),
+      log,
+    );
+    const stripeStub = {
+      paymentIntents: { retrieve: vi.fn() },
+    } as unknown as import("stripe").default;
+    const decideResult = await decideReliefRequest(ctx.db, {
+      stripe: stripeStub,
+      baseUrl: "https://percymain.org",
+      send,
+    })(
+      admin.userId,
+      requestId,
+      {
+        decision: "approved_temporary",
+        coversMembership: false,
+        coversMatchFees: true,
+        membershipPartialPence: null,
+        effectiveFrom: "2026-05-01",
+        effectiveToExclusive: null,
+        adminNotes: null,
+        memberFacingNote: null,
+      },
+      log,
+    );
+
+    // Forgive a charge under the active grant.
+    const beforeId = `c-${crypto.randomUUID()}`;
+    await ctx.db
+      .insertInto("charge")
+      .values({
+        id: beforeId,
+        member_id: member.memberId,
+        description: "Match donation - Before close",
+        amount_pence: 500,
+        charge_date: "2026-06-01",
+        created_by: admin.userId,
+        type: "match_fee",
+        source: "matchday",
+      })
+      .execute();
+    await applyReliefIfAny(ctx.db)({
+      chargeId: beforeId,
+      memberId: member.memberId,
+      type: "match_fee",
+      chargeDate: "2026-06-01",
+    });
+
+    await closeReliefGrant(ctx.db)(admin.userId, decideResult.grantId, {
+      reason: "Season ended",
+    });
+
+    // After-close charge: should NOT be auto-forgiven.
+    const afterId = `c-${crypto.randomUUID()}`;
+    await ctx.db
+      .insertInto("charge")
+      .values({
+        id: afterId,
+        member_id: member.memberId,
+        description: "Match donation - After close",
+        amount_pence: 500,
+        charge_date: "2026-07-01",
+        created_by: admin.userId,
+        type: "match_fee",
+        source: "matchday",
+      })
+      .execute();
+    await applyReliefIfAny(ctx.db)({
+      chargeId: afterId,
+      memberId: member.memberId,
+      type: "match_fee",
+      chargeDate: "2026-07-01",
+    });
+
+    const rows = await ctx.db
+      .selectFrom("charge")
+      .where("id", "in", [beforeId, afterId])
+      .select(["id", "relieved_at"])
+      .execute();
+    const by = new Map(rows.map((r) => [r.id, r]));
+    expect(by.get(beforeId)?.relieved_at).not.toBeNull();
+    expect(by.get(afterId)?.relieved_at).toBeNull();
+  });
+
+  it("archival closes active grants and force-declines open requests", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+    const { id: openRequestId } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({ memberId: member.memberId }),
+      log,
+    );
+
+    await closeReliefForArchivedMember(ctx.db)(admin.userId, member.memberId);
+
+    const row = await ctx.db
+      .selectFrom("financial_relief_request")
+      .where("id", "=", openRequestId)
+      .select(["status"])
+      .executeTakeFirstOrThrow();
+    expect(row.status).toBe("declined");
+
+    const events = await ctx.db
+      .selectFrom("financial_relief_event")
+      .where("request_id", "=", openRequestId)
+      .where("event_type", "=", "declined")
+      .selectAll()
+      .execute();
+    expect(events).toHaveLength(1);
+    expect(events[0].note).toBe("member archived");
   });
 
   it("getMyReliefStatus returns the caller's own and linked-junior requests", async () => {

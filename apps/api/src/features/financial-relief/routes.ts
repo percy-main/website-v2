@@ -1,5 +1,6 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { getAuthSession, requireRole } from "../auth/middleware.ts";
+import { createStripe } from "../payments/stripe.ts";
 import {
   applyMembershipReliefResponseSchema,
   applyMembershipReliefSchema,
@@ -42,6 +43,9 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
+  const stripe = createStripe({
+    stripeSecretKey: app.config.STRIPE_SECRET_KEY,
+  });
   const eligible = getEligibleMembers(app.db);
   const submit = submitReliefRequest(app.db, {
     baseUrl: app.config.BASE_URL,
@@ -53,7 +57,11 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   const getDetail = getReliefRequestDetail(app.db);
   const transition = transitionReliefRequestStatus(app.db);
   const decline = declineReliefRequest(app.db);
-  const decide = decideReliefRequest(app.db);
+  const decide = decideReliefRequest(app.db, {
+    stripe,
+    baseUrl: app.config.BASE_URL,
+    send: app.send,
+  });
   const closeGrant = closeReliefGrant(app.db);
   const applyMembership = applyMembershipRelief(app.db);
   const report = getReliefReport(app.db);
@@ -201,8 +209,14 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: decideReliefRequestResponseSchema },
       },
     },
-    async () => {
-      return await decide();
+    async (request) => {
+      const session = getAuthSession(request);
+      return await decide(
+        session.user.id,
+        request.params.requestId,
+        request.body,
+        request.log,
+      );
     },
   );
 
@@ -216,8 +230,13 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: closeGrantResponseSchema },
       },
     },
-    async () => {
-      return await closeGrant();
+    async (request) => {
+      const session = getAuthSession(request);
+      return await closeGrant(
+        session.user.id,
+        request.params.grantId,
+        request.body,
+      );
     },
   );
 

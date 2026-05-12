@@ -10,6 +10,7 @@ import {
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { S3Uploader } from "../../lib/s3-upload.ts";
+import { applyReliefIfAny } from "../financial-relief/apply-relief.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type {
   AddPlayer,
@@ -755,11 +756,11 @@ export function confirmTeam(db: Kysely<DB>) {
         .selectAll()
         .execute();
 
+      const applyRelief = applyReliefIfAny(trx);
       for (const player of playingPlayers) {
         if (!player.member_id) continue;
 
         const category = player.member_category ?? "guest";
-        if (category === "bursary") continue;
 
         const rate = findFeeRate(
           feeRates,
@@ -790,6 +791,16 @@ export function confirmTeam(db: Kysely<DB>) {
           .set({ charge_id: chargeId })
           .where("id", "=", player.matchdayPlayerId)
           .execute();
+
+        // Auto-forgive if this member has an active relief grant
+        // covering match fees on this date. The charge keeps its
+        // amount_pence so reporting can still sum it.
+        await applyRelief({
+          chargeId,
+          memberId: player.member_id,
+          type: "match_fee",
+          chargeDate: matchday.match_date,
+        });
       }
     });
 
@@ -920,6 +931,8 @@ export function markFeePaid(db: Kysely<DB>) {
       })
       .where("id", "=", player.charge_id)
       .where("paid_at", "is", null)
+      // Captain shouldn't be marking a waived charge paid.
+      .where("relieved_at", "is", null)
       .execute();
 
     return { success: true };
@@ -955,15 +968,17 @@ export function cancelMatchday(db: Kysely<DB>) {
       );
     }
 
-    // Block if any non-deleted match-fee charge already exists. The
-    // user-facing rule is "close off without charging" — if charges
-    // already exist, treasurer needs to void/refund them through the
-    // normal flow first.
+    // Block if any non-deleted, non-relieved match-fee charge already
+    // exists. The user-facing rule is "close off without charging" — if
+    // unpaid charges already exist, treasurer needs to void/refund them
+    // through the normal flow first. Relieved charges carry no debt and
+    // are safe to leave in place when cancelling.
     const existingCharge = await db
       .selectFrom("matchday_player")
       .innerJoin("charge", "charge.id", "matchday_player.charge_id")
       .where("matchday_player.matchday_id", "=", matchdayId)
       .where("charge.deleted_at", "is", null)
+      .where("charge.relieved_at", "is", null)
       .select("charge.id")
       .executeTakeFirst();
 
@@ -1081,10 +1096,10 @@ export function finishMatch(
           .selectAll()
           .execute();
 
+        const applyRelief = applyReliefIfAny(db);
         for (const player of uncharged) {
           if (!player.member_id) continue;
           const category = player.member_category ?? "guest";
-          if (category === "bursary") continue;
 
           const rate = findFeeRate(
             feeRates,
@@ -1115,6 +1130,13 @@ export function finishMatch(
             .set({ charge_id: chargeId })
             .where("id", "=", player.matchdayPlayerId)
             .execute();
+
+          await applyRelief({
+            chargeId,
+            memberId: player.member_id,
+            type: "match_fee",
+            chargeDate: matchday.match_date,
+          });
         }
       }
 
@@ -1126,6 +1148,8 @@ export function finishMatch(
         .where("matchday_player.matchday_id", "=", matchdayId)
         .where("charge.paid_at", "is", null)
         .where("charge.deleted_at", "is", null)
+        // Don't nag members about charges the club has waived.
+        .where("charge.relieved_at", "is", null)
         .select([
           "member.name as member_name",
           "member.email as member_email",

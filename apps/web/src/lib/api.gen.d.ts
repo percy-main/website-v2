@@ -6979,7 +6979,7 @@ export interface paths {
                 query?: {
                     page?: number;
                     pageSize?: number;
-                    status?: "all" | "unpaid" | "pending" | "paid" | "abandoned";
+                    status?: "all" | "unpaid" | "pending" | "paid" | "abandoned" | "relieved";
                     showDeleted?: boolean;
                     dateFrom?: string;
                     dateTo?: string;
@@ -7012,6 +7012,7 @@ export interface paths {
                                 source: string;
                                 deletedAt: string | null;
                                 deletedReason: string | null;
+                                relievedAt: string | null;
                                 memberName: string | null;
                                 memberEmail: string;
                                 memberCategory: string | null;
@@ -7021,7 +7022,7 @@ export interface paths {
                                     email: string;
                                 }[];
                                 /** @enum {string} */
-                                status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted";
+                                status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | "relieved";
                             }[];
                             total: number;
                             page: number;
@@ -8020,7 +8021,7 @@ export interface paths {
                                 charge_stripe_payment_intent_id: string | null;
                                 charge_created_at: string | null;
                                 /** @enum {string|null} */
-                                charge_status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | null;
+                                charge_status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | "relieved" | null;
                             }[];
                             expenses: {
                                 id: string;
