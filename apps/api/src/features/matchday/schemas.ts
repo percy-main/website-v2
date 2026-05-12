@@ -192,6 +192,10 @@ const matchdayPlayerSchema = z.object({
   created_at: z.string(),
   member_category: z.string().nullable(),
   chargePaidAt: z.string().nullable(),
+  // Neutral, captain-facing status. Relief is reported as "waived"
+  // without naming the financial-relief mechanism — the application
+  // text and the grant note are never returned here.
+  chargeStatus: z.enum(["unpaid", "paid", "waived"]).nullable(),
   is_captain: z.boolean(),
   is_wicketkeeper: z.boolean(),
 });

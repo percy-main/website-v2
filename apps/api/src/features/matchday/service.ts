@@ -222,6 +222,7 @@ export function getMatch(db: Kysely<DB>) {
           "matchday_player.is_wicketkeeper",
           "member.member_category",
           "charge.paid_at as chargePaidAt",
+          "charge.relieved_at as chargeRelievedAt",
         ])
         .orderBy("matchday_player.created_at", "asc")
         .execute(),
@@ -233,7 +234,28 @@ export function getMatch(db: Kysely<DB>) {
         .execute(),
     ]);
 
-    return { matchday: match, team: team ?? null, players, expenses };
+    // Derive a neutral status for the captain — never leak the
+    // relief audit columns themselves over this endpoint.
+    const projectedPlayers = players.map(
+      ({ chargeRelievedAt, chargePaidAt, ...rest }) => ({
+        ...rest,
+        chargePaidAt,
+        chargeStatus: !rest.charge_id
+          ? null
+          : chargePaidAt
+            ? ("paid" as const)
+            : chargeRelievedAt
+              ? ("waived" as const)
+              : ("unpaid" as const),
+      }),
+    );
+
+    return {
+      matchday: match,
+      team: team ?? null,
+      players: projectedPlayers,
+      expenses,
+    };
   };
 }
 

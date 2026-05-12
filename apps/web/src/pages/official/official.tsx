@@ -1028,7 +1028,7 @@ function MatchdayView({
                           data.matchday.status === "finished") &&
                           player.status === "playing" &&
                           player.charge_id &&
-                          !player.chargePaidAt && (
+                          player.chargeStatus === "unpaid" && (
                             <>
                               {payingPlayerId === player.id ? (
                                 <div className="flex items-center gap-1">
@@ -1077,11 +1077,15 @@ function MatchdayView({
                         {data.matchday.status !== "pending" &&
                           player.status === "playing" &&
                           payingPlayerId !== player.id &&
-                          (player.chargePaidAt ? (
+                          (player.chargeStatus === "paid" ? (
                             <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">
                               Donation paid
                             </span>
-                          ) : player.charge_id ? (
+                          ) : player.chargeStatus === "waived" ? (
+                            <span className="rounded bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-700">
+                              Donation waived
+                            </span>
+                          ) : player.chargeStatus === "unpaid" ? (
                             <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-800">
                               Donation pending
                             </span>

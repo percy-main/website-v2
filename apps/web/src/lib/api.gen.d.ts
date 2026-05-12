@@ -4117,6 +4117,8 @@ export interface paths {
                                 created_at: string;
                                 member_category: string | null;
                                 chargePaidAt: string | null;
+                                /** @enum {string|null} */
+                                chargeStatus: "unpaid" | "paid" | "waived" | null;
                                 is_captain: boolean;
                                 is_wicketkeeper: boolean;
                             }[];

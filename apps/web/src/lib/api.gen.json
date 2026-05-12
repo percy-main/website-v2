@@ -7219,6 +7219,15 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "chargeStatus": {
+                            "nullable": true,
+                            "type": "string",
+                            "enum": [
+                              "unpaid",
+                              "paid",
+                              "waived"
+                            ]
+                          },
                           "is_captain": {
                             "type": "boolean"
                           },
@@ -7236,6 +7245,7 @@
                           "created_at",
                           "member_category",
                           "chargePaidAt",
+                          "chargeStatus",
                           "is_captain",
                           "is_wicketkeeper"
                         ],

@@ -6,6 +6,7 @@ import {
   stopTestContainer,
   type TestContext,
 } from "../../test/containers.ts";
+import { getMatch } from "../matchday/service.ts";
 import { applyReliefIfAny } from "./apply-relief.ts";
 import type { SubmitReliefRequest } from "./schemas.ts";
 import {
@@ -814,6 +815,75 @@ describe("financial-relief (integration)", () => {
       .execute();
     expect(events).toHaveLength(1);
     expect(events[0].note).toBe("member archived");
+  });
+
+  it("officials' matchday view reports a relieved match-fee as 'waived' and leaks no application detail", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+
+    // Seed a minimal matchday + a relieved match-fee charge for this member.
+    const teamId = `team-${crypto.randomUUID()}`;
+    await ctx.db
+      .insertInto("play_cricket_team")
+      .values({ id: teamId, name: "Test Team", site_id: "site" })
+      .execute();
+
+    const matchdayId = `m-${crypto.randomUUID()}`;
+    await ctx.db
+      .insertInto("matchday")
+      .values({
+        id: matchdayId,
+        play_cricket_team_id: teamId,
+        match_date: "2026-05-12",
+        opposition: "Foo",
+        status: "confirmed",
+        created_by: admin.userId,
+      })
+      .execute();
+
+    const chargeId = `c-${crypto.randomUUID()}`;
+    await ctx.db
+      .insertInto("charge")
+      .values({
+        id: chargeId,
+        member_id: member.memberId,
+        description: "Match donation - Foo",
+        amount_pence: 500,
+        charge_date: "2026-05-12",
+        created_by: admin.userId,
+        type: "match_fee",
+        source: "matchday",
+        relieved_at: new Date().toISOString(),
+        relieved_by: admin.userId,
+        relieved_reason: "financial relief",
+      })
+      .execute();
+
+    const playerId = `p-${crypto.randomUUID()}`;
+    await ctx.db
+      .insertInto("matchday_player")
+      .values({
+        id: playerId,
+        matchday_id: matchdayId,
+        member_id: member.memberId,
+        player_name: member.name,
+        status: "playing",
+        charge_id: chargeId,
+      })
+      .execute();
+
+    // role='admin' bypasses the team_official check so the test
+    // doesn't have to seed an official row.
+    const detail = await getMatch(ctx.db)(admin.userId, "admin", matchdayId);
+    expect(detail).toBeTruthy();
+    if (!detail) throw new Error("getMatch returned null");
+    const player = detail.players.find((p) => p.id === playerId);
+    expect(player?.chargeStatus).toBe("waived");
+    // Crucially: the officials' endpoint must NOT expose relief audit
+    // columns, the application reason, or the grant note.
+    expect(Object.keys(player ?? {})).not.toContain("chargeRelievedAt");
+    expect(Object.keys(player ?? {})).not.toContain("relieved_at");
+    expect(Object.keys(player ?? {})).not.toContain("reason_text");
   });
 
   it("getMyReliefStatus returns the caller's own and linked-junior requests", async () => {
