@@ -5,7 +5,7 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp.js";
-import { authClient } from "@/lib/auth-client.js";
+import { authClient, useSession } from "@/lib/auth-client.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FC } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -21,13 +21,17 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("returnTo");
   const queryClient = useQueryClient();
+  const { refetch: refetchSession } = useSession();
 
   const signin = useMutation({
     mutationFn: () =>
       authClient.twoFactor.verifyTotp(
         { code: otp },
         {
-          onSuccess() {
+          async onSuccess() {
+            // See EmailPassword: refetch so the session atom is populated
+            // before the new route's RequireAuth reads it.
+            await refetchSession();
             void navigate(returnTo ?? "/members");
           },
         },

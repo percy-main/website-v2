@@ -1,6 +1,6 @@
 import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
-import { authClient } from "@/lib/auth-client.js";
+import { authClient, useSession } from "@/lib/auth-client.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FC } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
@@ -38,6 +38,12 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("returnTo");
   const queryClient = useQueryClient();
+  // better-auth's session atom only refetches via a setTimeout(10) after
+  // sign-in, so a naive `navigate(returnTo)` arrives at the destination
+  // BEFORE the new session is in the atom — RequireAuth sees data=null
+  // and bounces straight back here. Awaiting refetch() forces the
+  // /get-session call to complete before we navigate.
+  const { refetch: refetchSession } = useSession();
 
   useEffect(() => {
     async function tryPasskeyAutofill() {
@@ -48,14 +54,15 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
       void authClient.signIn.passkey(
         { autoFill: true },
         {
-          onSuccess() {
+          async onSuccess() {
+            await refetchSession();
             void navigate(returnTo ?? "/members");
           },
         },
       );
     }
     void tryPasskeyAutofill();
-  }, [navigate, returnTo]);
+  }, [navigate, returnTo, refetchSession]);
 
   const signin = useMutation({
     mutationFn: async () => {
@@ -64,11 +71,12 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
         throw new Error(result.error.message ?? "Sign in failed");
       return result.data;
     },
-    onSuccess(data) {
+    async onSuccess(data) {
       if (data && "twoFactorRedirect" in data) {
         setPhase("2fa");
         return;
       }
+      await refetchSession();
       // Session changed — drop all cached queries so the new user sees fresh
       // data rather than the previous user's (or anonymous) cached responses.
       void queryClient.invalidateQueries();
