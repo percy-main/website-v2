@@ -181,6 +181,10 @@ export const router = createBrowserRouter([
                 path: "members/documents/:documentId",
                 lazy: () => import("./pages/members/document-viewer.js"),
               },
+              {
+                path: "members/financial-relief",
+                lazy: () => import("./pages/members/financial-relief.js"),
+              },
               // Membership flows
               {
                 path: "membership/join",

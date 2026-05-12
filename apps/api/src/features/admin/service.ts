@@ -11,6 +11,7 @@ import {
 } from "@percy-main/shared/auth/permissions";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
+import { closeReliefForArchivedMember } from "../financial-relief/service.ts";
 import type {
   AddMatchFeeRate,
   ChargeAggregates,
@@ -207,6 +208,7 @@ export function sendChargeNotification(db: Kysely<DB>) {
       .where("paid_at", "is", null)
       .where("payment_confirmed_at", "is", null)
       .where("deleted_at", "is", null)
+      .where("relieved_at", "is", null)
       .selectAll()
       .execute();
 
@@ -636,6 +638,18 @@ export function archiveMember(db: Kysely<DB>) {
         .execute(),
     ]);
 
+    // Close any open financial relief: archived members shouldn't have
+    // an active grant generating relieved charges, nor an open request
+    // waiting on a committee decision.
+    const member = await db
+      .selectFrom("member")
+      .where("email", "=", user.email)
+      .select("id")
+      .executeTakeFirst();
+    if (member) {
+      await closeReliefForArchivedMember(db)(userId, member.id);
+    }
+
     return { success: true };
   };
 }
@@ -741,6 +755,9 @@ export function deleteCharge(db: Kysely<DB>) {
       .where("id", "=", chargeId)
       .where("paid_at", "is", null)
       .where("payment_confirmed_at", "is", null)
+      // Relieved charges have a live grant audit. Close the grant first
+      // if you really need to soft-delete one.
+      .where("relieved_at", "is", null)
       .executeTakeFirst();
 
     if (result.numUpdatedRows === 0n) {
@@ -1018,9 +1035,14 @@ function getChargeStatus(
   stripePaymentIntentId: string | null,
   abandonedCutoff: string,
   createdAt: string,
-): "paid" | "pending" | "unpaid" | "abandoned" | "deleted" {
+  relievedAt: string | null,
+): "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | "relieved" {
   if (deletedAt) return "deleted";
+  // Relieved is a settled state, but a paid relieved charge means the
+  // member paid before the grant landed — report it as paid so refunds
+  // can be triaged separately.
   if (paidAt) return "paid";
+  if (relievedAt) return "relieved";
   if (paymentConfirmedAt) return "pending";
   if (stripePaymentIntentId && createdAt < abandonedCutoff) return "abandoned";
   return "unpaid";
@@ -1049,12 +1071,15 @@ export function listAllCharges(db: Kysely<DB>) {
         q = q
           .where("charge.payment_confirmed_at", "is not", null)
           .where("charge.paid_at", "is", null)
-          .where("charge.deleted_at", "is", null);
+          .where("charge.deleted_at", "is", null)
+          .where("charge.relieved_at", "is", null);
       } else if (status === "unpaid") {
         q = q
           .where("charge.paid_at", "is", null)
           .where("charge.payment_confirmed_at", "is", null)
           .where("charge.deleted_at", "is", null)
+          // Relieved charges are not unpaid debt.
+          .where("charge.relieved_at", "is", null)
           .where((eb) =>
             eb.or([
               eb("charge.stripe_payment_intent_id", "is", null),
@@ -1067,7 +1092,12 @@ export function listAllCharges(db: Kysely<DB>) {
           .where("charge.paid_at", "is", null)
           .where("charge.payment_confirmed_at", "is", null)
           .where("charge.deleted_at", "is", null)
+          .where("charge.relieved_at", "is", null)
           .where("charge.created_at", "<", abandonedCutoff);
+      } else if (status === "relieved") {
+        q = q
+          .where("charge.relieved_at", "is not", null)
+          .where("charge.deleted_at", "is", null);
       }
 
       if (dateFrom) {
@@ -1112,6 +1142,7 @@ export function listAllCharges(db: Kysely<DB>) {
           "charge.source",
           "charge.deleted_at",
           "charge.deleted_reason",
+          "charge.relieved_at",
           "member.name as memberName",
           "member.email as memberEmail",
           "member.member_category as memberCategory",
@@ -1178,6 +1209,7 @@ export function listAllCharges(db: Kysely<DB>) {
         memberEmail: c.memberEmail,
         memberCategory: c.memberCategory,
         paidByParents: parentsByMember.get(c.member_id) ?? [],
+        relievedAt: c.relieved_at,
         status: getChargeStatus(
           c.paid_at,
           c.payment_confirmed_at,
@@ -1185,6 +1217,7 @@ export function listAllCharges(db: Kysely<DB>) {
           c.stripe_payment_intent_id,
           abandonedCutoff,
           c.created_at,
+          c.relieved_at,
         ),
       })),
       total: Number(countResult.total),
@@ -1275,6 +1308,9 @@ export function markChargePaid(db: Kysely<DB>) {
       .where("paid_at", "is", null)
       .where("payment_confirmed_at", "is", null)
       .where("deleted_at", "is", null)
+      // A relieved charge isn't unpaid debt; admin must close the grant
+      // first if they want to revert.
+      .where("relieved_at", "is", null)
       .executeTakeFirst();
 
     if (result.numUpdatedRows === 0n) {
@@ -1304,6 +1340,7 @@ export function editCharge(db: Kysely<DB>) {
       .where("paid_at", "is", null)
       .where("payment_confirmed_at", "is", null)
       .where("deleted_at", "is", null)
+      .where("relieved_at", "is", null)
       .executeTakeFirst();
 
     if (result.numUpdatedRows === 0n) {
@@ -1327,6 +1364,7 @@ export function chasePayment(db: Kysely<DB>) {
       .where("charge.paid_at", "is", null)
       .where("charge.payment_confirmed_at", "is", null)
       .where("charge.deleted_at", "is", null)
+      .where("charge.relieved_at", "is", null)
       .select([
         "charge.id",
         "charge.description",

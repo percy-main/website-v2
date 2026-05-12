@@ -492,10 +492,15 @@ export function handlePaymentIntentSucceeded({
   ) {
     const paidAt = stripeDate(paymentIntent.created);
 
+    // A charge can be relieved *while* a payment is in flight. We must
+    // not flip `paid_at` on a now-relieved row — the Stripe payment will
+    // need to be refunded out-of-band by the treasurer. Filter both at
+    // select-time AND in the update predicate so a race can't slip past.
     const charges = await db
       .selectFrom("charge")
       .where("stripe_payment_intent_id", "=", paymentIntent.id)
       .where("paid_at", "is", null)
+      .where("relieved_at", "is", null)
       .select(["id", "member_id"])
       .execute();
 
@@ -513,6 +518,7 @@ export function handlePaymentIntentSucceeded({
         .set({ paid_at: paidAt.toISOString() })
         .where("id", "=", ch.id)
         .where("paid_at", "is", null)
+        .where("relieved_at", "is", null)
         .execute();
     }
 

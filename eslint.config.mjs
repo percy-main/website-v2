@@ -1,4 +1,5 @@
 import eslint from "@eslint/js";
+import reactPlugin from "eslint-plugin-react";
 import hooksPlugin from "eslint-plugin-react-hooks";
 import reactDoctor from "react-doctor/eslint-plugin";
 import tseslint from "typescript-eslint";
@@ -92,6 +93,9 @@ export default tseslint.config(
   },
   {
     files: ["apps/web/src/**/*.{ts,tsx}"],
+    plugins: {
+      react: reactPlugin,
+    },
     rules: {
       // Vite SPA — there is no SSR. `new Date()` reachable from JSX cannot
       // mismatch between server and client because the server doesn't render.
@@ -100,6 +104,10 @@ export default tseslint.config(
       // Vite SPA — no server actions / progressive enhancement story. Forms
       // rely on `e.preventDefault()` + a mutation; that's the correct pattern.
       "react-doctor/no-prevent-default": "off",
+      // dangerouslySetInnerHTML is the XSS landmine — block it at the lint
+      // gate instead of only surfacing it as a warn-level CLI finding in the
+      // react-doctor PR comment.
+      "react/no-danger": "error",
     },
   },
   {

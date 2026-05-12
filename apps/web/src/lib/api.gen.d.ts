@@ -4117,6 +4117,8 @@ export interface paths {
                                 created_at: string;
                                 member_category: string | null;
                                 chargePaidAt: string | null;
+                                /** @enum {string|null} */
+                                chargeStatus: "unpaid" | "paid" | "waived" | null;
                                 is_captain: boolean;
                                 is_wicketkeeper: boolean;
                             }[];
@@ -6979,7 +6981,7 @@ export interface paths {
                 query?: {
                     page?: number;
                     pageSize?: number;
-                    status?: "all" | "unpaid" | "pending" | "paid" | "abandoned";
+                    status?: "all" | "unpaid" | "pending" | "paid" | "abandoned" | "relieved";
                     showDeleted?: boolean;
                     dateFrom?: string;
                     dateTo?: string;
@@ -7012,6 +7014,7 @@ export interface paths {
                                 source: string;
                                 deletedAt: string | null;
                                 deletedReason: string | null;
+                                relievedAt: string | null;
                                 memberName: string | null;
                                 memberEmail: string;
                                 memberCategory: string | null;
@@ -7021,7 +7024,7 @@ export interface paths {
                                     email: string;
                                 }[];
                                 /** @enum {string} */
-                                status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted";
+                                status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | "relieved";
                             }[];
                             total: number;
                             page: number;
@@ -8020,7 +8023,7 @@ export interface paths {
                                 charge_stripe_payment_intent_id: string | null;
                                 charge_created_at: string | null;
                                 /** @enum {string|null} */
-                                charge_status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | null;
+                                charge_status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | "relieved" | null;
                             }[];
                             expenses: {
                                 id: string;
@@ -11158,6 +11161,683 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/financial-relief/eligible-members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            members: {
+                                memberId: string;
+                                name: string | null;
+                                /** @enum {string} */
+                                relationship: "self" | "junior";
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/financial-relief/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            requests: {
+                                id: string;
+                                memberId: string;
+                                memberName: string | null;
+                                /** @enum {string} */
+                                status: "submitted" | "in_review" | "more_info_needed" | "approved" | "declined" | "withdrawn" | "expired";
+                                requestedMembershipFull: boolean;
+                                requestedMembershipPartial: boolean;
+                                requestedMatchFees: boolean;
+                                createdAt: string;
+                                memberFacingNote: string | null;
+                                activeGrant: {
+                                    /** @enum {string} */
+                                    decision: "approved_full" | "approved_partial" | "approved_temporary";
+                                    coversMembership: boolean;
+                                    coversMatchFees: boolean;
+                                    effectiveFrom: string;
+                                    effectiveToExclusive: string | null;
+                                } | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/financial-relief/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        memberId: string;
+                        requestedMembershipFull: boolean;
+                        requestedMembershipPartial: boolean;
+                        requestedMatchFees: boolean;
+                        partialAmountPence?: number | null;
+                        /** @enum {string|null} */
+                        reasonCategory?: "cost_of_living" | "low_income" | "temporary_change" | "multiple_family" | "unemployment" | "caring" | "other_personal" | "prefer_not_to_say" | null;
+                        reasonText?: string | null;
+                        /** @enum {string|null} */
+                        duration?: "one_off" | "one_to_three_months" | "season" | "unsure" | "other" | null;
+                        durationOtherText?: string | null;
+                        /** @enum {string|null} */
+                        contributionAbility?: "yes_reduced" | "not_currently" | "unsure" | null;
+                        contributionAmountPence?: number | null;
+                        /** @default [] */
+                        volunteerOptions?: ("ground_work" | "scoring" | "umpiring" | "junior_sessions" | "womens_girls" | "bbq_kitchen" | "fundraising" | "social_media" | "admin" | "matchday_setup" | "transport" | "other" | "none")[];
+                        volunteerNotes?: string | null;
+                        /** @enum {string} */
+                        contactPreference: "none" | "email" | "phone" | "in_person";
+                        /** @enum {boolean} */
+                        privacyAcknowledged: true;
+                        /** @enum {boolean} */
+                        declarationConfirmed: true;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/financial-relief/requests/{requestId}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    requestId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/financial-relief/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    status?: ("submitted" | "in_review" | "more_info_needed" | "approved" | "declined" | "withdrawn" | "expired") | "all";
+                    search?: string;
+                    dateFrom?: string;
+                    dateTo?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                memberId: string;
+                                memberName: string | null;
+                                memberEmail: string;
+                                submittedByUserId: string;
+                                submittedByName: string | null;
+                                submittedByEmail: string;
+                                /** @enum {string} */
+                                status: "submitted" | "in_review" | "more_info_needed" | "approved" | "declined" | "withdrawn" | "expired";
+                                requestedMembershipFull: boolean;
+                                requestedMembershipPartial: boolean;
+                                requestedMatchFees: boolean;
+                                createdAt: string;
+                                updatedAt: string;
+                                decidedAt: string | null;
+                                decidedByName: string | null;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/financial-relief/requests/{requestId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    requestId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            request: {
+                                id: string;
+                                memberId: string;
+                                memberName: string | null;
+                                memberEmail: string;
+                                submittedByUserId: string;
+                                submittedByName: string | null;
+                                submittedByEmail: string;
+                                /** @enum {string} */
+                                status: "submitted" | "in_review" | "more_info_needed" | "approved" | "declined" | "withdrawn" | "expired";
+                                requestedMembershipFull: boolean;
+                                requestedMembershipPartial: boolean;
+                                requestedMatchFees: boolean;
+                                partialAmountPence: number | null;
+                                reasonCategory: string | null;
+                                reasonText: string | null;
+                                duration: string | null;
+                                durationOtherText: string | null;
+                                contributionAbility: string | null;
+                                contributionAmountPence: number | null;
+                                volunteerOptions: string[];
+                                volunteerNotes: string | null;
+                                contactPreference: string;
+                                privacyAcknowledgedAt: string;
+                                declarationConfirmedAt: string;
+                                withdrawnAt: string | null;
+                                withdrawnReason: string | null;
+                                createdAt: string;
+                                updatedAt: string;
+                            };
+                            events: {
+                                id: string;
+                                eventType: string;
+                                fromStatus: string | null;
+                                toStatus: string | null;
+                                note: string | null;
+                                actorUserId: string;
+                                actorName: string | null;
+                                createdAt: string;
+                            }[];
+                            grant: {
+                                id: string;
+                                /** @enum {string} */
+                                decision: "approved_full" | "approved_partial" | "approved_temporary";
+                                coversMembership: boolean;
+                                coversMatchFees: boolean;
+                                membershipPartialPence: number | null;
+                                effectiveFrom: string;
+                                effectiveToExclusive: string | null;
+                                adminNotes: string | null;
+                                memberFacingNote: string | null;
+                                decidedBy: string;
+                                decidedByName: string | null;
+                                decidedAt: string;
+                                closedAt: string | null;
+                                closedBy: string | null;
+                                closedReason: string | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/financial-relief/requests/{requestId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    requestId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        toStatus: "in_review" | "more_info_needed";
+                        note?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/financial-relief/requests/{requestId}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    requestId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        memberFacingNote?: string | null;
+                        adminNote?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/financial-relief/requests/{requestId}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    requestId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        decision: "approved_full" | "approved_partial" | "approved_temporary";
+                        coversMembership: boolean;
+                        coversMatchFees: boolean;
+                        membershipPartialPence?: number | null;
+                        effectiveFrom: string;
+                        effectiveToExclusive?: string | null;
+                        adminNotes?: string | null;
+                        memberFacingNote?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            grantId: string;
+                            forgivenChargeCount: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/financial-relief/grants/{grantId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    grantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/financial-relief/grants/{grantId}/apply-membership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    grantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        amountPence: number;
+                        effectiveDate: string;
+                        membershipPaidUntil: string;
+                        membershipType: string;
+                        description: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            chargeId: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/financial-relief/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    dateFrom: string;
+                    dateTo: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            totalForgivenPence: number;
+                            byReliefType: {
+                                membershipPence: number;
+                                matchFeePence: number;
+                            };
+                            bySection: {
+                                juniors: {
+                                    pence: number;
+                                    count: number;
+                                    members: number;
+                                };
+                                womensGirls: {
+                                    pence: number;
+                                    count: number;
+                                    members: number;
+                                };
+                                senior: {
+                                    pence: number;
+                                    count: number;
+                                    members: number;
+                                };
+                                other: {
+                                    pence: number;
+                                    count: number;
+                                    members: number;
+                                };
+                            };
+                            membersSupported: number;
+                            forgivenChargeCount: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/admin/leads": {

@@ -30,10 +30,6 @@ function JoinWizardInner() {
           <CardTitle>Join Percy Main Community Sports Club</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground mb-6 text-sm">
-            Fill in your details so we can keep in touch and keep you safe at
-            the club. You can skip this for now and complete it later.
-          </p>
           {hasDetails ? (
             <div className="rounded border border-green-300 bg-green-50 p-3 text-sm text-green-800">
               Your details are already on file. You can proceed to payment.

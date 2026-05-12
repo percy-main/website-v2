@@ -1,9 +1,9 @@
 import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
-import { authClient } from "@/lib/auth-client.js";
+import { authClient, useSession } from "@/lib/auth-client.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FC } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import type { LoginPhase } from "../login.js";
 
 interface Props {
@@ -13,15 +13,19 @@ interface Props {
 export const Recovery: FC<Props> = ({ setPhase }) => {
   const [recoveryCode, setRecoveryCode] = useState("");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
   const queryClient = useQueryClient();
+  const { refetch: refetchSession } = useSession();
 
   const verifyBackupCode = useMutation({
     mutationFn: () =>
       authClient.twoFactor.verifyBackupCode(
         { code: recoveryCode },
         {
-          onSuccess() {
-            void navigate("/members");
+          async onSuccess() {
+            await refetchSession();
+            void navigate(returnTo ?? "/members");
           },
         },
       ),

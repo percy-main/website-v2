@@ -40,6 +40,7 @@ import { contactRoutes } from "./features/contact/routes.ts";
 import { cricketLeaderboardRoutes } from "./features/cricket-leaderboard/routes.ts";
 import { documentRoutes } from "./features/documents/routes.ts";
 import { fantasyRoutes } from "./features/fantasy/routes.ts";
+import { financialReliefRoutes } from "./features/financial-relief/routes.ts";
 import { gamesRoutes } from "./features/games/routes.ts";
 import { healthRoutes } from "./features/health/routes.ts";
 import { incidentReportRoutes } from "./features/incident-report/routes.ts";
@@ -171,7 +172,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   app.decorate("send", send);
 
   // Create and decorate the auth instance
-  const auth = createAuth(config, dialect, send, app.log);
+  const auth = createAuth(config, dialect, db, send, app.log);
   app.decorate("auth", auth);
 
   // Create and decorate the S3 uploader (receipt images)
@@ -274,6 +275,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(scoutRoutes, { prefix: "/api" });
   await app.register(contactRoutes, { prefix: "/api" });
   await app.register(incidentReportRoutes, { prefix: "/api" });
+  await app.register(financialReliefRoutes, { prefix: "/api" });
   await app.register(marketingRoutes, { prefix: "/api" });
   await app.register(webhookRoutes, { prefix: "/api" });
   await app.register(ogImageRoutes, { prefix: "/api" });

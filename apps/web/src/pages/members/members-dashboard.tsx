@@ -1,6 +1,7 @@
 import { ChangePassword } from "@/components/members/change-password";
 import { Charges } from "@/components/members/charges";
 import { Documents } from "@/components/members/documents";
+import { FinancialReliefStatus } from "@/components/members/financial-relief-status";
 import {
   MemberDetails,
   useMemberDetails,
@@ -141,6 +142,7 @@ export function Component() {
           </TabsContent>
           <TabsContent value="payments">
             <div className="flex flex-col gap-8">
+              <FinancialReliefStatus />
               <Charges />
               <Subscriptions />
             </div>

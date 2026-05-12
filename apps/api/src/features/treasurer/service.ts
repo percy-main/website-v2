@@ -299,6 +299,8 @@ export function getOutstandingPayments(db: Kysely<DB>) {
         .where("charge.paid_at", "is", null)
         .where("charge.payment_confirmed_at", "is", null)
         .where("charge.deleted_at", "is", null)
+        // Relieved charges are not outstanding debt.
+        .where("charge.relieved_at", "is", null)
         .select([
           "charge.id",
           "charge.type",
@@ -317,6 +319,7 @@ export function getOutstandingPayments(db: Kysely<DB>) {
         .where("paid_at", "is", null)
         .where("payment_confirmed_at", "is", null)
         .where("deleted_at", "is", null)
+        .where("relieved_at", "is", null)
         .select(db.fn.countAll().as("total"))
         .executeTakeFirst(),
     ]);

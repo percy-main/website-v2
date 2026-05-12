@@ -28,7 +28,13 @@ const EXPENSE_TYPE_LABELS: Record<string, string> = {
   miscellaneous: "Miscellaneous",
 };
 
-type ChargeStatus = "paid" | "pending" | "unpaid" | "abandoned" | "deleted";
+type ChargeStatus =
+  | "paid"
+  | "pending"
+  | "unpaid"
+  | "abandoned"
+  | "deleted"
+  | "relieved";
 
 function formatMatchDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -197,6 +203,12 @@ function ChargeStatusBadge({
       return <span className="text-xs text-stone-400">Abandoned</span>;
     case "deleted":
       return <span className="text-xs text-stone-400">Deleted</span>;
+    case "relieved":
+      return (
+        <span className="rounded bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-700">
+          Relieved
+        </span>
+      );
     default:
       return <span className="text-xs text-stone-400">-</span>;
   }
