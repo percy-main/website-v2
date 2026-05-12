@@ -43,7 +43,10 @@ import {
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   const eligible = getEligibleMembers(app.db);
-  const submit = submitReliefRequest(app.db);
+  const submit = submitReliefRequest(app.db, {
+    baseUrl: app.config.BASE_URL,
+    send: app.send,
+  });
   const myStatus = getMyReliefStatus(app.db);
   const withdraw = withdrawReliefRequest(app.db);
   const listAdmin = listReliefRequestsForAdmin(app.db);
@@ -74,8 +77,8 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
       schema: { response: { 200: myReliefStatusResponseSchema } },
     },
     async (request) => {
-      getAuthSession(request);
-      return await myStatus();
+      const session = getAuthSession(request);
+      return await myStatus(session.user.email);
     },
   );
 
@@ -88,8 +91,13 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      getAuthSession(request);
-      return await submit();
+      const session = getAuthSession(request);
+      return await submit(
+        session.user.id,
+        session.user.email,
+        request.body,
+        request.log,
+      );
     },
   );
 
@@ -103,8 +111,13 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      getAuthSession(request);
-      return await withdraw();
+      const session = getAuthSession(request);
+      return await withdraw(
+        session.user.id,
+        session.user.email,
+        request.params.requestId,
+        request.body,
+      );
     },
   );
 

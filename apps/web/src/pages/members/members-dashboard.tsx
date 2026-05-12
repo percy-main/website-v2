@@ -143,6 +143,15 @@ export function Component() {
             <div className="flex flex-col gap-8">
               <Charges />
               <Subscriptions />
+              <p className="text-xs text-stone-600">
+                Struggling with fees?{" "}
+                <Link
+                  className="text-blue-900 underline"
+                  to="/members/financial-relief"
+                >
+                  Ask the club about financial relief.
+                </Link>
+              </p>
             </div>
           </TabsContent>
           <TabsContent value="documents">
