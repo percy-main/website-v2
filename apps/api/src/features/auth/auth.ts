@@ -1,18 +1,20 @@
 import { dash } from "@better-auth/infra";
 import { passkey } from "@better-auth/passkey";
+import type { DB } from "@percy-main/db";
 import { ResetPassword, VerifyEmail, type Email } from "@percy-main/email";
 import { ac, roles } from "@percy-main/shared/auth/permissions";
 import { render } from "@react-email/render";
 import { betterAuth } from "better-auth";
 import { admin, twoFactor } from "better-auth/plugins";
 import type { FastifyBaseLogger } from "fastify";
-import type { PostgresDialect } from "kysely";
+import { type Kysely, type PostgresDialect } from "kysely";
 import { createElement } from "react";
 import type { Config } from "../../config.ts";
 
 export function createAuth(
   config: Config,
   dialect: PostgresDialect,
+  db: Kysely<DB>,
   send: (email: Email) => Promise<void>,
   log: FastifyBaseLogger,
 ) {
@@ -77,6 +79,49 @@ export function createAuth(
           );
           throw err;
         }
+      },
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          // Every new user gets a paired `member` row keyed by email. This
+          // turns the legacy "members are only created when an admin
+          // creates one, or when a junior signs up for the first time"
+          // model into a 1:1 link from sign-up onwards, so flows like
+          // financial relief that look up the caller's member record
+          // don't have to handle a brand-new user with no member row.
+          //
+          // Idempotent: if a member row already exists for this email
+          // (e.g. a junior parent created one ahead of registering, or
+          // the admin pre-created the member), we leave it alone.
+          after: async (user) => {
+            try {
+              const existing = await db
+                .selectFrom("member")
+                .where("email", "=", user.email)
+                .select("id")
+                .executeTakeFirst();
+              if (existing) return;
+              await db
+                .insertInto("member")
+                .values({
+                  id: crypto.randomUUID(),
+                  email: user.email,
+                  // Mirror the user's display name into the member row
+                  // so the relief form's "Who is this for?" shows the
+                  // right thing on day 0. The Details tab can still
+                  // edit it later.
+                  name: user.name ?? null,
+                })
+                .execute();
+            } catch (err) {
+              log.error(
+                { event: "auth.member-link", err, userId: user.id },
+                "auth_member_link_failed",
+              );
+            }
+          },
+        },
       },
     },
     emailVerification: {
