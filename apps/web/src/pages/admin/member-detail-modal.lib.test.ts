@@ -34,6 +34,7 @@ function makeCharge(overrides: Partial<Charge> = {}): Charge {
     deleted_at: null,
     deleted_by: null,
     deleted_reason: null,
+    relieved_at: null,
     ...overrides,
   };
 }
@@ -247,6 +248,26 @@ describe("getChargeStatus", () => {
     );
     expect(result.status).toBe("paid");
   });
+
+  it("returns Relieved (gray) when relieved_at is set", () => {
+    expect(
+      getChargeStatus(makeCharge({ relieved_at: "2025-04-02T10:00:00Z" })),
+    ).toEqual({
+      label: "Relieved",
+      variant: "gray",
+      status: "relieved",
+    });
+  });
+
+  it("prefers paid_at over relieved_at", () => {
+    const result = getChargeStatus(
+      makeCharge({
+        paid_at: "2025-04-02T10:00:00Z",
+        relieved_at: "2025-04-03T10:00:00Z",
+      }),
+    );
+    expect(result.status).toBe("paid");
+  });
 });
 
 describe("canDeleteCharge", () => {
@@ -263,6 +284,12 @@ describe("canDeleteCharge", () => {
       canDeleteCharge(makeCharge({ payment_confirmed_at: "2025-04-02" })),
     ).toBe(false);
   });
+
+  it("disallows deleting relieved charges", () => {
+    expect(canDeleteCharge(makeCharge({ relieved_at: "2025-04-02" }))).toBe(
+      false,
+    );
+  });
 });
 
 describe("summariseCharges", () => {
@@ -272,6 +299,7 @@ describe("summariseCharges", () => {
       paid: 0,
       pending: 0,
       unpaid: 0,
+      relieved: 0,
       totalPence: 0,
       unpaidPence: 0,
     });
@@ -283,13 +311,15 @@ describe("summariseCharges", () => {
       makeCharge({ amount_pence: 300, payment_confirmed_at: "2025-04-02" }),
       makeCharge({ amount_pence: 200 }),
       makeCharge({ amount_pence: 100 }),
+      makeCharge({ amount_pence: 700, relieved_at: "2025-04-02" }),
     ];
     expect(summariseCharges(charges)).toEqual({
-      total: 4,
+      total: 5,
       paid: 1,
       pending: 1,
       unpaid: 2,
-      totalPence: 1100,
+      relieved: 1,
+      totalPence: 1800,
       unpaidPence: 300,
     });
   });

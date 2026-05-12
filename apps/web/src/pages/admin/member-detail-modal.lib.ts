@@ -110,24 +110,27 @@ export function buildDependentFields(dependent: Dependent): DisplayField[] {
   ];
 }
 
-export type ChargeStatus = "paid" | "pending" | "unpaid";
+export type ChargeStatus = "paid" | "pending" | "unpaid" | "relieved";
 
 export interface ChargeStatusDisplay {
   label: string;
-  variant: "green" | "blue" | "yellow";
+  variant: "green" | "blue" | "yellow" | "gray";
   status: ChargeStatus;
 }
 
 /**
- * Resolve a charge's status pill from its paid_at / payment_confirmed_at
- * timestamps. Order of precedence:
- *   1. paid_at  → Paid (green)
- *   2. payment_confirmed_at → Pending (blue)
- *   3. otherwise → Unpaid (yellow)
+ * Resolve a charge's status pill. Order of precedence:
+ *   1. paid_at  → Paid (paid trumps relief: member paid before grant landed)
+ *   2. relieved_at → Relieved (waived under a financial-relief grant)
+ *   3. payment_confirmed_at → Pending
+ *   4. otherwise → Unpaid
  */
 export function getChargeStatus(charge: Charge): ChargeStatusDisplay {
   if (charge.paid_at) {
     return { label: "Paid", variant: "green", status: "paid" };
+  }
+  if (charge.relieved_at) {
+    return { label: "Relieved", variant: "gray", status: "relieved" };
   }
   if (charge.payment_confirmed_at) {
     return { label: "Pending", variant: "blue", status: "pending" };
@@ -137,11 +140,11 @@ export function getChargeStatus(charge: Charge): ChargeStatusDisplay {
 
 /**
  * Charges are deletable only while still unpaid (no paid_at, no payment
- * confirmation). Once a payment has been recorded, deletion is gated on the
- * server side as well; this is the UI's mirror of that rule.
+ * confirmation, no live relief grant). Mirrors the server-side gate in
+ * admin/service.ts → deleteCharge.
  */
 export function canDeleteCharge(charge: Charge): boolean {
-  return !charge.paid_at && !charge.payment_confirmed_at;
+  return !charge.paid_at && !charge.payment_confirmed_at && !charge.relieved_at;
 }
 
 export interface ChargesBreakdown {
@@ -149,17 +152,21 @@ export interface ChargesBreakdown {
   paid: number;
   pending: number;
   unpaid: number;
+  relieved: number;
   totalPence: number;
   unpaidPence: number;
 }
 
 /**
- * Aggregate counts and pence totals for a list of charges.
+ * Aggregate counts and pence totals for a list of charges. Relieved charges
+ * are tracked separately — they aren't outstanding debt, so they don't
+ * contribute to `unpaid` / `unpaidPence`.
  */
 export function summariseCharges(charges: readonly Charge[]): ChargesBreakdown {
   let paid = 0;
   let pending = 0;
   let unpaid = 0;
+  let relieved = 0;
   let totalPence = 0;
   let unpaidPence = 0;
 
@@ -168,6 +175,7 @@ export function summariseCharges(charges: readonly Charge[]): ChargesBreakdown {
     const status = getChargeStatus(c).status;
     if (status === "paid") paid++;
     else if (status === "pending") pending++;
+    else if (status === "relieved") relieved++;
     else {
       unpaid++;
       unpaidPence += c.amount_pence;
@@ -179,6 +187,7 @@ export function summariseCharges(charges: readonly Charge[]): ChargesBreakdown {
     paid,
     pending,
     unpaid,
+    relieved,
     totalPence,
     unpaidPence,
   };

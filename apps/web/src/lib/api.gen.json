@@ -10909,6 +10909,10 @@
                           "deleted_reason": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "relieved_at": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -10927,7 +10931,8 @@
                           "source",
                           "deleted_at",
                           "deleted_by",
-                          "deleted_reason"
+                          "deleted_reason",
+                          "relieved_at"
                         ],
                         "additionalProperties": false
                       }
@@ -13861,6 +13866,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "charge_relieved_at": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "charge_status": {
                             "nullable": true,
                             "type": "string",
@@ -13887,6 +13896,7 @@
                           "charge_payment_confirmed_at",
                           "charge_stripe_payment_intent_id",
                           "charge_created_at",
+                          "charge_relieved_at",
                           "charge_status"
                         ],
                         "additionalProperties": false

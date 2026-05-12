@@ -136,6 +136,7 @@ describe("game-reports-service", () => {
           charge_payment_confirmed_at: null,
           charge_stripe_payment_intent_id: null,
           charge_created_at: "2026-06-15",
+          charge_relieved_at: null,
         },
         {
           id: "p2",
@@ -150,6 +151,7 @@ describe("game-reports-service", () => {
           charge_payment_confirmed_at: null,
           charge_stripe_payment_intent_id: null,
           charge_created_at: "2026-06-15",
+          charge_relieved_at: null,
         },
       ]);
 
@@ -252,6 +254,7 @@ describe("game-reports-service", () => {
           charge_payment_confirmed_at: null,
           charge_stripe_payment_intent_id: null,
           charge_created_at: "2026-06-15",
+          charge_relieved_at: null,
         },
       ]);
 
@@ -269,6 +272,72 @@ describe("game-reports-service", () => {
       // Deleted charge should be excluded
       expect(result.summary.totalIncoming).toBe(0);
       expect(result.summary.totalPaid).toBe(0);
+    });
+
+    it("excludes relieved charges from financial summary and reports relieved status", async () => {
+      // Matchday
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "m1",
+        match_date: "2026-06-15",
+        opposition: "Benwell",
+        status: "confirmed",
+        play_cricket_team_id: "t1",
+        play_cricket_match_id: null,
+        competition_type: null,
+      });
+
+      // Players: one paid, one relieved (waived under a financial-relief grant)
+      mockExecute.mockResolvedValueOnce([
+        {
+          id: "p1",
+          player_name: "John Smith",
+          status: "playing",
+          member_id: "mem1",
+          member_category: "senior",
+          charge_amount_pence: 1000,
+          charge_paid_at: "2026-06-15",
+          charge_payment_method: "card",
+          charge_deleted_at: null,
+          charge_payment_confirmed_at: null,
+          charge_stripe_payment_intent_id: null,
+          charge_created_at: "2026-06-15",
+          charge_relieved_at: null,
+        },
+        {
+          id: "p2",
+          player_name: "Bob Jones",
+          status: "playing",
+          member_id: "mem2",
+          member_category: "senior",
+          charge_amount_pence: 1000,
+          charge_paid_at: null,
+          charge_payment_method: null,
+          charge_deleted_at: null,
+          charge_payment_confirmed_at: null,
+          charge_stripe_payment_intent_id: null,
+          charge_created_at: "2026-06-15",
+          charge_relieved_at: "2026-06-16",
+        },
+      ]);
+
+      // Expenses
+      mockExecute.mockResolvedValueOnce([]);
+
+      // Team
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "t1",
+        name: "1st XI",
+      });
+
+      const result = await getMatchdayReport(db)("m1");
+
+      expect(result.players[0].charge_status).toBe("paid");
+      expect(result.players[1].charge_status).toBe("relieved");
+
+      // Only the paid charge contributes to incoming; relieved charge is waived
+      expect(result.summary.totalIncoming).toBe(1000);
+      expect(result.summary.totalPaid).toBe(1000);
+      expect(result.summary.totalOutstanding).toBe(0);
     });
   });
 });
