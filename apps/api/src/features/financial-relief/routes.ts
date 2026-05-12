@@ -1,5 +1,9 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { getAuthSession, requirePermission } from "../auth/middleware.ts";
+import {
+  getAuthSession,
+  requireAuth,
+  requirePermission,
+} from "../auth/middleware.ts";
 import { createStripe } from "../payments/stripe.ts";
 import {
   applyMembershipReliefResponseSchema,
@@ -75,6 +79,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/financial-relief/eligible-members",
     {
+      preHandler: [requireAuth],
       schema: { response: { 200: eligibleMembersResponseSchema } },
     },
     async (request) => {
@@ -86,6 +91,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/financial-relief/me",
     {
+      preHandler: [requireAuth],
       schema: { response: { 200: myReliefStatusResponseSchema } },
     },
     async (request) => {
@@ -97,6 +103,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/financial-relief/requests",
     {
+      preHandler: [requireAuth],
       schema: {
         body: submitReliefRequestSchema,
         response: { 200: submitReliefRequestResponseSchema },
@@ -116,6 +123,7 @@ export const financialReliefRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/financial-relief/requests/:requestId/withdraw",
     {
+      preHandler: [requireAuth],
       schema: {
         params: requestIdParamSchema,
         body: withdrawRequestSchema,
