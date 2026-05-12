@@ -189,6 +189,33 @@ export function hasAnyElevatedRole(
 }
 
 /**
+ * True iff the user has at least one permission that surfaces an admin-panel
+ * sub-tab. Used to gate the "Admin Panel" links scattered around the
+ * members/matchday/junior-manager/official areas, plus the /admin route
+ * wrapper. AI-only roles (ai_chat_user, ai_scout_user, ai_facts_viewer,
+ * ai_knowledge_viewer) intentionally do NOT qualify — they have access to
+ * the Scout area instead. Keep this in sync with the per-sub-tab visibility
+ * predicates in `apps/web/src/pages/admin/admin-panel.tsx`.
+ */
+export function hasAdminPanelAccess(
+  rawRole: string | null | undefined,
+): boolean {
+  return (
+    checkPermission(rawRole, "users", "view") ||
+    checkPermission(rawRole, "users", "manage") ||
+    checkPermission(rawRole, "users", "manage_roles") ||
+    checkPermission(rawRole, "juniors", "view") ||
+    checkPermission(rawRole, "marketing", "view") ||
+    checkPermission(rawRole, "finance", "view") ||
+    checkPermission(rawRole, "finance", "manage") ||
+    checkPermission(rawRole, "matchday", "view") ||
+    checkPermission(rawRole, "fantasy", "manage") ||
+    checkPermission(rawRole, "incidents", "view") ||
+    checkPermission(rawRole, "documents", "manage")
+  );
+}
+
+/**
  * Parse a stored role string (comma-separated) into an array of role names.
  * Drops `user` because it's an implicit baseline, not a meaningful role:
  * letting it round-trip into UI state and back through saves bloats the

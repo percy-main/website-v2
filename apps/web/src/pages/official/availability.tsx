@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { useHasAnyElevatedRole } from "@/hooks/use-has-permission.js";
+import { useHasAdminPanelAccess } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
@@ -78,7 +78,7 @@ export function Component() {
 // ── Request List ──
 
 function RequestListView() {
-  const hasAdminAccess = useHasAnyElevatedRole();
+  const hasAdminAccess = useHasAdminPanelAccess();
   const query = useQuery({
     queryKey: ["availability", "requests"],
     queryFn: () => callApi(api.GET("/api/availability/requests")),

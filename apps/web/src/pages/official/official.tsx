@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { useHasAnyElevatedRole } from "@/hooks/use-has-permission.js";
+import { useHasAdminPanelAccess } from "@/hooks/use-has-permission.js";
 import { API_BASE, api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
@@ -227,7 +227,7 @@ function RoleSelectors({
 export function Component() {
   useDocumentMeta("Match Official");
   const { data: session } = useSession();
-  const hasAdminAccess = useHasAnyElevatedRole();
+  const hasAdminAccess = useHasAdminPanelAccess();
 
   if (!session) return null;
 
