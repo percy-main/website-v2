@@ -1,6 +1,7 @@
 import { ChangePassword } from "@/components/members/change-password";
 import { Charges } from "@/components/members/charges";
 import { Documents } from "@/components/members/documents";
+import { FinancialReliefStatus } from "@/components/members/financial-relief-status";
 import {
   MemberDetails,
   useMemberDetails,
@@ -141,17 +142,9 @@ export function Component() {
           </TabsContent>
           <TabsContent value="payments">
             <div className="flex flex-col gap-8">
+              <FinancialReliefStatus />
               <Charges />
               <Subscriptions />
-              <p className="text-xs text-stone-600">
-                Struggling with fees?{" "}
-                <Link
-                  className="text-blue-900 underline"
-                  to="/members/financial-relief"
-                >
-                  Ask the club about financial relief.
-                </Link>
-              </p>
             </div>
           </TabsContent>
           <TabsContent value="documents">
