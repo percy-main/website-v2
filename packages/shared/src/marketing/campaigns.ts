@@ -100,7 +100,6 @@ export type AssertAllSegmentsHavePrimaryAction<C extends CampaignId> =
 // Compile-time check for recruit-2026. Delete a segment from the map above and
 // this line will fail to compile.
 type _CheckRecruit2026 = AssertAllSegmentsHavePrimaryAction<"recruit-2026">;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _typeCheck: _CheckRecruit2026 = true;
 
 export function resolveAdsConversionAction(

@@ -27,6 +27,14 @@ export default tseslint.config(
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,
   {
+    // Same no-warnings policy applies to ESLint's own meta-rules: an
+    // unused `eslint-disable` is dead code that drifts as the codebase
+    // changes, so block CI on it rather than letting it rot in place.
+    linterOptions: {
+      reportUnusedDisableDirectives: "error",
+    },
+  },
+  {
     plugins: {
       "react-hooks": hooksPlugin,
     },
