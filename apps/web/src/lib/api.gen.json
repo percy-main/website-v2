@@ -21530,13 +21530,17 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "memberId": {
-                    "type": "string",
-                    "minLength": 1
+                  "memberIds": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
                   }
                 },
                 "required": [
-                  "memberId"
+                  "memberIds"
                 ]
               }
             }
@@ -21561,12 +21565,14 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": {
-                      "type": "boolean"
+                    "added": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
-                    "success"
+                    "added"
                   ],
                   "additionalProperties": false
                 }
@@ -21621,17 +21627,9 @@
         }
       }
     },
-    "/api/admin/user-groups/{groupId}/search-users": {
+    "/api/admin/user-groups/{groupId}/available-members": {
       "get": {
         "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "query",
-            "name": "q",
-            "required": false
-          },
           {
             "schema": {
               "type": "string",
@@ -21650,7 +21648,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "users": {
+                    "members": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -21676,7 +21674,7 @@
                     }
                   },
                   "required": [
-                    "users"
+                    "members"
                   ],
                   "additionalProperties": false
                 }

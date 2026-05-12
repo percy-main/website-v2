@@ -55,24 +55,28 @@ export const createGroupResponseSchema = z.object({
 
 // ── Add / remove members ───────────────────────────────────────────────
 
-export const addGroupMemberSchema = z.object({
-  memberId: z.string().min(1),
+// Bulk add — captains pick a batch of members at once. A single
+// shape covers the one-at-a-time case (memberIds with length 1) so
+// the API surface stays small.
+export const addGroupMembersSchema = z.object({
+  memberIds: z.array(z.string().min(1)).min(1),
 });
-export type AddGroupMember = z.infer<typeof addGroupMemberSchema>;
+export type AddGroupMembers = z.infer<typeof addGroupMembersSchema>;
+
+export const addGroupMembersResponseSchema = z.object({
+  added: z.number().int().nonnegative(),
+});
 
 const successResponseSchema = z.object({ success: z.boolean() });
-export const addGroupMemberResponseSchema = successResponseSchema;
 export const removeGroupMemberResponseSchema = successResponseSchema;
 
-// ── User search (for "Add member" modal) ───────────────────────────────
+// ── Eligible members listing (for "Add member" modal) ──────────────────
 
-export const searchUsersForGroupSchema = z.object({
-  q: z.string().optional(),
-});
-export type SearchUsersForGroup = z.infer<typeof searchUsersForGroupSchema>;
-
-export const searchUsersForGroupResponseSchema = z.object({
-  users: z.array(
+// Returns every non-deleted member not already in the group. The
+// client filters the list locally — a typeahead round-trip per
+// keystroke is too slow when the captain wants to bulk-add.
+export const availableMembersResponseSchema = z.object({
+  members: z.array(
     z.object({
       memberId: z.string(),
       name: z.string().nullable(),

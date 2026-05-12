@@ -11984,7 +11984,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        memberId: string;
+                        memberIds: string[];
                     };
                 };
             };
@@ -11996,7 +11996,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            success: boolean;
+                            added: number;
                         };
                     };
                 };
@@ -12048,7 +12048,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/user-groups/{groupId}/search-users": {
+    "/api/admin/user-groups/{groupId}/available-members": {
         parameters: {
             query?: never;
             header?: never;
@@ -12057,9 +12057,7 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: {
-                    q?: string;
-                };
+                query?: never;
                 header?: never;
                 path: {
                     groupId: string;
@@ -12075,7 +12073,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            users: {
+                            members: {
                                 memberId: string;
                                 name: string | null;
                                 email: string;

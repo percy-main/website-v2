@@ -6,12 +6,12 @@ import {
   type TestContext,
 } from "../../test/containers.ts";
 import {
-  addGroupMember,
+  addGroupMembers,
   createGroup,
   getGroup,
+  listAvailableMembers,
   listGroups,
   removeGroupMember,
-  searchUsersForGroup,
 } from "./service.ts";
 
 let ctx: TestContext;
@@ -52,52 +52,54 @@ describe("user groups service", () => {
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it("adds and removes members; counts update", async () => {
+  it("bulk-adds and removes members; counts update", async () => {
     const { userId } = await seedTestUser(ctx.db);
-    const player = await seedTestUser(ctx.db, { withMember: true });
-    if (!player.memberId) throw new Error("expected member");
+    const alice = await seedTestUser(ctx.db, { withMember: true });
+    const bob = await seedTestUser(ctx.db, { withMember: true });
+    if (!alice.memberId || !bob.memberId) throw new Error("expected members");
 
     const { id: groupId } = await createGroup(ctx.db)(userId, {
       name: "Sunday XI",
     });
 
-    await addGroupMember(ctx.db)(
+    const result = await addGroupMembers(ctx.db)(
       groupId,
-      { memberId: player.memberId },
+      { memberIds: [alice.memberId, bob.memberId] },
       userId,
     );
+    expect(result.added).toBe(2);
 
     const detail = await getGroup(ctx.db)(groupId);
-    expect(detail.members).toHaveLength(1);
-    expect(detail.members[0]?.memberId).toBe(player.memberId);
-    expect(detail.members[0]?.email).toBe(player.email);
+    expect(detail.members).toHaveLength(2);
 
     const { groups } = await listGroups(ctx.db)();
-    expect(groups.find((g) => g.id === groupId)?.memberCount).toBe(1);
+    expect(groups.find((g) => g.id === groupId)?.memberCount).toBe(2);
 
-    // Adding the same member again is a no-op (idempotent).
-    await addGroupMember(ctx.db)(
+    // Re-adding the same members is idempotent (no rows inserted).
+    const again = await addGroupMembers(ctx.db)(
       groupId,
-      { memberId: player.memberId },
+      { memberIds: [alice.memberId] },
       userId,
     );
+    expect(again.added).toBe(0);
     const after = await getGroup(ctx.db)(groupId);
-    expect(after.members).toHaveLength(1);
+    expect(after.members).toHaveLength(2);
 
-    await removeGroupMember(ctx.db)(groupId, player.memberId);
+    await removeGroupMember(ctx.db)(groupId, alice.memberId);
     const removed = await getGroup(ctx.db)(groupId);
-    expect(removed.members).toHaveLength(0);
+    expect(removed.members).toHaveLength(1);
+    expect(removed.members[0]?.memberId).toBe(bob.memberId);
   });
 
-  it("search excludes users already in the group", async () => {
+  it("listAvailableMembers excludes members already in the group", async () => {
     const { userId } = await seedTestUser(ctx.db);
     const inGroup = await seedTestUser(ctx.db, {
       name: "Jane Bowler",
-      email: "jane.bowler@test.com",
+      email: `jane-bowler-${crypto.randomUUID()}@test.com`,
     });
     const outOfGroup = await seedTestUser(ctx.db, {
       name: "Jane Batter",
-      email: "jane.batter@test.com",
+      email: `jane-batter-${crypto.randomUUID()}@test.com`,
     });
     if (!inGroup.memberId || !outOfGroup.memberId) {
       throw new Error("expected members");
@@ -106,37 +108,41 @@ describe("user groups service", () => {
     const { id: groupId } = await createGroup(ctx.db)(userId, {
       name: "First XI",
     });
-    await addGroupMember(ctx.db)(
+    await addGroupMembers(ctx.db)(
       groupId,
-      { memberId: inGroup.memberId },
+      { memberIds: [inGroup.memberId] },
       userId,
     );
 
-    const { users } = await searchUsersForGroup(ctx.db)(groupId, { q: "jane" });
-    const memberIds = users.map((u) => u.memberId);
-    expect(memberIds).toContain(outOfGroup.memberId);
-    expect(memberIds).not.toContain(inGroup.memberId);
+    const { members } = await listAvailableMembers(ctx.db)(groupId);
+    const ids = members.map((m) => m.memberId);
+    expect(ids).toContain(outOfGroup.memberId);
+    expect(ids).not.toContain(inGroup.memberId);
   });
 
-  it("search with empty query returns no users", async () => {
+  it("addGroupMembers rejects unknown member ids with 404", async () => {
     const { userId } = await seedTestUser(ctx.db);
     const { id: groupId } = await createGroup(ctx.db)(userId, {
-      name: "Empty search group",
+      name: "Reject XI",
     });
-
-    const result = await searchUsersForGroup(ctx.db)(groupId, { q: "" });
-    expect(result.users).toEqual([]);
+    await expect(
+      addGroupMembers(ctx.db)(
+        groupId,
+        { memberIds: ["does-not-exist"] },
+        userId,
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it("get / addMember / search throw 404 for unknown group", async () => {
+  it("404s for unknown group on get / addMembers / listAvailable", async () => {
     await expect(getGroup(ctx.db)("missing")).rejects.toMatchObject({
       statusCode: 404,
     });
     await expect(
-      addGroupMember(ctx.db)("missing", { memberId: "x" }, "u"),
+      addGroupMembers(ctx.db)("missing", { memberIds: ["x"] }, "u"),
     ).rejects.toMatchObject({ statusCode: 404 });
-    await expect(
-      searchUsersForGroup(ctx.db)("missing", { q: "anything" }),
-    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(listAvailableMembers(ctx.db)("missing")).rejects.toMatchObject(
+      { statusCode: 404 },
+    );
   });
 });

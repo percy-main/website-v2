@@ -1,18 +1,12 @@
 import type { DB } from "@percy-main/db";
-import { sql, type Kysely } from "kysely";
-import type {
-  AddGroupMember,
-  CreateGroup,
-  SearchUsersForGroup,
-} from "./schemas.ts";
+import type { Kysely } from "kysely";
+import type { AddGroupMembers, CreateGroup } from "./schemas.ts";
 
 function httpError(statusCode: number, message: string): never {
   const err = new Error(message) as Error & { statusCode: number };
   err.statusCode = statusCode;
   throw err;
 }
-
-const SEARCH_LIMIT = 20;
 
 export function listGroups(db: Kysely<DB>) {
   return async () => {
@@ -116,8 +110,12 @@ export function createGroup(db: Kysely<DB>) {
   };
 }
 
-export function addGroupMember(db: Kysely<DB>) {
-  return async (groupId: string, data: AddGroupMember, actorUserId: string) => {
+export function addGroupMembers(db: Kysely<DB>) {
+  return async (
+    groupId: string,
+    data: AddGroupMembers,
+    actorUserId: string,
+  ) => {
     const group = await db
       .selectFrom("user_group")
       .where("id", "=", groupId)
@@ -125,25 +123,31 @@ export function addGroupMember(db: Kysely<DB>) {
       .executeTakeFirst();
     if (!group) httpError(404, "Group not found");
 
-    const member = await db
+    // Validate every memberId exists and is active before inserting
+    // any of them — a partial insert on a bulk action is confusing.
+    const found = await db
       .selectFrom("member")
-      .where("id", "=", data.memberId)
+      .where("id", "in", data.memberIds)
       .where("deleted_at", "is", null)
       .select("id")
-      .executeTakeFirst();
-    if (!member) httpError(404, "Member not found");
-
-    await db
-      .insertInto("user_group_member")
-      .values({
-        group_id: groupId,
-        member_id: data.memberId,
-        added_by_user_id: actorUserId,
-      })
-      .onConflict((oc) => oc.columns(["group_id", "member_id"]).doNothing())
       .execute();
+    if (found.length !== data.memberIds.length) {
+      httpError(404, "One or more members not found");
+    }
 
-    return { success: true };
+    const result = await db
+      .insertInto("user_group_member")
+      .values(
+        data.memberIds.map((memberId) => ({
+          group_id: groupId,
+          member_id: memberId,
+          added_by_user_id: actorUserId,
+        })),
+      )
+      .onConflict((oc) => oc.columns(["group_id", "member_id"]).doNothing())
+      .executeTakeFirst();
+
+    return { added: Number(result.numInsertedOrUpdatedRows ?? 0n) };
   };
 }
 
@@ -158,8 +162,8 @@ export function removeGroupMember(db: Kysely<DB>) {
   };
 }
 
-export function searchUsersForGroup(db: Kysely<DB>) {
-  return async (groupId: string, params: SearchUsersForGroup) => {
+export function listAvailableMembers(db: Kysely<DB>) {
+  return async (groupId: string) => {
     const group = await db
       .selectFrom("user_group")
       .where("id", "=", groupId)
@@ -167,10 +171,6 @@ export function searchUsersForGroup(db: Kysely<DB>) {
       .executeTakeFirst();
     if (!group) httpError(404, "Group not found");
 
-    const term = params.q?.trim() ?? "";
-    if (term.length === 0) return { users: [] };
-
-    const like = `%${term}%`;
     const existing = db
       .selectFrom("user_group_member")
       .select("member_id")
@@ -179,25 +179,13 @@ export function searchUsersForGroup(db: Kysely<DB>) {
     const rows = await db
       .selectFrom("member")
       .where("deleted_at", "is", null)
-      .where((eb) =>
-        eb.or([eb("name", "ilike", like), eb("email", "ilike", like)]),
-      )
       .where("id", "not in", existing)
       .select(["id", "name", "email"])
-      .orderBy(
-        // Exact prefix match on name/email ranks above substring matches.
-        sql`CASE
-              WHEN lower(name) LIKE ${term.toLowerCase() + "%"} THEN 0
-              WHEN lower(email) LIKE ${term.toLowerCase() + "%"} THEN 1
-              ELSE 2
-            END`,
-      )
       .orderBy("name", "asc")
-      .limit(SEARCH_LIMIT)
       .execute();
 
     return {
-      users: rows.map((r) => ({
+      members: rows.map((r) => ({
         memberId: r.id,
         name: r.name,
         email: r.email,

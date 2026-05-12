@@ -5,8 +5,9 @@ import {
   requirePermission,
 } from "../auth/middleware.ts";
 import {
-  addGroupMemberResponseSchema,
-  addGroupMemberSchema,
+  addGroupMembersResponseSchema,
+  addGroupMembersSchema,
+  availableMembersResponseSchema,
   createGroupResponseSchema,
   createGroupSchema,
   getGroupResponseSchema,
@@ -14,16 +15,14 @@ import {
   groupMemberParamSchema,
   listGroupsResponseSchema,
   removeGroupMemberResponseSchema,
-  searchUsersForGroupResponseSchema,
-  searchUsersForGroupSchema,
 } from "./schemas.ts";
 import {
-  addGroupMember,
+  addGroupMembers,
   createGroup,
   getGroup,
+  listAvailableMembers,
   listGroups,
   removeGroupMember,
-  searchUsersForGroup,
 } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
@@ -36,9 +35,9 @@ export const userGroupsRoutes: FastifyPluginAsyncZod = async (app) => {
   const list = listGroups(app.db);
   const get = getGroup(app.db);
   const create = createGroup(app.db);
-  const addMember = addGroupMember(app.db);
+  const addMembers = addGroupMembers(app.db);
   const removeMember = removeGroupMember(app.db);
-  const searchUsers = searchUsersForGroup(app.db);
+  const available = listAvailableMembers(app.db);
 
   app.get(
     "/admin/user-groups",
@@ -86,13 +85,13 @@ export const userGroupsRoutes: FastifyPluginAsyncZod = async (app) => {
       preHandler: [requireAuth, usersManage],
       schema: {
         params: groupIdParamSchema,
-        body: addGroupMemberSchema,
-        response: { 200: addGroupMemberResponseSchema },
+        body: addGroupMembersSchema,
+        response: { 200: addGroupMembersResponseSchema },
       },
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      return await addMember(request.params.groupId, request.body, user.id);
+      return await addMembers(request.params.groupId, request.body, user.id);
     },
   );
 
@@ -114,17 +113,16 @@ export const userGroupsRoutes: FastifyPluginAsyncZod = async (app) => {
   );
 
   app.get(
-    "/admin/user-groups/:groupId/search-users",
+    "/admin/user-groups/:groupId/available-members",
     {
       preHandler: [requireAuth, usersManage],
       schema: {
         params: groupIdParamSchema,
-        querystring: searchUsersForGroupSchema,
-        response: { 200: searchUsersForGroupResponseSchema },
+        response: { 200: availableMembersResponseSchema },
       },
     },
     async (request) => {
-      return await searchUsers(request.params.groupId, request.query);
+      return await available(request.params.groupId);
     },
   );
 };
