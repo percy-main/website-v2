@@ -24,8 +24,6 @@ export interface NotifyFormState {
   memberCategory: string;
   /** Membership status filter, or "" for any status. */
   membershipStatus: string;
-  /** User group filter, or "" for no group filter. */
-  userGroupId: string;
   /** Comma-separated additional email addresses to add to the list. */
   manualEmails: string;
   /**
@@ -42,7 +40,6 @@ export interface NotifyFormState {
 export const initialNotifyFormState: NotifyFormState = {
   memberCategory: "",
   membershipStatus: "",
-  userGroupId: "",
   manualEmails: "",
   recipients: [],
   checked: new Set(),
@@ -52,7 +49,6 @@ export const initialNotifyFormState: NotifyFormState = {
 export type NotifyFormAction =
   | { type: "setMemberCategory"; value: string }
   | { type: "setMembershipStatus"; value: string }
-  | { type: "setUserGroupId"; value: string }
   | { type: "setManualEmails"; value: string }
   | { type: "previewSucceeded"; recipients: NotifyRecipient[] }
   | { type: "toggleRecipient"; email: string }
@@ -68,8 +64,6 @@ export function notifyFormReducer(
       return { ...state, memberCategory: action.value };
     case "setMembershipStatus":
       return { ...state, membershipStatus: action.value };
-    case "setUserGroupId":
-      return { ...state, userGroupId: action.value };
     case "setManualEmails":
       return { ...state, manualEmails: action.value };
     case "previewSucceeded":
@@ -125,7 +119,6 @@ export function parseAdditionalEmails(raw: string): string[] | undefined {
 export interface PreviewPayload {
   memberCategory?: string;
   membershipStatus?: "active" | "lapsed";
-  userGroupId?: string;
   additionalEmails?: string[];
 }
 
@@ -134,7 +127,6 @@ export function buildPreviewPayload(state: NotifyFormState): PreviewPayload {
     memberCategory: state.memberCategory || undefined,
     membershipStatus:
       (state.membershipStatus as "active" | "lapsed") || undefined,
-    userGroupId: state.userGroupId || undefined,
     additionalEmails: parseAdditionalEmails(state.manualEmails),
   };
 }

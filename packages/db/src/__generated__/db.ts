@@ -114,6 +114,7 @@ export interface AvailabilityRequest {
   date_to: string;
   id: string;
   status: Generated<string>;
+  user_group_id: string | null;
 }
 
 export interface AvailabilityResponse {

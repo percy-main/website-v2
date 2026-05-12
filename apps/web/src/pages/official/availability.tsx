@@ -169,6 +169,12 @@ function CreateRequestView() {
 
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(weekFromNow);
+  const [userGroupId, setUserGroupId] = useState("");
+
+  const groupsQuery = useQuery({
+    queryKey: ["admin", "user-groups"],
+    queryFn: () => callApi(api.GET("/api/admin/user-groups")),
+  });
 
   const previewQuery = useQuery({
     queryKey: ["availability", "preview", dateFrom, dateTo],
@@ -185,7 +191,11 @@ function CreateRequestView() {
     mutationFn: () =>
       callApi(
         api.POST("/api/availability/requests", {
-          body: { dateFrom, dateTo },
+          body: {
+            dateFrom,
+            dateTo,
+            ...(userGroupId ? { userGroupId } : {}),
+          },
         }),
       ),
     onSuccess: (data) => {
@@ -246,6 +256,33 @@ function CreateRequestView() {
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
               />
+            </div>
+            <div>
+              <label
+                htmlFor="availability-new-user-group"
+                className="mb-1 block text-sm font-medium"
+              >
+                Audience
+              </label>
+              <Select
+                value={userGroupId || "__all__"}
+                onValueChange={(v) => setUserGroupId(v === "__all__" ? "" : v)}
+              >
+                <SelectTrigger
+                  id="availability-new-user-group"
+                  className="w-[220px]"
+                >
+                  <SelectValue placeholder="All members" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All members</SelectItem>
+                  {groupsQuery.data?.groups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -978,7 +1015,6 @@ function PlayerPool({
 
 // ── Notify Dialog ──
 
-// eslint-disable-next-line react-doctor/no-giant-component -- two-step preview/send flow shares one reducer (filters → preview → check/uncheck → send → result). Splitting the steps into separate components would force the reducer state to live above, defeating the encapsulation it provides.
 function NotifyDialog({ requestId }: { requestId: string }) {
   const [open, setOpen] = useState(false);
   const [form, dispatch] = useReducer(
@@ -988,19 +1024,11 @@ function NotifyDialog({ requestId }: { requestId: string }) {
   const {
     memberCategory,
     membershipStatus,
-    userGroupId,
     manualEmails,
     recipients,
     checked,
     previewed,
   } = form;
-
-  // Reuses the same query key as the admin Groups tab so the cache is shared.
-  const groupsQuery = useQuery({
-    queryKey: ["admin", "user-groups"],
-    queryFn: () => callApi(api.GET("/api/admin/user-groups")),
-    enabled: open,
-  });
 
   // Fire-and-forget: returns a recipient preview into local state; no cached
   // queries to invalidate.
@@ -1147,36 +1175,6 @@ function NotifyDialog({ requestId }: { requestId: string }) {
                     <SelectItem value="__any__">Any status</SelectItem>
                     <SelectItem value="active">Active (paid up)</SelectItem>
                     <SelectItem value="lapsed">Lapsed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="notify-user-group"
-                  className="mb-1 block text-sm font-medium"
-                >
-                  User Group
-                </label>
-                <Select
-                  value={userGroupId || "__none__"}
-                  onValueChange={(v) =>
-                    dispatch({
-                      type: "setUserGroupId",
-                      value: v === "__none__" ? "" : v,
-                    })
-                  }
-                >
-                  <SelectTrigger id="notify-user-group">
-                    <SelectValue placeholder="No group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No group</SelectItem>
-                    {groupsQuery.data?.groups.map((g) => (
-                      <SelectItem key={g.id} value={g.id}>
-                        {g.name}
-                      </SelectItem>
-                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -20,7 +20,6 @@ describe("notifyFormReducer", () => {
     expect(initialNotifyFormState).toEqual({
       memberCategory: "",
       membershipStatus: "",
-      userGroupId: "",
       manualEmails: "",
       recipients: [],
       checked: new Set(),
@@ -122,7 +121,6 @@ describe("notifyFormReducer", () => {
     const dirty: NotifyFormState = {
       memberCategory: "senior",
       membershipStatus: "active",
-      userGroupId: "group-1",
       manualEmails: "x@x",
       recipients: [recipient("a@x")],
       checked: new Set(["a@x"]),

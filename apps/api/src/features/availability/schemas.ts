@@ -28,6 +28,7 @@ export const requestDateMemberParamSchema = z.object({
 export const createRequestSchema = z.object({
   dateFrom: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
   dateTo: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
+  userGroupId: z.string().optional(),
 });
 
 export const assignPlayerSchema = z.object({
@@ -239,7 +240,6 @@ export const previewFixturesResponseSchema = z.object({
 export const notifyPreviewSchema = z.object({
   memberCategory: z.string().optional(),
   membershipStatus: z.enum(["active", "lapsed"]).optional(),
-  userGroupId: z.string().optional(),
   additionalEmails: z.array(z.email()).optional(),
 });
 

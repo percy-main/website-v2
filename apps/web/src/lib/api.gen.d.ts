@@ -5089,6 +5089,7 @@ export interface paths {
                     "application/json": {
                         dateFrom: string;
                         dateTo: string;
+                        userGroupId?: string;
                     };
                 };
             };
@@ -5481,6 +5482,7 @@ export interface paths {
                 query: {
                     dateFrom: string;
                     dateTo: string;
+                    userGroupId?: string;
                 };
                 header?: never;
                 path?: never;
@@ -5541,7 +5543,6 @@ export interface paths {
                         memberCategory?: string;
                         /** @enum {string} */
                         membershipStatus?: "active" | "lapsed";
-                        userGroupId?: string;
                         additionalEmails?: string[];
                     };
                 };
