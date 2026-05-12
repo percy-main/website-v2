@@ -16,7 +16,8 @@ export type ChargeStatus =
   | "pending"
   | "unpaid"
   | "abandoned"
-  | "deleted";
+  | "deleted"
+  | "relieved";
 
 function getChargeStatus(
   paidAt: string | null,
@@ -25,9 +26,13 @@ function getChargeStatus(
   stripePaymentIntentId: string | null,
   abandonedCutoff: string,
   createdAt: string,
+  relievedAt: string | null,
 ): ChargeStatus {
   if (deletedAt) return "deleted";
+  // Paid takes precedence over relieved: a paid-then-relieved charge means
+  // the member paid before the grant landed, and the cash is in the bank.
   if (paidAt) return "paid";
+  if (relievedAt) return "relieved";
   if (paymentConfirmedAt) return "pending";
   if (stripePaymentIntentId && createdAt < abandonedCutoff) return "abandoned";
   return "unpaid";
@@ -114,6 +119,7 @@ export function getMatchdayReport(db: Kysely<DB>) {
           "charge.payment_confirmed_at as charge_payment_confirmed_at",
           "charge.stripe_payment_intent_id as charge_stripe_payment_intent_id",
           "charge.created_at as charge_created_at",
+          "charge.relieved_at as charge_relieved_at",
         ])
         .orderBy("matchday_player.created_at", "asc")
         .execute(),
@@ -158,16 +164,20 @@ export function getMatchdayReport(db: Kysely<DB>) {
               p.charge_stripe_payment_intent_id,
               abandonedCutoff,
               p.charge_created_at ?? "",
+              p.charge_relieved_at,
             )
           : null,
     }));
 
-    // Calculate financial summary using derived status
+    // Calculate financial summary using derived status. Relieved charges are
+    // waived donations — the club isn't collecting them, so they shouldn't
+    // contribute to incoming or outstanding totals.
     const activeCharges = playersWithStatus.filter(
       (p) =>
         p.charge_amount_pence != null &&
         p.charge_status !== "deleted" &&
-        p.charge_status !== "abandoned",
+        p.charge_status !== "abandoned" &&
+        p.charge_status !== "relieved",
     );
     const totalIncoming = activeCharges.reduce(
       (sum, p) => sum + (p.charge_amount_pence ?? 0),

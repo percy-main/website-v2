@@ -513,6 +513,7 @@ export interface paths {
                                 deleted_at: string | null;
                                 deleted_by: string | null;
                                 deleted_reason: string | null;
+                                relieved_at: string | null;
                                 created_at: string;
                                 created_by: string;
                                 on_behalf_of: {
@@ -6239,6 +6240,7 @@ export interface paths {
                                 deleted_at: string | null;
                                 deleted_by: string | null;
                                 deleted_reason: string | null;
+                                relieved_at: string | null;
                             }[];
                             juniorManagerTeams: {
                                 id: string;
@@ -8022,6 +8024,7 @@ export interface paths {
                                 charge_payment_confirmed_at: string | null;
                                 charge_stripe_payment_intent_id: string | null;
                                 charge_created_at: string | null;
+                                charge_relieved_at: string | null;
                                 /** @enum {string|null} */
                                 charge_status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | "relieved" | null;
                             }[];

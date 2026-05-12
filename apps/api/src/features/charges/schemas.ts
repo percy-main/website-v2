@@ -38,6 +38,7 @@ const chargeSchema = z.object({
   deleted_at: z.string().nullable(),
   deleted_by: z.string().nullable(),
   deleted_reason: z.string().nullable(),
+  relieved_at: z.string().nullable(),
   created_at: z.string(),
   created_by: z.string(),
   // Set when the charge belongs to a linked junior member rather than

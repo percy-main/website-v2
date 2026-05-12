@@ -375,6 +375,7 @@ export const getUserDetailResponseSchema = z.object({
       deleted_at: z.string().nullable(),
       deleted_by: z.string().nullable(),
       deleted_reason: z.string().nullable(),
+      relieved_at: z.string().nullable(),
     }),
   ),
   juniorManagerTeams: z.array(
@@ -756,6 +757,7 @@ export const matchdayReportResponseSchema = z.object({
       charge_payment_confirmed_at: z.string().nullable(),
       charge_stripe_payment_intent_id: z.string().nullable(),
       charge_created_at: z.string().nullable(),
+      charge_relieved_at: z.string().nullable(),
       charge_status: chargeStatusSchema.nullable(),
     }),
   ),

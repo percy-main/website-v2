@@ -54,13 +54,19 @@ export function Charges() {
   const charges = query.data?.charges;
 
   const unpaidCharges = useMemo(
-    () => charges?.filter((c) => !c.paid_at && !c.payment_confirmed_at) ?? [],
+    () =>
+      charges?.filter(
+        (c) => !c.paid_at && !c.payment_confirmed_at && !c.relieved_at,
+      ) ?? [],
     [charges],
   );
   const historyCharges = useMemo(
     () =>
       charges?.filter(
-        (c) => c.paid_at !== null || c.payment_confirmed_at !== null,
+        (c) =>
+          c.paid_at !== null ||
+          c.payment_confirmed_at !== null ||
+          c.relieved_at !== null,
       ) ?? [],
     [charges],
   );
@@ -324,6 +330,8 @@ function HistorySection({ historyCharges }: { historyCharges: ChargeRow[] }) {
               <TableCell>
                 {charge.paid_at ? (
                   <Badge variant="success">Paid</Badge>
+                ) : charge.relieved_at ? (
+                  <Badge variant="secondary">Waived</Badge>
                 ) : (
                   <Badge variant="info">Pending</Badge>
                 )}
