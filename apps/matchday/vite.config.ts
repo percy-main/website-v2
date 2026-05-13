@@ -27,8 +27,26 @@ export default defineConfig({
         theme_color: "#0b1a2a",
         background_color: "#fafaf9",
         display: "standalone",
+        orientation: "portrait",
         start_url: "/",
         scope: "/",
+        // App shortcuts (long-press / right-click the home-screen icon
+        // on Android + supported desktop). Picked to match the most
+        // common reasons a player opens the app.
+        shortcuts: [
+          {
+            name: "Answer availability",
+            short_name: "Availability",
+            url: "/availability/respond",
+            description: "Respond to open availability requests",
+          },
+          {
+            name: "Today's match",
+            short_name: "Match day",
+            url: "/squad",
+            description: "Captain & official view of today's match",
+          },
+        ],
         icons: [
           {
             src: "/images/favicon/icon-192.png",
@@ -49,15 +67,105 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Default workbox behaviour pre-caches index.html, which would
-        // serve stale app shells forever. Force-skip waiting + clean
-        // out the previous SW's caches so a new deploy takes effect
-        // on the next page load.
+        // Pre-cache the app shell. New deploys win immediately via
+        // skipWaiting + clientsClaim; cleanupOutdatedCaches keeps the
+        // old SW's caches from sticking around as zombies.
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        // Phase 5 will expand this with route-level runtime caching.
-        // For phase 1, just pre-cache the built assets.
+        // SPA fallback — any navigation request to a path we don't have
+        // cached falls back to the precached index.html (offline launch).
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/api\//],
+        // Phase 5 — runtime caching for the GET endpoints that need to
+        // work pitch-side. StaleWhileRevalidate so a stale-but-usable
+        // response paints instantly, while the network update comes in
+        // behind it for the next visit.
+        runtimeCaching: [
+          {
+            urlPattern: /\/api\/availability\/active/,
+            handler: "StaleWhileRevalidate",
+            method: "GET",
+            options: {
+              cacheName: "matchday-availability-active",
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+              fetchOptions: { credentials: "include" },
+            },
+          },
+          {
+            urlPattern: /\/api\/matchday\/[^/]+\/public$/,
+            handler: "StaleWhileRevalidate",
+            method: "GET",
+            options: {
+              cacheName: "matchday-team-sheet",
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+              fetchOptions: { credentials: "include" },
+            },
+          },
+          {
+            urlPattern: /\/api\/charges/,
+            handler: "StaleWhileRevalidate",
+            method: "GET",
+            options: {
+              cacheName: "matchday-charges",
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+              fetchOptions: { credentials: "include" },
+            },
+          },
+          {
+            urlPattern: /\/api\/games(\/[^/]+)?$/,
+            handler: "StaleWhileRevalidate",
+            method: "GET",
+            options: {
+              cacheName: "matchday-games",
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 12 },
+              cacheableResponse: { statuses: [0, 200] },
+              fetchOptions: { credentials: "include" },
+            },
+          },
+          // BackgroundSync for the writes that pitch-side captains make.
+          // If the request fails with a network error (4G drops out), it
+          // gets enqueued and replayed on the next `sync` event. Safari
+          // doesn't support BackgroundSync; in-memory react-query retries
+          // are the fallback there.
+          {
+            urlPattern: /\/api\/matchday\/[^/]+\/players\/[^/]+\/mark-paid$/,
+            handler: "NetworkOnly",
+            method: "POST",
+            options: {
+              backgroundSync: {
+                name: "matchday-mark-paid",
+                options: { maxRetentionTime: 24 * 60 },
+              },
+            },
+          },
+          {
+            urlPattern: /\/api\/matchday\/[^/]+\/expenses$/,
+            handler: "NetworkOnly",
+            method: "POST",
+            options: {
+              backgroundSync: {
+                name: "matchday-expenses",
+                options: { maxRetentionTime: 24 * 60 },
+              },
+            },
+          },
+          {
+            urlPattern:
+              /\/api\/availability\/requests\/[^/]+\/dates\/[^/]+\/members\/[^/]+\/availability$/,
+            handler: "NetworkOnly",
+            method: "PUT",
+            options: {
+              backgroundSync: {
+                name: "matchday-availability-respond",
+                options: { maxRetentionTime: 24 * 60 },
+              },
+            },
+          },
+        ],
       },
       devOptions: {
         enabled: false,

@@ -1,3 +1,4 @@
+import { InstallPrompt } from "@/components/install-prompt.js";
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
 import { Card, CardContent, CardEyebrow, CardHeader, CardTitle } from "@/components/ui/card.js";
@@ -45,6 +46,7 @@ export default function Home() {
         <OutstandingDonationsCard />
         <UpcomingFixturesCard />
         <RecentResultsCard />
+        <InstallPrompt />
       </div>
     </div>
   );
