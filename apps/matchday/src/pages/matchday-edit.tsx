@@ -1,30 +1,12 @@
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, SearchIcon, UserPlusIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
-interface MatchdayPlayer {
-  id: string;
-  member_id: string | null;
-  player_name: string;
-  status: string;
-  is_captain: boolean;
-  is_wicketkeeper: boolean;
-}
-interface MatchdayDetail {
-  matchday: {
-    id: string;
-    match_date: string;
-    opposition: string;
-    competition_type: string | null;
-    status: string;
-  };
-  team: { id: string; name: string | null } | null;
-  players: MatchdayPlayer[];
-}
+type MatchdayDetail = ApiResponse<"/api/matchday/{matchId}">;
 /**
  * Phase 3 matchday edit / squad picker.
  *
@@ -98,14 +80,13 @@ export default function MatchdayEdit() {
       </div>
     );
   if (!detail) return <p className="p-6 text-sm text-text-secondary">Not found.</p>;
-  const md = detail as unknown as MatchdayDetail;
-  const players = md.players ?? [];
+  const md: MatchdayDetail = detail;
+  const players = md.players;
   const playerMemberIds = new Set(
-    players.map((p) => p.member_id).filter(Boolean) as string[],
+    players.flatMap((p) => (p.member_id ? [p.member_id] : [])),
   );
 
-  const candidates =
-    (searchResults.data) ?? [];
+  const candidates = searchResults.data ?? [];
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-32">

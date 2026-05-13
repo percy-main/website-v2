@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button.js";
 import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { fmtDate, fmtMoneyPence } from "@/features/format.js";
 import { resizeImageForUpload } from "@/features/image-resize.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, PlusIcon, XIcon } from "lucide-react";
@@ -18,40 +18,7 @@ import { useNavigate, useParams } from "react-router";
  * patchy 4G doesn't slow the captain down.
  */
 
-interface MatchdayPlayer {
-  id: string;
-  member_id: string | null;
-  player_name: string;
-  status: string;
-  is_captain: boolean;
-  is_wicketkeeper: boolean;
-  charge_id: string | null;
-  member_category: string | null;
-  chargePaidAt: string | null;
-  chargeStatus: "paid" | "waived" | "unpaid" | null;
-}
-
-interface MatchdayExpense {
-  id: string;
-  expense_type: string;
-  description: string | null;
-  amount_pence: number;
-  status: string;
-}
-
-interface MatchdayDetail {
-  matchday: {
-    id: string;
-    match_date: string;
-    opposition: string;
-    competition_type: string | null;
-    status: string;
-    result_type: string | null;
-  };
-  team: { id: string; name: string | null } | null;
-  players: MatchdayPlayer[];
-  expenses: MatchdayExpense[];
-}
+type MatchdayDetail = ApiResponse<"/api/matchday/{matchId}">;
 
 type PaymentMethod = "cash" | "bank_transfer" | "card";
 type Result = "W" | "L" | "D" | "T" | "A" | "C" | "N";
@@ -76,7 +43,7 @@ export default function MatchdayLive() {
       ),
     enabled: !!matchdayId,
   });
-  const md = data as unknown as MatchdayDetail | undefined;
+  const md: MatchdayDetail | undefined = data;
 
   const markPaid = useMutation({
     mutationFn: (vars: { playerId: string; paymentMethod: PaymentMethod }) =>

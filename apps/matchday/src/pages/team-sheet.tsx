@@ -2,7 +2,7 @@ import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
 import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { fmtDate } from "@/features/format.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { useSession } from "@/lib/auth-client.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
@@ -22,60 +22,28 @@ import { Link, useParams } from "react-router";
  * focal.
  */
 
-interface PublicMatchday {
-  id: string;
-  matchDate: string;
-  startTime?: string | null;
-  teamName?: string | null;
-  opposition?: string | null;
-  ground?: string | null;
-  competition?: string | null;
-  away: boolean;
-  status: "pending" | "confirmed" | "finished";
-  result?: string | null;
-  scoreSummary?: string | null;
-  squad: PublicPlayer[];
-  dropouts: PublicPlayer[];
-}
-interface PublicPlayer {
-  matchdayPlayerId: string;
-  memberId: string | null;
-  isCaptain: boolean;
-  isKeeper: boolean;
-  isGuest: boolean;
-  displayName: string;
-  note?: string | null;
-}
+type PublicMatchday = ApiResponse<"/api/matchday/{matchId}/public">;
+type PublicPlayer = PublicMatchday["squad"][number];
 
 export default function TeamSheet() {
   const { matchdayId } = useParams();
   const { data: session } = useSession();
   const myUserId = session?.user.id;
-  const { data, isLoading, isError } = useQuery({
+  const { data: md, isLoading, isError } = useQuery({
     queryKey: ["matchday", matchdayId, "public"],
-    // The path placeholder uses {matchId} on the existing endpoint —
-    // the new /api/matchday/:id/public reuses that same placeholder.
-    queryFn: () => {
-      // Path is added in this branch but the OpenAPI spec hasn't been
-      // regenerated yet — typed access lands after pnpm openapi:generate.
-      const get = api.GET as unknown as (
-        path: string,
-        opts: { params: { path: Record<string, string> } },
-      ) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
-      return callApi(
-        get("/api/matchday/{matchId}/public", {
+    queryFn: () =>
+      callApi(
+        api.GET("/api/matchday/{matchId}/public", {
           params: { path: { matchId: matchdayId ?? "" } },
         }),
-      );
-    },
+      ),
     enabled: !!matchdayId,
   });
   const [showDropouts, setShowDropouts] = useState(false);
   const [copied, setCopied] = useState(false);
 
   if (isLoading) return <Skel />;
-  if (isError || !data) return <ErrState />;
-  const md = data as unknown as PublicMatchday;
+  if (isError || !md) return <ErrState />;
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-12">

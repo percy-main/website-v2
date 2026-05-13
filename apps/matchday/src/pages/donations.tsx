@@ -38,10 +38,7 @@ export default function Donations() {
         a.paid_at ?? a.created_at,
       ),
     );
-  const total = outstanding.reduce(
-    (acc, c) => acc + Number(c.amount_pence || 0),
-    0,
-  );
+  const total = outstanding.reduce((acc, c) => acc + c.amount_pence, 0);
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
       <header className="px-4 pb-4 pt-6">

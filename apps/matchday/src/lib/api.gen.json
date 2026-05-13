@@ -7351,6 +7351,178 @@
         }
       }
     },
+    "/api/matchday/{matchId}/public": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "matchId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "matchDate": {
+                      "type": "string"
+                    },
+                    "startTime": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "teamName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "opposition": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "ground": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "competition": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "away": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "confirmed",
+                        "finished",
+                        "cancelled"
+                      ]
+                    },
+                    "result": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scoreSummary": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "squad": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "matchdayPlayerId": {
+                            "type": "string"
+                          },
+                          "memberId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "isCaptain": {
+                            "type": "boolean"
+                          },
+                          "isKeeper": {
+                            "type": "boolean"
+                          },
+                          "isGuest": {
+                            "type": "boolean"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "matchdayPlayerId",
+                          "memberId",
+                          "isCaptain",
+                          "isKeeper",
+                          "isGuest",
+                          "displayName",
+                          "note"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "dropouts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "matchdayPlayerId": {
+                            "type": "string"
+                          },
+                          "memberId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "isCaptain": {
+                            "type": "boolean"
+                          },
+                          "isKeeper": {
+                            "type": "boolean"
+                          },
+                          "isGuest": {
+                            "type": "boolean"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "matchdayPlayerId",
+                          "memberId",
+                          "isCaptain",
+                          "isKeeper",
+                          "isGuest",
+                          "displayName",
+                          "note"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "matchDate",
+                    "startTime",
+                    "teamName",
+                    "opposition",
+                    "ground",
+                    "competition",
+                    "away",
+                    "status",
+                    "result",
+                    "scoreSummary",
+                    "squad",
+                    "dropouts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/matchday/{matchId}/team-news-image": {
       "get": {
         "parameters": [

@@ -121,10 +121,7 @@ function OutstandingDonationsCard() {
       c.paid_at === null && c.deleted_at === null && c.relieved_at === null,
   );
   if (outstanding.length === 0) return null;
-  const total = outstanding.reduce(
-    (acc, c) => acc + Number(c.amount_pence || 0),
-    0,
-  );
+  const total = outstanding.reduce((acc, c) => acc + c.amount_pence, 0);
   const overdueCount = outstanding.filter(isOverdue).length;
   return (
     <Card>

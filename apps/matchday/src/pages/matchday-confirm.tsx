@@ -1,33 +1,15 @@
 import { Button } from "@/components/ui/button.js";
 import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { fmtDate } from "@/features/format.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
-interface MatchdayPlayer {
-  id: string;
-  member_id: string | null;
-  player_name: string;
-  status: string;
-  is_captain: boolean;
-  is_wicketkeeper: boolean;
-  member_category: string | null;
-}
-interface MatchdayDetail {
-  matchday: {
-    id: string;
-    match_date: string;
-    opposition: string;
-    competition_type: string | null;
-    status: string;
-  };
-  team: { id: string; name: string | null } | null;
-  players: MatchdayPlayer[];
-}
+type MatchdayDetail = ApiResponse<"/api/matchday/{matchId}">;
+type MatchdayPlayer = MatchdayDetail["players"][number];
 
 type PlayerStatus = "playing" | "dropped_out" | "no_show";
 type Step = 1 | 2 | 3;
@@ -59,7 +41,7 @@ export default function MatchdayConfirm() {
     enabled: !!matchdayId,
   });
 
-  const md = data as unknown as MatchdayDetail | undefined;
+  const md: MatchdayDetail | undefined = data;
   const players = useMemo(() => md?.players ?? [], [md?.players]);
 
   // Seed defaults from the players list — derive each render rather than

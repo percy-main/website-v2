@@ -4153,6 +4153,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/matchday/{matchId}/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            matchDate: string;
+                            startTime: string | null;
+                            teamName: string | null;
+                            opposition: string | null;
+                            ground: string | null;
+                            competition: string | null;
+                            away: boolean;
+                            /** @enum {string} */
+                            status: "pending" | "confirmed" | "finished" | "cancelled";
+                            result: string | null;
+                            scoreSummary: string | null;
+                            squad: {
+                                matchdayPlayerId: string;
+                                memberId: string | null;
+                                isCaptain: boolean;
+                                isKeeper: boolean;
+                                isGuest: boolean;
+                                displayName: string;
+                                note: string | null;
+                            }[];
+                            dropouts: {
+                                matchdayPlayerId: string;
+                                memberId: string | null;
+                                isCaptain: boolean;
+                                isKeeper: boolean;
+                                isGuest: boolean;
+                                displayName: string;
+                                note: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/matchday/{matchId}/team-news-image": {
         parameters: {
             query?: never;
