@@ -199,7 +199,6 @@ export default function MatchdayLive() {
         </h2>
         {playing.map((p) => {
           const isPaid = isSettled(p.chargeStatus);
-          const isWaived = p.chargeStatus === "waived";
           const method = methodOverrides[p.id] ?? "cash";
           return (
             <div
@@ -236,11 +235,11 @@ export default function MatchdayLive() {
                   <span className="truncate">{p.player_name}</span>
                 </p>
                 <p className="mt-0.5 text-[12px] text-text-secondary">
-                  {isWaived
-                    ? "Donation waived by treasurer"
-                    : isPaid
-                      ? `Paid · ${p.chargePaidAt ? new Date(p.chargePaidAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}`
-                      : `${p.member_category ?? "Adult"} · donation due`}
+                  {isPaid
+                    ? p.chargePaidAt
+                      ? `Paid · ${new Date(p.chargePaidAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+                      : "Paid"
+                    : `${p.member_category ?? "Adult"} · donation due`}
                 </p>
               </div>
               {!isPaid && !finished && (
