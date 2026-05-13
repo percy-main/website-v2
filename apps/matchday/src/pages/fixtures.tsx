@@ -1,6 +1,11 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { fmtDate } from "@/features/format.js";
-import { oppositionName, played, type Game } from "@/features/games.js";
+import {
+  gameIsoDate,
+  oppositionName,
+  played,
+  type Game,
+} from "@/features/games.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
@@ -88,7 +93,10 @@ export default function Fixtures() {
 }
 
 function FixtureItem({ game }: { game: Game }) {
-  const d = new Date(game.matchDate);
+  // Play-Cricket sends DD/MM/YYYY — normalise to ISO before passing to
+  // new Date(), which is otherwise locale-dependent.
+  const iso = gameIsoDate(game);
+  const d = iso ? new Date(iso) : null;
   return (
     <Link
       to={`/fixture/${game.id}`}
@@ -96,7 +104,7 @@ function FixtureItem({ game }: { game: Game }) {
     >
       <div className="bg-surface-raised flex flex-col items-center justify-center rounded-md py-1">
         <div className="text-navy text-base leading-none font-bold dark:text-white">
-          {d.getDate()}
+          {d ? d.getDate() : ""}
         </div>
         <div className="text-text-secondary text-[10px] tracking-wide uppercase">
           {fmtDate(game.matchDate, "MMM")}
@@ -152,11 +160,22 @@ type Bucket = "This week" | "Next week" | "Later this month" | "Recent";
 function groupByBucket(games: Game[]): Record<Bucket, Game[]> {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
-  const inDays = (date: string, days: number) => {
-    const d = new Date(date);
+  // All comparisons happen on the ISO-normalised date — Play-Cricket
+  // gives us DD/MM/YYYY which `new Date(...)` parses inconsistently
+  // across browsers and breaks string-sort.
+  const inDays = (iso: string | null, days: number) => {
+    if (!iso) return false;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return false;
     d.setHours(0, 0, 0, 0);
     return (d.getTime() - now.getTime()) / 86_400_000 <= days;
   };
+  const byIso = new Map<string, string | null>();
+  for (const g of games) byIso.set(g.id, gameIsoDate(g));
+  const isoFor = (g: Game) => byIso.get(g.id) ?? null;
+  const compare = (a: Game, b: Game) =>
+    (isoFor(a) ?? "").localeCompare(isoFor(b) ?? "");
+
   const out: Record<Bucket, Game[]> = {
     "This week": [],
     "Next week": [],
@@ -168,16 +187,15 @@ function groupByBucket(games: Game[]): Record<Bucket, Game[]> {
       out.Recent.push(g);
       continue;
     }
-    if (inDays(g.matchDate, 7)) out["This week"].push(g);
-    else if (inDays(g.matchDate, 14)) out["Next week"].push(g);
+    const iso = isoFor(g);
+    if (inDays(iso, 7)) out["This week"].push(g);
+    else if (inDays(iso, 14)) out["Next week"].push(g);
     else out["Later this month"].push(g);
   }
-  out["This week"].sort((a, b) => a.matchDate.localeCompare(b.matchDate));
-  out["Next week"].sort((a, b) => a.matchDate.localeCompare(b.matchDate));
-  out["Later this month"].sort((a, b) =>
-    a.matchDate.localeCompare(b.matchDate),
-  );
-  out.Recent.sort((a, b) => b.matchDate.localeCompare(a.matchDate));
+  out["This week"].sort(compare);
+  out["Next week"].sort(compare);
+  out["Later this month"].sort(compare);
+  out.Recent.sort((a, b) => compare(b, a));
   out.Recent = out.Recent.slice(0, 8);
   return out;
 }

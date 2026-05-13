@@ -1,5 +1,5 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
-import { fmtDate } from "@/features/format.js";
+import { fmtDate, toIsoDate } from "@/features/format.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
@@ -52,18 +52,26 @@ export default function SquadNew() {
   const matches = upcoming.data ?? [];
 
   const create = useMutation({
-    mutationFn: (m: UpcomingMatch) =>
-      callApi(
+    mutationFn: (m: UpcomingMatch) => {
+      // The API schema requires YYYY-MM-DD but Play-Cricket gives us
+      // DD/MM/YYYY through /api/matchday/teams/:id/upcoming — convert
+      // before POST or the request 400s.
+      const iso = toIsoDate(m.matchDate);
+      if (!iso) {
+        throw new Error(`Couldn't parse match date "${m.matchDate}"`);
+      }
+      return callApi(
         api.POST("/api/matchday", {
           body: {
             teamId,
-            matchDate: m.matchDate,
+            matchDate: iso,
             opposition: m.opposition,
             ...(m.competitionType && { competitionType: m.competitionType }),
             ...(m.matchId && { playCricketMatchId: m.matchId }),
           },
         }),
-      ),
+      );
+    },
     onSuccess: (data) => {
       const id = data.id;
       void qc.invalidateQueries({ queryKey: ["matchday"] });

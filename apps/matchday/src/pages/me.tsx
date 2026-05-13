@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card.js";
-import { authClient, useSession } from "@/lib/auth-client.js";
+import { signOut, useSession } from "@/lib/auth-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
 
 export default function Me() {
@@ -52,7 +52,7 @@ export default function Me() {
         tone="ghost"
         className="text-danger w-full"
         onClick={() => {
-          void authClient.signOut().then(() => {
+          void signOut().then(() => {
             window.location.href = mainSiteUrl("/");
           });
         }}

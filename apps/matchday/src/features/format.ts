@@ -1,6 +1,27 @@
 import { format, isValid, parseISO } from "date-fns";
 
 /**
+ * Coerce a date string from Play-Cricket / our API to a YYYY-MM-DD ISO
+ * date (no time). Some upstream endpoints (e.g. /api/matchday/teams/:id/
+ * upcoming, /api/games) pass through Play-Cricket's DD/MM/YYYY format
+ * verbatim; consumers that want to compare / sort / new Date() need a
+ * normalised form. Returns null on unparseable / empty input.
+ */
+export function toIsoDate(input: string | null | undefined): string | null {
+  if (!input) return null;
+  // Already ISO (YYYY-MM-DD or YYYY-MM-DDT…) — take the date part.
+  const isoMatch = /^(\d{4}-\d{2}-\d{2})/.exec(input);
+  if (isoMatch) return isoMatch[1] ?? null;
+  // DD/MM/YYYY → YYYY-MM-DD.
+  const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(input);
+  if (dmy) {
+    const [, dd, mm, yyyy] = dmy;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return null;
+}
+
+/**
  * Format a YYYY-MM-DD string from the API without timezone shenanigans.
  *
  * Background: `GET /availability/active` and friends return `match_date` as
@@ -19,12 +40,17 @@ import { format, isValid, parseISO } from "date-fns";
  * date — both shapes pass through cleanly.
  */
 export function fmtDate(
-  isoYmd: string | Date | null | undefined,
+  input: string | Date | null | undefined,
   pattern = "EEE d MMM",
 ): string {
-  if (isoYmd === null || isoYmd === undefined || isoYmd === "") return "";
-  const d = typeof isoYmd === "string" ? parseISO(isoYmd) : isoYmd;
-  if (!isValid(d)) return typeof isoYmd === "string" ? isoYmd : "";
+  if (input === null || input === undefined || input === "") return "";
+  if (input instanceof Date) {
+    return isValid(input) ? format(input, pattern) : "";
+  }
+  // Try ISO first, then the DD/MM/YYYY fallback via toIsoDate.
+  const isoCandidate = toIsoDate(input) ?? input;
+  const d = parseISO(isoCandidate);
+  if (!isValid(d)) return input;
   return format(d, pattern);
 }
 

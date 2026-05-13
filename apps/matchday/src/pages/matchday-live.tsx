@@ -340,10 +340,6 @@ export default function MatchdayLive() {
             setFinishOpen(false);
             void navigate(`/matchday/${matchdayId ?? ""}/live`);
           }}
-          onCancel={() => {
-            setFinishOpen(false);
-            void navigate("/squad");
-          }}
         />
       )}
     </div>
@@ -500,7 +496,6 @@ function FinishSheet({
   totalUnpaidPence,
   onClose,
   onFinished,
-  onCancel,
 }: {
   matchdayId: string;
   unpaidCount: number;
@@ -508,7 +503,6 @@ function FinishSheet({
   totalUnpaidPence: number;
   onClose: () => void;
   onFinished: () => void;
-  onCancel: () => void;
 }) {
   const [result, setResult] = useState<Result>("W");
 
@@ -521,17 +515,6 @@ function FinishSheet({
         }),
       ),
     onSuccess: onFinished,
-  });
-
-  const cancel = useMutation({
-    mutationFn: (reason: string) =>
-      callApi(
-        api.POST("/api/matchday/{matchId}/cancel", {
-          params: { path: { matchId: matchdayId } },
-          body: { reason },
-        }),
-      ),
-    onSuccess: onCancel,
   });
 
   return (
@@ -579,24 +562,18 @@ function FinishSheet({
       >
         {finish.isPending ? "Finishing…" : "Confirm · finish match"}
       </Button>
-      <div className="mt-2 flex gap-2">
-        <Button tone="outline" className="flex-1" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          tone="ghost"
-          className="text-danger flex-1"
-          disabled={cancel.isPending}
-          onClick={() => {
-            const reason = prompt(
-              "Cancel match — what's the reason? (rained off, ground unfit, opposition pulled out, etc.)",
-            );
-            if (reason?.trim()) cancel.mutate(reason.trim());
-          }}
-        >
-          Cancel match (no charges)
-        </Button>
-      </div>
+      <Button tone="outline" className="mt-2 w-full" onClick={onClose}>
+        Cancel
+      </Button>
+      {/*
+        "Cancel match (no charges)" used to live here but it's been
+        removed: confirming a team creates donation charges, and the
+        backend cancel endpoint rejects any matchday that has
+        non-relieved charges. For a rain-off after team confirmation,
+        the captain finishes with result "A" (abandoned) — that's the
+        scorebook convention anyway. True cancellation needs the
+        treasurer to void the charges on the main site first.
+      */}
       {finish.isError && (
         <p className="text-danger mt-2 text-sm">Couldn't finish, try again.</p>
       )}

@@ -6,7 +6,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { authClient, useSession } from "@/lib/auth-client.js";
+import { signOut, useSession } from "@/lib/auth-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
 
 function initials(name: string | null | undefined, email: string | undefined) {
@@ -49,7 +49,7 @@ export function TopBar() {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
-                void authClient.signOut().then(() => {
+                void signOut().then(() => {
                   window.location.href = mainSiteUrl("/");
                 });
               }}

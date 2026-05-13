@@ -9,7 +9,12 @@ import {
   CardTitle,
 } from "@/components/ui/card.js";
 import { fmtMoneyPence } from "@/features/format.js";
-import { oppositionName, played, type Game } from "@/features/games.js";
+import {
+  gameIsoDate,
+  oppositionName,
+  played,
+  type Game,
+} from "@/features/games.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { useSession } from "@/lib/auth-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
@@ -176,11 +181,16 @@ function UpcomingFixturesCard() {
   if (isError) return <CardError label="Couldn't load fixtures" />;
 
   const games = data ?? [];
-  const today = todayMidnight();
+  const todayIso = todayIsoDate();
+  // matchDate from /api/games is DD/MM/YYYY — normalise to ISO before
+  // comparing/sorting (lexical sort on DD/MM/YYYY is wrong, new Date()
+  // is locale-dependent).
   const upcoming = games
-    .filter((g) => !played(g) && new Date(g.matchDate) >= today)
-    .sort((a, b) => a.matchDate.localeCompare(b.matchDate))
-    .slice(0, 3);
+    .map((g) => ({ g, iso: gameIsoDate(g) }))
+    .filter((row) => !played(row.g) && row.iso !== null && row.iso >= todayIso)
+    .sort((a, b) => (a.iso ?? "").localeCompare(b.iso ?? ""))
+    .slice(0, 3)
+    .map((row) => row.g);
   if (upcoming.length === 0) return null;
   return (
     <Card>
@@ -211,8 +221,10 @@ function RecentResultsCard() {
   const games = data ?? [];
   const recent = games
     .filter(played)
-    .sort((a, b) => b.matchDate.localeCompare(a.matchDate))
-    .slice(0, 3);
+    .map((g) => ({ g, iso: gameIsoDate(g) ?? "" }))
+    .sort((a, b) => b.iso.localeCompare(a.iso))
+    .slice(0, 3)
+    .map((row) => row.g);
   if (recent.length === 0) return null;
   return (
     <Card>
@@ -231,9 +243,12 @@ function RecentResultsCard() {
 }
 
 function FixtureRow({ game }: { game: Game }) {
-  const d = new Date(game.matchDate);
-  const day = d.getDate();
-  const dayName = d.toLocaleDateString("en-GB", { weekday: "short" });
+  // Use the normalised ISO form for date math — game.matchDate is
+  // Play-Cricket's DD/MM/YYYY which `new Date(...)` parses wrong.
+  const iso = gameIsoDate(game);
+  const d = iso ? new Date(iso) : null;
+  const day = d ? d.getDate() : "";
+  const dayName = d ? d.toLocaleDateString("en-GB", { weekday: "short" }) : "";
   return (
     <Link
       to={`/fixture/${game.id}`}
@@ -307,10 +322,13 @@ function CardError({ label }: { label: string }) {
   );
 }
 
-function todayMidnight() {
+/** Today as a YYYY-MM-DD ISO date — for string comparison against gameIsoDate. */
+function todayIsoDate(): string {
   const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function isOverdue(c: Charge): boolean {

@@ -150,10 +150,13 @@ export default defineConfig({
             },
           },
           {
-            urlPattern:
-              /\/api\/availability\/requests\/[^/]+\/dates\/[^/]+\/members\/[^/]+\/availability$/,
+            // Player-side respond endpoint — POST not PUT. Earlier
+            // BG-sync rule listened on the official-only per-date PUT
+            // (matchdayManage-gated) which the UI doesn't use; players
+            // hit POST /respond instead. See availability-respond.tsx.
+            urlPattern: /\/api\/availability\/requests\/[^/]+\/respond$/,
             handler: "NetworkOnly",
-            method: "PUT",
+            method: "POST",
             options: {
               backgroundSync: {
                 name: "matchday-availability-respond",

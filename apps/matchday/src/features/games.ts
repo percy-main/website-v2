@@ -1,4 +1,5 @@
 import type { ApiResponse } from "@/lib/api-client.js";
+import { toIsoDate } from "./format.js";
 
 /**
  * Game derived from the OpenAPI spec — single source of truth so a
@@ -11,6 +12,15 @@ export type GameDetail = ApiResponse<"/api/games/{matchId}">;
 /** True when the match has a recorded result (i.e. it's been played). */
 export function played(g: Game | GameDetail): boolean {
   return g.outcome !== null;
+}
+
+/**
+ * matchDate from /api/games is whatever Play-Cricket sends, which is
+ * DD/MM/YYYY. Use this for any comparison / sort / new Date() — never
+ * `new Date(g.matchDate)` directly.
+ */
+export function gameIsoDate(g: Game | GameDetail): string | null {
+  return toIsoDate(g.matchDate);
 }
 
 /**
