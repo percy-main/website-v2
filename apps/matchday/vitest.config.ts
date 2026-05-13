@@ -6,6 +6,9 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["**/node_modules/**", "**/dist/**"],
+    // No tests yet in this workspace — don't fail CI for the absence.
+    // Drop this once we add the first .test.ts.
+    passWithNoTests: true,
     reporters: process.env.CI
       ? [
           "default",
