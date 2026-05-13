@@ -1,4 +1,5 @@
 import { createBrowserRouter } from "react-router";
+import { RedirectToMatchday } from "./components/redirect-to-matchday.js";
 import { RequireAuth } from "./components/require-auth.js";
 import { RequireElevated } from "./components/require-elevated.js";
 import { RequirePermission } from "./components/require-permission.js";
@@ -198,10 +199,14 @@ export const router = createBrowserRouter([
                 path: "membership/junior",
                 lazy: () => import("./pages/membership/membership-junior.js"),
               },
-              // Matchday hub — all members see availability, officials see more
+              // Matchday hub — redirected to the matchday PWA at
+              // matchday.percymain.org. See components/redirect-to-matchday
+              // and plans/matchday/phases/6-cutover.md. The lazy import is
+              // kept on the page file itself (apps/web/src/pages/matchday/*)
+              // for a follow-up deletion PR once redirect hits trail off.
               {
                 path: "matchday",
-                lazy: () => import("./pages/matchday/matchday-hub.js"),
+                Component: () => <RedirectToMatchday target="/" />,
               },
               // Scout — AI cricket analyst, gated to admin/official roles
               // server-side. The route is mounted for everyone but the API
@@ -251,22 +256,32 @@ export const router = createBrowserRouter([
                 element: (
                   <RequirePermission resource="matchday" action="view" />
                 ),
+                // Old official routes — all redirect to the matchday PWA.
+                // The old page files (apps/web/src/pages/official/*) stay
+                // on disk for now; a follow-up PR will delete them once
+                // analytics show these redirects aren't being hit.
                 children: [
                   {
                     path: "matchday/teams",
-                    lazy: () => import("./pages/official/official.js"),
+                    Component: () => <RedirectToMatchday target="/squad" />,
                   },
                   {
                     path: "matchday/availability",
-                    lazy: () => import("./pages/official/availability.js"),
+                    Component: () => (
+                      <RedirectToMatchday target="/official/availability" />
+                    ),
                   },
                   {
                     path: "matchday/availability/:requestId",
-                    lazy: () => import("./pages/official/availability.js"),
+                    Component: () => (
+                      <RedirectToMatchday target="/official/availability/:requestId" />
+                    ),
                   },
                   {
                     path: "matchday/availability/:requestId/:date",
-                    lazy: () => import("./pages/official/availability.js"),
+                    Component: () => (
+                      <RedirectToMatchday target="/official/availability/:requestId/date/:date" />
+                    ),
                   },
                 ],
               },
