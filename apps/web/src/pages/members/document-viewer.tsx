@@ -101,8 +101,9 @@ export function Component() {
 
       {!alreadyConfirmed && (
         <div className="rounded border bg-stone-50 p-4">
-          <label className="flex items-start gap-3">
+          <label htmlFor="document-agree" className="flex items-start gap-3">
             <Checkbox
+              id="document-agree"
               checked={agreed}
               onCheckedChange={(checked) => setAgreed(checked === true)}
               className="mt-0.5"

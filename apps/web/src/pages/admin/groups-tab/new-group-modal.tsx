@@ -87,7 +87,6 @@ export function NewGroupModal({ open, onOpenChange, onCreated }: Props) {
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Senior players"
               maxLength={100}
-              autoFocus
             />
           </div>
           <div className="flex flex-col gap-1">

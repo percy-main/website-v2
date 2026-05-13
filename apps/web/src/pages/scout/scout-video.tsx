@@ -22,6 +22,10 @@ function buildSrc(spec: VideoSpec): string {
 
 export function ScoutVideo({ spec }: { spec: VideoSpec }) {
   const src = buildSrc(spec);
+  // Lift the title into a const so the static analyser can see it's
+  // always a string — the `??` inside the JSX attribute was tripping
+  // jsx-a11y/iframe-has-title even though the value is always set.
+  const iframeTitle: string = spec.title ?? "Match highlight";
   return (
     <figure className="my-3 rounded border border-stone-200 bg-white p-3">
       {spec.title ? (
@@ -31,8 +35,8 @@ export function ScoutVideo({ spec }: { spec: VideoSpec }) {
       ) : null}
       <div className="relative w-full overflow-hidden rounded bg-stone-950 pb-[56.25%]">
         <iframe
+          title={iframeTitle}
           src={src}
-          title={spec.title ?? "Match highlight"}
           className="absolute inset-0 h-full w-full"
           loading="lazy"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

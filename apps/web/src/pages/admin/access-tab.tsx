@@ -555,8 +555,12 @@ function UserManagementSection({
         User management
       </h3>
       <div className="space-y-1 text-sm">
-        <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-stone-50">
+        <label
+          htmlFor="role-user_manager"
+          className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-stone-50"
+        >
           <Checkbox
+            id="role-user_manager"
             checked={selected.has("user_manager")}
             onCheckedChange={() => onToggle("user_manager")}
           />
@@ -565,8 +569,12 @@ function UserManagementSection({
             categories
           </span>
         </label>
-        <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-stone-50">
+        <label
+          htmlFor="role-superadmin"
+          className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-stone-50"
+        >
           <Checkbox
+            id="role-superadmin"
             checked={selected.has("superadmin")}
             onCheckedChange={() => onToggle("superadmin")}
           />
@@ -590,8 +598,12 @@ function LegacyAdminSection({
   return (
     <section>
       <h3 className="mb-2 text-sm font-semibold text-stone-900">Legacy</h3>
-      <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-stone-50">
+      <label
+        htmlFor="role-admin"
+        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-stone-50"
+      >
         <Checkbox
+          id="role-admin"
           checked={selected.has("admin")}
           onCheckedChange={() => onToggle("admin")}
         />
@@ -655,7 +667,6 @@ function AddUserDialog({
           Search for a user by name or email, then assign roles.
         </p>
         <Input
-          autoFocus
           placeholder="Search…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}

@@ -9,7 +9,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 interface Props {
   groupId: string;
@@ -21,6 +21,7 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const qc = useQueryClient();
+  const selectAllId = useId();
 
   const availableQuery = useQuery({
     queryKey: ["admin", "user-groups", "available", groupId],
@@ -94,7 +95,6 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
             placeholder="Filter by name or email…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            autoFocus
           />
           {availableQuery.isLoading ? (
             <p className="py-6 text-center text-sm text-stone-500">Loading…</p>
@@ -105,8 +105,12 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
           ) : (
             <>
               <div className="flex items-center justify-between border-b pb-2 text-sm">
-                <label className="flex cursor-pointer items-center gap-2">
+                <label
+                  htmlFor={selectAllId}
+                  className="flex cursor-pointer items-center gap-2"
+                >
                   <Checkbox
+                    id={selectAllId}
                     checked={allFilteredSelected}
                     onCheckedChange={toggleAll}
                     aria-label="Select all visible members"
@@ -121,24 +125,31 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
                 <span className="text-stone-600">{selected.size} selected</span>
               </div>
               <ul className="flex max-h-96 flex-col gap-1 overflow-y-auto">
-                {filteredMembers.map((m) => (
-                  <li key={m.memberId}>
-                    <label className="flex cursor-pointer items-center gap-3 rounded px-2 py-1.5 hover:bg-stone-50">
-                      <Checkbox
-                        checked={selected.has(m.memberId)}
-                        onCheckedChange={() => toggle(m.memberId)}
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">
-                          {m.name ?? "(no name)"}
-                        </span>
-                        <span className="text-xs text-stone-500">
-                          {m.email}
-                        </span>
-                      </div>
-                    </label>
-                  </li>
-                ))}
+                {filteredMembers.map((m) => {
+                  const memberCheckboxId = `add-member-${m.memberId}`;
+                  return (
+                    <li key={m.memberId}>
+                      <label
+                        htmlFor={memberCheckboxId}
+                        className="flex cursor-pointer items-center gap-3 rounded px-2 py-1.5 hover:bg-stone-50"
+                      >
+                        <Checkbox
+                          id={memberCheckboxId}
+                          checked={selected.has(m.memberId)}
+                          onCheckedChange={() => toggle(m.memberId)}
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">
+                            {m.name ?? "(no name)"}
+                          </span>
+                          <span className="text-xs text-stone-500">
+                            {m.email}
+                          </span>
+                        </div>
+                      </label>
+                    </li>
+                  );
+                })}
                 {filteredMembers.length === 0 && filter && (
                   <li className="py-4 text-center text-sm text-stone-500">
                     No members match "{filter}".
