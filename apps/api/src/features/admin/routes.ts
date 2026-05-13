@@ -1,4 +1,9 @@
+import { renderToBuffer } from "@react-pdf/renderer";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import React from "react";
 import {
   getAuthSession,
   requireAnyPermission,
@@ -100,6 +105,7 @@ import {
   getChargeAggregates,
   getMergePreview,
   getRecordLinking,
+  getUnpaidChargesGroupedByMember,
   getUserDetail,
   linkDependentToUser,
   linkMemberParent,
@@ -126,6 +132,12 @@ import {
   updateAccessAssignments,
   updateUser,
 } from "./service.ts";
+import { UnpaidChargesPdf } from "./unpaid-charges-pdf.tsx";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CLUB_LOGO_PNG = readFileSync(
+  join(__dirname, "..", "..", "assets", "club_logo.png"),
+);
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -166,6 +178,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const unlinkParent = unlinkMemberParent(app.db);
   const listCharges = listAllCharges(app.db);
   const chargeAggregates = getChargeAggregates(app.db);
+  const unpaidChargesForPdf = getUnpaidChargesGroupedByMember(app.db);
   const chase = chasePayment(app.db);
   const markPaid = markChargePaid(app.db);
   const edit = editCharge(app.db);
@@ -543,6 +556,34 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       return await listCharges(request.query);
+    },
+  );
+
+  app.get(
+    "/admin/charges/unpaid-pdf",
+    {
+      preHandler: [financeView],
+    },
+    async (_request, reply) => {
+      const { groups, grandTotalPence } = await unpaidChargesForPdf();
+      const generatedAt = new Date().toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      const doc = React.createElement(UnpaidChargesPdf, {
+        groups,
+        grandTotalPence,
+        generatedAt,
+        logoPng: CLUB_LOGO_PNG,
+      });
+      const pdf = await renderToBuffer(
+        doc as unknown as Parameters<typeof renderToBuffer>[0],
+      );
+      const filename = `unpaid-charges-${new Date().toISOString().slice(0, 10)}.pdf`;
+      return await reply
+        .header("Content-Type", "application/pdf")
+        .header("Content-Disposition", `attachment; filename="${filename}"`)
+        .send(pdf);
     },
   );
 

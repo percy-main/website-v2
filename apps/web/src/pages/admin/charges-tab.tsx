@@ -34,7 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { api, callApi } from "@/lib/api-client";
+import { API_BASE, api, callApi } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useReducer, useRef, useState } from "react";
 import {
@@ -99,6 +99,35 @@ export function ChargesTab() {
     null,
   );
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExportUnpaidPdf = () => {
+    setExporting(true);
+    setExportError(null);
+    // Raw fetch: endpoint returns a PDF blob, not JSON — openapi-fetch can't
+    // handle binary downloads.
+    fetch(`${API_BASE}/admin/charges/unpaid-pdf`, { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `unpaid-charges-${new Date().toISOString().slice(0, 10)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        setExportError(message);
+      })
+      .finally(() => {
+        setExporting(false);
+      });
+  };
 
   useEffect(() => {
     if (debounceTimerRef.current) {
@@ -356,7 +385,21 @@ export function ChargesTab() {
             Clear filters
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={handleExportUnpaidPdf}
+          disabled={exporting}
+        >
+          {exporting ? "Exporting…" : "Export unpaid PDF"}
+        </Button>
       </div>
+      {exportError && (
+        <p className="text-sm text-red-600">
+          Failed to export PDF: {exportError}
+        </p>
+      )}
 
       {/* Loading / Error */}
       {chargesQuery.isLoading && <p className="text-stone-500">Loading…</p>}

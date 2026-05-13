@@ -40,10 +40,12 @@ jobs:
       - run: bash .github/scripts/check-unsafe-ddl.sh "origin/${{ github.base_ref }}"
 
   react-doctor:
-    # Diff-only scan of apps/web on the PR. Findings are posted as a PR
-    # comment by the action; failures here don't block merge — eslint
-    # (the same plugin running locally and in `lint-test-build`) is the
-    # blocking gate for the rules we've opted into.
+    # Diff-only scan of apps/web on the PR. Any finding (warning or
+    # error) blocks merge — matches the project-wide no-warnings policy
+    # already enforced in eslint.config.mjs via `warnsToErrors()`.
+    # Scoped to apps/web because react-doctor's rules target React
+    # client code; server-side files in apps/api would otherwise trip
+    # false positives like `prefer-dynamic-import` on Node-only libs.
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -54,6 +56,8 @@ jobs:
       - uses: millionco/react-doctor@main
         with:
           diff: main
+          directory: apps/web
+          fail-on: warning
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   dependency-review:
