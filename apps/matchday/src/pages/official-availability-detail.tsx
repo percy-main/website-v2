@@ -12,28 +12,30 @@ interface DateSummary {
   fixtures: Array<{
     teamName?: string | null;
     opposition?: string | null;
-    competition?: string | null;
-    away?: boolean;
+    competition_name?: string | null;
+    is_home?: boolean;
   }>;
-  available: number;
-  unavailable: number;
-  noResponse: number;
+  responseCount: number;
+  assignmentCount: number;
 }
 
 interface DetailResponse {
-  id: string;
-  date_from: string;
-  date_to: string;
-  status: string;
+  request: {
+    id: string;
+    date_from: string;
+    date_to: string;
+    status: string;
+  };
   dates: DateSummary[];
 }
 
 /**
  * Phase 3 availability-request detail.
  *
- * Renders a list of dates in the range, each linking to the per-date
- * picker. Top-line summary shows total counts. Close-request and
- * notify-non-responders actions live in the footer.
+ * Renders the dates in the range with per-date response + assignment
+ * counts (the breakdown into available/unavailable/no-response only
+ * lives on the per-date endpoint — see the per-date picker page).
+ * Total cards at the top aggregate across dates.
  */
 export default function OfficialAvailabilityDetail() {
   const { requestId } = useParams();
@@ -70,13 +72,20 @@ export default function OfficialAvailabilityDetail() {
       </p>
     );
 
-  const req = data as unknown as DetailResponse;
-  const totalAvailable = req.dates.reduce((acc, d) => acc + d.available, 0);
-  const totalUnavailable = req.dates.reduce(
-    (acc, d) => acc + d.unavailable,
+  const detail = data as unknown as DetailResponse;
+  const { request, dates } = detail;
+  const totalResponses = dates.reduce(
+    (acc, d) => acc + (d.responseCount ?? 0),
     0,
   );
-  const totalNoResponse = req.dates.reduce((acc, d) => acc + d.noResponse, 0);
+  const totalAssignments = dates.reduce(
+    (acc, d) => acc + (d.assignmentCount ?? 0),
+    0,
+  );
+  const totalFixtures = dates.reduce(
+    (acc, d) => acc + d.fixtures.length,
+    0,
+  );
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-24">
@@ -90,32 +99,33 @@ export default function OfficialAvailabilityDetail() {
         </Link>
         <div>
           <strong className="text-sm">
-            {fmtDate(req.date_from, "d MMM")} – {fmtDate(req.date_to, "d MMM")}
+            {fmtDate(request.date_from, "d MMM")} –{" "}
+            {fmtDate(request.date_to, "d MMM")}
           </strong>
           <p className="text-[11px] text-text-secondary">
-            {req.dates.length} date{req.dates.length === 1 ? "" : "s"}
+            {dates.length} date{dates.length === 1 ? "" : "s"}
           </p>
         </div>
         <StatusPill
-          tone={req.status === "open" ? "warning" : "neutral"}
+          tone={request.status === "open" ? "warning" : "neutral"}
           dot
           className="ml-auto"
         >
-          {req.status}
+          {request.status}
         </StatusPill>
       </header>
 
       <section className="grid grid-cols-3 gap-2 px-4 pt-4">
-        <Summary tone="success" label="Available" count={totalAvailable} />
-        <Summary tone="danger" label="Unavailable" count={totalUnavailable} />
-        <Summary tone="neutral" label="No response" count={totalNoResponse} />
+        <Summary tone="navy" label="Responses" count={totalResponses} />
+        <Summary tone="success" label="Assigned" count={totalAssignments} />
+        <Summary tone="neutral" label="Fixtures" count={totalFixtures} />
       </section>
 
       <section className="space-y-2 px-4 py-4">
-        {req.dates.map((d) => (
+        {dates.map((d) => (
           <Link
             key={d.date}
-            to={`/official/availability/${req.id}/date/${d.date}`}
+            to={`/official/availability/${request.id}/date/${d.date}`}
             className="block rounded-2xl border border-border bg-surface p-4"
           >
             <div className="flex items-baseline justify-between">
@@ -126,15 +136,13 @@ export default function OfficialAvailabilityDetail() {
                 {d.fixtures.length} fixture{d.fixtures.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="mt-2 flex gap-2 text-[11px]">
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+              <span className="rounded bg-info-bg px-2 py-0.5 text-navy dark:text-white">
+                {d.responseCount ?? 0} response
+                {(d.responseCount ?? 0) === 1 ? "" : "s"}
+              </span>
               <span className="rounded bg-success-bg px-2 py-0.5 text-success">
-                {d.available} available
-              </span>
-              <span className="rounded bg-danger-bg px-2 py-0.5 text-danger">
-                {d.unavailable} unavailable
-              </span>
-              <span className="rounded bg-border px-2 py-0.5 text-text-secondary">
-                {d.noResponse} no resp.
+                {d.assignmentCount ?? 0} assigned
               </span>
             </div>
           </Link>
@@ -147,25 +155,19 @@ export default function OfficialAvailabilityDetail() {
             "mx-auto flex max-w-2xl items-center gap-2 px-4 pb-[max(env(safe-area-inset-bottom),12px)] pt-3",
           )}
         >
-          {req.status === "open" && (
-            <>
-              <Button
-                tone="destructive"
-                className="flex-1"
-                disabled={close.isPending}
-                onClick={() => {
-                  if (
-                    confirm(
-                      `Close this request? ${totalNoResponse} ${totalNoResponse === 1 ? "person hasn't" : "people haven't"} answered yet.`,
-                    )
-                  ) {
-                    close.mutate();
-                  }
-                }}
-              >
-                Close request
-              </Button>
-            </>
+          {request.status === "open" && (
+            <Button
+              tone="destructive"
+              className="flex-1"
+              disabled={close.isPending}
+              onClick={() => {
+                if (confirm("Close this request? Players won't be able to respond after this.")) {
+                  close.mutate();
+                }
+              }}
+            >
+              Close request
+            </Button>
           )}
         </div>
       </div>
@@ -178,7 +180,7 @@ function Summary({
   label,
   count,
 }: {
-  tone: "success" | "danger" | "neutral";
+  tone: "success" | "danger" | "neutral" | "navy";
   label: string;
   count: number;
 }) {
@@ -186,9 +188,10 @@ function Summary({
     success: "bg-success-bg text-success",
     danger: "bg-danger-bg text-danger",
     neutral: "bg-border text-text-secondary",
+    navy: "bg-info-bg text-navy dark:text-white",
   }[tone];
   return (
-    <div className={`${bg} rounded-2xl px-3 py-3`}>
+    <div className={`${bg} rounded-2xl p-3`}>
       <p className="text-[10px] font-semibold uppercase tracking-[0.06em]">
         {label}
       </p>
@@ -199,7 +202,7 @@ function Summary({
 
 function Skel() {
   return (
-    <div className="space-y-2 px-4 py-4">
+    <div className="space-y-2 p-4">
       <div className="h-16 rounded-xl bg-border" />
       <div className="h-20 rounded-2xl bg-border" />
       <div className="h-20 rounded-2xl bg-border" />
