@@ -140,7 +140,14 @@ export default function MatchdayLive() {
       p.status === "no_show" ||
       p.status === "withdrawn",
   );
-  const paid = playing.filter((p) => p.chargeStatus === "paid").length;
+  // "Settled" means the captain doesn't need to chase the player — either
+  // they've paid or the treasurer's already waived the donation via the
+  // financial-relief workflow (charge.relieved_at, projected as
+  // chargeStatus === "waived"). Either way, the row shows green and is
+  // unactionable.
+  const isSettled = (status: string | null) =>
+    status === "paid" || status === "waived";
+  const paid = playing.filter((p) => isSettled(p.chargeStatus)).length;
   const unpaid = playing.filter(
     (p) => p.chargeStatus === "unpaid" || p.chargeStatus === null,
   ).length;
@@ -191,7 +198,8 @@ export default function MatchdayLive() {
           Squad · {playing.length}
         </h2>
         {playing.map((p) => {
-          const isPaid = p.chargeStatus === "paid";
+          const isPaid = isSettled(p.chargeStatus);
+          const isWaived = p.chargeStatus === "waived";
           const method = methodOverrides[p.id] ?? "cash";
           return (
             <div
@@ -228,9 +236,11 @@ export default function MatchdayLive() {
                   <span className="truncate">{p.player_name}</span>
                 </p>
                 <p className="mt-0.5 text-[12px] text-text-secondary">
-                  {isPaid
-                    ? `Paid · ${p.chargePaidAt ? new Date(p.chargePaidAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}`
-                    : `${p.member_category ?? "Adult"} · donation due`}
+                  {isWaived
+                    ? "Donation waived by treasurer"
+                    : isPaid
+                      ? `Paid · ${p.chargePaidAt ? new Date(p.chargePaidAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}`
+                      : `${p.member_category ?? "Adult"} · donation due`}
                 </p>
               </div>
               {!isPaid && !finished && (
