@@ -1,7 +1,7 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
 import { fmtDate, fmtMoneyPence } from "@/features/format.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
@@ -9,17 +9,11 @@ import { useState } from "react";
 
 type Tab = "outstanding" | "history";
 
-interface ChargeRow {
-  id: string;
-  amountPence: number | string;
-  description?: string | null;
-  matchDate?: string | null;
-  opposition?: string | null;
-  category?: string | null;
-  paidAt: string | null;
-  voidedAt: string | null;
-  relievedAt: string | null;
-  createdAt: string | null;
+type ChargesResponse = ApiResponse<"/api/charges">;
+type Charge = ChargesResponse["charges"][number];
+
+function isOpen(c: Charge): boolean {
+  return !c.paid_at && !c.deleted_at && !c.relieved_at;
 }
 
 /**
@@ -35,20 +29,17 @@ export default function Donations() {
     queryKey: ["charges"],
     queryFn: () => callApi(api.GET("/api/charges")),
   });
-  const charges =
-    (data as unknown as { charges?: ChargeRow[] } | undefined)?.charges ?? [];
-  const outstanding = charges.filter(
-    (c) => !c.paidAt && !c.voidedAt && !c.relievedAt,
-  );
+  const charges = data?.charges ?? [];
+  const outstanding = charges.filter(isOpen);
   const history = charges
-    .filter((c) => c.paidAt ?? c.voidedAt ?? c.relievedAt)
+    .filter((c) => !isOpen(c))
     .sort((a, b) =>
-      (b.paidAt ?? b.createdAt ?? "").localeCompare(
-        a.paidAt ?? a.createdAt ?? "",
+      (b.paid_at ?? b.created_at).localeCompare(
+        a.paid_at ?? a.created_at,
       ),
     );
   const total = outstanding.reduce(
-    (acc, c) => acc + (Number(c.amountPence) || 0),
+    (acc, c) => acc + Number(c.amount_pence || 0),
     0,
   );
   return (
@@ -151,13 +142,13 @@ function TabBtn({
   );
 }
 
-function ChargeRowItem({ c, muted }: { c: ChargeRow; muted?: boolean }) {
-  const overdue = !c.paidAt && !c.voidedAt && !c.relievedAt && isOverdue(c);
-  const status = c.paidAt
-    ? { tone: "success" as const, label: `Paid ${fmtDate(c.paidAt)}` }
-    : c.voidedAt
+function ChargeRowItem({ c, muted }: { c: Charge; muted?: boolean }) {
+  const overdue = isOpen(c) && isOverdue(c);
+  const status = c.paid_at
+    ? { tone: "success" as const, label: `Paid ${fmtDate(c.paid_at)}` }
+    : c.deleted_at
       ? { tone: "neutral" as const, label: "Voided" }
-      : c.relievedAt
+      : c.relieved_at
         ? { tone: "warning" as const, label: "Relieved" }
         : null;
   return (
@@ -167,13 +158,13 @@ function ChargeRowItem({ c, muted }: { c: ChargeRow; muted?: boolean }) {
         muted && "opacity-70",
       )}
     >
-      {c.matchDate ? (
+      {c.charge_date ? (
         <div className="flex flex-col items-center justify-center rounded-md bg-surface-raised py-1">
           <div className="text-base font-bold leading-none text-navy dark:text-white">
-            {new Date(c.matchDate).getDate()}
+            {new Date(c.charge_date).getDate()}
           </div>
           <div className="text-[10px] uppercase tracking-wide text-text-secondary">
-            {fmtDate(c.matchDate, "MMM")}
+            {fmtDate(c.charge_date, "MMM")}
           </div>
         </div>
       ) : (
@@ -181,10 +172,10 @@ function ChargeRowItem({ c, muted }: { c: ChargeRow; muted?: boolean }) {
       )}
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">
-          {c.opposition ? `vs ${c.opposition}` : (c.description ?? "Match donation")}
+          {c.description}
         </div>
         <div className="mt-0.5 text-xs text-text-secondary">
-          {[c.category, c.matchDate ? fmtDate(c.matchDate) : null]
+          {[c.type, c.charge_date ? fmtDate(c.charge_date) : null]
             .filter(Boolean)
             .join(" · ")}
           {overdue && (
@@ -201,7 +192,7 @@ function ChargeRowItem({ c, muted }: { c: ChargeRow; muted?: boolean }) {
             overdue ? "text-danger" : "text-navy dark:text-white",
           )}
         >
-          {fmtMoneyPence(c.amountPence)}
+          {fmtMoneyPence(c.amount_pence)}
         </div>
         {status && (
           <StatusPill tone={status.tone} className="mt-1">
@@ -239,7 +230,7 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
-function isOverdue(c: ChargeRow): boolean {
-  if (!c.createdAt) return false;
-  return (Date.now() - new Date(c.createdAt).getTime()) / 86_400_000 > 14;
+function isOverdue(c: Charge): boolean {
+  if (!c.created_at) return false;
+  return (Date.now() - new Date(c.created_at).getTime()) / 86_400_000 > 14;
 }
