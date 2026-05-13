@@ -37,9 +37,7 @@ export default function SquadNew() {
     queryKey: ["matchday", "teams"],
     queryFn: () => callApi(api.GET("/api/matchday/teams")),
   });
-  const teamList = (
-    (teams.data) ?? []
-  ).filter((t) => !t.is_junior);
+  const teamList = (teams.data ?? []).filter((t) => !t.is_junior);
 
   const upcoming = useQuery({
     queryKey: ["matchday", "teams", teamId, "upcoming"],
@@ -51,8 +49,7 @@ export default function SquadNew() {
         }),
       ),
   });
-  const matches =
-    (upcoming.data) ?? [];
+  const matches = upcoming.data ?? [];
 
   const create = useMutation({
     mutationFn: (m: UpcomingMatch) =>
@@ -68,7 +65,7 @@ export default function SquadNew() {
         }),
       ),
     onSuccess: (data) => {
-      const id = (data).id;
+      const id = data.id;
       void qc.invalidateQueries({ queryKey: ["matchday"] });
       void navigate(`/matchday/${id}/edit`);
     },
@@ -76,11 +73,11 @@ export default function SquadNew() {
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
-      <header className="flex items-center gap-3 border-b border-border p-3">
+      <header className="border-border flex items-center gap-3 border-b p-3">
         <Link
           to="/squad"
           aria-label="Back"
-          className="grid size-9 place-items-center rounded-md text-text-secondary hover:bg-surface-raised"
+          className="text-text-secondary hover:bg-surface-raised grid size-9 place-items-center rounded-md"
         >
           <ArrowLeftIcon className="size-5" />
         </Link>
@@ -89,13 +86,13 @@ export default function SquadNew() {
 
       <section className="px-4 py-4">
         <label className="block">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+          <span className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
             Team
           </span>
           <select
             value={teamId}
             onChange={(e) => setTeamId(e.currentTarget.value)}
-            className="mt-1 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm"
+            className="border-border bg-surface mt-1 h-11 w-full rounded-lg border px-3 text-sm"
           >
             <option value="">Select a team</option>
             {teamList.map((t) => (
@@ -109,14 +106,14 @@ export default function SquadNew() {
 
       {teamId && (
         <section className="px-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+          <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
             Upcoming fixtures
           </p>
           {upcoming.isPending && (
-            <div className="mt-3 h-16 rounded-2xl bg-border" />
+            <div className="bg-border mt-3 h-16 rounded-2xl" />
           )}
           {!upcoming.isPending && matches.length === 0 && (
-            <p className="mt-3 rounded-2xl bg-surface-raised p-4 text-sm text-text-secondary">
+            <p className="bg-surface-raised text-text-secondary mt-3 rounded-2xl p-4 text-sm">
               No upcoming fixtures for this team in Play-Cricket.
             </p>
           )}
@@ -135,13 +132,13 @@ export default function SquadNew() {
                       create.mutate(m);
                     }
                   }}
-                  className="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-3 text-left disabled:opacity-60"
+                  className="border-border bg-surface flex w-full items-center justify-between rounded-2xl border p-3 text-left disabled:opacity-60"
                 >
                   <div>
                     <p className="text-sm font-semibold">
                       {fmtDate(m.matchDate, "EEE d MMM")} · vs {m.opposition}
                     </p>
-                    <p className="mt-0.5 text-xs text-text-secondary">
+                    <p className="text-text-secondary mt-0.5 text-xs">
                       {[
                         m.isHome ? "Home" : "Away",
                         m.competitionName,
@@ -166,7 +163,7 @@ export default function SquadNew() {
       )}
 
       {create.isError && (
-        <p className="px-4 py-2 text-sm text-danger">
+        <p className="text-danger px-4 py-2 text-sm">
           Couldn't create the matchday, try again.
         </p>
       )}

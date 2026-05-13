@@ -23,7 +23,7 @@ export function OfflineIndicator() {
   return online ? null : (
     <div
       role="status"
-      className="flex items-center gap-2 border-b border-warning-bg bg-warning-bg px-4 py-1.5 text-[12px] font-medium text-warning"
+      className="border-warning-bg bg-warning-bg text-warning flex items-center gap-2 border-b px-4 py-1.5 text-[12px] font-medium"
     >
       <WifiOffIcon className="size-3.5" strokeWidth={2.2} />
       You're offline · changes will sync when you reconnect

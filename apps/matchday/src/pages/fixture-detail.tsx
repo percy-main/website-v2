@@ -1,11 +1,7 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
-import {
-  oppositionName,
-  played,
-  type GameDetail,
-} from "@/features/games.js";
+import { oppositionName, played, type GameDetail } from "@/features/games.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
@@ -13,7 +9,11 @@ import { Link, useParams } from "react-router";
 
 export default function FixtureDetail() {
   const { matchId } = useParams();
-  const { data: game, isLoading, isError } = useQuery({
+  const {
+    data: game,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["games", matchId],
     queryFn: () =>
       callApi(
@@ -35,11 +35,11 @@ export default function FixtureDetail() {
         >
           <ArrowLeftIcon className="size-3.5" /> Fixtures
         </Link>
-        <p className="text-[11px] uppercase tracking-[0.06em] text-white/70">
+        <p className="text-[11px] tracking-[0.06em] text-white/70 uppercase">
           {fmtDate(game.matchDate, "EEEE · d MMMM")}
           {game.matchTime ? ` · ${game.matchTime}` : ""}
         </p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-[-0.015em] leading-tight">
+        <h1 className="mt-1 text-2xl leading-tight font-semibold tracking-[-0.015em]">
           {game.team.name} vs {oppositionName(game)}
         </h1>
         <p className="mt-1 text-sm text-white/75">
@@ -68,7 +68,7 @@ export default function FixtureDetail() {
         )}
 
         <div className="mt-4">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+          <p className="text-text-secondary mb-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
             Status
           </p>
           {played(game) ? (
@@ -95,7 +95,12 @@ export default function FixtureDetail() {
 function directionsTarget(g: GameDetail): string | null {
   if (g.home) return null;
   if (g.location) {
-    return [g.location.name, g.location.street, g.location.city, g.location.postcode]
+    return [
+      g.location.name,
+      g.location.street,
+      g.location.city,
+      g.location.postcode,
+    ]
       .filter(Boolean)
       .join(", ");
   }
@@ -112,15 +117,15 @@ function resultTone(o: GameDetail["outcome"]) {
 function Skel() {
   return (
     <div className="p-4">
-      <div className="h-24 rounded-xl bg-border" />
-      <div className="mt-3 h-11 rounded-md bg-border" />
+      <div className="bg-border h-24 rounded-xl" />
+      <div className="bg-border mt-3 h-11 rounded-md" />
     </div>
   );
 }
 
 function ErrState() {
   return (
-    <div className="p-6 text-center text-sm text-text-secondary">
+    <div className="text-text-secondary p-6 text-center text-sm">
       Couldn't load the fixture.{" "}
       <Link to="/fixtures" className="text-navy-500 underline">
         Back to fixtures

@@ -10,7 +10,7 @@ export function Card({ className, ref, ...props }: DivProps) {
     <div
       ref={ref}
       className={cn(
-        "rounded-2xl border border-border bg-surface text-text shadow-[0_1px_0_rgba(11,26,42,0.02)] dark:bg-surface-raised",
+        "border-border bg-surface text-text dark:bg-surface-raised rounded-2xl border shadow-[0_1px_0_rgba(11,26,42,0.02)]",
         className,
       )}
       {...props}
@@ -39,7 +39,7 @@ export function CardTitle({
     <h3
       ref={ref}
       className={cn(
-        "text-lg font-semibold leading-tight tracking-[-0.01em]",
+        "text-lg leading-tight font-semibold tracking-[-0.01em]",
         className,
       )}
       {...props}
@@ -57,7 +57,7 @@ export function CardDescription({
   return (
     <p
       ref={ref}
-      className={cn("text-sm text-text-secondary", className)}
+      className={cn("text-text-secondary text-sm", className)}
       {...props}
     />
   );
@@ -71,7 +71,7 @@ export function CardFooter({ className, ref, ...props }: DivProps) {
   return (
     <div
       ref={ref}
-      className={cn("flex items-center px-4 pb-4 pt-0", className)}
+      className={cn("flex items-center px-4 pt-0 pb-4", className)}
       {...props}
     />
   );
@@ -92,7 +92,7 @@ export function CardEyebrow({
     <span
       ref={ref}
       className={cn(
-        "text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary",
+        "text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase",
         className,
       )}
       {...props}

@@ -3,12 +3,7 @@ import { fmtDate } from "@/features/format.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowLeftIcon,
-  CheckIcon,
-  CircleAlertIcon,
-  XIcon,
-} from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, CircleAlertIcon, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -114,7 +109,10 @@ export default function AvailabilityRespond() {
   async function applyToAllRemaining(answer: "available" | "unavailable") {
     // Batch by request so we make one POST per active request.
     const remaining = steps.slice(stepIndex);
-    const byRequest = new Map<string, Array<{ matchDate: string; status: "available" | "unavailable" }>>();
+    const byRequest = new Map<
+      string,
+      Array<{ matchDate: string; status: "available" | "unavailable" }>
+    >();
     for (const s of remaining) {
       const list = byRequest.get(s.requestId) ?? [];
       list.push({ matchDate: s.date, status: answer });
@@ -132,9 +130,9 @@ export default function AvailabilityRespond() {
     return (
       <FlowFrame>
         <div className="mx-auto w-full max-w-md px-5 py-12">
-          <div className="h-6 w-1/3 rounded-md bg-border" />
-          <div className="mt-4 h-32 rounded-2xl bg-border" />
-          <div className="mt-4 h-32 rounded-2xl bg-border" />
+          <div className="bg-border h-6 w-1/3 rounded-md" />
+          <div className="bg-border mt-4 h-32 rounded-2xl" />
+          <div className="bg-border mt-4 h-32 rounded-2xl" />
         </div>
       </FlowFrame>
     );
@@ -144,7 +142,7 @@ export default function AvailabilityRespond() {
       <FlowFrame>
         <div className="mx-auto max-w-md px-6 py-12 text-center">
           <h1 className="text-lg font-semibold">Couldn't load availability</h1>
-          <p className="mt-2 text-sm text-text-secondary">
+          <p className="text-text-secondary mt-2 text-sm">
             Try again in a moment.
           </p>
           <Button asChild tone="outline" className="mt-4 inline-flex">
@@ -185,14 +183,14 @@ export default function AvailabilityRespond() {
   const total = steps.length;
   return (
     <FlowFrame>
-      <header className="flex items-center gap-3 border-b border-border p-3">
+      <header className="border-border flex items-center gap-3 border-b p-3">
         <button
           type="button"
           onClick={() => {
             void navigate("/");
           }}
           aria-label="Back"
-          className="grid size-9 place-items-center rounded-md text-text-secondary hover:bg-surface-raised"
+          className="text-text-secondary hover:bg-surface-raised grid size-9 place-items-center rounded-md"
         >
           <ArrowLeftIcon className="size-5" />
         </button>
@@ -216,17 +214,17 @@ export default function AvailabilityRespond() {
           onClick={() => {
             void navigate("/");
           }}
-          className="text-xs font-medium text-text-secondary"
+          className="text-text-secondary text-xs font-medium"
         >
           Skip all →
         </button>
       </header>
       <div className="mx-auto w-full max-w-md px-5 py-6">
         <div className="flex items-baseline justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+          <span className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
             {fmtDate(current.date, "EEEE")}
           </span>
-          <span className="text-xs text-text-secondary">
+          <span className="text-text-secondary text-xs">
             {stepIndex + 1} of {total}
           </span>
         </div>
@@ -238,19 +236,19 @@ export default function AvailabilityRespond() {
           {current.fixtures.map((f) => (
             <div
               key={f.id}
-              className="rounded-xl border border-border bg-surface-raised p-3"
+              className="border-border bg-surface-raised rounded-xl border p-3"
             >
               <div className="flex items-center justify-between">
                 <strong className="text-sm">
                   {[f.team_name, "vs", f.opposition].filter(Boolean).join(" ")}
                 </strong>
                 {f.competition_name && (
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
+                  <span className="text-text-secondary text-[11px] font-semibold tracking-wider uppercase">
                     {f.competition_name}
                   </span>
                 )}
               </div>
-              <div className="mt-1 text-xs text-text-secondary">
+              <div className="text-text-secondary mt-1 text-xs">
                 {[f.is_home ? "Home" : "Away", f.match_time]
                   .filter(Boolean)
                   .join(" · ")}
@@ -266,7 +264,7 @@ export default function AvailabilityRespond() {
             onClick={() => {
               void pick("available");
             }}
-            className="flex h-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-success/15 bg-success-bg text-lg font-bold text-success disabled:opacity-60"
+            className="border-success/15 bg-success-bg text-success flex h-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 text-lg font-bold disabled:opacity-60"
           >
             <CheckIcon className="size-8" strokeWidth={2.4} />
             Available
@@ -277,17 +275,17 @@ export default function AvailabilityRespond() {
             onClick={() => {
               void pick("unavailable");
             }}
-            className="flex h-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-danger/15 bg-danger-bg text-lg font-bold text-danger disabled:opacity-60"
+            className="border-danger/15 bg-danger-bg text-danger flex h-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 text-lg font-bold disabled:opacity-60"
           >
             <XIcon className="size-8" strokeWidth={2.4} />
             Unavailable
           </button>
         </div>
 
-        <div className="mt-4 rounded-xl border border-border bg-surface px-4 py-3">
+        <div className="border-border bg-surface mt-4 rounded-xl border px-4 py-3">
           <label
             htmlFor="note"
-            className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary"
+            className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase"
           >
             Optional note
           </label>
@@ -296,7 +294,7 @@ export default function AvailabilityRespond() {
             value={note}
             onChange={(e) => setNote(e.currentTarget.value)}
             placeholder="e.g. free after 1pm"
-            className="mt-1 w-full bg-transparent text-sm outline-none placeholder:text-text-muted"
+            className="placeholder:text-text-muted mt-1 w-full bg-transparent text-sm outline-none"
           />
         </div>
 
@@ -307,7 +305,7 @@ export default function AvailabilityRespond() {
               onClick={() => {
                 void applyToAllRemaining("available");
               }}
-              className="text-xs font-medium text-text-secondary underline"
+              className="text-text-secondary text-xs font-medium underline"
             >
               Apply Available to all {steps.length - stepIndex} remaining
             </button>
@@ -316,7 +314,7 @@ export default function AvailabilityRespond() {
               onClick={() => {
                 void applyToAllRemaining("unavailable");
               }}
-              className="text-xs font-medium text-text-secondary underline"
+              className="text-text-secondary text-xs font-medium underline"
             >
               Apply Unavailable to all {steps.length - stepIndex} remaining
             </button>
@@ -324,7 +322,7 @@ export default function AvailabilityRespond() {
         )}
 
         {respond.isError && (
-          <p className="mt-4 flex items-center gap-1.5 text-sm text-danger">
+          <p className="text-danger mt-4 flex items-center gap-1.5 text-sm">
             <CircleAlertIcon className="size-4" />
             Couldn't save, try again.
           </p>
@@ -360,7 +358,7 @@ function EmptyDone({
       <h1 className="mt-5 text-2xl font-semibold tracking-[-0.015em]">
         {title}
       </h1>
-      <p className="mt-1 text-sm text-text-secondary">{body}</p>
+      <p className="text-text-secondary mt-1 text-sm">{body}</p>
       <Button tone="primary" className="mt-6 w-full max-w-xs" onClick={onBack}>
         Back to home
       </Button>
@@ -369,5 +367,5 @@ function EmptyDone({
 }
 
 function FlowFrame({ children }: { children: React.ReactNode }) {
-  return <div className="flex min-h-dvh flex-col bg-surface">{children}</div>;
+  return <div className="bg-surface flex min-h-dvh flex-col">{children}</div>;
 }

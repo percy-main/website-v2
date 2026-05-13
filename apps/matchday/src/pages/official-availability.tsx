@@ -6,8 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { Link } from "react-router";
 
-type RequestRow =
-  ApiResponse<"/api/availability/requests">["items"][number];
+type RequestRow = ApiResponse<"/api/availability/requests">["items"][number];
 
 /**
  * Phase 3 official-side availability list.
@@ -31,9 +30,9 @@ export default function OfficialAvailability() {
   const closed = items.filter((r) => r.status !== "open");
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
-      <header className="flex items-center justify-between px-4 pb-2 pt-6">
+      <header className="flex items-center justify-between px-4 pt-6 pb-2">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+          <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
             Availability
           </p>
           <h1 className="text-2xl font-semibold tracking-[-0.015em]">
@@ -50,7 +49,7 @@ export default function OfficialAvailability() {
 
       {isLoading && <Skel />}
       {isError && (
-        <p className="px-4 py-6 text-sm text-text-secondary">
+        <p className="text-text-secondary px-4 py-6 text-sm">
           Couldn't load availability requests.
         </p>
       )}
@@ -79,7 +78,7 @@ function Section({
 }) {
   return (
     <section className="px-4 pt-4">
-      <h2 className="pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+      <h2 className="text-text-secondary pb-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
         {title}
       </h2>
       <div className="space-y-2">
@@ -99,11 +98,11 @@ function Card({ r, muted }: { r: RequestRow; muted?: boolean }) {
   return (
     <Link
       to={`/official/availability/${r.id}`}
-      className={`block rounded-2xl border border-border bg-surface p-4 ${muted ? "opacity-70" : ""}`}
+      className={`border-border bg-surface block rounded-2xl border p-4 ${muted ? "opacity-70" : ""}`}
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+          <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
             {fmtDate(r.date_from, "d MMM")} – {fmtDate(r.date_to, "d MMM")}
           </p>
           <p className="mt-0.5 text-base font-semibold">
@@ -114,7 +113,7 @@ function Card({ r, muted }: { r: RequestRow; muted?: boolean }) {
           {isOpen ? "Open" : r.status}
         </StatusPill>
       </div>
-      <p className="mt-3 text-xs text-text-secondary">
+      <p className="text-text-secondary mt-3 text-xs">
         {r.respondentCount} response{r.respondentCount === 1 ? "" : "s"}
         {r.created_by_name ? ` · created by ${r.created_by_name}` : ""}
       </p>
@@ -126,7 +125,7 @@ function Skel() {
   return (
     <div className="space-y-2 px-4 py-4">
       {["a", "b"].map((s) => (
-        <div key={s} className="h-24 rounded-2xl bg-border" />
+        <div key={s} className="bg-border h-24 rounded-2xl" />
       ))}
     </div>
   );
@@ -136,7 +135,7 @@ function Empty() {
   return (
     <div className="px-6 py-12 text-center">
       <p className="text-sm font-semibold">No open requests</p>
-      <p className="mt-1 text-sm text-text-secondary">
+      <p className="text-text-secondary mt-1 text-sm">
         Create one to ask players for their availability.
       </p>
       <Button asChild tone="primary" className="mt-4 inline-flex">

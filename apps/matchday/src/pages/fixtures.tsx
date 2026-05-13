@@ -33,7 +33,7 @@ export default function Fixtures() {
   const groups = groupByBucket(filtered);
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
-      <header className="px-4 pb-2 pt-6">
+      <header className="px-4 pt-6 pb-2">
         <h1 className="text-2xl font-semibold tracking-[-0.015em]">Fixtures</h1>
       </header>
       <div className="flex gap-2 overflow-x-auto px-4 py-2">
@@ -55,22 +55,24 @@ export default function Fixtures() {
       </div>
       {isLoading && <FixtureSkeleton />}
       {isError && (
-        <p className="px-4 py-6 text-sm text-text-secondary">
+        <p className="text-text-secondary px-4 py-6 text-sm">
           Couldn't load fixtures.
         </p>
       )}
       {!isLoading && !isError && filtered.length === 0 && (
-        <p className="px-4 py-12 text-center text-sm text-text-secondary">
+        <p className="text-text-secondary px-4 py-12 text-center text-sm">
           No fixtures match this filter.
         </p>
       )}
       {!isLoading && !isError && (
         <div>
-          {(["This week", "Next week", "Later this month", "Recent"] as const).map(
+          {(
+            ["This week", "Next week", "Later this month", "Recent"] as const
+          ).map(
             (bucket) =>
               groups[bucket].length > 0 && (
                 <section key={bucket}>
-                  <h2 className="px-4 pb-2 pt-4 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+                  <h2 className="text-text-secondary px-4 pt-4 pb-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
                     {bucket}
                   </h2>
                   {groups[bucket].map((g) => (
@@ -90,13 +92,13 @@ function FixtureItem({ game }: { game: Game }) {
   return (
     <Link
       to={`/fixture/${game.id}`}
-      className="grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t border-border-light bg-surface px-4 py-3 first:border-t-0"
+      className="border-border-light bg-surface grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t px-4 py-3 first:border-t-0"
     >
-      <div className="flex flex-col items-center justify-center rounded-md bg-surface-raised py-1">
-        <div className="text-base font-bold leading-none text-navy dark:text-white">
+      <div className="bg-surface-raised flex flex-col items-center justify-center rounded-md py-1">
+        <div className="text-navy text-base leading-none font-bold dark:text-white">
           {d.getDate()}
         </div>
-        <div className="text-[10px] uppercase tracking-wide text-text-secondary">
+        <div className="text-text-secondary text-[10px] tracking-wide uppercase">
           {fmtDate(game.matchDate, "MMM")}
         </div>
       </div>
@@ -104,7 +106,7 @@ function FixtureItem({ game }: { game: Game }) {
         <div className="truncate text-sm font-medium">
           vs {oppositionName(game)}
         </div>
-        <div className="mt-0.5 text-xs text-text-secondary">
+        <div className="text-text-secondary mt-0.5 text-xs">
           {[game.team.name, game.home ? "Home" : "Away", game.competition.name]
             .filter(Boolean)
             .join(" · ")}
@@ -134,10 +136,10 @@ function FixtureSkeleton() {
     <div className="space-y-2 px-4 py-3">
       {["a", "b", "c", "d"].map((slot) => (
         <div key={slot} className="flex items-center gap-3">
-          <div className="size-11 rounded-md bg-border" />
+          <div className="bg-border size-11 rounded-md" />
           <div className="flex-1 space-y-2">
-            <div className="h-4 w-2/3 rounded-md bg-border" />
-            <div className="h-3 w-1/2 rounded-md bg-border-light" />
+            <div className="bg-border h-4 w-2/3 rounded-md" />
+            <div className="bg-border-light h-3 w-1/2 rounded-md" />
           </div>
         </div>
       ))}

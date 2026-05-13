@@ -62,7 +62,7 @@ export function tabsForRole(role: "player" | "official"): TabDef[] {
 export function BottomTabBar({ tabs }: { tabs: TabDef[] }) {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 grid auto-cols-fr grid-flow-col border-t border-border bg-surface/95 pb-[max(env(safe-area-inset-bottom),6px)] pt-1 backdrop-blur md:hidden"
+      className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 grid auto-cols-fr grid-flow-col border-t pt-1 pb-[max(env(safe-area-inset-bottom),6px)] backdrop-blur md:hidden"
       aria-label="Matchday navigation"
     >
       {tabs.map((tab) => (
@@ -84,7 +84,7 @@ export function BottomTabBar({ tabs }: { tabs: TabDef[] }) {
           <tab.icon className="size-[22px]" strokeWidth={2.1} />
           {tab.label}
           {tab.badge !== undefined && tab.badge > 0 && (
-            <span className="absolute right-[calc(50%-22px)] top-1.5 rounded-full bg-red px-1.5 py-px text-[9px] font-bold text-white">
+            <span className="bg-red absolute top-1.5 right-[calc(50%-22px)] rounded-full px-1.5 py-px text-[9px] font-bold text-white">
               {tab.badge > 99 ? "99+" : tab.badge}
             </span>
           )}

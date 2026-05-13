@@ -125,7 +125,9 @@ export function DialogDescription({
   className?: string;
   children: React.ReactNode;
 }) {
-  return <p className={cn("text-text-secondary text-sm", className)}>{children}</p>;
+  return (
+    <p className={cn("text-text-secondary text-sm", className)}>{children}</p>
+  );
 }
 
 export function DialogFooter({

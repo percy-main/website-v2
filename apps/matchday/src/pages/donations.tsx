@@ -34,21 +34,19 @@ export default function Donations() {
   const history = charges
     .filter((c) => !isOpen(c))
     .sort((a, b) =>
-      (b.paid_at ?? b.created_at).localeCompare(
-        a.paid_at ?? a.created_at,
-      ),
+      (b.paid_at ?? b.created_at).localeCompare(a.paid_at ?? a.created_at),
     );
   const total = outstanding.reduce((acc, c) => acc + c.amount_pence, 0);
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
-      <header className="px-4 pb-4 pt-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+      <header className="px-4 pt-6 pb-4">
+        <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
           You owe
         </p>
-        <p className="mt-1 text-4xl font-bold tracking-[-0.02em] text-navy dark:text-white">
+        <p className="text-navy mt-1 text-4xl font-bold tracking-[-0.02em] dark:text-white">
           {fmtMoneyPence(total)}
         </p>
-        <p className="mt-1 text-sm text-text-secondary">
+        <p className="text-text-secondary mt-1 text-sm">
           {outstanding.length === 0
             ? "Nothing outstanding. Cheers."
             : `${outstanding.length} unpaid match donation${outstanding.length === 1 ? "" : "s"}`}
@@ -64,13 +62,16 @@ export default function Donations() {
             </a>
           </Button>
         )}
-        <p className="mt-2 text-xs text-text-muted">
+        <p className="text-text-muted mt-2 text-xs">
           Payments are handled by Stripe on the main Percy Main site.
         </p>
       </header>
 
-      <div className="mx-4 grid grid-cols-2 gap-1 rounded-xl bg-surface-raised p-1">
-        <TabBtn active={tab === "outstanding"} onClick={() => setTab("outstanding")}>
+      <div className="bg-surface-raised mx-4 grid grid-cols-2 gap-1 rounded-xl p-1">
+        <TabBtn
+          active={tab === "outstanding"}
+          onClick={() => setTab("outstanding")}
+        >
           Outstanding ({outstanding.length})
         </TabBtn>
         <TabBtn active={tab === "history"} onClick={() => setTab("history")}>
@@ -81,7 +82,7 @@ export default function Donations() {
       <div className="mt-1">
         {isLoading && <ChargeSkeleton />}
         {isError && (
-          <p className="px-4 py-6 text-sm text-text-secondary">
+          <p className="text-text-secondary px-4 py-6 text-sm">
             Couldn't load donations. Try again.
           </p>
         )}
@@ -151,16 +152,16 @@ function ChargeRowItem({ c, muted }: { c: Charge; muted?: boolean }) {
   return (
     <div
       className={cn(
-        "grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t border-border-light px-4 py-3",
+        "border-border-light grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t px-4 py-3",
         muted && "opacity-70",
       )}
     >
       {c.charge_date ? (
-        <div className="flex flex-col items-center justify-center rounded-md bg-surface-raised py-1">
-          <div className="text-base font-bold leading-none text-navy dark:text-white">
+        <div className="bg-surface-raised flex flex-col items-center justify-center rounded-md py-1">
+          <div className="text-navy text-base leading-none font-bold dark:text-white">
             {new Date(c.charge_date).getDate()}
           </div>
-          <div className="text-[10px] uppercase tracking-wide text-text-secondary">
+          <div className="text-text-secondary text-[10px] tracking-wide uppercase">
             {fmtDate(c.charge_date, "MMM")}
           </div>
         </div>
@@ -168,15 +169,13 @@ function ChargeRowItem({ c, muted }: { c: Charge; muted?: boolean }) {
         <span className="size-11" />
       )}
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium">
-          {c.description}
-        </div>
-        <div className="mt-0.5 text-xs text-text-secondary">
+        <div className="truncate text-sm font-medium">{c.description}</div>
+        <div className="text-text-secondary mt-0.5 text-xs">
           {[c.type, c.charge_date ? fmtDate(c.charge_date) : null]
             .filter(Boolean)
             .join(" · ")}
           {overdue && (
-            <span className="ml-2 font-medium text-danger">
+            <span className="text-danger ml-2 font-medium">
               Overdue · 14+ days
             </span>
           )}
@@ -206,12 +205,12 @@ function ChargeSkeleton() {
     <div className="space-y-2 p-4">
       {["a", "b", "c"].map((slot) => (
         <div key={slot} className="flex items-center gap-3">
-          <div className="size-11 rounded-md bg-border" />
+          <div className="bg-border size-11 rounded-md" />
           <div className="flex-1 space-y-2">
-            <div className="h-4 w-2/3 rounded-md bg-border" />
-            <div className="h-3 w-1/2 rounded-md bg-border-light" />
+            <div className="bg-border h-4 w-2/3 rounded-md" />
+            <div className="bg-border-light h-3 w-1/2 rounded-md" />
           </div>
-          <div className="h-5 w-12 rounded-md bg-border" />
+          <div className="bg-border h-5 w-12 rounded-md" />
         </div>
       ))}
     </div>
@@ -222,7 +221,7 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <div className="px-6 py-10 text-center">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="mt-1 text-sm text-text-secondary">{body}</p>
+      <p className="text-text-secondary mt-1 text-sm">{body}</p>
     </div>
   );
 }

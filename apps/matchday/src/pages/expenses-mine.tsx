@@ -35,19 +35,17 @@ export default function ExpensesMine() {
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
-      <header className="px-4 pb-2 pt-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+      <header className="px-4 pt-6 pb-2">
+        <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
           My expenses
         </p>
-        <h1 className="text-2xl font-semibold tracking-[-0.015em]">
-          Recorded
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.015em]">Recorded</h1>
       </header>
 
       {isLoading && (
         <div className="space-y-2 p-4">
           {["a", "b", "c"].map((s) => (
-            <div key={s} className="h-16 rounded-2xl bg-border" />
+            <div key={s} className="bg-border h-16 rounded-2xl" />
           ))}
         </div>
       )}
@@ -56,7 +54,7 @@ export default function ExpensesMine() {
         Object.entries(grouped).map(([title, list]) =>
           list.length === 0 ? null : (
             <section key={title} className="px-4 pt-4">
-              <h2 className="pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+              <h2 className="text-text-secondary pb-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
                 {title}
               </h2>
               <div className="space-y-2">
@@ -68,7 +66,7 @@ export default function ExpensesMine() {
           ),
         )}
       {!isLoading && items.length === 0 && (
-        <p className="px-6 py-12 text-center text-sm text-text-secondary">
+        <p className="text-text-secondary px-6 py-12 text-center text-sm">
           You haven't recorded any expenses yet. Add one from the captain's
           match-day view.
         </p>
@@ -81,7 +79,7 @@ function ExpenseCard({ e }: { e: PendingExpense }) {
   return (
     <Link
       to={`/matchday/${e.matchday_id}/live`}
-      className="block rounded-2xl border border-border bg-surface p-4"
+      className="border-border bg-surface block rounded-2xl border p-4"
     >
       <div className="flex items-baseline justify-between">
         <strong className="text-sm">
@@ -91,16 +89,16 @@ function ExpenseCard({ e }: { e: PendingExpense }) {
           {e.status}
         </StatusPill>
       </div>
-      <p className="mt-1 text-xs text-text-secondary">
+      <p className="text-text-secondary mt-1 text-xs">
         vs {e.opposition} · {fmtDate(e.match_date, "EEE d MMM")}
       </p>
       {e.description && (
-        <p className="mt-1 text-xs italic text-text-secondary">
+        <p className="text-text-secondary mt-1 text-xs italic">
           "{e.description}"
         </p>
       )}
       {e.rejected_reason && (
-        <p className="mt-1 rounded-md bg-danger-bg px-2 py-1 text-xs text-danger">
+        <p className="bg-danger-bg text-danger mt-1 rounded-md px-2 py-1 text-xs">
           Rejected: {e.rejected_reason}
         </p>
       )}
@@ -110,16 +108,20 @@ function ExpenseCard({ e }: { e: PendingExpense }) {
 
 function label(t: string): string {
   return (
-    {
-      umpire_fee: "Umpire fee",
-      scorer_fee: "Scorer fee",
-      match_ball: "Match ball",
-      teas: "Teas",
-      miscellaneous: "Misc",
-    } as Record<string, string>
-  )[t] ?? t;
+    (
+      {
+        umpire_fee: "Umpire fee",
+        scorer_fee: "Scorer fee",
+        match_ball: "Match ball",
+        teas: "Teas",
+        miscellaneous: "Misc",
+      } as Record<string, string>
+    )[t] ?? t
+  );
 }
-function tone(s: string): "navy" | "success" | "warning" | "danger" | "neutral" {
+function tone(
+  s: string,
+): "navy" | "success" | "warning" | "danger" | "neutral" {
   if (s === "submitted") return "warning";
   if (s === "approved") return "navy";
   if (s === "reimbursed") return "success";

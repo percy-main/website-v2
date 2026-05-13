@@ -104,7 +104,7 @@ export function InstallPrompt() {
           title="Install on iPhone"
           body="Tap Share, then Add to Home Screen."
           action={
-            <span className="inline-flex items-center gap-1 text-xs text-text-secondary">
+            <span className="text-text-secondary inline-flex items-center gap-1 text-xs">
               <ShareIcon className="size-3.5" /> Share menu
             </span>
           }
@@ -124,18 +124,18 @@ function Card({
   onDismiss: () => void;
 }) {
   return (
-    <div className="relative rounded-2xl border border-info-bg bg-info-bg p-4">
+    <div className="border-info-bg bg-info-bg relative rounded-2xl border p-4">
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="absolute right-2 top-2 grid size-7 place-items-center rounded-md text-text-secondary hover:bg-white/60"
+        className="text-text-secondary absolute top-2 right-2 grid size-7 place-items-center rounded-md hover:bg-white/60"
       >
         <XIcon className="size-4" />
       </button>
       <div className="flex items-start gap-3">
         <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-white">
-          <SmartphoneIcon className="size-5 text-navy" />
+          <SmartphoneIcon className="text-navy size-5" />
         </div>
         {children}
       </div>
@@ -155,7 +155,7 @@ function CardBody({
   return (
     <div className="min-w-0 flex-1">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="text-xs text-text-secondary">{body}</p>
+      <p className="text-text-secondary text-xs">{body}</p>
       <div className="mt-2">{action}</div>
     </div>
   );

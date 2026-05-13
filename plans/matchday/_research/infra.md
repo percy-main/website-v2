@@ -7,6 +7,7 @@
 The better-auth instance is created in `/Users/alexyoung/Code/website-v2/apps/api/src/features/auth/auth.ts` (lines 11–80).
 
 **Key options:**
+
 - **baseURL**: `config.API_BASE_URL` (e.g., `https://api.v2.percymain.org`)
 - **basePath**: `/api/auth`
 - **appName**: `config.BETTER_AUTH_RP_NAME` (e.g., `Percy Main CSC`)
@@ -18,12 +19,14 @@ The better-auth instance is created in `/Users/alexyoung/Code/website-v2/apps/ap
 ### Cookie Domain Configuration
 
 **Critical finding:** **No explicit `cookieOptions` object is defined** in the better-auth initialization. The library uses defaults, which means:
+
 - Cookie domain is **not explicitly set to `.percymain.org`**
 - This likely defaults to the request origin's domain
 - **Session cookies DO NOT currently share across `percymain.org` and `www.percymain.org`** without explicit domain configuration
 - CORS/trusted origins are set per-origin but cookies require the domain attribute
 
 To enable cross-domain session sharing for `matchday.percymain.org`, we need to add:
+
 ```typescript
 cookieOptions: {
   domain: ".percymain.org", // shared domain
@@ -44,6 +47,7 @@ cookieOptions: {
 Located in `/Users/alexyoung/Code/website-v2/apps/web/src/lib/auth-client.ts` (lines 1–15).
 
 **Setup:**
+
 - **baseURL**: Computed from `VITE_API_URL` environment variable with `/api` suffix stripped (lines 5–8)
   - Input: `https://api.v2.percymain.org/api` → Output: `https://api.v2.percymain.org`
 - **Plugins**: passkeyClient, twoFactorClient, adminClient
@@ -59,20 +63,21 @@ Read from `/Users/alexyoung/Code/website-v2/apps/api/src/config.ts` (lines 1–8
 
 **Auth-related env vars (parsed via Zod schema):**
 
-| Variable | Default | Notes |
-|----------|---------|-------|
-| `BETTER_AUTH_SECRET` | optional | Server secret; should be per-environment |
-| `BETTER_AUTH_RP_ID` | "localhost" | Passkey relying party ID (affects passkey domain binding) |
-| `BETTER_AUTH_RP_NAME` | "Percy Main CSC" | Display name for passkeys |
-| `BASE_URL` | `http://localhost:5173` | Frontend origin for trustedOrigins |
-| `API_BASE_URL` | **required** | API server URL (e.g., `https://api.v2.percymain.org`) |
-| `DEPLOY_PRIME_URL` | optional | Netlify preview URL for preview deployments |
-| `GOOGLE_CLIENT_ID/SECRET` | "" (optional) | OAuth provider credentials |
+| Variable                  | Default                 | Notes                                                     |
+| ------------------------- | ----------------------- | --------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`      | optional                | Server secret; should be per-environment                  |
+| `BETTER_AUTH_RP_ID`       | "localhost"             | Passkey relying party ID (affects passkey domain binding) |
+| `BETTER_AUTH_RP_NAME`     | "Percy Main CSC"        | Display name for passkeys                                 |
+| `BASE_URL`                | `http://localhost:5173` | Frontend origin for trustedOrigins                        |
+| `API_BASE_URL`            | **required**            | API server URL (e.g., `https://api.v2.percymain.org`)     |
+| `DEPLOY_PRIME_URL`        | optional                | Netlify preview URL for preview deployments               |
+| `GOOGLE_CLIENT_ID/SECRET` | "" (optional)           | OAuth provider credentials                                |
 
 **Current Fastify CORS setup** (`/Users/alexyoung/Code/website-v2/apps/api/src/app.ts`, lines 124–135):
+
 ```typescript
 await app.register(cors, {
-  origin: config.BASE_URL,          // Single origin hardcoded
+  origin: config.BASE_URL, // Single origin hardcoded
   credentials: true,
   methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"],
 });
@@ -87,12 +92,14 @@ await app.register(cors, {
 ### Current Architecture
 
 **Domains & DNS:**
+
 - **percymain.org** (apex) → CloudFront distribution (S3 frontend)
 - **www.percymain.org** → Added as CloudFront alias (not separate distribution)
 - **kit.percymain.org** → CloudFront alias
 - **api.v2.percymain.org** → ALB via Route 53 A/AAAA records
 
 **ACM Certificates:**
+
 - **ALB (eu-west-2)**: domain + wildcard (`*.percymain.org`)
   - File: `/Users/alexyoung/Code/website-v2/infra/environments/shared/main.tf` (lines 183–194)
   - Covers `api.v2.percymain.org` via wildcard
@@ -101,10 +108,12 @@ await app.register(cors, {
   - Region: **us-east-1 only** (CloudFront requirement)
 
 **S3 Buckets:**
+
 - `percy-main-production-frontend` (S3 + OAC access via CloudFront)
 - `percy-main-production-uploads` (S3 + OAC access)
 
 **CloudFront Distribution:**
+
 - File: `/Users/alexyoung/Code/website-v2/infra/modules/cdn/main.tf` (lines 288–375)
 - **Single distribution** for all aliases (apex, www, kit)
 - **Default root object**: `index.html` (SPA rewrite)
@@ -133,6 +142,7 @@ Files to modify:
 File: `/Users/alexyoung/Code/website-v2/infra/modules/cdn/main.tf`
 
 **Recommended approach**: Add a new S3 bucket and origin for matchday, with path-based routing:
+
 - Line 46: Add `matchday_bucket_name = "percy-main-${var.environment}-matchday"`
 - Lines 68–117: Create new `aws_s3_bucket.matchday` + policies (copy frontend bucket pattern)
 - Lines 302–313: Add third origin:
@@ -163,6 +173,7 @@ File: `/Users/alexyoung/Code/website-v2/infra/modules/cdn/main.tf`
 Currently DNS for `percymain.org` is managed by **Netlify** (not Route 53). Only `api.v2.percymain.org` is in Route 53.
 
 **Action**: If `matchday.percymain.org` DNS needs to be managed by AWS:
+
 - File: `/Users/alexyoung/Code/website-v2/infra/environments/production/main.tf`
 - Add Route 53 record (optional; depends on current DNS hosting):
   ```hcl
@@ -183,6 +194,7 @@ Currently DNS for `percymain.org` is managed by **Netlify** (not Route 53). Only
 File: `/Users/alexyoung/Code/website-v2/.github/workflows/deploy.yml`
 
 **Current flow:**
+
 1. **Lines 322–332**: Single frontend build step (runs if web changed)
    - Env: `VITE_API_URL: https://api.v2.percymain.org/api`
 2. **Lines 339–351**: S3 sync to `FRONTEND_BUCKET`
@@ -192,11 +204,11 @@ File: `/Users/alexyoung/Code/website-v2/.github/workflows/deploy.yml`
    - Only `/index.html` and `/*.json` paths invalidated
 
 **For matchday SPA:**
+
 - Option A: **Separate frontend build + bucket + invalidation**
   - Requires new `MATCHDAY_FRONTEND_BUCKET` variable
   - New job: `deploy-matchday-web` (conditional on matchday code changes)
   - Independent deploy cycle
-  
 - Option B: **Path-based deployment** (if using shared bucket)
   - Sync `apps/matchday/dist/` to `s3://percy-main-production-frontend/matchday/`
   - Invalidate `/matchday/*` in CloudFront
@@ -240,24 +252,28 @@ File: `/Users/alexyoung/Code/website-v2/.github/workflows/deploy.yml`
 ## Summary: Implementation Roadmap
 
 **Phase 1: Infrastructure**
+
 1. Extend ACM cert SAN to include matchday (already done via wildcard)
 2. Add `matchday.percymain.org` to CloudFront aliases in `infra/environments/production/main.tf:192`
 3. Create new S3 bucket + origin + behavior in `infra/modules/cdn/main.tf`
 4. (Optional) Add Route 53 CNAME if DNS managed by AWS
 
 **Phase 2: API Configuration**
+
 1. Update `CORS origin` in `apps/api/src/app.ts:125` from single string to array/regex
 2. Update `trustedOrigins` in `apps/api/src/features/auth/auth.ts:23–25` to include matchday domain
 3. Add `cookieOptions` with `.percymain.org` domain for session sharing
 4. Update S3 CORS config to allow matchday origin
 
 **Phase 3: Frontend & Deployment**
+
 1. Create `apps/matchday` with shared auth-client setup
 2. Add `deploy-matchday-web` job in `.github/workflows/deploy.yml` (or reuse existing with parameterization)
 3. Configure `MATCHDAY_FRONTEND_BUCKET` and `VITE_API_URL` in GitHub variables
 4. Test auth flow across `www.percymain.org` ↔ `matchday.percymain.org`
 
 **Phase 4: Validation**
+
 1. Verify cookies are shared (inspect Set-Cookie domain attribute in DevTools)
 2. Verify CORS headers allow matchday origin
 3. Test passkey registration across origins

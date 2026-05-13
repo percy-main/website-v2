@@ -9,9 +9,7 @@
  */
 export const MAIN_SITE_BASE_URL =
   (import.meta.env.VITE_MAIN_SITE_URL as string | undefined) ??
-  (import.meta.env.PROD
-    ? "https://percymain.org"
-    : "http://localhost:5173");
+  (import.meta.env.PROD ? "https://percymain.org" : "http://localhost:5173");
 
 export function mainSiteUrl(path: `/${string}`): string {
   return `${MAIN_SITE_BASE_URL}${path}`;

@@ -1,4 +1,7 @@
-import { BottomTabBar, tabsForRole } from "@/components/shell/bottom-tab-bar.js";
+import {
+  BottomTabBar,
+  tabsForRole,
+} from "@/components/shell/bottom-tab-bar.js";
 import { DesktopSideNav } from "@/components/shell/desktop-side-nav.js";
 import { OfflineIndicator } from "@/components/shell/offline-indicator.js";
 import { ServiceWorkerUpdate } from "@/components/shell/sw-update.js";
@@ -27,7 +30,7 @@ export function AppShell() {
   })();
   const tabs = tabsForRole(role);
   return (
-    <div className="flex min-h-dvh bg-surface-raised text-text">
+    <div className="bg-surface-raised text-text flex min-h-dvh">
       <DesktopSideNav tabs={tabs} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />

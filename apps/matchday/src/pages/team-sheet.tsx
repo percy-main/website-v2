@@ -1,7 +1,7 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
-import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { fmtDate } from "@/features/format.js";
+import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { useSession } from "@/lib/auth-client.js";
 import { cn } from "@/lib/utils.js";
@@ -29,7 +29,11 @@ export default function TeamSheet() {
   const { matchdayId } = useParams();
   const { data: session } = useSession();
   const myUserId = session?.user.id;
-  const { data: md, isLoading, isError } = useQuery({
+  const {
+    data: md,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["matchday", matchdayId, "public"],
     queryFn: () =>
       callApi(
@@ -50,7 +54,7 @@ export default function TeamSheet() {
       <div className="flex items-center justify-between p-3">
         <Link
           to="/fixtures"
-          className="inline-flex items-center gap-1.5 text-sm text-text-secondary"
+          className="text-text-secondary inline-flex items-center gap-1.5 text-sm"
         >
           <ArrowLeftIcon className="size-4" /> Back
         </Link>
@@ -63,7 +67,7 @@ export default function TeamSheet() {
               setCopied(false);
             }, 2200);
           }}
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-text-secondary hover:bg-surface-raised"
+          className="text-text-secondary hover:bg-surface-raised inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium"
           aria-label="Copy team-sheet link"
         >
           <ShareIcon className="size-4" />
@@ -71,24 +75,28 @@ export default function TeamSheet() {
         </button>
       </div>
       <header className="px-4 pb-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+        <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
           {fmtDate(md.matchDate, "EEEE · d MMMM")}
           {md.startTime ? ` · ${md.startTime}` : ""}
         </p>
         <h1 className="mt-1 text-xl font-semibold tracking-[-0.01em]">
           {md.teamName ?? "Percy Main"} vs {md.opposition ?? "TBC"}
         </h1>
-        <div className="mt-1 flex items-center gap-2 text-xs text-text-secondary">
-          <span>{[md.away ? "Away" : "Home", md.ground, md.competition].filter(Boolean).join(" · ")}</span>
+        <div className="text-text-secondary mt-1 flex items-center gap-2 text-xs">
+          <span>
+            {[md.away ? "Away" : "Home", md.ground, md.competition]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
         </div>
         {md.status === "finished" && md.scoreSummary && (
-          <div className="mt-3 inline-block rounded-md bg-surface-raised px-3 py-1.5 text-sm font-semibold">
+          <div className="bg-surface-raised mt-3 inline-block rounded-md px-3 py-1.5 text-sm font-semibold">
             {md.scoreSummary}
           </div>
         )}
       </header>
 
-      <h2 className="bg-surface-raised px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+      <h2 className="bg-surface-raised text-text-secondary px-4 py-1.5 text-[11px] font-semibold tracking-[0.06em] uppercase">
         Squad · {md.squad.length}
       </h2>
       {md.squad.map((p, i) => (
@@ -103,7 +111,7 @@ export default function TeamSheet() {
       <button
         type="button"
         onClick={() => setShowDropouts((v) => !v)}
-        className="flex w-full items-center justify-between bg-surface-raised px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary"
+        className="bg-surface-raised text-text-secondary flex w-full items-center justify-between px-4 py-2.5 text-[11px] font-semibold tracking-[0.06em] uppercase"
       >
         <span>Drop-outs · {md.dropouts.length}</span>
         <span aria-hidden>{showDropouts ? "▴" : "▾"}</span>
@@ -112,13 +120,13 @@ export default function TeamSheet() {
         md.dropouts.map((p) => (
           <div
             key={p.matchdayPlayerId}
-            className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-t border-border-light bg-surface px-4 py-2.5"
+            className="border-border-light bg-surface grid grid-cols-[28px_1fr_auto] items-center gap-3 border-t px-4 py-2.5"
           >
             <span />
             <div>
               <div className="text-sm font-medium">{p.displayName}</div>
               {p.note && (
-                <div className="text-xs text-text-secondary">"{p.note}"</div>
+                <div className="text-text-secondary text-xs">"{p.note}"</div>
               )}
             </div>
             <StatusPill tone="danger">Dropped out</StatusPill>
@@ -140,25 +148,19 @@ function PlayerRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-[28px_1fr_auto] items-center gap-3 border-t border-border-light px-4 py-2.5",
+        "border-border-light grid grid-cols-[28px_1fr_auto] items-center gap-3 border-t px-4 py-2.5",
         isYou && "bg-info-bg/40",
       )}
     >
-      <div className="text-center text-xs font-medium text-text-secondary">
+      <div className="text-text-secondary text-center text-xs font-medium">
         {rank}
       </div>
       <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
         {p.isCaptain && (
-          <CrownIcon
-            className="size-3.5 text-warning"
-            aria-label="Captain"
-          />
+          <CrownIcon className="text-warning size-3.5" aria-label="Captain" />
         )}
         {p.isKeeper && (
-          <GloveIcon
-            className="size-3.5 text-info"
-            aria-label="Wicketkeeper"
-          />
+          <GloveIcon className="text-info size-3.5" aria-label="Wicketkeeper" />
         )}
         <span className="truncate">
           {p.displayName}
@@ -166,12 +168,12 @@ function PlayerRow({
           {p.isKeeper && " (wk)"}
         </span>
         {isYou && (
-          <span className="rounded bg-navy px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+          <span className="bg-navy rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white uppercase">
             You
           </span>
         )}
         {p.isGuest && (
-          <span className="text-xs italic text-text-secondary">guest</span>
+          <span className="text-text-secondary text-xs italic">guest</span>
         )}
       </div>
     </div>
@@ -180,12 +182,12 @@ function PlayerRow({
 
 function Skel() {
   return (
-    <div className="p-4 space-y-2">
-      <div className="h-6 w-2/3 rounded-md bg-border" />
-      <div className="h-4 w-1/2 rounded-md bg-border-light" />
-      <div className="mt-3 h-10 rounded-md bg-border" />
-      <div className="h-10 rounded-md bg-border" />
-      <div className="h-10 rounded-md bg-border" />
+    <div className="space-y-2 p-4">
+      <div className="bg-border h-6 w-2/3 rounded-md" />
+      <div className="bg-border-light h-4 w-1/2 rounded-md" />
+      <div className="bg-border mt-3 h-10 rounded-md" />
+      <div className="bg-border h-10 rounded-md" />
+      <div className="bg-border h-10 rounded-md" />
     </div>
   );
 }
@@ -193,9 +195,9 @@ function Skel() {
 function ErrState() {
   return (
     <div className="p-6 text-center">
-      <p className="text-sm text-text-secondary">
-        Couldn't load this team sheet. You may need to be signed in or named
-        in the squad.
+      <p className="text-text-secondary text-sm">
+        Couldn't load this team sheet. You may need to be signed in or named in
+        the squad.
       </p>
       <Button asChild tone="outline" className="mt-3">
         <Link to="/fixtures">Back to fixtures</Link>

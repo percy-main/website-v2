@@ -1,5 +1,9 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { getAuthSession, requireAuth, requirePermission } from "../auth/middleware.ts";
+import {
+  getAuthSession,
+  requireAuth,
+  requirePermission,
+} from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import {
   addPlayerResponseSchema,
@@ -20,8 +24,8 @@ import {
   markPaidSchema,
   matchIdParamSchema,
   pastUnfinishedMatchdaysResponseSchema,
-  publicMatchdayResponseSchema,
   playerIdParamSchema,
+  publicMatchdayResponseSchema,
   recordExpenseResponseSchema,
   recordExpenseSchema,
   rejectExpenseSchema,

@@ -50,19 +50,16 @@ export default function OfficialAvailabilityDate() {
       playerName: string;
     }) =>
       callApi(
-        api.POST(
-          "/api/availability/requests/{requestId}/dates/{date}/assign",
-          {
-            params: {
-              path: { requestId: requestId ?? "", date: date ?? "" },
-            },
-            body: {
-              fixtureId: vars.fixtureId,
-              memberId: vars.memberId,
-              playerName: vars.playerName,
-            },
+        api.POST("/api/availability/requests/{requestId}/dates/{date}/assign", {
+          params: {
+            path: { requestId: requestId ?? "", date: date ?? "" },
           },
-        ),
+          body: {
+            fixtureId: vars.fixtureId,
+            memberId: vars.memberId,
+            playerName: vars.playerName,
+          },
+        }),
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["availability"] });
@@ -73,7 +70,7 @@ export default function OfficialAvailabilityDate() {
   if (isLoading) return <Skel />;
   if (isError || !data)
     return (
-      <p className="px-4 py-6 text-sm text-text-secondary">
+      <p className="text-text-secondary px-4 py-6 text-sm">
         Couldn't load this date.
       </p>
     );
@@ -82,23 +79,25 @@ export default function OfficialAvailabilityDate() {
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-24">
-      <header className="flex items-center gap-3 border-b border-border p-3">
+      <header className="border-border flex items-center gap-3 border-b p-3">
         <Link
           to={`/official/availability/${requestId}`}
-          className="grid size-9 place-items-center rounded-md text-text-secondary hover:bg-surface-raised"
+          className="text-text-secondary hover:bg-surface-raised grid size-9 place-items-center rounded-md"
           aria-label="Back"
         >
           <ArrowLeftIcon className="size-5" />
         </Link>
         <div>
-          <strong className="text-sm">{fmtDate(date ?? "", "EEE d MMM")}</strong>
-          <p className="text-[11px] text-text-secondary">
+          <strong className="text-sm">
+            {fmtDate(date ?? "", "EEE d MMM")}
+          </strong>
+          <p className="text-text-secondary text-[11px]">
             {pd.fixtures.length} fixture{pd.fixtures.length === 1 ? "" : "s"}
           </p>
         </div>
       </header>
 
-      <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-raised p-1 mx-4 mt-3">
+      <div className="bg-surface-raised mx-4 mt-3 grid grid-cols-3 gap-1 rounded-xl p-1">
         <SegBtn
           active={tab === "available"}
           onClick={() => setTab("available")}
@@ -191,9 +190,9 @@ function AvailableList({
 }) {
   const assigned = new Set(assignedIds);
   return (
-    <div className="divide-y divide-border-light">
+    <div className="divide-border-light divide-y">
       {pools.length === 0 && (
-        <p className="px-4 py-6 text-sm text-text-secondary">
+        <p className="text-text-secondary px-4 py-6 text-sm">
           No one's said yes yet.
         </p>
       )}
@@ -204,18 +203,18 @@ function AvailableList({
         return (
           <div
             key={p.id}
-            className="flex items-center gap-3 bg-surface px-4 py-3"
+            className="bg-surface flex items-center gap-3 px-4 py-3"
           >
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{p.member_name}</p>
               {p.note && (
-                <p className="truncate text-xs text-text-secondary">
+                <p className="text-text-secondary truncate text-xs">
                   "{p.note}"
                 </p>
               )}
             </div>
             {assignedFix ? (
-              <span className="rounded-full bg-info-bg px-2.5 py-1 text-[11px] font-semibold text-navy">
+              <span className="bg-info-bg text-navy rounded-full px-2.5 py-1 text-[11px] font-semibold">
                 {assignedFix.team_name ?? assignedFix.opposition}
               </span>
             ) : assigned.has(p.member_id) ? null : (
@@ -232,16 +231,14 @@ function AvailableList({
 
 function SimpleList({ items, muted }: { items: Pool[]; muted?: boolean }) {
   return (
-    <div className={cn("divide-y divide-border-light", muted && "opacity-80")}>
+    <div className={cn("divide-border-light divide-y", muted && "opacity-80")}>
       {items.length === 0 && (
-        <p className="px-4 py-6 text-sm text-text-secondary">No one here.</p>
+        <p className="text-text-secondary px-4 py-6 text-sm">No one here.</p>
       )}
       {items.map((p) => (
         <div key={p.id} className="bg-surface px-4 py-3">
           <p className="text-sm font-medium">{p.member_name}</p>
-          {p.note && (
-            <p className="text-xs text-text-secondary">"{p.note}"</p>
-          )}
+          {p.note && <p className="text-text-secondary text-xs">"{p.note}"</p>}
         </div>
       ))}
     </div>
@@ -250,21 +247,21 @@ function SimpleList({ items, muted }: { items: Pool[]; muted?: boolean }) {
 
 function NoResponseList({ items }: { items: NoResp[] }) {
   return (
-    <div className="divide-y divide-border-light">
+    <div className="divide-border-light divide-y">
       {items.length === 0 && (
-        <p className="px-4 py-6 text-sm text-text-secondary">
+        <p className="text-text-secondary px-4 py-6 text-sm">
           Everyone's responded. Nice.
         </p>
       )}
       {items.map((m) => (
         <div
           key={m.id}
-          className="flex items-center gap-3 bg-surface px-4 py-3"
+          className="bg-surface flex items-center gap-3 px-4 py-3"
         >
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{m.name}</p>
             {m.member_category && (
-              <p className="text-xs text-text-secondary">{m.member_category}</p>
+              <p className="text-text-secondary text-xs">{m.member_category}</p>
             )}
           </div>
           {/* Nudging individuals is a phase 3.1 surface (uses
@@ -291,15 +288,15 @@ function AssignSheet({
 }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 md:items-center">
-      <div className="w-full max-w-md rounded-t-3xl bg-surface p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl">
-        <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-border" />
+      <div className="bg-surface w-full max-w-md rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl">
+        <div className="bg-border mx-auto mb-3 h-1 w-9 rounded-full" />
         <h2 className="text-lg font-semibold">Assign {target.member_name}</h2>
-        <p className="mt-1 text-sm text-text-secondary">
+        <p className="text-text-secondary mt-1 text-sm">
           Pick which fixture to put them in.
         </p>
         <div className="mt-4 space-y-2">
           {fixtures.length === 0 && (
-            <p className="rounded-xl bg-border-light px-4 py-3 text-sm text-text-secondary">
+            <p className="bg-border-light text-text-secondary rounded-xl px-4 py-3 text-sm">
               No fixtures on this date.
             </p>
           )}
@@ -309,19 +306,23 @@ function AssignSheet({
               type="button"
               disabled={pending}
               onClick={() => onAssign(f.id)}
-              className="flex w-full items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 text-left disabled:opacity-60"
+              className="border-border bg-surface flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left disabled:opacity-60"
             >
               <div>
                 <p className="text-sm font-semibold">
                   {f.team_name ?? "Senior"} vs {f.opposition}
                 </p>
-                <p className="text-xs text-text-secondary">
-                  {[f.is_home ? "Home" : "Away", f.competition_name, f.match_time]
+                <p className="text-text-secondary text-xs">
+                  {[
+                    f.is_home ? "Home" : "Away",
+                    f.competition_name,
+                    f.match_time,
+                  ]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
               </div>
-              <span className="text-[11px] font-semibold text-text-secondary">
+              <span className="text-text-secondary text-[11px] font-semibold">
                 {f.assignments.length} / 11
               </span>
             </button>
@@ -340,9 +341,9 @@ function AssignSheet({
 function Skel() {
   return (
     <div className="space-y-2 px-4 py-4">
-      <div className="h-10 rounded-xl bg-border" />
-      <div className="h-12 rounded-xl bg-border" />
-      <div className="h-12 rounded-xl bg-border" />
+      <div className="bg-border h-10 rounded-xl" />
+      <div className="bg-border h-12 rounded-xl" />
+      <div className="bg-border h-12 rounded-xl" />
     </div>
   );
 }

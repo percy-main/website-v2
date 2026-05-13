@@ -28,15 +28,13 @@ import type { paths } from "./api.gen.js";
  * dance (which is how `home.tsx` ended up reading `data.games` from a
  * response that's an array — silently undefined, silently empty).
  */
-export type ApiResponse<
-  P extends keyof paths,
-  M extends string = "get",
-> = paths[P] extends Record<
-  M,
-  { responses: { 200: { content: { "application/json": infer R } } } }
->
-  ? R
-  : never;
+export type ApiResponse<P extends keyof paths, M extends string = "get"> =
+  paths[P] extends Record<
+    M,
+    { responses: { 200: { content: { "application/json": infer R } } } }
+  >
+    ? R
+    : never;
 
 class ApiError extends Error {
   constructor(

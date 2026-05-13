@@ -1,5 +1,5 @@
-import { AppShell } from "@/components/shell/app-shell.js";
 import { RequireAuth } from "@/components/require-auth.js";
+import { AppShell } from "@/components/shell/app-shell.js";
 import { lazy } from "react";
 import { createBrowserRouter, type RouteObject } from "react-router";
 

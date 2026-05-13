@@ -23,7 +23,7 @@ export function ServiceWorkerUpdate() {
   return (
     <div
       role="status"
-      className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+72px)] z-40 flex items-center justify-between gap-3 rounded-xl bg-text px-4 py-3 text-sm text-white shadow-lg md:left-auto md:right-6 md:bottom-6 md:max-w-sm"
+      className="bg-text fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+72px)] z-40 flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm text-white shadow-lg md:right-6 md:bottom-6 md:left-auto md:max-w-sm"
     >
       <div>
         <div className="font-semibold">New version available</div>

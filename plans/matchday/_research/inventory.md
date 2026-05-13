@@ -5,6 +5,7 @@
 ### Matchday Feature (`apps/api/src/features/matchday/`)
 
 #### Listing & Viewing
+
 - **GET /matchday** (line 75–89, routes.ts)
   - Role: `official` | `admin`
   - Purpose: List matchdays with filtering by team, status (all/pending/confirmed/finished)
@@ -18,6 +19,7 @@
   - Behavior: Access control via team_official join; returns player statuses, captain/wicketkeeper flags, charge IDs, paid status
 
 #### Team Selection & Management
+
 - **GET /matchday/teams** (line 317–330, routes.ts)
   - Role: `official` | `admin`
   - Purpose: List teams an official can manage (or all teams if admin)
@@ -37,6 +39,7 @@
   - Behavior: Prevents duplicate date+team; inserts with status="pending"
 
 #### Player Management
+
 - **GET /matchday/members/search** (line 366–378, routes.ts)
   - Role: `official` | `admin`
   - Query: `{query: string}`
@@ -56,6 +59,7 @@
   - Behavior: Fails if matchday is finished (service.ts:593–627)
 
 #### Team Confirmation & Match Roles
+
 - **POST /matchday/:matchId/confirm** (line 418–433, routes.ts)
   - Role: `official` | `admin`
   - Body: `{playerStatuses: [{matchdayPlayerId, status: "playing"|"dropped_out"|"no_show"}]}`
@@ -78,6 +82,7 @@
   - Behavior: Updates charge.paid_at and payment_method; requires charge to exist
 
 #### Match Completion
+
 - **POST /matchday/:matchId/finish** (line 480–495, routes.ts)
   - Role: `official` | `admin`
   - Body: `{resultType: "W"|"L"|"D"|"T"|"A"|"C"|"N"}`
@@ -86,6 +91,7 @@
   - Behavior: **First finish only**: submits draft expenses as "submitted", creates missing charges, sends ChargeNotification emails to unpaid players (service.ts:892–1089); idempotent result resubmission allowed
 
 #### Team News Image Generation
+
 - **GET /matchday/:matchId/team-news-image** (line 109–145, routes.ts)
   - Role: `official` | `admin`
   - Query: `{isHome: "true"|"false" (default), matchTime?: string}`
@@ -94,6 +100,7 @@
   - Behavior: Fails with 400 if no players selected; uses match sponsor & player sponsorships from DB
 
 #### Expense Management (Official)
+
 - **POST /matchday/:matchId/expenses** (line 147–165, routes.ts)
   - Role: `official` | `admin`
   - Body: `{type: expenseTypeSchema, description?, amountPence, receiptImage?}`
@@ -119,6 +126,7 @@
   - Behavior: Can submit from pending or confirmed matchday
 
 #### Expense Approval (Admin Only)
+
 - **GET /matchday/expenses/pending** (line 212–224, routes.ts)
   - Role: `admin` only
   - Query: `{status?: "submitted"|"approved", teamId?, limit, offset}`
@@ -149,6 +157,7 @@
 ### Availability Feature (`apps/api/src/features/availability/`)
 
 #### Official Routes
+
 - **POST /availability/requests** (line 72–90, routes.ts)
   - Role: `official` | `admin`
   - Body: `{dateFrom, dateTo (YYYY-MM-DD)}`
@@ -217,12 +226,14 @@
   - Response: `{sent: number, failed: number}`
 
 #### Public Routes
+
 - **GET /availability/requests/:requestId/public** (line 289–300, routes.ts)
   - No auth required
   - Purpose: View request details without logging in
   - Response: Public request data
 
 #### Member Routes
+
 - **GET /availability/active** (line 304–317, routes.ts)
   - Role: `user` (requireAuth)
   - Purpose: Fetch active availability requests for logged-in member
@@ -239,6 +250,7 @@
 ### Games Feature (`apps/api/src/features/games/`)
 
 #### Public Routes (No Auth)
+
 - **GET /games** (line 32–45, routes.ts)
   - Query: `{season?: number}` (defaults to current year)
   - Purpose: List all matches from Play-Cricket for a season (public view)
@@ -254,6 +266,7 @@
 ### Charges Feature (`apps/api/src/features/charges/`)
 
 #### Player Routes (requireAuth)
+
 - **GET /charges** (line 25–38, routes.ts)
   - Role: Any authenticated user
   - Purpose: Fetch player's own outstanding and paid charges
@@ -278,12 +291,14 @@
 ## 2. Existing Main-Site Pages This Replaces
 
 ### Matchday Pages
+
 - **`apps/web/src/pages/matchday/matchday-hub.tsx`** (7.8 KB, line 15–70)
   - Purpose: Hub for matchday features; shows quick links to team management & availability
   - Who: All members (availability section), officials (team management links)
   - Components: AvailabilitySection (responds to active requests)
 
 ### Official Panel Pages
+
 - **`apps/web/src/pages/official/official.tsx`** (54.6 KB)
   - Purpose: Main official dashboard; team management, match setup, player selection, expenses
   - Who: Officials + admins
@@ -300,6 +315,7 @@
   - Components: Request list, date details, response UI, assignment UI, notification preview/send
 
 ### Admin Tabs (Matchday-Related)
+
 - **`apps/web/src/pages/admin/expense-history-tab.tsx`**
   - Purpose: View historical expenses (approved/reimbursed)
   - Tab in admin panel
@@ -321,22 +337,26 @@
 ## 3. Auth + Roles in Use
 
 ### Role Definition
+
 - Roles: `"user"` (default) | `"member"` | `"official"` | `"admin"`
 - Defined in: `better-auth` library (auth.ts plugins); user.role field from session
 - Client usage: `apps/web/src/lib/auth-client.ts` (line 1–16) — configures `adminClient` plugin, passkeyClient, twoFactorClient
 
 ### requireRole Pattern
+
 - Location: `apps/api/src/features/auth/middleware.ts` (line 63–74)
 - Implementation: Returns preHandler that calls `requireAuth`, then checks `user.role` in session
 - Usage: Curried as `requireRole("official", "admin")` → accepts either role
 - Example: `matchdayRoutes` (line 63) uses `officialRole = requireRole("official", "admin")`
 
 ### getAuthSession Pattern
+
 - Location: middleware.ts (line 81–87)
 - Used in route handlers to extract authenticated session
 - Throws 401 if missing (after preHandler validates)
 
 ### Authentication Flow
+
 - **better-auth session retrieval** (middleware.ts:29–42)
   - Validates session via better-auth API using Web Headers conversion
   - Populates `request.authSession = {user, session}`
@@ -347,6 +367,7 @@
   - Defaults to "user" if no role or null
 
 ### Auth Client Configuration
+
 - `apps/web/src/lib/auth-client.ts`
   - Base URL: `VITE_API_URL` env var (e.g., "https://api.v2.percymain.org/api")
   - Plugins: Passkey (passwordless), Two-factor, Admin (role-based checks)
@@ -358,23 +379,23 @@
 
 ### Core Tables
 
-| Table | Primary Key Fields | Fields Referenced in Matchday/Availability Routes |
-|-------|--------------------|---------------------------------------------------|
-| `matchday` | `id` | id, play_cricket_team_id, match_date, opposition, status (pending/confirmed/finished), competition_type, play_cricket_match_id, confirmed_at/by, finished_at/by, result_type, result_confirmed_at/by |
-| `matchday_player` | `id` | id, matchday_id, member_id, player_name, status (selected/playing/dropped_out/no_show/replaced), charge_id, is_captain, is_wicketkeeper, replaced_by_matchday_player_id |
-| `matchday_expense` | `id` | id, matchday_id, expense_type, description, amount_pence, created_by, receipt_image_url, status (draft/submitted/approved/rejected/reimbursed), created_at, submitted_at, approved_at/by, rejected_reason, reimbursed_at/by |
-| `availability_request` | `id` | id, created_by, date_from, date_to, status (open/closed) |
-| `availability_fixture` | `id` | id, availability_request_id, match_date, play_cricket_match_id, play_cricket_team_id, opposition, is_home, competition_name, competition_type, match_time |
-| `availability_response` | `id` | id, availability_request_id, match_date, member_id, status (available/unavailable), note, overridden_by |
-| `availability_assignment` | `id` | id, availability_fixture_id, member_id, player_name, position |
-| `charge` | `id` | id, member_id, amount_pence, type (match_fee), source (matchday), description, charge_date, paid_at, payment_method, deleted_at, stripe_payment_intent_id, payment_confirmed_at |
-| `match_fee_rate` | `id` | id, play_cricket_team_id (nullable), competition_type (nullable), member_category, amount_pence |
-| `member` | `id` | id, name, email, member_category, slug (for sponsorship lookup) |
-| `play_cricket_team` | `id` | id, name, is_junior |
-| `team_official` | (user_id, play_cricket_team_id) | user_id, play_cricket_team_id |
-| `player_sponsorship` | `id` | slug, sponsor_name, display_name, season, approved, paid_at |
-| `game_sponsorship` | `id` | game_id, sponsor_name, display_name, sponsor_logo_url, approved, paid_at |
-| `user` | `id` | id, name, role (enum: user/member/official/admin), email |
+| Table                     | Primary Key Fields              | Fields Referenced in Matchday/Availability Routes                                                                                                                                                                           |
+| ------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `matchday`                | `id`                            | id, play_cricket_team_id, match_date, opposition, status (pending/confirmed/finished), competition_type, play_cricket_match_id, confirmed_at/by, finished_at/by, result_type, result_confirmed_at/by                        |
+| `matchday_player`         | `id`                            | id, matchday_id, member_id, player_name, status (selected/playing/dropped_out/no_show/replaced), charge_id, is_captain, is_wicketkeeper, replaced_by_matchday_player_id                                                     |
+| `matchday_expense`        | `id`                            | id, matchday_id, expense_type, description, amount_pence, created_by, receipt_image_url, status (draft/submitted/approved/rejected/reimbursed), created_at, submitted_at, approved_at/by, rejected_reason, reimbursed_at/by |
+| `availability_request`    | `id`                            | id, created_by, date_from, date_to, status (open/closed)                                                                                                                                                                    |
+| `availability_fixture`    | `id`                            | id, availability_request_id, match_date, play_cricket_match_id, play_cricket_team_id, opposition, is_home, competition_name, competition_type, match_time                                                                   |
+| `availability_response`   | `id`                            | id, availability_request_id, match_date, member_id, status (available/unavailable), note, overridden_by                                                                                                                     |
+| `availability_assignment` | `id`                            | id, availability_fixture_id, member_id, player_name, position                                                                                                                                                               |
+| `charge`                  | `id`                            | id, member_id, amount_pence, type (match_fee), source (matchday), description, charge_date, paid_at, payment_method, deleted_at, stripe_payment_intent_id, payment_confirmed_at                                             |
+| `match_fee_rate`          | `id`                            | id, play_cricket_team_id (nullable), competition_type (nullable), member_category, amount_pence                                                                                                                             |
+| `member`                  | `id`                            | id, name, email, member_category, slug (for sponsorship lookup)                                                                                                                                                             |
+| `play_cricket_team`       | `id`                            | id, name, is_junior                                                                                                                                                                                                         |
+| `team_official`           | (user_id, play_cricket_team_id) | user_id, play_cricket_team_id                                                                                                                                                                                               |
+| `player_sponsorship`      | `id`                            | slug, sponsor_name, display_name, season, approved, paid_at                                                                                                                                                                 |
+| `game_sponsorship`        | `id`                            | game_id, sponsor_name, display_name, sponsor_logo_url, approved, paid_at                                                                                                                                                    |
+| `user`                    | `id`                            | id, name, role (enum: user/member/official/admin), email                                                                                                                                                                    |
 
 See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 289–347 for matchday-related).
 
@@ -385,6 +406,7 @@ See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 
 ### (a) Availability Request Lifecycle
 
 **1. Create Request**
+
 - Official calls `POST /availability/requests` with dateFrom, dateTo
 - Service fetches Play-Cricket API (getMatchesSummary) for 1–3 seasons (handles Jan–Mar year boundary)
 - Filters to senior teams (is_junior=false) matching site_id
@@ -392,42 +414,51 @@ See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 
 - Response: {id, fixtureCount}
 
 **2. Member Responds**
+
 - Member: `GET /availability/active` → fetch open requests (requires email lookup)
 - Member: `POST /availability/requests/:id/respond` with dates array
 - Service creates/updates availability_response per date (status: available | unavailable, optional note)
 
 **3. Official Views Responses**
+
 - Official: `GET /availability/requests/:id` → see all dates with response counts
 - Official: `GET /availability/requests/:id/dates/:date` → see fixtures, list available/unavailable/no-response members, existing assignments
 
 **4. Official Assigns Players**
+
 - Official: `POST /availability/requests/:id/dates/:date/assign` with memberId, position
 - Creates availability_assignment record per fixture
 
 **5. Close Request**
+
 - Official: `PATCH /availability/requests/:id` with status="closed"
 
 ### (b) Team Selection Flow
 
 **1. List Upcoming Matches**
+
 - Official: `GET /matchday/teams/:teamId/upcoming`
 - Service fetches Play-Cricket (filters by siteId + teamId, date range is today onwards)
 - Returns match info + existing matchday_id & status (if already created)
 
 **2. Create Matchday**
+
 - Official: `POST /matchday` with teamId, matchDate, opposition, competitionType?, playCricketMatchId?
 - Service validates no duplicate (team+date), creates matchday with status="pending"
 - Response: {id}
 
 **3. Search & Add Players**
+
 - Official: `GET /matchday/members/search?query=...` → member list (name, email, category)
 - Official: `POST /matchday/:id/players` with memberId or playerName (guest)
 - Service creates guest member if needed (category="guest", minimal fields); creates matchday_player (status="selected")
 
 **4. Remove Players**
+
 - Official: `DELETE /matchday/:id/players/:playerId`
 
 **5. Confirm Team**
+
 - Official: `POST /matchday/:id/confirm` with playerStatuses array
 - Service:
   - Updates matchday.status="confirmed", confirmed_at, confirmed_by
@@ -440,6 +471,7 @@ See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 
 ### (c) Pre-Match: Team News & Roles
 
 **1. Team News Image Generation**
+
 - Official: `GET /matchday/:id/team-news-image?isHome=true|false&matchTime=...`
 - Service (team-news-image.ts):
   - Calls getTeamNewsData to fetch matchday, players (status != replaced), team name
@@ -449,16 +481,19 @@ See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 
 - Response: PNG binary
 
 **2. Set Captain & Wicketkeeper**
+
 - Official: `PUT /matchday/:id/roles` with captainPlayerId, wicketkeeperPlayerId
 - Service clears previous role assignments, sets new ones in transaction
 
 ### (d) Post-Match: Fees & Finish
 
 **1. Mark Fee Paid (Optional, Before Finish)**
+
 - Official: `POST /matchday/:id/players/:playerId/mark-paid` with paymentMethod
 - Service updates charge.paid_at, payment_method
 
 **2. Finish Match**
+
 - Official: `POST /matchday/:id/finish` with resultType (W|L|D|T|A|C|N)
 - **First finish (matchday.status="confirmed"):**
   - Sets matchday.status="finished", finished_at, finished_by, result fields
@@ -475,6 +510,7 @@ See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 
 ### (e) Expenses: Record → Approve → Reimburse
 
 **1. Record Expense (Draft)**
+
 - Official: `POST /matchday/:id/expenses` with type, description?, amountPence, receiptImage?
 - Service:
   - Validates matchday.status="confirmed" (not pending, not finished)
@@ -483,24 +519,29 @@ See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 
 - Response: {expenseId}
 
 **2. Update/Delete Draft**
+
 - Official: `PUT /matchday/expenses/:id` to update type/description/amount
 - Official: `DELETE /matchday/expenses/:id` to remove
 
 **3. Submit Expense Claim**
+
 - Official: `POST /matchday/:id/expenses/submit` (can be done while confirmed or after finish)
 - Service: Creates matchday_expense (status="submitted", submitted_at=now)
 - OR: Finish match → auto-submits all draft expenses
 
 **4. Admin Reviews Pending**
+
 - Admin: `GET /matchday/expenses/pending?status=submitted|approved&teamId=...&limit&offset`
 - Response: Paginated list with opposition, match_date, team_id, creator_name, receipt_image_url
 
 **5. Approve/Reject**
+
 - Admin: `POST /matchday/expenses/:id/approve` → status="approved", approved_at, approved_by
 - Admin: `POST /matchday/expenses/:id/reject` with reason → status="rejected", rejected_reason
 - Only submitted expenses can be approved/rejected
 
 **6. Reimburse**
+
 - Admin: `POST /matchday/expenses/:id/reimburse`
 - Service: Sets status="reimbursed", reimbursed_at, reimbursed_by
 - Only approved expenses can be reimbursed
@@ -510,10 +551,12 @@ See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 
 ## 6. Integrations + Side Effects
 
 ### Play-Cricket API Client
+
 **Location**: `apps/api/src/features/play-cricket/api-client.ts` (line 44–87)
 **Endpoint**: `https://www.play-cricket.com/api/v2`
 
 **Methods**:
+
 - `getMatchesSummary(season: number)` — used by matchday.getUpcomingMatches & availability.createRequest
 - `getMatchDetail(matchId: string)` — detailed match data (scores, performance)
 - `getPlayers()` — site player list
@@ -521,14 +564,17 @@ See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 
 - `getLeagueTable(divisionId: string)` — league standings
 
 **Used by**:
+
 - Matchday: upcoming match list (getUpcomingMatches), team-news image (game_sponsorship lookup)
 - Availability: fixture creation (createRequest, previewFixtures)
 - Games: match list and detail (public routes)
 
 ### Email Notifications
+
 **Library**: `@percy-main/email` (React Email templates)
 
 **On finishMatch (first finish only)**:
+
 - **ChargeNotification** template (service.ts:1055–1070)
   - To: unpaid playing players' member.email
   - Content: Amount, description (opposition/date), charge_date, login URL
@@ -537,29 +583,35 @@ See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 
   - Error handling: Catches per-email failures, collects in emailErrors array
 
 **On availability request notification** (routes.ts:271–284):
+
 - Can send custom emails to selected members
 - Returns {sent, failed}
 
 ### S3 Expense Receipt Upload
+
 **Location**: `apps/api/src/lib/s3-upload.ts`
 **Called by**: recordExpense (line 71), submitExpenseClaim (line 205)
 
 **Process**:
+
 - Parses base64 data URL: `/^data:(image\/(?:jpeg|png|webp|heic));base64,(.+)$/`
 - Decodes to bytes, uploads via `s3.uploadReceipt({imageBytes, contentType, expenseId})`
 - Returns S3 URL or null (optional, 400 error if invalid format provided)
 
 ### Image Generation (Team News)
+
 **Library**: `sharp` (image processing), `opentype.js` (font parsing)
 **Location**: `apps/api/src/features/matchday/team-news-image.ts` (line 1–80)
 
 **Assets** (relative to dist):
+
 - `pitch.jpg` — background image
 - `club_logo.png` — Percy Main logo
 - `club_sponsor.png` — main sponsor logo
 - `Anton-Regular.ttf` — display font (parsed at module load)
 
 **Output**: 1080×1080 PNG with:
+
 - Hero image (pitch), red panel, player names (formatted short names), captain/keeper markers, sponsorship text
 
 ---
@@ -567,61 +619,73 @@ See `packages/db/src/__generated__/db.ts` for full Kysely-generated types (line 
 ## 7. Gotchas & Tech Debt
 
 ### 1. Role-Check Logic Baked into Services
+
 **Issue**: Access control is scattered—`getAccessibleTeamIds` (service.ts:33–53) is called in many services but logic is duplicated with requireRole middleware.
 **Impact**: Risk of auth bypass if a service is called without the middleware check.
 **Recommendation**: Centralize role/team access validation in a shared service or custom preHandler.
 
 ### 2. Static Route Registration Order
+
 **Issue**: `GET /matchday/expenses/pending` **must** be registered before parameterized `:expenseId` routes (routes.ts:211 comment) or it will be treated as a variable param.
 **Impact**: Easy to break if route order is accidentally changed during refactoring.
 **Recommendation**: Use explicit route prefixes or group related routes.
 
 ### 3. Idempotent finishMatch with Conditional Side Effects
+
 **Issue**: finishMatch (service.ts:920–1088) is idempotent on result resubmission but only runs charge/email logic on first finish (`isFirstFinish = matchday.status === "confirmed"`).
 **Impact**: Easy to assume result updates are always idempotent, but this is a subtle state-check in the middle of the handler. Silent no-op on retry.
 **Recommendation**: Document behavior or split into separate endpoints (finish vs. update-result).
 
 ### 4. Fee Rate Lookup Logic Complexity
+
 **Issue**: `findFeeRate` (service.ts:90–127) uses 4-level priority; bursary category is hard-coded exempt (line 725). Matching is by exact category string.
 **Impact**: If category naming changes or new categories added, fee logic breaks silently (no matching rate = no charge).
 **Recommendation**: Store a canonical category enum, add validation at member creation.
 
 ### 5. Guest Member Creation in addPlayer
+
 **Issue**: Guest members created on-the-fly with minimal fields (empty email, title, address, etc.) just to represent ad-hoc players. No cleanup of unused guests.
 **Impact**: DB pollution; difficult to query "real" members vs. one-off players.
 **Recommendation**: Use a dedicated guest/pseudo-member flag or separate table for ad-hoc registrations.
 
 ### 6. Email Sending Error Handling
+
 **Issue**: finishMatch email loop (service.ts:1047–1081) catches errors per player but doesn't retry; errors are just logged and collected in response.
 **Impact**: Player doesn't know payment is due if email fails; no alert to admin.
 **Recommendation**: Add retry queue (bull/BullMQ) or send admin alert on email failure.
 
 ### 7. Play-Cricket API Date Parsing
+
 **Issue**: Play-Cricket returns dates as "dd/MM/yyyy"; conversion to ISO (YYYY-MM-DD) done via string manipulation (service.ts:29–31) to avoid timezone issues.
 **Impact**: Fragile if Play-Cricket format changes; assumes exactly 10 chars.
 **Recommendation**: Add date validation or use a date parsing library with format specification.
 
 ### 8. Season Year Heuristic in getUpcomingMatches
+
 **Issue**: Jan–Mar logic (service.ts:393–394) assumes Feb/Mar transitions may span seasons. Hard-coded year boundary.
 **Impact**: Breaks in edge cases (e.g., new year, daylight saving shifts).
 **Recommendation**: Make date range configurable by officials (allow selecting season explicitly).
 
 ### 9. No Pagination on availability_fixture Fetches
+
 **Issue**: getRequest (service.ts:237–242) fetches all fixtures for a request with no limit.
 **Impact**: Large requests (100+ matches) will be slow and memory-heavy.
 **Recommendation**: Implement cursor-based or limit-based pagination.
 
 ### 10. Stripe Payment Intent Linkage Under Lock
+
 **Issue**: payOutstandingCharges uses `forUpdate()` (service.ts:55–56) to prevent concurrent payment requests, but the lock is released after creating the PI.
 **Impact**: If two requests race and both create a PI before seeing the other's PI, charges get double-linked.
 **Recommendation**: Consider holding the lock until successful payment confirmation or use a unique charge batch ID.
 
 ### 11. Type Casting for user.role
+
 **Issue**: Throughout routes (line 86, 102, 159, etc.), user.role is cast as `{ role?: string | null }` because TypeScript doesn't narrow the session type.
 **Impact**: Repetitive; risk of typo in cast.
 **Recommendation**: Extend better-auth User type globally or create a typed helper.
 
 ### 12. No Validation of Overlapping Availability Requests
+
 **Issue**: createRequest checks for overlap (service.ts:46–59), but does not prevent re-opening a previously closed request.
 **Impact**: Could accidentally create duplicate fixture records if close/reopen pattern used.
 **Recommendation**: Enforce request status strict state machine (open → closed → archived).

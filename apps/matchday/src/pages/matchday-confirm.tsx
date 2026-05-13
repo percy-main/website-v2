@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button.js";
-import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { fmtDate } from "@/features/format.js";
+import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -88,38 +88,37 @@ export default function MatchdayConfirm() {
   if (!md) {
     return (
       <div className="space-y-2 p-4">
-        <div className="h-10 rounded-md bg-border" />
-        <div className="h-32 rounded-2xl bg-border" />
+        <div className="bg-border h-10 rounded-md" />
+        <div className="bg-border h-32 rounded-2xl" />
       </div>
     );
   }
 
   const playing = players.filter((p) => effectiveStatuses[p.id] === "playing");
-  const dropped = players.filter((p) => effectiveStatuses[p.id] === "dropped_out");
+  const dropped = players.filter(
+    (p) => effectiveStatuses[p.id] === "dropped_out",
+  );
   const noShow = players.filter((p) => effectiveStatuses[p.id] === "no_show");
-  const canContinue =
-    step === 2
-      ? captain !== null && keeper !== null
-      : true;
+  const canContinue = step === 2 ? captain !== null && keeper !== null : true;
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-32">
-      <header className="flex items-center gap-3 border-b border-border p-3">
+      <header className="border-border flex items-center gap-3 border-b p-3">
         <Link
           to={`/matchday/${matchdayId ?? ""}/edit`}
           aria-label="Back"
-          className="grid size-9 place-items-center rounded-md text-text-secondary hover:bg-surface-raised"
+          className="text-text-secondary hover:bg-surface-raised grid size-9 place-items-center rounded-md"
         >
           <ArrowLeftIcon className="size-5" />
         </Link>
         <div className="flex-1">
           <strong className="text-sm">Confirm team</strong>
-          <p className="text-[11px] text-text-secondary">
+          <p className="text-text-secondary text-[11px]">
             {md.team?.name ?? "Team"} vs {md.matchday.opposition} ·{" "}
             {fmtDate(md.matchday.match_date, "EEE d MMM")}
           </p>
         </div>
-        <span className="text-xs text-text-secondary">{step} / 3</span>
+        <span className="text-text-secondary text-xs">{step} / 3</span>
       </header>
 
       <div className="flex gap-1.5 px-4 py-3">
@@ -158,14 +157,12 @@ export default function MatchdayConfirm() {
           captainName={
             playing.find((p) => p.id === captain)?.player_name ?? null
           }
-          keeperName={
-            playing.find((p) => p.id === keeper)?.player_name ?? null
-          }
+          keeperName={playing.find((p) => p.id === keeper)?.player_name ?? null}
         />
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur md:static">
-        <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 md:pb-3">
+      <div className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur md:static">
+        <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)] md:pb-3">
           {step > 1 && (
             <Button
               tone="outline"
@@ -204,7 +201,7 @@ export default function MatchdayConfirm() {
       </div>
 
       {(confirmTeam.isError || setRoles.isError) && (
-        <p className="px-4 py-2 text-sm text-danger">
+        <p className="text-danger px-4 py-2 text-sm">
           Couldn't confirm, try again.
         </p>
       )}
@@ -224,19 +221,19 @@ function Step1({
   return (
     <div className="space-y-1">
       <header className="px-4 pt-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+        <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
           Step 1 · statuses
         </p>
         <h2 className="text-lg font-semibold">Anyone dropping out?</h2>
-        <p className="text-sm text-text-secondary">
+        <p className="text-text-secondary text-sm">
           Everyone is "Playing" by default.
         </p>
       </header>
-      <ul className="divide-y divide-border-light">
+      <ul className="divide-border-light divide-y">
         {players.map((p) => (
           <li
             key={p.id}
-            className="flex items-center gap-2 bg-surface px-4 py-2.5"
+            className="bg-surface flex items-center gap-2 px-4 py-2.5"
           >
             <p className="flex-1 text-sm font-medium">{p.player_name}</p>
             <div className="flex gap-1">
@@ -281,17 +278,17 @@ function Step2({
   return (
     <div>
       <header className="px-4 pt-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+        <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
           Step 2 · roles
         </p>
         <h2 className="text-lg font-semibold">Captain & wicketkeeper</h2>
-        <p className="text-sm text-text-secondary">One of each.</p>
+        <p className="text-text-secondary text-sm">One of each.</p>
       </header>
-      <ul className="divide-y divide-border-light">
+      <ul className="divide-border-light divide-y">
         {players.map((p) => (
           <li
             key={p.id}
-            className="flex items-center gap-2 bg-surface px-4 py-2.5"
+            className="bg-surface flex items-center gap-2 px-4 py-2.5"
           >
             <div className="flex-1">
               <p className="text-sm font-medium">{p.player_name}</p>
@@ -347,24 +344,24 @@ function Step3({
   return (
     <div className="space-y-3 px-4 pt-2">
       <header>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+        <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
           Step 3 · review
         </p>
         <h2 className="text-lg font-semibold">Ready to confirm?</h2>
       </header>
-      <div className="rounded-2xl border border-border bg-surface p-4 text-sm">
+      <div className="border-border bg-surface rounded-2xl border p-4 text-sm">
         <p className="font-semibold">
           {playing.length} playing · {dropped.length} dropped · {noShow.length}{" "}
           no-show
         </p>
-        <p className="mt-2 text-text-secondary">
+        <p className="text-text-secondary mt-2">
           Captain: <strong>{captainName ?? "—"}</strong>
         </p>
         <p className="text-text-secondary">
           Keeper: <strong>{keeperName ?? "—"}</strong>
         </p>
       </div>
-      <p className="rounded-2xl bg-warning-bg p-3 text-xs text-warning">
+      <p className="bg-warning-bg text-warning rounded-2xl p-3 text-xs">
         Confirming creates donations using the current rates from the admin
         schedule. Donations are charged via the main site (Stripe).
       </p>
@@ -373,7 +370,11 @@ function Step3({
 }
 
 function statusLabel(s: PlayerStatus): string {
-  return s === "playing" ? "Playing" : s === "dropped_out" ? "Dropped" : "No-show";
+  return s === "playing"
+    ? "Playing"
+    : s === "dropped_out"
+      ? "Dropped"
+      : "No-show";
 }
 function statusClasses(s: PlayerStatus): string {
   if (s === "playing") return "bg-success text-white";

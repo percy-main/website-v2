@@ -1,7 +1,13 @@
 import { InstallPrompt } from "@/components/install-prompt.js";
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
-import { Card, CardContent, CardEyebrow, CardHeader, CardTitle } from "@/components/ui/card.js";
+import {
+  Card,
+  CardContent,
+  CardEyebrow,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card.js";
 import { fmtMoneyPence } from "@/features/format.js";
 import { oppositionName, played, type Game } from "@/features/games.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
@@ -41,7 +47,7 @@ export default function Home() {
         <h1 className="text-2xl font-semibold tracking-[-0.015em]">
           Hi {firstName}
         </h1>
-        <p className="text-sm text-text-secondary">
+        <p className="text-text-secondary text-sm">
           What needs doing on Matchday today.
         </p>
       </div>
@@ -81,7 +87,7 @@ function AvailabilityAwaitingCard() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="mb-3 text-sm text-text-secondary">
+        <p className="text-text-secondary mb-3 text-sm">
           Manager picks the squad mid-week. Takes a minute.
         </p>
         <Button asChild tone="primary" className="w-full">
@@ -140,10 +146,10 @@ function OutstandingDonationsCard() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold tracking-[-0.02em] text-navy dark:text-white">
+        <div className="text-navy text-3xl font-bold tracking-[-0.02em] dark:text-white">
           {fmtMoneyPence(total)}
         </div>
-        <p className="mt-1 mb-3 text-sm text-text-secondary">
+        <p className="text-text-secondary mt-1 mb-3 text-sm">
           {outstanding.length} unpaid match{" "}
           {outstanding.length === 1 ? "donation" : "donations"}
         </p>
@@ -181,7 +187,7 @@ function UpcomingFixturesCard() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardEyebrow>Upcoming fixtures</CardEyebrow>
-          <Link to="/fixtures" className="text-xs text-text-secondary">
+          <Link to="/fixtures" className="text-text-secondary text-xs">
             See all
           </Link>
         </div>
@@ -231,21 +237,21 @@ function FixtureRow({ game }: { game: Game }) {
   return (
     <Link
       to={`/fixture/${game.id}`}
-      className="grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t border-border-light py-2.5 first:border-t-0"
+      className="border-border-light grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t py-2.5 first:border-t-0"
     >
-      <div className="flex flex-col items-center justify-center rounded-md bg-surface-raised py-1">
-        <div className="text-base font-bold leading-none text-navy dark:text-white">
+      <div className="bg-surface-raised flex flex-col items-center justify-center rounded-md py-1">
+        <div className="text-navy text-base leading-none font-bold dark:text-white">
           {day}
         </div>
-        <div className="text-[10px] uppercase tracking-wide text-text-secondary">
+        <div className="text-text-secondary text-[10px] tracking-wide uppercase">
           {dayName}
         </div>
       </div>
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium leading-tight">
+        <div className="truncate text-sm leading-tight font-medium">
           vs {oppositionName(game)}
         </div>
-        <div className="mt-0.5 text-xs text-text-secondary">
+        <div className="text-text-secondary mt-0.5 text-xs">
           {[game.team.name, game.home ? "Home" : "Away", game.competition.name]
             .filter(Boolean)
             .join(" · ")}
@@ -263,9 +269,13 @@ function TimePill({ game }: { game: Game }) {
 function ResultPill({ game }: { game: Game }) {
   const o = game.outcome;
   if (o === "W")
-    return <StatusPill tone="success">{game.scoreDescription ?? "W"}</StatusPill>;
+    return (
+      <StatusPill tone="success">{game.scoreDescription ?? "W"}</StatusPill>
+    );
   if (o === "L")
-    return <StatusPill tone="danger">{game.scoreDescription ?? "L"}</StatusPill>;
+    return (
+      <StatusPill tone="danger">{game.scoreDescription ?? "L"}</StatusPill>
+    );
   if (o === "D" || o === "T")
     return <StatusPill tone="warning">{game.scoreDescription ?? o}</StatusPill>;
   return <StatusPill tone="neutral">{o ?? "—"}</StatusPill>;
@@ -275,12 +285,12 @@ function CardSkeleton() {
   return (
     <Card>
       <CardHeader>
-        <div className="h-3 w-24 rounded-md bg-border" />
+        <div className="bg-border h-3 w-24 rounded-md" />
       </CardHeader>
       <CardContent>
-        <div className="mb-2 h-5 w-3/4 rounded-md bg-border" />
-        <div className="mb-3 h-4 w-1/2 rounded-md bg-border-light" />
-        <div className="h-11 rounded-md bg-border" />
+        <div className="bg-border mb-2 h-5 w-3/4 rounded-md" />
+        <div className="bg-border-light mb-3 h-4 w-1/2 rounded-md" />
+        <div className="bg-border h-11 rounded-md" />
       </CardContent>
     </Card>
   );
@@ -289,7 +299,7 @@ function CardSkeleton() {
 function CardError({ label }: { label: string }) {
   return (
     <Card>
-      <CardContent className="flex items-center gap-2 pt-4 text-sm text-text-secondary">
+      <CardContent className="text-text-secondary flex items-center gap-2 pt-4 text-sm">
         <CalendarDaysIcon className="size-4" />
         {label}
       </CardContent>

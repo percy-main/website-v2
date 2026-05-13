@@ -8,15 +8,15 @@ import { NavLink } from "react-router";
  */
 export function DesktopSideNav({ tabs }: { tabs: TabDef[] }) {
   return (
-    <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 border-r border-border bg-surface px-3 py-5 md:flex md:flex-col md:gap-1">
+    <aside className="border-border bg-surface sticky top-0 hidden h-dvh w-56 shrink-0 border-r px-3 py-5 md:flex md:flex-col md:gap-1">
       <div className="px-2 pb-4">
         <div className="flex items-center gap-2">
-          <div className="grid size-8 place-items-center rounded-md bg-navy text-[11px] font-bold tracking-wide text-white">
+          <div className="bg-navy grid size-8 place-items-center rounded-md text-[11px] font-bold tracking-wide text-white">
             PM
           </div>
           <div>
-            <div className="text-sm font-bold leading-none">Matchday</div>
-            <div className="mt-0.5 text-[11px] text-text-secondary">
+            <div className="text-sm leading-none font-bold">Matchday</div>
+            <div className="text-text-secondary mt-0.5 text-[11px]">
               Percy Main CSC
             </div>
           </div>
@@ -40,7 +40,7 @@ export function DesktopSideNav({ tabs }: { tabs: TabDef[] }) {
             <tab.icon className="size-[18px]" strokeWidth={2} />
             {tab.label}
             {tab.badge !== undefined && tab.badge > 0 && (
-              <span className="ml-auto rounded-full bg-red px-1.5 py-px text-[10px] font-bold text-white">
+              <span className="bg-red ml-auto rounded-full px-1.5 py-px text-[10px] font-bold text-white">
                 {tab.badge > 99 ? "99+" : tab.badge}
               </span>
             )}

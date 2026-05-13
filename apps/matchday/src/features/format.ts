@@ -28,7 +28,9 @@ export function fmtDate(
   return format(d, pattern);
 }
 
-export function fmtMoneyPence(pence: number | string | null | undefined): string {
+export function fmtMoneyPence(
+  pence: number | string | null | undefined,
+): string {
   if (pence === null || pence === undefined) return "£0";
   const n = typeof pence === "string" ? Number(pence) : pence;
   if (!Number.isFinite(n)) return "£0";

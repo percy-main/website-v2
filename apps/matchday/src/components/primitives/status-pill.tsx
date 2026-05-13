@@ -27,7 +27,8 @@ const pillStyles = cva(
 );
 
 export interface StatusPillProps
-  extends React.HTMLAttributes<HTMLSpanElement>,
+  extends
+    React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof pillStyles> {
   dot?: boolean;
 }
@@ -42,10 +43,7 @@ export function StatusPill({
   return (
     <span className={cn(pillStyles({ tone }), className)} {...props}>
       {dot && (
-        <span
-          aria-hidden
-          className="size-[6px] rounded-full bg-current"
-        />
+        <span aria-hidden className="size-[6px] rounded-full bg-current" />
       )}
       {children}
     </span>

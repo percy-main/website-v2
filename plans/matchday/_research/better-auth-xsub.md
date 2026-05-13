@@ -20,8 +20,8 @@ return betterAuth({
   advanced: {
     crossSubDomainCookies: {
       enabled: true,
-      domain: ".percymain.org" // Root domain with dot prefix
-    }
+      domain: ".percymain.org", // Root domain with dot prefix
+    },
   },
   // ... rest of config
 });
@@ -32,6 +32,7 @@ return betterAuth({
 ### Security Attributes
 
 Better-auth automatically sets cookies with:
+
 - **`httpOnly: true`** — Prevents JavaScript from accessing the session token (protects against XSS).
 - **`secure: true`** (in production) — Cookies only sent over HTTPS.
 - **`sameSite: "Lax"` or `"Strict"`** (default: "Lax") — Mitigates CSRF. "Lax" allows top-level navigations but blocks cross-site form submissions; "Strict" blocks both.
@@ -43,6 +44,7 @@ No custom modifications needed unless you have a specific reason to weaken these
 For **development** with `localhost:3000` (API), `localhost:5173` (main), `localhost:5174` (matchday):
 
 Localhost cookies **do not support domain-based sharing**. You must use the same origin or configure a reverse proxy. Options:
+
 1. Run all three on different ports with a reverse proxy (e.g., `auth.localhost`, `app.localhost`, `matchday.localhost` via `/etc/hosts`).
 2. Accept that dev has separate session stores and use `ngrok` or similar to test cross-subdomain sharing.
 3. Disable the `secure` flag in dev and rely on path-based separation.
@@ -55,17 +57,17 @@ The current setup already includes `trustedOrigins`:
 
 ```typescript
 // Current (apps/api/src/features/auth/auth.ts, lines 23–25)
-trustedOrigins: [baseURL, config.DEPLOY_PRIME_URL].filter(Boolean) as string[]
+trustedOrigins: [baseURL, config.DEPLOY_PRIME_URL].filter(Boolean) as string[];
 ```
 
 Extend it to include the new matchday SPA:
 
 ```typescript
 trustedOrigins: [
-  baseURL,                                    // https://percymain.org (or www.)
-  "https://matchday.percymain.org",           // New subdomain
-  config.DEPLOY_PRIME_URL,                    // Preview/staging URL
-].filter(Boolean) as string[]
+  baseURL, // https://percymain.org (or www.)
+  "https://matchday.percymain.org", // New subdomain
+  config.DEPLOY_PRIME_URL, // Preview/staging URL
+].filter(Boolean) as string[];
 ```
 
 ### Impact on CORS and CSRF
@@ -128,6 +130,7 @@ Use the **API subdomain explicitly** rather than relative paths. This ensures co
 Better-auth does **not** have a built-in redirect mechanism for unauthenticated users. Options:
 
 1. **Client-side guard (React Router):**
+
    ```typescript
    function ProtectedRoute() {
      const { data: session, isPending } = useQuery({
@@ -172,6 +175,7 @@ Browsers do **not** share cookies across different ports on `localhost` (e.g., `
 ### Workaround: /etc/hosts + Reverse Proxy
 
 1. Edit `/etc/hosts`:
+
    ```
    127.0.0.1 api.localhost
    127.0.0.1 app.localhost
@@ -179,6 +183,7 @@ Browsers do **not** share cookies across different ports on `localhost` (e.g., `
    ```
 
 2. Run each service on a single port or use a reverse proxy:
+
    ```nginx
    server {
      listen 80;
@@ -200,6 +205,7 @@ Browsers do **not** share cookies across different ports on `localhost` (e.g., `
    ```
 
 3. Update better-auth config for dev:
+
    ```typescript
    const isProduction = process.env.NODE_ENV === "production";
 
@@ -229,6 +235,7 @@ Browsers do **not** share cookies across different ports on `localhost` (e.g., `
 ### Current Version: 1.5.4 → 1.6.7
 
 **Breaking changes to review:**
+
 - **Cross-subdomain cookies plugin (PR #6359):** Recently merged but still under review. The cross-subdomain feature is available but underwent security fixes to prevent subdomain validation bypass. If upgrading to 1.6.x, test subdomain validation thoroughly.
 - **Safari ITP (Intelligent Tracking Prevention):** If session cookies are set by `api.percymain.org` and read by `matchday.percymain.org`, Safari's ITP may block third-party cookies depending on user browsing behavior. Workaround: use a reverse proxy so auth is served from the same domain as the SPA, or set `sameSite: "None"` with `secure: true` (requires explicit user gesture).
 - **OAuth state mismatch (Issue #5519):** Reported in 1.3.18+. If using OAuth, ensure `trustedOrigins` includes all subdomains to avoid state validation failures.
@@ -241,15 +248,15 @@ Test with the current 1.5.4 first. Upgrade to 1.6.7+ only after testing the cros
 
 ## Summary Table
 
-| Aspect | Setting | Notes |
-|--------|---------|-------|
-| **Cookie Domain** | `.percymain.org` | Leading dot required for subdomain inclusion. |
-| **crossSubDomainCookies** | `{ enabled: true, domain: ".percymain.org" }` | Enables session sharing across all subdomains. |
-| **trustedOrigins** | `["https://percymain.org", "https://matchday.percymain.org"]` | Add the new subdomain to prevent CSRF rejection. |
-| **Client baseURL** | `https://api.percymain.org` | Point matchday client to the API, not the matchday domain. |
-| **credentials** | `include` | Required on all fetch calls for cookie transmission. |
-| **sameSite** | Lax (default) | Use Lax for top-level navigations; Strict for stricter CSRF. |
-| **Dev Domain** | `.localhost` (via /etc/hosts) | localhost ports do not share cookies; use domain-based setup. |
+| Aspect                    | Setting                                                       | Notes                                                         |
+| ------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- |
+| **Cookie Domain**         | `.percymain.org`                                              | Leading dot required for subdomain inclusion.                 |
+| **crossSubDomainCookies** | `{ enabled: true, domain: ".percymain.org" }`                 | Enables session sharing across all subdomains.                |
+| **trustedOrigins**        | `["https://percymain.org", "https://matchday.percymain.org"]` | Add the new subdomain to prevent CSRF rejection.              |
+| **Client baseURL**        | `https://api.percymain.org`                                   | Point matchday client to the API, not the matchday domain.    |
+| **credentials**           | `include`                                                     | Required on all fetch calls for cookie transmission.          |
+| **sameSite**              | Lax (default)                                                 | Use Lax for top-level navigations; Strict for stricter CSRF.  |
+| **Dev Domain**            | `.localhost` (via /etc/hosts)                                 | localhost ports do not share cookies; use domain-based setup. |
 
 ## References
 

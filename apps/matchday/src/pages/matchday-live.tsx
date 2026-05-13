@@ -1,7 +1,7 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
-import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { fmtDate, fmtMoneyPence } from "@/features/format.js";
+import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { resizeImageForUpload } from "@/features/image-resize.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
@@ -48,18 +48,15 @@ export default function MatchdayLive() {
   const markPaid = useMutation({
     mutationFn: (vars: { playerId: string; paymentMethod: PaymentMethod }) =>
       callApi(
-        api.POST(
-          "/api/matchday/{matchId}/players/{playerId}/mark-paid",
-          {
-            params: {
-              path: {
-                matchId: matchdayId ?? "",
-                playerId: vars.playerId,
-              },
+        api.POST("/api/matchday/{matchId}/players/{playerId}/mark-paid", {
+          params: {
+            path: {
+              matchId: matchdayId ?? "",
+              playerId: vars.playerId,
             },
-            body: { paymentMethod: vars.paymentMethod },
           },
-        ),
+          body: { paymentMethod: vars.paymentMethod },
+        }),
       ),
     onMutate: async (vars) => {
       // Optimistic — flip the row's chargeStatus to "paid" immediately so
@@ -74,7 +71,11 @@ export default function MatchdayLive() {
           ...o,
           players: o.players.map((p) =>
             p.id === vars.playerId
-              ? { ...p, chargeStatus: "paid", chargePaidAt: new Date().toISOString() }
+              ? {
+                  ...p,
+                  chargeStatus: "paid",
+                  chargePaidAt: new Date().toISOString(),
+                }
               : p,
           ),
         };
@@ -92,8 +93,8 @@ export default function MatchdayLive() {
   if (!md) {
     return (
       <div className="space-y-2 p-4">
-        <div className="h-16 rounded-md bg-border" />
-        <div className="h-32 rounded-2xl bg-border" />
+        <div className="bg-border h-16 rounded-md" />
+        <div className="bg-border h-32 rounded-2xl" />
       </div>
     );
   }
@@ -122,9 +123,9 @@ export default function MatchdayLive() {
   const finished = md.matchday.status === "finished";
 
   return (
-    <div className="flex min-h-dvh flex-col bg-surface">
+    <div className="bg-surface flex min-h-dvh flex-col">
       <header className="bg-navy px-4 py-3 text-white">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] opacity-70">
+        <p className="text-[11px] font-semibold tracking-[0.06em] uppercase opacity-70">
           Match day · captain
         </p>
         <h1 className="mt-0.5 text-lg font-semibold tracking-[-0.01em]">
@@ -161,7 +162,7 @@ export default function MatchdayLive() {
       </header>
 
       <div className="flex-1 pb-44">
-        <h2 className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+        <h2 className="text-text-secondary px-4 pt-3 pb-1 text-[11px] font-semibold tracking-[0.06em] uppercase">
           Squad · {playing.length}
         </h2>
         {playing.map((p) => {
@@ -171,7 +172,7 @@ export default function MatchdayLive() {
             <div
               key={p.id}
               className={cn(
-                "flex items-center gap-3 border-t border-border-light px-4 py-3",
+                "border-border-light flex items-center gap-3 border-t px-4 py-3",
                 isPaid ? "bg-success-bg" : "bg-surface",
               )}
             >
@@ -194,14 +195,14 @@ export default function MatchdayLive() {
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 text-[15px] font-semibold">
                   {p.is_captain && (
-                    <CrownIcon className="size-3.5 text-warning" />
+                    <CrownIcon className="text-warning size-3.5" />
                   )}
                   {p.is_wicketkeeper && (
-                    <GloveIcon className="size-3.5 text-info" />
+                    <GloveIcon className="text-info size-3.5" />
                   )}
                   <span className="truncate">{p.player_name}</span>
                 </p>
-                <p className="mt-0.5 text-[12px] text-text-secondary">
+                <p className="text-text-secondary mt-0.5 text-[12px]">
                   {isPaid
                     ? p.chargePaidAt
                       ? `Paid · ${new Date(p.chargePaidAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
@@ -225,7 +226,7 @@ export default function MatchdayLive() {
                       [p.id]: next,
                     }));
                   }}
-                  className="rounded-md bg-surface-raised px-2 py-1 text-[11px] font-semibold text-text-secondary"
+                  className="bg-surface-raised text-text-secondary rounded-md px-2 py-1 text-[11px] font-semibold"
                 >
                   <option value="cash">cash</option>
                   <option value="bank_transfer">bank</option>
@@ -238,14 +239,14 @@ export default function MatchdayLive() {
 
         {dropouts.length > 0 && (
           <details className="mt-2">
-            <summary className="cursor-pointer bg-surface-raised px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+            <summary className="bg-surface-raised text-text-secondary cursor-pointer px-4 py-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
               Drop-outs · {dropouts.length}
             </summary>
-            <ul className="divide-y divide-border-light">
+            <ul className="divide-border-light divide-y">
               {dropouts.map((p) => (
                 <li
                   key={p.id}
-                  className="bg-surface px-4 py-2.5 text-sm text-text-secondary"
+                  className="bg-surface text-text-secondary px-4 py-2.5 text-sm"
                 >
                   {p.player_name}
                 </li>
@@ -256,21 +257,21 @@ export default function MatchdayLive() {
 
         {md.expenses.length > 0 && (
           <section className="mt-3">
-            <h2 className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+            <h2 className="text-text-secondary px-4 pt-2 pb-1 text-[11px] font-semibold tracking-[0.06em] uppercase">
               Expenses · {md.expenses.length}
             </h2>
-            <ul className="divide-y divide-border-light">
+            <ul className="divide-border-light divide-y">
               {md.expenses.map((e) => (
                 <li
                   key={e.id}
-                  className="flex items-center justify-between bg-surface px-4 py-2.5"
+                  className="bg-surface flex items-center justify-between px-4 py-2.5"
                 >
                   <div>
                     <p className="text-sm font-medium">
                       {labelExpense(e.expense_type)}
                     </p>
                     {e.description && (
-                      <p className="text-[11px] text-text-secondary">
+                      <p className="text-text-secondary text-[11px]">
                         {e.description}
                       </p>
                     )}
@@ -290,14 +291,14 @@ export default function MatchdayLive() {
           type="button"
           onClick={() => setExpenseOpen(true)}
           aria-label="Add expense"
-          className="fixed right-4 bottom-28 z-30 grid size-14 place-items-center rounded-full bg-navy text-white shadow-lg"
+          className="bg-navy fixed right-4 bottom-28 z-30 grid size-14 place-items-center rounded-full text-white shadow-lg"
         >
           <PlusIcon className="size-6" />
         </button>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur md:static">
-        <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 pb-[max(env(safe-area-inset-bottom),12px)] pt-3">
+      <div className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur md:static">
+        <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)]">
           {!finished ? (
             <Button
               tone="destructive"
@@ -308,7 +309,7 @@ export default function MatchdayLive() {
               Finish match
             </Button>
           ) : (
-            <p className="flex-1 text-center text-sm text-text-secondary">
+            <p className="text-text-secondary flex-1 text-center text-sm">
               Match finished · result {md.matchday.result_type ?? "—"}
             </p>
           )}
@@ -351,14 +352,16 @@ export default function MatchdayLive() {
 
 function labelExpense(t: string): string {
   return (
-    {
-      umpire_fee: "Umpire fee",
-      scorer_fee: "Scorer fee",
-      match_ball: "Match ball",
-      teas: "Teas",
-      miscellaneous: "Misc",
-    } as Record<string, string>
-  )[t] ?? t;
+    (
+      {
+        umpire_fee: "Umpire fee",
+        scorer_fee: "Scorer fee",
+        match_ball: "Match ball",
+        teas: "Teas",
+        miscellaneous: "Misc",
+      } as Record<string, string>
+    )[t] ?? t
+  );
 }
 
 type ExpenseType =
@@ -433,7 +436,7 @@ function AddExpenseSheet({
       </div>
 
       <Eyebrow className="mt-4">Amount</Eyebrow>
-      <div className="mt-1 flex items-baseline gap-1 rounded-xl bg-surface-raised px-4 py-3 text-3xl">
+      <div className="bg-surface-raised mt-1 flex items-baseline gap-1 rounded-xl px-4 py-3 text-3xl">
         <span className="text-text-secondary">£</span>
         <input
           inputMode="decimal"
@@ -441,7 +444,7 @@ function AddExpenseSheet({
           value={amount}
           onChange={(e) => setAmount(e.currentTarget.value)}
           placeholder="0.00"
-          className="w-full bg-transparent text-3xl font-semibold tracking-[-0.02em] outline-none placeholder:text-text-muted"
+          className="placeholder:text-text-muted w-full bg-transparent text-3xl font-semibold tracking-[-0.02em] outline-none"
         />
       </div>
 
@@ -450,11 +453,11 @@ function AddExpenseSheet({
         value={description}
         onChange={(e) => setDescription(e.currentTarget.value)}
         placeholder="optional"
-        className="mt-1 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm"
+        className="border-border bg-surface mt-1 h-11 w-full rounded-lg border px-3 text-sm"
       />
 
       <Eyebrow className="mt-4">Receipt</Eyebrow>
-      <label className="mt-1 flex h-20 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised text-sm text-text-secondary">
+      <label className="border-border bg-surface-raised text-text-secondary mt-1 flex h-20 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-sm">
         {receipt ? "Receipt attached · tap to replace" : "Tap to take a photo"}
         <input
           type="file"
@@ -469,7 +472,7 @@ function AddExpenseSheet({
       </label>
 
       {save.isError && (
-        <p className="mt-2 text-sm text-danger">
+        <p className="text-danger mt-2 text-sm">
           Couldn't save expense, try again.
         </p>
       )}
@@ -483,7 +486,7 @@ function AddExpenseSheet({
       >
         {save.isPending ? "Saving…" : "Save expense"}
       </Button>
-      <p className="mt-2 text-center text-[11px] text-text-secondary">
+      <p className="text-text-secondary mt-2 text-center text-[11px]">
         Submitted to the treasurer when you finish the match.
       </p>
     </Sheet>
@@ -551,14 +554,16 @@ function FinishSheet({
           </button>
         ))}
       </div>
-      <p className="mt-1 text-[11px] text-text-secondary">
+      <p className="text-text-secondary mt-1 text-[11px]">
         W win · L lose · D draw · T tied · A abandoned · C conceded · N
         no-result
       </p>
 
-      <div className="mt-4 space-y-1 rounded-xl bg-surface-raised p-3 text-sm">
+      <div className="bg-surface-raised mt-4 space-y-1 rounded-xl p-3 text-sm">
         <Row label={`${unpaidCount} unpaid`}>will be charged</Row>
-        <Row label={`${draftExpenseCount} draft expenses`}>will be submitted</Row>
+        <Row label={`${draftExpenseCount} draft expenses`}>
+          will be submitted
+        </Row>
         <Row label="Donation emails">will be sent</Row>
         {totalUnpaidPence > 0 && (
           <Row label="Approx total">{fmtMoneyPence(totalUnpaidPence)}</Row>
@@ -580,7 +585,7 @@ function FinishSheet({
         </Button>
         <Button
           tone="ghost"
-          className="flex-1 text-danger"
+          className="text-danger flex-1"
           disabled={cancel.isPending}
           onClick={() => {
             const reason = prompt(
@@ -593,7 +598,7 @@ function FinishSheet({
         </Button>
       </div>
       {finish.isError && (
-        <p className="mt-2 text-sm text-danger">Couldn't finish, try again.</p>
+        <p className="text-danger mt-2 text-sm">Couldn't finish, try again.</p>
       )}
     </Sheet>
   );
@@ -610,15 +615,15 @@ function Sheet({
 }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 md:items-center">
-      <div className="w-full max-w-md rounded-t-3xl bg-surface p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl">
-        <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-border" />
+      <div className="bg-surface w-full max-w-md rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl">
+        <div className="bg-border mx-auto mb-3 h-1 w-9 rounded-full" />
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid size-9 place-items-center rounded-md text-text-secondary"
+            className="text-text-secondary grid size-9 place-items-center rounded-md"
           >
             <XIcon className="size-5" />
           </button>
@@ -639,7 +644,7 @@ function Eyebrow({
   return (
     <p
       className={cn(
-        "text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary",
+        "text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase",
         className,
       )}
     >
@@ -648,7 +653,13 @@ function Eyebrow({
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex items-baseline justify-between text-sm">
       <span className="text-text-secondary">{label}</span>

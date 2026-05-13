@@ -7,7 +7,10 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["**/node_modules/**", "**/dist/**"],
     reporters: process.env.CI
-      ? ["default", ["junit", { outputFile: "./test-results/matchday-unit.xml" }]]
+      ? [
+          "default",
+          ["junit", { outputFile: "./test-results/matchday-unit.xml" }],
+        ]
       : ["default"],
   },
   resolve: {

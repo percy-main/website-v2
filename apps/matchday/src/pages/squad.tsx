@@ -25,13 +25,11 @@ export default function Squad() {
     queryKey: ["matchday", "teams"],
     queryFn: () => callApi(api.GET("/api/matchday/teams")),
   });
-  const list = ((teams) ?? []).filter(
-    (t) => !t.is_junior,
-  );
+  const list = (teams ?? []).filter((t) => !t.is_junior);
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
-      <header className="px-4 pb-2 pt-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+      <header className="px-4 pt-6 pb-2">
+        <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
           Squad
         </p>
         <h1 className="text-2xl font-semibold tracking-[-0.015em]">
@@ -41,16 +39,16 @@ export default function Squad() {
       {isLoading && (
         <div className="space-y-2 px-4 py-4">
           {["a", "b"].map((s) => (
-            <div key={s} className="h-32 rounded-2xl bg-border" />
+            <div key={s} className="bg-border h-32 rounded-2xl" />
           ))}
         </div>
       )}
       {!isLoading && list.length === 0 && (
         <div className="px-6 py-12 text-center">
           <p className="text-sm font-semibold">No teams</p>
-          <p className="mt-1 text-sm text-text-secondary">
-            You're not yet assigned as an official to any team. An admin can
-            add you on the main site.
+          <p className="text-text-secondary mt-1 text-sm">
+            You're not yet assigned as an official to any team. An admin can add
+            you on the main site.
           </p>
         </div>
       )}
@@ -82,27 +80,27 @@ function TeamCard({ team }: { team: Team }) {
         }),
       ),
   });
-  const upcomingMatches =
-    (upcoming.data) ?? [];
+  const upcomingMatches = upcoming.data ?? [];
   const pendingPick = upcomingMatches.filter((m) => !m.matchdayId);
   const confirmed = upcomingMatches.filter(
     (m) => m.matchdayStatus === "confirmed",
   );
-  const pastUnfinished =
-    (past.data) ?? [];
+  const pastUnfinished = past.data ?? [];
 
   return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
+    <div className="border-border bg-surface rounded-2xl border p-4">
       <div className="flex items-baseline justify-between">
-        <strong className="text-base font-semibold">{team.name ?? "Team"}</strong>
-        <span className="text-xs text-text-secondary">
+        <strong className="text-base font-semibold">
+          {team.name ?? "Team"}
+        </strong>
+        <span className="text-text-secondary text-xs">
           {upcomingMatches.length} upcoming
         </span>
       </div>
 
       {pastUnfinished.length > 0 && (
-        <div className="mt-3 rounded-xl border border-warning-bg bg-warning-bg/40 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-warning">
+        <div className="border-warning-bg bg-warning-bg/40 mt-3 rounded-xl border p-3">
+          <p className="text-warning text-[11px] font-semibold tracking-[0.06em] uppercase">
             Needs attention
           </p>
           <p className="mt-1 text-sm">
@@ -111,7 +109,7 @@ function TeamCard({ team }: { team: Team }) {
           </p>
           <Link
             to={`/matchday/${pastUnfinished[0].id}/live`}
-            className="mt-2 inline-block text-xs font-semibold text-warning underline"
+            className="text-warning mt-2 inline-block text-xs font-semibold underline"
           >
             Finalise the oldest →
           </Link>
@@ -123,23 +121,21 @@ function TeamCard({ team }: { team: Team }) {
           <Link
             key={m.matchId}
             to={`/matchday/${m.matchdayId ?? ""}/live`}
-            className="block rounded-xl bg-navy p-3 text-white"
+            className="bg-navy block rounded-xl p-3 text-white"
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] opacity-70">
+            <p className="text-[11px] font-semibold tracking-[0.06em] uppercase opacity-70">
               Today / next match
             </p>
             <p className="mt-0.5 text-sm font-semibold">
               vs {m.opposition} · {fmtDate(m.matchDate, "EEE d MMM")}
             </p>
-            <p className="mt-0.5 text-[11px] opacity-80">
-              Open captain view →
-            </p>
+            <p className="mt-0.5 text-[11px] opacity-80">Open captain view →</p>
           </Link>
         ))}
         {pendingPick.length > 0 && (
           <Link
             to={`/squad/new?teamId=${team.id}`}
-            className="flex items-center justify-between rounded-xl border border-border bg-surface-raised px-3 py-3"
+            className="border-border bg-surface-raised flex items-center justify-between rounded-xl border px-3 py-3"
           >
             <span className="text-sm font-medium">Pick the team</span>
             <StatusPill tone="warning">
@@ -151,12 +147,7 @@ function TeamCard({ team }: { team: Team }) {
       </div>
 
       <div className="mt-3 flex gap-2">
-        <Button
-          asChild
-          tone="outline"
-          size="sm"
-          className="flex-1"
-        >
+        <Button asChild tone="outline" size="sm" className="flex-1">
           <Link to={`/squad/new?teamId=${team.id}`}>
             <PlusIcon className="size-4" />
             New matchday

@@ -348,7 +348,11 @@ export function getMatchPublic(db: Kysely<DB>) {
       ground: null as string | null,
       competition: match.competition_type,
       away: false,
-      status: match.status as "pending" | "confirmed" | "finished" | "cancelled",
+      status: match.status as
+        | "pending"
+        | "confirmed"
+        | "finished"
+        | "cancelled",
       result: match.result_type,
       scoreSummary: null as string | null,
       squad,

@@ -57,10 +57,10 @@ export default function OfficialAvailabilityNew() {
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-24">
-      <header className="flex items-center gap-3 border-b border-border p-3">
+      <header className="border-border flex items-center gap-3 border-b p-3">
         <Link
           to="/official/availability"
-          className="grid size-9 place-items-center rounded-md text-text-secondary hover:bg-surface-raised"
+          className="text-text-secondary hover:bg-surface-raised grid size-9 place-items-center rounded-md"
           aria-label="Back"
         >
           <ArrowLeftIcon className="size-5" />
@@ -70,7 +70,7 @@ export default function OfficialAvailabilityNew() {
 
       <div className="space-y-4 px-4 py-6">
         <section>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+          <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
             Date range
           </p>
           <div className="mt-2 grid grid-cols-2 gap-3">
@@ -80,12 +80,7 @@ export default function OfficialAvailabilityNew() {
               value={dateFrom}
               onChange={setDateFrom}
             />
-            <Field
-              label="To"
-              type="date"
-              value={dateTo}
-              onChange={setDateTo}
-            />
+            <Field label="To" type="date" value={dateTo} onChange={setDateTo} />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <PresetChip
@@ -105,18 +100,18 @@ export default function OfficialAvailabilityNew() {
 
         <section>
           <div className="mb-2 flex items-baseline justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+            <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
               Fixtures in this range
             </p>
             <StatusPill tone="navy">{fixtures.length}</StatusPill>
           </div>
           {preview.isPending && (
-            <div className="rounded-2xl border border-border bg-surface-raised p-4 text-sm text-text-secondary">
+            <div className="border-border bg-surface-raised text-text-secondary rounded-2xl border p-4 text-sm">
               Looking up fixtures…
             </div>
           )}
           {!preview.isPending && fixtures.length === 0 && (
-            <div className="rounded-2xl border border-border bg-surface-raised p-4 text-sm text-text-secondary">
+            <div className="border-border bg-surface-raised text-text-secondary rounded-2xl border p-4 text-sm">
               No fixtures in this range. Try a wider window.
             </div>
           )}
@@ -125,19 +120,19 @@ export default function OfficialAvailabilityNew() {
               {fixtures.map((f) => (
                 <div
                   key={`${f.matchDate}:${f.playCricketMatchId}`}
-                  className="rounded-xl border border-border bg-surface p-3"
+                  className="border-border bg-surface rounded-xl border p-3"
                 >
                   <div className="flex items-baseline justify-between">
                     <strong className="text-sm">
                       {fmtDate(f.matchDate, "EEE d MMM")} · vs {f.opposition}
                     </strong>
                     {f.competitionName && (
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
+                      <span className="text-text-secondary text-[11px] font-semibold tracking-wider uppercase">
                         {f.competitionName}
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-text-secondary">
+                  <p className="text-text-secondary mt-0.5 text-xs">
                     {[f.teamName, f.isHome ? "Home" : "Away", f.matchTime]
                       .filter(Boolean)
                       .join(" · ")}
@@ -149,16 +144,16 @@ export default function OfficialAvailabilityNew() {
         </section>
 
         {create.isError && (
-          <p className="text-sm text-danger">
+          <p className="text-danger text-sm">
             Couldn't create the request, try again.
           </p>
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur md:static md:border-t-0">
+      <div className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur md:static md:border-t-0">
         <div
           className={cn(
-            "mx-auto flex max-w-2xl items-center justify-end gap-2 px-4 pb-[max(env(safe-area-inset-bottom),12px)] pt-3",
+            "mx-auto flex max-w-2xl items-center justify-end gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)]",
             "md:pb-3",
           )}
         >
@@ -193,14 +188,14 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+      <span className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
         {label}
       </span>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.currentTarget.value)}
-        className="h-11 rounded-lg border border-border bg-surface px-3 text-sm"
+        className="border-border bg-surface h-11 rounded-lg border px-3 text-sm"
       />
     </label>
   );
@@ -217,7 +212,7 @@ function PresetChip({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary"
+      className="border-border bg-surface text-text-secondary rounded-full border px-3 py-1.5 text-xs font-medium"
     >
       {label}
     </button>

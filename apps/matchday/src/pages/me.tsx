@@ -1,5 +1,11 @@
-import { Card, CardContent, CardEyebrow, CardHeader, CardTitle } from "@/components/ui/card.js";
 import { Button } from "@/components/ui/button.js";
+import {
+  Card,
+  CardContent,
+  CardEyebrow,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card.js";
 import { authClient, useSession } from "@/lib/auth-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
 
@@ -7,7 +13,7 @@ export default function Me() {
   const { data: session } = useSession();
   const user = session?.user;
   return (
-    <div className="mx-auto w-full max-w-md px-4 py-6 space-y-3">
+    <div className="mx-auto w-full max-w-md space-y-3 px-4 py-6">
       <Card>
         <CardHeader>
           <CardEyebrow>Account</CardEyebrow>
@@ -30,9 +36,9 @@ export default function Me() {
           <CardTitle>Membership & payments</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="mb-3 text-sm text-text-secondary">
-            Member details, donation payments, and admin tools live on the
-            main site.
+          <p className="text-text-secondary mb-3 text-sm">
+            Member details, donation payments, and admin tools live on the main
+            site.
           </p>
           <Button asChild tone="outline" className="w-full">
             <a href={mainSiteUrl("/members")} target="_blank" rel="noopener">
@@ -44,7 +50,7 @@ export default function Me() {
 
       <Button
         tone="ghost"
-        className="w-full text-danger"
+        className="text-danger w-full"
         onClick={() => {
           void authClient.signOut().then(() => {
             window.location.href = mainSiteUrl("/");
