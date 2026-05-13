@@ -1,30 +1,19 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
+import {
+  oppositionName,
+  played,
+  type GameDetail,
+} from "@/features/games.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { Link, useParams } from "react-router";
 
-interface GameDetail {
-  id: string;
-  date: string;
-  startTime?: string | null;
-  teamName?: string | null;
-  opposition?: string | null;
-  competition?: string | null;
-  ground?: string | null;
-  away: boolean;
-  played: boolean;
-  result?: string | null;
-  scoreSummary?: string | null;
-  playCricketUrl?: string | null;
-  matchdayId?: string | null;
-}
-
 export default function FixtureDetail() {
   const { matchId } = useParams();
-  const { data, isLoading, isError } = useQuery({
+  const { data: game, isLoading, isError } = useQuery({
     queryKey: ["games", matchId],
     queryFn: () =>
       callApi(
@@ -35,9 +24,8 @@ export default function FixtureDetail() {
     enabled: !!matchId,
   });
   if (isLoading) return <Skel />;
-  if (isError) return <ErrState />;
-  const game = data as unknown as GameDetail | undefined;
-  if (!game) return <ErrState />;
+  if (isError || !game) return <ErrState />;
+  const directionsQuery = directionsTarget(game);
   return (
     <div className="mx-auto w-full max-w-2xl pb-12">
       <header className="bg-navy px-5 py-6 text-white">
@@ -48,47 +36,29 @@ export default function FixtureDetail() {
           <ArrowLeftIcon className="size-3.5" /> Fixtures
         </Link>
         <p className="text-[11px] uppercase tracking-[0.06em] text-white/70">
-          {fmtDate(game.date, "EEEE · d MMMM")} ·{" "}
-          {game.startTime ??
-            new Date(game.date).toLocaleTimeString("en-GB", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+          {fmtDate(game.matchDate, "EEEE · d MMMM")}
+          {game.matchTime ? ` · ${game.matchTime}` : ""}
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-[-0.015em] leading-tight">
-          {game.teamName ?? "Percy Main"} vs {game.opposition ?? "TBC"}
+          {game.team.name} vs {oppositionName(game)}
         </h1>
         <p className="mt-1 text-sm text-white/75">
-          {[game.away ? "Away" : "Home", game.ground, game.competition]
+          {[game.home ? "Home" : "Away", game.groundName, game.competition.name]
             .filter(Boolean)
             .join(" · ")}
         </p>
-        {game.played && game.scoreSummary && (
+        {played(game) && game.scoreDescription && (
           <div className="mt-4 inline-block rounded-md bg-white/10 px-3 py-2 text-base font-semibold">
-            {game.scoreSummary}
+            {game.scoreDescription}
           </div>
         )}
       </header>
 
-      <div className="p-4 space-y-3">
-        {game.matchdayId && (
-          <Button asChild tone="primary" className="w-full">
-            <Link to={`/matchday/${game.matchdayId}`}>View team sheet</Link>
-          </Button>
-        )}
-        {game.playCricketUrl && (
-          <Button asChild tone="outline" className="w-full">
-            <a href={game.playCricketUrl} target="_blank" rel="noopener">
-              View on Play-Cricket ↗
-            </a>
-          </Button>
-        )}
-        {game.ground && (
+      <div className="space-y-3 p-4">
+        {directionsQuery && (
           <Button asChild tone="outline" className="w-full">
             <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                game.ground,
-              )}`}
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(directionsQuery)}`}
               target="_blank"
               rel="noopener"
             >
@@ -101,9 +71,9 @@ export default function FixtureDetail() {
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
             Status
           </p>
-          {game.played ? (
-            <StatusPill tone={resultTone(game.result)} dot>
-              {game.result ?? "Finished"}
+          {played(game) ? (
+            <StatusPill tone={resultTone(game.outcome)} dot>
+              {game.outcome ?? "Finished"}
             </StatusPill>
           ) : (
             <StatusPill tone="neutral" dot>
@@ -116,11 +86,19 @@ export default function FixtureDetail() {
   );
 }
 
-function resultTone(r?: string | null) {
-  const v = r?.toUpperCase();
-  if (v === "W") return "success" as const;
-  if (v === "L") return "danger" as const;
-  if (v === "D" || v === "T") return "warning" as const;
+function directionsTarget(g: GameDetail): string | null {
+  if (g.location) {
+    return [g.location.name, g.location.street, g.location.city, g.location.postcode]
+      .filter(Boolean)
+      .join(", ");
+  }
+  return g.groundName;
+}
+
+function resultTone(o: GameDetail["outcome"]) {
+  if (o === "W") return "success" as const;
+  if (o === "L") return "danger" as const;
+  if (o === "D" || o === "T") return "warning" as const;
   return "neutral" as const;
 }
 

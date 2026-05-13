@@ -1,46 +1,33 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { fmtDate } from "@/features/format.js";
+import { oppositionName, played, type Game } from "@/features/games.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 
-interface GameRow {
-  id: string;
-  date: string;
-  startTime?: string | null;
-  teamName?: string | null;
-  opposition?: string | null;
-  competition?: string | null;
-  away: boolean;
-  played: boolean;
-  result?: string | null;
-  scoreSummary?: string | null;
-}
-
 const FILTERS = [
-  { key: "all", label: "All", pred: (_: GameRow) => true },
+  { key: "all", label: "All", pred: (_: Game) => true },
   {
     key: "1st",
     label: "1st XI",
-    pred: (g: GameRow) => (g.teamName ?? "").toLowerCase().includes("1st"),
+    pred: (g: Game) => g.team.name.toLowerCase().includes("1st"),
   },
   {
     key: "2nd",
     label: "2nd XI",
-    pred: (g: GameRow) => (g.teamName ?? "").toLowerCase().includes("2nd"),
+    pred: (g: Game) => g.team.name.toLowerCase().includes("2nd"),
   },
 ] as const;
 
 export default function Fixtures() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["games", "all"],
+    queryKey: ["games"],
     queryFn: () => callApi(api.GET("/api/games")),
   });
-  const games =
-    (data as unknown as { games?: GameRow[] } | undefined)?.games ?? [];
+  const games = data ?? [];
   const selected = FILTERS.find((f) => f.key === filter) ?? FILTERS[0];
   const filtered = games.filter(selected.pred);
   const groups = groupByBucket(filtered);
@@ -98,8 +85,8 @@ export default function Fixtures() {
   );
 }
 
-function FixtureItem({ game }: { game: GameRow }) {
-  const d = new Date(game.date);
+function FixtureItem({ game }: { game: Game }) {
+  const d = new Date(game.matchDate);
   return (
     <Link
       to={`/fixture/${game.id}`}
@@ -110,45 +97,34 @@ function FixtureItem({ game }: { game: GameRow }) {
           {d.getDate()}
         </div>
         <div className="text-[10px] uppercase tracking-wide text-text-secondary">
-          {fmtDate(game.date, "MMM")}
+          {fmtDate(game.matchDate, "MMM")}
         </div>
       </div>
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">
-          {game.away ? "vs " : "vs "}
-          {game.opposition ?? "TBC"}
+          vs {oppositionName(game)}
         </div>
         <div className="mt-0.5 text-xs text-text-secondary">
-          {[
-            game.teamName,
-            game.away ? "Away" : "Home",
-            game.competition,
-          ]
+          {[game.team.name, game.home ? "Home" : "Away", game.competition.name]
             .filter(Boolean)
             .join(" · ")}
         </div>
       </div>
-      {game.played ? (
+      {played(game) ? (
         <FixtureResultPill game={game} />
       ) : (
-        <StatusPill tone="neutral">
-          {game.startTime ??
-            d.toLocaleTimeString("en-GB", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-        </StatusPill>
+        <StatusPill tone="neutral">{game.matchTime ?? "TBC"}</StatusPill>
       )}
     </Link>
   );
 }
 
-function FixtureResultPill({ game }: { game: GameRow }) {
-  const r = game.result?.toUpperCase();
-  const label = game.scoreSummary ?? r ?? "—";
-  if (r === "W") return <StatusPill tone="success">{label}</StatusPill>;
-  if (r === "L") return <StatusPill tone="danger">{label}</StatusPill>;
-  if (r === "D" || r === "T")
+function FixtureResultPill({ game }: { game: Game }) {
+  const o = game.outcome;
+  const label = game.scoreDescription ?? o ?? "—";
+  if (o === "W") return <StatusPill tone="success">{label}</StatusPill>;
+  if (o === "L") return <StatusPill tone="danger">{label}</StatusPill>;
+  if (o === "D" || o === "T")
     return <StatusPill tone="warning">{label}</StatusPill>;
   return <StatusPill tone="neutral">{label}</StatusPill>;
 }
@@ -171,7 +147,7 @@ function FixtureSkeleton() {
 
 type Bucket = "This week" | "Next week" | "Later this month" | "Recent";
 
-function groupByBucket(games: GameRow[]): Record<Bucket, GameRow[]> {
+function groupByBucket(games: Game[]): Record<Bucket, Game[]> {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   const inDays = (date: string, days: number) => {
@@ -179,25 +155,27 @@ function groupByBucket(games: GameRow[]): Record<Bucket, GameRow[]> {
     d.setHours(0, 0, 0, 0);
     return (d.getTime() - now.getTime()) / 86_400_000 <= days;
   };
-  const out: Record<Bucket, GameRow[]> = {
+  const out: Record<Bucket, Game[]> = {
     "This week": [],
     "Next week": [],
     "Later this month": [],
     Recent: [],
   };
   for (const g of games) {
-    if (g.played) {
+    if (played(g)) {
       out.Recent.push(g);
       continue;
     }
-    if (inDays(g.date, 7)) out["This week"].push(g);
-    else if (inDays(g.date, 14)) out["Next week"].push(g);
+    if (inDays(g.matchDate, 7)) out["This week"].push(g);
+    else if (inDays(g.matchDate, 14)) out["Next week"].push(g);
     else out["Later this month"].push(g);
   }
-  out["This week"].sort((a, b) => a.date.localeCompare(b.date));
-  out["Next week"].sort((a, b) => a.date.localeCompare(b.date));
-  out["Later this month"].sort((a, b) => a.date.localeCompare(b.date));
-  out.Recent.sort((a, b) => b.date.localeCompare(a.date));
+  out["This week"].sort((a, b) => a.matchDate.localeCompare(b.matchDate));
+  out["Next week"].sort((a, b) => a.matchDate.localeCompare(b.matchDate));
+  out["Later this month"].sort((a, b) =>
+    a.matchDate.localeCompare(b.matchDate),
+  );
+  out.Recent.sort((a, b) => b.matchDate.localeCompare(a.matchDate));
   out.Recent = out.Recent.slice(0, 8);
   return out;
 }
