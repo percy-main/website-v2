@@ -81,6 +81,35 @@ export default function FixtureDetail() {
             </StatusPill>
           )}
         </div>
+
+        {game.lineup && game.lineup.players.length > 0 && (
+          <section className="mt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
+                {game.lineup.confirmed ? "Team" : "Probable team"}
+              </p>
+              <StatusPill
+                tone={game.lineup.confirmed ? "success" : "warning"}
+                dot
+              >
+                {game.lineup.confirmed ? "Confirmed" : "Provisional"}
+              </StatusPill>
+            </div>
+            <ol className="border-border-light bg-surface divide-border-light divide-y rounded-lg border">
+              {game.lineup.players.map((p, i) => (
+                <li
+                  key={`${i}-${p.name}`}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm"
+                >
+                  <span className="text-text-secondary w-5 text-right text-[11px] tabular-nums">
+                    {i + 1}
+                  </span>
+                  <span>{p.name}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       </div>
     </div>
   );
