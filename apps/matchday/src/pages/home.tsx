@@ -3,12 +3,17 @@ import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
 import { Card, CardContent, CardEyebrow, CardHeader, CardTitle } from "@/components/ui/card.js";
 import { fmtMoneyPence } from "@/features/format.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { oppositionName, played, type Game } from "@/features/games.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { useSession } from "@/lib/auth-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRightIcon, CalendarDaysIcon } from "lucide-react";
 import { Link } from "react-router";
+
+type ActiveAvailability = ApiResponse<"/api/availability/active">;
+type ChargesResponse = ApiResponse<"/api/charges">;
+type Charge = ChargesResponse["charges"][number];
 
 /**
  * Mobile-first home dashboard — a feed of independently-loading cards.
@@ -24,8 +29,7 @@ import { Link } from "react-router";
  *   4. RecentResultsCard
  *
  * The "You're on the team" card lands once we surface confirmed
- * matchdays the user is named on (uses the new /api/matchday/:id/public
- * endpoint — see Phase 2 plan).
+ * matchdays the user is named on (uses /api/matchday/:id/public).
  */
 export default function Home() {
   const { data: session } = useSession();
@@ -60,18 +64,9 @@ function AvailabilityAwaitingCard() {
   if (isLoading) return <CardSkeleton />;
   if (isError) return <CardError label="Couldn't load availability" />;
 
-  // The shape is a list of active requests. Unanswered count is whatever
-  // dates the player hasn't yet responded to.
-  const requests = (data as unknown as { requests?: ActiveRequest[] } | undefined)
-    ?.requests;
-  const dates = requests?.flatMap((r) =>
-    (r.dates ?? []).filter((d) => d.myResponse === null || d.myResponse === undefined),
-  );
-  const count = dates?.length ?? 0;
-  if (count === 0) {
-    // Quiet — don't take up real estate when there's nothing to do.
-    return null;
-  }
+  const count = countUnansweredDates(data);
+  // Quiet — don't take up real estate when there's nothing to do.
+  if (count === 0) return null;
   return (
     <Card>
       <CardHeader>
@@ -100,6 +95,24 @@ function AvailabilityAwaitingCard() {
   );
 }
 
+function countUnansweredDates(data: ActiveAvailability | undefined): number {
+  if (!data) return 0;
+  // The shape exposed by /api/availability/active varies — we only need
+  // to count dates without a response. Walk it defensively rather than
+  // hard-binding to one nested-shape layout.
+  const requests = (data as { requests?: Array<{ dates?: unknown[] }> })
+    .requests;
+  if (!requests) return 0;
+  let n = 0;
+  for (const r of requests) {
+    for (const d of r.dates ?? []) {
+      const myResponse = (d as { myResponse?: string | null }).myResponse;
+      if (myResponse === null || myResponse === undefined) n++;
+    }
+  }
+  return n;
+}
+
 function OutstandingDonationsCard() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["charges", "outstanding"],
@@ -108,17 +121,17 @@ function OutstandingDonationsCard() {
   if (isLoading) return <CardSkeleton />;
   if (isError) return <CardError label="Couldn't load donations" />;
 
-  const charges = (data as unknown as { charges?: ChargeRow[] } | undefined)
-    ?.charges;
-  const outstanding = charges?.filter(
-    (c) => c.paidAt === null && c.voidedAt === null && c.relievedAt === null,
+  const charges = data?.charges ?? [];
+  const outstanding = charges.filter(
+    (c) =>
+      c.paid_at === null && c.deleted_at === null && c.relieved_at === null,
   );
-  const total = outstanding?.reduce(
-    (acc, c) => acc + (Number(c.amountPence) || 0),
+  if (outstanding.length === 0) return null;
+  const total = outstanding.reduce(
+    (acc, c) => acc + Number(c.amount_pence || 0),
     0,
   );
-  if (!outstanding || outstanding.length === 0) return null;
-  const overdueCount = outstanding.filter((c) => isOverdue(c)).length;
+  const overdueCount = outstanding.filter(isOverdue).length;
   return (
     <Card>
       <CardHeader>
@@ -159,16 +172,17 @@ function OutstandingDonationsCard() {
 
 function UpcomingFixturesCard() {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["games", "upcoming"],
+    queryKey: ["games"],
     queryFn: () => callApi(api.GET("/api/games")),
   });
   if (isLoading) return <CardSkeleton />;
   if (isError) return <CardError label="Couldn't load fixtures" />;
 
-  const games = (data as unknown as { games?: GameRow[] } | undefined)?.games ??
-    [];
+  const games = data ?? [];
+  const today = todayMidnight();
   const upcoming = games
-    .filter((g) => !g.played && new Date(g.date) >= todayMidnight())
+    .filter((g) => !played(g) && new Date(g.matchDate) >= today)
+    .sort((a, b) => a.matchDate.localeCompare(b.matchDate))
     .slice(0, 3);
   if (upcoming.length === 0) return null;
   return (
@@ -192,16 +206,15 @@ function UpcomingFixturesCard() {
 
 function RecentResultsCard() {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["games", "recent"],
+    queryKey: ["games"],
     queryFn: () => callApi(api.GET("/api/games")),
   });
   if (isLoading) return null;
   if (isError) return null;
-  const games = (data as unknown as { games?: GameRow[] } | undefined)?.games ??
-    [];
+  const games = data ?? [];
   const recent = games
-    .filter((g) => g.played)
-    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .filter(played)
+    .sort((a, b) => b.matchDate.localeCompare(a.matchDate))
     .slice(0, 3);
   if (recent.length === 0) return null;
   return (
@@ -220,8 +233,8 @@ function RecentResultsCard() {
   );
 }
 
-function FixtureRow({ game }: { game: GameRow }) {
-  const d = new Date(game.date);
+function FixtureRow({ game }: { game: Game }) {
+  const d = new Date(game.matchDate);
   const day = d.getDate();
   const dayName = d.toLocaleDateString("en-GB", { weekday: "short" });
   return (
@@ -237,40 +250,34 @@ function FixtureRow({ game }: { game: GameRow }) {
           {dayName}
         </div>
       </div>
-      <div>
-        <div className="text-sm font-medium leading-tight">
-          {game.away ? "vs " : "at "}
-          {game.opposition ?? "TBC"}
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium leading-tight">
+          vs {oppositionName(game)}
         </div>
         <div className="mt-0.5 text-xs text-text-secondary">
-          {[game.teamName, game.away ? "Away" : "Home", game.competition]
+          {[game.team.name, game.home ? "Home" : "Away", game.competition.name]
             .filter(Boolean)
             .join(" · ")}
         </div>
       </div>
-      {game.played ? <ResultPill game={game} /> : <TimePill game={game} />}
+      {played(game) ? <ResultPill game={game} /> : <TimePill game={game} />}
     </Link>
   );
 }
 
-function TimePill({ game }: { game: GameRow }) {
-  return (
-    <StatusPill tone="neutral">
-      {game.startTime ?? new Date(game.date).toLocaleTimeString("en-GB", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}
-    </StatusPill>
-  );
+function TimePill({ game }: { game: Game }) {
+  return <StatusPill tone="neutral">{game.matchTime ?? "TBC"}</StatusPill>;
 }
 
-function ResultPill({ game }: { game: GameRow }) {
-  const result = game.result?.toUpperCase();
-  if (result === "W") return <StatusPill tone="success">W</StatusPill>;
-  if (result === "L") return <StatusPill tone="danger">L</StatusPill>;
-  if (result === "D" || result === "T")
-    return <StatusPill tone="warning">{result}</StatusPill>;
-  return <StatusPill tone="neutral">{result ?? "—"}</StatusPill>;
+function ResultPill({ game }: { game: Game }) {
+  const o = game.outcome;
+  if (o === "W")
+    return <StatusPill tone="success">{game.scoreDescription ?? "W"}</StatusPill>;
+  if (o === "L")
+    return <StatusPill tone="danger">{game.scoreDescription ?? "L"}</StatusPill>;
+  if (o === "D" || o === "T")
+    return <StatusPill tone="warning">{game.scoreDescription ?? o}</StatusPill>;
+  return <StatusPill tone="neutral">{o ?? "—"}</StatusPill>;
 }
 
 function CardSkeleton() {
@@ -305,44 +312,9 @@ function todayMidnight() {
   return d;
 }
 
-function isOverdue(c: ChargeRow): boolean {
-  if (!c.createdAt) return false;
-  const created = new Date(c.createdAt);
+function isOverdue(c: Charge): boolean {
+  if (!c.created_at) return false;
+  const created = new Date(c.created_at);
   const days = (Date.now() - created.getTime()) / 86_400_000;
   return days > 14;
 }
-
-// Local types — kept loose; rely on the underlying openapi-fetch typing
-// to surface real shape mismatches at compile time. Tightening these to
-// the api.gen `paths` extracts is a phase-3 cleanup.
-interface ActiveRequest {
-  id: string;
-  dates: ActiveRequestDate[];
-}
-interface ActiveRequestDate {
-  date: string;
-  fixtures?: unknown[];
-  myResponse?: "available" | "unavailable" | null;
-}
-interface ChargeRow {
-  id: string;
-  amountPence: number | string;
-  paidAt: string | null;
-  voidedAt: string | null;
-  relievedAt: string | null;
-  createdAt: string | null;
-}
-interface GameRow {
-  id: string;
-  date: string;
-  startTime?: string;
-  teamName?: string;
-  opposition?: string;
-  competition?: string;
-  away: boolean;
-  played: boolean;
-  result?: string | null;
-}
-
-// `react-router`'s Link supports asChild via the Button wrapper.
-declare module "@/components/ui/button" {}

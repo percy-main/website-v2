@@ -17,6 +17,27 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./api.gen.js";
 
+/**
+ * Resolve the 200 application/json body for a path + method to its
+ * generated TS type, e.g.:
+ *
+ *   type Games = ApiResponse<"/api/games">;
+ *   type Game = Games[number];
+ *
+ * Lifted from apps/web so consumers don't reinvent the shape-casting
+ * dance (which is how `home.tsx` ended up reading `data.games` from a
+ * response that's an array — silently undefined, silently empty).
+ */
+export type ApiResponse<
+  P extends keyof paths,
+  M extends string = "get",
+> = paths[P] extends Record<
+  M,
+  { responses: { 200: { content: { "application/json": infer R } } } }
+>
+  ? R
+  : never;
+
 class ApiError extends Error {
   constructor(
     public status: number,
