@@ -144,7 +144,7 @@ export default function OfficialAvailabilityDate() {
           active={tab === "noResponse"}
           onClick={() => setTab("noResponse")}
         >
-          {pd.pools.noResponse.length} No resp.
+          {pd.pools.noResponse.length} No response
         </SegBtn>
       </div>
 

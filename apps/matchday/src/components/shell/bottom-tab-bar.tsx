@@ -50,7 +50,7 @@ export function tabsForRole(role: "player" | "official"): TabDef[] {
     { to: "/squad", label: "Squad", icon: UsersIcon },
     {
       to: "/official/availability",
-      label: "Avail.",
+      label: "Availability",
       icon: CircleCheckIcon,
     },
     fixtures,
@@ -72,7 +72,11 @@ export function BottomTabBar({ tabs }: { tabs: TabDef[] }) {
           end={tab.end}
           className={({ isActive }) =>
             cn(
-              "relative flex flex-col items-center justify-center gap-0.5 px-1 py-2 text-[10.5px] font-medium",
+              // tracking-tight + nowrap + text-[10px] keeps "Availability"
+              // / "Donations" on a single line even in the 6-tab official
+              // layout on a 360px phone. Slight horizontal overspill into
+              // the px-1 buffer is fine; wrapping looks worse.
+              "relative flex flex-col items-center justify-center gap-0.5 overflow-hidden px-0.5 py-2 text-[10px] font-medium tracking-tight whitespace-nowrap",
               isActive ? "text-navy dark:text-white" : "text-text-secondary",
             )
           }
