@@ -116,3 +116,72 @@ resource "aws_ssm_parameter" "ses_from_address" {
     ignore_changes = [value]
   }
 }
+
+# ── Cross-subdomain auth for matchday.percymain.org ──
+#
+# These three drive better-auth's cross-subdomain session cookie + the
+# API's CORS allowlist. Set their actual values via the AWS CLI after
+# Terraform creates the placeholders:
+#
+#   aws --profile percy-main ssm put-parameter --overwrite \
+#     --name /production/percy-main/MATCHDAY_URL \
+#     --value "https://matchday.percymain.org"
+#   aws --profile percy-main ssm put-parameter --overwrite \
+#     --name /production/percy-main/WWW_URL \
+#     --value "https://www.percymain.org"
+#   aws --profile percy-main ssm put-parameter --overwrite \
+#     --name /production/percy-main/COOKIE_DOMAIN \
+#     --value ".percymain.org"
+#
+# Until COOKIE_DOMAIN is set, the API runs single-origin (existing
+# behaviour); matchday.percymain.org will be CORS-blocked on auth.
+# Once set, the session cookie is scoped to all *.percymain.org so
+# matchday + www + apex share the session.
+
+resource "aws_ssm_parameter" "matchday_url" {
+  name  = "/production/percy-main/MATCHDAY_URL"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "production"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "www_url" {
+  name  = "/production/percy-main/WWW_URL"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "production"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "cookie_domain" {
+  name  = "/production/percy-main/COOKIE_DOMAIN"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "production"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}

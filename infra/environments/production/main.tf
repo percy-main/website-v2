@@ -253,6 +253,11 @@ module "ecs" {
     BETTER_AUTH_RP_NAME  = aws_ssm_parameter.better_auth_rp_name.arn
     PLAY_CRICKET_SITE_ID = aws_ssm_parameter.play_cricket_site_id.arn
     SES_FROM_ADDRESS     = aws_ssm_parameter.ses_from_address.arn
+    # Cross-subdomain auth + CORS allowlist for matchday.percymain.org.
+    # See secrets.tf for the SSM definitions and how to set them.
+    MATCHDAY_URL  = aws_ssm_parameter.matchday_url.arn
+    WWW_URL       = aws_ssm_parameter.www_url.arn
+    COOKIE_DOMAIN = aws_ssm_parameter.cookie_domain.arn
   }
 }
 

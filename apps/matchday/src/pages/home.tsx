@@ -149,7 +149,7 @@ function OutstandingDonationsCard() {
         </p>
         <Button asChild tone="primary" className="w-full">
           <a
-            href={mainSiteUrl("/members/charges")}
+            href={mainSiteUrl("/members?tab=payments")}
             rel="noopener"
             target="_blank"
           >

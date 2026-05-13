@@ -56,7 +56,7 @@ export default function Donations() {
         {outstanding.length > 0 && (
           <Button asChild tone="primary" className="mt-3 w-full">
             <a
-              href={mainSiteUrl("/members/charges")}
+              href={mainSiteUrl("/members?tab=payments")}
               target="_blank"
               rel="noopener"
             >
