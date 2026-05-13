@@ -14,6 +14,7 @@ import {
   findDuplicateMembers,
   getChargeAggregates,
   getMergePreview,
+  getUnpaidChargesGroupedByMember,
   getUserDetail,
   linkDependentToUser,
   linkMemberParent,
@@ -684,6 +685,181 @@ describe("admin service (integration)", () => {
       expect(
         resultIncluded.charges.find((c) => c.id === deletedId),
       ).toBeDefined();
+    });
+  });
+
+  describe("getUnpaidChargesGroupedByMember", () => {
+    it("groups outstanding charges by member, excludes settled, includes abandoned", async () => {
+      const aEmail = `unpaid-a-${crypto.randomUUID()}@test.com`;
+      const bEmail = `unpaid-b-${crypto.randomUUID()}@test.com`;
+      const cEmail = `unpaid-c-${crypto.randomUUID()}@test.com`;
+      const aSeed = await seedTestUser(ctx.db, { email: aEmail, name: "A" });
+      const bSeed = await seedTestUser(ctx.db, { email: bEmail, name: "B" });
+      const cSeed = await seedTestUser(ctx.db, { email: cEmail, name: "C" });
+      const aId = aSeed.memberId ?? "";
+      const bId = bSeed.memberId ?? "";
+      const cId = cSeed.memberId ?? "";
+
+      // Member A: two unpaid charges (total 70p)
+      await ctx.db
+        .insertInto("charge")
+        .values([
+          {
+            id: crypto.randomUUID(),
+            member_id: aId,
+            description: "A-1",
+            amount_pence: 4000,
+            charge_date: "2026-03-01",
+            created_by: "admin",
+            source: "admin",
+            type: "manual",
+          },
+          {
+            id: crypto.randomUUID(),
+            member_id: aId,
+            description: "A-2",
+            amount_pence: 3000,
+            charge_date: "2026-03-02",
+            created_by: "admin",
+            source: "admin",
+            type: "manual",
+          },
+        ])
+        .execute();
+
+      // Member B: one abandoned charge (Stripe intent created > 1h ago,
+      // not paid, not confirmed) — should still appear.
+      const twoHoursAgo = new Date(
+        Date.now() - 2 * 60 * 60 * 1000,
+      ).toISOString();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: crypto.randomUUID(),
+          member_id: bId,
+          description: "B-abandoned",
+          amount_pence: 1500,
+          charge_date: "2026-03-03",
+          created_at: twoHoursAgo,
+          stripe_payment_intent_id: `pi_${crypto.randomUUID()}`,
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      // Member C: paid, confirmed, deleted, relieved — none should appear.
+      await ctx.db
+        .insertInto("charge")
+        .values([
+          {
+            id: crypto.randomUUID(),
+            member_id: cId,
+            description: "C-paid",
+            amount_pence: 100,
+            charge_date: "2026-03-04",
+            paid_at: new Date().toISOString(),
+            created_by: "admin",
+            source: "admin",
+            type: "manual",
+          },
+          {
+            id: crypto.randomUUID(),
+            member_id: cId,
+            description: "C-confirmed",
+            amount_pence: 200,
+            charge_date: "2026-03-04",
+            payment_confirmed_at: new Date().toISOString(),
+            created_by: "admin",
+            source: "admin",
+            type: "manual",
+          },
+          {
+            id: crypto.randomUUID(),
+            member_id: cId,
+            description: "C-deleted",
+            amount_pence: 300,
+            charge_date: "2026-03-04",
+            deleted_at: new Date().toISOString(),
+            deleted_reason: "test",
+            created_by: "admin",
+            source: "admin",
+            type: "manual",
+          },
+        ])
+        .execute();
+
+      const { groups, grandTotalPence } = await getUnpaidChargesGroupedByMember(
+        ctx.db,
+      )();
+
+      const a = groups.find((g) => g.memberId === aId);
+      const b = groups.find((g) => g.memberId === bId);
+      const c = groups.find((g) => g.memberId === cId);
+      expect(a).toBeDefined();
+      expect(b).toBeDefined();
+      expect(c).toBeUndefined();
+
+      if (!a || !b) return;
+      expect(a.charges).toHaveLength(2);
+      expect(a.totalPence).toBe(7000);
+      expect(b.charges).toHaveLength(1);
+      expect(b.totalPence).toBe(1500);
+      expect(b.charges[0]?.isAbandoned).toBe(true);
+
+      // Sorted by total descending — A (7000) before B (1500).
+      const aIdx = groups.findIndex((g) => g.memberId === aId);
+      const bIdx = groups.findIndex((g) => g.memberId === bId);
+      expect(aIdx).toBeLessThan(bIdx);
+
+      // Grand total only counts A + B's charges plus any other unpaid
+      // charges leaked in from other tests in this run — assert at least
+      // the seeded amount.
+      expect(grandTotalPence).toBeGreaterThanOrEqual(7000 + 1500);
+    });
+
+    it("includes parents on a junior member's group", async () => {
+      const parentEmail = `unpaid-parent-${crypto.randomUUID()}@test.com`;
+      const juniorEmail = `unpaid-junior-${crypto.randomUUID()}@test.com`;
+      const parentSeed = await seedTestUser(ctx.db, {
+        email: parentEmail,
+        name: "Parent",
+      });
+      const juniorSeed = await seedTestUser(ctx.db, {
+        email: juniorEmail,
+        name: "Junior",
+      });
+      const parentId = parentSeed.memberId ?? "";
+      const juniorId = juniorSeed.memberId ?? "";
+
+      await ctx.db
+        .insertInto("member_parent_link")
+        .values({
+          member_id: juniorId,
+          parent_member_id: parentId,
+        })
+        .execute();
+
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: crypto.randomUUID(),
+          member_id: juniorId,
+          description: "Junior subs",
+          amount_pence: 5000,
+          charge_date: "2026-03-05",
+          created_by: "admin",
+          source: "admin",
+          type: "manual",
+        })
+        .execute();
+
+      const { groups } = await getUnpaidChargesGroupedByMember(ctx.db)();
+      const j = groups.find((g) => g.memberId === juniorId);
+      expect(j).toBeDefined();
+      if (!j) return;
+      expect(j.paidByParents).toHaveLength(1);
+      expect(j.paidByParents[0]?.email).toBe(parentEmail);
     });
   });
 

@@ -1293,6 +1293,123 @@ export function getChargeAggregates(db: Kysely<DB>) {
   };
 }
 
+export interface UnpaidChargeRow {
+  id: string;
+  chargeDate: string;
+  description: string;
+  source: string;
+  amountPence: number;
+  isAbandoned: boolean;
+}
+
+export interface UnpaidChargesMemberGroup {
+  memberId: string;
+  memberName: string | null;
+  memberEmail: string;
+  memberCategory: string | null;
+  paidByParents: Array<{ name: string | null; email: string }>;
+  totalPence: number;
+  charges: UnpaidChargeRow[];
+}
+
+export function getUnpaidChargesGroupedByMember(db: Kysely<DB>) {
+  return async (): Promise<{
+    groups: UnpaidChargesMemberGroup[];
+    grandTotalPence: number;
+  }> => {
+    const abandonedCutoff = getAbandonedCutoff();
+
+    const rows = await db
+      .selectFrom("charge")
+      .innerJoin("member", "member.id", "charge.member_id")
+      .where("charge.paid_at", "is", null)
+      .where("charge.payment_confirmed_at", "is", null)
+      .where("charge.deleted_at", "is", null)
+      .where("charge.relieved_at", "is", null)
+      .select([
+        "charge.id",
+        "charge.member_id",
+        "charge.description",
+        "charge.amount_pence",
+        "charge.charge_date",
+        "charge.created_at",
+        "charge.source",
+        "charge.stripe_payment_intent_id",
+        "member.name as memberName",
+        "member.email as memberEmail",
+        "member.member_category as memberCategory",
+      ])
+      .orderBy("member.name", "asc")
+      .orderBy("charge.charge_date", "asc")
+      .execute();
+
+    const memberIds = Array.from(new Set(rows.map((r) => r.member_id)));
+    const parentLinks =
+      memberIds.length > 0
+        ? await db
+            .selectFrom("member_parent_link")
+            .innerJoin(
+              "member as parent",
+              "parent.id",
+              "member_parent_link.parent_member_id",
+            )
+            .where("member_parent_link.member_id", "in", memberIds)
+            .select([
+              "member_parent_link.member_id",
+              "parent.name as parentName",
+              "parent.email as parentEmail",
+            ])
+            .execute()
+        : [];
+
+    const parentsByMember = new Map<
+      string,
+      Array<{ name: string | null; email: string }>
+    >();
+    for (const link of parentLinks) {
+      const arr = parentsByMember.get(link.member_id) ?? [];
+      arr.push({ name: link.parentName, email: link.parentEmail });
+      parentsByMember.set(link.member_id, arr);
+    }
+
+    const byMember = new Map<string, UnpaidChargesMemberGroup>();
+    for (const r of rows) {
+      const isAbandoned =
+        r.stripe_payment_intent_id !== null && r.created_at < abandonedCutoff;
+      const existing = byMember.get(r.member_id);
+      const charge: UnpaidChargeRow = {
+        id: r.id,
+        chargeDate: r.charge_date,
+        description: r.description,
+        source: r.source,
+        amountPence: r.amount_pence,
+        isAbandoned,
+      };
+      if (existing) {
+        existing.charges.push(charge);
+        existing.totalPence += r.amount_pence;
+      } else {
+        byMember.set(r.member_id, {
+          memberId: r.member_id,
+          memberName: r.memberName,
+          memberEmail: r.memberEmail,
+          memberCategory: r.memberCategory,
+          paidByParents: parentsByMember.get(r.member_id) ?? [],
+          totalPence: r.amount_pence,
+          charges: [charge],
+        });
+      }
+    }
+
+    const groups = Array.from(byMember.values()).sort(
+      (a, b) => b.totalPence - a.totalPence,
+    );
+    const grandTotalPence = groups.reduce((acc, g) => acc + g.totalPence, 0);
+
+    return { groups, grandTotalPence };
+  };
+}
+
 export function markChargePaid(db: Kysely<DB>) {
   return async (
     chargeId: string,

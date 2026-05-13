@@ -12139,6 +12139,15 @@
         }
       }
     },
+    "/api/admin/charges/unpaid-pdf": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/admin/charge-aggregates": {
       "get": {
         "parameters": [
