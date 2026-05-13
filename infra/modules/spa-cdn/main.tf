@@ -254,6 +254,18 @@ resource "aws_cloudfront_function" "spa_rewrite" {
 # -----------------------------------------------------------------------------
 
 resource "aws_cloudfront_distribution" "main" {
+  # CloudFront's CreateDistribution call validates at request time that
+  # the logging bucket has ACLs enabled (ownership = ObjectWriter or
+  # BucketOwnerPreferred). The distribution's only implicit dependency
+  # on the logs bucket is via `bucket_domain_name`, so without this
+  # explicit chain TF runs the ACL/ownership setup in parallel with
+  # CreateDistribution and the create races to a 400:
+  #   "The S3 bucket ... does not enable ACL access".
+  depends_on = [
+    aws_s3_bucket_ownership_controls.cdn_logs,
+    aws_s3_bucket_acl.cdn_logs,
+  ]
+
   enabled             = true
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
