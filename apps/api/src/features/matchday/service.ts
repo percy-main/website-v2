@@ -316,12 +316,12 @@ export function getMatchPublic(db: Kysely<DB>) {
     const projected = players.map((p) => ({
       matchdayPlayerId: p.matchday_player_id,
       memberId: p.member_id,
-      isCaptain: !!p.is_captain,
-      isKeeper: !!p.is_wicketkeeper,
+      isCaptain: p.is_captain,
+      isKeeper: p.is_wicketkeeper,
       isGuest: p.member_id === null,
       displayName: p.member_name ?? p.player_name ?? "Unknown",
       note: null as string | null,
-      _status: p.status as string,
+      _status: p.status,
     }));
 
     const squad = projected
