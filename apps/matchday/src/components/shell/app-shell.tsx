@@ -6,8 +6,7 @@ import { DesktopSideNav } from "@/components/shell/desktop-side-nav.js";
 import { OfflineIndicator } from "@/components/shell/offline-indicator.js";
 import { ServiceWorkerUpdate } from "@/components/shell/sw-update.js";
 import { TopBar } from "@/components/shell/top-bar.js";
-import { ensureCachesMatchUser, useSession } from "@/lib/auth-client.js";
-import { useEffect } from "react";
+import { useSession } from "@/lib/auth-client.js";
 import { Outlet } from "react-router";
 
 /**
@@ -15,15 +14,14 @@ import { Outlet } from "react-router";
  * header on mobile + the side nav on desktop, with the route content
  * in between, the bottom tab bar pinned, and the offline + SW update
  * banners as overlays.
+ *
+ * Per-user Workbox cache hygiene lives in <RequireAuth /> (the parent
+ * route element) — it gates rendering on the cache wipe so this shell
+ * + the <Outlet /> children never get the chance to fire useQuery
+ * fetches against another user's cached responses.
  */
 export function AppShell() {
   const { data: session } = useSession();
-  // Shared-device defence: if the resolved session belongs to a
-  // different user than the last cached-data user, wipe the per-user
-  // SW caches before any cached response can leak across accounts.
-  useEffect(() => {
-    void ensureCachesMatchUser(session?.user.id);
-  }, [session?.user.id]);
   // Coarse role detection. better-auth's admin plugin stores role on the
   // user. Anyone with `official` (or any admin-ish role that's also a
   // team official) sees the extra Squad + Availability tabs. Pure
