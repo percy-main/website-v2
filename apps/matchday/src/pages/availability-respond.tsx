@@ -32,7 +32,6 @@ type Fixture = ActiveItem["fixtures"][number];
 
 interface Step {
   requestId: string;
-  memberId: string;
   date: string;
   fixtures: Fixture[];
 }
@@ -47,8 +46,6 @@ export default function AvailabilityRespond() {
 
   const steps = useMemo<Step[]>(() => {
     if (!data) return [];
-    const memberId = data.memberId;
-    if (!memberId) return [];
     const out: Step[] = [];
     for (const item of data.items) {
       if (item.status !== "open") continue;
@@ -63,7 +60,7 @@ export default function AvailabilityRespond() {
       const answered = new Set(item.myResponses.map((r) => r.match_date));
       for (const [date, fixtures] of byDate) {
         if (answered.has(date)) continue;
-        out.push({ requestId: item.id, memberId, date, fixtures });
+        out.push({ requestId: item.id, date, fixtures });
       }
     }
     out.sort((a, b) => a.date.localeCompare(b.date));
@@ -74,33 +71,23 @@ export default function AvailabilityRespond() {
   const [note, setNote] = useState("");
   const current = steps[stepIndex];
 
+  // Player-side endpoint — gated on requireAuth, accepts a batch of
+  // { matchDate, status, note? } per request. Per-date PUT is the
+  // official override path; using it as a player returned 403.
   const respond = useMutation({
-    // The PUT body only accepts { status }. The endpoint's response
-    // (myResponses[].note) shows there's a slot for the player's note
-    // server-side, but it's not yet writable via this endpoint — a
-    // backend gap we should patch later. For now the local note input
-    // doesn't persist, and we don't try to send a reason field that the
-    // schema would reject.
     mutationFn: (vars: {
       requestId: string;
-      memberId: string;
-      date: string;
-      answer: "available" | "unavailable";
+      responses: Array<{
+        matchDate: string;
+        status: "available" | "unavailable";
+        note?: string;
+      }>;
     }) =>
       callApi(
-        api.PUT(
-          "/api/availability/requests/{requestId}/dates/{date}/members/{memberId}/availability",
-          {
-            params: {
-              path: {
-                requestId: vars.requestId,
-                date: vars.date,
-                memberId: vars.memberId,
-              },
-            },
-            body: { status: vars.answer },
-          },
-        ),
+        api.POST("/api/availability/requests/{requestId}/respond", {
+          params: { path: { requestId: vars.requestId } },
+          body: { responses: vars.responses },
+        }),
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["availability"] });
@@ -109,26 +96,33 @@ export default function AvailabilityRespond() {
 
   async function pick(answer: "available" | "unavailable") {
     if (!current) return;
+    const noteTrim = note.trim();
     await respond.mutateAsync({
       requestId: current.requestId,
-      memberId: current.memberId,
-      date: current.date,
-      answer,
+      responses: [
+        {
+          matchDate: current.date,
+          status: answer,
+          ...(noteTrim && { note: noteTrim }),
+        },
+      ],
     });
     setNote("");
     setStepIndex((prev) => Math.min(prev + 1, steps.length));
   }
 
   async function applyToAllRemaining(answer: "available" | "unavailable") {
+    // Batch by request so we make one POST per active request.
     const remaining = steps.slice(stepIndex);
+    const byRequest = new Map<string, Array<{ matchDate: string; status: "available" | "unavailable" }>>();
+    for (const s of remaining) {
+      const list = byRequest.get(s.requestId) ?? [];
+      list.push({ matchDate: s.date, status: answer });
+      byRequest.set(s.requestId, list);
+    }
     await Promise.all(
-      remaining.map((s) =>
-        respond.mutateAsync({
-          requestId: s.requestId,
-          memberId: s.memberId,
-          date: s.date,
-          answer,
-        }),
+      Array.from(byRequest.entries()).map(([requestId, responses]) =>
+        respond.mutateAsync({ requestId, responses }),
       ),
     );
     setStepIndex(steps.length);
