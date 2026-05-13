@@ -4185,9 +4185,9 @@ export interface paths {
                             opposition: string | null;
                             ground: string | null;
                             competition: string | null;
-                            away: boolean;
+                            away: boolean | null;
                             /** @enum {string} */
-                            status: "pending" | "confirmed" | "finished" | "cancelled";
+                            status: "confirmed" | "finished";
                             result: string | null;
                             scoreSummary: string | null;
                             squad: {

@@ -101,7 +101,12 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /\/api\/charges/,
+            // Anchored: only match the list endpoint, not /api/charges/*
+            // children — if a write endpoint is ever added under this
+            // path the StaleWhileRevalidate handler would intercept it
+            // (the `method: "GET"` option only blocks *caching* the
+            // response, not the URL match).
+            urlPattern: /\/api\/charges$/,
             handler: "StaleWhileRevalidate",
             method: "GET",
             options: {

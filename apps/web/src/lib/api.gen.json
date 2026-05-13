@@ -7398,15 +7398,14 @@
                       "type": "string"
                     },
                     "away": {
+                      "nullable": true,
                       "type": "boolean"
                     },
                     "status": {
                       "type": "string",
                       "enum": [
-                        "pending",
                         "confirmed",
-                        "finished",
-                        "cancelled"
+                        "finished"
                       ]
                     },
                     "result": {

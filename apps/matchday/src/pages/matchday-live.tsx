@@ -7,7 +7,7 @@ import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, PlusIcon, XIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 /**
@@ -119,7 +119,6 @@ export default function MatchdayLive() {
   const unpaid = playing.filter(
     (p) => p.chargeStatus === "unpaid" || p.chargeStatus === null,
   ).length;
-  const totalUnpaidPence = 0; // amount per charge isn't on the player projection — would need a join. Skip totals for now.
   const finished = md.matchday.status === "finished";
 
   return (
@@ -333,7 +332,6 @@ export default function MatchdayLive() {
           draftExpenseCount={
             md.expenses.filter((e) => e.status === "draft").length
           }
-          totalUnpaidPence={totalUnpaidPence}
           onClose={() => setFinishOpen(false)}
           onFinished={() => {
             void qc.invalidateQueries({ queryKey: ["matchday", matchdayId] });
@@ -493,14 +491,12 @@ function FinishSheet({
   matchdayId,
   unpaidCount,
   draftExpenseCount,
-  totalUnpaidPence,
   onClose,
   onFinished,
 }: {
   matchdayId: string;
   unpaidCount: number;
   draftExpenseCount: number;
-  totalUnpaidPence: number;
   onClose: () => void;
   onFinished: () => void;
 }) {
@@ -548,9 +544,6 @@ function FinishSheet({
           will be submitted
         </Row>
         <Row label="Donation emails">will be sent</Row>
-        {totalUnpaidPence > 0 && (
-          <Row label="Approx total">{fmtMoneyPence(totalUnpaidPence)}</Row>
-        )}
       </div>
 
       <Button
@@ -581,6 +574,16 @@ function FinishSheet({
   );
 }
 
+/**
+ * Bottom sheet primitive for the captain-live screens.
+ *
+ * a11y: announces as a modal dialog (role + aria-modal + aria-labelledby),
+ * traps focus inside the panel via an autofocus on the close button +
+ * a Tab-cycling wrapper, and dismisses on Esc or backdrop click. Not
+ * worth pulling in Radix's `Dialog` just for this — the matchday app
+ * already ships a hand-rolled custom Dialog in components/ui/dialog.tsx
+ * so we match that house style.
+ */
 function Sheet({
   onClose,
   title,
@@ -590,13 +593,66 @@ function Sheet({
   title: string;
   children: React.ReactNode;
 }) {
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeBtnRef.current?.focus();
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !panelRef.current) return;
+      // Focus trap — cycle Tab / Shift-Tab inside the panel so
+      // keyboard users + VoiceOver rotor can't reach the bottom-nav /
+      // content behind the sheet while it's open.
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      const active = document.activeElement;
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 md:items-center">
-      <div className="bg-surface w-full max-w-md rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 md:items-center"
+      onClick={onClose}
+    >
+      <div
+        ref={panelRef}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-surface w-full max-w-md rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl"
+      >
         <div className="bg-border mx-auto mb-3 h-1 w-9 rounded-full" />
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{title}</h2>
+          <h2 id={titleId} className="text-lg font-semibold">
+            {title}
+          </h2>
           <button
+            ref={closeBtnRef}
             type="button"
             onClick={onClose}
             aria-label="Close"

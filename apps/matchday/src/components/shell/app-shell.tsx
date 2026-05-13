@@ -6,7 +6,7 @@ import { DesktopSideNav } from "@/components/shell/desktop-side-nav.js";
 import { OfflineIndicator } from "@/components/shell/offline-indicator.js";
 import { ServiceWorkerUpdate } from "@/components/shell/sw-update.js";
 import { TopBar } from "@/components/shell/top-bar.js";
-import { useSession } from "@/lib/auth-client.js";
+import { useSession, type SessionUser } from "@/lib/auth-client.js";
 import { Outlet } from "react-router";
 
 /**
@@ -28,8 +28,7 @@ export function AppShell() {
   // members see the player view. Admin-only matchday admin surfaces
   // stay on the main site, so we don't branch on them here.
   const role: "player" | "official" = (() => {
-    const r =
-      (session?.user as { role?: string | null } | undefined)?.role ?? "";
+    const r = (session?.user as SessionUser | undefined)?.role ?? "";
     if (r === "official" || r.includes("admin")) return "official";
     return "player";
   })();

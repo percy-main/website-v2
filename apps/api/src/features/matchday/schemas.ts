@@ -253,8 +253,14 @@ export const publicMatchdayResponseSchema = z.object({
   opposition: z.string().nullable(),
   ground: z.string().nullable(),
   competition: z.string().nullable(),
-  away: z.boolean(),
-  status: z.enum(["pending", "confirmed", "finished", "cancelled"]),
+  // Nullable until play_cricket_match is joined into the public projection.
+  // Returning a hardcoded `false` here lied to the matchday app, which
+  // rendered every fixture as a home game.
+  away: z.boolean().nullable(),
+  // The service throws 404 for `pending` (team not yet announced) and
+  // `cancelled` (free-text reason may carry PII), so the public 200
+  // response only ever exposes confirmed-or-finished fixtures.
+  status: z.enum(["confirmed", "finished"]),
   result: z.string().nullable(),
   scoreSummary: z.string().nullable(),
   squad: z.array(publicMatchdayPlayerSchema),

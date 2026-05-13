@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card.js";
-import { signOut, useSession } from "@/lib/auth-client.js";
+import { signOut, useSession, type SessionUser } from "@/lib/auth-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
 
 export default function Me() {
@@ -23,9 +23,7 @@ export default function Me() {
           <Row label="Email" value={user?.email ?? "—"} />
           <Row
             label="Role"
-            value={
-              (user as { role?: string | null } | undefined)?.role ?? "member"
-            }
+            value={(user as SessionUser | undefined)?.role ?? "member"}
           />
         </CardContent>
       </Card>

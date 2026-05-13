@@ -72,6 +72,16 @@ data "aws_cloudfront_cache_policy" "caching_optimized" {
   name = "Managed-CachingOptimized"
 }
 
+# index.html must be re-fetched every deploy — Vite ships hashed asset
+# filenames but the index references the new hashes, so a long-TTL on
+# index would pin clients to the old bundle until the next CF
+# invalidation. The deploy step also stamps `Cache-Control: max-age=0,
+# must-revalidate` on the index.html object as belt-and-braces; this
+# cache policy is the load-bearing one.
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
 # -----------------------------------------------------------------------------
 # S3 Bucket — Frontend Assets
 # -----------------------------------------------------------------------------
@@ -91,6 +101,16 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
+  }
+}
+
+# Vite ships hashed asset filenames so rollback is technically survivable
+# via redeploy, but versioning is cheap and means a botched `aws s3 sync
+# --delete` doesn't lose the previous build's index.html.
+resource "aws_s3_bucket_versioning" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+  versioning_configuration {
+    status = "Enabled"
   }
 }
 
@@ -139,6 +159,16 @@ resource "aws_s3_bucket" "cdn_logs" {
   })
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "cdn_logs" {
+  bucket = aws_s3_bucket.cdn_logs.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "cdn_logs" {
   bucket = aws_s3_bucket.cdn_logs.id
 
@@ -148,11 +178,16 @@ resource "aws_s3_bucket_public_access_block" "cdn_logs" {
   restrict_public_buckets = true
 }
 
+# CloudFront standard log delivery writes objects with the uploader's
+# canonical ID and grants WRITE+READ_ACP via the log-delivery-write
+# ACL. New AWS accounts default Object Ownership to BucketOwnerEnforced
+# which disables ACLs entirely; ObjectWriter is required for CloudFront
+# logs to land here.
 resource "aws_s3_bucket_ownership_controls" "cdn_logs" {
   bucket = aws_s3_bucket.cdn_logs.id
 
   rule {
-    object_ownership = "BucketOwnerPreferred"
+    object_ownership = "ObjectWriter"
   }
 }
 
@@ -235,6 +270,22 @@ resource "aws_cloudfront_distribution" "main" {
     origin_access_control_id = aws_cloudfront_origin_access_control.s3.id
   }
 
+  # /index.html — must never cache long. Separate behaviour so a deploy
+  # is immediately visible without an explicit invalidation of the root
+  # object (the path-pattern catches direct hits; the CF Function also
+  # rewrites bare-path navigations to /index.html, which then matches
+  # this behaviour at the cache lookup).
+  ordered_cache_behavior {
+    path_pattern           = "/index.html"
+    target_origin_id       = local.frontend_origin_id
+    viewer_protocol_policy = "redirect-to-https"
+    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_disabled.id
+
+    allowed_methods = ["GET", "HEAD"]
+    cached_methods  = ["GET", "HEAD"]
+    compress        = true
+  }
+
   default_cache_behavior {
     target_origin_id       = local.frontend_origin_id
     viewer_protocol_policy = "redirect-to-https"
@@ -250,35 +301,20 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # Custom error responses — SPAs serve their own 404 page from index.html.
-  custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 0
-  }
+  # No `custom_error_response` 403/404 → index.html: that combo with the
+  # CF Function's path rewrite would mask a missing JS chunk by serving
+  # the SPA shell with content-type text/html, which the browser tries
+  # to execute as JS and explodes. The CF Function already turns every
+  # extensionless path into /index.html before origin lookup, so SPA
+  # routing is covered; a 403 from S3 on a hashed asset (e.g. an old
+  # client requesting a pruned chunk after a deploy) surfaces as a real
+  # error and the SW's cleanupOutdatedCaches + skipWaiting picks up the
+  # new shell on the next navigation.
 
-  custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 0
-  }
-
-  dynamic "viewer_certificate" {
-    for_each = var.acm_certificate_arn != "" ? [1] : []
-    content {
-      acm_certificate_arn      = var.acm_certificate_arn
-      ssl_support_method       = "sni-only"
-      minimum_protocol_version = "TLSv1.2_2021"
-    }
-  }
-
-  dynamic "viewer_certificate" {
-    for_each = var.acm_certificate_arn != "" ? [] : [1]
-    content {
-      cloudfront_default_certificate = true
-    }
+  viewer_certificate {
+    acm_certificate_arn      = var.acm_certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   logging_config {

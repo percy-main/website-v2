@@ -295,6 +295,13 @@ export function getMatchPublic(db: Kysely<DB>) {
     if (match.status === "pending") {
       throwHttpError(404, "Team not yet announced");
     }
+    // Cancelled matchdays: the cancel reason on the parent record is a
+    // free-text field captured from officials and may carry PII. The
+    // public projection doesn't expose the reason today, but skip the
+    // squad reveal too — a cancelled fixture has no team sheet to show.
+    if (match.status === "cancelled") {
+      throwHttpError(404, "Matchday cancelled");
+    }
 
     const players = await db
       .selectFrom("matchday_player")
@@ -341,18 +348,16 @@ export function getMatchPublic(db: Kysely<DB>) {
       matchDate: match.match_date,
       // Home/away, ground, match time, and score summary live on the
       // joined play_cricket_match record, which this service doesn't
-      // load yet. Phase 2.1 cleanup if we need them. For now: null.
+      // load yet. Phase 2.1 cleanup if we need them. For now: null —
+      // the schema is `.nullable()` so callers know to render the
+      // field as "—" or hide it rather than treat `false` as truth.
       startTime: null as string | null,
       teamName: match.team_name,
       opposition: match.opposition,
       ground: null as string | null,
       competition: match.competition_type,
-      away: false,
-      status: match.status as
-        | "pending"
-        | "confirmed"
-        | "finished"
-        | "cancelled",
+      away: null as boolean | null,
+      status: match.status as "confirmed" | "finished",
       result: match.result_type,
       scoreSummary: null as string | null,
       squad,

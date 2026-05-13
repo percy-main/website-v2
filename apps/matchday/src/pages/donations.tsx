@@ -5,6 +5,7 @@ import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
+import { parseISO } from "date-fns";
 import { useState } from "react";
 
 type Tab = "outstanding" | "history";
@@ -159,7 +160,7 @@ function ChargeRowItem({ c, muted }: { c: Charge; muted?: boolean }) {
       {c.charge_date ? (
         <div className="bg-surface-raised flex flex-col items-center justify-center rounded-md py-1">
           <div className="text-navy text-base leading-none font-bold dark:text-white">
-            {new Date(c.charge_date).getDate()}
+            {parseISO(c.charge_date).getDate()}
           </div>
           <div className="text-text-secondary text-[10px] tracking-wide uppercase">
             {fmtDate(c.charge_date, "MMM")}

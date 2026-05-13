@@ -22,6 +22,19 @@ export const authClient = createAuthClient({
 export const { useSession } = authClient;
 
 /**
+ * `useSession().data.user` shape with the `role` field that
+ * better-auth's admin plugin attaches at runtime but doesn't surface in
+ * the generated client types. Use this instead of inline
+ * `as { role?: string | null }` casts at every read site.
+ */
+export interface SessionUser {
+  id: string;
+  name: string;
+  email: string;
+  role?: string | null;
+}
+
+/**
  * Names of every runtime cache populated by vite-plugin-pwa for
  * /api/* responses. Kept in lockstep with vite.config.ts. Used to
  * wipe per-user data on sign-out / sign-in-as-someone-else so a
@@ -29,21 +42,36 @@ export const { useSession } = authClient;
  * sheet to account B (each Workbox StaleWhileRevalidate entry is
  * keyed on URL only, so without this clear the first paint after
  * switching shows the previous user's cached body).
+ *
+ * Also consumed by `api-client.ts` to evict a single entry when a
+ * /api/* GET returns 401 — covers the case where a cookie expired
+ * server-side without the user clicking sign-out.
  */
-const PER_USER_RUNTIME_CACHES = [
+export const PER_USER_RUNTIME_CACHES = [
   "matchday-availability-active",
   "matchday-team-sheet",
   "matchday-charges",
   "matchday-games",
 ];
 
-async function clearPerUserCaches(): Promise<void> {
-  if (typeof caches === "undefined") return;
-  await Promise.all(
+/**
+ * Wipe every per-user runtime cache. Returns `true` only if every
+ * `caches.delete()` resolved cleanly — Safari private mode can have
+ * the `caches` API present but reject deletes, in which case we must
+ * NOT report the user's caches as clean (the previous-user data is
+ * still on disk).
+ */
+async function clearPerUserCaches(): Promise<boolean> {
+  if (typeof caches === "undefined") return true;
+  const results = await Promise.all(
     PER_USER_RUNTIME_CACHES.map((name) =>
-      caches.delete(name).catch(() => false),
+      caches
+        .delete(name)
+        .then(() => true)
+        .catch(() => false),
     ),
   );
+  return results.every(Boolean);
 }
 
 /**
@@ -55,6 +83,9 @@ export async function signOut(): Promise<void> {
     await authClient.signOut();
   } finally {
     await clearPerUserCaches();
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(LAST_USER_KEY);
+    }
   }
 }
 
@@ -64,19 +95,33 @@ const LAST_USER_KEY = "matchday-last-user-id";
  * Detect a sign-in-as-different-user (e.g. shared family device) and
  * wipe stale per-user caches before any cached response is served. Call
  * from app boot once the session resolves.
+ *
+ * Returns `true` only if the caches are guaranteed in-sync with the
+ * resolved user — the render gate in <RequireAuth /> relies on this to
+ * decide whether to allow child routes to mount or force a reload.
+ *
+ * Note on the localStorage trust model: the key is an optimisation so
+ * a returning user keeps the SWR benefit on cold start. A pre-poisoned
+ * key (attacker pre-sets it to a victim's user id on a shared device)
+ * would skip the wipe — but the cache-eviction-on-401 hook in
+ * `api-client.ts` covers that residual leak path: any stale cached
+ * response that survives a session expiry returns 401 on revalidate
+ * and is dropped from the cache before the next paint.
  */
 export async function ensureCachesMatchUser(
   userId: string | null | undefined,
-): Promise<void> {
-  if (typeof localStorage === "undefined") return;
+): Promise<boolean> {
+  if (typeof localStorage === "undefined") return true;
   const previous = localStorage.getItem(LAST_USER_KEY);
   const current = userId ?? null;
   if (current !== previous) {
-    await clearPerUserCaches();
+    const cleared = await clearPerUserCaches();
+    if (!cleared) return false;
     if (current) {
       localStorage.setItem(LAST_USER_KEY, current);
     } else {
       localStorage.removeItem(LAST_USER_KEY);
     }
   }
+  return true;
 }

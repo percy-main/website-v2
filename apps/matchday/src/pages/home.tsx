@@ -119,8 +119,11 @@ function countUnansweredDates(data: ActiveAvailability | undefined): number {
 }
 
 function OutstandingDonationsCard() {
+  // Same query key as `donations.tsx` so the two views share a cache
+  // entry; a mutation invalidating ["charges"] hits both, and a warm
+  // cache on one populates the other without a refetch.
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["charges", "outstanding"],
+    queryKey: ["charges"],
     queryFn: () => callApi(api.GET("/api/charges")),
   });
   if (isLoading) return <CardSkeleton />;

@@ -16,6 +16,7 @@
 
 import createClient from "openapi-fetch";
 import type { paths } from "./api.gen.js";
+import { PER_USER_RUNTIME_CACHES } from "./auth-client.js";
 
 /**
  * Resolve the 200 application/json body for a path + method to its
@@ -59,6 +60,15 @@ export async function callApi<T>(
 ): Promise<T> {
   const { data, error, response: res } = await response;
   if (error !== undefined) {
+    if (res.status === 401) {
+      // Session expired server-side without an explicit sign-out — any
+      // entry the SW already cached for this URL would otherwise keep
+      // serving the previous user's body on the next paint. Drop the
+      // specific cache entry now; the next navigation will reach
+      // <RequireAuth />, see no session, and bounce to the main site
+      // for sign-in.
+      void evictResponseFromRuntimeCaches(res.url);
+    }
     throw new ApiError(
       res.status,
       typeof error === "string"
@@ -69,4 +79,23 @@ export async function callApi<T>(
     );
   }
   return data as T;
+}
+
+/**
+ * Best-effort delete of `url` from every runtime cache. Used to flush
+ * stale authenticated responses when the server returns 401.
+ */
+async function evictResponseFromRuntimeCaches(url: string): Promise<void> {
+  if (typeof caches === "undefined" || !url) return;
+  await Promise.all(
+    PER_USER_RUNTIME_CACHES.map(async (name) => {
+      try {
+        const cache = await caches.open(name);
+        await cache.delete(url);
+      } catch {
+        // ignore — Safari private mode can throw here; the next sign-in
+        // path will clear caches in bulk via ensureCachesMatchUser.
+      }
+    }),
+  );
 }

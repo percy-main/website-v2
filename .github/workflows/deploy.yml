@@ -60,6 +60,7 @@ jobs:
               - '.github/workflows/deploy.yml'
             matchday:
               - 'apps/matchday/**'
+              - 'apps/api/**'
               - 'packages/shared/**'
               - '.github/workflows/deploy.yml'
 
@@ -668,12 +669,16 @@ jobs:
 
   # ── Stage 4: Deploy Frontend ────────────────────────────────────────
   deploy-web:
-    needs: [deploy-api, changes]
-    # Run if web changed, even when deploy-api was skipped (no API changes)
+    needs: [terraform-production, deploy-api, changes]
+    # Run if web changed, even when deploy-api was skipped (no API changes).
+    # terraform-production MUST have succeeded — `always()` would
+    # otherwise let a failed TF apply trigger a deploy against potentially-
+    # stale infra. deploy-api may be skipped (no API changes).
     if: |
       always() &&
       needs.changes.result == 'success' &&
       needs.changes.outputs.web == 'true' &&
+      needs.terraform-production.result == 'success' &&
       (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
     runs-on: ubuntu-latest
     environment: production
@@ -826,16 +831,46 @@ jobs:
   # CloudFront distribution. Runs in parallel with deploy-web — no shared
   # state. Skipped when nothing under apps/matchday/** changed.
   deploy-matchday:
-    needs: [deploy-api, changes]
+    needs: [terraform-production, deploy-api, changes]
+    # deploy-api is allowed to be skipped (API didn't change) but
+    # terraform-production MUST have succeeded — the matchday bucket
+    # and CloudFront distribution are created there. Without an explicit
+    # `terraform-production == 'success'` guard the `always()` would let
+    # a failed TF apply still run the deploy and fail late at the S3
+    # sync step.
     if: |
       always() &&
       needs.changes.result == 'success' &&
       needs.changes.outputs.matchday == 'true' &&
+      needs.terraform-production.result == 'success' &&
       (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
     runs-on: ubuntu-latest
     environment: production
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify required GitHub repo variables are set
+        # First-run protection. The matchday bucket + distribution are
+        # provisioned by Terraform; their IDs land in `terraform output`
+        # and an operator copies them to repo Variables (`Settings →
+        # Variables`). Without them the S3 sync command below expands
+        # to `s3://` and fails opaquely halfway through the job — fail
+        # fast here with a pointer at the wiring instead.
+        env:
+          BUCKET: ${{ vars.MATCHDAY_FRONTEND_BUCKET }}
+          DIST: ${{ vars.MATCHDAY_CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          missing=()
+          [ -z "${BUCKET:-}" ] && missing+=("MATCHDAY_FRONTEND_BUCKET")
+          [ -z "${DIST:-}" ] && missing+=("MATCHDAY_CLOUDFRONT_DISTRIBUTION_ID")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Missing GitHub repo variables: ${missing[*]}"
+            echo "Run 'terraform output' from infra/environments/production and copy:"
+            echo "  matchday_frontend_bucket_name        → MATCHDAY_FRONTEND_BUCKET"
+            echo "  matchday_cloudfront_distribution_id  → MATCHDAY_CLOUDFRONT_DISTRIBUTION_ID"
+            echo "into Settings → Secrets and variables → Actions → Variables, then re-run."
+            exit 1
+          fi
 
       - uses: pnpm/action-setup@v4
 

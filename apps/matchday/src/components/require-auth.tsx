@@ -40,8 +40,18 @@ export function RequireAuth() {
   useEffect(() => {
     if (isPending || !session) return;
     let cancelled = false;
-    void ensureCachesMatchUser(userId).then(() => {
-      if (!cancelled) setCachesReadyForUser(userId);
+    void ensureCachesMatchUser(userId).then((ok) => {
+      if (cancelled) return;
+      if (!ok) {
+        // Cache wipe failed (e.g. Safari private mode rejecting
+        // caches.delete). We have no safe way to release the gate
+        // because the previous user's responses may still be on
+        // disk. Force a full reload — the SW lifecycle reset on
+        // navigation is the only thing we can reliably reach for.
+        window.location.reload();
+        return;
+      }
+      setCachesReadyForUser(userId);
     });
     return () => {
       cancelled = true;
@@ -50,7 +60,15 @@ export function RequireAuth() {
 
   useEffect(() => {
     if (isPending || session) return;
-    window.location.href = signInUrl();
+    // Cookie expired / signed out elsewhere. Wipe per-user caches
+    // before the redirect so a logged-in attacker on the same device
+    // can't read the last cached /charges / /availability response by
+    // visiting /matchday.percymain.org/ before signing in. We don't
+    // gate the redirect on completion — caches.delete is fast and
+    // the destination is on a different origin anyway.
+    void ensureCachesMatchUser(null).finally(() => {
+      window.location.href = signInUrl();
+    });
   }, [isPending, session]);
 
   if (isPending || !session) {
