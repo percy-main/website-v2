@@ -86,7 +86,14 @@ export default function FixtureDetail() {
   );
 }
 
+/**
+ * Only offer directions for AWAY games — players don't need directions
+ * to their own ground. Prefer the structured location object when we
+ * have it (geocodes much better than a plain ground name), fall back
+ * to the bare groundName otherwise.
+ */
 function directionsTarget(g: GameDetail): string | null {
+  if (g.home) return null;
   if (g.location) {
     return [g.location.name, g.location.street, g.location.city, g.location.postcode]
       .filter(Boolean)
