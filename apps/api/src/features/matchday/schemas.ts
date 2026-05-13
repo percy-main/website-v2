@@ -230,6 +230,43 @@ export const getMatchResponseSchema = z.object({
   expenses: z.array(matchdayExpenseSchema),
 });
 
+/**
+ * Reduced-shape team sheet visible to any signed-in member.
+ * Drops everything sensitive — no expenses, no charge IDs, no
+ * amounts — but keeps the squad list, captain/keeper, and result
+ * so the matchday app's team-sheet view can render.
+ */
+export const publicMatchdayPlayerSchema = z.object({
+  matchdayPlayerId: z.string(),
+  memberId: z.string().nullable(),
+  isCaptain: z.boolean(),
+  isKeeper: z.boolean(),
+  isGuest: z.boolean(),
+  displayName: z.string(),
+  note: z.string().nullable(),
+});
+export const publicMatchdayResponseSchema = z.object({
+  id: z.string(),
+  matchDate: z.string(),
+  startTime: z.string().nullable(),
+  teamName: z.string().nullable(),
+  opposition: z.string().nullable(),
+  ground: z.string().nullable(),
+  competition: z.string().nullable(),
+  // Nullable until play_cricket_match is joined into the public projection.
+  // Returning a hardcoded `false` here lied to the matchday app, which
+  // rendered every fixture as a home game.
+  away: z.boolean().nullable(),
+  // The service throws 404 for `pending` (team not yet announced) and
+  // `cancelled` (free-text reason may carry PII), so the public 200
+  // response only ever exposes confirmed-or-finished fixtures.
+  status: z.enum(["confirmed", "finished"]),
+  result: z.string().nullable(),
+  scoreSummary: z.string().nullable(),
+  squad: z.array(publicMatchdayPlayerSchema),
+  dropouts: z.array(publicMatchdayPlayerSchema),
+});
+
 export const recordExpenseResponseSchema = z.object({
   expenseId: z.string(),
 });

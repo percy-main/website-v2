@@ -198,7 +198,10 @@ export const router = createBrowserRouter([
                 path: "membership/junior",
                 lazy: () => import("./pages/membership/membership-junior.js"),
               },
-              // Matchday hub — all members see availability, officials see more
+              // Matchday hub — all members see availability, officials see more.
+              // Runs in parallel with the new PWA at matchday.percymain.org
+              // for now; cutover redirects will land in a later phase once
+              // we've exercised the new app on real fixtures.
               {
                 path: "matchday",
                 lazy: () => import("./pages/matchday/matchday-hub.js"),

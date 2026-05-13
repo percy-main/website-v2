@@ -20,14 +20,36 @@ export function createAuth(
 ) {
   const baseURL = config.BASE_URL;
   const apiBaseURL = config.API_BASE_URL;
+  const isProduction = config.NODE_ENV === "production";
 
   return betterAuth({
     baseURL: apiBaseURL,
     basePath: "/api/auth",
     appName: config.BETTER_AUTH_RP_NAME,
-    trustedOrigins: [baseURL, config.DEPLOY_PRIME_URL].filter(
-      Boolean,
-    ) as string[],
+    // Every origin we'd accept a cross-origin request from. The matchday
+    // app at matchday.percymain.org needs to be listed explicitly even
+    // though the cookie is scoped to .percymain.org — better-auth
+    // validates Origin against this list before issuing tokens.
+    trustedOrigins: [
+      baseURL,
+      config.MATCHDAY_URL,
+      config.WWW_URL,
+      config.DEPLOY_PRIME_URL,
+    ].filter(Boolean) as string[],
+    advanced: {
+      // Cross-subdomain session cookie. Only enabled when the operator
+      // has set COOKIE_DOMAIN — that way local single-origin dev keeps
+      // working unchanged. Production sets COOKIE_DOMAIN=.percymain.org.
+      ...(config.COOKIE_DOMAIN
+        ? {
+            crossSubDomainCookies: {
+              enabled: true,
+              domain: config.COOKIE_DOMAIN,
+            },
+          }
+        : {}),
+      useSecureCookies: isProduction,
+    },
     database: {
       type: "postgres",
       dialect,

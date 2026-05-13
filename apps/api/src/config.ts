@@ -1,5 +1,27 @@
 import { z } from "zod";
 
+/**
+ * Treat the literal string "placeholder" (and "") as if the env var
+ * was unset. SSM parameter resources in Terraform are created with
+ * `value = "placeholder"` so they exist before an operator sets the
+ * real value; without this filter, Zod's url() schema would reject
+ * "placeholder" and crash the API on the first deploy where a new
+ * SSM ref lands in the task definition.
+ *
+ * Implementation: a string-shaped Zod transform that returns
+ * undefined for the sentinel values, validates the URL otherwise.
+ */
+const optionalPlaceholderUrl = z
+  .string()
+  .optional()
+  .transform((v) => (v === "placeholder" || v === "" ? undefined : v))
+  .pipe(z.url().optional());
+
+const optionalPlaceholderString = z
+  .string()
+  .optional()
+  .transform((v) => (v === "placeholder" || v === "" ? undefined : v));
+
 const configSchema = z.object({
   // Database
   DATABASE_URL: z
@@ -21,6 +43,17 @@ const configSchema = z.object({
   BETTER_AUTH_RP_ID: z.string().default("localhost"),
   BETTER_AUTH_RP_NAME: z.string().default("Percy Main CSC"),
   BASE_URL: z.url().default("http://localhost:5173"),
+  // Additional public origins served by the same better-auth session
+  // (matchday PWA at matchday.percymain.org, www apex). Wildcard cert
+  // and cross-subdomain cookies make these share the cookie scoped to
+  // ".percymain.org". Both optional so dev / preview can omit them.
+  MATCHDAY_URL: optionalPlaceholderUrl,
+  WWW_URL: optionalPlaceholderUrl,
+  // Cookie domain for cross-subdomain better-auth sessions. In prod set
+  // to ".percymain.org"; in dev to ".localhost" (browsers treat *.localhost
+  // as cookieable). Leaving this unset (or at "placeholder") keeps the
+  // API in single-origin mode.
+  COOKIE_DOMAIN: optionalPlaceholderString,
   API_BASE_URL: z.url(),
   DEPLOY_PRIME_URL: z.url().optional(),
   GOOGLE_CLIENT_ID: z.string().default(""),

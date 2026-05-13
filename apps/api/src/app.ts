@@ -214,8 +214,23 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
     });
   }
 
+  // CORS — accept any of our trusted public origins. Multiple browser
+  // origins (web, matchday, www) share one better-auth session via a
+  // cookie scoped to .percymain.org, so the API has to allow each
+  // explicitly. Falsy entries (e.g. unset MATCHDAY_URL in dev) are
+  // filtered out.
+  const allowedOrigins = [
+    config.BASE_URL,
+    config.MATCHDAY_URL,
+    config.WWW_URL,
+    config.DEPLOY_PRIME_URL,
+  ].filter((u): u is string => Boolean(u));
   await app.register(cors, {
-    origin: config.BASE_URL,
+    origin: (origin, cb) => {
+      // Non-browser requests (curl, server-side) have no Origin — allow.
+      if (!origin) return cb(null, true);
+      cb(null, allowedOrigins.includes(origin));
+    },
     credentials: true,
     methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"],
     allowedHeaders: [

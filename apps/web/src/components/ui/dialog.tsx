@@ -43,8 +43,13 @@ export function DialogContent({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="fixed inset-0 bg-black/50"
+      {/* Backdrop is a real button so click + keyboard (Enter / Space) both
+          close the dialog — satisfies jsx-a11y without needing a separate
+          onKeyDown handler. `aria-label` so screen readers announce it. */}
+      <button
+        type="button"
+        aria-label="Close dialog"
+        className="fixed inset-0 cursor-default bg-black/50"
         onClick={() => onOpenChange(false)}
       />
       <div

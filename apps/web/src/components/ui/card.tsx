@@ -38,11 +38,14 @@ export function CardHeader({
 
 export function CardTitle({
   className,
+  children,
   ref,
   ...props
 }: React.HTMLAttributes<HTMLHeadingElement> & {
   ref?: React.Ref<HTMLHeadingElement>;
 }) {
+  // children is destructured explicitly so jsx-a11y/heading-has-content
+  // can statically see the heading isn't empty.
   return (
     <h3
       ref={ref}
@@ -51,7 +54,9 @@ export function CardTitle({
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+    </h3>
   );
 }
 

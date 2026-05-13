@@ -213,10 +213,15 @@ export function ShareThreadModal({
             <ul className="divide-y divide-stone-100">
               {candidates.map((o: ShareActor) => {
                 const checked = selectedToAdd.has(o.id);
+                const id = `share-actor-${o.id}`;
                 return (
                   <li key={o.id}>
-                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-stone-50">
+                    <label
+                      htmlFor={id}
+                      className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-stone-50"
+                    >
                       <Checkbox
+                        id={id}
                         checked={checked}
                         onCheckedChange={() => handleToggle(o.id)}
                       />
