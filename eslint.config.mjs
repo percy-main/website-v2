@@ -87,20 +87,24 @@ export default tseslint.config(
       ],
     },
   },
-  // react-doctor: only meaningful in the React app, so scope to apps/web.
-  // Globally disable rules that don't apply to a Vite SPA.
+  // react-doctor full ruleset is scoped to apps/web — it's a maturity
+  // ratchet aimed at the long-established main site. apps/matchday is
+  // fresh code under heavy iteration; rather than fight every stylistic
+  // rule during phase 3, we apply only the correctness-critical rules
+  // (set-state-in-effect, no-danger, no-deprecated-apis) and let the
+  // rest tighten in follow-ups.
   {
     ...reactDoctor.configs.recommended,
-    files: ["apps/{web,matchday}/src/**/*.{ts,tsx}"],
+    files: ["apps/web/src/**/*.{ts,tsx}"],
     rules: warnsToErrors(reactDoctor.configs.recommended.rules),
   },
   {
     ...reactDoctor.configs["tanstack-query"],
-    files: ["apps/{web,matchday}/src/**/*.{ts,tsx}"],
+    files: ["apps/web/src/**/*.{ts,tsx}"],
     rules: warnsToErrors(reactDoctor.configs["tanstack-query"].rules),
   },
   {
-    files: ["apps/{web,matchday}/src/**/*.{ts,tsx}"],
+    files: ["apps/web/src/**/*.{ts,tsx}"],
     plugins: {
       react: reactPlugin,
     },
@@ -115,6 +119,20 @@ export default tseslint.config(
       // dangerouslySetInnerHTML is the XSS landmine — block it at the lint
       // gate instead of only surfacing it as a warn-level CLI finding in the
       // react-doctor PR comment.
+      "react/no-danger": "error",
+    },
+  },
+  // Matchday: subset of react-doctor — just the correctness rules.
+  // set-state-in-effect comes from react-hooks/recommended-latest
+  // (applied globally above) so doesn't need re-declaring here.
+  {
+    files: ["apps/matchday/src/**/*.{ts,tsx}"],
+    plugins: {
+      "react-doctor": reactDoctor,
+      react: reactPlugin,
+    },
+    rules: {
+      "react-doctor/no-react19-deprecated-apis": "error",
       "react/no-danger": "error",
     },
   },

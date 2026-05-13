@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 import {
-  BanknoteIcon,
   CalendarDaysIcon,
   CircleCheckIcon,
   HomeIcon,
@@ -24,47 +23,39 @@ export interface TabDef {
  *
  *   - Player        Home · Fixtures · Donations · Me      (4 tabs)
  *   - Official      + Squad + Availability                (6 tabs)
- *   - Admin         + Approvals                           (7 tabs — desktop)
  *
  * Officials are also players, so Donations stays for them. Players never
- * see Squad / Availability.
+ * see Squad / Availability. Admin surfaces (expense approvals, fee rate
+ * admin) stay on the main site — not duplicated here.
  */
-export function tabsForRole(
-  role: "player" | "official" | "admin",
-  badges?: { approvals?: number },
-): TabDef[] {
-  const base: TabDef[] = [
-    { to: "/", label: "Home", icon: HomeIcon, end: true },
-    { to: "/fixtures", label: "Fixtures", icon: CalendarDaysIcon },
-    { to: "/donations", label: "Donations", icon: WalletIcon },
-  ];
-  const meTab: TabDef = { to: "/me", label: "Me", icon: UserIcon };
+export function tabsForRole(role: "player" | "official"): TabDef[] {
+  const home: TabDef = { to: "/", label: "Home", icon: HomeIcon, end: true };
+  const fixtures: TabDef = {
+    to: "/fixtures",
+    label: "Fixtures",
+    icon: CalendarDaysIcon,
+  };
+  const donations: TabDef = {
+    to: "/donations",
+    label: "Donations",
+    icon: WalletIcon,
+  };
+  const me: TabDef = { to: "/me", label: "Me", icon: UserIcon };
 
   if (role === "player") {
-    return [...base, meTab];
+    return [home, fixtures, donations, me];
   }
-  if (role === "official") {
-    return [
-      base[0],
-      { to: "/squad", label: "Squad", icon: UsersIcon },
-      { to: "/availability/manage", label: "Availability", icon: CircleCheckIcon },
-      base[1],
-      base[2],
-      meTab,
-    ];
-  }
-  // admin
   return [
-    base[0],
-    base[1],
+    home,
+    { to: "/squad", label: "Squad", icon: UsersIcon },
     {
-      to: "/approvals",
-      label: "Approvals",
-      icon: BanknoteIcon,
-      badge: badges?.approvals,
+      to: "/official/availability",
+      label: "Avail.",
+      icon: CircleCheckIcon,
     },
-    base[2],
-    meTab,
+    fixtures,
+    donations,
+    me,
   ];
 }
 

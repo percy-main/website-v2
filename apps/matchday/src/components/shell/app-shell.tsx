@@ -15,15 +15,14 @@ import { Outlet } from "react-router";
 export function AppShell() {
   const { data: session } = useSession();
   // Coarse role detection. better-auth's admin plugin stores role on the
-  // user. Fallback to "player" for everyone else. The plan keeps roles
-  // flat — "official" is a per-team membership, not a global role, so for
-  // now we treat anyone with an admin role as also seeing official tabs.
-  // Phase 3+ will resolve effective role from per-team membership.
-  const role: "player" | "official" | "admin" = (() => {
+  // user. Anyone with `official` (or any admin-ish role that's also a
+  // team official) sees the extra Squad + Availability tabs. Pure
+  // members see the player view. Admin-only matchday admin surfaces
+  // stay on the main site, so we don't branch on them here.
+  const role: "player" | "official" = (() => {
     const r =
       (session?.user as { role?: string | null } | undefined)?.role ?? "";
-    if (r.includes("admin")) return "admin";
-    if (r === "official") return "official";
+    if (r === "official" || r.includes("admin")) return "official";
     return "player";
   })();
   const tabs = tabsForRole(role);
