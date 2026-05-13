@@ -97,18 +97,12 @@ function AvailabilityAwaitingCard() {
 
 function countUnansweredDates(data: ActiveAvailability | undefined): number {
   if (!data) return 0;
-  // The shape exposed by /api/availability/active varies — we only need
-  // to count dates without a response. Walk it defensively rather than
-  // hard-binding to one nested-shape layout.
-  const requests = (data as { requests?: Array<{ dates?: unknown[] }> })
-    .requests;
-  if (!requests) return 0;
   let n = 0;
-  for (const r of requests) {
-    for (const d of r.dates ?? []) {
-      const myResponse = (d as { myResponse?: string | null }).myResponse;
-      if (myResponse === null || myResponse === undefined) n++;
-    }
+  for (const item of data.items) {
+    if (item.status !== "open") continue;
+    const answered = new Set(item.myResponses.map((r) => r.match_date));
+    const dates = new Set(item.fixtures.map((f) => f.match_date));
+    for (const d of dates) if (!answered.has(d)) n++;
   }
   return n;
 }

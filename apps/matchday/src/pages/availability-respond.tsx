@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,39 +15,26 @@ import { Link, useNavigate } from "react-router";
 /**
  * Phase 2 availability response flow.
  *
- * Reads /api/availability/active. Flattens across all active requests into
- * an ordered list of unanswered dates, asks the player about each one,
- * optimistically commits via the per-date members availability endpoint.
+ * Reads /api/availability/active. The response gives us each active
+ * request + the list of fixtures in its date range + the user's
+ * existing responses. We flatten across requests into the set of
+ * (request, match_date) pairs the user hasn't answered yet, then walk
+ * one date per screen.
  *
- * Per the plan: tap-not-swipe, both available/unavailable buttons on the
- * same screen, optional note, "apply same to all remaining" power user
- * affordance, end-state celebration.
+ * Per the plan: tap-not-swipe, both available/unavailable buttons on
+ * the same screen, optional note, "apply same to all remaining"
+ * power-user affordance, end-state celebration.
  */
 
-interface ActiveRequest {
-  id: string;
-  startDate: string;
-  endDate: string;
-  status: "open" | "closed";
-  member?: { id: string };
-  dates: ActiveDate[];
-}
-interface ActiveDate {
-  date: string;
-  fixtures?: Array<{
-    teamName?: string;
-    opposition?: string;
-    competition?: string;
-    away?: boolean;
-  }>;
-  myResponse?: "available" | "unavailable" | null;
-  myNote?: string | null;
-}
+type ActiveResponse = ApiResponse<"/api/availability/active">;
+type ActiveItem = ActiveResponse["items"][number];
+type Fixture = ActiveItem["fixtures"][number];
 
-interface StepRef {
+interface Step {
   requestId: string;
   memberId: string;
-  date: ActiveDate;
+  date: string;
+  fixtures: Fixture[];
 }
 
 export default function AvailabilityRespond() {
@@ -58,24 +45,28 @@ export default function AvailabilityRespond() {
     queryFn: () => callApi(api.GET("/api/availability/active")),
   });
 
-  const steps = useMemo<StepRef[]>(() => {
-    const reqs =
-      (data as unknown as { requests?: ActiveRequest[] } | undefined)
-        ?.requests ?? [];
-    // Single pass: walk active requests, push unanswered date refs.
-    const out: StepRef[] = [];
-    for (const r of reqs) {
-      if (r.status !== "open") continue;
-      for (const d of r.dates) {
-        if (d.myResponse !== null && d.myResponse !== undefined) continue;
-        out.push({
-          requestId: r.id,
-          memberId: r.member?.id ?? "",
-          date: d,
-        });
+  const steps = useMemo<Step[]>(() => {
+    if (!data) return [];
+    const memberId = data.memberId;
+    if (!memberId) return [];
+    const out: Step[] = [];
+    for (const item of data.items) {
+      if (item.status !== "open") continue;
+      // The unique match_dates in this request, grouped from the
+      // fixture list. The user answers per date, not per fixture.
+      const byDate = new Map<string, Fixture[]>();
+      for (const f of item.fixtures) {
+        const list = byDate.get(f.match_date) ?? [];
+        list.push(f);
+        byDate.set(f.match_date, list);
+      }
+      const answered = new Set(item.myResponses.map((r) => r.match_date));
+      for (const [date, fixtures] of byDate) {
+        if (answered.has(date)) continue;
+        out.push({ requestId: item.id, memberId, date, fixtures });
       }
     }
-    out.sort((a, b) => a.date.date.localeCompare(b.date.date));
+    out.sort((a, b) => a.date.localeCompare(b.date));
     return out;
   }, [data]);
 
@@ -84,27 +75,30 @@ export default function AvailabilityRespond() {
   const current = steps[stepIndex];
 
   const respond = useMutation({
-    mutationFn: async ({
-      requestId,
-      memberId,
-      date,
-      answer,
-      reason,
-    }: {
+    // The PUT body only accepts { status }. The endpoint's response
+    // (myResponses[].note) shows there's a slot for the player's note
+    // server-side, but it's not yet writable via this endpoint — a
+    // backend gap we should patch later. For now the local note input
+    // doesn't persist, and we don't try to send a reason field that the
+    // schema would reject.
+    mutationFn: (vars: {
       requestId: string;
       memberId: string;
       date: string;
       answer: "available" | "unavailable";
-      reason?: string;
     }) =>
       callApi(
         api.PUT(
           "/api/availability/requests/{requestId}/dates/{date}/members/{memberId}/availability",
           {
             params: {
-              path: { requestId, date, memberId },
+              path: {
+                requestId: vars.requestId,
+                date: vars.date,
+                memberId: vars.memberId,
+              },
             },
-            body: { availability: answer, reason: reason ?? null } as never,
+            body: { status: vars.answer },
           },
         ),
       ),
@@ -118,9 +112,8 @@ export default function AvailabilityRespond() {
     await respond.mutateAsync({
       requestId: current.requestId,
       memberId: current.memberId,
-      date: current.date.date,
+      date: current.date,
       answer,
-      reason: note.trim() || undefined,
     });
     setNote("");
     setStepIndex((prev) => Math.min(prev + 1, steps.length));
@@ -128,13 +121,12 @@ export default function AvailabilityRespond() {
 
   async function applyToAllRemaining(answer: "available" | "unavailable") {
     const remaining = steps.slice(stepIndex);
-    // Fire requests in parallel — each date is independent on the server.
     await Promise.all(
       remaining.map((s) =>
         respond.mutateAsync({
           requestId: s.requestId,
           memberId: s.memberId,
-          date: s.date.date,
+          date: s.date,
           answer,
         }),
       ),
@@ -213,7 +205,7 @@ export default function AvailabilityRespond() {
         <div className="flex flex-1 gap-1.5">
           {steps.map((s, i) => (
             <span
-              key={`${s.requestId}:${s.date.date}`}
+              key={`${s.requestId}:${s.date}`}
               className={cn(
                 "h-1 flex-1 rounded-full",
                 i < stepIndex
@@ -238,34 +230,36 @@ export default function AvailabilityRespond() {
       <div className="mx-auto w-full max-w-md px-5 py-6">
         <div className="flex items-baseline justify-between">
           <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
-            {fmtDate(current.date.date, "EEEE")}
+            {fmtDate(current.date, "EEEE")}
           </span>
           <span className="text-xs text-text-secondary">
             {stepIndex + 1} of {total}
           </span>
         </div>
         <h1 className="mt-1 text-2xl font-semibold tracking-[-0.015em]">
-          {fmtDate(current.date.date, "d MMMM")}
+          {fmtDate(current.date, "d MMMM")}
         </h1>
 
         <div className="mt-4 space-y-2">
-          {(current.date.fixtures ?? []).map((f) => (
+          {current.fixtures.map((f) => (
             <div
-              key={`${f.teamName ?? ""}:${f.opposition ?? ""}`}
+              key={f.id}
               className="rounded-xl border border-border bg-surface-raised p-3"
             >
               <div className="flex items-center justify-between">
                 <strong className="text-sm">
-                  {[f.teamName, "vs", f.opposition].filter(Boolean).join(" ")}
+                  {[f.team_name, "vs", f.opposition].filter(Boolean).join(" ")}
                 </strong>
-                {f.competition && (
+                {f.competition_name && (
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
-                    {f.competition}
+                    {f.competition_name}
                   </span>
                 )}
               </div>
               <div className="mt-1 text-xs text-text-secondary">
-                {f.away ? "Away" : "Home"}
+                {[f.is_home ? "Home" : "Away", f.match_time]
+                  .filter(Boolean)
+                  .join(" · ")}
               </div>
             </div>
           ))}

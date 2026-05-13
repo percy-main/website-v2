@@ -1,23 +1,11 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { fmtDate, fmtMoneyPence } from "@/features/format.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
-interface PendingExpense {
-  id: string;
-  matchday_id: string;
-  expense_type: string;
-  description: string | null;
-  amount_pence: number;
-  status: string;
-  submitted_at: string | null;
-  approved_at: string | null;
-  rejected_reason: string | null;
-  opposition: string;
-  match_date: string;
-  created_by_name: string | null;
-}
+type PendingExpense =
+  ApiResponse<"/api/matchday/expenses/pending">["items"][number];
 
 /**
  * /expenses/mine — list of matchday expenses the current official has
@@ -36,8 +24,7 @@ export default function ExpensesMine() {
         }),
       ),
   });
-  const items =
-    (data as unknown as { items?: PendingExpense[] } | undefined)?.items ?? [];
+  const items = data?.items ?? [];
 
   const grouped: Record<string, PendingExpense[]> = {
     Submitted: items.filter((e) => e.status === "submitted"),
@@ -58,7 +45,7 @@ export default function ExpensesMine() {
       </header>
 
       {isLoading && (
-        <div className="space-y-2 px-4 py-4">
+        <div className="space-y-2 p-4">
           {["a", "b", "c"].map((s) => (
             <div key={s} className="h-16 rounded-2xl bg-border" />
           ))}
