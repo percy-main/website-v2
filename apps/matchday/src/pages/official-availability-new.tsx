@@ -9,12 +9,13 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 interface PreviewFixture {
-  id: string;
-  date: string;
+  matchDate: string;
+  playCricketMatchId: string;
   opposition: string;
-  teamName?: string | null;
-  competition?: string | null;
-  away?: boolean;
+  teamName: string;
+  isHome: boolean;
+  competitionName: string | null;
+  matchTime: string | null;
 }
 
 /**
@@ -136,21 +137,21 @@ export default function OfficialAvailabilityNew() {
             <div className="space-y-2">
               {fixtures.map((f) => (
                 <div
-                  key={f.id}
+                  key={`${f.matchDate}:${f.playCricketMatchId}`}
                   className="rounded-xl border border-border bg-surface p-3"
                 >
                   <div className="flex items-baseline justify-between">
                     <strong className="text-sm">
-                      {fmtDate(f.date, "EEE d MMM")} · vs {f.opposition}
+                      {fmtDate(f.matchDate, "EEE d MMM")} · vs {f.opposition}
                     </strong>
-                    {f.competition && (
+                    {f.competitionName && (
                       <span className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
-                        {f.competition}
+                        {f.competitionName}
                       </span>
                     )}
                   </div>
                   <p className="mt-0.5 text-xs text-text-secondary">
-                    {[f.teamName, f.away ? "Away" : "Home"]
+                    {[f.teamName, f.isHome ? "Home" : "Away", f.matchTime]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>

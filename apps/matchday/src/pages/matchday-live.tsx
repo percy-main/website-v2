@@ -237,12 +237,18 @@ export default function MatchdayLive() {
                 <select
                   aria-label="Payment method"
                   value={method}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    // Read the value synchronously inside the handler.
+                    // React 17+ nulls e.currentTarget after the handler
+                    // returns, and the functional setState updater runs
+                    // in a later tick — so capturing `e` and reading
+                    // currentTarget inside it would crash.
+                    const next = e.currentTarget.value as PaymentMethod;
                     setMethodOverrides((prev) => ({
                       ...prev,
-                      [p.id]: e.currentTarget.value as PaymentMethod,
-                    }))
-                  }
+                      [p.id]: next,
+                    }));
+                  }}
                   className="rounded-md bg-surface-raised px-2 py-1 text-[11px] font-semibold text-text-secondary"
                 >
                   <option value="cash">cash</option>
