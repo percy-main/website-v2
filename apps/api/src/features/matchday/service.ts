@@ -259,6 +259,104 @@ export function getMatch(db: Kysely<DB>) {
   };
 }
 
+/**
+ * Reduced-shape team sheet visible to any signed-in member.
+ *
+ * Same access guardrails as the public-facing matchday hub on the main
+ * site — only matchdays in `confirmed` or `finished` status are visible
+ * (pending teams aren't picked yet), and the response strips every
+ * sensitive surface (no expenses, no charge IDs, no amounts, no audit
+ * timestamps).
+ */
+export function getMatchPublic(db: Kysely<DB>) {
+  return async (matchId: string) => {
+    const match = await db
+      .selectFrom("matchday")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
+      .where("matchday.id", "=", matchId)
+      .select([
+        "matchday.id",
+        "matchday.match_date",
+        "matchday.opposition",
+        "matchday.competition_type",
+        "matchday.status",
+        "matchday.result_type",
+        "play_cricket_team.name as team_name",
+      ])
+      .executeTakeFirst();
+    if (!match) {
+      throwHttpError(404, "Matchday not found");
+    }
+    // Pending teams aren't picked yet — don't leak the picker state.
+    if (match.status === "pending") {
+      throwHttpError(404, "Team not yet announced");
+    }
+
+    const players = await db
+      .selectFrom("matchday_player")
+      .leftJoin("member", "member.id", "matchday_player.member_id")
+      .where("matchday_player.matchday_id", "=", matchId)
+      .select([
+        "matchday_player.id as matchday_player_id",
+        "matchday_player.member_id",
+        "matchday_player.player_name",
+        "matchday_player.status",
+        "matchday_player.is_captain",
+        "matchday_player.is_wicketkeeper",
+        "matchday_player.created_at",
+        "member.name as member_name",
+      ])
+      .orderBy("matchday_player.created_at", "asc")
+      .execute();
+
+    const projected = players.map((p) => ({
+      matchdayPlayerId: p.matchday_player_id,
+      memberId: p.member_id,
+      isCaptain: !!p.is_captain,
+      isKeeper: !!p.is_wicketkeeper,
+      isGuest: p.member_id === null,
+      displayName: p.member_name ?? p.player_name ?? "Unknown",
+      note: null as string | null,
+      _status: p.status as string,
+    }));
+
+    const squad = projected
+      .filter((p) => p._status === "playing" || p._status === "selected")
+      .map(({ _status, ...rest }) => rest);
+    const dropouts = projected
+      .filter(
+        (p) =>
+          p._status === "dropped_out" ||
+          p._status === "no_show" ||
+          p._status === "withdrawn",
+      )
+      .map(({ _status, ...rest }) => rest);
+
+    return {
+      id: match.id,
+      matchDate: match.match_date,
+      // Home/away, ground, match time, and score summary live on the
+      // joined play_cricket_match record, which this service doesn't
+      // load yet. Phase 2.1 cleanup if we need them. For now: null.
+      startTime: null as string | null,
+      teamName: match.team_name,
+      opposition: match.opposition,
+      ground: null as string | null,
+      competition: match.competition_type,
+      away: false,
+      status: match.status as "pending" | "confirmed" | "finished" | "cancelled",
+      result: match.result_type,
+      scoreSummary: null as string | null,
+      squad,
+      dropouts,
+    };
+  };
+}
+
 export function recordExpense(db: Kysely<DB>, s3: S3Uploader) {
   return async (
     userId: string,

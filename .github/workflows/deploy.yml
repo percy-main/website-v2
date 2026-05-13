@@ -41,6 +41,7 @@ jobs:
     outputs:
       api: ${{ steps.filter.outputs.api }}
       web: ${{ steps.filter.outputs.web }}
+      matchday: ${{ steps.filter.outputs.matchday }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -55,6 +56,10 @@ jobs:
               - '.github/workflows/deploy.yml'
             web:
               - 'apps/web/**'
+              - 'packages/shared/**'
+              - '.github/workflows/deploy.yml'
+            matchday:
+              - 'apps/matchday/**'
               - 'packages/shared/**'
               - '.github/workflows/deploy.yml'
 
@@ -813,5 +818,117 @@ jobs:
         uses: ./.github/actions/notify-deploy-failure
         with:
           job: deploy-web
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ── Stage 4 (parallel): Deploy matchday PWA ──────────────────────────
+  # Modelled on deploy-web; the matchday app lives on its own S3 bucket +
+  # CloudFront distribution. Runs in parallel with deploy-web — no shared
+  # state. Skipped when nothing under apps/matchday/** changed.
+  deploy-matchday:
+    needs: [deploy-api, changes]
+    if: |
+      always() &&
+      needs.changes.result == 'success' &&
+      needs.changes.outputs.matchday == 'true' &&
+      (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build matchday
+        run: pnpm --filter matchday build
+        env:
+          VITE_API_URL: https://api.v2.percymain.org/api
+          VITE_MAIN_SITE_URL: https://percymain.org
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync to S3
+        run: |
+          aws s3 sync apps/matchday/dist/ s3://${{ vars.MATCHDAY_FRONTEND_BUCKET }} \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "index.html" \
+            --exclude "*.json" \
+            --exclude "*.webmanifest" \
+            --exclude "sw.js" \
+            --exclude "registerSW.js" \
+            --exclude "workbox-*.js"
+
+          aws s3 cp apps/matchday/dist/index.html s3://${{ vars.MATCHDAY_FRONTEND_BUCKET }}/index.html \
+            --cache-control "public, max-age=0, must-revalidate"
+
+          # Service worker + manifest must never be cached at the edge —
+          # otherwise a new deploy ships with a stale registration that
+          # holds the old assets in clients' caches indefinitely.
+          if [ -f apps/matchday/dist/sw.js ]; then
+            aws s3 cp apps/matchday/dist/sw.js s3://${{ vars.MATCHDAY_FRONTEND_BUCKET }}/sw.js \
+              --cache-control "public, max-age=0, must-revalidate"
+          fi
+          if [ -f apps/matchday/dist/registerSW.js ]; then
+            aws s3 cp apps/matchday/dist/registerSW.js s3://${{ vars.MATCHDAY_FRONTEND_BUCKET }}/registerSW.js \
+              --cache-control "public, max-age=0, must-revalidate"
+          fi
+
+          find apps/matchday/dist -maxdepth 2 \( -name "*.json" -o -name "*.webmanifest" \) -exec sh -c \
+            'aws s3 cp "$1" s3://${{ vars.MATCHDAY_FRONTEND_BUCKET }}/${1#apps/matchday/dist/} --cache-control "public, max-age=0, must-revalidate"' _ {} \;
+
+      - name: Invalidate matchday CloudFront cache
+        id: invalidate-matchday
+        run: |
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.MATCHDAY_CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/" "/index.html" "/*.json" "/*.webmanifest" "/sw.js" "/registerSW.js" \
+            --query 'Invalidation.Id' --output text)
+          echo "invalidation_id=$INVALIDATION_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for invalidation
+        run: |
+          aws cloudfront wait invalidation-completed \
+            --distribution-id ${{ vars.MATCHDAY_CLOUDFRONT_DISTRIBUTION_ID }} \
+            --id "${{ steps.invalidate-matchday.outputs.invalidation_id }}"
+
+      - name: Smoke test matchday
+        id: smoke-matchday
+        env:
+          URL: https://matchday.percymain.org/
+        run: |
+          curl -fsSL --max-time 15 "$URL" -o /tmp/matchday.html
+          grep -q '<div id="root"' /tmp/matchday.html
+
+      - name: Deploy summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy Matchday — ${{ job.status }}"
+            echo "- Actor: \`${GITHUB_ACTOR}\`"
+            echo "- Ref: \`${GITHUB_REF}\`"
+            echo "- SHA: \`${GITHUB_SHA}\`"
+            echo "- Bucket: \`${{ vars.MATCHDAY_FRONTEND_BUCKET }}\`"
+            echo "- CF distribution: \`${{ vars.MATCHDAY_CLOUDFRONT_DISTRIBUTION_ID }}\`"
+            echo "- Invalidation: \`${{ steps.invalidate-matchday.outputs.invalidation_id || 'skipped' }}\`"
+            echo "- Smoke: \`${{ steps.smoke-matchday.outcome || 'skipped' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          job: deploy-matchday
           github-token: ${{ secrets.GITHUB_TOKEN }}
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}

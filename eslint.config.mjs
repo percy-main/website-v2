@@ -61,7 +61,7 @@ export default tseslint.config(
   // ruleset replaces the legacy "exhaustive-deps as error" stance. Every
   // warn-level rule is promoted to error per the no-warnings policy.
   {
-    files: ["apps/web/src/**/*.{ts,tsx}"],
+    files: ["apps/{web,matchday}/src/**/*.{ts,tsx}"],
     plugins: {
       "react-hooks": hooksPlugin,
     },
@@ -91,16 +91,16 @@ export default tseslint.config(
   // Globally disable rules that don't apply to a Vite SPA.
   {
     ...reactDoctor.configs.recommended,
-    files: ["apps/web/src/**/*.{ts,tsx}"],
+    files: ["apps/{web,matchday}/src/**/*.{ts,tsx}"],
     rules: warnsToErrors(reactDoctor.configs.recommended.rules),
   },
   {
     ...reactDoctor.configs["tanstack-query"],
-    files: ["apps/web/src/**/*.{ts,tsx}"],
+    files: ["apps/{web,matchday}/src/**/*.{ts,tsx}"],
     rules: warnsToErrors(reactDoctor.configs["tanstack-query"].rules),
   },
   {
-    files: ["apps/web/src/**/*.{ts,tsx}"],
+    files: ["apps/{web,matchday}/src/**/*.{ts,tsx}"],
     plugins: {
       react: reactPlugin,
     },

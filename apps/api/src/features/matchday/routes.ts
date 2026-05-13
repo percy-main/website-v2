@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { getAuthSession, requirePermission } from "../auth/middleware.ts";
+import { getAuthSession, requireAuth, requirePermission } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import {
   addPlayerResponseSchema,
@@ -20,6 +20,7 @@ import {
   markPaidSchema,
   matchIdParamSchema,
   pastUnfinishedMatchdaysResponseSchema,
+  publicMatchdayResponseSchema,
   playerIdParamSchema,
   recordExpenseResponseSchema,
   recordExpenseSchema,
@@ -44,6 +45,7 @@ import {
   deleteExpense,
   finishMatch,
   getMatch,
+  getMatchPublic,
   getPastUnfinishedMatchdays,
   getTeamNewsData,
   getUpcomingMatches,
@@ -71,6 +73,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
 
   const list = listMatches(app.db);
   const get = getMatch(app.db);
+  const getPublic = getMatchPublic(app.db);
   const getNewsData = getTeamNewsData(app.db);
   const record = recordExpense(app.db, app.s3);
   const update = updateExpense(app.db);
@@ -105,6 +108,30 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
       return await get(user.id, role, request.params.matchId);
+    },
+  );
+
+  /**
+   * Reduced-shape team sheet for any signed-in member. Returns just the
+   * squad / captain / keeper / result — no expenses, no charge IDs, no
+   * audit columns. The official-gated /matchday/:matchId stays as the
+   * source of truth for write operations and admin views.
+   *
+   * Auth: signed-in only. Privacy is weak today (team news image is
+   * posted publicly anyway, per PLAN §5.7); tighten later if we want
+   * "only members named in the squad can see it".
+   */
+  app.get(
+    "/matchday/:matchId/public",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        params: matchIdParamSchema,
+        response: { 200: publicMatchdayResponseSchema },
+      },
+    },
+    async (request) => {
+      return await getPublic(request.params.matchId);
     },
   );
 

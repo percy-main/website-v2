@@ -323,6 +323,20 @@ module "cdn" {
   api_base_url        = "https://api.v2.percymain.org"
 }
 
+# Matchday PWA distribution — separate from the main marketing site so a
+# matchday deploy invalidates only matchday's cache. Reuses the wildcard
+# us-east-1 ACM cert (*.percymain.org SAN). DNS for matchday.percymain.org
+# is at Netlify (not Route 53) — add a CNAME there after first apply,
+# pointing at module.cdn_matchday.distribution_domain_name. See
+# plans/matchday/phases/1-foundation.md for the manual DNS step.
+module "cdn_matchday" {
+  source              = "../../modules/spa-cdn"
+  environment         = "production"
+  name                = "matchday"
+  domain_name         = "matchday.percymain.org"
+  acm_certificate_arn = local.shared.acm_cloudfront_certificate_arn
+}
+
 # CloudFront CloudWatch alarms — metrics live in us-east-1 only, so the
 # alarms must be provisioned with the us_east_1 provider. Routed to the
 # shared us-east-1 reliability alarms topic (operator-subscribed).
@@ -388,6 +402,31 @@ resource "aws_cloudwatch_metric_alarm" "cdn_cache_hit_rate" {
 
   dimensions = {
     DistributionId = module.cdn.distribution_id
+    Region         = "Global"
+  }
+
+  alarm_actions = compact([local.reliability_alarms_topic_arn_us_east_1])
+  ok_actions    = compact([local.reliability_alarms_topic_arn_us_east_1])
+}
+
+# ── matchday distribution alarms ──
+
+resource "aws_cloudwatch_metric_alarm" "cdn_matchday_5xx_rate" {
+  provider = aws.us_east_1
+
+  alarm_name          = "percy-main-production-cdn-matchday-5xx-rate"
+  alarm_description   = "matchday CloudFront 5xx error rate >1% — S3 origin failing"
+  namespace           = "AWS/CloudFront"
+  metric_name         = "5xxErrorRate"
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 3
+  threshold           = 1
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DistributionId = module.cdn_matchday.distribution_id
     Region         = "Global"
   }
 

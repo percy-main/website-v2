@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Brand — navy primary, club red used sparingly for destructive */
+  --color-navy: #0b1a2a;
+  --color-navy-500: #1e4577;
+  --color-navy-700: #14304f;
+  --color-red: #c0272d;
+  --color-red-700: #98202a;
+  --color-green: #16794d;
+  --color-amber: #b45309;
+
+  /* Surface — neutral stone, not gray */
+  --color-surface: #ffffff;
+  --color-surface-raised: #fafaf9;
+  --color-border: #e7e5e4;
+  --color-border-light: #f5f5f4;
+  --color-text: #1c1917;
+  --color-text-secondary: #57534e;
+  --color-text-muted: #78716c;
+
+  /* Status tokens — unified for availability / payment / match status */
+  --color-success: #16794d;
+  --color-success-bg: #e6f4ec;
+  --color-warning: #b45309;
+  --color-warning-bg: #fdf2d6;
+  --color-danger: #c0272d;
+  --color-danger-bg: #fbe4e5;
+  --color-info: #1e4577;
+  --color-info-bg: #e2e8f1;
+
+  /* Typography */
+  --font-primary: "Inter", system-ui, sans-serif;
+  --font-display: "Inter", system-ui, sans-serif;
+
+  /* Animation */
+  --animate-shimmer: shimmer 1.4s linear infinite;
+  @keyframes shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -100% 0;
+    }
+  }
+  --animate-fade-in: fade-in 150ms ease-out both;
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+.dark {
+  --color-surface: #1c1917;
+  --color-surface-raised: #292524;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-light: rgba(255, 255, 255, 0.04);
+  --color-text: #fafaf9;
+  --color-text-secondary: #d6d3d1;
+  --color-text-muted: #a8a29e;
+  --color-success-bg: rgba(22, 121, 77, 0.16);
+  --color-warning-bg: rgba(180, 83, 9, 0.18);
+  --color-danger-bg: rgba(192, 39, 45, 0.16);
+  --color-info-bg: rgba(30, 69, 119, 0.22);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+    font-family: var(--font-primary);
+    /* iOS Safari: avoid bounce-scroll showing the page background */
+    overscroll-behavior-y: contain;
+  }
+  /* Match the design language: no native focus rings — focus-visible
+     uses an offset ring in the navy primary. */
+  :focus-visible {
+    outline: 2px solid var(--color-navy-500);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Respect prefers-reduced-motion: the design directive says
+     "fades and 150ms eases only", no bouncy springs anywhere. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}

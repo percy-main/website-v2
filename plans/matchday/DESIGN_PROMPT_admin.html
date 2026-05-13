@@ -1,0 +1,1176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Matchday — admin flows mock</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --navy: #0b1a2a;
+        --navy-500: #1e4577;
+        --red: #c0272d;
+        --green: #16794d;
+        --amber: #b45309;
+        --stone-50: #fafaf9;
+        --stone-100: #f5f5f4;
+        --stone-150: #ecebe9;
+        --stone-200: #e7e5e4;
+        --stone-300: #d6d3d1;
+        --stone-400: #a8a29e;
+        --stone-600: #57534e;
+        --stone-700: #44403c;
+        --stone-800: #292524;
+        --stone-900: #1c1917;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0;
+        font-family: "Inter", system-ui, sans-serif;
+        background: var(--stone-100);
+        color: var(--stone-900);
+        font-size: 16px; line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+      }
+      .page { max-width: 1400px; margin: 0 auto; padding: 32px 24px 96px; }
+      .page-title {
+        font-size: 24px; font-weight: 700; letter-spacing: -0.01em;
+        margin: 0 0 4px; color: var(--navy);
+      }
+      .page-sub { font-size: 14px; color: var(--stone-600); margin: 0 0 32px; max-width: 64ch; }
+      h2.section {
+        font-size: 14px; font-weight: 600; letter-spacing: 0.08em;
+        text-transform: uppercase; color: var(--stone-600); margin: 40px 0 16px;
+      }
+      .tile-label {
+        font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+        text-transform: uppercase; color: var(--stone-600); margin: 0 0 10px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+        gap: 24px;
+      }
+      .grid-wide { display: grid; grid-template-columns: 1fr; gap: 24px; }
+
+      .phone {
+        width: 360px; height: 720px;
+        background: var(--stone-900); border-radius: 36px; padding: 12px;
+        box-shadow: 0 24px 60px -24px rgba(11, 26, 42, 0.35), 0 8px 16px -8px rgba(11, 26, 42, 0.2);
+        margin: 0 auto;
+      }
+      .screen {
+        width: 100%; height: 100%; background: #fff;
+        border-radius: 26px; overflow: hidden;
+        display: flex; flex-direction: column; position: relative;
+      }
+      .topbar {
+        flex: 0 0 auto;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 14px 10px; border-bottom: 1px solid var(--stone-150);
+        background: #fff;
+      }
+      .brand { display: flex; align-items: center; gap: 8px; }
+      .crest {
+        width: 28px; height: 28px; border-radius: 6px; background: var(--navy);
+        color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 11px;
+      }
+      .brand-name { font-weight: 700; font-size: 14px; }
+      .brand-sub { font-size: 11px; color: var(--stone-600); margin-top: -2px; }
+      .avatar {
+        width: 30px; height: 30px; border-radius: 50%;
+        background: var(--stone-200); color: var(--stone-700);
+        display: grid; place-items: center; font-size: 12px; font-weight: 600;
+      }
+      .iconbtn {
+        width: 36px; height: 36px; border-radius: 8px;
+        display: grid; place-items: center; color: var(--stone-700); border: 0; background: transparent;
+      }
+      .body { flex: 1 1 auto; overflow-y: auto; padding: 16px 14px 88px; background: var(--stone-50); }
+      .body.flush { padding: 0 0 88px; }
+
+      .tabbar {
+        position: absolute; left: 0; right: 0; bottom: 0;
+        background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(8px);
+        border-top: 1px solid var(--stone-150);
+        display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+        padding: 4px 4px max(env(safe-area-inset-bottom), 6px);
+      }
+      .tab {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 8px 4px 6px; gap: 2px; font-size: 10.5px; color: var(--stone-600);
+        font-weight: 500; position: relative;
+      }
+      .tab.active { color: var(--navy); }
+      .tab .ico { width: 22px; height: 22px; }
+      .tab .badge {
+        position: absolute; top: 4px; left: 60%;
+        background: var(--red); color: #fff;
+        font-size: 9px; font-weight: 700; border-radius: 9px; padding: 1px 5px;
+      }
+
+      .seg {
+        display: grid; grid-template-columns: 1fr 1fr 1fr;
+        background: var(--stone-150); border-radius: 10px; padding: 4px;
+        margin: 12px 14px 8px;
+      }
+      .seg > div {
+        text-align: center; padding: 8px 0; font-size: 12px; font-weight: 600;
+        color: var(--stone-600); border-radius: 7px;
+      }
+      .seg > div.active {
+        background: #fff; color: var(--navy); box-shadow: 0 1px 2px rgba(11, 26, 42, 0.06);
+      }
+
+      .pill {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+        padding: 3px 8px; border-radius: 999px; line-height: 1; white-space: nowrap;
+        background: var(--stone-150); color: var(--stone-700);
+      }
+      .pill.success { background: #e6f4ec; color: #0f5b39; }
+      .pill.amber { background: #fdf2d6; color: #784912; }
+      .pill.red { background: #fbe4e5; color: #8a1d23; }
+      .pill.navy { background: #e2e8f1; color: var(--navy); }
+      .pill.dot::before {
+        content: ""; width: 6px; height: 6px; border-radius: 50%;
+        background: currentColor; display: inline-block;
+      }
+      .eyebrow {
+        font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+        text-transform: uppercase; color: var(--stone-600);
+      }
+      .muted { color: var(--stone-600); font-size: 13px; }
+      .h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        gap: 6px; height: 38px; padding: 0 14px; border-radius: 9px;
+        font-weight: 600; font-size: 13px; letter-spacing: -0.005em;
+        border: 1px solid transparent; cursor: pointer; text-decoration: none; white-space: nowrap;
+        background: var(--stone-150); color: var(--stone-800);
+      }
+      .btn.primary { background: var(--navy); color: #fff; }
+      .btn.destructive { background: var(--red); color: #fff; }
+      .btn.success { background: var(--green); color: #fff; }
+      .btn.outline { background: transparent; color: var(--navy); border-color: var(--stone-200); }
+      .btn.ghost { background: transparent; color: var(--navy); }
+      .btn.sm { height: 32px; font-size: 12px; padding: 0 10px; }
+      .btn.lg { height: 44px; padding: 0 18px; font-size: 14px; }
+      .btn.block { width: 100%; }
+
+      /* mobile approval card */
+      .acard {
+        background: #fff; border: 1px solid var(--stone-150);
+        border-radius: 12px; margin-bottom: 10px; overflow: hidden;
+      }
+      .acard-head {
+        display: flex; gap: 12px; padding: 12px; align-items: center;
+      }
+      .acard-thumb {
+        width: 56px; height: 56px; border-radius: 8px;
+        background: var(--stone-150);
+        background-image: linear-gradient(135deg, #f5f5f4 25%, #e7e5e4 25%, #e7e5e4 50%, #f5f5f4 50%, #f5f5f4 75%, #e7e5e4 75%, #e7e5e4);
+        background-size: 8px 8px;
+        position: relative;
+      }
+      .acard-thumb::after {
+        content: ""; position: absolute; inset: 6px; border-radius: 4px;
+        background: linear-gradient(180deg, #fff, #e7e5e4);
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+      }
+      .acard-amount {
+        font-size: 22px; font-weight: 700; color: var(--navy); letter-spacing: -0.01em;
+      }
+      .acard-actions {
+        display: grid; grid-template-columns: 1fr 1fr;
+        gap: 8px; padding: 0 12px 12px;
+      }
+
+      /* desktop */
+      .desk {
+        background: #fff; border: 1px solid var(--stone-200);
+        border-radius: 16px; overflow: hidden;
+        box-shadow: 0 20px 50px -25px rgba(11, 26, 42, 0.2);
+      }
+      .desk-head {
+        padding: 14px 20px; border-bottom: 1px solid var(--stone-150);
+        display: flex; justify-content: space-between; align-items: center;
+        gap: 12px; flex-wrap: wrap;
+      }
+      .desk-tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--stone-150); background: #fff; }
+      .desk-tabs > div {
+        padding: 12px 14px; font-size: 13px; font-weight: 600;
+        color: var(--stone-600); cursor: pointer; position: relative;
+      }
+      .desk-tabs > div.active { color: var(--navy); }
+      .desk-tabs > div.active::after {
+        content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+        height: 2px; background: var(--navy);
+      }
+      .desk-tabs .count {
+        font-size: 11px; background: var(--red); color: #fff; padding: 1px 6px;
+        border-radius: 999px; margin-left: 6px; font-weight: 700;
+      }
+      table.t {
+        width: 100%; border-collapse: collapse; font-size: 13px;
+      }
+      table.t th, table.t td {
+        padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--stone-150);
+        vertical-align: middle;
+      }
+      table.t th {
+        background: var(--stone-50); font-weight: 600; font-size: 11px;
+        letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone-600);
+      }
+      table.t tr:hover td { background: #fafaf7; }
+      table.t .ck {
+        width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid var(--stone-300);
+        display: inline-block;
+      }
+      table.t .ck.sel {
+        background: var(--navy); border-color: var(--navy); position: relative;
+      }
+      table.t .ck.sel::after {
+        content: ""; position: absolute; left: 4px; top: 1px; width: 6px; height: 10px;
+        border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+      }
+      .thumb-cell {
+        width: 48px; height: 48px; border-radius: 6px;
+        background-image: linear-gradient(135deg, #f5f5f4 25%, #e7e5e4 25%, #e7e5e4 50%, #f5f5f4 50%, #f5f5f4 75%, #e7e5e4 75%, #e7e5e4);
+        background-size: 6px 6px;
+        position: relative; display: inline-block;
+      }
+      .thumb-cell::after {
+        content: ""; position: absolute; inset: 5px; border-radius: 3px;
+        background: linear-gradient(180deg, #fff, #e7e5e4);
+      }
+      .typeico {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 22px; height: 22px; border-radius: 6px;
+        background: var(--stone-100); color: var(--stone-700); margin-right: 6px;
+        vertical-align: -6px;
+      }
+      .amt {
+        font-size: 15px; font-weight: 700; color: var(--navy); letter-spacing: -0.005em;
+      }
+      .row-actions {
+        display: flex; gap: 6px; justify-content: flex-end;
+      }
+      .desk-toolbar {
+        padding: 12px 20px; background: var(--stone-50); border-bottom: 1px solid var(--stone-150);
+        display: flex; justify-content: space-between; align-items: center;
+      }
+      .undo-bar {
+        background: var(--stone-900); color: #fff;
+        padding: 10px 16px; display: flex; justify-content: space-between; align-items: center;
+        font-size: 13px;
+      }
+      .undo-bar a { color: #9eb8d9; font-weight: 600; }
+
+      /* news image dialog */
+      .dialog-wrap {
+        background: rgba(11, 26, 42, 0.55); padding: 40px;
+        border-radius: 18px;
+      }
+      .dialog {
+        background: #fff; border-radius: 16px; overflow: hidden;
+        display: grid; grid-template-columns: 1fr 1fr; min-height: 540px;
+        box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.4);
+      }
+      .dialog .left { padding: 24px; border-right: 1px solid var(--stone-150); }
+      .dialog .right { padding: 24px; background: var(--stone-50); display: flex; flex-direction: column; }
+      .form-field { margin-bottom: 14px; }
+      .form-field label { display: block; font-size: 12px; color: var(--stone-600); margin-bottom: 4px; font-weight: 500; }
+      .form-field .input {
+        background: #fff; border: 1px solid var(--stone-200); border-radius: 8px;
+        padding: 10px 12px; font-size: 14px; color: var(--stone-900);
+      }
+      .form-field .toggle {
+        display: grid; grid-template-columns: 1fr 1fr;
+        background: var(--stone-100); border: 1px solid var(--stone-200); border-radius: 9px; padding: 3px;
+      }
+      .form-field .toggle > div {
+        text-align: center; padding: 8px 0; font-size: 13px; font-weight: 600;
+        color: var(--stone-600); border-radius: 6px;
+      }
+      .form-field .toggle > div.active { background: #fff; color: var(--navy); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
+
+      /* preview canvas */
+      .preview {
+        flex: 1; background: var(--navy); color: #fff; border-radius: 10px;
+        padding: 24px; display: flex; flex-direction: column; justify-content: space-between;
+        font-family: "Inter", sans-serif; aspect-ratio: 4 / 5; position: relative; overflow: hidden;
+      }
+      .preview::before {
+        content: ""; position: absolute; inset: 0;
+        background: radial-gradient(ellipse at top right, rgba(192, 39, 45, 0.4), transparent 60%);
+      }
+      .preview > * { position: relative; }
+      .preview .crestbig {
+        width: 56px; height: 56px; border-radius: 14px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        display: grid; place-items: center; font-weight: 700; font-size: 14px;
+      }
+      .preview .vs { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.7; margin-bottom: 8px; }
+      .preview .matchup {
+        font-size: 36px; font-weight: 700; line-height: 1.05; letter-spacing: -0.015em;
+      }
+      .preview .matchup span.opp { color: #ffa9ae; }
+      .preview .when { font-size: 14px; opacity: 0.78; margin-top: 8px; }
+      .preview .footer {
+        display: flex; justify-content: space-between; align-items: end; font-size: 11px; opacity: 0.6;
+      }
+
+      /* fee rates */
+      .ratecell {
+        font-size: 13px; padding: 8px 0;
+      }
+      .anychip {
+        font-size: 11px; color: var(--stone-600); background: var(--stone-100); padding: 2px 6px;
+        border-radius: 4px; font-weight: 500;
+      }
+      .infobanner {
+        background: #fef7e6; border: 1px solid #f3e3b5; color: #784912;
+        font-size: 13px; padding: 10px 14px; border-radius: 10px; margin-bottom: 16px;
+        display: flex; gap: 10px; align-items: flex-start;
+      }
+      .hub-card {
+        background: #fff; border: 1px solid var(--stone-150);
+        border-radius: 14px; padding: 18px; margin-bottom: 14px;
+      }
+      .hub-card .row-between { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h1 class="page-title">Matchday — admin / treasurer flows</h1>
+      <p class="page-sub">
+        Approvals inbox, reimbursement queue, history; team-news image
+        generator; donation-rate admin. Desktop is the primary target — the
+        treasurer sits down once a week and grinds through. Mobile is good
+        enough. <strong>Scope check:</strong> this approvals queue is for
+        <em>expenses</em> submitted by officials (umpire fees, balls, teas) —
+        not for player donations, which keep being managed in the main site's
+        Charges tab (#298, #300, #293, #306).
+      </p>
+
+      <!-- ============================================ -->
+      <h2 class="section">Flow 1 — Expense approvals · desktop</h2>
+      <div class="grid-wide">
+        <div>
+          <p class="tile-label">1 — Pending tab (the weekly grind)</p>
+          <div class="desk">
+            <div class="desk-head">
+              <div>
+                <div class="eyebrow">Admin</div>
+                <strong style="font-size: 18px; letter-spacing: -0.01em">Expense approvals</strong>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center">
+                <span class="muted">7 pending · £127.40</span>
+                <a class="btn outline sm">Export CSV</a>
+              </div>
+            </div>
+            <div class="desk-tabs">
+              <div class="active">Pending<span class="count">7</span></div>
+              <div>Reimbursement queue<span class="count" style="background: var(--amber)">3</span></div>
+              <div>History</div>
+            </div>
+            <div class="desk-toolbar">
+              <div style="display: flex; gap: 8px; align-items: center">
+                <span class="ck sel"></span>
+                <span class="muted">3 selected</span>
+                <a class="btn success sm">Approve 3</a>
+                <a class="btn outline sm">Reject 3…</a>
+                <a class="btn ghost sm">Clear</a>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center">
+                <span class="muted" style="font-size: 12px">Sort:</span>
+                <a class="btn outline sm">Oldest first ▾</a>
+              </div>
+            </div>
+            <table class="t">
+              <thead>
+                <tr>
+                  <th style="width: 28px"></th>
+                  <th style="width: 60px">Receipt</th>
+                  <th>Type · description</th>
+                  <th style="width: 100px; text-align: right">Amount</th>
+                  <th>Match</th>
+                  <th>Submitted by</th>
+                  <th>On</th>
+                  <th style="text-align: right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="ck sel"></span></td>
+                  <td><span class="thumb-cell"></span></td>
+                  <td>
+                    <span class="typeico">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
+                    </span>
+                    Match ball · "Dukes from Greens"
+                  </td>
+                  <td style="text-align: right"><span class="amt">£18.00</span></td>
+                  <td>1st XI vs Tynemouth · 4 May</td>
+                  <td>S. Browne</td>
+                  <td class="muted">9 days ago</td>
+                  <td class="row-actions">
+                    <a class="btn success sm">Approve</a>
+                    <a class="btn outline sm">Reject</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="ck sel"></span></td>
+                  <td><span class="thumb-cell"></span></td>
+                  <td>
+                    <span class="typeico">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M5 21c0-4 4-6 7-6"/></svg>
+                    </span>
+                    Umpire fee · "Mark T (away)"
+                  </td>
+                  <td style="text-align: right"><span class="amt">£25.00</span></td>
+                  <td>1st XI vs Tynemouth · 4 May</td>
+                  <td>S. Browne</td>
+                  <td class="muted">9 days ago</td>
+                  <td class="row-actions">
+                    <a class="btn success sm">Approve</a>
+                    <a class="btn outline sm">Reject</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="ck sel"></span></td>
+                  <td><span class="thumb-cell"></span></td>
+                  <td>
+                    <span class="typeico">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 8h14M7 8v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+                    </span>
+                    Teas · "Tesco shop"
+                  </td>
+                  <td style="text-align: right"><span class="amt">£24.00</span></td>
+                  <td>2nd XI vs Backworth · 4 May</td>
+                  <td>J. Bell</td>
+                  <td class="muted">9 days ago</td>
+                  <td class="row-actions">
+                    <a class="btn success sm">Approve</a>
+                    <a class="btn outline sm">Reject</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="ck"></span></td>
+                  <td><span class="thumb-cell"></span></td>
+                  <td>
+                    <span class="typeico">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M5 21c0-4 4-6 7-6"/></svg>
+                    </span>
+                    Umpire fee · "Pete R (home)"
+                  </td>
+                  <td style="text-align: right"><span class="amt">£25.00</span></td>
+                  <td>1st XI vs Whitley Bay · 27 Apr</td>
+                  <td>S. Browne</td>
+                  <td class="muted">16 days ago</td>
+                  <td class="row-actions">
+                    <a class="btn success sm">Approve</a>
+                    <a class="btn outline sm">Reject</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="ck"></span></td>
+                  <td><span class="thumb-cell"></span></td>
+                  <td>
+                    <span class="typeico">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
+                    </span>
+                    Match ball
+                  </td>
+                  <td style="text-align: right"><span class="amt">£18.00</span></td>
+                  <td>1st XI vs Whitley Bay · 27 Apr</td>
+                  <td>S. Browne</td>
+                  <td class="muted">16 days ago</td>
+                  <td class="row-actions">
+                    <a class="btn success sm">Approve</a>
+                    <a class="btn outline sm">Reject</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="ck"></span></td>
+                  <td><span class="thumb-cell"></span></td>
+                  <td>
+                    <span class="typeico">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 13l2-8h14l2 8"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+                    </span>
+                    Travel · "umpire mileage"
+                  </td>
+                  <td style="text-align: right"><span class="amt">£12.40</span></td>
+                  <td>1st XI vs Wallsend · 13 Apr</td>
+                  <td>S. Browne</td>
+                  <td class="muted">30 days ago</td>
+                  <td class="row-actions">
+                    <a class="btn success sm">Approve</a>
+                    <a class="btn outline sm">Reject</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="ck"></span></td>
+                  <td><span class="thumb-cell" style="background-image: none; background: #fbe4e5"></span></td>
+                  <td>
+                    <span class="typeico">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.01"/></svg>
+                    </span>
+                    Misc · no receipt attached
+                  </td>
+                  <td style="text-align: right"><span class="amt">£5.20</span></td>
+                  <td>2nd XI vs Wallsend · 13 Apr</td>
+                  <td>J. Bell</td>
+                  <td class="muted">30 days ago</td>
+                  <td class="row-actions">
+                    <a class="btn success sm">Approve</a>
+                    <a class="btn outline sm">Reject</a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="undo-bar">
+              <span><strong>2 expenses approved.</strong> Mutations commit in 5 seconds.</span>
+              <a>Undo</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2 — Reimbursement queue -->
+        <div>
+          <p class="tile-label">2 — Reimbursement queue</p>
+          <div class="desk">
+            <div class="desk-head">
+              <div>
+                <div class="eyebrow">Admin</div>
+                <strong style="font-size: 18px; letter-spacing: -0.01em">Expense approvals</strong>
+              </div>
+              <div style="display: flex; gap: 8px">
+                <a class="btn outline sm">Export CSV</a>
+                <a class="btn primary sm">Mark all reimbursed</a>
+              </div>
+            </div>
+            <div class="desk-tabs">
+              <div>Pending<span class="count">7</span></div>
+              <div class="active">Reimbursement queue<span class="count" style="background: var(--amber)">3</span></div>
+              <div>History</div>
+            </div>
+            <table class="t">
+              <thead>
+                <tr>
+                  <th>Recipient</th>
+                  <th>Type</th>
+                  <th style="text-align: right">Amount</th>
+                  <th>Match</th>
+                  <th>Approved on</th>
+                  <th>Bank</th>
+                  <th style="text-align: right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>S. Browne</strong></td>
+                  <td>Match ball</td>
+                  <td style="text-align: right"><span class="amt">£18.00</span></td>
+                  <td>vs Backworth · 4 May</td>
+                  <td class="muted">7 May</td>
+                  <td class="muted">— not stored —</td>
+                  <td style="text-align: right"><a class="btn success sm">Mark reimbursed</a></td>
+                </tr>
+                <tr>
+                  <td><strong>J. Bell</strong></td>
+                  <td>Teas</td>
+                  <td style="text-align: right"><span class="amt">£24.00</span></td>
+                  <td>vs Backworth · 4 May</td>
+                  <td class="muted">7 May</td>
+                  <td class="muted">— not stored —</td>
+                  <td style="text-align: right"><a class="btn success sm">Mark reimbursed</a></td>
+                </tr>
+                <tr>
+                  <td><strong>S. Browne</strong></td>
+                  <td>Match ball</td>
+                  <td style="text-align: right"><span class="amt">£18.00</span></td>
+                  <td>vs Whitley Bay · 27 Apr</td>
+                  <td class="muted">2 May</td>
+                  <td class="muted">— not stored —</td>
+                  <td style="text-align: right"><a class="btn success sm">Mark reimbursed</a></td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="2" style="background: var(--stone-50); font-weight: 600">Total</td>
+                  <td style="text-align: right; background: var(--stone-50)"><span class="amt">£60.00</span></td>
+                  <td colspan="4" style="background: var(--stone-50); color: var(--stone-600); font-size: 12px">
+                    Assumes BACS sent outside the app
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- 3 — History with filters -->
+        <div>
+          <p class="tile-label">3 — History (filters)</p>
+          <div class="desk">
+            <div class="desk-head">
+              <div>
+                <div class="eyebrow">Admin</div>
+                <strong style="font-size: 18px; letter-spacing: -0.01em">Expense history</strong>
+              </div>
+              <a class="btn outline sm">Export CSV</a>
+            </div>
+            <div class="desk-tabs">
+              <div>Pending<span class="count">7</span></div>
+              <div>Reimbursement queue<span class="count" style="background: var(--amber)">3</span></div>
+              <div class="active">History</div>
+            </div>
+            <div class="desk-toolbar" style="gap: 10px; flex-wrap: wrap">
+              <select style="height: 32px; border-radius: 7px; border: 1px solid var(--stone-200); padding: 0 10px; font: inherit; font-size: 13px">
+                <option>All statuses</option>
+                <option>Approved</option>
+                <option>Rejected</option>
+                <option>Reimbursed</option>
+              </select>
+              <select style="height: 32px; border-radius: 7px; border: 1px solid var(--stone-200); padding: 0 10px; font: inherit; font-size: 13px">
+                <option>All teams</option>
+                <option>1st XI</option>
+                <option>2nd XI</option>
+              </select>
+              <input style="height: 32px; border-radius: 7px; border: 1px solid var(--stone-200); padding: 0 10px; font: inherit; font-size: 13px" placeholder="From date" value="2026-04-01" />
+              <input style="height: 32px; border-radius: 7px; border: 1px solid var(--stone-200); padding: 0 10px; font: inherit; font-size: 13px" placeholder="To date" value="2026-05-13" />
+              <select style="height: 32px; border-radius: 7px; border: 1px solid var(--stone-200); padding: 0 10px; font: inherit; font-size: 13px">
+                <option>All creators</option>
+              </select>
+              <span class="muted" style="margin-left: auto">22 results</span>
+            </div>
+            <table class="t">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Type</th>
+                  <th style="text-align: right">Amount</th>
+                  <th>Match</th>
+                  <th>Creator</th>
+                  <th>Submitted</th>
+                  <th>Resolved</th>
+                  <th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="pill success dot">Reimbursed</span></td>
+                  <td>Ball</td>
+                  <td style="text-align: right"><span class="amt">£18.00</span></td>
+                  <td>1st XI vs Wallsend</td>
+                  <td>S. Browne</td>
+                  <td class="muted">14 Apr</td>
+                  <td class="muted">5 May</td>
+                  <td class="muted">—</td>
+                </tr>
+                <tr>
+                  <td><span class="pill red dot">Rejected</span></td>
+                  <td>Misc</td>
+                  <td style="text-align: right"><span class="amt">£45.00</span></td>
+                  <td>1st XI vs Wallsend</td>
+                  <td>S. Browne</td>
+                  <td class="muted">14 Apr</td>
+                  <td class="muted">15 Apr</td>
+                  <td class="muted">"No receipt"</td>
+                </tr>
+                <tr>
+                  <td><span class="pill navy dot">Approved</span></td>
+                  <td>Teas</td>
+                  <td style="text-align: right"><span class="amt">£24.00</span></td>
+                  <td>2nd XI vs Backworth</td>
+                  <td>J. Bell</td>
+                  <td class="muted">5 May</td>
+                  <td class="muted">7 May</td>
+                  <td class="muted">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <h2 class="section">Flow 1 — Expense approvals · mobile</h2>
+      <div class="grid">
+        <div>
+          <p class="tile-label">4 — Mobile pending (stacked cards)</p>
+          <div class="phone">
+            <div class="screen">
+              <div class="topbar">
+                <div class="brand">
+                  <div class="crest">PM</div>
+                  <div>
+                    <div class="brand-name">Approvals</div>
+                    <div class="brand-sub">7 pending · £127</div>
+                  </div>
+                </div>
+                <div class="avatar">JR</div>
+              </div>
+              <div class="seg">
+                <div class="active">Pending</div>
+                <div>Reimburse</div>
+                <div>History</div>
+              </div>
+              <div class="body flush" style="padding: 8px 14px 88px">
+                <div class="acard">
+                  <div class="acard-head">
+                    <div class="acard-thumb"></div>
+                    <div style="flex: 1; min-width: 0">
+                      <div style="display: flex; justify-content: space-between; align-items: baseline">
+                        <strong style="font-size: 14px">Match ball</strong>
+                        <span class="acard-amount">£18</span>
+                      </div>
+                      <div class="muted" style="font-size: 12px">1st XI vs Tynemouth · 4 May</div>
+                      <div class="muted" style="font-size: 12px">S. Browne · 9 days ago</div>
+                    </div>
+                  </div>
+                  <div class="acard-actions">
+                    <a class="btn success lg">Approve</a>
+                    <a class="btn outline lg">Reject</a>
+                  </div>
+                </div>
+
+                <div class="acard">
+                  <div class="acard-head">
+                    <div class="acard-thumb"></div>
+                    <div style="flex: 1; min-width: 0">
+                      <div style="display: flex; justify-content: space-between; align-items: baseline">
+                        <strong style="font-size: 14px">Umpire fee</strong>
+                        <span class="acard-amount">£25</span>
+                      </div>
+                      <div class="muted" style="font-size: 12px">"Mark T (away)"</div>
+                      <div class="muted" style="font-size: 12px">S. Browne · 9 days ago</div>
+                    </div>
+                  </div>
+                  <div class="acard-actions">
+                    <a class="btn success lg">Approve</a>
+                    <a class="btn outline lg">Reject</a>
+                  </div>
+                </div>
+
+                <div class="acard">
+                  <div class="acard-head">
+                    <div class="acard-thumb"></div>
+                    <div style="flex: 1; min-width: 0">
+                      <div style="display: flex; justify-content: space-between; align-items: baseline">
+                        <strong style="font-size: 14px">Teas</strong>
+                        <span class="acard-amount">£24</span>
+                      </div>
+                      <div class="muted" style="font-size: 12px">2nd XI vs Backworth · 4 May</div>
+                      <div class="muted" style="font-size: 12px">J. Bell · 9 days ago</div>
+                    </div>
+                  </div>
+                  <div class="acard-actions">
+                    <a class="btn success lg">Approve</a>
+                    <a class="btn outline lg">Reject</a>
+                  </div>
+                </div>
+              </div>
+              <nav class="tabbar">
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg>Home</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>Fixtures</div>
+                <div class="tab active"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M6 6v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6"/><path d="M9 11l2 2 4-4"/></svg>Approvals<span class="badge">7</span></div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>Don.</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>Me</div>
+              </nav>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5 — reject inline -->
+        <div>
+          <p class="tile-label">5 — Reject · inline reason</p>
+          <div class="phone">
+            <div class="screen">
+              <div class="topbar">
+                <div class="brand">
+                  <div class="crest">PM</div>
+                  <div>
+                    <div class="brand-name">Approvals</div>
+                    <div class="brand-sub">Reject expense</div>
+                  </div>
+                </div>
+                <div class="avatar">JR</div>
+              </div>
+              <div class="body flush" style="padding: 16px 14px 88px">
+                <div class="acard">
+                  <div class="acard-head">
+                    <div class="acard-thumb" style="background: #fbe4e5; background-image: none"></div>
+                    <div style="flex: 1">
+                      <div style="display: flex; justify-content: space-between; align-items: baseline">
+                        <strong style="font-size: 14px">Misc · no receipt</strong>
+                        <span class="acard-amount">£5.20</span>
+                      </div>
+                      <div class="muted" style="font-size: 12px">2nd XI vs Wallsend · 13 Apr</div>
+                      <div class="muted" style="font-size: 12px">J. Bell · 30 days ago</div>
+                    </div>
+                  </div>
+                  <div style="padding: 0 12px 12px">
+                    <div class="eyebrow" style="margin-bottom: 6px">Reason</div>
+                    <textarea style="width: 100%; min-height: 80px; padding: 10px 12px; border: 1px solid var(--stone-200); border-radius: 9px; resize: vertical; font: inherit; font-size: 13px" placeholder="Why? Brief and human.">No receipt attached — please re-submit with a photo of the receipt.</textarea>
+                    <div style="display: flex; gap: 8px; margin-top: 10px">
+                      <a class="btn outline lg" style="flex: 1">Cancel</a>
+                      <a class="btn destructive lg" style="flex: 1">Reject</a>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="background: var(--stone-900); color: #fff; padding: 12px 14px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 13px">
+                  <span><strong>1 expense rejected.</strong> 4s left.</span>
+                  <a style="color: #9eb8d9; font-weight: 600">Undo</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <h2 class="section">Flow 2 — Team news image generator</h2>
+      <div class="grid-wide">
+        <div>
+          <p class="tile-label">6 — Generator modal (desktop · split form + preview)</p>
+          <div class="dialog-wrap">
+            <div class="dialog">
+              <div class="left">
+                <div class="eyebrow">Team news</div>
+                <h2 class="h2" style="margin: 4px 0 4px">Generate team news image</h2>
+                <p class="muted" style="margin-bottom: 18px; font-size: 13px">1st XI vs Tynemouth · Sat 18 May</p>
+
+                <div class="form-field">
+                  <label>Home / away</label>
+                  <div class="toggle">
+                    <div class="active">Home</div>
+                    <div>Away</div>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label>Match time</label>
+                  <div class="input" style="display: flex; align-items: center; gap: 6px">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                    13:00
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label>Opposition (override)</label>
+                  <div class="input">Tynemouth</div>
+                </div>
+                <div class="form-field">
+                  <label>Venue (override)</label>
+                  <div class="input">Percy Main</div>
+                </div>
+
+                <div style="display: flex; gap: 8px; margin-top: 18px">
+                  <a class="btn outline lg" style="flex: 1">Cancel</a>
+                  <a class="btn primary lg" style="flex: 1.4">Regenerate</a>
+                </div>
+                <p class="muted" style="font-size: 11px; margin: 14px 0 0">
+                  Post to club Twitter / Facebook / WhatsApp. Don't forget to
+                  @-tag opposition and sponsors. No auto-post in v1.
+                </p>
+              </div>
+              <div class="right">
+                <div class="eyebrow" style="margin-bottom: 10px">Preview · 1080 × 1350</div>
+                <div class="preview">
+                  <div>
+                    <div class="crestbig">PM</div>
+                  </div>
+                  <div>
+                    <div class="vs">Saturday 18 May · 13:00 · Home</div>
+                    <div class="matchup">
+                      Percy Main 1st XI<br />
+                      <span style="opacity: 0.5">vs</span> <span class="opp">Tynemouth</span>
+                    </div>
+                    <div class="when">Cup quarter final · Percy Main Park</div>
+                  </div>
+                  <div class="footer">
+                    <span>percymain.org</span>
+                    <span>#GoMariners</span>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 14px">
+                  <a class="btn primary lg" style="flex: 1">Download PNG</a>
+                  <a class="btn outline lg" style="flex: 1">Copy to clipboard</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <h2 class="section">Flow 3 — Donation-rate admin</h2>
+      <div class="grid-wide">
+        <div>
+          <p class="tile-label">7 — Donation rates · desktop</p>
+          <div class="desk">
+            <div class="desk-head">
+              <div>
+                <div class="eyebrow">Admin</div>
+                <strong style="font-size: 18px; letter-spacing: -0.01em">Donation rates</strong>
+              </div>
+              <a class="btn primary sm">+ Add rate</a>
+            </div>
+            <div style="padding: 16px 20px 0">
+              <div class="infobanner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 16px; margin-top: 2px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.01"/></svg>
+                <div>
+                  Changes apply to matches confirmed <strong>after now</strong>.
+                  Existing donations are unaffected — edit those one at a time
+                  in the main site's Charges tab (#300).
+                </div>
+              </div>
+            </div>
+            <table class="t">
+              <thead>
+                <tr>
+                  <th>Team</th>
+                  <th>Competition</th>
+                  <th>Member category</th>
+                  <th style="text-align: right">Amount</th>
+                  <th>Priority</th>
+                  <th style="text-align: right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1st XI</td>
+                  <td>Cup</td>
+                  <td>Adult</td>
+                  <td style="text-align: right"><span class="amt">£7.00</span></td>
+                  <td><span class="pill navy">team + comp + cat</span></td>
+                  <td class="row-actions">
+                    <a class="btn ghost sm">Edit</a>
+                    <a class="btn ghost sm" style="color: var(--red)">Delete</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>1st XI</td>
+                  <td><span class="anychip">Any</span></td>
+                  <td>Adult</td>
+                  <td style="text-align: right"><span class="amt">£5.00</span></td>
+                  <td><span class="pill">team + cat</span></td>
+                  <td class="row-actions">
+                    <a class="btn ghost sm">Edit</a>
+                    <a class="btn ghost sm" style="color: var(--red)">Delete</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>1st XI</td>
+                  <td><span class="anychip">Any</span></td>
+                  <td>Student</td>
+                  <td style="text-align: right"><span class="amt">£3.00</span></td>
+                  <td><span class="pill">team + cat</span></td>
+                  <td class="row-actions">
+                    <a class="btn ghost sm">Edit</a>
+                    <a class="btn ghost sm" style="color: var(--red)">Delete</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>2nd XI</td>
+                  <td><span class="anychip">Any</span></td>
+                  <td>Adult</td>
+                  <td style="text-align: right"><span class="amt">£5.00</span></td>
+                  <td><span class="pill">team + cat</span></td>
+                  <td class="row-actions">
+                    <a class="btn ghost sm">Edit</a>
+                    <a class="btn ghost sm" style="color: var(--red)">Delete</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>2nd XI</td>
+                  <td><span class="anychip">Any</span></td>
+                  <td>Student</td>
+                  <td style="text-align: right"><span class="amt">£3.00</span></td>
+                  <td><span class="pill">team + cat</span></td>
+                  <td class="row-actions">
+                    <a class="btn ghost sm">Edit</a>
+                    <a class="btn ghost sm" style="color: var(--red)">Delete</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="anychip">Any</span></td>
+                  <td><span class="anychip">Any</span></td>
+                  <td>Junior</td>
+                  <td style="text-align: right"><span class="amt">£3.00</span></td>
+                  <td><span class="pill">cat only</span></td>
+                  <td class="row-actions">
+                    <a class="btn ghost sm">Edit</a>
+                    <a class="btn ghost sm" style="color: var(--red)">Delete</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="anychip">Any</span></td>
+                  <td><span class="anychip">Any</span></td>
+                  <td>Guest</td>
+                  <td style="text-align: right"><span class="amt">£8.00</span></td>
+                  <td><span class="pill">cat only</span></td>
+                  <td class="row-actions">
+                    <a class="btn ghost sm">Edit</a>
+                    <a class="btn ghost sm" style="color: var(--red)">Delete</a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Add rate modal -->
+        <div>
+          <p class="tile-label">8 — Add rate · modal</p>
+          <div class="dialog-wrap" style="padding: 60px">
+            <div class="dialog" style="grid-template-columns: 1fr; min-height: auto; max-width: 520px; margin: 0 auto">
+              <div class="left" style="border-right: 0">
+                <div class="eyebrow">Donation rates</div>
+                <h2 class="h2" style="margin: 4px 0 18px">Add donation rate</h2>
+
+                <div class="form-field">
+                  <label>Team (optional)</label>
+                  <select class="input" style="border: 1px solid var(--stone-200); width: 100%; font: inherit; font-size: 14px">
+                    <option>Any</option>
+                    <option>1st XI</option>
+                    <option selected>2nd XI</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label>Competition (optional)</label>
+                  <select class="input" style="border: 1px solid var(--stone-200); width: 100%; font: inherit; font-size: 14px">
+                    <option>Any</option>
+                    <option>League</option>
+                    <option selected>Cup</option>
+                    <option>Friendly</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label>Member category (required)</label>
+                  <select class="input" style="border: 1px solid var(--stone-200); width: 100%; font: inherit; font-size: 14px">
+                    <option selected>Adult</option>
+                    <option>Student</option>
+                    <option>Junior</option>
+                    <option>Guest</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label>Amount (£)</label>
+                  <div class="input" style="display: flex; align-items: baseline; gap: 4px">
+                    <span style="color: var(--stone-600); font-size: 18px">£</span>
+                    <span style="font-size: 18px; font-weight: 600">6.00</span>
+                  </div>
+                </div>
+
+                <div style="background: var(--stone-50); border: 1px solid var(--stone-200); border-radius: 9px; padding: 12px 14px; font-size: 12px; color: var(--stone-600); margin-bottom: 18px">
+                  <strong>Priority preview:</strong> team + comp + cat<br />
+                  This rule applies first when picking the donation for a 2nd
+                  XI cup match for an adult member.
+                </div>
+
+                <div style="display: flex; gap: 8px">
+                  <a class="btn outline lg" style="flex: 1">Cancel</a>
+                  <a class="btn primary lg" style="flex: 1.4">Save rate</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <h2 class="section">Flow 4 — Admin hub</h2>
+      <div class="grid-wide">
+        <div>
+          <p class="tile-label">9 — /admin landing</p>
+          <div class="desk">
+            <div class="desk-head">
+              <div>
+                <div class="eyebrow">Admin</div>
+                <strong style="font-size: 18px; letter-spacing: -0.01em">Admin</strong>
+                <div class="muted" style="font-size: 12px">Signed in as J. Robinson · treasurer + content</div>
+              </div>
+            </div>
+            <div style="padding: 20px">
+              <div class="hub-card">
+                <div class="row-between">
+                  <div>
+                    <div class="eyebrow">Approvals</div>
+                    <strong style="font-size: 16px">Expense approvals</strong>
+                    <div class="muted" style="font-size: 13px; margin-top: 2px">
+                      7 pending · £127.40 · oldest 9 days
+                    </div>
+                  </div>
+                  <a class="btn primary">Open inbox</a>
+                </div>
+              </div>
+              <div class="hub-card">
+                <div class="row-between">
+                  <div>
+                    <div class="eyebrow">Reimbursement</div>
+                    <strong style="font-size: 16px">Approved expenses queue</strong>
+                    <div class="muted" style="font-size: 13px; margin-top: 2px">3 approved · £60.00 awaiting BACS</div>
+                  </div>
+                  <a class="btn outline">Open queue</a>
+                </div>
+              </div>
+              <div class="hub-card">
+                <div class="row-between">
+                  <div>
+                    <div class="eyebrow">Rates</div>
+                    <strong style="font-size: 16px">Donation rates</strong>
+                    <div class="muted" style="font-size: 13px; margin-top: 2px">
+                      7 rules · changes apply to future confirmations
+                    </div>
+                  </div>
+                  <a class="btn outline">Edit rates</a>
+                </div>
+              </div>
+              <div class="hub-card" style="opacity: 0.7; cursor: not-allowed">
+                <div class="row-between">
+                  <div>
+                    <div class="eyebrow">Parked</div>
+                    <strong style="font-size: 16px">Team officials & member categories</strong>
+                    <div class="muted" style="font-size: 13px; margin-top: 2px">
+                      Managed in main site for now (RBAC · PR #302).
+                    </div>
+                  </div>
+                  <a class="btn ghost">Open in main site ↗</a>
+                </div>
+              </div>
+
+              <div class="infobanner" style="margin-top: 20px">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 16px; margin-top: 2px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.01"/></svg>
+                <div>
+                  Player donations (charges) — mark paid, edit, chase, void,
+                  PDF export, financial relief — live in the
+                  <strong>main site's Charges tab</strong>, not here. Single
+                  source of truth.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="muted" style="margin-top: 32px; font-size: 13px">
+        Notes vs the plan: scope reduced. The matchday admin surface covers
+        only what the official-flow produces (expense approvals) and what's
+        matchday-app-specific (team news image + donation rates). Player
+        donation lifecycle (mark paid, edit, chase, void, financial relief,
+        PDF export) already lives on the main site (PRs #298 #300 #293 #306
+        #311) and is intentionally not duplicated. Admin nav is gated by
+        actual permission, per #307.
+      </p>
+    </div>
+  </body>
+</html>

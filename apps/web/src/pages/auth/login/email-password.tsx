@@ -10,6 +10,36 @@ interface Props {
   setPhase: (phase: LoginPhase) => void;
 }
 
+/**
+ * Is `target` a fully-qualified URL pointing at one of our public
+ * domains? We accept matchday.percymain.org and any other percymain.org
+ * subdomain so the matchday PWA's RequireAuth can punt unauthenticated
+ * visits here with `returnTo=https://matchday.percymain.org/...` and we
+ * bounce them back. `localhost` is allowed so a dev round-trip works.
+ *
+ * Anything else (external URLs, non-http protocols) is rejected —
+ * `returnTo` is an open-redirect vector if we don't validate.
+ */
+function isAllowedExternalReturnTo(target: string): boolean {
+  if (!target.startsWith("http://") && !target.startsWith("https://")) {
+    return false;
+  }
+  try {
+    const url = new URL(target);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    const host = url.hostname;
+    if (host === "percymain.org" || host.endsWith(".percymain.org")) {
+      return true;
+    }
+    if (host === "localhost" || host.endsWith(".localhost")) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 const GoogleIcon: FC = () => (
   <svg className="mr-2 size-5" viewBox="0 0 24 24" aria-hidden="true">
     <path
@@ -45,6 +75,23 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
   // /get-session call to complete before we navigate.
   const { refetch: refetchSession } = useSession();
 
+  /**
+   * Send the user to their destination after a successful sign-in.
+   * Allowed `returnTo` values:
+   *  - a same-origin path → router-navigate (kept SPA-fast)
+   *  - a full URL on .percymain.org (or localhost in dev) → window.location
+   *    (crosses subdomain, so router can't help us)
+   *  - anything else → fallback (typically /members)
+   */
+  const navigateBack = (fallback: string) => {
+    const target = returnTo ?? fallback;
+    if (isAllowedExternalReturnTo(target)) {
+      window.location.href = target;
+      return;
+    }
+    void navigate(target);
+  };
+
   useEffect(() => {
     async function tryPasskeyAutofill() {
       const available =
@@ -56,12 +103,14 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
         {
           async onSuccess() {
             await refetchSession();
-            void navigate(returnTo ?? "/members");
+            navigateBack("/members");
           },
         },
       );
     }
     void tryPasskeyAutofill();
+    // navigateBack closes over returnTo; deps cover it via `returnTo`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, returnTo, refetchSession]);
 
   const signin = useMutation({
@@ -80,7 +129,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
       // Session changed — drop all cached queries so the new user sees fresh
       // data rather than the previous user's (or anonymous) cached responses.
       void queryClient.invalidateQueries();
-      void navigate(returnTo ?? "/members");
+      navigateBack("/members");
     },
   });
 
@@ -88,11 +137,19 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
   // return, so there's no in-page cache to invalidate here.
   // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- redirects out to Google OAuth and the page reloads on return
   const googleSignIn = useMutation({
-    mutationFn: () =>
-      authClient.signIn.social({
+    mutationFn: () => {
+      // For same-origin returns, prefix with current origin. For full
+      // .percymain.org URLs (matchday redirect), pass through verbatim
+      // — better-auth's social-login callbackURL accepts an absolute URL.
+      const target = returnTo ?? "/members";
+      const callbackURL = isAllowedExternalReturnTo(target)
+        ? target
+        : `${window.location.origin}${target}`;
+      return authClient.signIn.social({
         provider: "google",
-        callbackURL: `${window.location.origin}${returnTo ?? "/members"}`,
-      }),
+        callbackURL,
+      });
+    },
   });
 
   const handleSubmit = (event: React.SyntheticEvent) => {

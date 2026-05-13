@@ -7,10 +7,12 @@
     "dev": "bash scripts/dev.sh",
     "dev:api": "pnpm --filter api dev",
     "dev:web": "pnpm --filter web dev",
+    "dev:matchday": "pnpm --filter matchday dev",
     "dev:email": "pnpm --filter email-viewer dev",
     "build": "pnpm -r run build",
     "build:api": "pnpm --filter api build",
     "build:web": "pnpm --filter web build",
+    "build:matchday": "pnpm --filter matchday build",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "lint": "pnpm -r run lint",
@@ -23,7 +25,7 @@
     "db:lift": "pnpm --filter @percy-main/db db:lift",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "openapi:generate": "pnpm --filter api exec tsx src/generate-openapi.ts > apps/web/src/lib/api.gen.json && pnpm exec openapi-typescript apps/web/src/lib/api.gen.json -o apps/web/src/lib/api.gen.d.ts"
+    "openapi:generate": "pnpm --filter api exec tsx src/generate-openapi.ts > apps/web/src/lib/api.gen.json && pnpm exec openapi-typescript apps/web/src/lib/api.gen.json -o apps/web/src/lib/api.gen.d.ts && cp apps/web/src/lib/api.gen.json apps/matchday/src/lib/api.gen.json && pnpm exec openapi-typescript apps/matchday/src/lib/api.gen.json -o apps/matchday/src/lib/api.gen.d.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10",

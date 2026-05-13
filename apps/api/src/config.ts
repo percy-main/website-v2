@@ -21,6 +21,17 @@ const configSchema = z.object({
   BETTER_AUTH_RP_ID: z.string().default("localhost"),
   BETTER_AUTH_RP_NAME: z.string().default("Percy Main CSC"),
   BASE_URL: z.url().default("http://localhost:5173"),
+  // Additional public origins served by the same better-auth session
+  // (matchday PWA at matchday.percymain.org, www apex). Wildcard cert
+  // and cross-subdomain cookies make these share the cookie scoped to
+  // ".percymain.org". Both optional so dev / preview can omit them.
+  MATCHDAY_URL: z.url().default("http://localhost:5175").optional(),
+  WWW_URL: z.url().optional(),
+  // Cookie domain for cross-subdomain better-auth sessions. In prod set
+  // to ".percymain.org"; in dev to ".localhost" (browsers treat *.localhost
+  // as cookieable). Leaving this unset disables cross-subdomain cookies
+  // entirely (single-origin mode).
+  COOKIE_DOMAIN: z.string().optional(),
   API_BASE_URL: z.url(),
   DEPLOY_PRIME_URL: z.url().optional(),
   GOOGLE_CLIENT_ID: z.string().default(""),
