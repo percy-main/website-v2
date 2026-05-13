@@ -1,46 +1,17 @@
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 
-interface Pool {
-  id: string;
-  member_id: string;
-  status: string;
-  note: string | null;
-  overridden_by: string | null;
-  member_name: string | null;
-}
-interface NoResp {
-  id: string;
-  name: string | null;
-  member_category: string | null;
-}
-interface Fixture {
-  id: string;
-  play_cricket_team_id: string;
-  opposition: string;
-  is_home: boolean;
-  team_name: string | null;
-  competition_name: string | null;
-  match_time: string | null;
-  assignments: Array<{
-    id: string;
-    member_id: string | null;
-    player_name: string;
-    position: number;
-  }>;
-}
-interface PerDateData {
-  requestStatus: string;
-  fixtures: Fixture[];
-  pools: { available: Pool[]; unavailable: Pool[]; noResponse: NoResp[] };
-  assignedMemberIds: string[];
-}
+type PerDateData =
+  ApiResponse<"/api/availability/requests/{requestId}/dates/{date}">;
+type Pool = PerDateData["pools"]["available"][number];
+type NoResp = PerDateData["pools"]["noResponse"][number];
+type Fixture = PerDateData["fixtures"][number];
 
 type Tab = "available" | "unavailable" | "noResponse";
 
@@ -107,7 +78,7 @@ export default function OfficialAvailabilityDate() {
       </p>
     );
 
-  const pd = data as unknown as PerDateData;
+  const pd = data;
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-24">

@@ -1,22 +1,13 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { Link } from "react-router";
 
-interface RequestRow {
-  id: string;
-  date_from: string;
-  date_to: string;
-  status: string;
-  created_at: string;
-  created_by: string;
-  created_by_name: string | null;
-  fixtureCount: number;
-  respondentCount: number;
-}
+type RequestRow =
+  ApiResponse<"/api/availability/requests">["items"][number];
 
 /**
  * Phase 3 official-side availability list.
@@ -35,8 +26,7 @@ export default function OfficialAvailability() {
         }),
       ),
   });
-  const items =
-    (data as unknown as { items?: RequestRow[] } | undefined)?.items ?? [];
+  const items = data?.items ?? [];
   const open = items.filter((r) => r.status === "open");
   const closed = items.filter((r) => r.status !== "open");
   return (

@@ -8,16 +8,6 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-interface PreviewFixture {
-  matchDate: string;
-  playCricketMatchId: string;
-  opposition: string;
-  teamName: string;
-  isHome: boolean;
-  competitionName: string | null;
-  matchTime: string | null;
-}
-
 /**
  * Phase 3 availability request create flow. Two visible steps:
  *
@@ -58,15 +48,12 @@ export default function OfficialAvailabilityNew() {
         }),
       ),
     onSuccess: (data) => {
-      const id = (data as { id: string }).id;
       void qc.invalidateQueries({ queryKey: ["availability"] });
-      void navigate(`/official/availability/${id}`);
+      void navigate(`/official/availability/${data.id}`);
     },
   });
 
-  const fixtures =
-    (preview.data as unknown as { fixtures?: PreviewFixture[] } | undefined)
-      ?.fixtures ?? [];
+  const fixtures = preview.data?.fixtures ?? [];
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-24">

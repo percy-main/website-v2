@@ -7,28 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { Link, useParams } from "react-router";
 
-interface DateSummary {
-  date: string;
-  fixtures: Array<{
-    teamName?: string | null;
-    opposition?: string | null;
-    competition_name?: string | null;
-    is_home?: boolean;
-  }>;
-  responseCount: number;
-  assignmentCount: number;
-}
-
-interface DetailResponse {
-  request: {
-    id: string;
-    date_from: string;
-    date_to: string;
-    status: string;
-  };
-  dates: DateSummary[];
-}
-
 /**
  * Phase 3 availability-request detail.
  *
@@ -72,20 +50,10 @@ export default function OfficialAvailabilityDetail() {
       </p>
     );
 
-  const detail = data as unknown as DetailResponse;
-  const { request, dates } = detail;
-  const totalResponses = dates.reduce(
-    (acc, d) => acc + (d.responseCount ?? 0),
-    0,
-  );
-  const totalAssignments = dates.reduce(
-    (acc, d) => acc + (d.assignmentCount ?? 0),
-    0,
-  );
-  const totalFixtures = dates.reduce(
-    (acc, d) => acc + d.fixtures.length,
-    0,
-  );
+  const { request, dates } = data;
+  const totalResponses = dates.reduce((acc, d) => acc + d.responseCount, 0);
+  const totalAssignments = dates.reduce((acc, d) => acc + d.assignmentCount, 0);
+  const totalFixtures = dates.reduce((acc, d) => acc + d.fixtures.length, 0);
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-24">
@@ -138,11 +106,11 @@ export default function OfficialAvailabilityDetail() {
             </div>
             <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
               <span className="rounded bg-info-bg px-2 py-0.5 text-navy dark:text-white">
-                {d.responseCount ?? 0} response
-                {(d.responseCount ?? 0) === 1 ? "" : "s"}
+                {d.responseCount} response
+                {d.responseCount === 1 ? "" : "s"}
               </span>
               <span className="rounded bg-success-bg px-2 py-0.5 text-success">
-                {d.assignmentCount ?? 0} assigned
+                {d.assignmentCount} assigned
               </span>
             </div>
           </Link>
