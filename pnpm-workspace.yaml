@@ -2,3 +2,15 @@ packages:
   - "apps/*"
   - "packages/*"
   - "infra"
+# Postinstall script policy. pnpm 11 requires an explicit decision per
+# package whose install script would otherwise run. Mirrors prior pnpm 10
+# behaviour where these were all ignored without issue: sharp ships
+# prebuilt platform bindings via its `@img/sharp-*` optional deps,
+# esbuild via `@esbuild/*`, and cpu-features / ssh2 / protobufjs are
+# transitive dev-time only.
+allowBuilds:
+  cpu-features: false
+  esbuild: false
+  protobufjs: false
+  sharp: false
+  ssh2: false
