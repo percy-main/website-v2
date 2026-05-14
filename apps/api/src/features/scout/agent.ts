@@ -1,3 +1,5 @@
+import { RekognitionClient } from "@aws-sdk/client-rekognition";
+import { S3Client } from "@aws-sdk/client-s3";
 import type { DB } from "@percy-main/db";
 import type {
   LanguageModel,
@@ -24,12 +26,17 @@ import { createAskDbTool } from "./tools/ask-db.ts";
 import { createAskQuestionTool } from "./tools/ask-question.ts";
 import { createScoutCache } from "./tools/cache.ts";
 import { createChartTool } from "./tools/chart.ts";
+import { createFaceDetector } from "./tools/face-detection.ts";
 import { createFactTools } from "./tools/facts.ts";
 import { createGenerateReportTool } from "./tools/generate-report.ts";
 import { createKnowledgeTools } from "./tools/knowledge.ts";
 import { createPlayCricketCitationTools } from "./tools/play-cricket-citations.ts";
 import { createPlayCricketTools } from "./tools/play-cricket.ts";
+import { createPlayerFacesTool } from "./tools/player-faces.ts";
+import { createRecognitionSourcesTool } from "./tools/recognition-sources.ts";
+import { createRenderImageTool } from "./tools/render-image.ts";
 import { createRenderVideoTool } from "./tools/render-video.ts";
+import { createTavilyClient } from "./tools/tavily.ts";
 import { createWeatherTools } from "./tools/weather.ts";
 
 // streamText's providerOptions is typed as a deep alias not re-exported from
@@ -157,6 +164,20 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
     deps.mode === "chat" || deps.mode === "scout"
       ? createRenderVideoTool({ writer: deps.writer })
       : {};
+  // render_image renders recognition-source photos inline. Same gating as
+  // chart / video — chat + scout only, never debrief.
+  const imageTools =
+    deps.mode === "chat" || deps.mode === "scout"
+      ? createRenderImageTool({ writer: deps.writer })
+      : {};
+  // player_faces is the richer recognition-card surface — face thumbnails
+  // up front, expandable to full source images. Preferred over
+  // render_image whenever the recognition tool returned face-bearing
+  // candidates. Same gating as render_image.
+  const playerFacesTools =
+    deps.mode === "chat" || deps.mode === "scout"
+      ? createPlayerFacesTool({ writer: deps.writer })
+      : {};
   // generate_report builds a PDF and stores it in S3. Relevant in chat (the
   // captain may ask) and scout (the focused mode self-triggers the tool); not
   // in debrief, which surfaces a structured interview rather than a document.
@@ -193,6 +214,42 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   const playCricketCitationTools = createPlayCricketCitationTools({
     writer: deps.writer,
   });
+  // Recognition-source discovery (find_player_photo_sources). Public-source
+  // discovery only — see ADR 042 for the privacy framing. Registered in
+  // chat / scout modes only; debrief is a structured interview and a
+  // recognition tool would derail it.
+  const recognitionTools =
+    deps.mode === "chat" || deps.mode === "scout"
+      ? createRecognitionSourcesTool({
+          search: createTavilyClient({
+            apiKey: deps.config.TAVILY_API_KEY,
+            logger: deps.logger,
+          }),
+          // Face detection runs inline on every recognition tool call, so
+          // wire up dedicated AWS clients here. Both clients share the
+          // configured region; the S3 client honours S3_ENDPOINT for local
+          // dev (Minio / Localstack), Rekognition does not — it's an
+          // AWS-only service.
+          faceDetector: createFaceDetector({
+            rekognition: new RekognitionClient({
+              region: deps.config.AWS_REGION,
+            }),
+            s3: new S3Client({
+              region: deps.config.S3_REGION,
+              ...(deps.config.S3_ENDPOINT
+                ? {
+                    endpoint: deps.config.S3_ENDPOINT,
+                    forcePathStyle: true,
+                  }
+                : {}),
+            }),
+            bucket: deps.config.SCOUT_ATTACHMENTS_BUCKET,
+            prefix: `${deps.config.SCOUT_ATTACHMENTS_PREFIX}/faces`,
+            logger: deps.logger,
+          }),
+          logger: deps.logger,
+        })
+      : {};
   // Fact tools only register when Voyage is configured. Auto-retrieval in
   // the route also short-circuits in that case, so a deployment without
   // VOYAGE_API_KEY behaves as if the RAG layer doesn't exist.
@@ -287,11 +344,14 @@ When asked about the "next" or "upcoming" match for ANY club (Percy Main or oppo
       ...weatherTools,
       ...chartTools,
       ...videoTools,
+      ...imageTools,
+      ...playerFacesTools,
       ...reportTools,
       ...askQuestionTools,
       ...factTools,
       ...knowledgeTools,
       ...playCricketCitationTools,
+      ...recognitionTools,
     },
     maxSteps: deps.config.SCOUT_MAX_STEPS,
     prepareStep: ({ messages }) => ({

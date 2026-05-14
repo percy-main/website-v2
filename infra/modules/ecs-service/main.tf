@@ -478,6 +478,28 @@ resource "aws_iam_role_policy" "task_s3_scout_attachments" {
   })
 }
 
+resource "aws_iam_role_policy" "task_rekognition_detect_faces" {
+  name = "${local.name_prefix}-task-rekognition-detect-faces"
+  role = aws_iam_role.task.id
+
+  # Scout's recognition-source pipeline runs face DETECTION (bounding boxes
+  # only) on candidate images so the captain sees pre-cropped thumbnails of
+  # every face in a team / match photo. This is not face recognition —
+  # DetectFaces is stateless and returns geometry only. See ADR 042.
+  # Rekognition doesn't support resource-level scoping for stateless ops,
+  # hence Resource = "*".
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["rekognition:DetectFaces"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "task_s3_scout_kb_uploads" {
   name = "${local.name_prefix}-task-s3-scout-kb-uploads"
   role = aws_iam_role.task.id

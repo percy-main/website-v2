@@ -25,6 +25,7 @@ const baseEnv = {
   SCOUT_ATTACHMENT_DERIVE_MODEL: "claude-haiku-4-5-20251001",
   VOYAGE_EMBED_MODEL: "voyage-4",
   VOYAGE_RERANK_MODEL: "rerank-2.5",
+  TAVILY_API_KEY: "tvly-test",
 };
 
 describe("parseConfig — defaults", () => {
@@ -66,6 +67,12 @@ describe("parseConfig — required model config", () => {
   it("rejects missing VOYAGE_EMBED_MODEL", () => {
     const env = { ...baseEnv } as Record<string, string | undefined>;
     delete env.VOYAGE_EMBED_MODEL;
+    expect(() => parseConfig(env)).toThrow();
+  });
+
+  it("rejects missing TAVILY_API_KEY", () => {
+    const env = { ...baseEnv } as Record<string, string | undefined>;
+    delete env.TAVILY_API_KEY;
     expect(() => parseConfig(env)).toThrow();
   });
 });

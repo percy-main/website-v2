@@ -233,7 +233,12 @@ module "ecs" {
     ANTHROPIC_API_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:ANTHROPIC_API_KEY::"
     DEEPSEEK_API_KEY  = "${aws_secretsmanager_secret.app_secrets.arn}:DEEPSEEK_API_KEY::"
     VOYAGE_API_KEY    = "${aws_secretsmanager_secret.app_secrets.arn}:VOYAGE_API_KEY::"
-    SCOUT_DB_URL      = "${aws_secretsmanager_secret.app_secrets.arn}:SCOUT_DB_URL::"
+    # Tavily — backs Scout's recognition-source discovery (find_player_photo_sources).
+    # Required by config (z.string().min(1)); the secret JSON key MUST exist
+    # in app_secrets before this task definition redeploys or ECS will fail
+    # to start.
+    TAVILY_API_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:TAVILY_API_KEY::"
+    SCOUT_DB_URL   = "${aws_secretsmanager_secret.app_secrets.arn}:SCOUT_DB_URL::"
 
     # Google Ads API (offline conversion uploads — recruit-2026 + future
     # campaigns). Stored in a separate secret from app_secrets so the

@@ -17,6 +17,30 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# ── AWS percy-main creds for Scout face detection ─────────────────────────
+# Scout's recognition-source pipeline calls AWS Rekognition (DetectFaces) on
+# candidate images. Local dev runs S3 against Localstack (S3_ENDPOINT), but
+# Rekognition has no Localstack equivalent — it has to hit real AWS.
+#
+# Validate the percy-main profile up front so the API process inherits a
+# working AWS_PROFILE and face detection works on the first request rather
+# than latching off after a credentials-class error. Non-fatal: if creds
+# aren't valid we just print a clear message and proceed — face detection
+# degrades to no-op (the API will still run everything else).
+if command -v aws &>/dev/null; then
+  if aws sts get-caller-identity --profile percy-main &>/dev/null; then
+    export AWS_PROFILE=percy-main
+    echo "[dev] AWS percy-main authenticated — Scout face detection enabled"
+  else
+    echo "[dev] AWS percy-main profile not authenticated — face detection disabled this session."
+    echo "[dev]   SSO profile:    aws sso login --profile percy-main"
+    echo "[dev]   Static creds:   check ~/.aws/credentials [percy-main]"
+    echo "[dev] Fix and re-run pnpm dev to enable face detection."
+  fi
+else
+  echo "[dev] AWS CLI not found — Scout face detection disabled. Install AWS CLI v2."
+fi
+
 STRIPE_OUTPUT=$(mktemp)
 
 if ! command -v stripe &>/dev/null; then

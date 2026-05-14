@@ -20,3 +20,4 @@ To add a new ADR, use the [`add-adr` skill](../../.claude/skills/add-adr/SKILL.m
 | [010](010-testcontainers.md)              | Testcontainers for Integration Tests                        | 2026-03-14 | Accepted |
 | [011](011-api-type-safety.md)             | API Type Safety Between Backend and Frontend                | 2026-03-16 | Accepted |
 | [012](012-prod-db-access.md)              | Production DB Access via Tailscale                          | 2026-04-20 | Accepted |
+| [042](042-scout-recognition-sources.md)   | Scout Recognition Sources — Public-Source Discovery         | 2026-05-14 | Accepted |

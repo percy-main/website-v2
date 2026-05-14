@@ -1,6 +1,8 @@
 import type { UIMessage } from "@ai-sdk/react";
 import {
   type ChartSpec,
+  type ImageSpec,
+  type PlayerFacesSpec,
   type ReportData as SharedReportData,
   type VideoSpec,
 } from "@percy-main/shared";
@@ -9,6 +11,8 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ReportCard } from "./report-card.tsx";
 import { ScoutChart } from "./scout-chart.tsx";
+import { ScoutImage } from "./scout-image.tsx";
+import { ScoutPlayerFaces } from "./scout-player-faces.tsx";
 import { ScoutVideo } from "./scout-video.tsx";
 
 const REMARK_PLUGINS = [remarkGfm];
@@ -544,6 +548,23 @@ function PartView({
     return <ScoutVideo spec={videoPart.data} />;
   }
 
+  if (part.type === "data-image") {
+    // render_image — recognition-source photos surfaced inline with
+    // confidence chip + caption + login-wall warnings (when applicable).
+    const imagePart = part as { type: "data-image"; data: ImageSpec };
+    return <ScoutImage spec={imagePart.data} />;
+  }
+
+  if (part.type === "data-player-faces") {
+    // player_faces — richer recognition card: face thumbnails up front,
+    // full source images tucked behind a 'show source images' toggle.
+    const facesPart = part as {
+      type: "data-player-faces";
+      data: PlayerFacesSpec;
+    };
+    return <ScoutPlayerFaces spec={facesPart.data} />;
+  }
+
   if (part.type === "data-question") {
     const qPart = part as { type: "data-question"; data: QuestionData };
     return (
@@ -585,7 +606,11 @@ function PartView({
       // generate_report's UI is the data-report pipeline card. The tool-call
       // payload is just routing — never render it. The data-report part is
       // emitted as the very first thing inside execute(), so there's no gap.
-      part.type === "tool-generate_report"
+      part.type === "tool-generate_report" ||
+      // render_image / player_faces UIs ARE the data-* parts; the
+      // tool-call payloads are routing noise — never render them.
+      part.type === "tool-render_image" ||
+      part.type === "tool-player_faces"
     ) {
       return null;
     }

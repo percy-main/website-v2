@@ -37,6 +37,7 @@ export async function buildTestApp(db: Kysely<DB>, dialect: PostgresDialect) {
     SCOUT_ATTACHMENT_DERIVE_MODEL: "claude-haiku-4-5-20251001",
     VOYAGE_EMBED_MODEL: "voyage-4",
     VOYAGE_RERANK_MODEL: "rerank-2.5",
+    TAVILY_API_KEY: "test-tavily-key",
   });
 
   return buildApp({ db, dialect, config });
