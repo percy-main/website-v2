@@ -149,9 +149,10 @@ export function ShareThreadModal({
         <DialogHeader>
           <DialogTitle>Share thread</DialogTitle>
           <DialogDescription>
-            Give other officials read-only access to{" "}
+            Give other ImbuzAI users read-only access to{" "}
             <span className="font-medium text-stone-900">{threadTitle}</span>.
-            They&rsquo;ll see the full conversation but can&rsquo;t reply.
+            They&rsquo;ll see the full conversation but can&rsquo;t reply (they
+            can copy it to a thread of their own to keep chatting).
           </DialogDescription>
         </DialogHeader>
 
@@ -192,7 +193,7 @@ export function ShareThreadModal({
         {/* ── Picker ────────────────────────────────────────────── */}
         <div className="space-y-2">
           <Input
-            placeholder="Search officials by name or email…"
+            placeholder="Search ImbuzAI users by name or email…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             disabled={officialsQuery.isLoading}
@@ -204,10 +205,10 @@ export function ShareThreadModal({
             {!officialsQuery.isLoading && candidates.length === 0 && (
               <div className="p-3 text-sm text-stone-500">
                 {filter
-                  ? "No matching officials."
+                  ? "No matching users."
                   : hasShares
                     ? "Already shared with everyone available."
-                    : "No other officials yet."}
+                    : "No other ImbuzAI users yet."}
               </div>
             )}
             <ul className="divide-y divide-stone-100">

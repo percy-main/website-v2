@@ -338,7 +338,7 @@ export function MessageView({
         className={`max-w-3xl rounded-lg px-4 py-3 ${
           isUser
             ? "bg-blue-100 text-stone-900"
-            : "w-full border border-stone-200 bg-white text-stone-900"
+            : "w-full border border-stone-200 bg-white text-stone-900 dark:bg-slate-800/70"
         }`}
       >
         {(() => {
@@ -607,12 +607,24 @@ function PartView({
       // payload is just routing — never render it. The data-report part is
       // emitted as the very first thing inside execute(), so there's no gap.
       part.type === "tool-generate_report" ||
-      // render_image / player_faces UIs ARE the data-* parts; the
-      // tool-call payloads are routing noise — never render them.
-      part.type === "tool-render_image" ||
-      part.type === "tool-player_faces"
+      // render_image's UI IS the data-image part; the tool-call payload is
+      // routing noise — never render it.
+      part.type === "tool-render_image"
     ) {
       return null;
+    }
+    // player_faces: the data-player-faces part is the real card, but the
+    // model can spend a few seconds streaming the input args (many face URLs
+    // per source). Show a placeholder while in-progress so the chat doesn't
+    // appear stalled; once output-available, the data-* card takes over.
+    if (part.type === "tool-player_faces") {
+      return <PlayerFacesPendingCard part={part} />;
+    }
+    // find_player_photo_sources is the slow web-discovery + face-detection
+    // tool. Show a shimmer card while it runs, collapse to a settled pill
+    // (matching ask_db) once it returns.
+    if (part.type === "tool-find_player_photo_sources") {
+      return <PhotoSearchCard part={part} />;
     }
     // ask_db gets a dedicated card that handles both the in-progress state
     // (rotating stages + shimmer) and the settled state (small blue pill with
@@ -1184,6 +1196,174 @@ function DatabaseIcon({ className }: { className?: string }) {
       <ellipse cx="12" cy="5" rx="9" ry="3" />
       <path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5" />
       <path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6" />
+    </svg>
+  );
+}
+
+// ── player_faces / find_player_photo_sources loading cards ───────────────
+//
+// player_faces: tool-player_faces emits a data-player-faces part from
+// execute(); the data-* part is the real card. The gap between "model
+// chose to call player_faces" and "data part lands" can be a few seconds
+// (input args carry many face URLs). Render a small placeholder while
+// the call is mid-flight; return null on output so the data-* card is
+// the only thing the user sees.
+function PlayerFacesPendingCard({ part }: { part: Part }) {
+  const tool = part as unknown as ToolPart;
+  const isDone =
+    tool.state === "output-available" || tool.state === "output-error";
+  if (isDone) return null;
+  return (
+    <div className="my-2 rounded border border-emerald-200 bg-emerald-50/50 px-3 py-2">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+        <FaceIcon className="size-3.5" />
+        <span
+          className="animate-thought-shimmer bg-clip-text text-transparent"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, #047857 0%, #047857 35%, #6ee7b7 50%, #047857 65%, #047857 100%)",
+            backgroundSize: "200% 100%",
+          }}
+        >
+          Rendering face matches…
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// find_player_photo_sources is genuinely slow (a few seconds to tens of
+// seconds) — it does live web search, fetches candidate pages, runs face
+// detection. Mirror the AskDbCard two-state shape: shimmer in-progress,
+// collapse to a small pill once settled (click to expand input/output).
+const PHOTO_SEARCH_STAGES = [
+  "Searching the web…",
+  "Fetching candidate pages…",
+  "Detecting faces in images…",
+  "Ranking candidates by confidence…",
+];
+
+function PhotoSearchCard({ part }: { part: Part }) {
+  const tool = part as unknown as ToolPart;
+  const isDone =
+    tool.state === "output-available" || tool.state === "output-error";
+  const isError = tool.state === "output-error";
+
+  const startRef = useRef<number | null>(null);
+  useEffect(() => {
+    startRef.current ??= Date.now();
+  }, []);
+
+  const [elapsedSec, setElapsedSec] = useState<number | null>(null);
+  useEffect(() => {
+    if (isDone && startRef.current != null && elapsedSec === null) {
+      setElapsedSec(
+        Math.max(1, Math.round((Date.now() - startRef.current) / 1000)),
+      );
+    }
+  }, [isDone, elapsedSec]);
+
+  const [stageIdx, setStageIdx] = useState(0);
+  useEffect(() => {
+    if (isDone) return undefined;
+    const id = setInterval(() => {
+      setStageIdx((i) => (i + 1) % PHOTO_SEARCH_STAGES.length);
+    }, 1600);
+    return () => clearInterval(id);
+  }, [isDone]);
+
+  const [open, setOpen] = useState(false);
+
+  if (!isDone) {
+    return (
+      <div className="my-2 rounded border border-emerald-200 bg-emerald-50/50 px-3 py-2">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+          <FaceIcon className="size-3.5" />
+          <span>Searching for player photos</span>
+        </div>
+        <div
+          className="animate-thought-shimmer bg-clip-text font-mono text-xs text-transparent"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, #047857 0%, #047857 35%, #6ee7b7 50%, #047857 65%, #047857 100%)",
+            backgroundSize: "200% 100%",
+          }}
+        >
+          {PHOTO_SEARCH_STAGES[stageIdx]}
+        </div>
+      </div>
+    );
+  }
+
+  const pillClass = isError
+    ? "inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs text-red-700 hover:bg-red-100"
+    : "inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100";
+
+  return (
+    <div className="my-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={pillClass}
+      >
+        <FaceIcon className="size-3" />
+        <span>
+          {isError ? "Photo search failed" : "Searched for player photos"}
+          {!isError && elapsedSec != null ? ` · ${elapsedSec}s` : ""}
+        </span>
+        <span className={isError ? "text-red-400" : "text-emerald-400"}>
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-1 rounded border border-emerald-200 bg-emerald-50/30 p-2 text-xs">
+          {tool.input !== undefined && (
+            <details>
+              <summary className="cursor-pointer text-emerald-700">
+                query
+              </summary>
+              <pre className="mt-1 max-h-48 overflow-auto rounded bg-white p-1 font-mono text-[11px]">
+                {JSON.stringify(tool.input, null, 2)}
+              </pre>
+            </details>
+          )}
+          {tool.errorText && (
+            <div className="mt-1 rounded bg-red-50 p-1 text-red-700">
+              {tool.errorText}
+            </div>
+          )}
+          {tool.output !== undefined && (
+            <details>
+              <summary className="cursor-pointer text-emerald-700">
+                candidates
+              </summary>
+              <pre className="mt-1 max-h-72 overflow-auto rounded bg-white p-1 font-mono text-[11px]">
+                {JSON.stringify(tool.output, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FaceIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="9" cy="10" r="0.5" fill="currentColor" />
+      <circle cx="15" cy="10" r="0.5" fill="currentColor" />
+      <path d="M9 15c1 1 2 1.5 3 1.5S13 16 15 15" />
     </svg>
   );
 }

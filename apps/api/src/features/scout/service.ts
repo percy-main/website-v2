@@ -1,4 +1,5 @@
 import type { DB } from "@percy-main/db";
+import { checkPermission } from "@percy-main/shared/auth/permissions";
 import type { Kysely } from "kysely";
 import type { ScoutMode } from "./schemas.ts";
 
@@ -695,13 +696,21 @@ export function cancelReport(db: Kysely<DB>) {
 // ── Thread sharing ──
 //
 // v1 sharing model: an owner grants read-only access to one or more other
-// admin/official users. Recipients can view the full thread (messages,
-// charts, video embeds, reports) but cannot post — that's enforced by
-// keeping every write path on `assertThreadOwnership`. "Branch my own
-// thread" is the deferred follow-up if/when recipients want to continue
-// the conversation in their own copy.
+// users with Scout chat access. Recipients can view the full thread
+// (messages, charts, video embeds, reports) but cannot post — that's
+// enforced by keeping every write path on `assertThreadOwnership`. A
+// recipient who wants to interact can copy the thread to themselves
+// (copyThread, below).
 
-const SHAREABLE_ROLES = new Set(["admin", "official"]);
+/**
+ * True iff a stored role string grants ai_chat:use — i.e. the user can
+ * actually open Scout. Used to filter the share picker and validate
+ * recipients on share. Centralised here so the rule lives in one place
+ * and matches the route-level requirePermission gate.
+ */
+function canReceiveSharedThread(role: string | null): boolean {
+  return checkPermission(role, "ai_chat", "use");
+}
 
 /**
  * Verify the current viewer owns the thread. Throws ThreadNotFoundError
@@ -724,21 +733,27 @@ async function assertOwnerForShare(
 }
 
 export function listOfficials(db: Kysely<DB>) {
-  // Source for the share-modal picker: every admin / official EXCEPT the
-  // current viewer (who'd never share with themselves — the unique-recipient
-  // constraint also blocks it but we don't want them in the list).
+  // Source for the share-modal picker: every non-banned user who can use
+  // Scout chat (ai_chat:use), EXCEPT the current viewer. We pull anyone
+  // with a non-empty role string and then filter in JS via checkPermission,
+  // because the `role` column is a comma-separated list and SQL can't
+  // resolve role-name → permission grants without duplicating that table
+  // here. Member counts are small (club app) so the round-trip is fine.
   return async (currentUserId: string): Promise<ShareActor[]> => {
     const rows = await db
       .selectFrom("user")
-      .where("role", "in", Array.from(SHAREABLE_ROLES))
       .where("id", "!=", currentUserId)
+      .where("role", "is not", null)
+      .where("role", "!=", "")
       .where((eb) =>
         eb.or([eb("banned", "is", null), eb("banned", "=", false)]),
       )
-      .select(["id", "name", "email"])
+      .select(["id", "name", "email", "role"])
       .orderBy("name", "asc")
       .execute();
-    return rows.map((r) => ({ id: r.id, name: r.name, email: r.email }));
+    return rows
+      .filter((r) => canReceiveSharedThread(r.role))
+      .map((r) => ({ id: r.id, name: r.name, email: r.email }));
   };
 }
 
@@ -773,20 +788,21 @@ export function shareThread(db: Kysely<DB>) {
       );
     }
 
-    // Validate every recipient is still a real, role-eligible user. Doing
-    // this here (rather than relying on the FK alone) lets us return a
+    // Validate every recipient is still a real, permission-eligible user.
+    // Doing this here (rather than relying on the FK alone) lets us return a
     // useful 4xx instead of a Postgres-shaped error if someone bypassed
-    // the picker; it also keeps the role rule colocated with the feature.
-    const valid = await db
+    // the picker; it also keeps the rule colocated with the feature.
+    const candidates = await db
       .selectFrom("user")
       .where("id", "in", unique)
-      .where("role", "in", Array.from(SHAREABLE_ROLES))
       .where((eb) =>
         eb.or([eb("banned", "is", null), eb("banned", "=", false)]),
       )
-      .select(["id"])
+      .select(["id", "role"])
       .execute();
-    const validIds = new Set(valid.map((r) => r.id));
+    const validIds = new Set(
+      candidates.filter((r) => canReceiveSharedThread(r.role)).map((r) => r.id),
+    );
     const invalid = unique.filter((id) => !validIds.has(id));
     if (invalid.length > 0) {
       throw new ShareInvalidRecipientError(
@@ -812,6 +828,98 @@ export function shareThread(db: Kysely<DB>) {
       .execute();
 
     return await listSharees(db)(ownerUserId, threadId);
+  };
+}
+
+/**
+ * Fork a thread the caller can read (owner or shared sharee) into a new
+ * thread the caller owns. The new thread is fully editable — copied
+ * messages are written verbatim except for owner-private metadata
+ * (token usage and attachment ids are nulled out, since both reference
+ * the original owner's resources). Used by recipients of read-only
+ * shared threads who want to keep chatting from where the original left
+ * off without needing the original owner's permission to post.
+ */
+export function copyThread(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    sourceThreadId: string,
+  ): Promise<ThreadSummary> => {
+    return await db.transaction().execute(async (tx) => {
+      const source = await tx
+        .selectFrom("scout_thread")
+        .where("id", "=", sourceThreadId)
+        .select(["id", "user_id", "title", "mode"])
+        .executeTakeFirst();
+      if (!source) throw new ThreadNotFoundError();
+
+      const isOwner = source.user_id === userId;
+      if (!isOwner) {
+        const share = await tx
+          .selectFrom("scout_thread_share")
+          .where("thread_id", "=", sourceThreadId)
+          .where("shared_with_user_id", "=", userId)
+          .select("id")
+          .executeTakeFirst();
+        // Same 404-on-no-access shape as getThread — non-existent and
+        // forbidden look identical to the caller.
+        if (!share) throw new ThreadNotFoundError();
+      }
+
+      const copiedTitle = source.title.startsWith("Copy of ")
+        ? source.title
+        : `Copy of ${source.title}`;
+
+      const newThread = await tx
+        .insertInto("scout_thread")
+        .values({
+          user_id: userId,
+          title: copiedTitle,
+          mode: source.mode,
+        })
+        .returning(["id", "title", "mode", "created_at", "updated_at"])
+        .executeTakeFirstOrThrow();
+
+      const sourceMessages = await tx
+        .selectFrom("scout_message")
+        .where("thread_id", "=", sourceThreadId)
+        .select(["role", "parts", "created_at"])
+        .orderBy("created_at", "asc")
+        .execute();
+
+      if (sourceMessages.length > 0) {
+        await tx
+          .insertInto("scout_message")
+          .values(
+            sourceMessages.map((m) => ({
+              thread_id: newThread.id,
+              role: m.role,
+              // parts is jsonb in the schema; pass through structurally.
+              parts: JSON.stringify(m.parts),
+              // token counts and attachment ids belong to the original owner —
+              // nulling here keeps the copy's accounting honest and avoids the
+              // new owner trying (and failing) to load the original's
+              // owner-scoped attachment rows.
+              token_input: null,
+              token_output: null,
+              token_cache_read: null,
+              token_cache_creation: null,
+              attachment_ids: null,
+            })),
+          )
+          .execute();
+      }
+
+      return {
+        id: newThread.id,
+        title: newThread.title,
+        mode: newThread.mode as ScoutMode,
+        createdAt: toIso(newThread.created_at),
+        updatedAt: toIso(newThread.updated_at),
+        sharedBy: null,
+        sharedByMe: false,
+      };
+    });
   };
 }
 

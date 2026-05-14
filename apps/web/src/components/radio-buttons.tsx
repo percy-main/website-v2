@@ -30,10 +30,10 @@ export function RadioButtons<T extends string>({
             checked={radioValue === value}
             onChange={() => onChange(radioValue)}
           />
-          <div className="ms-2 font-medium text-stone-900 dark:text-stone-300">
+          <div className="ms-2 font-medium text-stone-900">
             {title}
             {description && (
-              <p className="text-xs font-normal text-stone-500 dark:text-stone-300">
+              <p className="text-xs font-normal text-stone-500">
                 {description}
               </p>
             )}
