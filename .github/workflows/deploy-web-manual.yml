@@ -51,7 +51,9 @@ jobs:
           echo "sha=${DEPLOYED_SHA}" >> "$GITHUB_OUTPUT"
           echo "Deployed SHA: ${DEPLOYED_SHA}"
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.2
 
       - uses: actions/setup-node@v4
         with:

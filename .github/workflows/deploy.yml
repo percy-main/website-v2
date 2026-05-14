@@ -685,7 +685,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.2
 
       - uses: actions/setup-node@v4
         with:
@@ -872,7 +874,9 @@ jobs:
             exit 1
           fi
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.2
 
       - uses: actions/setup-node@v4
         with:
