@@ -48,20 +48,15 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   `.execute(db);
 }
 
-export async function down(db: Kysely<unknown>): Promise<void> {
-  await db.schema.dropIndex("member_email_unique").execute();
-
-  await sql`UPDATE "member" SET email = '' WHERE email IS NULL`.execute(db);
-
-  await db.schema
-    .alterTable("member")
-    .alterColumn("email", (col) => col.setNotNull())
-    .execute();
-
-  await db.schema
-    .createIndex("member_email_unique")
-    .on("member")
-    .column("email")
-    .unique()
-    .execute();
+export async function down(_db: Kysely<unknown>): Promise<void> {
+  // Intentionally irreversible. Once guest matchday players have been
+  // added with email IS NULL, rolling back to NOT NULL + flat unique
+  // would either:
+  //   - reintroduce the `""` sentinel CLAUDE.md bans, or
+  //   - collide on `member_email_unique` the moment >1 guest exists.
+  // Forward fixes only. If a rollback is genuinely needed, hand-merge
+  // the affected guest rows first.
+  throw new Error(
+    "Migration 2026-05-14T12:49:40.750Z is one-way: guests rely on NULL emails",
+  );
 }

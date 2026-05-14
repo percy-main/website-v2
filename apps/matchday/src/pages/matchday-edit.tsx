@@ -192,11 +192,15 @@ export default function MatchdayEdit() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">
                 {p.player_name}
-                {!p.member_id && (
+                {p.dependent_id ? (
+                  <span className="text-text-secondary ml-2 text-[11px] italic">
+                    junior
+                  </span>
+                ) : !p.member_id ? (
                   <span className="text-text-secondary ml-2 text-[11px] italic">
                     guest
                   </span>
-                )}
+                ) : null}
               </p>
             </div>
             <button
