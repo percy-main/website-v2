@@ -832,6 +832,23 @@ export function shareThread(db: Kysely<DB>) {
 }
 
 /**
+ * Owner-scoped UI message part types that don't survive a thread copy:
+ * `data-report` cards and the `tool-generate_report` payload that
+ * produces them both reference scout_report rows gated by user_id.
+ * Stripping them keeps the copied conversation's prose intact while
+ * removing cards that would render stuck-loading or 404 for the new
+ * owner.
+ */
+function stripOwnerScopedParts(rawParts: unknown): unknown[] {
+  const parts = Array.isArray(rawParts) ? rawParts : [rawParts];
+  return parts.filter((p) => {
+    if (typeof p !== "object" || p === null) return true;
+    const t = (p as { type?: unknown }).type;
+    return t !== "data-report" && t !== "tool-generate_report";
+  });
+}
+
+/**
  * Fork a thread the caller can read (owner or shared sharee) into a new
  * thread the caller owns. The new thread is fully editable — copied
  * messages are written verbatim except for owner-private metadata
@@ -894,8 +911,23 @@ export function copyThread(db: Kysely<DB>) {
             sourceMessages.map((m) => ({
               thread_id: newThread.id,
               role: m.role,
-              // parts is jsonb in the schema; pass through structurally.
-              parts: JSON.stringify(m.parts),
+              // parts is jsonb in the schema; pass through structurally,
+              // but strip parts that point at owner-scoped resources the
+              // new owner can't access:
+              //   - data-report: scout_report rows are gated by user_id,
+              //     so the report card would render stuck-loading or 404
+              //     under the new owner. Drop the card; the surrounding
+              //     prose ("Report queued — it'll appear in the Reports
+              //     tab when ready.") still reads sensibly.
+              //   - tool-generate_report: the routing payload behind the
+              //     same card. No standalone UI, but no point keeping it
+              //     either.
+              parts: JSON.stringify(stripOwnerScopedParts(m.parts)),
+              // Preserve the original timestamp so getThread's order-by
+              // created_at reproduces the same conversation order. A
+              // bulk insert with default NOW() can land all rows on the
+              // same timestamp, scrambling user/assistant interleaving.
+              created_at: m.created_at,
               // token counts and attachment ids belong to the original owner —
               // nulling here keeps the copy's accounting honest and avoids the
               // new owner trying (and failing) to load the original's

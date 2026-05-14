@@ -594,6 +594,61 @@ describe("scout thread sharing (integration)", () => {
     const copied = await copyThread(ctx.db)(owner, thread.id);
     expect(copied.title).toBe("Copy of Old plan");
   });
+
+  it("copyThread preserves message timestamps so reload order matches the original", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "ai_chat_user",
+    });
+    const thread = await createThread(ctx.db)(owner, "Ordered chat");
+    // Append four messages back-to-back. Without preserving created_at,
+    // a bulk-insert can land them all on the same timestamp and reload
+    // in arbitrary order.
+    for (const text of ["q1", "a1", "q2", "a2"]) {
+      await appendMessage(ctx.db)(
+        thread.id,
+        text.startsWith("q") ? "user" : "assistant",
+        [{ type: "text", text }],
+      );
+    }
+    const copied = await copyThread(ctx.db)(owner, thread.id);
+    const reload = await getThread(ctx.db)(owner, copied.id);
+    const texts = reload.messages.map((m) => {
+      const part = (m.parts as Array<{ type?: string; text?: string }>)[0];
+      return part?.text;
+    });
+    expect(texts).toEqual(["q1", "a1", "q2", "a2"]);
+  });
+
+  it("copyThread strips owner-scoped data-report and tool-generate_report parts", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "ai_chat_user",
+    });
+    const thread = await createThread(ctx.db)(owner, "Has report");
+    await appendMessage(ctx.db)(thread.id, "assistant", [
+      { type: "text", text: "Report queued — it'll appear in Reports." },
+      {
+        type: "tool-generate_report",
+        toolCallId: "call-1",
+        state: "output-available",
+      },
+      {
+        type: "data-report",
+        id: "report-1",
+        data: { reportId: "00000000-0000-0000-0000-000000000000" },
+      },
+    ]);
+    const copied = await copyThread(ctx.db)(owner, thread.id);
+    const reload = await getThread(ctx.db)(owner, copied.id);
+    const types = (reload.messages[0].parts as Array<{ type?: string }>).map(
+      (p) => p.type,
+    );
+    // Prose stays, owner-scoped parts are gone.
+    expect(types).toContain("text");
+    expect(types).not.toContain("data-report");
+    expect(types).not.toContain("tool-generate_report");
+  });
 });
 
 describe("listRecentDebriefMatches (integration)", () => {
