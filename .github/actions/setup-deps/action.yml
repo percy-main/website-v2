@@ -1,6 +1,6 @@
 name: Setup pnpm + Node + workspace dependencies
 description: >
-  Installs pnpm, Node 22 with the pnpm-store cache, and the workspace
+  Installs pnpm, Node 24 with the pnpm-store cache, and the workspace
   dependencies via `pnpm install --frozen-lockfile`. Used by every
   fan-out job in _lint-test-build.yml so each job is independent and
   doesn't depend on a tarred node_modules surviving an actions/cache
@@ -15,7 +15,7 @@ runs:
 
     - uses: actions/setup-node@v4
       with:
-        node-version: 22
+        node-version: 24
         cache: pnpm
 
     - name: Install dependencies
