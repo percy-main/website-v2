@@ -901,17 +901,25 @@ export function confirmTeam(db: Kysely<DB>) {
           .execute();
       }
 
-      // Generate match fees for "playing" players
+      // Generate match fees for "playing" players. Junior players are
+      // stored against `dependent_id`; their charge is raised on the
+      // parent member at the "junior" rate and linked back via
+      // `charge_dependent` so the parent's portal shows who the
+      // donation is for.
       const playingPlayers = await trx
         .selectFrom("matchday_player")
         .leftJoin("member", "member.id", "matchday_player.member_id")
+        .leftJoin("dependent", "dependent.id", "matchday_player.dependent_id")
         .where("matchday_player.matchday_id", "=", matchdayId)
         .where("matchday_player.status", "=", "playing")
         .select([
           "matchday_player.id as matchdayPlayerId",
           "matchday_player.member_id",
+          "matchday_player.dependent_id",
           "matchday_player.player_name",
           "member.member_category",
+          "dependent.member_id as dependentParentId",
+          "dependent.name as dependentName",
         ])
         .execute();
 
@@ -928,9 +936,26 @@ export function confirmTeam(db: Kysely<DB>) {
 
       const applyRelief = applyReliefIfAny(trx);
       for (const player of playingPlayers) {
-        if (!player.member_id) continue;
+        let chargeMemberId: string;
+        let category: string;
+        let chargeDependentId: string | null = null;
+        let descriptionSuffix = "";
 
-        const category = player.member_category ?? "guest";
+        if (player.member_id) {
+          chargeMemberId = player.member_id;
+          category = player.member_category ?? "guest";
+        } else if (player.dependent_id && player.dependentParentId) {
+          chargeMemberId = player.dependentParentId;
+          category = "junior";
+          chargeDependentId = player.dependent_id;
+          descriptionSuffix = player.dependentName
+            ? ` for ${player.dependentName}`
+            : "";
+        } else {
+          // Orphan rows (no member, no dependent) get no fee — captains
+          // shouldn't be able to create these via the UI.
+          continue;
+        }
 
         const rate = findFeeRate(
           feeRates,
@@ -946,8 +971,8 @@ export function confirmTeam(db: Kysely<DB>) {
           .insertInto("charge")
           .values({
             id: chargeId,
-            member_id: player.member_id,
-            description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
+            member_id: chargeMemberId,
+            description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})${descriptionSuffix}`,
             amount_pence: rate.amount_pence,
             charge_date: matchday.match_date,
             created_by: userId,
@@ -962,12 +987,26 @@ export function confirmTeam(db: Kysely<DB>) {
           .where("id", "=", player.matchdayPlayerId)
           .execute();
 
+        // Junior charges link to the registered dependent so the
+        // parent's portal can show which child a donation was for.
+        if (chargeDependentId) {
+          await trx
+            .insertInto("charge_dependent")
+            .values({
+              charge_id: chargeId,
+              dependent_id: chargeDependentId,
+            })
+            .execute();
+        }
+
         // Auto-forgive if this member has an active relief grant
         // covering match fees on this date. The charge keeps its
-        // amount_pence so reporting can still sum it.
+        // amount_pence so reporting can still sum it. For juniors the
+        // grant is checked against the parent member who owns the
+        // charge — matching how relief is administered today.
         await applyRelief({
           chargeId,
-          memberId: player.member_id,
+          memberId: chargeMemberId,
           type: "match_fee",
           chargeDate: matchday.match_date,
         });
