@@ -209,10 +209,17 @@ export function getMatch(db: Kysely<DB>) {
         .selectFrom("matchday_player")
         .where("matchday_id", "=", matchId)
         .leftJoin("member", "member.id", "matchday_player.member_id")
+        .leftJoin("dependent", "dependent.id", "matchday_player.dependent_id")
+        .leftJoin(
+          "member as dependent_parent",
+          "dependent_parent.id",
+          "dependent.member_id",
+        )
         .leftJoin("charge", "charge.id", "matchday_player.charge_id")
         .select([
           "matchday_player.id",
           "matchday_player.member_id",
+          "matchday_player.dependent_id",
           "matchday_player.player_name",
           "matchday_player.status",
           "matchday_player.replaced_by_matchday_player_id",
@@ -221,6 +228,7 @@ export function getMatch(db: Kysely<DB>) {
           "matchday_player.is_captain",
           "matchday_player.is_wicketkeeper",
           "member.member_category",
+          "dependent_parent.name as parent_name",
           "charge.paid_at as chargePaidAt",
           "charge.relieved_at as chargeRelievedAt",
         ])
@@ -664,15 +672,34 @@ export function searchMembers(db: Kysely<DB>) {
   return async (params: SearchMembers) => {
     const term = `%${params.query.trim()}%`;
 
-    const members = await db
-      .selectFrom("member")
-      .where("name", "ilike", term)
-      .select(["id", "name", "email", "member_category"])
-      .orderBy("name", "asc")
-      .limit(20)
-      .execute();
+    const [members, dependents] = await Promise.all([
+      db
+        .selectFrom("member")
+        .where("name", "ilike", term)
+        .where("deleted_at", "is", null)
+        .select(["id", "name", "email", "member_category"])
+        .orderBy("name", "asc")
+        .limit(20)
+        .execute(),
+      db
+        .selectFrom("dependent")
+        .innerJoin("member as parent", "parent.id", "dependent.member_id")
+        .where("dependent.name", "ilike", term)
+        .where("parent.deleted_at", "is", null)
+        .select([
+          "dependent.id as id",
+          "dependent.name as name",
+          "parent.name as parent_name",
+        ])
+        .orderBy("dependent.name", "asc")
+        .limit(20)
+        .execute(),
+    ]);
 
-    return members;
+    return [
+      ...members.map((m) => ({ type: "member" as const, ...m })),
+      ...dependents.map((d) => ({ type: "dependent" as const, ...d })),
+    ];
   };
 }
 
@@ -700,6 +727,10 @@ export function addPlayer(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this matchday");
     }
 
+    if (data.memberId && data.dependentId) {
+      throwHttpError(400, "Pick a member or a junior, not both");
+    }
+
     // Check for duplicate member in squad
     if (data.memberId) {
       const existing = await db
@@ -715,15 +746,30 @@ export function addPlayer(db: Kysely<DB>) {
       }
     }
 
+    if (data.dependentId) {
+      const existing = await db
+        .selectFrom("matchday_player")
+        .where("matchday_id", "=", matchdayId)
+        .where("dependent_id", "=", data.dependentId)
+        .where("status", "in", ["selected", "playing"])
+        .select("id")
+        .executeTakeFirst();
+
+      if (existing) {
+        throwHttpError(409, "This player is already in the squad");
+      }
+    }
+
     const id = crypto.randomUUID();
 
     await db.transaction().execute(async (trx) => {
       let finalMemberId = data.memberId ?? null;
 
-      // Create guest member record for ad-hoc players. Guests have no
-      // real contact details — leave the nullable fields as NULL rather
-      // than "", which used to collide on the member_email_unique index.
-      if (!data.memberId && data.playerName.trim()) {
+      // Create guest member record for ad-hoc players (no memberId and
+      // no dependentId). Guests have no real contact details — leave the
+      // nullable fields as NULL rather than "", which used to collide on
+      // the member_email_unique index.
+      if (!data.memberId && !data.dependentId && data.playerName.trim()) {
         finalMemberId = crypto.randomUUID();
         await trx
           .insertInto("member")
@@ -741,6 +787,7 @@ export function addPlayer(db: Kysely<DB>) {
           id,
           matchday_id: matchdayId,
           member_id: finalMemberId,
+          dependent_id: data.dependentId ?? null,
           player_name: data.playerName,
           status: "selected",
         })

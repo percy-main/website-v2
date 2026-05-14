@@ -393,6 +393,48 @@ describe("matchday service (integration)", () => {
         }),
       ).resolves.toBeDefined();
     });
+
+    it("adds a junior dependent without creating a guest member row", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `adhoc-dep-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+
+      const parentId = await seedMember(
+        "Junior Parent",
+        `parent-${crypto.randomUUID()}@test.com`,
+      );
+      const dependentId = `dep-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("dependent")
+        .values({
+          id: dependentId,
+          member_id: parentId,
+          name: "Junior Child",
+          sex: "f",
+          dob: "2014-04-01",
+        })
+        .execute();
+
+      const { id: playerId } = await addPlayer(ctx.db)(
+        userId,
+        "admin",
+        matchdayId,
+        { dependentId, playerName: "Junior Child" },
+      );
+
+      const player = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(player?.dependent_id).toBe(dependentId);
+      // Juniors should not synthesise a guest member row — they point
+      // straight at the existing dependent.
+      expect(player?.member_id).toBeNull();
+    });
   });
 
   describe("searchMembers", () => {

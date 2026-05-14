@@ -519,6 +519,7 @@ export interface MatchdayExpense {
 export interface MatchdayPlayer {
   charge_id: string | null;
   created_at: Generated<string>;
+  dependent_id: string | null;
   id: string;
   is_captain: Generated<boolean>;
   is_wicketkeeper: Generated<boolean>;

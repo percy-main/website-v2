@@ -4111,12 +4111,14 @@ export interface paths {
                             players: {
                                 id: string;
                                 member_id: string | null;
+                                dependent_id: string | null;
                                 player_name: string;
                                 status: string;
                                 replaced_by_matchday_player_id: string | null;
                                 charge_id: string | null;
                                 created_at: string;
                                 member_category: string | null;
+                                parent_name: string | null;
                                 chargePaidAt: string | null;
                                 /** @enum {string|null} */
                                 chargeStatus: "unpaid" | "paid" | "waived" | null;
@@ -4763,12 +4765,20 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
+                        "application/json": ({
+                            /** @enum {string} */
+                            type: "member";
                             id: string;
                             name: string | null;
                             email: string | null;
                             member_category: string | null;
-                        }[];
+                        } | {
+                            /** @enum {string} */
+                            type: "dependent";
+                            id: string;
+                            name: string;
+                            parent_name: string | null;
+                        })[];
                     };
                 };
             };
@@ -4803,6 +4813,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         memberId?: string;
+                        dependentId?: string;
                         playerName: string;
                     };
                 };
