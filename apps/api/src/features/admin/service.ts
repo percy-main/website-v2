@@ -1178,7 +1178,7 @@ export function listAllCharges(db: Kysely<DB>) {
 
     const parentsByMember = new Map<
       string,
-      Array<{ memberId: string; name: string | null; email: string }>
+      Array<{ memberId: string; name: string | null; email: string | null }>
     >();
     for (const link of parentLinks) {
       const arr = parentsByMember.get(link.member_id) ?? [];
@@ -1305,9 +1305,9 @@ export interface UnpaidChargeRow {
 export interface UnpaidChargesMemberGroup {
   memberId: string;
   memberName: string | null;
-  memberEmail: string;
+  memberEmail: string | null;
   memberCategory: string | null;
-  paidByParents: Array<{ name: string | null; email: string }>;
+  paidByParents: Array<{ name: string | null; email: string | null }>;
   totalPence: number;
   charges: UnpaidChargeRow[];
 }
@@ -1364,7 +1364,7 @@ export function getUnpaidChargesGroupedByMember(db: Kysely<DB>) {
 
     const parentsByMember = new Map<
       string,
-      Array<{ name: string | null; email: string }>
+      Array<{ name: string | null; email: string | null }>
     >();
     for (const link of parentLinks) {
       const arr = parentsByMember.get(link.member_id) ?? [];
@@ -1570,9 +1570,11 @@ export function findDuplicateMembers(db: Kysely<DB>) {
       };
     }
 
-    // 1. Email duplicate groups
+    // 1. Email duplicate groups — members without an email (guests) can't
+    // collide on email, so skip them.
     const emailBuckets = new Map<string, string[]>();
     for (const m of allMembers) {
+      if (!m.email) continue;
       const ids = emailBuckets.get(m.email) ?? [];
       ids.push(m.id);
       emailBuckets.set(m.email, ids);

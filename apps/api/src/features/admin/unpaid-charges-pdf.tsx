@@ -192,9 +192,9 @@ export interface UnpaidChargeRow {
 export interface UnpaidChargesMemberGroup {
   memberId: string;
   memberName: string | null;
-  memberEmail: string;
+  memberEmail: string | null;
   memberCategory: string | null;
-  paidByParents: Array<{ name: string | null; email: string }>;
+  paidByParents: Array<{ name: string | null; email: string | null }>;
   totalPence: number;
   charges: UnpaidChargeRow[];
 }
@@ -260,7 +260,7 @@ export function UnpaidChargesPdf({
               <View key={g.memberId} style={styles.memberBlock} wrap={false}>
                 <View style={styles.memberHeader}>
                   <Text style={styles.memberName}>
-                    {g.memberName ?? g.memberEmail}
+                    {g.memberName ?? g.memberEmail ?? "Unknown"}
                     {g.memberCategory === "junior" && (
                       <Text style={styles.juniorBadge}> (junior)</Text>
                     )}
@@ -269,12 +269,18 @@ export function UnpaidChargesPdf({
                     {formatPence(g.totalPence)}
                   </Text>
                 </View>
-                <Text style={styles.memberMeta}>{g.memberEmail}</Text>
+                {g.memberEmail && (
+                  <Text style={styles.memberMeta}>{g.memberEmail}</Text>
+                )}
                 {g.paidByParents.length > 0 && (
                   <Text style={styles.parentLine}>
                     Paid by{" "}
                     {g.paidByParents
-                      .map((p) => `${p.name ?? p.email} <${p.email}>`)
+                      .map((p) =>
+                        p.email
+                          ? `${p.name ?? p.email} <${p.email}>`
+                          : (p.name ?? "Unknown"),
+                      )
                       .join(", ")}
                   </Text>
                 )}

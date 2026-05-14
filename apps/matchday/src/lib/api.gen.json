@@ -318,6 +318,7 @@
                           "type": "string"
                         },
                         "email": {
+                          "nullable": true,
                           "type": "string"
                         },
                         "emergency_contact_name": {
@@ -957,6 +958,7 @@
                                 "type": "string"
                               },
                               "email": {
+                                "nullable": true,
                                 "type": "string"
                               }
                             },
@@ -1102,6 +1104,7 @@
                         "type": "string"
                       },
                       "parent_email": {
+                        "nullable": true,
                         "type": "string"
                       },
                       "parent_address": {
@@ -1255,6 +1258,7 @@
                       "type": "string"
                     },
                     "parent_email": {
+                      "nullable": true,
                       "type": "string"
                     },
                     "parent_address": {
@@ -10836,6 +10840,7 @@
                           "type": "string"
                         },
                         "email": {
+                          "nullable": true,
                           "type": "string"
                         },
                         "name": {
@@ -11183,6 +11188,7 @@
                             "type": "string"
                           },
                           "email": {
+                            "nullable": true,
                             "type": "string"
                           }
                         },
@@ -11207,6 +11213,7 @@
                             "type": "string"
                           },
                           "email": {
+                            "nullable": true,
                             "type": "string"
                           },
                           "dob": {
@@ -12220,6 +12227,7 @@
                             "type": "string"
                           },
                           "memberEmail": {
+                            "nullable": true,
                             "type": "string"
                           },
                           "memberCategory": {
@@ -12239,6 +12247,7 @@
                                   "type": "string"
                                 },
                                 "email": {
+                                  "nullable": true,
                                   "type": "string"
                                 }
                               },
@@ -12773,6 +12782,7 @@
                             "type": "string"
                           },
                           "parentEmail": {
+                            "nullable": true,
                             "type": "string"
                           },
                           "parentTelephone": {
@@ -13052,6 +13062,7 @@
                             "type": "string"
                           },
                           "email": {
+                            "nullable": true,
                             "type": "string"
                           },
                           "score": {
@@ -13216,6 +13227,7 @@
                                   "type": "string"
                                 },
                                 "email": {
+                                  "nullable": true,
                                   "type": "string"
                                 },
                                 "title": {
@@ -13321,6 +13333,7 @@
                               "type": "string"
                             },
                             "email": {
+                              "nullable": true,
                               "type": "string"
                             },
                             "address": {
@@ -13459,6 +13472,7 @@
                               "type": "string"
                             },
                             "email": {
+                              "nullable": true,
                               "type": "string"
                             },
                             "address": {
@@ -15232,6 +15246,7 @@
                             "type": "string"
                           },
                           "member_email": {
+                            "nullable": true,
                             "type": "string"
                           }
                         },
@@ -20614,6 +20629,7 @@
                             "type": "string"
                           },
                           "memberEmail": {
+                            "nullable": true,
                             "type": "string"
                           },
                           "submittedByUserId": {
@@ -20741,6 +20757,7 @@
                           "type": "string"
                         },
                         "memberEmail": {
+                          "nullable": true,
                           "type": "string"
                         },
                         "submittedByUserId": {
@@ -21671,6 +21688,7 @@
                             "type": "string"
                           },
                           "email": {
+                            "nullable": true,
                             "type": "string"
                           },
                           "addedAt": {
@@ -21841,6 +21859,7 @@
                             "type": "string"
                           },
                           "email": {
+                            "nullable": true,
                             "type": "string"
                           }
                         },

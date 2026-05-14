@@ -24,7 +24,7 @@ export const memberDetailsResponseSchema = z.object({
       postcode: z.string().nullable(),
       dob: z.string().nullable(),
       telephone: z.string().nullable(),
-      email: z.string(),
+      email: z.string().nullable(),
       emergency_contact_name: z.string().nullable(),
       emergency_contact_telephone: z.string().nullable(),
     })

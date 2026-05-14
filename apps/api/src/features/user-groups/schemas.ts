@@ -30,7 +30,7 @@ export const listGroupsResponseSchema = z.object({
 const groupMemberRowSchema = z.object({
   memberId: z.string(),
   name: z.string().nullable(),
-  email: z.string(),
+  email: z.string().nullable(),
   addedAt: z.string(),
 });
 
@@ -80,7 +80,7 @@ export const availableMembersResponseSchema = z.object({
     z.object({
       memberId: z.string(),
       name: z.string().nullable(),
-      email: z.string(),
+      email: z.string().nullable(),
     }),
   ),
 });

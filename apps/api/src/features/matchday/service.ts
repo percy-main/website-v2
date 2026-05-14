@@ -720,7 +720,9 @@ export function addPlayer(db: Kysely<DB>) {
     await db.transaction().execute(async (trx) => {
       let finalMemberId = data.memberId ?? null;
 
-      // Create guest member record for ad-hoc players
+      // Create guest member record for ad-hoc players. Guests have no
+      // real contact details — leave the nullable fields as NULL rather
+      // than "", which used to collide on the member_email_unique index.
       if (!data.memberId && data.playerName.trim()) {
         finalMemberId = crypto.randomUUID();
         await trx
@@ -728,14 +730,6 @@ export function addPlayer(db: Kysely<DB>) {
           .values({
             id: finalMemberId,
             name: data.playerName,
-            email: "",
-            title: "",
-            address: "",
-            postcode: "",
-            dob: "",
-            telephone: "",
-            emergency_contact_name: "",
-            emergency_contact_telephone: "",
             member_category: "guest",
           })
           .execute();

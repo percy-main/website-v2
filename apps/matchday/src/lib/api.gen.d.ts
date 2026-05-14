@@ -334,7 +334,7 @@ export interface paths {
                                 postcode: string | null;
                                 dob: string | null;
                                 telephone: string | null;
-                                email: string;
+                                email: string | null;
                                 emergency_contact_name: string | null;
                                 emergency_contact_telephone: string | null;
                             } | null;
@@ -660,7 +660,7 @@ export interface paths {
                                 parent: {
                                     name: string | null;
                                     telephone: string | null;
-                                    email: string;
+                                    email: string | null;
                                 };
                             }[];
                             currentYearCount: number;
@@ -803,7 +803,7 @@ export interface paths {
                             medical_info: string | null;
                             parent_name: string | null;
                             parent_telephone: string | null;
-                            parent_email: string;
+                            parent_email: string | null;
                             parent_address: string | null;
                             parent_postcode: string | null;
                             emergency_contact_name: string | null;
@@ -869,7 +869,7 @@ export interface paths {
                             photo_consent: boolean | null;
                             parent_name: string | null;
                             parent_telephone: string | null;
-                            parent_email: string;
+                            parent_email: string | null;
                             parent_address: string | null;
                             parent_postcode: string | null;
                             emergency_contact_name: string | null;
@@ -6251,7 +6251,7 @@ export interface paths {
                             };
                             member: {
                                 id: string;
-                                email: string;
+                                email: string | null;
                                 name: string | null;
                                 title: string | null;
                                 address: string | null;
@@ -6325,12 +6325,12 @@ export interface paths {
                             linkedParents: {
                                 memberId: string;
                                 name: string | null;
-                                email: string;
+                                email: string | null;
                             }[];
                             linkedJuniors: {
                                 memberId: string;
                                 name: string | null;
-                                email: string;
+                                email: string | null;
                                 dob: string | null;
                             }[];
                         };
@@ -7088,12 +7088,12 @@ export interface paths {
                                 deletedReason: string | null;
                                 relievedAt: string | null;
                                 memberName: string | null;
-                                memberEmail: string;
+                                memberEmail: string | null;
                                 memberCategory: string | null;
                                 paidByParents: {
                                     memberId: string;
                                     name: string | null;
-                                    email: string;
+                                    email: string | null;
                                 }[];
                                 /** @enum {string} */
                                 status: "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | "relieved";
@@ -7419,7 +7419,7 @@ export interface paths {
                                 dob: string;
                                 registeredAt: string;
                                 parentName: string | null;
-                                parentEmail: string;
+                                parentEmail: string | null;
                                 parentTelephone: string | null;
                                 paidUntil: string | null;
                                 ageGroup: string | null;
@@ -7606,7 +7606,7 @@ export interface paths {
                             members: {
                                 id: string;
                                 name: string | null;
-                                email: string;
+                                email: string | null;
                                 score: number;
                             }[];
                         };
@@ -7740,7 +7740,7 @@ export interface paths {
                                 members: {
                                     id: string;
                                     name: string | null;
-                                    email: string;
+                                    email: string | null;
                                     title: string | null;
                                     stripeCustomerId: string | null;
                                     membershipCount: number;
@@ -7793,7 +7793,7 @@ export interface paths {
                                     id: string;
                                     name: string | null;
                                     title: string | null;
-                                    email: string;
+                                    email: string | null;
                                     address: string | null;
                                     postcode: string | null;
                                     dob: string | null;
@@ -7822,7 +7822,7 @@ export interface paths {
                                     id: string;
                                     name: string | null;
                                     title: string | null;
-                                    email: string;
+                                    email: string | null;
                                     address: string | null;
                                     postcode: string | null;
                                     dob: string | null;
@@ -8818,7 +8818,7 @@ export interface paths {
                                 charge_date: string;
                                 description: string;
                                 member_name: string | null;
-                                member_email: string;
+                                member_email: string | null;
                             }[];
                             total: number;
                             page: number;
@@ -11511,7 +11511,7 @@ export interface paths {
                                 id: string;
                                 memberId: string;
                                 memberName: string | null;
-                                memberEmail: string;
+                                memberEmail: string | null;
                                 submittedByUserId: string;
                                 submittedByName: string | null;
                                 submittedByEmail: string;
@@ -11570,7 +11570,7 @@ export interface paths {
                                 id: string;
                                 memberId: string;
                                 memberName: string | null;
-                                memberEmail: string;
+                                memberEmail: string | null;
                                 submittedByUserId: string;
                                 submittedByName: string | null;
                                 submittedByEmail: string;
@@ -12048,7 +12048,7 @@ export interface paths {
                             members: {
                                 memberId: string;
                                 name: string | null;
-                                email: string;
+                                email: string | null;
                                 addedAt: string;
                             }[];
                         };
@@ -12177,7 +12177,7 @@ export interface paths {
                             members: {
                                 memberId: string;
                                 name: string | null;
-                                email: string;
+                                email: string | null;
                             }[];
                         };
                     };

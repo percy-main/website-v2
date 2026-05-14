@@ -57,7 +57,7 @@ export const outstandingPaymentsResponseSchema = z.object({
       charge_date: z.string(),
       description: z.string(),
       member_name: z.string().nullable(),
-      member_email: z.string(),
+      member_email: z.string().nullable(),
     }),
   ),
   total: z.number(),

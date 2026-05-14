@@ -631,7 +631,7 @@ export interface Member {
   deleted_by: string | null;
   deleted_reason: string | null;
   dob: string | null;
-  email: string;
+  email: string | null;
   emergency_contact_name: string | null;
   emergency_contact_telephone: string | null;
   id: string;

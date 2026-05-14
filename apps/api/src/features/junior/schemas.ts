@@ -51,7 +51,7 @@ export const addDependentsResponseSchema = z.object({
 const parentSchema = z.object({
   name: z.string().nullable(),
   telephone: z.string().nullable(),
-  email: z.string(),
+  email: z.string().nullable(),
 });
 
 export const getDependentsResponseSchema = z.object({
@@ -95,7 +95,7 @@ export const playersResponseSchema = z.array(
     medical_info: z.string().nullable(),
     parent_name: z.string().nullable(),
     parent_telephone: z.string().nullable(),
-    parent_email: z.string(),
+    parent_email: z.string().nullable(),
     parent_address: z.string().nullable(),
     parent_postcode: z.string().nullable(),
     emergency_contact_name: z.string().nullable(),
@@ -127,7 +127,7 @@ export const playerDetailResponseSchema = z.object({
   photo_consent: z.boolean().nullable(),
   parent_name: z.string().nullable(),
   parent_telephone: z.string().nullable(),
-  parent_email: z.string(),
+  parent_email: z.string().nullable(),
   parent_address: z.string().nullable(),
   parent_postcode: z.string().nullable(),
   emergency_contact_name: z.string().nullable(),

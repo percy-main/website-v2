@@ -368,7 +368,30 @@ describe("matchday service (integration)", () => {
           .selectAll()
           .executeTakeFirst();
         expect(member?.member_category).toBe("guest");
+        // Guests have no real contact details — confirm NULL rather than ""
+        // so we don't collide on the partial member_email_unique index.
+        expect(member?.email).toBeNull();
       }
+    });
+
+    it("allows adding two ad-hoc players without colliding on email", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `adhoc-dup-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+
+      await expect(
+        addPlayer(ctx.db)(userId, "admin", matchdayId, {
+          playerName: "Guest One",
+        }),
+      ).resolves.toBeDefined();
+      await expect(
+        addPlayer(ctx.db)(userId, "admin", matchdayId, {
+          playerName: "Guest Two",
+        }),
+      ).resolves.toBeDefined();
     });
   });
 
