@@ -379,10 +379,7 @@ function hostMatches(host: string, domain: string): boolean {
   return host.endsWith(`.${domain}`);
 }
 
-function hostMatchesAny(
-  host: string,
-  domains: readonly string[],
-): boolean {
+function hostMatchesAny(host: string, domains: readonly string[]): boolean {
   return domains.some((d) => hostMatches(host, d));
 }
 

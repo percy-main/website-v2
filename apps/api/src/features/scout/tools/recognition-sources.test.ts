@@ -180,9 +180,9 @@ describe("classifySourceType", () => {
         "Percy Main",
       ),
     ).toBe("play-cricket-profile");
-    expect(
-      classifySourceType("https://www.ntcl.co.uk/div/4", "X"),
-    ).toBe("league-site");
+    expect(classifySourceType("https://www.ntcl.co.uk/div/4", "X")).toBe(
+      "league-site",
+    );
   });
 });
 
@@ -931,9 +931,7 @@ Email or mobile number ` +
     // The candidate now carries its detected face crops.
     const isFbCandidate = (pageUrl: string) =>
       new URL(pageUrl).hostname === "www.facebook.com";
-    const fbCandidate = result.candidates.find((c) =>
-      isFbCandidate(c.pageUrl),
-    );
+    const fbCandidate = result.candidates.find((c) => isFbCandidate(c.pageUrl));
     expect(fbCandidate?.faces).toHaveLength(2);
     expect(fbCandidate?.faces?.[0].url).toBe("https://signed.s3/face1.jpg");
 
