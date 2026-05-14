@@ -11,6 +11,9 @@ coverage/
 test-results/
 *.tsbuildinfo
 
+# Turborepo
+.turbo/
+
 # Terraform
 .terraform/
 *.tfstate
