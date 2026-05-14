@@ -1,5 +1,5 @@
 # Stage 1: Install and build
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@11.1.2 --activate
 WORKDIR /app
 
@@ -18,7 +18,7 @@ COPY apps/api/ apps/api/
 RUN pnpm --filter '!@percy-main/web' --filter '!email-viewer' run build
 
 # Stage 2: Production
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 RUN corepack enable && corepack prepare pnpm@11.1.2 --activate
 
 # Install fonts for Sharp SVG rendering (OG images) and AWS RDS CA bundle
