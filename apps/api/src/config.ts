@@ -235,6 +235,9 @@ const configSchema = z.object({
   VOYAGE_EMBED_MODEL: z.string().min(1),
   VOYAGE_RERANK_MODEL: z.string().min(1),
 
+  // Tavily (Scout recognition-source discovery). See ADR 042.
+  TAVILY_API_KEY: z.string().min(1),
+
   // Sync task launch (admin "Sync now" button → ECS RunTask)
   AWS_REGION: z.string().default("eu-west-2"),
   SYNC_ECS_CLUSTER: z.string().optional(),

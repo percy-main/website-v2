@@ -36,6 +36,7 @@ const config = parseConfig({
   SCOUT_ATTACHMENT_DERIVE_MODEL: "claude-haiku-4-5-20251001",
   VOYAGE_EMBED_MODEL: "voyage-4",
   VOYAGE_RERANK_MODEL: "rerank-2.5",
+  TAVILY_API_KEY: "placeholder",
   NODE_ENV: "development",
   LOG_LEVEL: "error",
   PLAY_CRICKET_API_TOKEN: "placeholder",

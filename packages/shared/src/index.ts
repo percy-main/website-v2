@@ -34,6 +34,13 @@ export { chartSpecSchema, type ChartSpec } from "./scout-chart.ts";
 
 export { videoSpecSchema, type VideoSpec } from "./scout-video.ts";
 
+export { imageSpecSchema, type ImageSpec } from "./scout-image.ts";
+
+export {
+  playerFacesSpecSchema,
+  type PlayerFacesSpec,
+} from "./scout-player-faces.ts";
+
 export {
   CONTACT_PREFERENCES,
   CONTACT_PREFERENCE_LABELS,
