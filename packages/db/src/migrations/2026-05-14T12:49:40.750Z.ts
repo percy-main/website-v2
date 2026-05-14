@@ -48,7 +48,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   `.execute(db);
 }
 
-export async function down(_db: Kysely<unknown>): Promise<void> {
+export function down(_db: Kysely<unknown>): Promise<void> {
   // Intentionally irreversible. Once guest matchday players have been
   // added with email IS NULL, rolling back to NOT NULL + flat unique
   // would either:
@@ -56,7 +56,9 @@ export async function down(_db: Kysely<unknown>): Promise<void> {
   //   - collide on `member_email_unique` the moment >1 guest exists.
   // Forward fixes only. If a rollback is genuinely needed, hand-merge
   // the affected guest rows first.
-  throw new Error(
-    "Migration 2026-05-14T12:49:40.750Z is one-way: guests rely on NULL emails",
+  return Promise.reject(
+    new Error(
+      "Migration 2026-05-14T12:49:40.750Z is one-way: guests rely on NULL emails",
+    ),
   );
 }
