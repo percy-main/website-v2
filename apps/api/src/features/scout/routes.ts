@@ -70,6 +70,7 @@ import {
   attachmentMintResponseSchema,
   cancelReportResponseSchema,
   chatRequestBodySchema,
+  copyThreadResponseSchema,
   createThreadBodySchema,
   createThreadResponseSchema,
   deleteFactResponseSchema,
@@ -113,6 +114,7 @@ import {
   assertThreadOwnership,
   bumpThreadUpdatedAt,
   cancelReport,
+  copyThread,
   createThread,
   deleteReport,
   deleteThread,
@@ -148,6 +150,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
   const sharees = listSharees(app.db);
   const share = shareThread(app.db);
   const unshare = unshareThread(app.db);
+  const copy = copyThread(app.db);
   // PLAY_CRICKET_SITE_ID is optional in config; if it's not set there are
   // no Percy Main matches to surface, so the launcher returns an empty
   // list rather than 503'ing the rest of Scout.
@@ -510,6 +513,34 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               statusCode: 403,
             },
           );
+        }
+        throw err;
+      }
+    },
+  );
+
+  // Fork a readable thread (owned or shared-with-me) into a new thread
+  // owned by the caller. Read-only recipients use this to keep chatting
+  // from where the original left off; owners can also call it to branch
+  // their own threads without affecting the original.
+  app.post(
+    "/scout/threads/:threadId/copy",
+    {
+      preHandler: [aiChat],
+      schema: {
+        params: threadIdParamSchema,
+        response: { 200: copyThreadResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      try {
+        return await copy(user.id, request.params.threadId);
+      } catch (err) {
+        if (err instanceof ThreadNotFoundError) {
+          throw Object.assign(new Error("Thread not found"), {
+            statusCode: 404,
+          });
         }
         throw err;
       }

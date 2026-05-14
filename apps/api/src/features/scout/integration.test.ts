@@ -11,6 +11,7 @@ import {
 import {
   appendMessage,
   assertThreadOwnership,
+  copyThread,
   createThread,
   deleteThread,
   getThread,
@@ -340,16 +341,16 @@ describe("scout thread service (integration)", () => {
 });
 
 describe("scout thread sharing (integration)", () => {
-  it("listOfficials returns admins and officials excluding the current user, ordered by name", async () => {
+  it("listOfficials returns users with ai_chat:use excluding the current user, ordered by name", async () => {
     const { userId: viewer } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
       name: "Zara Owner",
     });
     const { userId: alice } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
-      name: "Alice Official",
+      role: "ai_chat_user",
+      name: "Alice Chat",
     });
     const { userId: bob } = await seedTestUser(ctx.db, {
       withMember: false,
@@ -362,12 +363,20 @@ describe("scout thread sharing (integration)", () => {
       role: null as unknown as string,
       name: "Charlie Civilian",
     });
+    // Legacy `official` role — has matchday perms but NOT ai_chat:use, so
+    // they should be excluded under the RBAC-based recipient rule.
+    const { userId: dora } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+      name: "Dora Official",
+    });
 
     const officials = await listOfficials(ctx.db)(viewer);
     const ids = officials.map((o) => o.id);
     expect(ids).toContain(alice);
     expect(ids).toContain(bob);
     expect(ids).not.toContain(viewer);
+    expect(ids).not.toContain(dora);
     // Alphabetical by name
     const aIdx = officials.findIndex((o) => o.id === alice);
     const bIdx = officials.findIndex((o) => o.id === bob);
@@ -377,12 +386,12 @@ describe("scout thread sharing (integration)", () => {
   it("share + getThread: a recipient can read the shared thread and sees sharedBy populated", async () => {
     const { userId: owner, name: ownerName } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
       name: "Owner Person",
     });
     const { userId: recipient } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
 
     const thread = await createThread(ctx.db)(owner, "Shared scout thread");
@@ -401,11 +410,11 @@ describe("scout thread sharing (integration)", () => {
   it("listThreads merges owned + shared, with sharedBy / sharedByMe set per row", async () => {
     const { userId: alice } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
     const { userId: bob } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
 
     const aliceThread = await createThread(ctx.db)(alice, "Alice's analysis");
@@ -431,11 +440,11 @@ describe("scout thread sharing (integration)", () => {
   it("share + unshare are idempotent (no duplicate rows; unshare twice is fine)", async () => {
     const { userId: owner } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
     const { userId: rec } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
 
     const thread = await createThread(ctx.db)(owner, "Idempotent thread");
@@ -452,7 +461,7 @@ describe("scout thread sharing (integration)", () => {
   it("share + unshare refuse to run for a non-owner (ShareForbiddenError)", async () => {
     const { userId: owner } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
     const { userId: imposter } = await seedTestUser(ctx.db, {
       withMember: false,
@@ -460,7 +469,7 @@ describe("scout thread sharing (integration)", () => {
     });
     const { userId: target } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
 
     const thread = await createThread(ctx.db)(owner, "Locked");
@@ -472,27 +481,35 @@ describe("scout thread sharing (integration)", () => {
     ).rejects.toBeInstanceOf(ShareForbiddenError);
   });
 
-  it("share rejects recipients without admin/official role", async () => {
+  it("share rejects recipients without ai_chat:use permission", async () => {
     const { userId: owner } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
     const { userId: civilian } = await seedTestUser(ctx.db, {
       withMember: false,
       // explicit no role — `null` is the default for plain users
       role: null as unknown as string,
     });
+    // Legacy `official` role lacks ai_chat:use — not eligible.
+    const { userId: official } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "official",
+    });
 
     const thread = await createThread(ctx.db)(owner, "Restricted");
     await expect(
       shareThread(ctx.db)(owner, thread.id, [civilian]),
+    ).rejects.toBeInstanceOf(ShareInvalidRecipientError);
+    await expect(
+      shareThread(ctx.db)(owner, thread.id, [official]),
     ).rejects.toBeInstanceOf(ShareInvalidRecipientError);
   });
 
   it("share rejects sharing with self", async () => {
     const { userId: owner } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
     const thread = await createThread(ctx.db)(owner, "Solo");
     await expect(
@@ -503,17 +520,134 @@ describe("scout thread sharing (integration)", () => {
   it("a non-shared, non-owner user cannot read the thread (404 via ThreadNotFoundError)", async () => {
     const { userId: owner } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
     const { userId: stranger } = await seedTestUser(ctx.db, {
       withMember: false,
-      role: "official",
+      role: "ai_chat_user",
     });
     const thread = await createThread(ctx.db)(owner, "Private");
 
     await expect(getThread(ctx.db)(stranger, thread.id)).rejects.toBeInstanceOf(
       ThreadNotFoundError,
     );
+  });
+
+  it("copyThread forks a shared thread under the recipient with messages copied", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "ai_chat_user",
+    });
+    const { userId: recipient } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "ai_chat_user",
+    });
+
+    const thread = await createThread(ctx.db)(owner, "Original analysis");
+    await appendMessage(ctx.db)(thread.id, "user", [
+      { type: "text", text: "Who's bowling for Mitford?" },
+    ]);
+    await appendMessage(ctx.db)(thread.id, "assistant", [
+      { type: "text", text: "Three seamers and one off-spinner." },
+    ]);
+    await shareThread(ctx.db)(owner, thread.id, [recipient]);
+
+    const copied = await copyThread(ctx.db)(recipient, thread.id);
+    expect(copied.id).not.toBe(thread.id);
+    expect(copied.title).toBe("Copy of Original analysis");
+    expect(copied.sharedBy).toBeNull();
+    expect(copied.sharedByMe).toBe(false);
+
+    // The copy belongs to the recipient — they can read it as owner.
+    const reload = await getThread(ctx.db)(recipient, copied.id);
+    expect(reload.thread.id).toBe(copied.id);
+    expect(reload.messages).toHaveLength(2);
+    expect(reload.messages[0].role).toBe("user");
+    expect(reload.messages[1].role).toBe("assistant");
+
+    // The original is untouched.
+    const original = await getThread(ctx.db)(owner, thread.id);
+    expect(original.messages).toHaveLength(2);
+  });
+
+  it("copyThread refuses to copy a thread the user can't read (ThreadNotFoundError)", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "ai_chat_user",
+    });
+    const { userId: stranger } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "ai_chat_user",
+    });
+    const thread = await createThread(ctx.db)(owner, "Hidden");
+    await expect(
+      copyThread(ctx.db)(stranger, thread.id),
+    ).rejects.toBeInstanceOf(ThreadNotFoundError);
+  });
+
+  it("copyThread doesn't double-prefix titles that already start with 'Copy of '", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "ai_chat_user",
+    });
+    const thread = await createThread(ctx.db)(owner, "Copy of Old plan");
+    const copied = await copyThread(ctx.db)(owner, thread.id);
+    expect(copied.title).toBe("Copy of Old plan");
+  });
+
+  it("copyThread preserves message timestamps so reload order matches the original", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "ai_chat_user",
+    });
+    const thread = await createThread(ctx.db)(owner, "Ordered chat");
+    // Append four messages back-to-back. Without preserving created_at,
+    // a bulk-insert can land them all on the same timestamp and reload
+    // in arbitrary order.
+    for (const text of ["q1", "a1", "q2", "a2"]) {
+      await appendMessage(ctx.db)(
+        thread.id,
+        text.startsWith("q") ? "user" : "assistant",
+        [{ type: "text", text }],
+      );
+    }
+    const copied = await copyThread(ctx.db)(owner, thread.id);
+    const reload = await getThread(ctx.db)(owner, copied.id);
+    const texts = reload.messages.map((m) => {
+      const part = (m.parts as Array<{ type?: string; text?: string }>)[0];
+      return part?.text;
+    });
+    expect(texts).toEqual(["q1", "a1", "q2", "a2"]);
+  });
+
+  it("copyThread strips owner-scoped data-report and tool-generate_report parts", async () => {
+    const { userId: owner } = await seedTestUser(ctx.db, {
+      withMember: false,
+      role: "ai_chat_user",
+    });
+    const thread = await createThread(ctx.db)(owner, "Has report");
+    await appendMessage(ctx.db)(thread.id, "assistant", [
+      { type: "text", text: "Report queued — it'll appear in Reports." },
+      {
+        type: "tool-generate_report",
+        toolCallId: "call-1",
+        state: "output-available",
+      },
+      {
+        type: "data-report",
+        id: "report-1",
+        data: { reportId: "00000000-0000-0000-0000-000000000000" },
+      },
+    ]);
+    const copied = await copyThread(ctx.db)(owner, thread.id);
+    const reload = await getThread(ctx.db)(owner, copied.id);
+    const types = (reload.messages[0].parts as Array<{ type?: string }>).map(
+      (p) => p.type,
+    );
+    // Prose stays, owner-scoped parts are gone.
+    expect(types).toContain("text");
+    expect(types).not.toContain("data-report");
+    expect(types).not.toContain("tool-generate_report");
   });
 });
 

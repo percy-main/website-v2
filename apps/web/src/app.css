@@ -201,6 +201,50 @@
   --color-gray-900: #f8fafc;
   --color-gray-950: #f8fafc;
 
+  /* Same treatment for the stone palette — Scout / ImbuzAI components
+     use stone heavily as the brand neutral, and without remapping the
+     light-mode hexes stay visible in dark mode (white-on-white text on
+     stone-50 backgrounds). Use slate hues (not the warm-brown stone
+     defaults) so the remapped surfaces sit harmoniously against the
+     slate body / surface tokens above. The hierarchy mirrors the gray
+     remap: 50/100 are sidebar-style tinted surfaces darker than the
+     main panel; 200/300 are borders/dividers; 400+ are text. */
+  --color-stone-50: #182135;
+  --color-stone-100: #1c2740;
+  --color-stone-200: #334155;
+  --color-stone-300: #475569;
+  --color-stone-400: #94a3b8;
+  --color-stone-500: #94a3b8;
+  --color-stone-600: #cbd5e1;
+  --color-stone-700: #e2e8f0;
+  --color-stone-800: #f1f5f9;
+  --color-stone-900: #f8fafc;
+  --color-stone-950: #f8fafc;
+
+  /* Violet (shared-thread banner) and emerald (player_faces / scout
+     badges) — same logic. Light shades get inverted to dark surfaces;
+     mid/dark text stays readable on those surfaces. */
+  --color-violet-50: #2e1065;
+  --color-violet-100: #4c1d95;
+  --color-violet-200: #5b21b6;
+  --color-violet-300: #6d28d9;
+  --color-violet-700: #c4b5fd;
+  --color-violet-800: #ddd6fe;
+  --color-violet-900: #ede9fe;
+  --color-emerald-50: #022c22;
+  --color-emerald-100: #064e3b;
+  --color-emerald-200: #065f46;
+  --color-emerald-300: #047857;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-900: #d1fae5;
+  /* Purple (ThoughtBubble background) — same treatment. */
+  --color-purple-50: #2e1065;
+  --color-purple-100: #4c1d95;
+  --color-purple-200: #5b21b6;
+  --color-purple-700: #d8b4fe;
+  --color-purple-800: #e9d5ff;
+
   /* Remap color palettes for dark-friendly tints */
   --color-red-50: #450a0a;
   --color-red-100: #7f1d1d;
@@ -215,16 +259,25 @@
   --color-green-800: #166534;
   --color-blue-50: #172554;
   --color-blue-100: #1e3a5f;
+  --color-blue-200: #1e40af;
   --color-blue-300: #1e40af;
   --color-blue-400: #93c5fd;
   --color-blue-600: #93c5fd;
+  /* blue-700 is heavily used by Scout for citation chips, link text, and
+     active-tab text. Without this remap it lands at the default #1d4ed8
+     which is unreadable on the dark blue backgrounds (blue-50/100). */
+  --color-blue-700: #93c5fd;
   --color-blue-800: #93c5fd;
+  --color-blue-900: #bfdbfe;
   --color-amber-50: #451a03;
   --color-amber-100: #78350f;
+  --color-amber-200: #92400e;
   --color-amber-300: #92400e;
+  --color-amber-500: #fbbf24;
   --color-amber-600: #fbbf24;
   --color-amber-700: #fbbf24;
   --color-amber-800: #fcd34d;
+  --color-amber-900: #fde68a;
   --color-yellow-100: #713f12;
   --color-yellow-800: #fde68a;
 }
@@ -232,6 +285,38 @@
 /* Override bg-white for dark mode backgrounds without affecting text-white */
 .dark .bg-white {
   background-color: var(--color-surface);
+}
+
+/* Stone — text usage and surface usage share the same Tailwind var, so a
+   single remap can't satisfy both. We remap the var so text-stone-900
+   reads as near-white in dark mode (the common case). For the rarer
+   "darkest surface" usages (e.g. CTA buttons that pair bg-stone-900 with
+   text-white), pin the background back to a dark slate hex here so the
+   contrast survives and the colour family stays consistent with the
+   rest of the dark UI. */
+.dark .bg-stone-900 {
+  background-color: #0b1220;
+}
+.dark .bg-stone-800 {
+  background-color: #1c2740;
+}
+/* bg-stone-950 is used by the homepage hero as a darkening overlay
+   (`bg-stone-950 opacity-40`). After the stone-text remap it would land
+   near-white and bleach the photo behind it — pin it back to a deep
+   slate so the overlay still darkens. */
+.dark .bg-stone-950 {
+  background-color: #020617;
+}
+.dark .hover\:bg-stone-800:hover {
+  background-color: #1c2740;
+}
+.dark .hover\:bg-stone-900:hover {
+  background-color: #0b1220;
+}
+/* The chevron divider on the split CTA uses border-stone-700 — pin that
+   too so the border doesn't disappear into the dark button surface. */
+.dark .border-stone-700 {
+  border-color: #334155;
 }
 
 /* Primary is kept as dark green for bg-primary (header/footer with white text).

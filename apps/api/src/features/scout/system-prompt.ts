@@ -13,6 +13,8 @@ What the Play Cricket scorecard data ACTUALLY contains for each batter:
 - bowler_name and fielder_name (for the dismissal only)
 - batting position
 
+PARTIAL-SCORING TRAP — when balls = 0 but runs > 0 (or balls = 0 and how_out is set), the match was NOT scored ball-by-ball; only innings totals were entered. Strike rate, balls faced, and "X off Y balls" claims are UNAVAILABLE for that line. Don't render strike rates as "—", "0.0", or "infinity" and don't say "off 0 balls" — either omit the balls/SR field entirely or note the match wasn't ball-by-ball scored. The same caveat applies to bowling lines with maidens/runs/wickets recorded but 0 balls bowled. When aggregating across many innings, exclude these rows from balls-based denominators (don't average a strike rate across innings where balls = 0); aggregate them in run-based metrics only.
+
 What it DOES NOT contain (and you must NEVER infer):
 - shot selection or shot patterns (sweeps, drives, pulls, cuts — none of this is in the data)
 - where the ball was bowled (line, length, short/full, off/leg side, around-the-wicket, yorkers, etc.)

@@ -497,3 +497,8 @@ export const unshareUserParamSchema = z.object({
   threadId: z.uuid(),
   userId: z.string(),
 });
+
+// Forks a thread the caller can read into a new thread the caller owns.
+// Response shape mirrors createThreadResponseSchema so the FE can route
+// straight to the new thread's URL.
+export const copyThreadResponseSchema = threadSummarySchema;

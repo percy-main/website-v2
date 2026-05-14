@@ -5,9 +5,9 @@ import { useSession } from "@/lib/auth-client";
 import type { UIMessage } from "@ai-sdk/react";
 import type { ReportData } from "@percy-main/shared";
 import { checkPermission } from "@percy-main/shared/auth/permissions";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { MessageAttachments } from "./attachments/message-attachments.js";
 import { useAttachmentUpload } from "./attachments/use-attachment-upload.js";
 import { Composer, type ThinkingMode } from "./composer.js";
@@ -92,7 +92,7 @@ export function Component() {
 
   return (
     <div className="container mx-auto h-[calc(100vh-8rem)] px-0">
-      <div className="relative flex h-full overflow-hidden rounded-lg border border-stone-200 bg-white">
+      <div className="relative flex h-full overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm dark:shadow-lg dark:shadow-black/30">
         {threadDrawerOpen && (
           <button
             type="button"
@@ -522,13 +522,10 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         </div>
       </header>
       {isReadOnly && loaded.thread.sharedBy && (
-        <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-xs text-violet-900">
-          Shared by{" "}
-          <span className="font-medium">{loaded.thread.sharedBy.name}</span>{" "}
-          <span className="text-violet-700">
-            · read-only: you can read the conversation but can&rsquo;t reply.
-          </span>
-        </div>
+        <ReadOnlyBanner
+          threadId={threadId}
+          sharedByName={loaded.thread.sharedBy.name}
+        />
       )}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2">
         {messages.length === 0 &&
@@ -622,6 +619,63 @@ function ChatView({ threadId, loaded }: ChatViewProps) {
         />
       )}
     </>
+  );
+}
+
+function ReadOnlyBanner({
+  threadId,
+  sharedByName,
+}: {
+  threadId: string;
+  sharedByName: string;
+}) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Forks the shared thread into a fresh thread owned by the current user.
+  // Recipients lose nothing — the original stays read-only — but get an
+  // editable copy they can keep chatting in. We invalidate the threads list
+  // so the new row appears in the sidebar, then navigate to it (the URL
+  // change unmounts ChatView and the new thread loads via the regular
+  // ActiveThread query).
+  const copyMutation = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/scout/threads/{threadId}/copy", {
+          params: { path: { threadId } },
+        }),
+      ),
+    onSuccess: async (newThread) => {
+      await queryClient.invalidateQueries({ queryKey: ["scout", "threads"] });
+      void navigate(`/scout/${newThread.id}`);
+    },
+  });
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-violet-200 bg-violet-50 px-4 py-2 text-xs text-violet-900">
+      <div>
+        Shared by <span className="font-medium">{sharedByName}</span>{" "}
+        <span className="text-violet-700">
+          · read-only: you can read the conversation but can&rsquo;t reply.
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={() => copyMutation.mutate()}
+        disabled={copyMutation.isPending}
+        className="inline-flex items-center gap-1 rounded border border-violet-300 bg-white px-2 py-1 text-violet-800 hover:bg-violet-100 disabled:opacity-50"
+        title="Copy this thread into your own threads so you can keep chatting"
+      >
+        {copyMutation.isPending ? "Copying…" : "Copy to my threads"}
+      </button>
+      {copyMutation.error && (
+        <div className="basis-full text-violet-700">
+          {copyMutation.error instanceof Error
+            ? copyMutation.error.message
+            : "Failed to copy thread"}
+        </div>
+      )}
+    </div>
   );
 }
 
