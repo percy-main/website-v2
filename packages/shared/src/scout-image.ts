@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { httpUrlSchema } from "./url-schemas.ts";
 
 // Spec for the render_image tool. Used to surface recognition-source photos
 // inline in the chat — a candidate from find_player_photo_sources turns into
@@ -10,13 +11,10 @@ import { z } from "zod";
 // came back from the recognition tool, so they aren't dropped on the floor.
 
 export const imageSpecSchema = z.object({
-  imageUrl: z
-    .url()
-    .describe(
-      "Public, directly-loadable image URL. Must be http(s). Don't invent — only pass URLs the recognition tool surfaced.",
-    ),
-  sourceUrl: z
-    .url()
+  imageUrl: httpUrlSchema.describe(
+    "Public, directly-loadable image URL. Must be http(s). Don't invent — only pass URLs the recognition tool surfaced.",
+  ),
+  sourceUrl: httpUrlSchema
     .optional()
     .describe(
       "Public page the image was found on. Rendered as a 'view source' link beneath the image so the captain can verify provenance.",
@@ -51,7 +49,7 @@ export const imageSpecSchema = z.object({
   faces: z
     .array(
       z.object({
-        url: z.url(),
+        url: httpUrlSchema,
         width: z.number().int().positive().optional(),
         height: z.number().int().positive().optional(),
       }),

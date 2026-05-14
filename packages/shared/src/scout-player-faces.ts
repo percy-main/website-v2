@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { httpUrlSchema } from "./url-schemas.ts";
 
 // Spec for the player_faces tool — the richer counterpart to render_image
 // for recognition-source results. One card surfaces ALL face-bearing
@@ -11,19 +12,16 @@ import { z } from "zod";
 // invariant client-side: face thumbnails ARE the value of this card.
 
 const faceSchema = z.object({
-  url: z.url(),
+  url: httpUrlSchema,
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
 });
 
 const sourceSchema = z.object({
-  imageUrl: z
-    .url()
-    .describe(
-      "Full image URL (the photo the faces were cropped from). Pass-through from the recognition candidate.",
-    ),
-  sourceUrl: z
-    .url()
+  imageUrl: httpUrlSchema.describe(
+    "Full image URL (the photo the faces were cropped from). Pass-through from the recognition candidate.",
+  ),
+  sourceUrl: httpUrlSchema
     .optional()
     .describe(
       "Public page the image was found on. Rendered as a 'view source' link in the expanded card.",

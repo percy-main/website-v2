@@ -1,3 +1,4 @@
+import { httpUrlSchema } from "@percy-main/shared";
 import { tool } from "ai";
 import type { FastifyBaseLogger } from "fastify";
 import { z } from "zod";
@@ -42,11 +43,9 @@ export const recognitionSourceTypeSchema = z.enum([
 export const recognitionConfidenceSchema = z.enum(["high", "medium", "low"]);
 
 export const detectedFaceCropSchema = z.object({
-  url: z
-    .url()
-    .describe(
-      "Signed S3 URL to the cropped face thumbnail (JPEG, max 320px wide).",
-    ),
+  url: httpUrlSchema.describe(
+    "Signed S3 URL to the cropped face thumbnail (JPEG, max 320px wide).",
+  ),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
 });
@@ -60,13 +59,10 @@ export const playerPhotoSourceCandidateSchema = z.object({
     .describe(
       "The named player this candidate is being suggested for. Echoes the tool input — not extracted from the page.",
     ),
-  pageUrl: z
-    .url()
-    .describe(
-      "Public URL of the SOURCE PAGE. Prefer this over imageUrl — readers should land on the original page (which carries the label) rather than a rehosted image.",
-    ),
-  imageUrl: z
-    .url()
+  pageUrl: httpUrlSchema.describe(
+    "Public URL of the SOURCE PAGE. Prefer this over imageUrl — readers should land on the original page (which carries the label) rather than a rehosted image.",
+  ),
+  imageUrl: httpUrlSchema
     .optional()
     .describe(
       "Optional direct image URL when the source clearly exposes one (e.g. Play-Cricket profile_image, og:image on a public news article). Never store or rehost.",
@@ -241,8 +237,8 @@ If the captain asks for face recognition or identification from an uploaded imag
 PRIVACY GUARDRAILS (the tool enforces these; do not try to talk around them):
 - Public sources only. No logged-in endpoints, no private accounts, no scraping behind paywalls or logins.
 - Source URLs always present. Never claim a source without showing where it came from.
-- No facial recognition, no appearance-based identity inference.
-- No permanent storage or rehosting of images.
+- No facial recognition, no appearance-based identity inference. Face DETECTION (geometry: cropping bounding boxes from a public photo) is in scope; face RECOGNITION (identity matching) is not.
+- Source-image URLs are never proxied or stored — the FE either loads them direct from the public host or links the source page. Derivative face crops produced by the recognition pipeline ARE stored in scout-attachments S3 (private bucket, signed-URL-only access) so the FE can render them reliably. See ADR 042.
 - Low-confidence results are never presented as verified.`;
 
 export const recognitionSourcesInputSchema = z.object({
@@ -268,8 +264,7 @@ export const recognitionSourcesInputSchema = z.object({
     .describe(
       "Play-Cricket player_id (a.k.a. member_id) if you already have it from a pc_* tool response. Lets the tool resolve a high-confidence profile photo directly.",
     ),
-  playCricketProfileUrl: z
-    .url()
+  playCricketProfileUrl: httpUrlSchema
     .optional()
     .describe(
       "Public Play-Cricket profile URL if known. Same effect as playCricketPlayerId.",
@@ -298,6 +293,12 @@ export type RecognitionSourcesInput = z.infer<
 
 // Per-search-query cap; we fan out a small number of queries and then dedupe.
 const PER_QUERY_MAX_RESULTS = 6;
+// How many extracted images to try per candidate during face detection.
+// Tavily often returns multiple images per page; images[0] is usually the
+// page logo / OG image, which is rarely the actual player photo. Five
+// attempts is a sensible balance between recall and Rekognition cost
+// (≈ $0.001 per call at our volume).
+const FACE_DETECTION_MAX_IMAGES_PER_CANDIDATE = 5;
 
 export function buildSearchQueries(input: RecognitionSourcesInput): string[] {
   const name = input.playerName.trim();
@@ -385,8 +386,10 @@ function hostMatchesAny(host: string, domains: readonly string[]): boolean {
 
 // Play-Cricket URL paths that carry a recognition-useful page (profile,
 // team/squad, members). Scorecard / results pages are excluded — they're
-// pure tables with no portraits. Keep these case-insensitive.
-const PLAY_CRICKET_RECOGNITION_PATH = /\/(players?|profiles?|member|teams?)/i;
+// pure tables with no portraits. Keep these case-insensitive AND require
+// a segment boundary so `/player_stats` doesn't match as `/player`.
+const PLAY_CRICKET_RECOGNITION_PATH =
+  /\/(players?|profiles?|members?|teams?)(?:\/|$)/i;
 const PLAY_CRICKET_PHOTOLESS_PATH = /\/(results|matches|scorecards?)\//i;
 
 export function isPhotolessUrl(url: string): boolean {
@@ -859,56 +862,88 @@ export function createRecognitionSourcesTool(deps: RecognitionSourcesToolDeps) {
         // Face detection pass — fire after sort/slice so we only spend
         // Rekognition + S3 on candidates the agent will actually surface.
         //
-        // Tri-state semantics from FaceDetector.detectAndCrop:
-        //   FaceCrop[] non-empty → attach faces to candidate, keep
-        //   []                   → definitive zero; candidate's imageUrl
-        //                          is a logo / banner / non-photo. DROP
-        //                          (mark in droppedUrls). The pageUrl
-        //                          stays useful but the imageUrl doesn't,
-        //                          so the candidate has no recognition
-        //                          value left.
-        //   null                 → couldn't tell (detector latched off /
-        //                          fetch failed / Rekognition errored).
-        //                          KEEP the candidate as-is — leaving it
-        //                          to the agent / render_image fallback.
+        // For each candidate, we walk extracted.images[] in order
+        // (capped) and stop at the first image with detected faces. This
+        // matters because the first extracted image is often the page's
+        // logo / banner / OG image — discarding the whole candidate when
+        // that one image has no faces would throw away pages whose
+        // actual player photos are further down (codex review #4).
         //
-        // Candidates with NO imageUrl at all are page-only leads — always
-        // keep, never run face detection on them.
-        let topAfterFaces = top;
+        // Tri-state semantics from FaceDetector.detectAndCrop:
+        //   FaceCrop[] non-empty → attach faces, promote this URL to
+        //                          candidate.imageUrl, stop searching.
+        //   []                   → this image definitively has no faces.
+        //                          Try the next image in the queue.
+        //   null                 → couldn't tell. Try the next image.
+        //
+        // After exhausting the queue: if EVERY image returned a
+        // definitive [] (no inconclusive results), the page has no
+        // useful photos — clear imageUrl so the candidate becomes a
+        // page-only lead. If any result was inconclusive, keep imageUrl
+        // as-is (the captain can still click through).
         if (deps.faceDetector) {
           const detector = deps.faceDetector;
-          const droppedUrls = new Set<string>();
           await Promise.all(
             top.map(async (candidate) => {
               if (!candidate.imageUrl) return;
-              const result = await detector
-                .detectAndCrop(candidate.imageUrl)
-                .catch(() => null);
-              if (result === null) return;
-              if (result.length === 0) {
-                droppedUrls.add(candidate.pageUrl);
+              const extracted = extractedByUrl.get(candidate.pageUrl);
+              const queue =
+                extracted?.images && extracted.images.length > 0
+                  ? extracted.images.slice(
+                      0,
+                      FACE_DETECTION_MAX_IMAGES_PER_CANDIDATE,
+                    )
+                  : [candidate.imageUrl];
+
+              let sawInconclusive = false;
+              let sawDefinitiveZero = false;
+              for (const imageUrl of queue) {
+                const result = await detector
+                  .detectAndCrop(imageUrl)
+                  .catch(() => null);
+                if (result === null) {
+                  sawInconclusive = true;
+                  continue;
+                }
+                if (result.length === 0) {
+                  sawDefinitiveZero = true;
+                  continue;
+                }
+                // Hit — promote this URL onto the candidate.
+                candidate.imageUrl = imageUrl;
+                candidate.faces = result;
                 return;
               }
-              candidate.faces = result;
+              // No image yielded faces. If we ONLY saw definitive zeros
+              // (Rekognition ran on every image and confirmed no faces),
+              // demote to page-only. Otherwise leave the candidate's
+              // imageUrl in place — we couldn't tell.
+              if (sawDefinitiveZero && !sawInconclusive) {
+                candidate.imageUrl = undefined;
+              }
             }),
           );
-          topAfterFaces = top.filter((c) => !droppedUrls.has(c.pageUrl));
-          const totalFaces = topAfterFaces.reduce(
+          const candidatesWithFaces = top.filter(
+            (c) => (c.faces?.length ?? 0) > 0,
+          ).length;
+          const demotedToPageOnly = top.filter(
+            (c) => !c.imageUrl && (c.faces?.length ?? 0) === 0,
+          ).length;
+          const totalFaces = top.reduce(
             (n, c) => n + (c.faces?.length ?? 0),
             0,
           );
           log?.info(
             {
               tool: TOOL,
-              candidatesWithFaces: topAfterFaces.filter(
-                (c) => (c.faces?.length ?? 0) > 0,
-              ).length,
-              droppedNoFaces: droppedUrls.size,
+              candidatesWithFaces,
+              demotedToPageOnly,
               totalFaces,
             },
             "scout recognition: face detection complete",
           );
         }
+        const topAfterFaces = top;
 
         const finalCandidates = topAfterFaces;
         const byConfidence = {

@@ -58,6 +58,9 @@ resource "aws_s3_bucket_public_access_block" "scout_attachments" {
 }
 
 # No lifecycle rule, no Object Lock, no CloudFront — see module header.
+# This bucket also stores face crops from the recognition pipeline
+# (`scout/attachments/faces/`), under the same retention contract: the
+# objects persist; access is via signed URL only. See ADR 042.
 
 # -----------------------------------------------------------------------------
 # Outputs

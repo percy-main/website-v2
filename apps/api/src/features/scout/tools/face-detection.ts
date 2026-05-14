@@ -283,7 +283,59 @@ export function createFaceDetector(opts: CreateFaceDetectorOpts): FaceDetector {
   };
 }
 
+// SSRF guardrails. The imageUrl comes from a Tavily-extracted public
+// page, which means it's ultimately attacker-influenceable — a hostile
+// site could embed an <img> pointing at internal infrastructure. Block:
+//   - non-http(s) schemes (data:, file:, javascript:, gopher:, etc.)
+//   - literal IP-address hostnames (the only legitimate sources we care
+//     about are public CDNs reached by DNS name)
+//   - localhost / .localhost / .internal / .local / cloud-metadata hosts
+//
+// Doesn't defeat DNS-rebinding (a malicious host could resolve to a
+// public IP at check time and a private IP at fetch time). For a stronger
+// guarantee we'd resolve once, validate the IP, and connect directly to
+// that IP — out of scope for this change. The production task's egress
+// security group should be the second layer of defence.
+const BLOCKED_HOST_PATTERNS = [
+  /^localhost$/i,
+  /\.localhost$/i,
+  /\.internal$/i,
+  /\.local$/i,
+  // EC2 / GCP / Azure / OCI instance metadata hostnames.
+  /^metadata\.google\.internal$/i,
+  /^metadata\.azure\.com$/i,
+];
+
+function looksLikeIpAddress(host: string): boolean {
+  // IPv4 dotted quad, or bracketed/un-bracketed IPv6.
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return true;
+  if (host.startsWith("[") && host.endsWith("]")) return true;
+  // Bare IPv6 (any colon in a hostname is invalid per DNS rules).
+  if (host.includes(":")) return true;
+  return false;
+}
+
+function isFetchableUrl(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return false;
+  }
+  const host = parsed.hostname;
+  if (!host) return false;
+  if (looksLikeIpAddress(host)) return false;
+  if (BLOCKED_HOST_PATTERNS.some((p) => p.test(host))) return false;
+  return true;
+}
+
 async function fetchImageBytes(url: string): Promise<Buffer> {
+  if (!isFetchableUrl(url)) {
+    throw new Error("url not fetchable (blocked scheme or hostname)");
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -299,15 +351,31 @@ async function fetchImageBytes(url: string): Promise<Buffer> {
     if (!contentType.startsWith("image/")) {
       throw new Error(`unexpected content-type: ${contentType || "unknown"}`);
     }
+    // Cap the body BEFORE we buffer it. content-length is a hint and may
+    // be missing or wrong — accumulate chunks ourselves so we can abort
+    // as soon as we cross the limit instead of buffering an attacker-
+    // sized payload into memory before checking.
     const contentLength = Number(res.headers.get("content-length") ?? "0");
     if (contentLength > MAX_IMAGE_BYTES) {
       throw new Error(`image too large: ${contentLength} bytes`);
     }
-    const arr = new Uint8Array(await res.arrayBuffer());
-    if (arr.byteLength > MAX_IMAGE_BYTES) {
-      throw new Error(`image too large after fetch: ${arr.byteLength} bytes`);
+    if (!res.body) {
+      throw new Error("response had no body");
     }
-    return Buffer.from(arr);
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    const reader = res.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_IMAGE_BYTES) {
+        await reader.cancel();
+        throw new Error(`image too large after fetch: ${total} bytes`);
+      }
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks.map((c) => Buffer.from(c)));
   } finally {
     clearTimeout(timeout);
   }

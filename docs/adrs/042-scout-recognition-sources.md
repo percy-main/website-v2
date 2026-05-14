@@ -32,7 +32,7 @@ The framing matters as much as the implementation. The tool contract carries:
 - **A three-tier confidence model.** `high` only when the source clearly labels the named player on a portrait-style page (e.g. their own Play-Cricket profile). `medium` when the source names them and contains relevant match imagery but doesn't label the individual photo. `low` when the page mentions them but the image association is unclear — and `low` must NEVER be presented as verified.
 - **Failure-state wording baked in.** When results are thin, the tool returns one of `no-reliable-source` / `only-low-confidence` / `unavailable`, each with prescribed prose the agent renders verbatim. That stops the model from upgrading weak results into stronger language.
 - **Refusal copy for uploaded images.** If a captain uploads a photo and asks "who is this?", the agent refuses with a fixed line: "I can't identify a player from appearance or match a face to online images." The tool doesn't accept image input at all.
-- **No rehosting.** The tool emits URLs; it doesn't copy images into our S3.
+- **Derivative face crops are stored in `scout-attachments` S3.** The face-detection pipeline (see "Face detection + cropping" below) fetches each candidate image server-side, crops detected faces, and uploads them under `scout/attachments/faces/` in the existing scout-attachments bucket. They share the same retention contract as the rest of that bucket: objects persist; access is via 30-minute signed URLs only; the bucket is private (no public ACL, no CloudFront). This is "rehosting" in the literal sense — we keep that contained by scoping to face crops only (not full source images), running inside admin/official-gated Scout, and using strictly transient signed URLs. Source-image URLs themselves are NOT proxied or stored — the FE either loads them direct from the public host or shows the captain a "view source" link.
 
 These are encoded in the tool description so they're load-bearing on the agent (the model reads the description and is constrained by the output schema), not just operator notes that drift over time.
 
@@ -81,6 +81,21 @@ Initial dogfooding showed that snippet-only scoring under-credited the most usef
 - **Play-Cricket squad / team pages → high.** Pages under `/Teams/`, `/players/`, `/profile/`, `/member/` paths that name the player → high.
 - **Scorecard URLs are dropped, not scored.** `play-cricket.com/website/results/...` paths carry no portraits — they're pure scorecard tables. Filtering them before extraction saves API spend and stops the agent surfacing useless links.
 - **Proximity-checked medium.** Page text where the player and club names appear within ~240 characters of each other counts as "page is about this player at this club"; otherwise it's a looser mention and the candidate scores lower.
+
+## Face detection + cropping
+
+Face DETECTION (geometry — where are the faces in this image?) is meaningfully different from face RECOGNITION (identity match — who is this face?). We rejected recognition above; detection is in scope. After the extract pass, the pipeline:
+
+1. Tries up to 5 of the page's extracted image URLs in order (Tavily extract returns `images[]` in document order; the first one is often a logo / OG image, so we don't stop early).
+2. For each, fetches the bytes via `face-detection.ts:fetchImageBytes` — http(s) only, hostname allowlist (no literal IPs, no `localhost`-class names, no `*.internal` / `*.local`), 5 MB cap, 10 s timeout.
+3. Sends the bytes to AWS Rekognition `DetectFaces` (geometry only — no Attributes beyond DEFAULT). The first image that returns ≥ 1 face wins.
+4. Crops each detected face with `sharp` (20% padding around the bounding box), resizes to max 320 px wide, uploads each crop as a JPEG to `scout-attachments` under `scout/attachments/faces/<uuid>.jpg`, returns a 30-min signed GET URL.
+
+A candidate whose images ALL returned definitive zero from Rekognition is demoted to page-only (the imageUrl is cleared; the page link survives because the page might still be a useful lead). A candidate whose detection results were inconclusive (network / Rekognition errors) keeps its imageUrl with no faces attached, falling through to the `render_image` fallback.
+
+The face-detection client latches off on a credentials-class error from Rekognition (or S3 upload), so a misconfigured local dev environment produces one warning and no further AWS calls. `scripts/dev.sh` validates `aws sts get-caller-identity --profile percy-main` up front and exports `AWS_PROFILE` so the API process inherits it — split-backend dev (S3 → Localstack, Rekognition → real AWS) without any code branches.
+
+The crops persist in S3 (no lifecycle expiry — same retention contract as the rest of scout-attachments). They're never publicly addressable: the bucket has no public ACL, no CloudFront, and the only access path is a fresh signed URL issued by the API, which itself is gated to admin / official Scout users.
 
 ## Rollout
 

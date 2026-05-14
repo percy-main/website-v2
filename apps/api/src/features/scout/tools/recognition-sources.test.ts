@@ -173,6 +173,24 @@ describe("classifySourceType", () => {
     ).not.toBe("local-news");
   });
 
+  it("Play-Cricket recognition path requires a segment boundary (not /player_stats)", () => {
+    // /player_stats/... is the season-stats page, NOT a profile page.
+    // Without the segment boundary on PLAY_CRICKET_RECOGNITION_PATH this
+    // would have scored as a profile-style hit. Confirm it doesn't.
+    expect(
+      scoreCandidate({
+        hit: {
+          url: "https://percymain.play-cricket.com/player_stats/batting/12345",
+          title: "Stats page",
+          snippet: "",
+        },
+        sourceType: "play-cricket-profile",
+        playerName: "Some Player",
+        clubName: "Some CC",
+      }).confidence,
+    ).not.toBe("high");
+  });
+
   it("DOES classify legitimate subdomains as trusted", () => {
     expect(
       classifySourceType(
@@ -743,7 +761,7 @@ Email or mobile number ` +
     expect(candidate.imageUrl).toContain("photo1.jpg");
   });
 
-  it("drops candidates with an imageUrl but no detected faces (likely not player photos)", async () => {
+  it("demotes candidates with definitive-zero faces to page-only (keeps page link, drops imageUrl)", async () => {
     const search = makeSearchAll(
       [
         {
@@ -809,14 +827,120 @@ Email or mobile number ` +
     if (result.status !== "ok") throw new Error("expected ok");
 
     const urls = result.candidates.map((c) => c.pageUrl);
-    // FB photo kept (has faces); squad page kept (no imageUrl);
-    // logo page dropped (had imageUrl but zero faces).
+    // All three candidates SURVIVE — page-only leads are still useful.
     expect(urls).toContain("https://www.facebook.com/groups/123/posts/abc/");
     expect(urls).toContain("https://example.com/squad-page");
-    expect(urls).not.toContain("https://example.com/team-logo.png");
+    expect(urls).toContain("https://example.com/team-logo.png");
+
+    // The FB candidate has faces + imageUrl.
+    const fb = result.candidates.find((c) => c.pageUrl.endsWith("/posts/abc/"));
+    expect(fb?.faces).toHaveLength(1);
+    expect(fb?.imageUrl).toBeDefined();
+
+    // The team-logo candidate had its only image return [] — demoted to page-only.
+    const logo = result.candidates.find((c) =>
+      c.pageUrl.endsWith("/team-logo.png"),
+    );
+    expect(logo?.imageUrl).toBeUndefined();
+    expect(logo?.faces).toBeUndefined();
   });
 
-  it("returns no-reliable-source when EVERY candidate with an imageUrl had no faces and no page-only leads survive", async () => {
+  it("tries multiple extracted images per candidate; promotes the first one with faces", async () => {
+    // Page returns [logo, hero-photo] — face detector says no faces on
+    // the logo, yes on the photo. The candidate should be kept with
+    // imageUrl promoted to the photo URL (not the logo).
+    const search = makeSearchAll(
+      [
+        {
+          url: "https://example.com/squad-page",
+          title: "Some CC squad",
+          snippet: "Some Player at Some CC",
+        },
+      ],
+      [
+        {
+          url: "https://example.com/squad-page",
+          content: "Some Player in the lineup at Some CC.",
+          images: [
+            "https://example.com/logo.png",
+            "https://example.com/hero-photo.jpg",
+          ],
+        },
+      ],
+    );
+    const faceDetector: FaceDetector = {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async detectAndCrop(imageUrl) {
+        if (imageUrl.includes("hero-photo")) {
+          return [
+            { url: "https://signed.s3/face1.jpg", width: 256, height: 256 },
+          ];
+        }
+        return []; // logo — definitive zero
+      },
+    };
+    const tools = createRecognitionSourcesTool({ search, faceDetector });
+    const exec = tools.find_player_photo_sources.execute;
+    if (!exec) throw new Error("no execute");
+    const result = (await exec(
+      {
+        playerName: "Some Player",
+        clubName: "Some CC",
+        maxResults: 8,
+      },
+      opts,
+    )) as RecognitionSourcesResult;
+    if (result.status !== "ok") throw new Error("expected ok");
+
+    expect(result.candidates).toHaveLength(1);
+    const c = result.candidates[0];
+    // imageUrl was promoted from logo → hero-photo.
+    expect(c.imageUrl).toBe("https://example.com/hero-photo.jpg");
+    expect(c.faces).toHaveLength(1);
+  });
+
+  it("keeps imageUrl when face detection is inconclusive across all images (mixed nulls)", async () => {
+    const search = makeSearchAll(
+      [
+        {
+          url: "https://www.facebook.com/groups/123/posts/abc/",
+          title: "Some CC - Facebook",
+          snippet: "Some Player named",
+        },
+      ],
+      [
+        {
+          url: "https://www.facebook.com/groups/123/posts/abc/",
+          content: "Some Player at Some CC.",
+          images: ["https://scontent.fb.com/photo1.jpg"],
+        },
+      ],
+    );
+    const faceDetector: FaceDetector = {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async detectAndCrop() {
+        return null; // couldn't tell
+      },
+    };
+    const tools = createRecognitionSourcesTool({ search, faceDetector });
+    const exec = tools.find_player_photo_sources.execute;
+    if (!exec) throw new Error("no execute");
+    const result = (await exec(
+      {
+        playerName: "Some Player",
+        clubName: "Some CC",
+        maxResults: 8,
+      },
+      opts,
+    )) as RecognitionSourcesResult;
+    if (result.status !== "ok") throw new Error("expected ok");
+    const c = result.candidates[0];
+    // Inconclusive — keep imageUrl, no faces. Falls through to render_image.
+    expect(c.imageUrl).toBe("https://scontent.fb.com/photo1.jpg");
+    expect(c.faces).toBeUndefined();
+  });
+
+  it("demotes every imageUrl candidate to page-only when face detector definitively rejects every image", async () => {
     const search = makeSearchAll(
       [
         {
@@ -860,7 +984,13 @@ Email or mobile number ` +
       },
       opts,
     )) as RecognitionSourcesResult;
-    expect(result.status).toBe("no-reliable-source");
+    if (result.status !== "ok") throw new Error("expected ok");
+    // Both candidates survive as page-only — they scored medium on title/
+    // snippet match and remain a useful "look at this page" lead even
+    // when face detection confirmed the only extracted image is a logo.
+    expect(result.candidates).toHaveLength(2);
+    expect(result.candidates.every((c) => c.imageUrl === undefined)).toBe(true);
+    expect(result.candidates.every((c) => c.faces === undefined)).toBe(true);
   });
 
   it("invokes faceDetector for every candidate with an imageUrl and attaches the crops", async () => {
