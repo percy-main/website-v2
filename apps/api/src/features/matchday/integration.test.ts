@@ -368,7 +368,72 @@ describe("matchday service (integration)", () => {
           .selectAll()
           .executeTakeFirst();
         expect(member?.member_category).toBe("guest");
+        // Guests have no real contact details — confirm NULL rather than ""
+        // so we don't collide on the partial member_email_unique index.
+        expect(member?.email).toBeNull();
       }
+    });
+
+    it("allows adding two ad-hoc players without colliding on email", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `adhoc-dup-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+
+      await expect(
+        addPlayer(ctx.db)(userId, "admin", matchdayId, {
+          playerName: "Guest One",
+        }),
+      ).resolves.toBeDefined();
+      await expect(
+        addPlayer(ctx.db)(userId, "admin", matchdayId, {
+          playerName: "Guest Two",
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it("adds a junior dependent without creating a guest member row", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `adhoc-dep-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+
+      const parentId = await seedMember(
+        "Junior Parent",
+        `parent-${crypto.randomUUID()}@test.com`,
+      );
+      const dependentId = `dep-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("dependent")
+        .values({
+          id: dependentId,
+          member_id: parentId,
+          name: "Junior Child",
+          sex: "f",
+          dob: "2014-04-01",
+        })
+        .execute();
+
+      const { id: playerId } = await addPlayer(ctx.db)(
+        userId,
+        "admin",
+        matchdayId,
+        { dependentId, playerName: "Junior Child" },
+      );
+
+      const player = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(player?.dependent_id).toBe(dependentId);
+      // Juniors should not synthesise a guest member row — they point
+      // straight at the existing dependent.
+      expect(player?.member_id).toBeNull();
     });
   });
 
@@ -438,6 +503,76 @@ describe("matchday service (integration)", () => {
         expect(charge?.amount_pence).toBe(500);
         expect(charge?.type).toBe("match_fee");
       }
+    });
+
+    it("raises a junior-rate charge against the parent when a dependent plays", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `junior-fee-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+
+      const parentId = await seedMember(
+        "Fee Parent",
+        `fee-parent-${crypto.randomUUID()}@test.com`,
+        "senior",
+      );
+      const dependentId = `dep-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("dependent")
+        .values({
+          id: dependentId,
+          member_id: parentId,
+          name: "Junior Player",
+          sex: "m",
+          dob: "2013-06-01",
+        })
+        .execute();
+
+      await seedFeeRate({ memberCategory: "junior", amountPence: 200 });
+
+      const { id: playerId } = await addPlayer(ctx.db)(
+        userId,
+        "admin",
+        matchdayId,
+        { dependentId, playerName: "Junior Player" },
+      );
+
+      await confirmTeam(ctx.db)(userId, "admin", matchdayId, {
+        playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
+      });
+
+      const player = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .selectAll()
+        .executeTakeFirst();
+      const chargeId = player?.charge_id;
+      expect(chargeId).toBeDefined();
+      if (!chargeId) return;
+
+      const charge = await ctx.db
+        .selectFrom("charge")
+        .where("id", "=", chargeId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(charge?.amount_pence).toBe(200);
+      expect(charge?.type).toBe("match_fee");
+      // Charge belongs to the parent, not the dependent
+      expect(charge?.member_id).toBe(parentId);
+      // Description includes the junior's name so the parent can tell
+      // children apart when multiple are registered.
+      expect(charge?.description).toContain("Junior Player");
+
+      // charge_dependent link is created so the parent's portal can
+      // attribute the donation to the correct child.
+      const link = await ctx.db
+        .selectFrom("charge_dependent")
+        .where("charge_id", "=", chargeId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(link?.dependent_id).toBe(dependentId);
     });
   });
 

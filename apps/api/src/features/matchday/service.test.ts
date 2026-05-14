@@ -137,14 +137,21 @@ describe("matchday service", () => {
   });
 
   describe("searchMembers", () => {
-    it("searches members by name", async () => {
+    it("returns both members and dependents with a type discriminator", async () => {
       const members = [
         { id: "m1", name: "John", email: "j@t.com", member_category: "senior" },
       ];
-      mockExecute.mockResolvedValue(members);
+      const dependents = [{ id: "d1", name: "Johnny", parent_name: "Parent" }];
+      // searchMembers fires two queries in parallel; mockResolvedValueOnce
+      // honours call order regardless of which promise resolves first.
+      mockExecute.mockResolvedValueOnce(members);
+      mockExecute.mockResolvedValueOnce(dependents);
 
       const result = await searchMembers(db)({ query: "John" });
-      expect(result).toEqual(members);
+      expect(result).toEqual([
+        { type: "member", ...members[0] },
+        { type: "dependent", ...dependents[0] },
+      ]);
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
         "name",
         "ilike",

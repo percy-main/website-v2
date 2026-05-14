@@ -41,7 +41,7 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
     return all.filter(
       (m) =>
         (m.name?.toLowerCase().includes(term) ?? false) ||
-        m.email.toLowerCase().includes(term),
+        (m.email?.toLowerCase().includes(term) ?? false),
     );
   }, [availableQuery.data, filter]);
 

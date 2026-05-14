@@ -310,7 +310,7 @@ export const getUserDetailResponseSchema = z.object({
   member: z
     .object({
       id: z.string(),
-      email: z.string(),
+      email: z.string().nullable(),
       name: z.string().nullable(),
       title: z.string().nullable(),
       address: z.string().nullable(),
@@ -396,14 +396,14 @@ export const getUserDetailResponseSchema = z.object({
     z.object({
       memberId: z.string(),
       name: z.string().nullable(),
-      email: z.string(),
+      email: z.string().nullable(),
     }),
   ),
   linkedJuniors: z.array(
     z.object({
       memberId: z.string(),
       name: z.string().nullable(),
-      email: z.string(),
+      email: z.string().nullable(),
       dob: z.string().nullable(),
     }),
   ),
@@ -496,13 +496,13 @@ export const listChargesResponseSchema = z.object({
       deletedReason: z.string().nullable(),
       relievedAt: z.string().nullable(),
       memberName: z.string().nullable(),
-      memberEmail: z.string(),
+      memberEmail: z.string().nullable(),
       memberCategory: z.string().nullable(),
       paidByParents: z.array(
         z.object({
           memberId: z.string(),
           name: z.string().nullable(),
-          email: z.string(),
+          email: z.string().nullable(),
         }),
       ),
       status: chargeStatusSchema,
@@ -557,7 +557,7 @@ export const listJuniorsResponseSchema = z.object({
       dob: z.string(),
       registeredAt: z.string(),
       parentName: z.string().nullable(),
-      parentEmail: z.string(),
+      parentEmail: z.string().nullable(),
       parentTelephone: z.string().nullable(),
       paidUntil: z.string().nullable(),
       ageGroup: z.string().nullable(),
@@ -600,7 +600,7 @@ export const searchMembersForParentLinkResponseSchema = z.object({
     z.object({
       id: z.string(),
       name: z.string().nullable(),
-      email: z.string(),
+      email: z.string().nullable(),
       score: z.number(),
     }),
   ),
@@ -620,7 +620,7 @@ export const unlinkParentResponseSchema = successResponseSchema;
 const duplicateGroupMemberSchema = z.object({
   id: z.string(),
   name: z.string().nullable(),
-  email: z.string(),
+  email: z.string().nullable(),
   title: z.string().nullable(),
   stripeCustomerId: z.string().nullable(),
   membershipCount: z.number(),
@@ -642,7 +642,7 @@ const mergePreviewMemberSchema = z.object({
   id: z.string(),
   name: z.string().nullable(),
   title: z.string().nullable(),
-  email: z.string(),
+  email: z.string().nullable(),
   address: z.string().nullable(),
   postcode: z.string().nullable(),
   dob: z.string().nullable(),

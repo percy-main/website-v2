@@ -209,10 +209,17 @@ export function getMatch(db: Kysely<DB>) {
         .selectFrom("matchday_player")
         .where("matchday_id", "=", matchId)
         .leftJoin("member", "member.id", "matchday_player.member_id")
+        .leftJoin("dependent", "dependent.id", "matchday_player.dependent_id")
+        .leftJoin(
+          "member as dependent_parent",
+          "dependent_parent.id",
+          "dependent.member_id",
+        )
         .leftJoin("charge", "charge.id", "matchday_player.charge_id")
         .select([
           "matchday_player.id",
           "matchday_player.member_id",
+          "matchday_player.dependent_id",
           "matchday_player.player_name",
           "matchday_player.status",
           "matchday_player.replaced_by_matchday_player_id",
@@ -221,6 +228,7 @@ export function getMatch(db: Kysely<DB>) {
           "matchday_player.is_captain",
           "matchday_player.is_wicketkeeper",
           "member.member_category",
+          "dependent_parent.name as parent_name",
           "charge.paid_at as chargePaidAt",
           "charge.relieved_at as chargeRelievedAt",
         ])
@@ -310,6 +318,7 @@ export function getMatchPublic(db: Kysely<DB>) {
       .select([
         "matchday_player.id as matchday_player_id",
         "matchday_player.member_id",
+        "matchday_player.dependent_id",
         "matchday_player.player_name",
         "matchday_player.status",
         "matchday_player.is_captain",
@@ -325,7 +334,10 @@ export function getMatchPublic(db: Kysely<DB>) {
       memberId: p.member_id,
       isCaptain: p.is_captain,
       isKeeper: p.is_wicketkeeper,
-      isGuest: p.member_id === null,
+      // Guest = an ad-hoc player with no record at all. Juniors point
+      // at a `dependent` row, so they're not guests even though their
+      // `member_id` is null.
+      isGuest: p.member_id === null && p.dependent_id === null,
       displayName: p.member_name ?? p.player_name ?? "Unknown",
       note: null as string | null,
       _status: p.status,
@@ -664,15 +676,34 @@ export function searchMembers(db: Kysely<DB>) {
   return async (params: SearchMembers) => {
     const term = `%${params.query.trim()}%`;
 
-    const members = await db
-      .selectFrom("member")
-      .where("name", "ilike", term)
-      .select(["id", "name", "email", "member_category"])
-      .orderBy("name", "asc")
-      .limit(20)
-      .execute();
+    const [members, dependents] = await Promise.all([
+      db
+        .selectFrom("member")
+        .where("name", "ilike", term)
+        .where("deleted_at", "is", null)
+        .select(["id", "name", "email", "member_category"])
+        .orderBy("name", "asc")
+        .limit(20)
+        .execute(),
+      db
+        .selectFrom("dependent")
+        .innerJoin("member as parent", "parent.id", "dependent.member_id")
+        .where("dependent.name", "ilike", term)
+        .where("parent.deleted_at", "is", null)
+        .select([
+          "dependent.id as id",
+          "dependent.name as name",
+          "parent.name as parent_name",
+        ])
+        .orderBy("dependent.name", "asc")
+        .limit(20)
+        .execute(),
+    ]);
 
-    return members;
+    return [
+      ...members.map((m) => ({ type: "member" as const, ...m })),
+      ...dependents.map((d) => ({ type: "dependent" as const, ...d })),
+    ];
   };
 }
 
@@ -700,6 +731,10 @@ export function addPlayer(db: Kysely<DB>) {
       throwHttpError(403, "You do not have access to this matchday");
     }
 
+    if (data.memberId && data.dependentId) {
+      throwHttpError(400, "Pick a member or a junior, not both");
+    }
+
     // Check for duplicate member in squad
     if (data.memberId) {
       const existing = await db
@@ -715,27 +750,36 @@ export function addPlayer(db: Kysely<DB>) {
       }
     }
 
+    if (data.dependentId) {
+      const existing = await db
+        .selectFrom("matchday_player")
+        .where("matchday_id", "=", matchdayId)
+        .where("dependent_id", "=", data.dependentId)
+        .where("status", "in", ["selected", "playing"])
+        .select("id")
+        .executeTakeFirst();
+
+      if (existing) {
+        throwHttpError(409, "This player is already in the squad");
+      }
+    }
+
     const id = crypto.randomUUID();
 
     await db.transaction().execute(async (trx) => {
       let finalMemberId = data.memberId ?? null;
 
-      // Create guest member record for ad-hoc players
-      if (!data.memberId && data.playerName.trim()) {
+      // Create guest member record for ad-hoc players (no memberId and
+      // no dependentId). Guests have no real contact details — leave the
+      // nullable fields as NULL rather than "", which used to collide on
+      // the member_email_unique index.
+      if (!data.memberId && !data.dependentId && data.playerName.trim()) {
         finalMemberId = crypto.randomUUID();
         await trx
           .insertInto("member")
           .values({
             id: finalMemberId,
             name: data.playerName,
-            email: "",
-            title: "",
-            address: "",
-            postcode: "",
-            dob: "",
-            telephone: "",
-            emergency_contact_name: "",
-            emergency_contact_telephone: "",
             member_category: "guest",
           })
           .execute();
@@ -747,6 +791,7 @@ export function addPlayer(db: Kysely<DB>) {
           id,
           matchday_id: matchdayId,
           member_id: finalMemberId,
+          dependent_id: data.dependentId ?? null,
           player_name: data.playerName,
           status: "selected",
         })
@@ -860,17 +905,25 @@ export function confirmTeam(db: Kysely<DB>) {
           .execute();
       }
 
-      // Generate match fees for "playing" players
+      // Generate match fees for "playing" players. Junior players are
+      // stored against `dependent_id`; their charge is raised on the
+      // parent member at the "junior" rate and linked back via
+      // `charge_dependent` so the parent's portal shows who the
+      // donation is for.
       const playingPlayers = await trx
         .selectFrom("matchday_player")
         .leftJoin("member", "member.id", "matchday_player.member_id")
+        .leftJoin("dependent", "dependent.id", "matchday_player.dependent_id")
         .where("matchday_player.matchday_id", "=", matchdayId)
         .where("matchday_player.status", "=", "playing")
         .select([
           "matchday_player.id as matchdayPlayerId",
           "matchday_player.member_id",
+          "matchday_player.dependent_id",
           "matchday_player.player_name",
           "member.member_category",
+          "dependent.member_id as dependentParentId",
+          "dependent.name as dependentName",
         ])
         .execute();
 
@@ -887,9 +940,26 @@ export function confirmTeam(db: Kysely<DB>) {
 
       const applyRelief = applyReliefIfAny(trx);
       for (const player of playingPlayers) {
-        if (!player.member_id) continue;
+        let chargeMemberId: string;
+        let category: string;
+        let chargeDependentId: string | null = null;
+        let descriptionSuffix = "";
 
-        const category = player.member_category ?? "guest";
+        if (player.member_id) {
+          chargeMemberId = player.member_id;
+          category = player.member_category ?? "guest";
+        } else if (player.dependent_id && player.dependentParentId) {
+          chargeMemberId = player.dependentParentId;
+          category = "junior";
+          chargeDependentId = player.dependent_id;
+          descriptionSuffix = player.dependentName
+            ? ` for ${player.dependentName}`
+            : "";
+        } else {
+          // Orphan rows (no member, no dependent) get no fee — captains
+          // shouldn't be able to create these via the UI.
+          continue;
+        }
 
         const rate = findFeeRate(
           feeRates,
@@ -905,8 +975,8 @@ export function confirmTeam(db: Kysely<DB>) {
           .insertInto("charge")
           .values({
             id: chargeId,
-            member_id: player.member_id,
-            description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
+            member_id: chargeMemberId,
+            description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})${descriptionSuffix}`,
             amount_pence: rate.amount_pence,
             charge_date: matchday.match_date,
             created_by: userId,
@@ -921,12 +991,26 @@ export function confirmTeam(db: Kysely<DB>) {
           .where("id", "=", player.matchdayPlayerId)
           .execute();
 
+        // Junior charges link to the registered dependent so the
+        // parent's portal can show which child a donation was for.
+        if (chargeDependentId) {
+          await trx
+            .insertInto("charge_dependent")
+            .values({
+              charge_id: chargeId,
+              dependent_id: chargeDependentId,
+            })
+            .execute();
+        }
+
         // Auto-forgive if this member has an active relief grant
         // covering match fees on this date. The charge keeps its
-        // amount_pence so reporting can still sum it.
+        // amount_pence so reporting can still sum it. For juniors the
+        // grant is checked against the parent member who owns the
+        // charge — matching how relief is administered today.
         await applyRelief({
           chargeId,
-          memberId: player.member_id,
+          memberId: chargeMemberId,
           type: "match_fee",
           chargeDate: matchday.match_date,
         });
@@ -1198,18 +1282,26 @@ export function finishMatch(
         .where("status", "=", "draft")
         .execute();
 
-      // Create charges for any playing players who don't have one yet
+      // Create charges for any playing players who don't have one yet.
+      // Mirrors the confirmTeam fee loop, including the dependent path
+      // (junior rate against the parent + charge_dependent link), so a
+      // matchday finished without an explicit confirm doesn't drop
+      // junior donations.
       const uncharged = await db
         .selectFrom("matchday_player")
         .leftJoin("member", "member.id", "matchday_player.member_id")
+        .leftJoin("dependent", "dependent.id", "matchday_player.dependent_id")
         .where("matchday_player.matchday_id", "=", matchdayId)
         .where("matchday_player.status", "=", "playing")
         .where("matchday_player.charge_id", "is", null)
         .select([
           "matchday_player.id as matchdayPlayerId",
           "matchday_player.member_id",
+          "matchday_player.dependent_id",
           "matchday_player.player_name",
           "member.member_category",
+          "dependent.member_id as dependentParentId",
+          "dependent.name as dependentName",
         ])
         .execute();
 
@@ -1227,8 +1319,24 @@ export function finishMatch(
 
         const applyRelief = applyReliefIfAny(db);
         for (const player of uncharged) {
-          if (!player.member_id) continue;
-          const category = player.member_category ?? "guest";
+          let chargeMemberId: string;
+          let category: string;
+          let chargeDependentId: string | null = null;
+          let descriptionSuffix = "";
+
+          if (player.member_id) {
+            chargeMemberId = player.member_id;
+            category = player.member_category ?? "guest";
+          } else if (player.dependent_id && player.dependentParentId) {
+            chargeMemberId = player.dependentParentId;
+            category = "junior";
+            chargeDependentId = player.dependent_id;
+            descriptionSuffix = player.dependentName
+              ? ` for ${player.dependentName}`
+              : "";
+          } else {
+            continue;
+          }
 
           const rate = findFeeRate(
             feeRates,
@@ -1244,8 +1352,8 @@ export function finishMatch(
             .insertInto("charge")
             .values({
               id: chargeId,
-              member_id: player.member_id,
-              description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})`,
+              member_id: chargeMemberId,
+              description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})${descriptionSuffix}`,
               amount_pence: rate.amount_pence,
               charge_date: matchday.match_date,
               created_by: userId,
@@ -1260,20 +1368,33 @@ export function finishMatch(
             .where("id", "=", player.matchdayPlayerId)
             .execute();
 
+          if (chargeDependentId) {
+            await db
+              .insertInto("charge_dependent")
+              .values({
+                charge_id: chargeId,
+                dependent_id: chargeDependentId,
+              })
+              .execute();
+          }
+
           await applyRelief({
             chargeId,
-            memberId: player.member_id,
+            memberId: chargeMemberId,
             type: "match_fee",
             chargeDate: matchday.match_date,
           });
         }
       }
 
-      // Send notification emails for unpaid charges
+      // Send notification emails for unpaid charges. Join `member` via
+      // `charge.member_id` (not `matchday_player.member_id`) so junior
+      // donations — which sit on the parent's member row — also get a
+      // notification.
       const unpaidPlayers = await db
         .selectFrom("matchday_player")
         .innerJoin("charge", "charge.id", "matchday_player.charge_id")
-        .innerJoin("member", "member.id", "matchday_player.member_id")
+        .innerJoin("member", "member.id", "charge.member_id")
         .where("matchday_player.matchday_id", "=", matchdayId)
         .where("charge.paid_at", "is", null)
         .where("charge.deleted_at", "is", null)

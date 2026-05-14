@@ -1030,11 +1030,11 @@ export function previewNotifyRecipients(db: Kysely<DB>) {
       email: string;
       name: string | null;
       source: "filter" | "manual";
-    }> = members.map((m) => ({
-      email: m.email,
-      name: m.name,
-      source: "filter" as const,
-    }));
+    }> = members.flatMap((m) =>
+      m.email
+        ? [{ email: m.email, name: m.name, source: "filter" as const }]
+        : [],
+    );
 
     // Merge in additional emails (deduplicated)
     if (data.additionalEmails?.length) {

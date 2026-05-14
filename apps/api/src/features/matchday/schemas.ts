@@ -76,6 +76,7 @@ export const createMatchdaySchema = z.object({
 
 export const addPlayerSchema = z.object({
   memberId: z.string().optional(),
+  dependentId: z.string().optional(),
   playerName: z.string().min(1),
 });
 
@@ -185,12 +186,17 @@ export const listMatchesResponseSchema = z.object({
 const matchdayPlayerSchema = z.object({
   id: z.string(),
   member_id: z.string().nullable(),
+  dependent_id: z.string().nullable(),
   player_name: z.string(),
   status: z.string(),
   replaced_by_matchday_player_id: z.string().nullable(),
   charge_id: z.string().nullable(),
   created_at: z.string(),
   member_category: z.string().nullable(),
+  // `parent_name` is only set when this row points at a `dependent` —
+  // it gives the captain enough context to disambiguate juniors
+  // sharing a first name without pulling the whole junior record.
+  parent_name: z.string().nullable(),
   chargePaidAt: z.string().nullable(),
   // Neutral, captain-facing status. Relief is reported as "waived"
   // without naming the financial-relief mechanism — the application
@@ -340,13 +346,23 @@ export const createMatchdayResponseSchema = z.object({
 });
 
 const searchMemberItemSchema = z.object({
+  type: z.literal("member"),
   id: z.string(),
   name: z.string().nullable(),
   email: z.string().nullable(),
   member_category: z.string().nullable(),
 });
 
-export const searchMembersResponseSchema = z.array(searchMemberItemSchema);
+const searchDependentItemSchema = z.object({
+  type: z.literal("dependent"),
+  id: z.string(),
+  name: z.string(),
+  parent_name: z.string().nullable(),
+});
+
+export const searchMembersResponseSchema = z.array(
+  z.union([searchMemberItemSchema, searchDependentItemSchema]),
+);
 
 export const addPlayerResponseSchema = z.object({
   id: z.string(),

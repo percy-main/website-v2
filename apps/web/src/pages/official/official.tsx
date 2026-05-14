@@ -626,7 +626,11 @@ function MatchdayView({
   });
 
   const addPlayerMutation = useMutation({
-    mutationFn: (input: { memberId?: string; playerName: string }) =>
+    mutationFn: (input: {
+      memberId?: string;
+      dependentId?: string;
+      playerName: string;
+    }) =>
       callApi(
         api.POST("/api/matchday/{matchId}/players", {
           params: { path: { matchId: matchdayId } },
@@ -792,6 +796,9 @@ function MatchdayView({
   const searchResults = searchMembersQuery.data ?? [];
   const existingMemberIds = new Set(
     players.flatMap((p) => (p.member_id ? [p.member_id] : [])),
+  );
+  const existingDependentIds = new Set(
+    players.flatMap((p) => (p.dependent_id ? [p.dependent_id] : [])),
   );
 
   const handleStartConfirm = () => {
@@ -1136,38 +1143,66 @@ function MatchdayView({
                   )}
                   {searchResults.length > 0 && (
                     <div className="mt-2 max-h-48 overflow-y-auto rounded border border-stone-200">
-                      {searchResults.flatMap((member) =>
-                        existingMemberIds.has(member.id)
-                          ? []
-                          : [
-                              <button
-                                key={member.id}
-                                type="button"
-                                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-stone-50"
-                                disabled={addPlayerMutation.isPending}
-                                onClick={() =>
-                                  addPlayerMutation.mutate({
-                                    memberId: member.id,
-                                    playerName: member.name ?? "Unknown",
-                                  })
-                                }
-                              >
-                                <div>
-                                  <span className="font-medium">
-                                    {member.name}
-                                  </span>
-                                  {member.member_category && (
-                                    <span className="ml-2 text-xs text-stone-400 capitalize">
-                                      {member.member_category}
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="text-xs text-stone-400">
-                                  {member.email}
+                      {searchResults.flatMap((result) => {
+                        if (result.type === "member") {
+                          if (existingMemberIds.has(result.id)) return [];
+                          return [
+                            <button
+                              key={`member-${result.id}`}
+                              type="button"
+                              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-stone-50"
+                              disabled={addPlayerMutation.isPending}
+                              onClick={() =>
+                                addPlayerMutation.mutate({
+                                  memberId: result.id,
+                                  playerName: result.name ?? "Unknown",
+                                })
+                              }
+                            >
+                              <div>
+                                <span className="font-medium">
+                                  {result.name}
                                 </span>
-                              </button>,
-                            ],
-                      )}
+                                {result.member_category && (
+                                  <span className="ml-2 text-xs text-stone-400 capitalize">
+                                    {result.member_category}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs text-stone-400">
+                                {result.email}
+                              </span>
+                            </button>,
+                          ];
+                        }
+                        if (existingDependentIds.has(result.id)) return [];
+                        return [
+                          <button
+                            key={`dependent-${result.id}`}
+                            type="button"
+                            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-stone-50"
+                            disabled={addPlayerMutation.isPending}
+                            onClick={() =>
+                              addPlayerMutation.mutate({
+                                dependentId: result.id,
+                                playerName: result.name,
+                              })
+                            }
+                          >
+                            <div>
+                              <span className="font-medium">{result.name}</span>
+                              <span className="ml-2 text-xs text-stone-400 capitalize">
+                                junior
+                              </span>
+                            </div>
+                            {result.parent_name && (
+                              <span className="text-xs text-stone-400">
+                                Parent: {result.parent_name}
+                              </span>
+                            )}
+                          </button>,
+                        ];
+                      })}
                     </div>
                   )}
                 </div>

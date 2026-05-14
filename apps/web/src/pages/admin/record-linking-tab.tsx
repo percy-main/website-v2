@@ -200,23 +200,23 @@ export function RecordLinkingTab() {
 
   const playerNameById = buildPlayerNameMap(pcPlayers);
 
-  // Keep detail modal person in sync with linkingData refreshes
+  // Keep detail modal person in sync with linkingData refreshes.
+  // Depend on linkingData (stable across re-renders) rather than allPeople
+  // (a fresh array each render) — otherwise the update() call below loops.
   useEffect(() => {
-    if (detailModal && linkingData) {
-      const updated = allPeople.find(
-        (p) =>
-          p.id === detailModal.person.id && p.type === detailModal.person.type,
-      );
-      if (updated) {
-        update((s) => ({
-          detailModal: s.detailModal
-            ? { ...s.detailModal, person: updated }
-            : null,
-        }));
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- same pattern as v1
-  }, [allPeople]);
+    if (!detailModal || !linkingData) return;
+    const updated = allPeople.find(
+      (p) =>
+        p.id === detailModal.person.id && p.type === detailModal.person.type,
+    );
+    if (!updated) return;
+    update((s) =>
+      s.detailModal
+        ? { detailModal: { ...s.detailModal, person: updated } }
+        : {},
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-sync only on data refetch
+  }, [linkingData]);
 
   return (
     <div className="flex flex-col gap-4">

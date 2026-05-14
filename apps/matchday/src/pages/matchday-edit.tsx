@@ -44,7 +44,11 @@ export default function MatchdayEdit() {
   });
 
   const addPlayer = useMutation({
-    mutationFn: (vars: { memberId?: string; playerName: string }) =>
+    mutationFn: (vars: {
+      memberId?: string;
+      dependentId?: string;
+      playerName: string;
+    }) =>
       callApi(
         api.POST("/api/matchday/{matchId}/players", {
           params: { path: { matchId: matchdayId ?? "" } },
@@ -86,6 +90,9 @@ export default function MatchdayEdit() {
   const playerMemberIds = new Set(
     players.flatMap((p) => (p.member_id ? [p.member_id] : [])),
   );
+  const playerDependentIds = new Set(
+    players.flatMap((p) => (p.dependent_id ? [p.dependent_id] : [])),
+  );
 
   const candidates = searchResults.data ?? [];
 
@@ -122,24 +129,39 @@ export default function MatchdayEdit() {
         {search.length >= 2 && candidates.length > 0 && (
           <ul className="mt-2 space-y-1">
             {candidates
-              .filter((c) => !playerMemberIds.has(c.id))
+              .filter((c) =>
+                c.type === "member"
+                  ? !playerMemberIds.has(c.id)
+                  : !playerDependentIds.has(c.id),
+              )
               .slice(0, 6)
               .map((c) => (
-                <li key={c.id}>
+                <li key={`${c.type}-${c.id}`}>
                   <button
                     type="button"
                     onClick={() =>
-                      addPlayer.mutate({
-                        memberId: c.id,
-                        playerName: c.name ?? "Unknown",
-                      })
+                      addPlayer.mutate(
+                        c.type === "member"
+                          ? {
+                              memberId: c.id,
+                              playerName: c.name ?? "Unknown",
+                            }
+                          : {
+                              dependentId: c.id,
+                              playerName: c.name,
+                            },
+                      )
                     }
                     className="hover:bg-surface-raised flex w-full items-center justify-between rounded-md px-2 py-2 text-left"
                   >
                     <div>
                       <p className="text-sm font-medium">{c.name}</p>
                       <p className="text-text-secondary text-xs">
-                        {c.member_category}
+                        {c.type === "member"
+                          ? c.member_category
+                          : c.parent_name
+                            ? `junior · ${c.parent_name}`
+                            : "junior"}
                       </p>
                     </div>
                     <span className="text-navy text-xs">Add →</span>
@@ -170,11 +192,15 @@ export default function MatchdayEdit() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">
                 {p.player_name}
-                {!p.member_id && (
+                {p.dependent_id ? (
+                  <span className="text-text-secondary ml-2 text-[11px] italic">
+                    junior
+                  </span>
+                ) : !p.member_id ? (
                   <span className="text-text-secondary ml-2 text-[11px] italic">
                     guest
                   </span>
-                )}
+                ) : null}
               </p>
             </div>
             <button
