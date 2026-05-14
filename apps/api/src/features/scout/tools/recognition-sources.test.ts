@@ -155,6 +155,35 @@ describe("classifySourceType", () => {
       classifySourceType("https://somerandomblog.example/cricket", "Backworth"),
     ).toBe("other");
   });
+
+  it("does NOT classify look-alike domains as trusted (label-boundary match)", () => {
+    // CodeQL "Incomplete URL substring sanitization" — `host.endsWith` would
+    // wrongly accept these; the strict label-boundary check rejects them.
+    expect(
+      classifySourceType(
+        "https://evilplay-cricket.com/website/players/1",
+        "Percy Main",
+      ),
+    ).not.toBe("play-cricket-profile");
+    expect(
+      classifySourceType("https://attacker-ntcl.co.uk/division/4", "X"),
+    ).not.toBe("league-site");
+    expect(
+      classifySourceType("https://fake-bbc.co.uk/sport/cricket", "X"),
+    ).not.toBe("local-news");
+  });
+
+  it("DOES classify legitimate subdomains as trusted", () => {
+    expect(
+      classifySourceType(
+        "https://percymain.play-cricket.com/website/players/1",
+        "Percy Main",
+      ),
+    ).toBe("play-cricket-profile");
+    expect(
+      classifySourceType("https://www.ntcl.co.uk/div/4", "X"),
+    ).toBe("league-site");
+  });
 });
 
 describe("isPhotolessUrl", () => {
@@ -900,15 +929,17 @@ Email or mobile number ` +
     expect(calledUrls).toEqual(["https://scontent.fb.com/photo1.jpg"]);
 
     // The candidate now carries its detected face crops.
+    const isFbCandidate = (pageUrl: string) =>
+      new URL(pageUrl).hostname === "www.facebook.com";
     const fbCandidate = result.candidates.find((c) =>
-      c.pageUrl.includes("facebook.com"),
+      isFbCandidate(c.pageUrl),
     );
     expect(fbCandidate?.faces).toHaveLength(2);
     expect(fbCandidate?.faces?.[0].url).toBe("https://signed.s3/face1.jpg");
 
     // The candidate WITHOUT an imageUrl has no faces field set.
     const otherCandidate = result.candidates.find(
-      (c) => !c.pageUrl.includes("facebook.com"),
+      (c) => !isFbCandidate(c.pageUrl),
     );
     expect(otherCandidate?.faces).toBeUndefined();
   });

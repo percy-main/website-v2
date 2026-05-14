@@ -337,12 +337,12 @@ const PUBLIC_SOCIAL_HOSTS = new Set([
   "linkedin.com",
   "www.linkedin.com",
 ]);
-const KNOWN_LEAGUE_HOST_FRAGMENTS = [
-  "ntcl.co.uk",
-  "play-cricket.com/league",
-  "ecb.co.uk",
-];
-const KNOWN_NEWS_HOST_FRAGMENTS = [
+// Hostnames (NOT substring fragments) that classify as league or news
+// sites. We match strictly: the URL's host must be exactly one of these,
+// or a subdomain (label-boundary aware). Substring matches are unsafe —
+// `evil-ntcl.co.uk` shouldn't be treated as the league.
+const KNOWN_LEAGUE_HOSTS = ["ntcl.co.uk", "ecb.co.uk"];
+const KNOWN_NEWS_HOSTS = [
   "bbc.co.uk",
   "bbc.com",
   "chroniclelive.co.uk",
@@ -367,8 +367,23 @@ function pathnameOf(url: string): string {
   }
 }
 
-function includesHostFragment(host: string, fragments: string[]): boolean {
-  return fragments.some((f) => host.includes(f));
+/**
+ * Strict host suffix match — `host` is either exactly `domain` or ends with
+ * `.domain` (a subdomain). Uses the label boundary so `evil-domain.com`
+ * doesn't match `domain.com`. Prefer this over `host.endsWith(domain)`
+ * everywhere we're trying to identify a trusted source.
+ */
+function hostMatches(host: string, domain: string): boolean {
+  if (!host) return false;
+  if (host === domain) return true;
+  return host.endsWith(`.${domain}`);
+}
+
+function hostMatchesAny(
+  host: string,
+  domains: readonly string[],
+): boolean {
+  return domains.some((d) => hostMatches(host, d));
 }
 
 // Play-Cricket URL paths that carry a recognition-useful page (profile,
@@ -379,7 +394,7 @@ const PLAY_CRICKET_PHOTOLESS_PATH = /\/(results|matches|scorecards?)\//i;
 
 export function isPhotolessUrl(url: string): boolean {
   const host = hostnameOf(url);
-  if (!host.endsWith(PLAY_CRICKET_HOST)) return false;
+  if (!hostMatches(host, PLAY_CRICKET_HOST)) return false;
   return PLAY_CRICKET_PHOTOLESS_PATH.test(pathnameOf(url));
 }
 
@@ -437,16 +452,16 @@ export function classifySourceType(
 ): z.infer<typeof recognitionSourceTypeSchema> {
   const host = hostnameOf(url);
   const path = pathnameOf(url);
-  if (host.endsWith(PLAY_CRICKET_HOST)) {
+  if (hostMatches(host, PLAY_CRICKET_HOST)) {
     return "play-cricket-profile";
   }
   if (PUBLIC_SOCIAL_HOSTS.has(host)) {
     return "public-social-post";
   }
-  if (includesHostFragment(host, KNOWN_LEAGUE_HOST_FRAGMENTS)) {
+  if (hostMatchesAny(host, KNOWN_LEAGUE_HOSTS)) {
     return "league-site";
   }
-  if (includesHostFragment(host, KNOWN_NEWS_HOST_FRAGMENTS)) {
+  if (hostMatchesAny(host, KNOWN_NEWS_HOSTS)) {
     return "local-news";
   }
   // Heuristic: domain or path mentions the club's name (slugged) → club website.
