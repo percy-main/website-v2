@@ -30,14 +30,21 @@ jobs:
 
   unsafe-ddl-check:
     # Guardrail against unsafe DDL in migrations (DROP COLUMN / DROP
-    # TABLE / SET NOT NULL on existing data). Opt-out via
-    # `safe-ddl-ack: <reason>` token in any commit message.
+    # TABLE / SET NOT NULL on existing data) — but only inside the body
+    # of `up()`. A naive whole-file grep flagged every migration that
+    # added a column, because the corresponding `down()` drops it (#305).
+    # The new check parses each changed migration with the TypeScript
+    # compiler and limits the pattern scan to text spans inside `up()`.
+    # Opt-out via a `safe-ddl-ack: <reason>` token in any commit message.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - run: bash .github/scripts/check-unsafe-ddl.sh "origin/${{ github.base_ref }}"
+      # setup-deps installs the workspace and gives the script access to
+      # the root `typescript` devDep used by the AST walker.
+      - uses: ./.github/actions/setup-deps
+      - run: node .github/scripts/check-unsafe-ddl.mjs "origin/${{ github.base_ref }}"
 
   react-doctor:
     # Diff-only scan of apps/web on the PR. Any finding (warning or
