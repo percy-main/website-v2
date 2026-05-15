@@ -182,6 +182,11 @@ jobs:
     # the committed copies don't match, so a contributor who forgets to
     # run the script can't merge a PR whose API types lie about the
     # backend contract.
+    #
+    # The regen is driven by Turborepo (`api#openapi` task) with
+    # $TURBO_ROOT$ outputs pointing at the four committed files, so on
+    # a cache hit turbo restores them in milliseconds instead of
+    # re-booting Fastify + running openapi-typescript twice.
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -190,6 +195,12 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-deps
+      - uses: actions/cache@v5
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-openapi-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-openapi-
       - name: Regenerate OpenAPI spec + typed clients
         run: pnpm openapi:generate
       - name: Verify generated files match committed copies
