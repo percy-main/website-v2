@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           # The plan role is read-only (ReadOnlyAccess + extras). Drift
           # runs are scheduled / workflow_dispatch, so the OIDC subject
@@ -54,7 +54,7 @@ jobs:
           role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
 

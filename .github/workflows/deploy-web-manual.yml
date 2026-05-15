@@ -76,7 +76,7 @@ jobs:
           VITE_GA4_MEASUREMENT_ID: ${{ vars.GA4_MEASUREMENT_ID }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
