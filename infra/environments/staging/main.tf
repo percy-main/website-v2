@@ -142,10 +142,10 @@ module "ecs" {
     PHOENIX_PROJECT_NAME       = "percy-main-scout-staging"
     AWS_REGION                 = "eu-west-2"
     # Cannot reference module.ecs.* outputs that depend on the task definition
-    # here — that would cycle through the env-vars input. The cluster and family
-    # names are deterministic from the environment, so inline them.
+    # here - that would cycle through the env-vars input. The cluster and
+    # service names are deterministic from the environment, so inline them.
     SYNC_ECS_CLUSTER          = "percy-main-staging-cluster"
-    SYNC_ECS_TASK_DEFINITION  = "staging-api"
+    SYNC_ECS_SERVICE          = "staging-api"
     SYNC_ECS_SUBNETS          = join(",", module.vpc.public_subnet_ids)
     SYNC_ECS_SECURITY_GROUP   = module.vpc.ecs_security_group_id
     SYNC_ECS_ASSIGN_PUBLIC_IP = "true"

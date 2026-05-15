@@ -1,6 +1,7 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
 import { context, propagation } from "@opentelemetry/api";
 import type { Config } from "../../../config.ts";
+import { resolveActiveTaskDefinition } from "../../../lib/ecs-task-definition.ts";
 import { runIngest, type RunIngestDeps } from "./run-ingest.ts";
 
 /**
@@ -48,12 +49,11 @@ export async function launchScoutKbIngest({
   documentId,
 }: LaunchScoutKbOpts): Promise<void> {
   const cluster = config.SYNC_ECS_CLUSTER;
-  const taskDefinition = config.SYNC_ECS_TASK_DEFINITION;
+  const service = config.SYNC_ECS_SERVICE;
   const subnetsRaw = config.SYNC_ECS_SUBNETS;
   const securityGroup = config.SYNC_ECS_SECURITY_GROUP;
 
-  const ecsConfigured =
-    cluster && taskDefinition && subnetsRaw && securityGroup;
+  const ecsConfigured = cluster && service && subnetsRaw && securityGroup;
 
   if (!ecsConfigured) {
     // Dev fallback. Fire-and-forget — runIngest persists row state
@@ -74,6 +74,12 @@ export async function launchScoutKbIngest({
     .filter(Boolean);
 
   const ecs = new ECSClient({ region: config.AWS_REGION });
+
+  const taskDefinition = await resolveActiveTaskDefinition(
+    ecs,
+    cluster,
+    service,
+  );
 
   const result = await ecs.send(
     new RunTaskCommand({
