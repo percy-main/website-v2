@@ -26,6 +26,9 @@ const baseEnv = {
   VOYAGE_EMBED_MODEL: "voyage-4",
   VOYAGE_RERANK_MODEL: "rerank-2.5",
   TAVILY_API_KEY: "tvly-test",
+  PHOENIX_API_KEY: "phx-test",
+  PHOENIX_COLLECTOR_ENDPOINT: "http://localhost:6006/v1/traces",
+  PHOENIX_PROJECT_NAME: "percy-main-scout-test",
 };
 
 describe("parseConfig — defaults", () => {
@@ -73,6 +76,24 @@ describe("parseConfig — required model config", () => {
   it("rejects missing TAVILY_API_KEY", () => {
     const env = { ...baseEnv } as Record<string, string | undefined>;
     delete env.TAVILY_API_KEY;
+    expect(() => parseConfig(env)).toThrow();
+  });
+
+  it("rejects missing PHOENIX_API_KEY", () => {
+    const env = { ...baseEnv } as Record<string, string | undefined>;
+    delete env.PHOENIX_API_KEY;
+    expect(() => parseConfig(env)).toThrow();
+  });
+
+  it("rejects missing PHOENIX_COLLECTOR_ENDPOINT", () => {
+    const env = { ...baseEnv } as Record<string, string | undefined>;
+    delete env.PHOENIX_COLLECTOR_ENDPOINT;
+    expect(() => parseConfig(env)).toThrow();
+  });
+
+  it("rejects missing PHOENIX_PROJECT_NAME", () => {
+    const env = { ...baseEnv } as Record<string, string | undefined>;
+    delete env.PHOENIX_PROJECT_NAME;
     expect(() => parseConfig(env)).toThrow();
   });
 });

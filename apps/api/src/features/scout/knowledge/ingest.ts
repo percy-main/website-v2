@@ -1,3 +1,4 @@
+import type { Tracer } from "@opentelemetry/api";
 import type { DB } from "@percy-main/db";
 import type { LanguageModel } from "ai";
 import { CompiledQuery, type Kysely } from "kysely";
@@ -33,6 +34,7 @@ export interface IngestOptions {
   chunkTargetTokens: number;
   chunkOverlapTokens: number;
   embedBatchSize: number;
+  phoenixTracer: Tracer;
 }
 
 export interface IngestInput {
@@ -146,9 +148,11 @@ async function extractPages(
         );
       }
       try {
-        const text = await extractPdfText(opts.anthropicModel, {
-          bytes: input.bytes,
-        });
+        const text = await extractPdfText(
+          opts.anthropicModel,
+          opts.phoenixTracer,
+          { bytes: input.bytes },
+        );
         return [{ pageNumber: 0, text }];
       } catch (err) {
         if (err instanceof PdfExtractError)
@@ -166,6 +170,7 @@ async function extractPages(
         const caption = await captionImage(
           opts.anthropicModel,
           opts.imageCaptionMaxTokens,
+          opts.phoenixTracer,
           { bytes: input.bytes, contentType: input.contentType },
         );
         return [{ pageNumber: 0, text: caption }];

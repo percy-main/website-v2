@@ -1,3 +1,4 @@
+import type { Tracer } from "@opentelemetry/api";
 import type { DB } from "@percy-main/db";
 import { scoutReportDisplayTitle, type ReportData } from "@percy-main/shared";
 import { tool, type UIMessageStreamWriter } from "ai";
@@ -22,6 +23,7 @@ export interface GenerateReportToolDeps {
   userId: string;
   threadId: string;
   logger: FastifyBaseLogger;
+  phoenixTracer: Tracer;
 }
 
 const generateReportInputSchema = z.object({
@@ -89,6 +91,7 @@ export function createGenerateReportTool(deps: GenerateReportToolDeps) {
     userId,
     threadId,
     logger,
+    phoenixTracer,
   } = deps;
 
   return {
@@ -175,6 +178,7 @@ After this returns, a one-line confirmation is enough — say "Report queued —
               voyage,
               scoutReports,
               logger,
+              phoenixTracer,
             },
             reportId,
           });

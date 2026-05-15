@@ -20,6 +20,7 @@ import { parseConfig } from "./config.ts";
 import { createApiClient } from "./features/play-cricket/api-client.ts";
 import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runReport } from "./features/scout/report/run-report.ts";
+import { createPhoenixTracer } from "./lib/phoenix-tracer.ts";
 import { createScoutReportStore } from "./lib/s3-scout-reports.ts";
 import { withSpan } from "./lib/tracing.ts";
 import { createWorkerLogger } from "./lib/worker-logger.ts";
@@ -93,6 +94,7 @@ const voyage = config.VOYAGE_API_KEY
     })
   : undefined;
 const scoutReports = createScoutReportStore(config);
+const phoenix = createPhoenixTracer(config);
 const parentCtx = extractTraceContext();
 
 logger.info({ reportId: REPORT_ID }, "scout_report_worker_started");
@@ -113,6 +115,7 @@ try {
           voyage,
           scoutReports,
           logger,
+          phoenixTracer: phoenix.tracer,
         },
         REPORT_ID,
       ),
@@ -121,6 +124,7 @@ try {
   logger.info({ reportId: REPORT_ID }, "scout_report_worker_done");
   await db.destroy();
   await dbReadonly.destroy();
+  await phoenix.shutdown();
   process.exit(0);
 } catch (err) {
   // runReport persists the failure to the row before throwing, so this
@@ -133,5 +137,6 @@ try {
   logger.error({ err, reportId: REPORT_ID }, "scout_report_worker_failed");
   await db.destroy().catch(() => undefined);
   await dbReadonly.destroy().catch(() => undefined);
+  await phoenix.shutdown().catch(() => undefined);
   process.exit(1);
 }

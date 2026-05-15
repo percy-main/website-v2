@@ -1,5 +1,6 @@
 import { RekognitionClient } from "@aws-sdk/client-rekognition";
 import { S3Client } from "@aws-sdk/client-s3";
+import type { Tracer } from "@opentelemetry/api";
 import type { DB } from "@percy-main/db";
 import type {
   LanguageModel,
@@ -100,6 +101,10 @@ export interface ScoutAgentDeps {
   // has no native thinking knob, so the flag is a no-op when chat provider
   // is anthropic.
   thinkingMode: ThinkingMode;
+  // Arize Phoenix tracer for LLM spans. AI SDK calls below thread this
+  // through experimental_telemetry.tracer so generative spans land in the
+  // isolated Phoenix tracer provider rather than the global (New Relic) one.
+  phoenixTracer: Tracer;
 }
 
 export type ThinkingMode = "thinking" | "fast";
@@ -139,6 +144,7 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
     modelId: deps.config.SCOUT_MODEL_DB,
     maxSteps: deps.config.SCOUT_DB_AGENT_MAX_STEPS,
     logger: deps.logger,
+    phoenixTracer: deps.phoenixTracer,
   });
   // Specialist sub-agent for ball-level analytics. Same isolation as ask_db
   // (rows never reach the main chat) but a narrower allowlist + stricter
@@ -150,6 +156,7 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
     modelId: deps.config.SCOUT_MODEL_DB,
     maxSteps: deps.config.SCOUT_DB_AGENT_MAX_STEPS,
     logger: deps.logger,
+    phoenixTracer: deps.phoenixTracer,
   });
   const weatherTools = createWeatherTools({ cache });
   // Charts are useful in chat / scout answers but out of place in a debrief
@@ -200,6 +207,7 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
           userId: deps.userId,
           threadId: deps.threadId,
           logger: deps.logger,
+          phoenixTracer: deps.phoenixTracer,
         })
       : {};
   // ask_question is the inverse: only in debrief, where the agent walks

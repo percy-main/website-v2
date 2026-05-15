@@ -1,10 +1,12 @@
+import type { Tracer } from "@opentelemetry/api";
 import type { DB } from "@percy-main/db";
 import { generateText } from "ai";
 import type { Kysely } from "kysely";
 import { resolveModel, type ScoutProvider } from "./provider.ts";
+import { buildPhoenixTelemetry } from "./telemetry.ts";
 
 const TITLE_PROMPT =
-  "Title this scouting query in 4 words or fewer. Reply with just the title — no quotes, no punctuation.";
+  "Title this scouting query in 4 words or fewer. Reply with just the title - no quotes, no punctuation.";
 
 const DEFAULT_TITLE = "New thread";
 
@@ -12,6 +14,7 @@ export interface TitleDeps {
   db: Kysely<DB>;
   provider: ScoutProvider;
   modelId: string;
+  phoenixTracer: Tracer;
 }
 
 /**
@@ -36,6 +39,10 @@ export function maybeGenerateTitle(deps: TitleDeps) {
       const result = await generateText({
         model,
         prompt: `${TITLE_PROMPT}\n\nQuery: ${firstUserText.slice(0, 500)}`,
+        experimental_telemetry: buildPhoenixTelemetry(
+          deps.phoenixTracer,
+          "scout.title",
+        ),
       });
       const title = result.text
         .trim()

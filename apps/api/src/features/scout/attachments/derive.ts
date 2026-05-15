@@ -1,7 +1,9 @@
+import type { Tracer } from "@opentelemetry/api";
 import type { DB } from "@percy-main/db";
 import { generateText } from "ai";
 import type { Kysely } from "kysely";
 import { resolveModel } from "../provider.ts";
+import { buildPhoenixTelemetry } from "../telemetry.ts";
 
 export type AttachmentKind = "image" | "pdf";
 
@@ -14,6 +16,7 @@ export interface DeriveDeps {
   modelId: string;
   maxOutputTokens: number;
   derivedTextMaxBytes: number;
+  phoenixTracer: Tracer;
 }
 
 export interface DeriveInput {
@@ -68,6 +71,10 @@ export function deriveAttachment(deps: DeriveDeps) {
       result = await generateText({
         model,
         maxOutputTokens: deps.maxOutputTokens,
+        experimental_telemetry: buildPhoenixTelemetry(
+          deps.phoenixTracer,
+          `scout.attachment_derive.${input.kind}`,
+        ),
         messages: [
           {
             role: "user",

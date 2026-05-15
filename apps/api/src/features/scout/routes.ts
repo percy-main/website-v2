@@ -135,6 +135,7 @@ import {
   ThreadNotFoundError,
   unshareThread,
 } from "./service.ts";
+import { buildPhoenixTelemetry } from "./telemetry.ts";
 import { maybeGenerateTitle } from "./title.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
@@ -167,6 +168,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
     db: app.db,
     provider: app.config.SCOUT_PROVIDER_SUBAGENT,
     modelId: app.config.SCOUT_MODEL_SUBAGENT,
+    phoenixTracer: app.phoenixTracer,
   });
 
   // ── Attachments (Track 1) ──
@@ -182,6 +184,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       modelId: app.config.SCOUT_ATTACHMENT_DERIVE_MODEL,
       maxOutputTokens: app.config.SCOUT_ATTACHMENT_DERIVE_MAX_TOKENS,
       derivedTextMaxBytes: app.config.SCOUT_ATTACHMENT_DERIVED_TEXT_MAX_BYTES,
+      phoenixTracer: app.phoenixTracer,
     }),
     maxImageBytes: app.config.SCOUT_ATTACHMENT_MAX_IMAGE_BYTES,
     maxPdfBytes: app.config.SCOUT_ATTACHMENT_MAX_PDF_BYTES,
@@ -839,6 +842,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             scoutReports: app.scoutReports,
             scoutKnowledgeBase: app.scoutKnowledgeBase,
             thinkingMode,
+            phoenixTracer: app.phoenixTracer,
           });
 
           const result = streamText({
@@ -849,6 +853,11 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             stopWhen: stepCountIs(agent.maxSteps),
             prepareStep: agent.prepareStep,
             providerOptions: agent.providerOptions,
+            experimental_telemetry: buildPhoenixTelemetry(
+              app.phoenixTracer,
+              `scout.${threadMode}`,
+              { thread_id: threadId, user_id: user.id },
+            ),
             onError: ({ error }) => {
               request.log.error(
                 { err: sanitizeError(error) },
@@ -1459,6 +1468,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               scoutKnowledgeBase: app.scoutKnowledgeBase,
               config: app.config,
               logger: app.log,
+              phoenixTracer: app.phoenixTracer,
             },
             documentId: id,
           });
@@ -1618,6 +1628,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               scoutKnowledgeBase: app.scoutKnowledgeBase,
               config: app.config,
               logger: app.log,
+              phoenixTracer: app.phoenixTracer,
             },
             documentId: id,
           });
@@ -1745,6 +1756,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               scoutKnowledgeBase: app.scoutKnowledgeBase,
               config: app.config,
               logger: app.log,
+              phoenixTracer: app.phoenixTracer,
             },
             documentId: result.documentId,
           });
