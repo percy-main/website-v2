@@ -74,3 +74,5 @@ export const FantasyReminder = email<Props>("Fantasy Cricket Reminder", {
     fantasyUrl: "http://localhost:5173/members/fantasy",
   },
 })(Component);
+
+export default Component;

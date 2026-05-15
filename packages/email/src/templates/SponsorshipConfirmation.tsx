@@ -81,3 +81,5 @@ export const SponsorshipConfirmation = email<Props>(
     },
   },
 )(Component);
+
+export default Component;

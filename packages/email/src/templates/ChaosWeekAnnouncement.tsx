@@ -103,3 +103,5 @@ export const ChaosWeekAnnouncement = email<Props>(
     },
   },
 )(Component);
+
+export default Component;

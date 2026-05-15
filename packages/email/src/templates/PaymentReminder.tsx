@@ -98,3 +98,5 @@ export const PaymentReminder = email<Props>("Payment Reminder", {
     loginUrl: "http://localhost:5173/auth/login",
   },
 })(Component);
+
+export default Component;

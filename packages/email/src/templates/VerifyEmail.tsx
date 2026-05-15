@@ -64,3 +64,5 @@ export const VerifyEmail = email<Props>("Verify your email address", {
     name: "Alex",
   },
 })(Component);
+
+export default Component;
