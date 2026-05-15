@@ -41,7 +41,7 @@ jobs:
       ECS_CLUSTER: percy-main-production-cluster
       ECS_SERVICE: production-api
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
 

@@ -41,7 +41,7 @@ jobs:
       matrix:
         environment: [shared, production]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -92,7 +92,7 @@ jobs:
 
       - name: Open drift issue
         if: steps.plan.outputs.exitcode == '2'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           ENV: ${{ matrix.environment }}
         with:

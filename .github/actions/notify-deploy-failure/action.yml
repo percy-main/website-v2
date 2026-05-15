@@ -20,7 +20,7 @@ runs:
   using: composite
   steps:
     - name: Open issue + post Slack
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       env:
         JOB_NAME: ${{ inputs.job }}
         SLACK_WEBHOOK_URL: ${{ inputs.slack-webhook-url }}
