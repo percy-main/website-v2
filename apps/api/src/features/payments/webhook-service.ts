@@ -15,10 +15,10 @@ import {
   membershipSchema,
   playerSponsoredSchema,
 } from "@percy-main/shared";
-import { render } from "@react-email/render";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { createElement } from "react";
+import { render } from "react-email";
 import type Stripe from "stripe";
 import { emitMarketingEventForMembership } from "../marketing/membership-hook.ts";
 import { invoiceLinesToDuration, stripeDate } from "./stripe-utils.ts";

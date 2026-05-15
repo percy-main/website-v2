@@ -1414,7 +1414,7 @@ export function finishMatch(
         currency: "GBP",
       });
 
-      const { render } = await import("@react-email/render");
+      const { render } = await import("react-email");
       const { ChargeNotification } = await import("@percy-main/email");
 
       let emailsSent = 0;

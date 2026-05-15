@@ -28,7 +28,7 @@ import {
 const log = createNoopLogger();
 
 // We're not testing email rendering — keep the test focused on DB state.
-vi.mock("@react-email/render", () => ({
+vi.mock("react-email", () => ({
   render: vi.fn().mockResolvedValue("<html></html>"),
 }));
 

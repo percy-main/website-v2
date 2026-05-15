@@ -1,9 +1,9 @@
 import type { DB } from "@percy-main/db";
 import { AvailabilityRequest } from "@percy-main/email";
-import { render } from "@react-email/render";
 import type { FastifyBaseLogger } from "fastify";
 import type { ExpressionBuilder, Kysely } from "kysely";
 import { createElement } from "react";
+import { render } from "react-email";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type {
   AssignPlayer,

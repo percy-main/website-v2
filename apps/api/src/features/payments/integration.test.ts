@@ -28,7 +28,7 @@ vi.mock("@percy-main/email", () => ({
   },
 }));
 
-vi.mock("@react-email/render", () => ({
+vi.mock("react-email", () => ({
   render: vi.fn().mockResolvedValue("<html></html>"),
 }));
 
