@@ -911,19 +911,51 @@ resource "newrelic_cloud_aws_integrations" "main" {
   account_id        = var.newrelic_account_id
   linked_account_id = newrelic_cloud_aws_link_account.main.id
 
-  # Per-service blocks — empty config blocks accept defaults (5-min
-  # poll, all regions). Add tag filters here later if we want to
-  # narrow what gets ingested.
-  alb {}
-  cloudfront {}
-  ec2 {}
-  ecs {}
-  elb {}
-  iam {}
-  rds {}
-  route53 {}
-  s3 {}
-  ses {}
-  sns {}
-  vpc {}
+  # Per-service blocks. Polling intervals + fetch flags are pinned to
+  # the NR provider defaults rather than left as empty `{}` because the
+  # provider populates them as computed values during apply, which
+  # otherwise produces perpetual `300 -> null` drift on every plan.
+  # Add tag filters here later if we want to narrow what gets ingested.
+  alb {
+    fetch_tags               = true
+    metrics_polling_interval = 300
+  }
+  cloudfront {
+    metrics_polling_interval = 300
+  }
+  ec2 {
+    fetch_ip_addresses       = true
+    metrics_polling_interval = 300
+  }
+  ecs {
+    fetch_tags               = true
+    metrics_polling_interval = 300
+  }
+  elb {
+    fetch_tags               = true
+    metrics_polling_interval = 300
+  }
+  iam {
+    metrics_polling_interval = 3600
+  }
+  rds {
+    fetch_tags               = true
+    metrics_polling_interval = 300
+  }
+  route53 {
+    metrics_polling_interval = 300
+  }
+  s3 {
+    fetch_tags               = true
+    metrics_polling_interval = 300
+  }
+  ses {
+    metrics_polling_interval = 300
+  }
+  sns {
+    metrics_polling_interval = 300
+  }
+  vpc {
+    metrics_polling_interval = 900
+  }
 }
