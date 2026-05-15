@@ -1,5 +1,6 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
 import type { Config } from "../../config.ts";
+import { resolveActiveTaskDefinition } from "../../lib/ecs-task-definition.ts";
 
 export interface TriggerSyncResult {
   taskArn: string;
@@ -22,11 +23,11 @@ export class SyncLaunchError extends Error {
 export function triggerSync(config: Config) {
   return async (): Promise<TriggerSyncResult> => {
     const cluster = config.SYNC_ECS_CLUSTER;
-    const taskDefinition = config.SYNC_ECS_TASK_DEFINITION;
+    const service = config.SYNC_ECS_SERVICE;
     const subnetsRaw = config.SYNC_ECS_SUBNETS;
     const securityGroup = config.SYNC_ECS_SECURITY_GROUP;
 
-    if (!cluster || !taskDefinition || !subnetsRaw || !securityGroup) {
+    if (!cluster || !service || !subnetsRaw || !securityGroup) {
       throw new SyncNotConfiguredError();
     }
 
@@ -36,6 +37,12 @@ export function triggerSync(config: Config) {
       .filter(Boolean);
 
     const ecs = new ECSClient({ region: config.AWS_REGION });
+
+    const taskDefinition = await resolveActiveTaskDefinition(
+      ecs,
+      cluster,
+      service,
+    );
 
     // RunTask returns once ECS accepts task placement (typically <1s); the sync
     // itself runs entirely inside the spawned Fargate task. Hard-cap at 10s so

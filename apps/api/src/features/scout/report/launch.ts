@@ -1,6 +1,7 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
 import { context, propagation } from "@opentelemetry/api";
 import type { Config } from "../../../config.ts";
+import { resolveActiveTaskDefinition } from "../../../lib/ecs-task-definition.ts";
 import { runReport, type RunReportDeps } from "./run-report.ts";
 
 /**
@@ -67,12 +68,11 @@ export async function launchScoutReport({
   reportId,
 }: LaunchScoutReportOpts): Promise<void> {
   const cluster = config.SYNC_ECS_CLUSTER;
-  const taskDefinition = config.SYNC_ECS_TASK_DEFINITION;
+  const service = config.SYNC_ECS_SERVICE;
   const subnetsRaw = config.SYNC_ECS_SUBNETS;
   const securityGroup = config.SYNC_ECS_SECURITY_GROUP;
 
-  const ecsConfigured =
-    cluster && taskDefinition && subnetsRaw && securityGroup;
+  const ecsConfigured = cluster && service && subnetsRaw && securityGroup;
 
   if (!ecsConfigured) {
     // Dev fallback. Fire-and-forget — the row is the source of truth, so the
@@ -94,6 +94,12 @@ export async function launchScoutReport({
     .filter(Boolean);
 
   const ecs = new ECSClient({ region: config.AWS_REGION });
+
+  const taskDefinition = await resolveActiveTaskDefinition(
+    ecs,
+    cluster,
+    service,
+  );
 
   // RunTask returns once ECS accepts task placement (typically <1s). The
   // worker itself runs entirely inside the Fargate task. Hard-cap at 10s so

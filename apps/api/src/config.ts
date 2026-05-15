@@ -153,12 +153,12 @@ const configSchema = z.object({
     .default(900),
   // The KB ingestion worker reuses the API task definition + cluster /
   // subnets / security group from SYNC_ECS_*, just like the report
-  // worker — only the container command + per-task env override differ.
+  // worker - only the container command + per-task env override differ.
   // The plan called for a dedicated SCOUT_KB_WORKER_TASK_DEFINITION,
-  // but since the report worker already shares SYNC_ECS_TASK_DEFINITION
-  // with the sync task and that has held up fine, we follow the same
-  // pattern here. If KB ingest ever needs different CPU / memory we'll
-  // split task definitions then.
+  // but since the report worker already shares the API service config
+  // and that has held up fine, we follow the same pattern here. If KB
+  // ingest ever needs different CPU / memory we'll split task
+  // definitions then.
 
   // Observability (New Relic via OpenTelemetry)
   NEW_RELIC_LICENSE_KEY: z.string().optional(),
@@ -249,7 +249,12 @@ const configSchema = z.object({
   // Sync task launch (admin "Sync now" button → ECS RunTask)
   AWS_REGION: z.string().default("eu-west-2"),
   SYNC_ECS_CLUSTER: z.string().optional(),
-  SYNC_ECS_TASK_DEFINITION: z.string().optional(),
+  // Service name used to resolve the running task-def revision via
+  // DescribeServices. RunTask receives that specific revision instead
+  // of the family name, so workers always run the same image the API
+  // is running (and dodge stray Terraform-registered revisions that
+  // point at the no-longer-published `:latest` tag).
+  SYNC_ECS_SERVICE: z.string().optional(),
   SYNC_ECS_SUBNETS: z.string().optional(), // comma-separated
   SYNC_ECS_SECURITY_GROUP: z.string().optional(),
   SYNC_ECS_ASSIGN_PUBLIC_IP: z

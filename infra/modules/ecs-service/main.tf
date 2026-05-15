@@ -388,6 +388,16 @@ resource "aws_iam_role_policy" "task_run_sync" {
         Resource = "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.api.family}:*"
       },
       {
+        # Workers pin RunTask to the API service's currently-running
+        # revision so they ride the same image the live API is on,
+        # bypassing stray task-def revisions Terraform leaves behind
+        # pointing at `:latest`. Requires DescribeServices on the API
+        # service.
+        Effect   = "Allow"
+        Action   = "ecs:DescribeServices"
+        Resource = aws_ecs_service.api.id
+      },
+      {
         Effect = "Allow"
         Action = "iam:PassRole"
         Resource = [
