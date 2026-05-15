@@ -14,3 +14,7 @@ allowBuilds:
   protobufjs: false
   sharp: false
   ssh2: false
+
+# Security overrides — force transitive deps off known-vulnerable versions.
+overrides:
+  fast-xml-parser@<5.7.0: ">=5.7.0"
