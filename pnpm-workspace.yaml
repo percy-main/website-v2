@@ -18,3 +18,4 @@ allowBuilds:
 # Security overrides — force transitive deps off known-vulnerable versions.
 overrides:
   fast-xml-parser@<5.7.0: ">=5.7.0"
+  postcss@<8.5.10: ">=8.5.10"
