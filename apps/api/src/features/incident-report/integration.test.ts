@@ -17,7 +17,7 @@ const log = createNoopLogger();
 
 // Render is React-heavy; stub it out for the integration test. We're not
 // testing email rendering here — only the DB round-trip.
-vi.mock("@react-email/render", () => ({
+vi.mock("react-email", () => ({
   render: vi.fn().mockResolvedValue("<html></html>"),
 }));
 

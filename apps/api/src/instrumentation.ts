@@ -29,8 +29,7 @@ if (licenseKey) {
   const { resourceFromAttributes } = await import("@opentelemetry/resources");
   const { ATTR_SERVICE_NAME } =
     await import("@opentelemetry/semantic-conventions");
-  const { FastifyInstrumentation } =
-    await import("@opentelemetry/instrumentation-fastify");
+  const { FastifyOtelInstrumentation } = await import("@fastify/otel");
 
   const endpoint =
     process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "https://otlp.eu01.nr-data.net";
@@ -71,8 +70,12 @@ if (licenseKey) {
         },
       }),
       // Fastify-specific instrumentation for route-level spans and middleware timing
-      // (not included in the auto-instrumentations meta-package)
-      new FastifyInstrumentation(),
+      // (not included in the auto-instrumentations meta-package).
+      // registerOnInitialization auto-registers the plugin against Fastify
+      // instances at construction time, mirroring the old patch-on-import behaviour.
+      new FastifyOtelInstrumentation({
+        registerOnInitialization: true,
+      }),
     ],
   });
 

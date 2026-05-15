@@ -9,7 +9,7 @@ import {
   Img,
   Preview,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { email } from "../email.ts";
 import * as styles from "../styles.ts";
 

@@ -82,6 +82,9 @@ importers:
       '@fastify/cors':
         specifier: ^11.0.0
         version: 11.2.0
+      '@fastify/otel':
+        specifier: ^0.18.1
+        version: 0.18.1(@opentelemetry/api@1.9.1)
       '@fastify/swagger':
         specifier: ^9.7.0
         version: 9.7.0
@@ -106,9 +109,6 @@ importers:
       '@opentelemetry/exporter-trace-otlp-proto':
         specifier: ^0.218.0
         version: 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation-fastify':
-        specifier: ^0.57.0
-        version: 0.57.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources':
         specifier: ^2.7.1
         version: 2.7.1(@opentelemetry/api@1.9.1)
@@ -133,9 +133,6 @@ importers:
       '@percy-main/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@react-email/render':
-        specifier: 1.0.4
-        version: 1.0.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@react-pdf/renderer':
         specifier: ^4.5.1
         version: 4.5.1(react@19.2.4)
@@ -184,6 +181,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.4(react@19.2.4)
+      react-email:
+        specifier: ^6.1.4
+        version: 6.1.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
@@ -215,9 +215,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.2
         version: 19.2.3(@types/react@19.2.14)
-      '@types/sharp':
-        specifier: ^0.32.0
-        version: 0.32.0
       '@types/supertest':
         specifier: ^7.2.0
         version: 7.2.0
@@ -591,12 +588,6 @@ importers:
       '@aws-sdk/client-sesv2':
         specifier: ^3.1047.0
         version: 3.1047.0
-      '@react-email/components':
-        specifier: ^1.0.12
-        version: 1.0.12(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@react-email/render':
-        specifier: 1.0.4
-        version: 1.0.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -609,6 +600,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.4(react@19.2.4)
+      react-email:
+        specifier: ^6.1.4
+        version: 6.1.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
     devDependencies:
       '@react-email/ui':
         specifier: 6.1.4
@@ -625,9 +619,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.2
         version: 19.2.3(@types/react@19.2.14)
-      react-email:
-        specifier: 6.1.4
-        version: 6.1.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2129,6 +2120,11 @@ packages:
   '@fastify/merge-json-schemas@0.2.1':
     resolution: {integrity: sha512-OA3KGBCy6KtIvLf8DINC5880o5iBlDX4SxzLQS8HorJAbqluzLRn80UXU0bxZn7UOFhFgpRJDasfwn9nG4FG4A==}
 
+  '@fastify/otel@0.18.1':
+    resolution: {integrity: sha512-7TYQXrOBRwCuTiwQm/2qCPO37af011934clxBj6F7KyF9a2a9MB+aSrWv8vMVp5N8rZC1AQ4pUp8uDs5Z40UPQ==}
+    peerDependencies:
+      '@opentelemetry/api': ^1.9.0
+
   '@fastify/proxy-addr@5.1.0':
     resolution: {integrity: sha512-INS+6gh91cLUjB+PVHfu1UqcB76Sqtpyp7bnL+FYojhjygvOPA9ctiD/JDKsyD9Xgu4hUhCSJBPig/w7duNajw==}
 
@@ -2656,8 +2652,8 @@ packages:
   '@nodable/entities@2.1.0':
     resolution: {integrity: sha512-nyT7T3nbMyBI/lvr6L5TyWbFJAI9FTgVRakNoBqCD+PmID8DzFrrNdLLtHMwMszOtqZa8PAOV24ZqDnQrhQINA==}
 
-  '@opentelemetry/api-logs@0.213.0':
-    resolution: {integrity: sha512-zRM5/Qj6G84Ej3F1yt33xBVY/3tnMxtL1fiDIxYbDWYaZ/eudVw3/PBiZ8G7JwUxXxjW8gU4g6LnOyfGKYHYgw==}
+  '@opentelemetry/api-logs@0.214.0':
+    resolution: {integrity: sha512-40lSJeqYO8Uz2Yj7u94/SJWE/wONa7rmMKjI1ZcIjgf3MHNHv1OZUCrCETGuaRF62d5pQD1wKIW+L4lmSMTzZA==}
     engines: {node: '>=8.0.0'}
 
   '@opentelemetry/api-logs@0.218.0':
@@ -2826,13 +2822,6 @@ packages:
   '@opentelemetry/instrumentation-express@0.66.0':
     resolution: {integrity: sha512-G1xTh5M5shklMgIyUXWDjU2BakulKtcISaM4U5TyanvO7R4xbB3iC7YQ8QKegLXaOs81Ku8RlcIcbYRrz/82wQ==}
     engines: {node: ^18.19.0 || >=20.6.0}
-    peerDependencies:
-      '@opentelemetry/api': ^1.3.0
-
-  '@opentelemetry/instrumentation-fastify@0.57.0':
-    resolution: {integrity: sha512-D+rwRtbiOediYocpKGvY/RQTpuLsLdCVwaOREyqWViwItJGibWI7O/wgd9xIV63pMP0D9IdSy27wnARfUaotKg==}
-    engines: {node: ^18.19.0 || >=20.6.0}
-    deprecated: Deprecated in favor of @fastify/otel, maintained by the Fastify authors.
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
 
@@ -3016,8 +3005,8 @@ packages:
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
 
-  '@opentelemetry/instrumentation@0.213.0':
-    resolution: {integrity: sha512-3i9NdkET/KvQomeh7UaR/F4r9P25Rx6ooALlWXPIjypcEOUxksCmVu0zA70NBJWlrMW1rPr/LRidFAflLI+s/w==}
+  '@opentelemetry/instrumentation@0.214.0':
+    resolution: {integrity: sha512-MHqEX5Dk59cqVah5LiARMACku7jXSVk9iVDWOea4x3cr7VfdByeDCURK6o1lntT1JS/Tsovw01UJrBhN3/uC5w==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
@@ -3905,198 +3894,12 @@ packages:
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
 
-  '@react-email/body@0.3.0':
-    resolution: {integrity: sha512-uGo0BOOzjbMUo3lu+BIDWayvn5o6Xyfmnlla5VGf05n8gHMvO1ll7U4FtzWe3hxMLwt53pmc4iE0M+B5slG+Ug==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/button@0.2.1':
-    resolution: {integrity: sha512-qXyj7RZLE7POy9BMKSoqQ00tOXThjOZSUnI2Yu9i29IHngPlmrNayIWBoVKtElES7OWwypUcpiajwi1mUWx6/A==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/code-block@0.2.1':
-    resolution: {integrity: sha512-M3B7JpVH4ytgn83/ujRR1k1DQHvTeABiDM61OvAbjLRPhC/5KLHU5KkzIbbuGIrjWwxAbL1kSQzU8MhLEtSxyw==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/code-inline@0.0.6':
-    resolution: {integrity: sha512-jfhebvv3dVsp3OdPgKXnk8+e2pBiDVZejDOBFzBa/IblrAJ9cQDkN6rBD5IyEg8hTOxwbw3iaI/yZFmDmIguIA==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/column@0.0.14':
-    resolution: {integrity: sha512-f+W+Bk2AjNO77zynE33rHuQhyqVICx4RYtGX9NKsGUg0wWjdGP0qAuIkhx9Rnmk4/hFMo1fUrtYNqca9fwJdHg==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/components@1.0.12':
-    resolution: {integrity: sha512-tH18JhPDWgE+3jnYkzyB6ZrZdfNnEsFe4PwmuXmlOw4NGIysP8wPY5aXZg++pTG9qUabXg1nzX/FGHGkObH8xQ==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/container@0.0.16':
-    resolution: {integrity: sha512-QWBB56RkkU0AJ9h+qy33gfT5iuZknPC7Un/IjZv9B0QmMIK+WWacc0cH6y2SV5Cv/b99hU94fjEMOOO4enpkbQ==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/font@0.0.10':
-    resolution: {integrity: sha512-0urVSgCmQIfx5r7Xc586miBnQUVnGp3OTYUm8m5pwtQRdTRO5XrTtEfNJ3JhYhSOruV0nD8fd+dXtKXobum6tA==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/head@0.0.13':
-    resolution: {integrity: sha512-AJg6le/08Gz4tm+6MtKXqtNNyKHzmooOCdmtqmWxD7FxoAdU1eVcizhtQ0gcnVaY6ethEyE/hnEzQxt1zu5Kog==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/heading@0.0.16':
-    resolution: {integrity: sha512-jmsKnQm1ykpBzw4hCYHwBkt5pW2jScXffPeEH5ZRF5tZeF5b1pvlFTO9han7C0pCkZYo1kEvWiRtx69yfCIwuw==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/hr@0.0.12':
-    resolution: {integrity: sha512-TwmOmBDibavUQpXBxpmZYi2Iks/yeZOzFYh+di9EltMSnEabH8dMZXrl+pxNXzCgZ2XE8HY7VmUL65Lenfu5PA==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/html@0.0.12':
-    resolution: {integrity: sha512-KTShZesan+UsreU7PDUV90afrZwU5TLwYlALuCSU0OT+/U8lULNNbAUekg+tGwCnOfIKYtpDPKkAMRdYlqUznw==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/img@0.0.12':
-    resolution: {integrity: sha512-sRCpEARNVTf3FQhZOC+JTvu5r6ubiYWkT0ucYXg8ctkyi4G8QG+jgYPiNUqVeTLA2STOfmPM/nrk1nb84y6CPQ==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/link@0.0.13':
-    resolution: {integrity: sha512-lkWc/NjOcefRZMkQoSDDbuKBEBDES9aXnFEOuPH845wD3TxPwh+QTf0fStuzjoRLUZWpHnio4z7qGGRYusn/sw==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/markdown@0.0.18':
-    resolution: {integrity: sha512-gSuYK5fsMbGk87jDebqQ6fa2fKcWlkf2Dkva8kMONqLgGCq8/0d+ZQYMEJsdidIeBo3kmsnHZPrwdFB4HgjUXg==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/preview@0.0.14':
-    resolution: {integrity: sha512-aYK8q0IPkBXyMsbpMXgxazwHxYJxTrXrV95GFuu2HbEiIToMwSyUgb8HDFYwPqqfV03/jbwqlsXmFxsOd+VNaw==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/render@1.0.4':
-    resolution: {integrity: sha512-8ZXi89d8igBDE6W3zlHBa3GEDWKEUFDAa7i8MvVxnRViQuvsRbibK3ltuPgixxRI5+HgGNCSreBHQKZCkhUdyw==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-      react-dom: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/render@2.0.6':
-    resolution: {integrity: sha512-xOzaYkH3jLZKqN5MqrTXYnmqBYUnZSVbkxdb5PGGmDcK6sKDVMliaDiSwfXajRC9JtSHTcGc2tmGLHWuCgVpog==}
-    engines: {node: '>=20.0.0'}
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-      react-dom: ^18.0 || ^19.0 || ^19.0.0-rc
-
   '@react-email/render@2.0.8':
     resolution: {integrity: sha512-5udvVr3U/WuGJZfLdLBOhkzrqRWd2Q5ZYmF7ppcy7FzWcwgshdqLMNqJOXcVzAXJXg/2bm7D+WGJzTtZOZMQnQ==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
       react-dom: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/row@0.0.13':
-    resolution: {integrity: sha512-bYnOac40vIKCId7IkwuLAAsa3fKfSfqCvv6epJKmPE0JBuu5qI4FHFCl9o9dVpIIS08s/ub+Y/txoMt0dYziGw==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/section@0.0.17':
-    resolution: {integrity: sha512-qNl65ye3W0Rd5udhdORzTV9ezjb+GFqQQSae03NDzXtmJq6sqVXNWNiVolAjvJNypim+zGXmv6J9TcV5aNtE/w==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/tailwind@2.0.7':
-    resolution: {integrity: sha512-kGw80weVFXikcnCXbigTGXGWQ0MRCSYNCudcdkWxebkWYd0FG6/NPoN3V1p/u68/4+NxZwYPVi2fhnp0x23HdA==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      '@react-email/body': '>=0'
-      '@react-email/button': '>=0'
-      '@react-email/code-block': '>=0'
-      '@react-email/code-inline': '>=0'
-      '@react-email/container': '>=0'
-      '@react-email/heading': '>=0'
-      '@react-email/hr': '>=0'
-      '@react-email/img': '>=0'
-      '@react-email/link': '>=0'
-      '@react-email/preview': '>=0'
-      '@react-email/text': '>=0'
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-    peerDependenciesMeta:
-      '@react-email/body':
-        optional: true
-      '@react-email/button':
-        optional: true
-      '@react-email/code-block':
-        optional: true
-      '@react-email/code-inline':
-        optional: true
-      '@react-email/container':
-        optional: true
-      '@react-email/heading':
-        optional: true
-      '@react-email/hr':
-        optional: true
-      '@react-email/img':
-        optional: true
-      '@react-email/link':
-        optional: true
-      '@react-email/preview':
-        optional: true
-
-  '@react-email/text@0.1.6':
-    resolution: {integrity: sha512-TYqkioRS45wTR5il3dYk/SbUjjEdhSwh9BtRNB99qNH1pXAwA45H7rAuxehiu8iJQJH0IyIr+6n62gBz9ezmsw==}
-    engines: {node: '>=20.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/ui@6.1.4':
     resolution: {integrity: sha512-FyMCx7uNV0ugZY9ZWNAnWFTrXnYOhRQm97ybbZapJCQLu6uhZHmluXv2HcsSZ0RaMAzuLJgw0ziLQjq4uYEiNg==}
@@ -5130,10 +4933,6 @@ packages:
 
   '@types/resolve@1.20.2':
     resolution: {integrity: sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q==}
-
-  '@types/sharp@0.32.0':
-    resolution: {integrity: sha512-OOi3kL+FZDnPhVzsfD37J88FNeZh6gQsGcLc95NbeURRGvmSjeXiDcyWzF2o3yh/gQAUn2uhh/e+CPCa5nwAxw==}
-    deprecated: This is a stub types definition. sharp provides its own type definitions, so you do not need this installed.
 
   '@types/ssh2-streams@0.1.13':
     resolution: {integrity: sha512-faHyY3brO9oLEA0QlcO8N2wT7R0+1sHWZvQ+y3rMLwdY1ZyS1z0W3t65j9PqT4HmQ6ALzNe7RZlNuCNE0wBSWA==}
@@ -6399,9 +6198,6 @@ packages:
 
   fast-decode-uri-component@1.0.1:
     resolution: {integrity: sha512-WKgKWg5eUxvRZGwW8FvfbaH7AXSh2cL+3j5fMGzUMCxWBJ3dV3a7Wz8y2f/uQ0e3B6WmodD3oS54jTQ9HVTIIg==}
-
-  fast-deep-equal@2.0.1:
-    resolution: {integrity: sha512-bCK/2Z4zLidyB4ReuIsvALH6w31YfAQDmXMqMx6FyfHqvBxtjC0eRumeSu4Bs3XtXwpyIywtSTrVT99BxY1f9w==}
 
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
@@ -8048,11 +7844,6 @@ packages:
       prettier-plugin-svelte:
         optional: true
 
-  prettier@3.4.2:
-    resolution: {integrity: sha512-e9MewbtFo+Fevyuxn/4rrcDAaq0IYxPGLvObpQjiZBMAzB9IGmzlnG9RZy3FFas+eBMu2vA0CszMeduow5dIuQ==}
-    engines: {node: '>=14'}
-    hasBin: true
-
   prettier@3.8.3:
     resolution: {integrity: sha512-7igPTM53cGHMW8xWuVTydi2KO233VFiTNyF5hLJqpilHfmn8C8gPf+PS7dUT64YcXFbiMGZxS9pCSxL/Dxm/Jw==}
     engines: {node: '>=14'}
@@ -8187,9 +7978,6 @@ packages:
     peerDependencies:
       '@types/react': '>=18'
       react: '>=18'
-
-  react-promise-suspense@0.3.4:
-    resolution: {integrity: sha512-I42jl7L3Ze6kZaq+7zXWSunBa3b1on5yfvUW6Eo/3fFOj6dZ5Bqmcd264nJbTK/gn1HjjILAjSwnZbV4RpSaNQ==}
 
   react-qr-code@2.0.18:
     resolution: {integrity: sha512-v1Jqz7urLMhkO6jkgJuBYhnqvXagzceg3qJUWayuCK/c6LTIonpWbwxR1f1APGd4xrW/QcQEovNrAojbUz65Tg==}
@@ -11771,6 +11559,16 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
+  '@fastify/otel@0.18.1(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/instrumentation': 0.214.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/semantic-conventions': 1.41.1
+      minimatch: 10.2.5
+    transitivePeerDependencies:
+      - supports-color
+
   '@fastify/proxy-addr@5.1.0':
     dependencies:
       '@fastify/forwarded': 3.0.1
@@ -12247,9 +12045,9 @@ snapshots:
 
   '@nodable/entities@2.1.0': {}
 
-  '@opentelemetry/api-logs@0.213.0':
+  '@opentelemetry/api-logs@0.214.0':
     dependencies:
-      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/api': 1.9.1
 
   '@opentelemetry/api-logs@0.218.0':
     dependencies:
@@ -12327,12 +12125,12 @@ snapshots:
   '@opentelemetry/core@2.6.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
 
   '@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
 
   '@opentelemetry/exporter-logs-otlp-grpc@0.218.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -12401,7 +12199,7 @@ snapshots:
       '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-metrics': 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
 
   '@opentelemetry/exporter-trace-otlp-grpc@0.218.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -12438,14 +12236,14 @@ snapshots:
       '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
 
   '@opentelemetry/instrumentation-amqplib@0.65.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12453,7 +12251,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
       '@types/aws-lambda': 8.10.161
     transitivePeerDependencies:
       - supports-color
@@ -12461,9 +12259,9 @@ snapshots:
   '@opentelemetry/instrumentation-aws-sdk@0.73.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12480,16 +12278,16 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
   '@opentelemetry/instrumentation-connect@0.61.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
       '@types/connect': 3.4.38
     transitivePeerDependencies:
       - supports-color
@@ -12498,7 +12296,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12519,25 +12317,16 @@ snapshots:
   '@opentelemetry/instrumentation-express@0.66.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
-    transitivePeerDependencies:
-      - supports-color
-
-  '@opentelemetry/instrumentation-fastify@0.57.0(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation': 0.213.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
   '@opentelemetry/instrumentation-fs@0.37.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
     transitivePeerDependencies:
       - supports-color
@@ -12560,16 +12349,16 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
   '@opentelemetry/instrumentation-hapi@0.64.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12578,7 +12367,7 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
       forwarded-parse: 2.1.2
     transitivePeerDependencies:
       - supports-color
@@ -12588,7 +12377,7 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/redis-common': 0.38.3
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12596,7 +12385,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12604,16 +12393,16 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
   '@opentelemetry/instrumentation-koa@0.66.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12628,7 +12417,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
       '@types/memcached': 2.2.10
     transitivePeerDependencies:
       - supports-color
@@ -12637,16 +12426,16 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
   '@opentelemetry/instrumentation-mongoose@0.64.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12654,7 +12443,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
       '@opentelemetry/sql-common': 0.41.2(@opentelemetry/api@1.9.1)
     transitivePeerDependencies:
       - supports-color
@@ -12663,7 +12452,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
       '@types/mysql': 2.15.27
     transitivePeerDependencies:
       - supports-color
@@ -12672,7 +12461,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12680,7 +12469,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12689,7 +12478,7 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.218.0
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12697,7 +12486,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
       '@types/oracledb': 6.5.2
     transitivePeerDependencies:
       - supports-color
@@ -12705,9 +12494,9 @@ snapshots:
   '@opentelemetry/instrumentation-pg@0.70.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
       '@opentelemetry/sql-common': 0.41.2(@opentelemetry/api@1.9.1)
       '@types/pg': 8.15.6
       '@types/pg-pool': 2.0.7
@@ -12718,7 +12507,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.218.0
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
     transitivePeerDependencies:
       - supports-color
@@ -12728,16 +12517,16 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/redis-common': 0.38.3
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
   '@opentelemetry/instrumentation-restify@0.63.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12745,7 +12534,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12753,7 +12542,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.218.0
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
     transitivePeerDependencies:
       - supports-color
@@ -12769,7 +12558,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
       '@types/tedious': 4.0.14
     transitivePeerDependencies:
       - supports-color
@@ -12777,9 +12566,9 @@ snapshots:
   '@opentelemetry/instrumentation-undici@0.28.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12791,10 +12580,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@opentelemetry/instrumentation@0.213.0(@opentelemetry/api@1.9.1)':
+  '@opentelemetry/instrumentation@0.214.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/api-logs': 0.213.0
+      '@opentelemetry/api-logs': 0.214.0
       import-in-the-middle: 3.0.0
       require-in-the-middle: 8.0.1
     transitivePeerDependencies:
@@ -12848,33 +12637,33 @@ snapshots:
   '@opentelemetry/resource-detector-alibaba-cloud@0.33.8(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.6.0(@opentelemetry/api@1.9.1)
 
   '@opentelemetry/resource-detector-aws@2.18.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.6.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
 
   '@opentelemetry/resource-detector-azure@0.26.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.6.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
 
   '@opentelemetry/resource-detector-container@0.8.9(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.6.0(@opentelemetry/api@1.9.1)
 
   '@opentelemetry/resource-detector-gcp@0.53.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.6.0(@opentelemetry/api@1.9.1)
       gcp-metadata: 8.1.2
     transitivePeerDependencies:
@@ -12884,7 +12673,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
 
   '@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -12942,7 +12731,7 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
+      '@opentelemetry/semantic-conventions': 1.41.1
 
   '@opentelemetry/sdk-trace-node@2.7.1(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -12958,7 +12747,7 @@ snapshots:
   '@opentelemetry/sql-common@0.41.2(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
 
   '@oxc-parser/binding-android-arm-eabi@0.128.0':
     optional: true
@@ -13580,144 +13369,12 @@ snapshots:
 
   '@radix-ui/rect@1.1.1': {}
 
-  '@react-email/body@0.3.0(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/button@0.2.1(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/code-block@0.2.1(react@19.2.4)':
-    dependencies:
-      prismjs: 1.30.0
-      react: 19.2.4
-
-  '@react-email/code-inline@0.0.6(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/column@0.0.14(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/components@1.0.12(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      '@react-email/body': 0.3.0(react@19.2.4)
-      '@react-email/button': 0.2.1(react@19.2.4)
-      '@react-email/code-block': 0.2.1(react@19.2.4)
-      '@react-email/code-inline': 0.0.6(react@19.2.4)
-      '@react-email/column': 0.0.14(react@19.2.4)
-      '@react-email/container': 0.0.16(react@19.2.4)
-      '@react-email/font': 0.0.10(react@19.2.4)
-      '@react-email/head': 0.0.13(react@19.2.4)
-      '@react-email/heading': 0.0.16(react@19.2.4)
-      '@react-email/hr': 0.0.12(react@19.2.4)
-      '@react-email/html': 0.0.12(react@19.2.4)
-      '@react-email/img': 0.0.12(react@19.2.4)
-      '@react-email/link': 0.0.13(react@19.2.4)
-      '@react-email/markdown': 0.0.18(react@19.2.4)
-      '@react-email/preview': 0.0.14(react@19.2.4)
-      '@react-email/render': 2.0.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@react-email/row': 0.0.13(react@19.2.4)
-      '@react-email/section': 0.0.17(react@19.2.4)
-      '@react-email/tailwind': 2.0.7(@react-email/body@0.3.0(react@19.2.4))(@react-email/button@0.2.1(react@19.2.4))(@react-email/code-block@0.2.1(react@19.2.4))(@react-email/code-inline@0.0.6(react@19.2.4))(@react-email/container@0.0.16(react@19.2.4))(@react-email/heading@0.0.16(react@19.2.4))(@react-email/hr@0.0.12(react@19.2.4))(@react-email/img@0.0.12(react@19.2.4))(@react-email/link@0.0.13(react@19.2.4))(@react-email/preview@0.0.14(react@19.2.4))(@react-email/text@0.1.6(react@19.2.4))(react@19.2.4)
-      '@react-email/text': 0.1.6(react@19.2.4)
-      react: 19.2.4
-    transitivePeerDependencies:
-      - react-dom
-
-  '@react-email/container@0.0.16(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/font@0.0.10(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/head@0.0.13(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/heading@0.0.16(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/hr@0.0.12(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/html@0.0.12(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/img@0.0.12(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/link@0.0.13(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/markdown@0.0.18(react@19.2.4)':
-    dependencies:
-      marked: 15.0.12
-      react: 19.2.4
-
-  '@react-email/preview@0.0.14(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/render@1.0.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      html-to-text: 9.0.5
-      prettier: 3.4.2
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-      react-promise-suspense: 0.3.4
-
-  '@react-email/render@2.0.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      html-to-text: 9.0.5
-      prettier: 3.8.3
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-
   '@react-email/render@2.0.8(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       html-to-text: 9.0.5
       prettier: 3.8.3
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-
-  '@react-email/row@0.0.13(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/section@0.0.17(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-
-  '@react-email/tailwind@2.0.7(@react-email/body@0.3.0(react@19.2.4))(@react-email/button@0.2.1(react@19.2.4))(@react-email/code-block@0.2.1(react@19.2.4))(@react-email/code-inline@0.0.6(react@19.2.4))(@react-email/container@0.0.16(react@19.2.4))(@react-email/heading@0.0.16(react@19.2.4))(@react-email/hr@0.0.12(react@19.2.4))(@react-email/img@0.0.12(react@19.2.4))(@react-email/link@0.0.13(react@19.2.4))(@react-email/preview@0.0.14(react@19.2.4))(@react-email/text@0.1.6(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      '@react-email/text': 0.1.6(react@19.2.4)
-      react: 19.2.4
-      tailwindcss: 4.3.0
-    optionalDependencies:
-      '@react-email/body': 0.3.0(react@19.2.4)
-      '@react-email/button': 0.2.1(react@19.2.4)
-      '@react-email/code-block': 0.2.1(react@19.2.4)
-      '@react-email/code-inline': 0.0.6(react@19.2.4)
-      '@react-email/container': 0.0.16(react@19.2.4)
-      '@react-email/heading': 0.0.16(react@19.2.4)
-      '@react-email/hr': 0.0.12(react@19.2.4)
-      '@react-email/img': 0.0.12(react@19.2.4)
-      '@react-email/link': 0.0.13(react@19.2.4)
-      '@react-email/preview': 0.0.14(react@19.2.4)
-
-  '@react-email/text@0.1.6(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
 
   '@react-email/ui@6.1.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
@@ -14923,10 +14580,6 @@ snapshots:
       csstype: 3.2.3
 
   '@types/resolve@1.20.2': {}
-
-  '@types/sharp@0.32.0':
-    dependencies:
-      sharp: 0.34.5
 
   '@types/ssh2-streams@0.1.13':
     dependencies:
@@ -16376,8 +16029,6 @@ snapshots:
   fast-copy@4.0.2: {}
 
   fast-decode-uri-component@1.0.1: {}
-
-  fast-deep-equal@2.0.1: {}
 
   fast-deep-equal@3.1.3: {}
 
@@ -18379,8 +18030,6 @@ snapshots:
     optionalDependencies:
       prettier-plugin-organize-imports: 4.3.0(prettier@3.8.3)(typescript@5.9.3)
 
-  prettier@3.4.2: {}
-
   prettier@3.8.3: {}
 
   pretty-bytes@5.6.0: {}
@@ -18552,10 +18201,6 @@ snapshots:
       vfile: 6.0.3
     transitivePeerDependencies:
       - supports-color
-
-  react-promise-suspense@0.3.4:
-    dependencies:
-      fast-deep-equal: 2.0.1
 
   react-qr-code@2.0.18(react@19.2.4):
     dependencies:

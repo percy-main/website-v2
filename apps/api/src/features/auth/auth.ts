@@ -3,12 +3,12 @@ import { passkey } from "@better-auth/passkey";
 import type { DB } from "@percy-main/db";
 import { ResetPassword, VerifyEmail, type Email } from "@percy-main/email";
 import { ac, roles } from "@percy-main/shared/auth/permissions";
-import { render } from "@react-email/render";
 import { betterAuth } from "better-auth";
 import { admin, twoFactor } from "better-auth/plugins";
 import type { FastifyBaseLogger } from "fastify";
 import { type Kysely, type PostgresDialect } from "kysely";
 import { createElement } from "react";
+import { render } from "react-email";
 import type { Config } from "../../config.ts";
 
 export function createAuth(
