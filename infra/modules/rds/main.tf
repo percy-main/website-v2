@@ -62,6 +62,12 @@ variable "enable_event_subscription" {
   description = "Create a dedicated SNS topic + event subscription for RDS events (backup failures, maintenance, low storage). Operators subscribe to the topic out of band."
 }
 
+variable "master_secret_break_glass_principal_arns" {
+  type        = list(string)
+  default     = []
+  description = "When non-empty, attach a resource policy to the RDS master credentials secret that denies GetSecretValue from any principal not in this list. Used to make the master credentials break-glass-only once app_rw + app_ddl take over runtime + migration (#130). Leave empty to keep the existing permissive IAM-only access. Both IAM-attached perms AND a matching principal here are required to read."
+}
+
 # -----------------------------------------------------------------------------
 # Locals
 # -----------------------------------------------------------------------------
@@ -85,6 +91,33 @@ resource "random_password" "db" {
   length           = 32
   special          = true
   override_special = "!#$%&*()-_=+[]{}|:?"
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
+# Application role passwords (#130 — principle of least privilege).
+# Alphanumeric only — these get embedded in DATABASE_URL strings and
+# we want to avoid URL-encoding round-trips. 32 chars × 62-symbol
+# alphabet ≈ 190 bits of entropy, well above what RDS needs.
+#
+# The roles themselves are created NOLOGIN by the role-split migration;
+# operators set LOGIN + the password from these secrets via psql over
+# Tailscale once after first apply. See docs/adrs/ for the bootstrap
+# runbook. After that, the roles' passwords live in Postgres itself.
+resource "random_password" "app_rw" {
+  length  = 32
+  special = false
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
+resource "random_password" "app_ddl" {
+  length  = 32
+  special = false
 
   lifecycle {
     ignore_changes = all
@@ -266,6 +299,89 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
   })
 }
 
+# Break-glass-only access to the master credentials secret. Active once
+# app_rw + app_ddl have taken over the runtime + migration paths
+# (#130). Without this, the existing IAM-only allow on `*percy-main*`
+# means any role with that policy can still read the master — which
+# defeats the role split. The deny here applies to all principals NOT
+# in the allowlist, so the task-execution role can no longer fetch
+# master credentials even though its IAM policy still allows it.
+resource "aws_secretsmanager_secret_policy" "db_credentials_break_glass" {
+  count = length(var.master_secret_break_glass_principal_arns) > 0 ? 1 : 0
+
+  secret_arn = aws_secretsmanager_secret.db_credentials.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "DenyAllExceptBreakGlass"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "secretsmanager:GetSecretValue"
+        Resource  = "*"
+        Condition = {
+          ArnNotEquals = {
+            "aws:PrincipalArn" = var.master_secret_break_glass_principal_arns
+          }
+        }
+      }
+    ]
+  })
+}
+
+# ---------------------------------------------------------------------------
+# Secrets Manager — app_rw and app_ddl credentials (#130)
+# Each secret stores the JSON shape Postgres clients need plus a
+# pre-built DATABASE_URL so the ECS task definition can reference a
+# single JSON key (`...:DATABASE_URL::`) directly, avoiding URL
+# assembly in app code.
+# ---------------------------------------------------------------------------
+
+resource "aws_secretsmanager_secret" "db_credentials_app_rw" {
+  name        = "${local.name_prefix}/rds/app_rw"
+  description = "App runtime (CRUD only) credentials for ${local.name_prefix}"
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-db-credentials-app-rw"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "db_credentials_app_rw" {
+  secret_id = aws_secretsmanager_secret.db_credentials_app_rw.id
+
+  secret_string = jsonencode({
+    username     = "app_rw"
+    password     = random_password.app_rw.result
+    host         = aws_db_instance.main.address
+    port         = aws_db_instance.main.port
+    dbname       = aws_db_instance.main.db_name
+    DATABASE_URL = "postgres://app_rw:${random_password.app_rw.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${aws_db_instance.main.db_name}"
+  })
+}
+
+resource "aws_secretsmanager_secret" "db_credentials_app_ddl" {
+  name        = "${local.name_prefix}/rds/app_ddl"
+  description = "Migration runner (DDL) credentials for ${local.name_prefix}"
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-db-credentials-app-ddl"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "db_credentials_app_ddl" {
+  secret_id = aws_secretsmanager_secret.db_credentials_app_ddl.id
+
+  secret_string = jsonencode({
+    username     = "app_ddl"
+    password     = random_password.app_ddl.result
+    host         = aws_db_instance.main.address
+    port         = aws_db_instance.main.port
+    dbname       = aws_db_instance.main.db_name
+    DATABASE_URL = "postgres://app_ddl:${random_password.app_ddl.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${aws_db_instance.main.db_name}"
+  })
+}
+
 # -----------------------------------------------------------------------------
 # Outputs
 # -----------------------------------------------------------------------------
@@ -288,6 +404,16 @@ output "database_name" {
 output "secret_arn" {
   description = "ARN of the Secrets Manager secret storing DB credentials"
   value       = aws_secretsmanager_secret.db_credentials.arn
+}
+
+output "app_rw_secret_arn" {
+  description = "ARN of the Secrets Manager secret storing app_rw (CRUD runtime) credentials"
+  value       = aws_secretsmanager_secret.db_credentials_app_rw.arn
+}
+
+output "app_ddl_secret_arn" {
+  description = "ARN of the Secrets Manager secret storing app_ddl (migration) credentials"
+  value       = aws_secretsmanager_secret.db_credentials_app_ddl.arn
 }
 
 output "instance_id" {

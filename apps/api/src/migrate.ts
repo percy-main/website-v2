@@ -20,9 +20,19 @@ import { createWorkerLogger } from "./lib/worker-logger.ts";
 
 const logger = createWorkerLogger("migrate");
 
-const DATABASE_URL = process.env.DATABASE_URL;
+// The migration runner connects as a DDL-privileged role (app_ddl), not
+// the runtime CRUD role (app_rw). Prefer DATABASE_MIGRATION_URL if set;
+// fall back to DATABASE_URL for environments that haven't split yet
+// (local dev with the percy superuser, single-URL CI). See ADR on
+// principle-of-least-privilege DB roles for the split rationale.
+const DATABASE_URL =
+  process.env.DATABASE_MIGRATION_URL ?? process.env.DATABASE_URL;
 
-if (!DATABASE_URL) throw new Error("Missing required env var: DATABASE_URL");
+if (!DATABASE_URL) {
+  throw new Error(
+    "Missing required env var: set DATABASE_MIGRATION_URL or DATABASE_URL",
+  );
+}
 
 // Bound the time we'll wait for an ACCESS EXCLUSIVE lock and the time
 // any single statement can run. Without these, a migration that races

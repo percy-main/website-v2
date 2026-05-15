@@ -398,7 +398,12 @@ data "aws_iam_policy_document" "deploy_ecs" {
       "ecs:RunTask",
     ]
     resources = [
+      # `*-api:*` catches the long-running API service task def
+      # (e.g. production-api), `*-api-migrate:*` catches the
+      # migration runner task def added in #130 for principle-of-
+      # least-privilege role separation.
       "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/*-api:*",
+      "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/*-api-migrate:*",
     ]
   }
 
