@@ -869,6 +869,128 @@ resource "aws_sns_topic_policy" "security_events_us_east_1" {
   policy   = data.aws_iam_policy_document.security_events_us_east_1_topic.json
 }
 
+# -----------------------------------------------------------------------------
+# DB master break-glass role (#130 / ADR 043)
+#
+# Reading the RDS master credentials secret should be a deliberate,
+# audited act — not something the day-to-day admin IAM can do silently.
+# Solution: a dedicated IAM role with a single permission
+# (`secretsmanager:GetSecretValue` on the master credentials secret).
+# Admins assume it via `aws sts assume-role` when they need master;
+# the assumption itself is the audit point — every use shows up in
+# CloudTrail as an `AssumeRole` on this role, and EventBridge alarms
+# fire to the security_events topic.
+#
+# Trust policy allows any IAM principal in this account that proves
+# MFA. We rely on user-side IAM (admin group) to gate who actually
+# carries `sts:AssumeRole` perms. Session capped at 1h because
+# break-glass should be quick.
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_role" "db_break_glass" {
+  name                 = "percy-main-db-break-glass"
+  description          = "Break-glass access to the RDS master credentials secret. Assumption is the audit point — every use is logged in CloudTrail and alarms to security_events."
+  max_session_duration = 3600
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action = "sts:AssumeRole"
+        Condition = {
+          Bool = {
+            "aws:MultiFactorAuthPresent" = "true"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Environment = "shared"
+    Module      = "shared"
+    ManagedBy   = "terraform"
+    Purpose     = "db-master-break-glass"
+  }
+}
+
+# Single permission: read the master credentials secret. Secret ARN
+# carries the Secrets-Manager-suffix (`-XXXXXX`) which is created at
+# secret-creation time; use a wildcard so this policy doesn't have to
+# be rewritten if the secret is ever recreated.
+resource "aws_iam_role_policy" "db_break_glass_read_master" {
+  name = "read-rds-master-credentials"
+  role = aws_iam_role.db_break_glass.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "secretsmanager:GetSecretValue"
+        Resource = "arn:aws:secretsmanager:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:secret:percy-main-production/rds/credentials-*"
+      }
+    ]
+  })
+}
+
+# Alarm on every assumption. STS AssumeRole events land in the region
+# where the call was made — admins on this account call regional STS
+# endpoints (the post-2019 default) so eu-west-2 is the right home.
+# For belt-and-braces (global-endpoint callers, federated console)
+# we also wire a us-east-1 rule below.
+resource "aws_cloudwatch_event_rule" "db_break_glass_assume" {
+  name        = "percy-main-shared-db-break-glass-assumed"
+  description = "Someone assumed the DB master break-glass role (#130 / ADR 043)."
+
+  event_pattern = jsonencode({
+    source        = ["aws.sts"]
+    "detail-type" = ["AWS API Call via CloudTrail"]
+    detail = {
+      eventSource = ["sts.amazonaws.com"]
+      eventName   = ["AssumeRole"]
+      requestParameters = {
+        roleArn = [aws_iam_role.db_break_glass.arn]
+      }
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "db_break_glass_assume_to_sns" {
+  rule      = aws_cloudwatch_event_rule.db_break_glass_assume.name
+  target_id = "sns"
+  arn       = aws_sns_topic.security_events.arn
+}
+
+resource "aws_cloudwatch_event_rule" "db_break_glass_assume_us_east_1" {
+  provider    = aws.us_east_1
+  name        = "percy-main-shared-db-break-glass-assumed"
+  description = "Someone assumed the DB master break-glass role (#130 / ADR 043) via a global / us-east-1 STS endpoint."
+
+  event_pattern = jsonencode({
+    source        = ["aws.sts"]
+    "detail-type" = ["AWS API Call via CloudTrail"]
+    detail = {
+      eventSource = ["sts.amazonaws.com"]
+      eventName   = ["AssumeRole"]
+      requestParameters = {
+        roleArn = [aws_iam_role.db_break_glass.arn]
+      }
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "db_break_glass_assume_to_sns_us_east_1" {
+  provider  = aws.us_east_1
+  rule      = aws_cloudwatch_event_rule.db_break_glass_assume_us_east_1.name
+  target_id = "sns"
+  arn       = aws_sns_topic.security_events_us_east_1.arn
+}
+
 
 # -----------------------------------------------------------------------------
 # New Relic ↔ AWS account integration (API poll)

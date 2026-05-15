@@ -49,7 +49,7 @@ Required once, after the PR merges and CI applies. The cutover flag stays `false
      --query SecretString --output text | jq -r .password
    ```
 
-3. **Set `LOGIN` + password on each role over Tailscale.** From an admin laptop on the tailnet:
+3. **Set `LOGIN` + password on each role over Tailscale.** The master password is still freely readable at this stage (the deny policy turns on with the flag at step 4). From an admin laptop on the tailnet:
 
    ```sh
    PGPASSWORD=<master> psql -h <rds-host> -U percy -d percy_main <<'SQL'
@@ -65,7 +65,7 @@ Required once, after the PR merges and CI applies. The cutover flag stays `false
    PGPASSWORD=<app_ddl_password> psql -h <rds-host> -U app_ddl -d percy_main -c 'SELECT 1'
    ```
 
-4. **Flip the cutover flag.** One-line PR: set `app_rw_active = true` in `infra/environments/production/variables.tf` (and populate `master_db_break_glass_principal_arns` with at least one IAM principal — typically a named admin role on the tailnet). CI applies → API task def re-registers with `DATABASE_URL → app_rw` → next deploy uses the split.
+4. **Flip the cutover flag.** One-line PR: set `app_rw_active = true` in `infra/environments/production/variables.tf`. CI applies → API task def re-registers with `DATABASE_URL → app_rw` → next deploy uses the split, and the master credentials secret gets its deny-all-except-break-glass-role resource policy. `master_db_break_glass_principal_arns` stays empty by default — the dedicated break-glass IAM role is the standard access path.
 
 5. **(Optional) Rotate the master password.** Once the app is running against `app_rw` and `app_ddl` for at least one full deploy cycle:
 
@@ -83,17 +83,32 @@ Required once, after the PR merges and CI applies. The cutover flag stays `false
 
 The master credentials secret has a resource policy (when `app_rw_active = true`) that denies `GetSecretValue` from every principal except:
 
-- the two Terraform roles (`terraform_role_arn`, `terraform_plan_role_arn`) — required for `aws_secretsmanager_secret_version.db_credentials` refresh/plan ops; without this exemption Terraform breaks. Accepted as a documented trade-off: those roles are hardened, audited, and not held by humans day-to-day.
-- the principals listed in `master_db_break_glass_principal_arns` — the named human admins.
+- **`percy-main-db-break-glass`** — a dedicated IAM role with one permission: `secretsmanager:GetSecretValue` on the master credentials secret. Admins assume it on demand; the assumption is the audit point. Trust policy accepts any IAM principal in the account that proves MFA, so admin IAM remains the gate on _who can use it_. Session capped at 1h.
+- the two Terraform roles (`terraform_role_arn`, `terraform_plan_role_arn`) — required for `aws_secretsmanager_secret_version.db_credentials` refresh / plan ops; without this exemption Terraform breaks. Accepted as a documented trade-off: those roles are hardened, audited, and not held by humans day-to-day.
+- any extra principals listed in `master_db_break_glass_principal_arns` (default empty) — escape hatch for one-off auditor / vendor access.
+
+Every assumption of the break-glass role fires an EventBridge → SNS event on `percy-main-shared-security-events` (eu-west-2 + us-east-1). Subscribe an email or Slack target to that topic so an unexpected `AssumeRole` is visible within seconds, not on a quarterly audit review.
 
 Recovery flow:
 
-1. Admin assumes the IAM principal in the allowlist (typically via SSO + a named admin role).
-2. `aws secretsmanager get-secret-value --secret-id …/rds/credentials` returns the master password.
-3. Connect over Tailscale as `percy`. Do the recovery work (schema repair, role unbreak, password reset).
-4. After resolution, rotate the master password and the app_rw/app_ddl passwords if there's any chance they were exposed.
+1. Admin assumes the break-glass role (must be MFA-authenticated):
 
-The allowlist is intentionally small — the secret is no longer a credential the app needs, it's an emergency escape hatch.
+   ```sh
+   aws sts assume-role \
+     --role-arn arn:aws:iam::<account>:role/percy-main-db-break-glass \
+     --role-session-name "incident-$(date +%Y%m%d-%H%M)-<short-reason>" \
+     --duration-seconds 1800
+   ```
+
+   Export the returned `AccessKeyId` / `SecretAccessKey` / `SessionToken` into the shell.
+
+2. `aws secretsmanager get-secret-value --secret-id percy-main-production/rds/credentials` returns the master password.
+
+3. Connect over Tailscale as `percy`. Do the recovery work (schema repair, role unbreak, password reset).
+
+4. After resolution, rotate the master password and the app_rw / app_ddl passwords if there's any chance they were exposed.
+
+The allowlist is intentionally small — the master secret is no longer a credential the app needs, it's an emergency escape hatch that leaves an unmistakable trail when used.
 
 ## Why not the alternatives
 

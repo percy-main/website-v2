@@ -25,16 +25,17 @@ variable "tailscale_db_admins" {
 variable "app_rw_active" {
   type        = bool
   default     = false
-  description = "Cutover flag for the app_rw / app_ddl DB role split. Flip to true only after operator-bootstrap of role passwords (see ADR 044)."
+  description = "Cutover flag for the app_rw / app_ddl DB role split. Flip to true only after operator-bootstrap of role passwords (see ADR 043)."
 }
 
-# Principals allowed to read the master DB credentials secret once
-# app_rw_active = true. Defaults to empty — must be populated before
-# flipping the cutover flag, otherwise even break-glass recovery is
-# impossible (the resource policy denies everyone except this list).
-# Typical entries: a named IAM user/role for the on-call admin.
+# Extra principals exempted from the master credentials secret's
+# break-glass deny policy. Defaults to empty — the primary access
+# path is the audited `percy-main-db-break-glass` IAM role created in
+# the shared layer (always included automatically). Use this only
+# for one-off escape hatches (auditor access, vendor incident
+# response) and remove again afterwards.
 variable "master_db_break_glass_principal_arns" {
   type        = list(string)
   default     = []
-  description = "ARNs allowed to read the master DB credentials secret in break-glass scenarios once app_rw_active = true."
+  description = "Extra ARNs exempted from the master DB credentials secret's deny policy (in addition to the dedicated break-glass role + Terraform roles). Leave empty unless temporarily granting an auditor / vendor access."
 }

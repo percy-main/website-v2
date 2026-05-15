@@ -13,3 +13,7 @@ output "ses_identity_arn" { value = aws_ses_domain_identity.notifications.arn }
 # in us-east-1; ALB ACM and SES live in eu-west-2.
 output "reliability_alarms_topic_arn" { value = aws_sns_topic.shared_reliability_alarms.arn }
 output "reliability_alarms_topic_arn_us_east_1" { value = aws_sns_topic.shared_reliability_alarms_us_east_1.arn }
+
+# Break-glass role for RDS master credentials access (#130 / ADR 043).
+# Admins assume this role on demand; the assumption is the audit point.
+output "db_break_glass_role_arn" { value = aws_iam_role.db_break_glass.arn }
