@@ -364,7 +364,7 @@ resource "aws_secretsmanager_secret_version" "db_credentials_app_rw" {
     host         = aws_db_instance.main.address
     port         = aws_db_instance.main.port
     dbname       = aws_db_instance.main.db_name
-    DATABASE_URL = "postgres://app_rw:${random_password.app_rw.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${aws_db_instance.main.db_name}"
+    DATABASE_URL = "postgres://app_rw:${random_password.app_rw.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${aws_db_instance.main.db_name}?sslmode=require"
   })
 }
 
@@ -386,7 +386,7 @@ resource "aws_secretsmanager_secret_version" "db_credentials_app_ddl" {
     host         = aws_db_instance.main.address
     port         = aws_db_instance.main.port
     dbname       = aws_db_instance.main.db_name
-    DATABASE_URL = "postgres://app_ddl:${random_password.app_ddl.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${aws_db_instance.main.db_name}"
+    DATABASE_URL = "postgres://app_ddl:${random_password.app_ddl.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${aws_db_instance.main.db_name}?sslmode=require"
   })
 }
 
