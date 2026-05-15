@@ -1,3 +1,4 @@
+import type { Tracer } from "@opentelemetry/api";
 import type { DB } from "@percy-main/db";
 import type { ScoutReportContent } from "@percy-main/shared";
 import { generateText, stepCountIs } from "ai";
@@ -8,6 +9,7 @@ import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
 import type { VoyageClient } from "../facts/voyage.ts";
 import { deepseekFastProviderOptions, resolveModel } from "../provider.ts";
 import { GROUNDING_RULES, IMPORTANT_CONTEXT } from "../system-prompt.ts";
+import { buildPhoenixTelemetry } from "../telemetry.ts";
 import { createAskDbTool } from "../tools/ask-db.ts";
 import { createScoutCache } from "../tools/cache.ts";
 import { createFactTools } from "../tools/facts.ts";
@@ -42,6 +44,7 @@ export interface ReportAgentDeps {
    *  timeout so a worker-level cancel (user clicked Stop on an in-flight
    *  report) aborts the AI SDK loop. */
   cancelSignal?: AbortSignal;
+  phoenixTracer: Tracer;
 }
 
 export interface ReportAgentOutput {
@@ -160,6 +163,7 @@ export async function runReportAgent(
     modelId: deps.config.SCOUT_MODEL_DB,
     maxSteps: deps.config.SCOUT_DB_AGENT_MAX_STEPS,
     logger: deps.logger,
+    phoenixTracer: deps.phoenixTracer,
   });
   const weatherTools = createWeatherTools({ cache });
   const sectionTools = createSectionTools({ accumulator });
@@ -251,6 +255,11 @@ Build the report now via the tool surface above. Stop calling tools when you've 
         // Wall-clock is the real budget; this is just a runaway-loop backstop.
         stopWhen: stepCountIs(SAFETY_STEP_CAP),
         providerOptions: deepseekFastProviderOptions(resolved.provider),
+        experimental_telemetry: buildPhoenixTelemetry(
+          deps.phoenixTracer,
+          "scout.report_agent",
+          { match_id: params.matchId },
+        ),
         abortSignal: deps.cancelSignal
           ? AbortSignal.any([
               deps.cancelSignal,

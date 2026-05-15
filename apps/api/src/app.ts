@@ -2,6 +2,7 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
+import type { Tracer } from "@opentelemetry/api";
 import { createClient as createDbClient, type DB } from "@percy-main/db";
 import { createSend, type Email } from "@percy-main/email";
 import Fastify, { type FastifyError } from "fastify";
@@ -13,6 +14,7 @@ import {
 import type { Kysely, PostgresDialect } from "kysely";
 import type { Config } from "./config.ts";
 import { createAuth, type Auth } from "./features/auth/auth.ts";
+import { createPhoenixTracer } from "./lib/phoenix-tracer.ts";
 import {
   createS3DocumentStore,
   type S3DocumentStore,
@@ -75,6 +77,7 @@ declare module "fastify" {
     scoutReports: ScoutReportStore;
     scoutAttachments: ScoutAttachmentStore;
     scoutKnowledgeBase: S3KnowledgeBaseStore;
+    phoenixTracer: Tracer;
   }
 }
 
@@ -196,6 +199,15 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   // reference docs that the agent retrieves chunks from)
   const scoutKnowledgeBase = createS3KnowledgeBaseStore(config);
   app.decorate("scoutKnowledgeBase", scoutKnowledgeBase);
+
+  // Isolated tracer provider for LLM spans. New Relic owns the global OTel
+  // pipeline; this provider sits alongside it and receives only AI SDK
+  // spans via the experimental_telemetry.tracer plumbed through Scout.
+  const phoenix = createPhoenixTracer(config);
+  app.decorate("phoenixTracer", phoenix.tracer);
+  app.addHook("onClose", async () => {
+    await phoenix.shutdown();
+  });
 
   // Plugins
   await app.register(swagger, {

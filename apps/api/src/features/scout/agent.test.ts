@@ -1,3 +1,4 @@
+import { trace } from "@opentelemetry/api";
 import type { DB } from "@percy-main/db";
 import type { ModelMessage, UIMessageStreamWriter } from "ai";
 import type { Kysely } from "kysely";
@@ -41,6 +42,7 @@ function makeAgent(mode: "chat" | "debrief" | "scout" = "chat") {
     scoutReports: stubScoutReports,
     thinkingMode: "thinking",
     logger: createNoopLogger(),
+    phoenixTracer: trace.getTracer("scout-agent-test"),
   });
 }
 

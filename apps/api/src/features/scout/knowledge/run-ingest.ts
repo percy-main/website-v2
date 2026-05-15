@@ -1,3 +1,4 @@
+import type { Tracer } from "@opentelemetry/api";
 import type { DB } from "@percy-main/db";
 import type { LanguageModel } from "ai";
 import type { FastifyBaseLogger } from "fastify";
@@ -29,6 +30,7 @@ export interface RunIngestDeps {
   scoutKnowledgeBase: S3KnowledgeBaseStore;
   config: Config;
   logger: FastifyBaseLogger;
+  phoenixTracer: Tracer;
 }
 
 export class IngestNotFoundError extends Error {
@@ -95,6 +97,7 @@ export async function runIngest(
         chunkTargetTokens: config.SCOUT_KB_CHUNK_TARGET_TOKENS,
         chunkOverlapTokens: config.SCOUT_KB_CHUNK_OVERLAP_TOKENS,
         embedBatchSize: config.SCOUT_KB_EMBED_BATCH_SIZE,
+        phoenixTracer: deps.phoenixTracer,
       },
       {
         documentId,

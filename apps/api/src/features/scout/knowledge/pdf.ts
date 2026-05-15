@@ -13,7 +13,9 @@
  * the original PDF via its signed URL.
  */
 
+import type { Tracer } from "@opentelemetry/api";
 import { generateText, type LanguageModel } from "ai";
+import { buildPhoenixTelemetry } from "../telemetry.ts";
 
 const KB_PDF_PROMPT = `You will be shown a PDF uploaded to a cricket-club knowledge base. Transcribe the readable text verbatim — preserve names, numbers, headings, lists, and tabular structure where you can. After the transcription, add a short factual summary (3–5 sentences) of what the document is and what it contains. Do not interpret or speculate beyond what is on the page.
 
@@ -48,12 +50,17 @@ export interface ExtractPdfInput {
  */
 export async function extractPdfText(
   model: LanguageModel,
+  phoenixTracer: Tracer,
   input: ExtractPdfInput,
 ): Promise<string> {
   let result;
   try {
     result = await generateText({
       model,
+      experimental_telemetry: buildPhoenixTelemetry(
+        phoenixTracer,
+        "scout.kb_extract_pdf",
+      ),
       messages: [
         {
           role: "user",

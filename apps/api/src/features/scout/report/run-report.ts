@@ -1,3 +1,4 @@
+import type { Tracer } from "@opentelemetry/api";
 import type { DB } from "@percy-main/db";
 import type { ScoutReportPayload } from "@percy-main/shared";
 import type { FastifyBaseLogger } from "fastify";
@@ -22,6 +23,7 @@ export interface RunReportDeps {
   voyage?: VoyageClient;
   scoutReports: ScoutReportStore;
   logger: FastifyBaseLogger;
+  phoenixTracer: Tracer;
 }
 
 export class ReportCancelledError extends Error {
@@ -185,6 +187,7 @@ export async function runReport(
         userId: row.user_id,
         logger,
         cancelSignal: abortController.signal,
+        phoenixTracer: deps.phoenixTracer,
       },
       params,
       citations,

@@ -1,3 +1,8 @@
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { checkPermission } from "@percy-main/shared/auth/permissions";
 import {
   convertToModelMessages,
@@ -135,6 +140,7 @@ import {
   ThreadNotFoundError,
   unshareThread,
 } from "./service.ts";
+import { buildPhoenixTelemetry } from "./telemetry.ts";
 import { maybeGenerateTitle } from "./title.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
@@ -167,6 +173,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
     db: app.db,
     provider: app.config.SCOUT_PROVIDER_SUBAGENT,
     modelId: app.config.SCOUT_MODEL_SUBAGENT,
+    phoenixTracer: app.phoenixTracer,
   });
 
   // ── Attachments (Track 1) ──
@@ -182,6 +189,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       modelId: app.config.SCOUT_ATTACHMENT_DERIVE_MODEL,
       maxOutputTokens: app.config.SCOUT_ATTACHMENT_DERIVE_MAX_TOKENS,
       derivedTextMaxBytes: app.config.SCOUT_ATTACHMENT_DERIVED_TEXT_MAX_BYTES,
+      phoenixTracer: app.phoenixTracer,
     }),
     maxImageBytes: app.config.SCOUT_ATTACHMENT_MAX_IMAGE_BYTES,
     maxPdfBytes: app.config.SCOUT_ATTACHMENT_MAX_PDF_BYTES,
@@ -755,9 +763,31 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           }>
         | undefined;
 
+      // Phoenix turn span - lifecycle hoisted out of execute() so the outer
+      // createUIMessageStream onFinish/onError can end it even if the inner
+      // streamText callbacks never fire (client abort, synchronous setup
+      // failure). Idempotent via the ended flag.
+      let turnSpan: ReturnType<typeof app.phoenixTracer.startSpan> | undefined;
+      let turnSpanEnded = false;
+      const endTurnSpan = (err?: unknown) => {
+        if (!turnSpan || turnSpanEnded) return;
+        turnSpanEnded = true;
+        if (err instanceof Error) {
+          turnSpan.recordException(err);
+          turnSpan.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: err.message,
+          });
+        }
+        turnSpan.end();
+      };
+
       const stream = createUIMessageStream({
         originalMessages: incoming,
         onFinish: async ({ responseMessage, isAborted }) => {
+          // End the Phoenix turn span here so abort paths (client
+          // disconnect; streamText.onFinish never fires) still close it.
+          endTurnSpan();
           // Persist on abort too — partial parts (any prose / tool calls /
           // pipeline-card snapshots that streamed before the disconnect) are
           // already on responseMessage. Earlier we skipped this branch and
@@ -823,59 +853,118 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           }
         },
         execute: ({ writer }) => {
-          // The chart tool needs the writer to emit data-chart parts inline.
-          const agent = createScoutAgent({
-            db: app.db,
-            dbReadonly,
-            playCricket,
-            config: app.config,
-            writer,
-            logger: app.log,
-            voyage,
-            userId: user.id,
-            userName: user.name,
-            threadId,
-            mode: threadMode,
-            scoutReports: app.scoutReports,
-            scoutKnowledgeBase: app.scoutKnowledgeBase,
-            thinkingMode,
-          });
-
-          const result = streamText({
-            model: agent.model,
-            system: agent.system,
-            tools: agent.tools,
-            messages: modelMessages,
-            stopWhen: stepCountIs(agent.maxSteps),
-            prepareStep: agent.prepareStep,
-            providerOptions: agent.providerOptions,
-            onError: ({ error }) => {
-              request.log.error(
-                { err: sanitizeError(error) },
-                "scout streamText error",
-              );
+          // Parent span for the whole chat turn. Every AI SDK call inside
+          // (main streamText, ask_db / ask_ball_by_ball sub-agents,
+          // generate_report's researcher loop) inherits this as parent via
+          // OTel async context, so the turn shows up as a single trace in
+          // Phoenix. session.id = threadId groups every turn on the same
+          // thread into one Phoenix session.
+          turnSpan = app.phoenixTracer.startSpan("scout.chat.turn", {
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.AGENT,
+              [SemanticConventions.SESSION_ID]: threadId,
+              [SemanticConventions.USER_ID]: user.id,
+              [SemanticConventions.INPUT_VALUE]: firstUserText,
+              [SemanticConventions.INPUT_MIME_TYPE]: "text/plain",
+              "scout.mode": threadMode,
             },
           });
-          usagePromise = Promise.all([
-            result.usage,
-            result.providerMetadata,
-          ]).then(([u, providerMeta]) => {
-            const cache = extractCacheUsage(
-              app.config.SCOUT_PROVIDER_CHAT,
-              u,
-              providerMeta,
-            );
-            return {
-              inputTokens: u.inputTokens ?? undefined,
-              outputTokens: u.outputTokens ?? undefined,
-              cacheRead: cache.cacheRead,
-              cacheCreation: cache.cacheCreation,
-            };
-          });
+          const activeTurnSpan = turnSpan;
 
-          // sendStart: false because createUIMessageStream emits its own start
-          // chunk; merging streamText's would duplicate.
-          writer.merge(result.toUIMessageStream({ sendStart: false }));
+          try {
+            context.with(
+              trace.setSpan(context.active(), activeTurnSpan),
+              () => {
+                // The chart tool needs the writer to emit data-chart parts inline.
+                const agent = createScoutAgent({
+                  db: app.db,
+                  dbReadonly,
+                  playCricket,
+                  config: app.config,
+                  writer,
+                  logger: app.log,
+                  voyage,
+                  userId: user.id,
+                  userName: user.name,
+                  threadId,
+                  mode: threadMode,
+                  scoutReports: app.scoutReports,
+                  scoutKnowledgeBase: app.scoutKnowledgeBase,
+                  thinkingMode,
+                  phoenixTracer: app.phoenixTracer,
+                });
+
+                const result = streamText({
+                  model: agent.model,
+                  system: agent.system,
+                  tools: agent.tools,
+                  messages: modelMessages,
+                  stopWhen: stepCountIs(agent.maxSteps),
+                  prepareStep: agent.prepareStep,
+                  providerOptions: agent.providerOptions,
+                  experimental_telemetry: buildPhoenixTelemetry(
+                    app.phoenixTracer,
+                    `scout.${threadMode}`,
+                    {
+                      [SemanticConventions.SESSION_ID]: threadId,
+                      [SemanticConventions.USER_ID]: user.id,
+                    },
+                  ),
+                  onError: ({ error }) => {
+                    request.log.error(
+                      { err: sanitizeError(error) },
+                      "scout streamText error",
+                    );
+                    if (error instanceof Error) {
+                      activeTurnSpan.recordException(error);
+                      activeTurnSpan.setStatus({
+                        code: SpanStatusCode.ERROR,
+                        message: error.message,
+                      });
+                    }
+                    // Outer createUIMessageStream onFinish/onError ends the span.
+                  },
+                  onFinish: ({ text }) => {
+                    activeTurnSpan.setAttribute(
+                      SemanticConventions.OUTPUT_VALUE,
+                      text,
+                    );
+                    activeTurnSpan.setAttribute(
+                      SemanticConventions.OUTPUT_MIME_TYPE,
+                      "text/plain",
+                    );
+                    // Outer createUIMessageStream onFinish ends the span.
+                  },
+                });
+                usagePromise = Promise.all([
+                  result.usage,
+                  result.providerMetadata,
+                ]).then(([u, providerMeta]) => {
+                  const cache = extractCacheUsage(
+                    app.config.SCOUT_PROVIDER_CHAT,
+                    u,
+                    providerMeta,
+                  );
+                  return {
+                    inputTokens: u.inputTokens ?? undefined,
+                    outputTokens: u.outputTokens ?? undefined,
+                    cacheRead: cache.cacheRead,
+                    cacheCreation: cache.cacheCreation,
+                  };
+                });
+
+                // sendStart: false because createUIMessageStream emits its own start
+                // chunk; merging streamText's would duplicate.
+                writer.merge(result.toUIMessageStream({ sendStart: false }));
+              },
+            );
+          } catch (err) {
+            // Synchronous failure during agent / streamText setup - the outer
+            // onFinish may not fire, so end the span here to avoid leaks.
+            endTurnSpan(err);
+            throw err;
+          }
         },
         onError: (error) => {
           // Provider-side errors (auth, billing, rate limit, etc.) put the
@@ -888,6 +977,10 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
             { err: sanitizeError(error) },
             "scout UI stream error",
           );
+          // End the Phoenix turn span on stream-wide errors too (covers
+          // failures that bypass execute()'s try/catch and streamText's
+          // onError, e.g. an error inside writer.merge's plumbing).
+          endTurnSpan(error);
           return "Scout failed to respond. Please try again.";
         },
       });
@@ -1459,6 +1552,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               scoutKnowledgeBase: app.scoutKnowledgeBase,
               config: app.config,
               logger: app.log,
+              phoenixTracer: app.phoenixTracer,
             },
             documentId: id,
           });
@@ -1618,6 +1712,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               scoutKnowledgeBase: app.scoutKnowledgeBase,
               config: app.config,
               logger: app.log,
+              phoenixTracer: app.phoenixTracer,
             },
             documentId: id,
           });
@@ -1745,6 +1840,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
               scoutKnowledgeBase: app.scoutKnowledgeBase,
               config: app.config,
               logger: app.log,
+              phoenixTracer: app.phoenixTracer,
             },
             documentId: result.documentId,
           });

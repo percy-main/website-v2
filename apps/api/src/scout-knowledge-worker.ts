@@ -21,6 +21,7 @@ import { parseConfig } from "./config.ts";
 import { createVoyageClient } from "./features/scout/facts/voyage.ts";
 import { runIngest } from "./features/scout/knowledge/run-ingest.ts";
 import { resolveModel } from "./features/scout/provider.ts";
+import { createPhoenixTracer } from "./lib/phoenix-tracer.ts";
 import { createS3KnowledgeBaseStore } from "./lib/s3-knowledge-base.ts";
 import { withSpan } from "./lib/tracing.ts";
 import { createWorkerLogger } from "./lib/worker-logger.ts";
@@ -71,6 +72,7 @@ const anthropicModel = config.ANTHROPIC_API_KEY
   ? resolveModel("anthropic", config.SCOUT_ATTACHMENT_DERIVE_MODEL).model
   : null;
 const scoutKnowledgeBase = createS3KnowledgeBaseStore(config);
+const phoenix = createPhoenixTracer(config);
 const parentCtx = extractTraceContext();
 
 logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_started");
@@ -82,13 +84,22 @@ try {
     // Anthropic spans rather than implicit per-call siblings.
     withSpan("scout.kb.ingest", { documentId: DOCUMENT_ID }, () =>
       runIngest(
-        { db, voyage, anthropicModel, scoutKnowledgeBase, config, logger },
+        {
+          db,
+          voyage,
+          anthropicModel,
+          scoutKnowledgeBase,
+          config,
+          logger,
+          phoenixTracer: phoenix.tracer,
+        },
         DOCUMENT_ID,
       ),
     ),
   );
   logger.info({ documentId: DOCUMENT_ID }, "scout_kb_worker_done");
   await db.destroy();
+  await phoenix.shutdown();
   process.exit(0);
 } catch (err) {
   // runIngest persists the failure to the row before throwing, so this
@@ -97,5 +108,6 @@ try {
   // row's status is the source of truth for downstream observers.
   logger.error({ err, documentId: DOCUMENT_ID }, "scout_kb_worker_failed");
   await db.destroy().catch(() => undefined);
+  await phoenix.shutdown().catch(() => undefined);
   process.exit(1);
 }

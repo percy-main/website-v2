@@ -1,3 +1,4 @@
+import type { Tracer } from "@opentelemetry/api";
 import type { DB } from "@percy-main/db";
 import { generateText, stepCountIs, tool } from "ai";
 import type { FastifyBaseLogger } from "fastify";
@@ -8,6 +9,7 @@ import {
   resolveModel,
   type ScoutProvider,
 } from "../provider.ts";
+import { buildPhoenixTelemetry } from "../telemetry.ts";
 import { createDbTools, SCOUT_ALLOWED_TABLES } from "./db.ts";
 
 /**
@@ -100,6 +102,7 @@ export interface AskDbToolDeps {
   modelId: string;
   maxSteps: number;
   logger?: FastifyBaseLogger;
+  phoenixTracer: Tracer;
 }
 
 export function createAskDbTool(deps: AskDbToolDeps) {
@@ -185,6 +188,10 @@ If the rows are the entire answer (e.g. a count of 7), just say what filter you 
             tools,
             stopWhen: stepCountIs(deps.maxSteps),
             providerOptions: deepseekFastProviderOptions(deps.provider),
+            experimental_telemetry: buildPhoenixTelemetry(
+              deps.phoenixTracer,
+              "scout.ask_db",
+            ),
           });
         } catch (err) {
           deps.logger?.error(

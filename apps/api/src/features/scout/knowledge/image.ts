@@ -10,7 +10,9 @@
  * visible word matters.
  */
 
+import type { Tracer } from "@opentelemetry/api";
 import { generateText, type LanguageModel } from "ai";
+import { buildPhoenixTelemetry } from "../telemetry.ts";
 
 const KB_IMAGE_PROMPT = `You will be shown an image uploaded to a cricket-club knowledge base. Produce a thorough, factual description that would let someone search for and re-find this image later.
 
@@ -44,6 +46,7 @@ export interface CaptionImageInput {
 export async function captionImage(
   model: LanguageModel,
   maxOutputTokens: number,
+  phoenixTracer: Tracer,
   input: CaptionImageInput,
 ): Promise<string> {
   let result;
@@ -51,6 +54,10 @@ export async function captionImage(
     result = await generateText({
       model,
       maxOutputTokens,
+      experimental_telemetry: buildPhoenixTelemetry(
+        phoenixTracer,
+        "scout.kb_caption_image",
+      ),
       messages: [
         {
           role: "user",

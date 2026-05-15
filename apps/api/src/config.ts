@@ -165,6 +165,14 @@ const configSchema = z.object({
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url().default("https://otlp.eu01.nr-data.net"),
   OTEL_SERVICE_NAME: z.string().default("percy-main-api"),
 
+  // Arize Phoenix LLM tracing - isolated from the New Relic pipeline. The
+  // Phoenix tracer is only constructed when PHOENIX_API_KEY is set; AI SDK
+  // calls that receive it via experimental_telemetry.tracer emit spans
+  // exclusively to Phoenix.
+  PHOENIX_API_KEY: z.string().min(1),
+  PHOENIX_COLLECTOR_ENDPOINT: z.url(),
+  PHOENIX_PROJECT_NAME: z.string().min(1),
+
   // Better Auth Dash (infra plugin — optional, only enabled when API key is set)
   BETTER_AUTH_API_KEY: z.string().optional(),
 
