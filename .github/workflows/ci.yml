@@ -34,7 +34,7 @@ jobs:
     # `safe-ddl-ack: <reason>` token in any commit message.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - run: bash .github/scripts/check-unsafe-ddl.sh "origin/${{ github.base_ref }}"
@@ -50,7 +50,7 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: millionco/react-doctor@main
@@ -69,7 +69,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build API image (local, no push)
         id: build
@@ -104,7 +104,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
