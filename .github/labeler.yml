@@ -1,0 +1,49 @@
+# Path-based PR labels — applied by actions/labeler (see
+# .github/workflows/labeler.yml). One PR can carry several of these.
+# Sync: required labels must exist on the repo (created via `gh label
+# create`). Categories follow #338.
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "docs/**"
+
+packages:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/**"
+
+app:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+
+infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "infra/**"
+
+local-dev:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docker-compose.yml"
+          - "scripts/**"
+          - ".claude/**"
+          - ".vscode/**"
+          - "apps/email-viewer/**"
+          - ".nvmrc"
+          - ".prettierrc*"
+          - ".prettierignore"
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/package.json"
+          - "pnpm-lock.yaml"
+          - "pnpm-workspace.yaml"

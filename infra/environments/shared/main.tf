@@ -401,6 +401,32 @@ data "aws_iam_policy_document" "deploy_ecs" {
       "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/*-api:*",
     ]
   }
+
+  # ListTasks is required by deploy.yml's rollback-diagnostics step:
+  # when ECS rolls back a failed task def, we list STOPPED tasks for the
+  # service to find the rolled-forward revision's boot-failed task and
+  # tail its CloudWatch log stream into the run summary. Without this,
+  # the workflow falls back to "rollback happened, go dig manually".
+  #
+  # AWS scopes ListTasks to the `container-instance` resource type,
+  # which does not apply on Fargate — so the canonical pattern is
+  # Resource "*" gated by the `ecs:cluster` condition key. The
+  # condition restricts the call to percy-main-* clusters only.
+  statement {
+    sid    = "ECSListTasks"
+    effect = "Allow"
+    actions = [
+      "ecs:ListTasks",
+    ]
+    resources = ["*"]
+    condition {
+      test     = "ArnLike"
+      variable = "ecs:cluster"
+      values = [
+        "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster/percy-main-*",
+      ]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "deploy_ecs" {

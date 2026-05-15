@@ -1,0 +1,35 @@
+name: Pull Request Labeler
+
+# Applies path-based labels to PRs so reviewers/dashboards can filter by
+# area (docs / packages / app / ci / infra / local-dev / dependencies).
+# Mapping lives in .github/labeler.yml. See #338.
+#
+# Uses `pull_request` rather than `pull_request_target` so the workflow
+# fires from the PR head — `pull_request_target` reads the workflow
+# file from the base branch, which means changes to this file only
+# take effect after merge. Trade-off: fork PRs get a read-only token
+# and the labeler step will no-op on them. This repo doesn't accept
+# external-fork PRs in practice; revisit if that changes. The labeler
+# action runs no PR-supplied code (no checkout step), so the standard
+# `pull_request_target` security warning does not apply here.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          sync-labels: true

@@ -21,6 +21,10 @@
     "test": {
       "outputs": ["test-results/**", "coverage/**"],
       "env": ["CI"]
+    },
+    "test:integration": {
+      "outputs": ["test-results/**"],
+      "env": ["CI", "DATABASE_URL"]
     }
   }
 }
