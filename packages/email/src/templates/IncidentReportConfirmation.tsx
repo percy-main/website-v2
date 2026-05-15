@@ -85,3 +85,5 @@ export const IncidentReportConfirmation = email<Props>(
     },
   },
 )(Component);
+
+export default Component;

@@ -97,3 +97,5 @@ export const ChargeNotification = email<Props>("New Charge Added", {
     loginUrl: "http://localhost:5173/auth/login",
   },
 })(Component);
+
+export default Component;

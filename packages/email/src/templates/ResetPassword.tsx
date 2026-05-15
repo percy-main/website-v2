@@ -60,3 +60,5 @@ export const ResetPassword = email<Props>("Reset Your Password", {
     name: "Alex",
   },
 })(Component);
+
+export default Component;

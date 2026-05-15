@@ -89,3 +89,5 @@ export const MembershipUpdated = email<Props>("Welcome to The Main", {
     isNew: true,
   },
 })(Component);
+
+export default Component;

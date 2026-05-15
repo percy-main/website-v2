@@ -66,3 +66,5 @@ export const FinancialReliefReceived = email<Props>(
     },
   },
 )(Component);
+
+export default Component;

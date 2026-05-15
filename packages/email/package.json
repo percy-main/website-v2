@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.1009.0",
-    "@react-email/components": "^0.0.36",
+    "@react-email/components": "^1.0.12",
     "@react-email/render": "1.0.4",
     "date-fns": "^4.1.0",
     "html-to-text": "^9.0.5",
@@ -25,7 +25,8 @@
     "@types/node": "^25.6.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
-    "react-email": "3.0.6",
+    "@react-email/ui": "6.1.4",
+    "react-email": "6.1.4",
     "typescript": "^5.9.3"
   }
 }

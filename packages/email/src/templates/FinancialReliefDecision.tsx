@@ -83,3 +83,5 @@ export const FinancialReliefDecision = email<Props>(
     },
   },
 )(Component);
+
+export default Component;

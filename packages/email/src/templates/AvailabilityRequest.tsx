@@ -85,3 +85,5 @@ export const AvailabilityRequest = email<Props>("Availability Request", {
     url: "http://localhost:5173/availability/abc-123",
   },
 })(Component);
+
+export default Component;
