@@ -7,7 +7,10 @@ import { createClient } from "../src/client.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Mirrors apps/api/src/migrate.ts — prefer the DDL-privileged URL so
+// `pnpm db:up` and the production migration runner connect the same way.
 const connectionString =
+  process.env.DATABASE_MIGRATION_URL ??
   process.env.DATABASE_URL ??
   "postgres://percy:percy@localhost:5433/percy_main";
 const { client } = createClient(connectionString);

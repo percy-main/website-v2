@@ -123,6 +123,26 @@ module "rds" {
   private_subnet_ids        = module.vpc.private_subnet_ids
   security_group_id         = module.vpc.rds_security_group_id
   enable_event_subscription = true
+
+  # Once the role split (#130) is active, the master credentials secret
+  # is reachable only by:
+  #   - the dedicated break-glass IAM role (audited via CloudTrail +
+  #     EventBridge alarm on every AssumeRole — see ADR 043);
+  #   - the two Terraform roles (required for state refresh on the
+  #     secret resource — without them, plan/apply break);
+  #   - any extra principals an operator explicitly adds via the
+  #     `master_db_break_glass_principal_arns` variable (escape hatch
+  #     for one-off auditor / vendor access).
+  # Until cutover the list is empty and the secret keeps its existing
+  # IAM-only access.
+  master_secret_break_glass_principal_arns = var.app_rw_active ? concat(
+    [
+      local.shared.db_break_glass_role_arn,
+      local.shared.terraform_role_arn,
+      local.shared.terraform_plan_role_arn,
+    ],
+    var.master_db_break_glass_principal_arns,
+  ) : []
 }
 
 # ---------------------------------------------------------------------------
@@ -203,9 +223,28 @@ module "ecs" {
     SYNC_ECS_ASSIGN_PUBLIC_IP = "true"
   }
 
+  # Migration task connects as app_ddl once the role split is active.
+  # Before cutover it shares the API task's master DATABASE_URL — same
+  # as legacy behaviour, just running from a separate task definition.
+  migration_environment_variables = {
+    NODE_ENV  = "production"
+    LOG_LEVEL = "info"
+  }
+  migration_secrets = var.app_rw_active ? {
+    DATABASE_URL = "${module.rds.app_ddl_secret_arn}:DATABASE_URL::"
+    } : {
+    DATABASE_URL = "${aws_secretsmanager_secret.app_secrets.arn}:DATABASE_URL::"
+  }
+
   secrets = {
     # Secrets Manager (actual secrets)
-    DATABASE_URL           = "${aws_secretsmanager_secret.app_secrets.arn}:DATABASE_URL::"
+    # DATABASE_URL points at app_rw once the role split is active
+    # (#130). Until then it stays on the manual app_secrets blob.
+    DATABASE_URL = var.app_rw_active ? (
+      "${module.rds.app_rw_secret_arn}:DATABASE_URL::"
+      ) : (
+      "${aws_secretsmanager_secret.app_secrets.arn}:DATABASE_URL::"
+    )
     BETTER_AUTH_SECRET     = "${aws_secretsmanager_secret.app_secrets.arn}:BETTER_AUTH_SECRET::"
     BETTER_AUTH_API_KEY    = "${aws_secretsmanager_secret.app_secrets.arn}:BETTER_AUTH_API_KEY::"
     STRIPE_SECRET_KEY      = "${aws_secretsmanager_secret.app_secrets.arn}:STRIPE_SECRET_KEY::"

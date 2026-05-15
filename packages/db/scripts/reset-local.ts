@@ -37,21 +37,37 @@ const pool = new pg.Pool({ connectionString, max: 1 });
 const client = await pool.connect();
 
 try {
-  // Get all table names in the public schema
-  const result = await client.query(`
-    SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-  `);
-
-  const tables = result.rows.map((r) => r.tablename);
+  // Get all view + table names in the public schema. Views first
+  // because some depend on tables and CASCADE drops can otherwise
+  // leave the schema in a weird intermediate state when migrations
+  // later try to re-create them.
+  const tables = (
+    await client.query(
+      `SELECT tablename FROM pg_tables WHERE schemaname = 'public'`,
+    )
+  ).rows.map((r) => r.tablename);
 
   if (tables.length > 0) {
-    // CASCADE drops dependent objects (indexes, constraints, etc.)
     const dropSql = tables.map((t) => `"${t}"`).join(", ");
     await client.query(`DROP TABLE IF EXISTS ${dropSql} CASCADE`);
     console.log(`  ✓ Dropped ${tables.length} tables`);
   } else {
     console.log("  (no tables to drop)");
   }
+
+  // Migrations create persistent roles (scout_readonly, app_rw,
+  // app_ddl). Without dropping them here, the next migration run
+  // fails with `role "x" already exists`.
+  for (const role of ["scout_readonly", "app_rw", "app_ddl"]) {
+    await client.query(`DROP OWNED BY "${role}" CASCADE`).catch(() => {});
+    await client.query(`DROP ROLE IF EXISTS "${role}"`);
+  }
+  console.log("  ✓ Dropped migration-managed roles");
+
+  // PG14 default — re-grant CREATE on public to PUBLIC, since the
+  // role-split migration revokes it on apply and we want the reset
+  // to leave the cluster in a true pre-migration state.
+  await client.query(`GRANT CREATE ON SCHEMA public TO PUBLIC`);
 } finally {
   client.release();
   await pool.end();

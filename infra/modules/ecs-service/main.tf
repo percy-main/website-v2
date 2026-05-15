@@ -64,7 +64,19 @@ variable "acm_certificate_arn" {
 }
 
 variable "secrets" {
-  description = "Map of secret name to Secrets Manager or SSM Parameter ARN (resolved via valueFrom)"
+  description = "Map of secret name to Secrets Manager or SSM Parameter ARN (resolved via valueFrom) for the API runtime task"
+  type        = map(string)
+  default     = {}
+}
+
+variable "migration_secrets" {
+  description = "Map of secret name to Secrets Manager or SSM Parameter ARN for the migration runner task. Typically just DATABASE_URL → app_ddl. Defaults to {} which makes the migration task identical to the API task (legacy behaviour before #130)."
+  type        = map(string)
+  default     = {}
+}
+
+variable "migration_environment_variables" {
+  description = "Plain-text env vars for the migration runner task. Should be the minimal set migrate.ts needs (LOG_LEVEL, NODE_ENV)."
   type        = map(string)
   default     = {}
 }
@@ -659,6 +671,79 @@ resource "aws_ecs_task_definition" "api" {
 }
 
 # ------------------------------------------------------------------------------
+# Migration Task Definition (#130 — principle of least privilege)
+#
+# Same image, same task role, same execution role as the API task. The
+# split is in the *secrets* map: the API task gets DATABASE_URL pointing
+# at app_rw, this task gets DATABASE_URL pointing at app_ddl. Because
+# ECS injects secrets into the container's env at startup (via the
+# execution role, not the task role) only what each task definition
+# *declares* lands in env — a runtime compromise of the API container
+# cannot see the app_ddl URL even though both secrets live under the
+# same `*percy-main*` IAM allow.
+#
+# Falls back to the API task's secrets/env if migration_* vars are empty
+# (legacy behaviour before app_rw/app_ddl are wired) so this task def
+# stays useful end-to-end even pre-cutover.
+# ------------------------------------------------------------------------------
+
+locals {
+  migration_secrets               = length(var.migration_secrets) > 0 ? var.migration_secrets : var.secrets
+  migration_environment_variables = length(var.migration_environment_variables) > 0 ? var.migration_environment_variables : var.environment_variables
+}
+
+resource "aws_ecs_task_definition" "migration" {
+  family                   = "${var.environment}-api-migrate"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.cpu
+  memory                   = var.memory
+  execution_role_arn       = aws_iam_role.task_execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
+
+  container_definitions = jsonencode([
+    {
+      # Same name as the API container so deploy.yml's existing
+      # `containerOverrides[0].name = "api"` keeps working.
+      name      = "api"
+      image     = "${var.ecr_repository_url}:${var.image_tag}"
+      essential = true
+      command   = ["node", "apps/api/dist/migrate.js"]
+
+      environment = [
+        for name, value in local.migration_environment_variables : {
+          name  = name
+          value = value
+        }
+      ]
+
+      secrets = [
+        for name, arn in local.migration_secrets : {
+          name      = name
+          valueFrom = arn
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.api.name
+          "awslogs-region"        = data.aws_region.current.region
+          "awslogs-stream-prefix" = "migrate"
+        }
+      }
+    }
+  ])
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
 # ALB Access Logs Bucket
 # ------------------------------------------------------------------------------
 
@@ -922,6 +1007,16 @@ output "alb_zone_id" {
 output "task_definition_arn" {
   description = "ARN of the ECS task definition family (without revision)"
   value       = "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.api.family}"
+}
+
+output "migration_task_definition_arn" {
+  description = "ARN of the migration ECS task definition family (without revision). Workflow registers a new revision per deploy with the freshly built image."
+  value       = "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.migration.family}"
+}
+
+output "migration_task_definition_family" {
+  description = "Family name of the migration ECS task definition (without revision)"
+  value       = aws_ecs_task_definition.migration.family
 }
 
 output "task_definition_family" {
