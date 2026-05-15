@@ -20,6 +20,7 @@
     "format:check": "prettier . --check",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
     "typecheck": "turbo run typecheck",
     "db:up": "pnpm --filter @percy-main/db db:up",
     "db:types": "pnpm --filter @percy-main/db db:types",

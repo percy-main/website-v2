@@ -134,12 +134,18 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-deps
+      - uses: actions/cache@v5
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-test-integration-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-test-integration-
       - name: Run migrations (smoke)
         run: pnpm db:up
         env:
           DATABASE_URL: postgres://percy:percy@localhost:5432/percy_main
       - name: Integration tests
-        run: pnpm --filter api test:integration
+        run: pnpm test:integration
         env:
           CI: "true"
       - name: Upload JUnit XML artefact
