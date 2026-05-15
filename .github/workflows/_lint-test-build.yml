@@ -174,6 +174,36 @@ jobs:
             turbo-${{ runner.os }}-build-
       - run: pnpm build
 
+  openapi-drift:
+    # Guardrail (#343): the OpenAPI spec and the typed client under
+    # apps/{web,matchday}/src/lib/api.gen.* are generated artefacts -
+    # CLAUDE.md requires running `pnpm openapi:generate` after touching
+    # any route response schema. This job regenerates them and fails if
+    # the committed copies don't match, so a contributor who forgets to
+    # run the script can't merge a PR whose API types lie about the
+    # backend contract.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-deps
+      - name: Regenerate OpenAPI spec + typed clients
+        run: pnpm openapi:generate
+      - name: Verify generated files match committed copies
+        run: |
+          if ! git diff --exit-code -- \
+            apps/web/src/lib/api.gen.json \
+            apps/web/src/lib/api.gen.d.ts \
+            apps/matchday/src/lib/api.gen.json \
+            apps/matchday/src/lib/api.gen.d.ts; then
+            echo ""
+            echo "::error::OpenAPI generated files are out of date. Run 'pnpm openapi:generate' locally and commit the result."
+            exit 1
+          fi
+
   publish-test-results:
     # Separate job with the elevated checks/PR-comment perms so the
     # executing-PR-code jobs above don't get a token capable of
