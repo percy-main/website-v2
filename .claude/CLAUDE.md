@@ -105,3 +105,4 @@ When making a non-obvious architectural decision — especially when rejecting a
 | Add a static MDX content page   | [`add-content-page`](./skills/add-content-page/SKILL.md) |
 | Write unit or integration tests | [`write-tests`](./skills/write-tests/SKILL.md)           |
 | Record an architecture decision | [`add-adr`](./skills/add-adr/SKILL.md)                   |
+| Work on GitHub Actions / CI     | [`work-on-ci`](./skills/work-on-ci/SKILL.md)             |

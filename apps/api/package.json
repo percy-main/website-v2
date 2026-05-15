@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:all": "pnpm test && pnpm test:integration"
+    "test:all": "pnpm test && pnpm test:integration",
+    "openapi": "tsx src/generate-openapi.ts > ../web/src/lib/api.gen.json && pnpm exec openapi-typescript ../web/src/lib/api.gen.json -o ../web/src/lib/api.gen.d.ts && cp ../web/src/lib/api.gen.json ../matchday/src/lib/api.gen.json && pnpm exec openapi-typescript ../matchday/src/lib/api.gen.json -o ../matchday/src/lib/api.gen.d.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "3.0.74",

@@ -25,6 +25,20 @@
     "test:integration": {
       "outputs": ["test-results/**"],
       "env": ["CI", "DATABASE_URL"]
+    },
+    "api#openapi": {
+      "inputs": [
+        "src/**/*.ts",
+        "$TURBO_ROOT$/packages/shared/src/**",
+        "$TURBO_ROOT$/packages/db/src/**",
+        "$TURBO_ROOT$/packages/email/src/**"
+      ],
+      "outputs": [
+        "$TURBO_ROOT$/apps/web/src/lib/api.gen.json",
+        "$TURBO_ROOT$/apps/web/src/lib/api.gen.d.ts",
+        "$TURBO_ROOT$/apps/matchday/src/lib/api.gen.json",
+        "$TURBO_ROOT$/apps/matchday/src/lib/api.gen.d.ts"
+      ]
     }
   }
 }

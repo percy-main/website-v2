@@ -29,7 +29,7 @@
     "db:lift": "pnpm --filter @percy-main/db db:lift",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "openapi:generate": "pnpm --filter api exec tsx src/generate-openapi.ts > apps/web/src/lib/api.gen.json && pnpm exec openapi-typescript apps/web/src/lib/api.gen.json -o apps/web/src/lib/api.gen.d.ts && cp apps/web/src/lib/api.gen.json apps/matchday/src/lib/api.gen.json && pnpm exec openapi-typescript apps/matchday/src/lib/api.gen.json -o apps/matchday/src/lib/api.gen.d.ts"
+    "openapi:generate": "turbo run openapi --filter=api"
   },
   "devDependencies": {
     "@eslint/js": "^10",
