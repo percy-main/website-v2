@@ -212,7 +212,12 @@ module "ecs" {
     SCOUT_ATTACHMENT_DERIVE_MODEL = "claude-haiku-4-5-20251001"
     VOYAGE_EMBED_MODEL            = "voyage-4"
     VOYAGE_RERANK_MODEL           = "rerank-2.5"
-    AWS_REGION                    = "eu-west-2"
+    # Arize Phoenix LLM tracing - isolated from NR. The collector endpoint
+    # is the bare Phoenix Cloud space URL; the API code appends /v1/traces.
+    # Project name is per-env so prod traces don't collide with staging.
+    PHOENIX_COLLECTOR_ENDPOINT = "https://app.phoenix.arize.com/s/alex-young"
+    PHOENIX_PROJECT_NAME       = "percy-main-scout-production"
+    AWS_REGION                 = "eu-west-2"
     # Cannot reference module.ecs.* outputs that depend on the task definition
     # here - that would cycle through the env-vars input. The cluster and family
     # names are deterministic from the environment, so inline them.
@@ -278,6 +283,10 @@ module "ecs" {
     # to start.
     TAVILY_API_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:TAVILY_API_KEY::"
     SCOUT_DB_URL   = "${aws_secretsmanager_secret.app_secrets.arn}:SCOUT_DB_URL::"
+    # Phoenix API key - required by config (z.string().min(1)). The
+    # PHOENIX_API_KEY JSON key MUST exist in app_secrets before this
+    # task definition redeploys or ECS will fail to start.
+    PHOENIX_API_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:PHOENIX_API_KEY::"
 
     # Google Ads API (offline conversion uploads - recruit-2026 + future
     # campaigns). Stored in a separate secret from app_secrets so the

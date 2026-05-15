@@ -1,3 +1,8 @@
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { checkPermission } from "@percy-main/shared/auth/permissions";
 import {
   convertToModelMessages,
@@ -826,65 +831,110 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           }
         },
         execute: ({ writer }) => {
-          // The chart tool needs the writer to emit data-chart parts inline.
-          const agent = createScoutAgent({
-            db: app.db,
-            dbReadonly,
-            playCricket,
-            config: app.config,
-            writer,
-            logger: app.log,
-            voyage,
-            userId: user.id,
-            userName: user.name,
-            threadId,
-            mode: threadMode,
-            scoutReports: app.scoutReports,
-            scoutKnowledgeBase: app.scoutKnowledgeBase,
-            thinkingMode,
-            phoenixTracer: app.phoenixTracer,
-          });
-
-          const result = streamText({
-            model: agent.model,
-            system: agent.system,
-            tools: agent.tools,
-            messages: modelMessages,
-            stopWhen: stepCountIs(agent.maxSteps),
-            prepareStep: agent.prepareStep,
-            providerOptions: agent.providerOptions,
-            experimental_telemetry: buildPhoenixTelemetry(
-              app.phoenixTracer,
-              `scout.${threadMode}`,
-              { thread_id: threadId, user_id: user.id },
-            ),
-            onError: ({ error }) => {
-              request.log.error(
-                { err: sanitizeError(error) },
-                "scout streamText error",
-              );
+          // Parent span for the whole chat turn. Every AI SDK call inside
+          // (main streamText, ask_db / ask_ball_by_ball sub-agents,
+          // generate_report's researcher loop) inherits this as parent via
+          // OTel async context, so the turn shows up as a single trace in
+          // Phoenix. session.id = threadId groups every turn on the same
+          // thread into one Phoenix session.
+          const turnSpan = app.phoenixTracer.startSpan("scout.chat.turn", {
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.AGENT,
+              [SemanticConventions.SESSION_ID]: threadId,
+              [SemanticConventions.USER_ID]: user.id,
+              [SemanticConventions.INPUT_VALUE]: firstUserText,
+              [SemanticConventions.INPUT_MIME_TYPE]: "text/plain",
+              "scout.mode": threadMode,
             },
           });
-          usagePromise = Promise.all([
-            result.usage,
-            result.providerMetadata,
-          ]).then(([u, providerMeta]) => {
-            const cache = extractCacheUsage(
-              app.config.SCOUT_PROVIDER_CHAT,
-              u,
-              providerMeta,
-            );
-            return {
-              inputTokens: u.inputTokens ?? undefined,
-              outputTokens: u.outputTokens ?? undefined,
-              cacheRead: cache.cacheRead,
-              cacheCreation: cache.cacheCreation,
-            };
-          });
+          let turnSpanEnded = false;
+          const endTurnSpan = (err?: unknown) => {
+            if (turnSpanEnded) return;
+            turnSpanEnded = true;
+            if (err instanceof Error) {
+              turnSpan.recordException(err);
+              turnSpan.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: err.message,
+              });
+            }
+            turnSpan.end();
+          };
 
-          // sendStart: false because createUIMessageStream emits its own start
-          // chunk; merging streamText's would duplicate.
-          writer.merge(result.toUIMessageStream({ sendStart: false }));
+          context.with(trace.setSpan(context.active(), turnSpan), () => {
+            // The chart tool needs the writer to emit data-chart parts inline.
+            const agent = createScoutAgent({
+              db: app.db,
+              dbReadonly,
+              playCricket,
+              config: app.config,
+              writer,
+              logger: app.log,
+              voyage,
+              userId: user.id,
+              userName: user.name,
+              threadId,
+              mode: threadMode,
+              scoutReports: app.scoutReports,
+              scoutKnowledgeBase: app.scoutKnowledgeBase,
+              thinkingMode,
+              phoenixTracer: app.phoenixTracer,
+            });
+
+            const result = streamText({
+              model: agent.model,
+              system: agent.system,
+              tools: agent.tools,
+              messages: modelMessages,
+              stopWhen: stepCountIs(agent.maxSteps),
+              prepareStep: agent.prepareStep,
+              providerOptions: agent.providerOptions,
+              experimental_telemetry: buildPhoenixTelemetry(
+                app.phoenixTracer,
+                `scout.${threadMode}`,
+                {
+                  [SemanticConventions.SESSION_ID]: threadId,
+                  [SemanticConventions.USER_ID]: user.id,
+                },
+              ),
+              onError: ({ error }) => {
+                request.log.error(
+                  { err: sanitizeError(error) },
+                  "scout streamText error",
+                );
+                endTurnSpan(error);
+              },
+              onFinish: ({ text }) => {
+                turnSpan.setAttribute(SemanticConventions.OUTPUT_VALUE, text);
+                turnSpan.setAttribute(
+                  SemanticConventions.OUTPUT_MIME_TYPE,
+                  "text/plain",
+                );
+                endTurnSpan();
+              },
+            });
+            usagePromise = Promise.all([
+              result.usage,
+              result.providerMetadata,
+            ]).then(([u, providerMeta]) => {
+              const cache = extractCacheUsage(
+                app.config.SCOUT_PROVIDER_CHAT,
+                u,
+                providerMeta,
+              );
+              return {
+                inputTokens: u.inputTokens ?? undefined,
+                outputTokens: u.outputTokens ?? undefined,
+                cacheRead: cache.cacheRead,
+                cacheCreation: cache.cacheCreation,
+              };
+            });
+
+            // sendStart: false because createUIMessageStream emits its own start
+            // chunk; merging streamText's would duplicate.
+            writer.merge(result.toUIMessageStream({ sendStart: false }));
+          });
         },
         onError: (error) => {
           // Provider-side errors (auth, billing, rate limit, etc.) put the

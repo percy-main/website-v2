@@ -12,7 +12,8 @@ import {
   isOpenInferenceSpan,
   OpenInferenceBatchSpanProcessor,
 } from "@arizeai/openinference-vercel";
-import type { Tracer } from "@opentelemetry/api";
+import { context, type Tracer } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
@@ -25,6 +26,17 @@ export interface PhoenixTracer {
 }
 
 export function createPhoenixTracer(config: Config): PhoenixTracer {
+  // Without a global ContextManager, OTel's active context is permanently
+  // ROOT_CONTEXT, so every span the AI SDK opens via
+  // tracer.startActiveSpan(...) becomes a new root - a new trace per
+  // streamText / generateText, no nesting between main agent and sub-agents.
+  // NR's NodeSDK installs one when NEW_RELIC_LICENSE_KEY is set; this
+  // ensures one is installed regardless (no-op if NR already did it -
+  // setGlobalContextManager returns false rather than overriding).
+  const cm = new AsyncLocalStorageContextManager();
+  cm.enable();
+  context.setGlobalContextManager(cm);
+
   // Phoenix Cloud's copy-paste UI hands out the bare space URL
   // (https://app.phoenix.arize.com/s/<space>) without the OTLP path,
   // but the actual collector endpoint is that URL + /v1/traces. Accept

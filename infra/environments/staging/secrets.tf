@@ -9,7 +9,7 @@
 #       STRIPE_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
 #       PLAY_CRICKET_API_TOKEN, SLACK_WEBHOOK_URL,
 #       ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, VOYAGE_API_KEY, TAVILY_API_KEY,
-#       SCOUT_DB_URL
+#       SCOUT_DB_URL, PHOENIX_API_KEY
 
 resource "aws_secretsmanager_secret" "app_secrets" {
   name = "staging/percy-main/app"
