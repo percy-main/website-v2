@@ -357,30 +357,20 @@ jobs:
             .
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
-      - name: Trivy scan (secrets only — see #283)
-        # TEMPORARY: vulnerability scan disabled via `scanners: secret`.
-        # The dep-CVE gate is tracked for re-enable in #283; we hit a
-        # deadlock where 29 fixable HIGH/CRITICAL CVEs accumulated in
-        # node_modules while the API was stuck on the May 7 image, and
-        # the production-minor-patch dependabot group that would fix
-        # them is itself blocked by a Kysely breaking change. Secret
-        # scanning stays on — it caught the Stripe-pattern placeholder
-        # in generate-openapi.js (#281).
-        #
-        # Pinned to v0.35.0 by commit SHA. The trivy-action repo was
-        # supply-chain compromised on 2026-03-19 (CVE-2026-33634 /
-        # GHSA-69fq-xp46-6x23) — the attacker force-pushed 76 of 77
-        # version tags to credential-stealer commits. v0.35.0 (commit
-        # 57a97c7) is the post-incident recovery release per the
-        # advisory; pinning by SHA avoids the same class of attack
-        # going forward (mutable tags can be force-pushed again).
+      - name: Trivy scan
+        # Pinned by commit SHA. The trivy-action repo was supply-chain
+        # compromised on 2026-03-19 (CVE-2026-33634 / GHSA-69fq-xp46-6x23) —
+        # the attacker force-pushed 76 of 77 version tags to credential-stealer
+        # commits. Pinning by SHA prevents the same class of attack.
+        # Suppressions live in `.trivyignore` at the repo root.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.build.outputs.image }}
-          scanners: secret
+          scanners: vuln,secret
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
+          trivyignores: .trivyignore
           format: table
 
       - name: Generate SBOM (SPDX JSON)

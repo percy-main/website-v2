@@ -80,16 +80,17 @@ jobs:
             .
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
-      - name: Trivy scan (secrets only — see #283)
-        # TEMPORARY: vulnerability scan disabled — see deploy.yml for
-        # the full rationale and #283 for the re-enable plan.
+      - name: Trivy scan
+        # See deploy.yml for the SHA-pin rationale. Suppressions live in
+        # `.trivyignore` at the repo root.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.build.outputs.image }}
-          scanners: secret
+          scanners: vuln,secret
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
+          trivyignores: .trivyignore
           format: table
 
       - name: Generate SBOM (SPDX JSON)

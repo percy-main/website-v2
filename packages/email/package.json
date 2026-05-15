@@ -12,7 +12,7 @@
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@aws-sdk/client-sesv2": "^3.1009.0",
+    "@aws-sdk/client-sesv2": "^3.1047.0",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "1.0.4",
     "date-fns": "^4.1.0",
@@ -21,11 +21,11 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@react-email/ui": "6.1.4",
     "@types/html-to-text": "^9.0.4",
     "@types/node": "^25.6.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
-    "@react-email/ui": "6.1.4",
     "react-email": "6.1.4",
     "typescript": "^5.9.3"
   }
