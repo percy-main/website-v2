@@ -297,6 +297,14 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
     port     = aws_db_instance.main.port
     dbname   = aws_db_instance.main.db_name
   })
+
+  # Master rotation (#130 ADR 043 step 5) is operator-driven via
+  # `aws secretsmanager put-secret-value`. Without this, the next TF
+  # apply would revert the rotation back to the original
+  # random_password.db.result.
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
 }
 
 # Break-glass-only access to the master credentials secret. Active once

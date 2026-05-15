@@ -125,9 +125,33 @@ module "rds" {
   enable_event_subscription = true
 
   # Once the role split (#130) is active, the master credentials secret
-  # is reachable only by the break-glass principals. Until then the
-  # list is empty and the secret keeps its existing IAM-only access.
-  master_secret_break_glass_principal_arns = var.app_rw_active ? var.master_db_break_glass_principal_arns : []
+  # is reachable only by the break-glass principals plus the Terraform
+  # roles — without TF in the allowlist its refresh / state ops on the
+  # secret resource fail. We accept that TF can still read master post-
+  # cutover (the role is hardened + audited) and lock the rest out.
+  # Until cutover the list is empty and the secret keeps its existing
+  # IAM-only access.
+  master_secret_break_glass_principal_arns = var.app_rw_active ? concat(
+    [
+      local.shared.terraform_role_arn,
+      local.shared.terraform_plan_role_arn,
+    ],
+    var.master_db_break_glass_principal_arns,
+  ) : []
+}
+
+# Guard: flipping app_rw_active without a human-admin allowlist would
+# leave the master secret reachable by any IAM principal that already
+# has `secret:*percy-main*` (i.e. the API task execution role), which
+# defeats the role split. Force the operator to populate at least one
+# break-glass principal at cutover time.
+resource "terraform_data" "app_rw_active_precheck" {
+  lifecycle {
+    precondition {
+      condition     = !var.app_rw_active || length(var.master_db_break_glass_principal_arns) > 0
+      error_message = "Set master_db_break_glass_principal_arns to at least one admin IAM principal before flipping app_rw_active = true (see ADR 043 §Bootstrap). Otherwise the master credentials secret has no defense-in-depth beyond IAM, which the role split is meant to harden."
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------

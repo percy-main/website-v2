@@ -77,11 +77,16 @@ Required once, after the PR merges and CI applies. The cutover flag stays `false
      --secret-string '<json with new password>'
    ```
 
-   The Terraform-managed `random_password.db` has `ignore_changes = all`, so this rotation is operator-driven and does not show up in plan.
+   The Terraform-managed `random_password.db` has `ignore_changes = all`, so this rotation is operator-driven and does not show up in plan. `aws_secretsmanager_secret_version.db_credentials` also carries `lifecycle.ignore_changes = [secret_string]` so the next apply does not revert the rotated value.
 
 ## Break-glass recovery
 
-The master credentials secret has a resource policy (when `app_rw_active = true`) that denies `GetSecretValue` from every principal except those in `master_db_break_glass_principal_arns`. Recovery flow:
+The master credentials secret has a resource policy (when `app_rw_active = true`) that denies `GetSecretValue` from every principal except:
+
+- the two Terraform roles (`terraform_role_arn`, `terraform_plan_role_arn`) — required for `aws_secretsmanager_secret_version.db_credentials` refresh/plan ops; without this exemption Terraform breaks. Accepted as a documented trade-off: those roles are hardened, audited, and not held by humans day-to-day.
+- the principals listed in `master_db_break_glass_principal_arns` — the named human admins.
+
+Recovery flow:
 
 1. Admin assumes the IAM principal in the allowlist (typically via SSO + a named admin role).
 2. `aws secretsmanager get-secret-value --secret-id …/rds/credentials` returns the master password.

@@ -19,6 +19,18 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`CREATE ROLE app_rw NOLOGIN`.execute(db);
   await sql`CREATE ROLE app_ddl NOLOGIN`.execute(db);
 
+  // Grant role membership to the migration runner. RDS `rds_superuser`
+  // is NOT a true PostgreSQL superuser, so `ALTER DEFAULT PRIVILEGES
+  // FOR ROLE app_ddl` and `ALTER … OWNER TO app_ddl` below require the
+  // current role to be a *member* of app_ddl. Locally / in tests the
+  // session is a real superuser and this is redundant, but cheap.
+  await sql`
+    DO $$ BEGIN
+      EXECUTE format('GRANT app_ddl TO %I', current_user);
+      EXECUTE format('GRANT app_rw  TO %I', current_user);
+    END $$;
+  `.execute(db);
+
   // PG14 and the RDS-provisioned percy_main carry the pre-PG15 default
   // that grants CREATE on schema public to PUBLIC (every role). Drop it
   // so only roles with an explicit CREATE grant (app_ddl, master) can
