@@ -1,5 +1,5 @@
 /**
- * Reset local PostgreSQL database — drops all tables and re-runs migrations.
+ * Reset local PostgreSQL database - drops all tables and re-runs migrations.
  *
  * Usage: pnpm run db:reset
  *
@@ -64,7 +64,7 @@ try {
   }
   console.log("  ✓ Dropped migration-managed roles");
 
-  // PG14 default — re-grant CREATE on public to PUBLIC, since the
+  // PG14 default - re-grant CREATE on public to PUBLIC, since the
   // role-split migration revokes it on apply and we want the reset
   // to leave the cluster in a true pre-migration state.
   await client.query(`GRANT CREATE ON SCHEMA public TO PUBLIC`);

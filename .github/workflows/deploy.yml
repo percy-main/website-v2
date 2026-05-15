@@ -68,14 +68,14 @@ jobs:
   terraform-shared:
     needs: ci
     runs-on: ubuntu-latest
-    # Shared layer applies Route 53, IAM, S3 backend, certificates —
+    # Shared layer applies Route 53, IAM, S3 backend, certificates -
     # gate on the production environment (same reviewer list as the
     # production layer) so a bad merge can't auto-apply foundational
     # infra without a human approval.
     environment: production
     env:
       TF_VERSION: "1.7"
-      # NR provider — newrelic_cloud_aws_link_account in shared (#201).
+      # NR provider - newrelic_cloud_aws_link_account in shared (#201).
       # Both values are REQUIRED for plan/apply against shared to
       # succeed: the var is required (no default) and the provider
       # validates auth at config time. Already populated in repo
@@ -126,7 +126,7 @@ jobs:
         # cancel-in-progress is false on this workflow but a job can
         # still die from runner OOM / GH outage / 6h timeout / manual
         # cancellation. On success terraform releases the lock itself
-        # — this only runs on the failure paths.
+        # - this only runs on the failure paths.
         if: always() && steps.plan.outcome != 'success'
         uses: ./.github/actions/tf-unlock
         with:
@@ -137,7 +137,7 @@ jobs:
         working-directory: infra/environments/shared
         run: |
           {
-            echo "## Terraform plan (shared, apply-time) — ${{ steps.plan.outcome }}"
+            echo "## Terraform plan (shared, apply-time) - ${{ steps.plan.outcome }}"
             echo '```'
             tail -n 200 plan.txt 2>/dev/null || echo "(no plan.txt)"
             echo '```'
@@ -161,7 +161,7 @@ jobs:
         working-directory: infra/environments/shared
         run: |
           {
-            echo "## Terraform apply (shared) — ${{ steps.apply.outcome }}"
+            echo "## Terraform apply (shared) - ${{ steps.apply.outcome }}"
             echo '```'
             tail -n 100 apply.log 2>/dev/null || echo "(no apply.log)"
             echo '```'
@@ -249,7 +249,7 @@ jobs:
         working-directory: infra/environments/production
         run: |
           {
-            echo "## Terraform plan (production, apply-time) — ${{ steps.plan.outcome }}"
+            echo "## Terraform plan (production, apply-time) - ${{ steps.plan.outcome }}"
             echo '```'
             tail -n 200 plan.txt 2>/dev/null || echo "(no plan.txt)"
             echo '```'
@@ -273,7 +273,7 @@ jobs:
         working-directory: infra/environments/production
         run: |
           {
-            echo "## Terraform apply (production) — ${{ steps.apply.outcome }}"
+            echo "## Terraform apply (production) - ${{ steps.apply.outcome }}"
             echo '```'
             tail -n 100 apply.log 2>/dev/null || echo "(no apply.log)"
             echo '```'
@@ -359,7 +359,7 @@ jobs:
 
       - name: Trivy scan
         # Pinned by commit SHA. The trivy-action repo was supply-chain
-        # compromised on 2026-03-19 (CVE-2026-33634 / GHSA-69fq-xp46-6x23) —
+        # compromised on 2026-03-19 (CVE-2026-33634 / GHSA-69fq-xp46-6x23) -
         # the attacker force-pushed 76 of 77 version tags to credential-stealer
         # commits. Pinning by SHA prevents the same class of attack.
         # Suppressions live in `.trivyignore` at the repo root.
@@ -385,7 +385,7 @@ jobs:
           format: spdx-json
           artifact-name: api-sbom-${{ github.sha }}.spdx.json
           upload-artifact: true
-          # Don't push results to GH Dependency Graph for the workspace —
+          # Don't push results to GH Dependency Graph for the workspace -
           # we already track app deps via package.json; this would add
           # base-image system packages and inflate the dep list.
           dependency-snapshot: false
@@ -428,7 +428,7 @@ jobs:
             --output text)
           echo "task-definition-arn=$API_TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
 
-          # Migration task def (#130 — principle of least privilege). Same
+          # Migration task def (#130 - principle of least privilege). Same
           # image, separate task def so DATABASE_URL → app_ddl is scoped
           # to migration runs only, not the long-running API container.
           MIGRATE_TASK_DEF_ARN=$(aws ecs register-task-definition \
@@ -604,7 +604,7 @@ jobs:
           # /health/ready returns 200 with database=connected when ready,
           # 503 with database=disconnected on DB outage (#193). curl
           # -fsSL fails non-zero on the 5xx, so a single status check is
-          # sufficient — no body-grep needed.
+          # sufficient - no body-grep needed.
           for i in $(seq 1 10); do
             if curl -fsSL --max-time 10 https://api.v2.percymain.org/health/ready -o /tmp/health.json; then
               echo "Smoke test passed: $(cat /tmp/health.json)"
@@ -652,7 +652,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Deploy API — ${{ job.status }}"
+            echo "## Deploy API - ${{ job.status }}"
             echo "- Actor: \`${GITHUB_ACTOR}\`"
             echo "- Ref: \`${GITHUB_REF}\`"
             echo "- SHA: \`${GITHUB_SHA}\`"
@@ -674,7 +674,7 @@ jobs:
   deploy-web:
     needs: [terraform-production, deploy-api, changes]
     # Run if web changed, even when deploy-api was skipped (no API changes).
-    # terraform-production MUST have succeeded — `always()` would
+    # terraform-production MUST have succeeded - `always()` would
     # otherwise let a failed TF apply trigger a deploy against potentially-
     # stale infra. deploy-api may be skipped (no API changes).
     if: |
@@ -709,7 +709,7 @@ jobs:
           VITE_NEW_RELIC_LICENSE_KEY: ${{ vars.NEW_RELIC_BROWSER_LICENSE_KEY }}
           VITE_NEW_RELIC_APP_ID: ${{ vars.NEW_RELIC_BROWSER_APP_ID }}
           VITE_NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
-          # Marketing — gtag block is omitted from index.html when these are unset
+          # Marketing - gtag block is omitted from index.html when these are unset
           # (see apps/web/vite.config.ts gtagHtmlPlugin). Set both repo variables
           # in GitHub → Settings → Variables before the next deploy:
           #   GOOGLE_ADS_CONVERSION_ID = "AW-18093051885"
@@ -739,7 +739,7 @@ jobs:
 
       - name: Invalidate CloudFront cache
         id: invalidate
-        # `/` and `/index.html` cache as separate keys at the edge — must
+        # `/` and `/index.html` cache as separate keys at the edge - must
         # invalidate both so the post-deploy smoke against `/` doesn't
         # validate a stale cached root document.
         run: |
@@ -806,14 +806,14 @@ jobs:
           if [ -n "$ASSET" ]; then
             curl -fsSL --max-time 15 "https://percymain.org${ASSET}" -o /dev/null
           else
-            echo "::warning::No JS chunk found in index.html — skipping asset reachability check"
+            echo "::warning::No JS chunk found in index.html - skipping asset reachability check"
           fi
 
       - name: Deploy summary
         if: always()
         run: |
           {
-            echo "## Deploy Web — ${{ job.status }}"
+            echo "## Deploy Web - ${{ job.status }}"
             echo "- Actor: \`${GITHUB_ACTOR}\`"
             echo "- Ref: \`${GITHUB_REF}\`"
             echo "- SHA: \`${GITHUB_SHA}\`"
@@ -833,12 +833,12 @@ jobs:
 
   # ── Stage 4 (parallel): Deploy matchday PWA ──────────────────────────
   # Modelled on deploy-web; the matchday app lives on its own S3 bucket +
-  # CloudFront distribution. Runs in parallel with deploy-web — no shared
+  # CloudFront distribution. Runs in parallel with deploy-web - no shared
   # state. Skipped when nothing under apps/matchday/** changed.
   deploy-matchday:
     needs: [terraform-production, deploy-api, changes]
     # deploy-api is allowed to be skipped (API didn't change) but
-    # terraform-production MUST have succeeded — the matchday bucket
+    # terraform-production MUST have succeeded - the matchday bucket
     # and CloudFront distribution are created there. Without an explicit
     # `terraform-production == 'success'` guard the `always()` would let
     # a failed TF apply still run the deploy and fail late at the S3
@@ -859,7 +859,7 @@ jobs:
         # provisioned by Terraform; their IDs land in `terraform output`
         # and an operator copies them to repo Variables (`Settings →
         # Variables`). Without them the S3 sync command below expands
-        # to `s3://` and fails opaquely halfway through the job — fail
+        # to `s3://` and fails opaquely halfway through the job - fail
         # fast here with a pointer at the wiring instead.
         env:
           BUCKET: ${{ vars.MATCHDAY_FRONTEND_BUCKET }}
@@ -915,7 +915,7 @@ jobs:
           aws s3 cp apps/matchday/dist/index.html s3://${{ vars.MATCHDAY_FRONTEND_BUCKET }}/index.html \
             --cache-control "public, max-age=0, must-revalidate"
 
-          # Service worker + manifest must never be cached at the edge —
+          # Service worker + manifest must never be cached at the edge -
           # otherwise a new deploy ships with a stale registration that
           # holds the old assets in clients' caches indefinitely.
           if [ -f apps/matchday/dist/sw.js ]; then
@@ -957,7 +957,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Deploy Matchday — ${{ job.status }}"
+            echo "## Deploy Matchday - ${{ job.status }}"
             echo "- Actor: \`${GITHUB_ACTOR}\`"
             echo "- Ref: \`${GITHUB_REF}\`"
             echo "- SHA: \`${GITHUB_SHA}\`"

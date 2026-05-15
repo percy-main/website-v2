@@ -97,8 +97,8 @@ resource "random_password" "db" {
   }
 }
 
-# Application role passwords (#130 — principle of least privilege).
-# Alphanumeric only — these get embedded in DATABASE_URL strings and
+# Application role passwords (#130 - principle of least privilege).
+# Alphanumeric only - these get embedded in DATABASE_URL strings and
 # we want to avoid URL-encoding round-trips. 32 chars × 62-symbol
 # alphabet ≈ 190 bits of entropy, well above what RDS needs.
 #
@@ -213,11 +213,11 @@ resource "aws_db_instance" "main" {
   # Export postgresql + upgrade logs to CloudWatch so they're reachable
   # for alarming and downstream NR forwarding (#200). The parameter
   # group already enables log_min_duration_statement / log_connections
-  # / log_disconnections — without exports those logs never leave the
+  # / log_disconnections - without exports those logs never leave the
   # instance.
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
 
-  # Enhanced monitoring — 60s OS-level metrics (load avg, IOPS by
+  # Enhanced monitoring - 60s OS-level metrics (load avg, IOPS by
   # process, network). Performance Insights covers query-level; this
   # covers the host. Valid intervals: 1/5/10/15/30/60.
   monitoring_interval = 60
@@ -258,7 +258,7 @@ resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
 }
 
 # -----------------------------------------------------------------------------
-# CloudWatch log groups for RDS log exports — explicit so we can control
+# CloudWatch log groups for RDS log exports - explicit so we can control
 # retention. RDS would otherwise create them with infinite retention.
 # -----------------------------------------------------------------------------
 
@@ -275,7 +275,7 @@ resource "aws_cloudwatch_log_group" "rds_upgrade" {
 }
 
 # -----------------------------------------------------------------------------
-# Secrets Manager — Store DB Credentials
+# Secrets Manager - Store DB Credentials
 # -----------------------------------------------------------------------------
 
 resource "aws_secretsmanager_secret" "db_credentials" {
@@ -310,7 +310,7 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
 # Break-glass-only access to the master credentials secret. Active once
 # app_rw + app_ddl have taken over the runtime + migration paths
 # (#130). Without this, the existing IAM-only allow on `*percy-main*`
-# means any role with that policy can still read the master — which
+# means any role with that policy can still read the master - which
 # defeats the role split. The deny here applies to all principals NOT
 # in the allowlist, so the task-execution role can no longer fetch
 # master credentials even though its IAM policy still allows it.
@@ -339,7 +339,7 @@ resource "aws_secretsmanager_secret_policy" "db_credentials_break_glass" {
 }
 
 # ---------------------------------------------------------------------------
-# Secrets Manager — app_rw and app_ddl credentials (#130)
+# Secrets Manager - app_rw and app_ddl credentials (#130)
 # Each secret stores the JSON shape Postgres clients need plus a
 # pre-built DATABASE_URL so the ECS task definition can reference a
 # single JSON key (`...:DATABASE_URL::`) directly, avoiding URL
@@ -430,7 +430,7 @@ output "instance_id" {
 }
 
 # -----------------------------------------------------------------------------
-# Event subscription — surface backup / failure / maintenance events to SNS
+# Event subscription - surface backup / failure / maintenance events to SNS
 # so a missed backup or hardware fault routes to on-call instead of being
 # discovered next time someone tries to recover.
 #

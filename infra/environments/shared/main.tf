@@ -30,7 +30,7 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# New Relic provider — auth via NEW_RELIC_API_KEY env var (set on the
+# New Relic provider - auth via NEW_RELIC_API_KEY env var (set on the
 # CI runner from secrets.NEW_RELIC_API_KEY). Account ID + region come
 # from variables so they're declarative rather than env-dependent.
 provider "newrelic" {
@@ -111,7 +111,7 @@ resource "aws_route53_record" "ses_verification" {
 }
 
 # -----------------------------------------------------------------------------
-# SES alarms — bounce / complaint / sending-quota.
+# SES alarms - bounce / complaint / sending-quota.
 # AWS auto-pauses sending if BounceRate > 5% or ComplaintRate > 0.1%
 # over a rolling window, so these need to page early enough that we
 # can intervene before the pause hits.
@@ -119,7 +119,7 @@ resource "aws_route53_record" "ses_verification" {
 
 resource "aws_cloudwatch_metric_alarm" "ses_bounce_rate" {
   alarm_name          = "percy-main-ses-bounce-rate"
-  alarm_description   = "SES bounce rate >5% — AWS auto-pauses sending if this stays high. Investigate before pause."
+  alarm_description   = "SES bounce rate >5% - AWS auto-pauses sending if this stays high. Investigate before pause."
   namespace           = "AWS/SES"
   metric_name         = "Reputation.BounceRate"
   statistic           = "Average"
@@ -135,7 +135,7 @@ resource "aws_cloudwatch_metric_alarm" "ses_bounce_rate" {
 
 resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
   alarm_name          = "percy-main-ses-complaint-rate"
-  alarm_description   = "SES complaint rate >0.1% — AWS auto-pauses sending if this stays high. Likely a list-hygiene problem."
+  alarm_description   = "SES complaint rate >0.1% - AWS auto-pauses sending if this stays high. Likely a list-hygiene problem."
   namespace           = "AWS/SES"
   metric_name         = "Reputation.ComplaintRate"
   statistic           = "Average"
@@ -154,7 +154,7 @@ resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
 # spike or a runaway loop / compromised endpoint.
 resource "aws_cloudwatch_metric_alarm" "ses_send_volume" {
   alarm_name          = "percy-main-ses-send-volume-spike"
-  alarm_description   = "SES Send count anomalously high in the last hour — possible runaway loop / compromised endpoint. Threshold is a heuristic; tune after observing normal traffic."
+  alarm_description   = "SES Send count anomalously high in the last hour - possible runaway loop / compromised endpoint. Threshold is a heuristic; tune after observing normal traffic."
   namespace           = "AWS/SES"
   metric_name         = "Send"
   statistic           = "Sum"
@@ -179,7 +179,7 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
 }
 
 # -----------------------------------------------------------------------------
-# IAM Role: Terraform Apply (GitHub Actions — main branch only)
+# IAM Role: Terraform Apply (GitHub Actions - main branch only)
 # Has full permissions needed to manage infrastructure.
 # -----------------------------------------------------------------------------
 
@@ -221,7 +221,7 @@ resource "aws_iam_role_policy_attachment" "terraform_admin" {
 }
 
 # -----------------------------------------------------------------------------
-# IAM Role: Terraform Plan (GitHub Actions — PRs, read-only)
+# IAM Role: Terraform Plan (GitHub Actions - PRs, read-only)
 # Used during pull requests for plan-only operations.
 # -----------------------------------------------------------------------------
 
@@ -241,7 +241,7 @@ data "aws_iam_policy_document" "terraform_plan_assume" {
       # Accept both PR runs (terraform-plan job) and main-branch
       # scheduled / workflow_dispatch runs (terraform-drift workflow).
       # The role grants ReadOnlyAccess + state-lock + secrets-read
-      # only — appropriate for both plan and drift.
+      # only - appropriate for both plan and drift.
       values = [
         "repo:${var.github_repo}:pull_request",
         "repo:${var.github_repo}:ref:refs/heads/main",
@@ -295,7 +295,7 @@ resource "aws_iam_role_policy" "terraform_plan_extras" {
 }
 
 # -----------------------------------------------------------------------------
-# IAM Role: Deploy (GitHub Actions — main branch only)
+# IAM Role: Deploy (GitHub Actions - main branch only)
 # -----------------------------------------------------------------------------
 
 data "aws_iam_policy_document" "deploy_assume" {
@@ -414,7 +414,7 @@ data "aws_iam_policy_document" "deploy_ecs" {
   # the workflow falls back to "rollback happened, go dig manually".
   #
   # AWS scopes ListTasks to the `container-instance` resource type,
-  # which does not apply on Fargate — so the canonical pattern is
+  # which does not apply on Fargate - so the canonical pattern is
   # Resource "*" gated by the `ecs:cluster` condition key. The
   # condition restricts the call to percy-main-* clusters only.
   statement {
@@ -514,7 +514,7 @@ resource "aws_iam_role_policy" "deploy_secrets" {
 }
 
 # -----------------------------------------------------------------------------
-# ACM Certificate — ALB (eu-west-2)
+# ACM Certificate - ALB (eu-west-2)
 # -----------------------------------------------------------------------------
 
 resource "aws_acm_certificate" "alb" {
@@ -551,7 +551,7 @@ resource "aws_acm_certificate_validation" "alb" {
 }
 
 # -----------------------------------------------------------------------------
-# ACM Certificate — CloudFront (us-east-1)
+# ACM Certificate - CloudFront (us-east-1)
 # -----------------------------------------------------------------------------
 
 resource "aws_acm_certificate" "cloudfront" {
@@ -592,9 +592,9 @@ resource "aws_acm_certificate_validation" "cloudfront" {
 }
 
 # -----------------------------------------------------------------------------
-# Reliability alarms — Route 53 health check + ACM expiry
+# Reliability alarms - Route 53 health check + ACM expiry
 # -----------------------------------------------------------------------------
-# Operator-subscribed SNS topics (no Terraform-managed subscription —
+# Operator-subscribed SNS topics (no Terraform-managed subscription -
 # add an email/Slack/Lambda subscription out of band, same pattern as
 # the security-events topics).
 #
@@ -602,7 +602,7 @@ resource "aws_acm_certificate_validation" "cloudfront" {
 # certificate live in us-east-1; the ALB certificate lives in
 # eu-west-2.
 
-# eu-west-2 reliability alarms topic — ALB cert expiry.
+# eu-west-2 reliability alarms topic - ALB cert expiry.
 resource "aws_sns_topic" "shared_reliability_alarms" {
   name = "percy-main-shared-reliability-alarms"
   tags = {
@@ -613,7 +613,7 @@ resource "aws_sns_topic" "shared_reliability_alarms" {
   }
 }
 
-# us-east-1 reliability alarms topic — Route 53 health-check + CloudFront cert.
+# us-east-1 reliability alarms topic - Route 53 health-check + CloudFront cert.
 resource "aws_sns_topic" "shared_reliability_alarms_us_east_1" {
   provider = aws.us_east_1
   name     = "percy-main-shared-reliability-alarms"
@@ -651,7 +651,7 @@ resource "aws_cloudwatch_metric_alarm" "api_health_check" {
   provider = aws.us_east_1
 
   alarm_name          = "percy-main-api-route53-health-check"
-  alarm_description   = "Route 53 health check failing for api.v2.${var.domain_name} — DNS / TLS / edge problem (independent of ALB target health)"
+  alarm_description   = "Route 53 health check failing for api.v2.${var.domain_name} - DNS / TLS / edge problem (independent of ALB target health)"
   namespace           = "AWS/Route53"
   metric_name         = "HealthCheckStatus"
   statistic           = "Minimum"
@@ -669,11 +669,11 @@ resource "aws_cloudwatch_metric_alarm" "api_health_check" {
   ok_actions    = [aws_sns_topic.shared_reliability_alarms_us_east_1.arn]
 }
 
-# ACM cert expiry — alarm at 30 days. DNS-validated certs auto-renew but
+# ACM cert expiry - alarm at 30 days. DNS-validated certs auto-renew but
 # renewal can fail (DNS records modified, NS delegation broken).
 resource "aws_cloudwatch_metric_alarm" "alb_cert_expiry" {
   alarm_name          = "percy-main-alb-cert-expiry"
-  alarm_description   = "ALB ACM certificate expires in <30 days — auto-renewal may have failed"
+  alarm_description   = "ALB ACM certificate expires in <30 days - auto-renewal may have failed"
   namespace           = "AWS/CertificateManager"
   metric_name         = "DaysToExpiry"
   statistic           = "Minimum"
@@ -695,7 +695,7 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_cert_expiry" {
   provider = aws.us_east_1
 
   alarm_name          = "percy-main-cloudfront-cert-expiry"
-  alarm_description   = "CloudFront ACM certificate expires in <30 days — auto-renewal may have failed"
+  alarm_description   = "CloudFront ACM certificate expires in <30 days - auto-renewal may have failed"
   namespace           = "AWS/CertificateManager"
   metric_name         = "DaysToExpiry"
   statistic           = "Minimum"
@@ -718,7 +718,7 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_cert_expiry" {
 # -----------------------------------------------------------------------------
 # EventBridge rules that catch security-sensitive API calls (SG changes,
 # IAM policy edits) and route them to per-region SNS topics. Topics
-# carry no terraform-managed subscription — operators add an email /
+# carry no terraform-managed subscription - operators add an email /
 # Slack / Lambda subscription out of band so the audit channel can be
 # reconfigured without a TF change. Depends on CloudTrail being on
 # (#214).
@@ -731,12 +731,12 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_cert_expiry" {
 # SNS topics are intentionally NOT encrypted with `alias/aws/sns` (the
 # AWS-managed SNS KMS key cannot have its policy edited, and EventBridge
 # needs `kms:GenerateDataKey` against a key that allows
-# `events.amazonaws.com` — only a customer-managed CMK can do that).
+# `events.amazonaws.com` - only a customer-managed CMK can do that).
 # Event payloads are CloudTrail event metadata (no secrets), so leaving
 # encryption-at-rest off is an acceptable trade. Add a CMK here if the
 # threat model later requires it.
 
-# eu-west-2 topic — receives SG-change events.
+# eu-west-2 topic - receives SG-change events.
 resource "aws_sns_topic" "security_events" {
   name = "percy-main-shared-security-events"
 
@@ -793,7 +793,7 @@ resource "aws_sns_topic_policy" "security_events" {
   policy = data.aws_iam_policy_document.security_events_topic.json
 }
 
-# us-east-1 topic + IAM rule — IAM API events surface only in us-east-1.
+# us-east-1 topic + IAM rule - IAM API events surface only in us-east-1.
 resource "aws_sns_topic" "security_events_us_east_1" {
   provider = aws.us_east_1
   name     = "percy-main-shared-security-events"
@@ -873,11 +873,11 @@ resource "aws_sns_topic_policy" "security_events_us_east_1" {
 # DB master break-glass role (#130 / ADR 043)
 #
 # Reading the RDS master credentials secret should be a deliberate,
-# audited act — not something the day-to-day admin IAM can do silently.
+# audited act - not something the day-to-day admin IAM can do silently.
 # Solution: a dedicated IAM role with a single permission
 # (`secretsmanager:GetSecretValue` on the master credentials secret).
 # Admins assume it via `aws sts assume-role` when they need master;
-# the assumption itself is the audit point — every use shows up in
+# the assumption itself is the audit point - every use shows up in
 # CloudTrail as an `AssumeRole` on this role, and EventBridge alarms
 # fire to the security_events topic.
 #
@@ -889,7 +889,7 @@ resource "aws_sns_topic_policy" "security_events_us_east_1" {
 
 resource "aws_iam_role" "db_break_glass" {
   name                 = "percy-main-db-break-glass"
-  description          = "Break-glass access to the RDS master credentials secret. Assumption is the audit point — every use is logged in CloudTrail and alarms to security_events."
+  description          = "Break-glass access to the RDS master credentials secret. Assumption is the audit point - every use is logged in CloudTrail and alarms to security_events."
   max_session_duration = 3600
 
   assume_role_policy = jsonencode({
@@ -939,7 +939,7 @@ resource "aws_iam_role_policy" "db_break_glass_read_master" {
 }
 
 # Alarm on every assumption. STS AssumeRole events land in the region
-# where the call was made — admins on this account call regional STS
+# where the call was made - admins on this account call regional STS
 # endpoints (the post-2019 default) so eu-west-2 is the right home.
 # For belt-and-braces (global-endpoint callers, federated console)
 # we also wire a us-east-1 rule below.
@@ -1010,7 +1010,7 @@ data "aws_iam_policy_document" "newrelic_assume" {
     principals {
       type = "AWS"
       # New Relic's integration account. Same value across all NR
-      # tenants — they assume into our account using ExternalId for
+      # tenants - they assume into our account using ExternalId for
       # tenant separation.
       identifiers = ["arn:aws:iam::754728514883:root"]
     }
@@ -1059,7 +1059,7 @@ resource "newrelic_cloud_aws_link_account" "main" {
 }
 
 # Enable the per-service AWS integrations we actually use. Cheap to
-# leave the others off — NR only polls services listed here.
+# leave the others off - NR only polls services listed here.
 resource "newrelic_cloud_aws_integrations" "main" {
   account_id        = var.newrelic_account_id
   linked_account_id = newrelic_cloud_aws_link_account.main.id

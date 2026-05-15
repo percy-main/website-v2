@@ -8,7 +8,7 @@ import { createClient } from "../src/client.js";
  * lines to copy into apps/api/.env.
  *
  * In production both roles' passwords are minted by Terraform and seeded
- * into Postgres via a one-time admin ALTER USER over Tailscale — never
+ * into Postgres via a one-time admin ALTER USER over Tailscale - never
  * run this there. See docs/adrs/ for the bootstrap procedure.
  */
 

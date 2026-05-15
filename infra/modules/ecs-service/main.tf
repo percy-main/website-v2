@@ -212,7 +212,7 @@ resource "aws_ecs_cluster" "main" {
   # ECS/ContainerInsights DesiredTaskCount + RunningTaskCount metrics
   # to alarm against. Without this, those metrics are not published
   # and the alarm sits in INSUFFICIENT_DATA forever. The cost is the
-  # extra CW Logs ingest for ContainerInsights — small at our scale.
+  # extra CW Logs ingest for ContainerInsights - small at our scale.
   setting {
     name  = "containerInsights"
     value = "enabled"
@@ -222,7 +222,7 @@ resource "aws_ecs_cluster" "main" {
 }
 
 # ------------------------------------------------------------------------------
-# IAM — Task Execution Role
+# IAM - Task Execution Role
 # (Used by ECS agent to pull images, read secrets, push logs)
 # ------------------------------------------------------------------------------
 
@@ -287,7 +287,7 @@ resource "aws_iam_role_policy" "task_execution_secrets" {
 }
 
 # ------------------------------------------------------------------------------
-# IAM — Task Role
+# IAM - Task Role
 # (Used by the running application container for AWS SDK calls)
 # ------------------------------------------------------------------------------
 
@@ -496,7 +496,7 @@ resource "aws_iam_role_policy" "task_rekognition_detect_faces" {
 
   # Scout's recognition-source pipeline runs face DETECTION (bounding boxes
   # only) on candidate images so the captain sees pre-cropped thumbnails of
-  # every face in a team / match photo. This is not face recognition —
+  # every face in a team / match photo. This is not face recognition -
   # DetectFaces is stateless and returns geometry only. See ADR 042.
   # Rekognition doesn't support resource-level scoping for stateless ops,
   # hence Resource = "*".
@@ -600,14 +600,14 @@ resource "aws_ecs_task_definition" "api" {
           var.newrelic_license_key_arn != "" ? [
             { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = var.otel_endpoint },
             { name = "OTEL_SERVICE_NAME", value = "${local.name_prefix}-api" },
-            # OTEL_RESOURCE_ATTRIBUTES — propagated to every span /
+            # OTEL_RESOURCE_ATTRIBUTES - propagated to every span /
             # metric / log record so NR can filter by environment,
             # release SHA (set in ECS task env by deploy.yml from
             # #224), and service name. release.id falls back to
             # "unknown" when RELEASE_SHA isn't set (local / staging
             # without the deploy workflow patching the task def).
             { name = "OTEL_RESOURCE_ATTRIBUTES", value = "service.name=${local.name_prefix}-api,deployment.environment=${var.environment},service.namespace=percy-main" },
-            # Sample everything for now — low traffic. Switch to ratio
+            # Sample everything for now - low traffic. Switch to ratio
             # < 1.0 if/when volume warrants it.
             { name = "OTEL_TRACES_SAMPLER", value = "parentbased_traceidratio" },
             { name = "OTEL_TRACES_SAMPLER_ARG", value = var.otel_traces_sampler_arg },
@@ -671,14 +671,14 @@ resource "aws_ecs_task_definition" "api" {
 }
 
 # ------------------------------------------------------------------------------
-# Migration Task Definition (#130 — principle of least privilege)
+# Migration Task Definition (#130 - principle of least privilege)
 #
 # Same image, same task role, same execution role as the API task. The
 # split is in the *secrets* map: the API task gets DATABASE_URL pointing
 # at app_rw, this task gets DATABASE_URL pointing at app_ddl. Because
 # ECS injects secrets into the container's env at startup (via the
 # execution role, not the task role) only what each task definition
-# *declares* lands in env — a runtime compromise of the API container
+# *declares* lands in env - a runtime compromise of the API container
 # cannot see the app_ddl URL even though both secrets live under the
 # same `*percy-main*` IAM allow.
 #
@@ -1059,7 +1059,7 @@ resource "aws_cloudwatch_log_metric_filter" "nri_ecs_errors" {
   # restrict by log stream, so the patterns are deliberately NR-specific
   # to avoid matching app logs that happen to contain the word "ERROR".
   # If the sidecar's failure vocabulary changes in a future NR Infra
-  # release this filter needs updating — track via a periodic alarm
+  # release this filter needs updating - track via a periodic alarm
   # smoke test rather than relying on the alarm itself to never trip.
   pattern = "?\"failed to send metrics\" ?\"License key not valid\" ?\"unauthorized\" ?\"InvalidLicenseKey\""
 
@@ -1075,7 +1075,7 @@ resource "aws_cloudwatch_metric_alarm" "nri_ecs_failure" {
   count = var.enable_nri_ecs_alarm ? 1 : 0
 
   alarm_name          = "${local.name_prefix}-nri-ecs-failure"
-  alarm_description   = "newrelic-infra sidecar is logging errors — NR ingest from this task may be dropping silently. Check the newrelic-infra log stream."
+  alarm_description   = "newrelic-infra sidecar is logging errors - NR ingest from this task may be dropping silently. Check the newrelic-infra log stream."
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   metric_name         = aws_cloudwatch_log_metric_filter.nri_ecs_errors[0].metric_transformation[0].name

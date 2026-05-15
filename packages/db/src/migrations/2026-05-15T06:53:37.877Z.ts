@@ -7,7 +7,7 @@ import { type Kysely, sql } from "kysely";
 //   new objects via default privileges so app_rw can keep reading/writing
 //   them after future migrations.
 //
-// Both are created NOLOGIN — passwords + LOGIN are set out-of-band per
+// Both are created NOLOGIN - passwords + LOGIN are set out-of-band per
 // environment (Terraform-minted secret + admin ALTER USER in prod; the
 // setup-app-roles dev script locally). This mirrors the scout_readonly
 // pattern and keeps credentials out of migration history.
@@ -51,7 +51,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_rw`.execute(
     db,
   );
-  // Default privileges are scoped by the creating role — app_ddl creates
+  // Default privileges are scoped by the creating role - app_ddl creates
   // new objects going forward, so its FOR ROLE clause is what counts.
   await sql`ALTER DEFAULT PRIVILEGES FOR ROLE app_ddl IN SCHEMA public
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_rw`.execute(db);
@@ -66,12 +66,12 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   `.execute(db);
   await sql`GRANT USAGE, CREATE ON SCHEMA public TO app_ddl`.execute(db);
   // Hand every existing public-schema table, sequence, and view to
-  // app_ddl. Plain REASSIGN OWNED BY <master> won't work — the master
+  // app_ddl. Plain REASSIGN OWNED BY <master> won't work - the master
   // also owns the database itself ("required by the database system"),
   // so we walk pg_class instead and only touch objects in `public`.
   //
   // Identity/SERIAL sequences (pg_depend.deptype='a') travel with their
-  // owning column — ALTER SEQUENCE OWNER fails on them, so skip those
+  // owning column - ALTER SEQUENCE OWNER fails on them, so skip those
   // and let the table-level ALTER carry them.
   await sql`
     DO $$
@@ -111,7 +111,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 export async function down(db: Kysely<unknown>): Promise<void> {
   // Hand public-schema objects back to whoever runs the down (the master
   // in production, the testcontainer user in tests) before dropping the
-  // roles — otherwise DROP ROLE fails on dependent objects.
+  // roles - otherwise DROP ROLE fails on dependent objects.
   await sql`
     DO $$
     DECLARE

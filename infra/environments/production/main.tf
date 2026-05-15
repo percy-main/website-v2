@@ -28,7 +28,7 @@ provider "aws" {
   region = "eu-west-2"
 }
 
-# us-east-1 provider — required for CloudFront and Route 53 metrics
+# us-east-1 provider - required for CloudFront and Route 53 metrics
 # (both surface in us-east-1 only) and for any CloudFront-namespace
 # CloudWatch alarms.
 provider "aws" {
@@ -37,7 +37,7 @@ provider "aws" {
 }
 
 # ---------------------------------------------------------------------------
-# Tailscale provider — auth via OAuth client stored in Secrets Manager
+# Tailscale provider - auth via OAuth client stored in Secrets Manager
 # (manually created in the Tailscale admin console with scopes: Policy File
 # write + OAuth Keys write, and tag ownership of tag:subnet-router so it can
 # delegate that tag to the router's OAuth client)
@@ -71,7 +71,7 @@ provider "tailscale" {
 }
 
 # ---------------------------------------------------------------------------
-# Remote state — shared infrastructure outputs
+# Remote state - shared infrastructure outputs
 # ---------------------------------------------------------------------------
 
 data "terraform_remote_state" "shared" {
@@ -91,7 +91,7 @@ locals {
   # with this new output. The deploy chain on main applies
   # terraform-shared before terraform-production, so by apply time on
   # main the output exists. Until then, the affected alarms have an
-  # empty action list — they'll evaluate but won't notify.
+  # empty action list - they'll evaluate but won't notify.
   reliability_alarms_topic_arn_us_east_1 = try(
     data.terraform_remote_state.shared.outputs.reliability_alarms_topic_arn_us_east_1,
     null
@@ -127,9 +127,9 @@ module "rds" {
   # Once the role split (#130) is active, the master credentials secret
   # is reachable only by:
   #   - the dedicated break-glass IAM role (audited via CloudTrail +
-  #     EventBridge alarm on every AssumeRole — see ADR 043);
+  #     EventBridge alarm on every AssumeRole - see ADR 043);
   #   - the two Terraform roles (required for state refresh on the
-  #     secret resource — without them, plan/apply break);
+  #     secret resource - without them, plan/apply break);
   #   - any extra principals an operator explicitly adds via the
   #     `master_db_break_glass_principal_arns` variable (escape hatch
   #     for one-off auditor / vendor access).
@@ -198,8 +198,8 @@ module "ecs" {
     SCOUT_KB_UPLOADS_BUCKET         = module.scout_kb_uploads.bucket_name
     SCOUT_KB_BUCKET                 = module.scout_kb_bucket.bucket_name
     SCOUT_KB_PREFIX                 = "scout/knowledge"
-    # Scout model config — required, no in-code defaults. Production
-    # uses deepseek-v4 (not flash) for the report agent — favours
+    # Scout model config - required, no in-code defaults. Production
+    # uses deepseek-v4 (not flash) for the report agent - favours
     # quality over latency on the long generate_report loop.
     SCOUT_PROVIDER_CHAT           = "deepseek"
     SCOUT_PROVIDER_SUBAGENT       = "deepseek"
@@ -214,7 +214,7 @@ module "ecs" {
     VOYAGE_RERANK_MODEL           = "rerank-2.5"
     AWS_REGION                    = "eu-west-2"
     # Cannot reference module.ecs.* outputs that depend on the task definition
-    # here — that would cycle through the env-vars input. The cluster and family
+    # here - that would cycle through the env-vars input. The cluster and family
     # names are deterministic from the environment, so inline them.
     SYNC_ECS_CLUSTER          = "percy-main-production-cluster"
     SYNC_ECS_TASK_DEFINITION  = "production-api"
@@ -224,7 +224,7 @@ module "ecs" {
   }
 
   # Migration task connects as app_ddl once the role split is active.
-  # Before cutover it shares the API task's master DATABASE_URL — same
+  # Before cutover it shares the API task's master DATABASE_URL - same
   # as legacy behaviour, just running from a separate task definition.
   migration_environment_variables = {
     NODE_ENV  = "production"
@@ -272,14 +272,14 @@ module "ecs" {
     ANTHROPIC_API_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:ANTHROPIC_API_KEY::"
     DEEPSEEK_API_KEY  = "${aws_secretsmanager_secret.app_secrets.arn}:DEEPSEEK_API_KEY::"
     VOYAGE_API_KEY    = "${aws_secretsmanager_secret.app_secrets.arn}:VOYAGE_API_KEY::"
-    # Tavily — backs Scout's recognition-source discovery (find_player_photo_sources).
+    # Tavily - backs Scout's recognition-source discovery (find_player_photo_sources).
     # Required by config (z.string().min(1)); the secret JSON key MUST exist
     # in app_secrets before this task definition redeploys or ECS will fail
     # to start.
     TAVILY_API_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:TAVILY_API_KEY::"
     SCOUT_DB_URL   = "${aws_secretsmanager_secret.app_secrets.arn}:SCOUT_DB_URL::"
 
-    # Google Ads API (offline conversion uploads — recruit-2026 + future
+    # Google Ads API (offline conversion uploads - recruit-2026 + future
     # campaigns). Stored in a separate secret from app_secrets so the
     # OAuth refresh token can be rotated independently when it ages out.
     # The IAM allow on `*percy-main*` already covers this secret.
@@ -306,7 +306,7 @@ module "ecs" {
 }
 
 # ---------------------------------------------------------------------------
-# Documents Bucket — S3 (Object Lock, no CloudFront)
+# Documents Bucket - S3 (Object Lock, no CloudFront)
 # ---------------------------------------------------------------------------
 
 module "documents_bucket" {
@@ -321,7 +321,7 @@ module "document_uploads" {
 }
 
 # ---------------------------------------------------------------------------
-# Scout Reports Bucket — S3 (no CloudFront, signed URLs only)
+# Scout Reports Bucket - S3 (no CloudFront, signed URLs only)
 # ---------------------------------------------------------------------------
 
 module "scout_reports" {
@@ -330,7 +330,7 @@ module "scout_reports" {
 }
 
 # ---------------------------------------------------------------------------
-# Scout Attachment Buckets — uploads (24h lifecycle, CORS PUT) + permanent
+# Scout Attachment Buckets - uploads (24h lifecycle, CORS PUT) + permanent
 # ---------------------------------------------------------------------------
 
 module "scout_attachment_uploads" {
@@ -345,7 +345,7 @@ module "scout_attachments_bucket" {
 }
 
 # ---------------------------------------------------------------------------
-# Scout KB Buckets — uploads (24h lifecycle, CORS PUT) + permanent
+# Scout KB Buckets - uploads (24h lifecycle, CORS PUT) + permanent
 # ---------------------------------------------------------------------------
 
 module "scout_kb_uploads" {
@@ -372,10 +372,10 @@ module "cdn" {
   api_base_url        = "https://api.v2.percymain.org"
 }
 
-# Matchday PWA distribution — separate from the main marketing site so a
+# Matchday PWA distribution - separate from the main marketing site so a
 # matchday deploy invalidates only matchday's cache. Reuses the wildcard
 # us-east-1 ACM cert (*.percymain.org SAN). DNS for matchday.percymain.org
-# is at Netlify (not Route 53) — add a CNAME there after first apply,
+# is at Netlify (not Route 53) - add a CNAME there after first apply,
 # pointing at module.cdn_matchday.distribution_domain_name. See
 # plans/matchday/phases/1-foundation.md for the manual DNS step.
 module "cdn_matchday" {
@@ -386,14 +386,14 @@ module "cdn_matchday" {
   acm_certificate_arn = local.shared.acm_cloudfront_certificate_arn
 }
 
-# CloudFront CloudWatch alarms — metrics live in us-east-1 only, so the
+# CloudFront CloudWatch alarms - metrics live in us-east-1 only, so the
 # alarms must be provisioned with the us_east_1 provider. Routed to the
 # shared us-east-1 reliability alarms topic (operator-subscribed).
 resource "aws_cloudwatch_metric_alarm" "cdn_5xx_rate" {
   provider = aws.us_east_1
 
   alarm_name          = "percy-main-production-cdn-5xx-rate"
-  alarm_description   = "CloudFront 5xx error rate >1% — origin (ALB → API) is failing or edge layer is misbehaving"
+  alarm_description   = "CloudFront 5xx error rate >1% - origin (ALB → API) is failing or edge layer is misbehaving"
   namespace           = "AWS/CloudFront"
   metric_name         = "5xxErrorRate"
   statistic           = "Average"
@@ -416,7 +416,7 @@ resource "aws_cloudwatch_metric_alarm" "cdn_origin_latency" {
   provider = aws.us_east_1
 
   alarm_name          = "percy-main-production-cdn-origin-latency"
-  alarm_description   = "CloudFront OriginLatency p99 >2s — slow origin (ALB → API) responses, may indicate API saturation"
+  alarm_description   = "CloudFront OriginLatency p99 >2s - slow origin (ALB → API) responses, may indicate API saturation"
   namespace           = "AWS/CloudFront"
   metric_name         = "OriginLatency"
   extended_statistic  = "p99"
@@ -439,7 +439,7 @@ resource "aws_cloudwatch_metric_alarm" "cdn_cache_hit_rate" {
   provider = aws.us_east_1
 
   alarm_name          = "percy-main-production-cdn-cache-hit-rate"
-  alarm_description   = "CloudFront cache hit rate <80% — regression in cache config or sudden uncached traffic pattern. CacheHitRate requires additional metrics to be enabled on the distribution."
+  alarm_description   = "CloudFront cache hit rate <80% - regression in cache config or sudden uncached traffic pattern. CacheHitRate requires additional metrics to be enabled on the distribution."
   namespace           = "AWS/CloudFront"
   metric_name         = "CacheHitRate"
   statistic           = "Average"
@@ -464,7 +464,7 @@ resource "aws_cloudwatch_metric_alarm" "cdn_matchday_5xx_rate" {
   provider = aws.us_east_1
 
   alarm_name          = "percy-main-production-cdn-matchday-5xx-rate"
-  alarm_description   = "matchday CloudFront 5xx error rate >1% — S3 origin failing"
+  alarm_description   = "matchday CloudFront 5xx error rate >1% - S3 origin failing"
   namespace           = "AWS/CloudFront"
   metric_name         = "5xxErrorRate"
   statistic           = "Average"
@@ -484,7 +484,7 @@ resource "aws_cloudwatch_metric_alarm" "cdn_matchday_5xx_rate" {
 }
 
 # ---------------------------------------------------------------------------
-# DNS (Route 53) — only api.v2 record needed; percymain.org DNS is at Netlify
+# DNS (Route 53) - only api.v2 record needed; percymain.org DNS is at Netlify
 # ---------------------------------------------------------------------------
 
 resource "aws_route53_record" "api_v2_a" {
@@ -524,14 +524,14 @@ module "monitoring" {
   alb_arn_suffix          = module.ecs.alb_arn_suffix
   target_group_arn_suffix = module.ecs.target_group_arn_suffix
   rds_instance_id         = module.rds.instance_id
-  # 50 GiB cap (must match `max_allocated_storage` on the RDS module —
+  # 50 GiB cap (must match `max_allocated_storage` on the RDS module -
   # default 50 in modules/rds/main.tf). Drives the percentage-based
   # storage alarm.
   rds_max_allocated_storage_bytes = 50 * 1024 * 1024 * 1024
 }
 
 # ---------------------------------------------------------------------------
-# Tailscale Subnet Router — admin DB access
+# Tailscale Subnet Router - admin DB access
 # Advertises the VPC CIDR to the tailnet. See docs/adrs/ for bootstrap steps.
 # ---------------------------------------------------------------------------
 
@@ -555,7 +555,7 @@ resource "aws_security_group_rule" "rds_ingress_from_tailscale" {
   description              = "PostgreSQL from Tailscale subnet router (admin access)"
 }
 
-# Tailscale ACL — who can reach what over the tailnet
+# Tailscale ACL - who can reach what over the tailnet
 resource "tailscale_acl" "main" {
   acl = jsonencode({
     tagOwners = {
@@ -579,7 +579,7 @@ resource "tailscale_acl" "main" {
   })
 }
 
-# Subnet-router OAuth client — minted under terraform so its secret flows
+# Subnet-router OAuth client - minted under terraform so its secret flows
 # straight into the Secrets Manager placeholder the module creates.
 resource "tailscale_oauth_client" "subnet_router" {
   description = "percy-main production subnet router"

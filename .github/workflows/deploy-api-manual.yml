@@ -1,7 +1,7 @@
 name: Deploy API (manual)
 
 # Escape hatch for when the auto-deploy chain in deploy.yml didn't fire
-# for the API but the desired commit on main is known-good — e.g. CI
+# for the API but the desired commit on main is known-good - e.g. CI
 # failed in a previous push, the fix only touched API files, so the next
 # successful run sees no web changes and skips deploy-web; or vice versa.
 #
@@ -113,7 +113,7 @@ jobs:
           # Patch image + add RELEASE_SHA / NEW_RELIC_LABELS env vars so
           # NR APM and OTel can filter logs/traces by release. Applied
           # to both the API task def and the migration task def
-          # (#130 — separate task def for principle of least privilege).
+          # (#130 - separate task def for principle of least privilege).
           patch_task_def() {
             local family="$1"
             local def
@@ -237,7 +237,7 @@ jobs:
             --services $ECS_SERVICE
 
       - name: Verify deployed task definition matches the one we registered
-        # Mirrors the same step in deploy.yml — services-stable returns
+        # Mirrors the same step in deploy.yml - services-stable returns
         # 0 even after an ECS rollback to the prior revision, so assert
         # the PRIMARY deployment is the task def we just registered.
         env:
@@ -357,7 +357,7 @@ jobs:
           DEPLOYED_SHA: ${{ steps.ref.outputs.sha }}
         run: |
           {
-            echo "## Deploy API (manual) — ${{ job.status }}"
+            echo "## Deploy API (manual) - ${{ job.status }}"
             echo "- Actor: \`${GITHUB_ACTOR}\`"
             echo "- Ref input: \`${REF_INPUT}\`"
             echo "- SHA: \`${DEPLOYED_SHA:-${GITHUB_SHA}}\`"

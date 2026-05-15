@@ -1,6 +1,6 @@
 /**
  * Standalone entry point for database migrations.
- * Designed to run as a one-off ECS task — not part of the web server.
+ * Designed to run as a one-off ECS task - not part of the web server.
  *
  * Environment variables are read directly from process.env
  * (injected by the ECS task definition).
@@ -37,7 +37,7 @@ if (!DATABASE_URL) {
 // Bound the time we'll wait for an ACCESS EXCLUSIVE lock and the time
 // any single statement can run. Without these, a migration that races
 // with a long-running query can hang the deploy until ECS task-stopped
-// (~10 min default) or the workflow timeout — masking what would have
+// (~10 min default) or the workflow timeout - masking what would have
 // been an immediate, clear failure. libpq's `options` is applied at
 // connect time so every checkout already has them set, with no race
 // between the connection becoming available and a SET on it landing.
@@ -87,5 +87,5 @@ try {
 
 // eslint requires non-empty catch handlers
 function noop() {
-  // intentionally empty — suppress cleanup errors during shutdown
+  // intentionally empty - suppress cleanup errors during shutdown
 }

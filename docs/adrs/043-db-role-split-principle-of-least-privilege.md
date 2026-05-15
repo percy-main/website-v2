@@ -1,4 +1,4 @@
-# ADR 043: Database role split — principle of least privilege
+# ADR 043: Database role split - principle of least privilege
 
 ## Status
 
@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The Fastify API connected to RDS as the **RDS master user** (`percy`, `rds_superuser`) using credentials stored under `percy-main-production/rds/credentials`. A compromised ECS task — RCE, SSRF into IMDS, leaky dependency — would therefore have gotten effective superuser on production: full DDL, role management, replication, bypass-RLS. The app runs third-party code every deploy, so this is not a theoretical risk.
+The Fastify API connected to RDS as the **RDS master user** (`percy`, `rds_superuser`) using credentials stored under `percy-main-production/rds/credentials`. A compromised ECS task - RCE, SSRF into IMDS, leaky dependency - would therefore have gotten effective superuser on production: full DDL, role management, replication, bypass-RLS. The app runs third-party code every deploy, so this is not a theoretical risk.
 
 The migration runner ran with the same master credentials, blurring the runtime / schema-change separation that lets us reason about "what could the app have done?" during an incident.
 
@@ -24,13 +24,13 @@ Three Postgres roles, three different jobs:
 
 The two app roles are created `NOLOGIN` by a Kysely migration (timestamp `2026-05-15T06:53:37.877Z`). Their passwords are minted by Terraform `random_password` resources and stored in dedicated Secrets Manager entries (`percy-main-production/rds/app_rw`, `…/rds/app_ddl`). An operator sets `LOGIN` + the password on each role once after first apply, via psql over the Tailscale subnet router (see [Bootstrap](#bootstrap) below).
 
-Cutover is gated by a Terraform variable `app_rw_active` (default `false`). While false, the API and migration task definitions keep reading the master credentials — exactly the pre-#130 behaviour. Flipping it to `true` (after operator-bootstrap) switches:
+Cutover is gated by a Terraform variable `app_rw_active` (default `false`). While false, the API and migration task definitions keep reading the master credentials - exactly the pre-#130 behaviour. Flipping it to `true` (after operator-bootstrap) switches:
 
 - API task `DATABASE_URL` → app_rw secret
 - Migration task `DATABASE_URL` → app_ddl secret
 - Master credentials secret → resource-policy denies all principals except those in `master_db_break_glass_principal_arns`
 
-The migration runner is a **separate ECS task definition** (`production-api-migrate`), not a `containerOverrides.command` on the API task def. This is what makes the role split meaningful at runtime: ECS injects secrets into env at container startup from the _task definition_, so a compromised API container only ever sees `DATABASE_URL = app_rw` in its env — never the `app_ddl` URL — even though the task execution role's IAM policy still allows reading both secrets (the broad `secret:*percy-main*` allow). The task execution role does the injection; the task role is what the running process uses for SDK calls, and the task role has no `secretsmanager:GetSecretValue` permission at all.
+The migration runner is a **separate ECS task definition** (`production-api-migrate`), not a `containerOverrides.command` on the API task def. This is what makes the role split meaningful at runtime: ECS injects secrets into env at container startup from the _task definition_, so a compromised API container only ever sees `DATABASE_URL = app_rw` in its env - never the `app_ddl` URL - even though the task execution role's IAM policy still allows reading both secrets (the broad `secret:*percy-main*` allow). The task execution role does the injection; the task role is what the running process uses for SDK calls, and the task role has no `secretsmanager:GetSecretValue` permission at all.
 
 ## Bootstrap
 
@@ -65,7 +65,7 @@ Required once, after the PR merges and CI applies. The cutover flag stays `false
    PGPASSWORD=<app_ddl_password> psql -h <rds-host> -U app_ddl -d percy_main -c 'SELECT 1'
    ```
 
-4. **Flip the cutover flag.** One-line PR: set `app_rw_active = true` in `infra/environments/production/variables.tf`. CI applies → API task def re-registers with `DATABASE_URL → app_rw` → next deploy uses the split, and the master credentials secret gets its deny-all-except-break-glass-role resource policy. `master_db_break_glass_principal_arns` stays empty by default — the dedicated break-glass IAM role is the standard access path.
+4. **Flip the cutover flag.** One-line PR: set `app_rw_active = true` in `infra/environments/production/variables.tf`. CI applies → API task def re-registers with `DATABASE_URL → app_rw` → next deploy uses the split, and the master credentials secret gets its deny-all-except-break-glass-role resource policy. `master_db_break_glass_principal_arns` stays empty by default - the dedicated break-glass IAM role is the standard access path.
 
 5. **(Optional) Rotate the master password.** Once the app is running against `app_rw` and `app_ddl` for at least one full deploy cycle:
 
@@ -83,9 +83,9 @@ Required once, after the PR merges and CI applies. The cutover flag stays `false
 
 The master credentials secret has a resource policy (when `app_rw_active = true`) that denies `GetSecretValue` from every principal except:
 
-- **`percy-main-db-break-glass`** — a dedicated IAM role with one permission: `secretsmanager:GetSecretValue` on the master credentials secret. Admins assume it on demand; the assumption is the audit point. Trust policy accepts any IAM principal in the account that proves MFA, so admin IAM remains the gate on _who can use it_. Session capped at 1h.
-- the two Terraform roles (`terraform_role_arn`, `terraform_plan_role_arn`) — required for `aws_secretsmanager_secret_version.db_credentials` refresh / plan ops; without this exemption Terraform breaks. Accepted as a documented trade-off: those roles are hardened, audited, and not held by humans day-to-day.
-- any extra principals listed in `master_db_break_glass_principal_arns` (default empty) — escape hatch for one-off auditor / vendor access.
+- **`percy-main-db-break-glass`** - a dedicated IAM role with one permission: `secretsmanager:GetSecretValue` on the master credentials secret. Admins assume it on demand; the assumption is the audit point. Trust policy accepts any IAM principal in the account that proves MFA, so admin IAM remains the gate on _who can use it_. Session capped at 1h.
+- the two Terraform roles (`terraform_role_arn`, `terraform_plan_role_arn`) - required for `aws_secretsmanager_secret_version.db_credentials` refresh / plan ops; without this exemption Terraform breaks. Accepted as a documented trade-off: those roles are hardened, audited, and not held by humans day-to-day.
+- any extra principals listed in `master_db_break_glass_principal_arns` (default empty) - escape hatch for one-off auditor / vendor access.
 
 Every assumption of the break-glass role fires an EventBridge → SNS event on `percy-main-shared-security-events` (eu-west-2 + us-east-1). Subscribe an email or Slack target to that topic so an unexpected `AssumeRole` is visible within seconds, not on a quarterly audit review.
 
@@ -108,7 +108,7 @@ Recovery flow:
 
 4. After resolution, rotate the master password and the app_rw / app_ddl passwords if there's any chance they were exposed.
 
-The allowlist is intentionally small — the master secret is no longer a credential the app needs, it's an emergency escape hatch that leaves an unmistakable trail when used.
+The allowlist is intentionally small - the master secret is no longer a credential the app needs, it's an emergency escape hatch that leaves an unmistakable trail when used.
 
 ## Why not the alternatives
 
@@ -118,9 +118,9 @@ The allowlist is intentionally small — the master secret is no longer a creden
 
 - **In-app DB-level row security (RLS).** Useful for multi-tenant SaaS but mismatched to a single-tenant club site. RLS would force every query to carry a tenant predicate; for this codebase that's pure churn. The role split protects against compromise at the right altitude (DDL, replication, role management) without rewriting queries.
 
-- **Same task definition for API + migration, use ECS `containerOverrides` to swap secrets.** ECS doesn't allow `secrets` in `containerOverrides` — only `command` and `environment`. Injecting `app_ddl` via plain-text `environment` override would put the password into CloudTrail `RunTask` events and the workflow run logs. Hence a separate task def.
+- **Same task definition for API + migration, use ECS `containerOverrides` to swap secrets.** ECS doesn't allow `secrets` in `containerOverrides` - only `command` and `environment`. Injecting `app_ddl` via plain-text `environment` override would put the password into CloudTrail `RunTask` events and the workflow run logs. Hence a separate task def.
 
-- **Split the task execution role too, so the API IAM literally can't read the `app_ddl` secret.** Defensible but redundant: the task role (what a runtime-compromised API would use for AWS SDK calls) has no `secretsmanager:GetSecretValue` permission to begin with, so even broad task-execution IAM doesn't leak the secret at runtime. Splitting the execution role would protect against ECS-agent-side compromise — a much more exotic attack — and double the IAM surface area to maintain. Deferred.
+- **Split the task execution role too, so the API IAM literally can't read the `app_ddl` secret.** Defensible but redundant: the task role (what a runtime-compromised API would use for AWS SDK calls) has no `secretsmanager:GetSecretValue` permission to begin with, so even broad task-execution IAM doesn't leak the secret at runtime. Splitting the execution role would protect against ECS-agent-side compromise - a much more exotic attack - and double the IAM surface area to maintain. Deferred.
 
 ## Consequences
 
@@ -133,6 +133,6 @@ The allowlist is intentionally small — the master secret is no longer a creden
 
 ## Trigger to revisit
 
-- A real incident where the role split helped (or didn't) — capture the timeline.
-- Adding a second long-running process that needs DB access: re-evaluate whether `app_rw` is the right scope or whether a third role (e.g. `app_ro` for the public site) is worth introducing. The issue notes "probably not worth it at this scale" — re-test when traffic grows or when ratio of read/write traffic shifts materially.
-- AWS adding native support for ECS task-level secrets injection that's truly scoped per task def (today's behaviour is task-def-scoped only insofar as the task definition declares the secret — it's not enforced beyond that).
+- A real incident where the role split helped (or didn't) - capture the timeline.
+- Adding a second long-running process that needs DB access: re-evaluate whether `app_rw` is the right scope or whether a third role (e.g. `app_ro` for the public site) is worth introducing. The issue notes "probably not worth it at this scale" - re-test when traffic grows or when ratio of read/write traffic shifts materially.
+- AWS adding native support for ECS task-level secrets injection that's truly scoped per task def (today's behaviour is task-def-scoped only insofar as the task definition declares the secret - it's not enforced beyond that).
