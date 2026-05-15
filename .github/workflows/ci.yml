@@ -60,6 +60,40 @@ jobs:
           fail-on: warning
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  image-scan:
+    # Build the API container the same way deploy.yml does and run Trivy
+    # against it. Keeps CVEs in transitive deps + the base image visible at
+    # PR time, instead of surfacing only when the deploy gate runs on main.
+    # No push — image stays local to the runner.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image (local, no push)
+        id: build
+        run: |
+          IMAGE=percy-main-api:pr-${{ github.event.pull_request.number }}
+          docker build \
+            -t "$IMAGE" \
+            -f apps/api/Dockerfile \
+            .
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Trivy scan
+        # Mirrors the deploy.yml gate. SHA-pinned for the reasons documented
+        # there. Suppressions live in `.trivyignore` at the repo root.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.build.outputs.image }}
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+
   dependency-review:
     # Scans dependency manifest changes (pnpm-lock.yaml diffs, etc) for
     # known vulnerable advisories. Fails the PR on `high`+ severity.
