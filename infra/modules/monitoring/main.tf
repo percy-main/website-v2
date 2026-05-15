@@ -607,7 +607,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Average"
-          region = "${data.aws_region.current.name}"
+          region = "${data.aws_region.current.region}"
           view   = "timeSeries"
         }
       },
@@ -624,7 +624,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Average"
-          region = "${data.aws_region.current.name}"
+          region = "${data.aws_region.current.region}"
           view   = "timeSeries"
         }
       },
@@ -641,7 +641,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Sum"
-          region = "${data.aws_region.current.name}"
+          region = "${data.aws_region.current.region}"
           view   = "timeSeries"
         }
       },
@@ -658,7 +658,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Sum"
-          region = "${data.aws_region.current.name}"
+          region = "${data.aws_region.current.region}"
           view   = "timeSeries"
         }
       },
@@ -675,7 +675,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Average"
-          region = "${data.aws_region.current.name}"
+          region = "${data.aws_region.current.region}"
           view   = "timeSeries"
         }
       },
@@ -692,7 +692,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Average"
-          region = "${data.aws_region.current.name}"
+          region = "${data.aws_region.current.region}"
           view   = "timeSeries"
         }
       },
@@ -709,7 +709,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 300
           stat   = "Average"
-          region = "${data.aws_region.current.name}"
+          region = "${data.aws_region.current.region}"
           view   = "timeSeries"
         }
       }

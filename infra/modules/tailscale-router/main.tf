@@ -207,7 +207,7 @@ locals {
     set -euo pipefail
     AUTH_KEY=$(aws secretsmanager get-secret-value \
       --secret-id "${aws_secretsmanager_secret.tailscale_auth.name}" \
-      --region "${data.aws_region.current.name}" \
+      --region "${data.aws_region.current.region}" \
       --query SecretString --output text)
     if [[ -z "$AUTH_KEY" || "$AUTH_KEY" == "null" ]]; then
       echo "Tailscale auth secret is empty — populate it manually." >&2

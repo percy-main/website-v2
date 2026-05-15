@@ -250,7 +250,7 @@ resource "aws_iam_role_policy" "task_execution_secrets" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = ["arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:*percy-main*"]
+        Resource = ["arn:aws:secretsmanager:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:secret:*percy-main*"]
       },
       {
         Effect = "Allow"
@@ -258,7 +258,7 @@ resource "aws_iam_role_policy" "task_execution_secrets" {
           "ssm:GetParameter",
           "ssm:GetParameters"
         ]
-        Resource = ["arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${var.environment}/percy-main/*"]
+        Resource = ["arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.environment}/percy-main/*"]
       },
       {
         Effect = "Allow"
@@ -311,7 +311,7 @@ resource "aws_iam_role_policy" "task_ses" {
           "ses:SendEmail",
           "ses:SendRawEmail"
         ]
-        Resource = "arn:aws:ses:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:identity/*"
+        Resource = "arn:aws:ses:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:identity/*"
       }
     ]
   })
@@ -373,7 +373,7 @@ resource "aws_iam_role_policy" "task_run_sync" {
       {
         Effect   = "Allow"
         Action   = "ecs:RunTask"
-        Resource = "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.api.family}:*"
+        Resource = "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.api.family}:*"
       },
       {
         Effect = "Allow"
@@ -618,7 +618,7 @@ resource "aws_ecs_task_definition" "api" {
           logDriver = "awslogs"
           options = {
             "awslogs-group"         = aws_cloudwatch_log_group.api.name
-            "awslogs-region"        = data.aws_region.current.name
+            "awslogs-region"        = data.aws_region.current.region
             "awslogs-stream-prefix" = "api"
           }
         }
@@ -647,7 +647,7 @@ resource "aws_ecs_task_definition" "api" {
           logDriver = "awslogs"
           options = {
             "awslogs-group"         = aws_cloudwatch_log_group.api.name
-            "awslogs-region"        = data.aws_region.current.name
+            "awslogs-region"        = data.aws_region.current.region
             "awslogs-stream-prefix" = "newrelic-infra"
           }
         }
@@ -921,7 +921,7 @@ output "alb_zone_id" {
 
 output "task_definition_arn" {
   description = "ARN of the ECS task definition family (without revision)"
-  value       = "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.api.family}"
+  value       = "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.api.family}"
 }
 
 output "task_definition_family" {
