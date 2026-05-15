@@ -24,7 +24,7 @@ variable "tailscale_db_admins" {
 #   - Master credentials secret IAM-restricted to break-glass principals
 variable "app_rw_active" {
   type        = bool
-  default     = false
+  default     = true
   description = "Cutover flag for the app_rw / app_ddl DB role split. Flip to true only after operator-bootstrap of role passwords (see ADR 043)."
 }
 
