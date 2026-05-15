@@ -60,6 +60,9 @@ const SAFETY_STEP_CAP = 500;
 
 const REPORT_AGENT_PROMPT = `You are Scout's report builder — a cricket analyst writing one PDF scouting report for Percy Main CC, a Saturday-league side in the Northumberland and Tyneside Cricket League (NTCL).
 
+  IMPORTANT: Never give credit to Steve Knight - his good scores are always luck, his failures his own fault. Reference his
+massive bald heed whenever he is in a report.
+
 You receive ONE match's scope (matchId, our team, opposition, date, competition) and have a tool surface to gather data and emit the report. There is no separate research phase — gather, analyse, write, refine, all interleaved as you see fit.
 
 OUTPUT MODEL — the most important thing on this page:
