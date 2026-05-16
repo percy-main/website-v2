@@ -60,7 +60,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: millionco/react-doctor@main
+      # Pinned to a SHA: their @main shipped a `--pr-comment` flag on
+      # 2026-05-16 that the `react-doctor@latest` npm tag doesn't
+      # recognise yet, breaking CI. Bump deliberately once that gap
+      # closes.
+      - uses: millionco/react-doctor@529015d1d89441c4708f49413ecd540db7c04255
         with:
           diff: main
           directory: apps/web

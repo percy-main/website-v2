@@ -93,25 +93,38 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
   };
 
   useEffect(() => {
+    let cancelled = false;
     async function tryPasskeyAutofill() {
       const available =
         await PublicKeyCredential?.isConditionalMediationAvailable?.();
-      if (!available) return;
+      if (!available || cancelled) return;
 
       void authClient.signIn.passkey(
         { autoFill: true },
         {
           async onSuccess() {
+            if (cancelled) return;
             await refetchSession();
+            if (cancelled) return;
             navigateBack("/members");
           },
         },
       );
     }
     void tryPasskeyAutofill();
-    // navigateBack closes over returnTo; deps cover it via `returnTo`.
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount. Re-running this effect kicks off a fresh
+    // WebAuthn conditional-mediation ceremony, aborts the previous one
+    // client-side ("Cancelling existing WebAuthn API call for new one"),
+    // and leaves the server's stored challenge out of sync with whatever
+    // the user eventually completes, producing CHALLENGE_NOT_FOUND on
+    // verify. better-auth's useSession returns a new `refetch` reference
+    // on every session-atom update, so listing it in deps would re-trigger
+    // the ceremony every time the session refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate, returnTo, refetchSession]);
+  }, []);
 
   const signin = useMutation({
     mutationFn: async () => {
