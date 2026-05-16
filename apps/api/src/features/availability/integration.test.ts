@@ -12,7 +12,6 @@ import {
   getDateDetail,
   getRequest,
   listRequests,
-  previewNotifyRecipients,
   removeAssignment,
   respond,
   setAvailability,
@@ -68,9 +67,14 @@ async function seedRequest(
       date_from: dateFrom,
       date_to: dateTo,
       status,
-      user_group_id: userGroupId,
     })
     .execute();
+  if (userGroupId) {
+    await ctx.db
+      .insertInto("availability_request_group")
+      .values({ request_id: id, user_group_id: userGroupId })
+      .execute();
+  }
   return id;
 }
 
@@ -639,27 +643,16 @@ describe("availability service (integration)", () => {
       );
       await seedFixture(scopedReq, teamId, "2027-04-01");
 
-      const unscopedReq = await seedRequest(
-        admin.userId,
-        "2027-05-01",
-        "2027-05-07",
-        "open",
-        null,
-      );
-      await seedFixture(unscopedReq, teamId, "2027-05-01");
-
       const insideResult = await getActiveRequests(ctx.db)(inGroupEmail);
       const insideIds = insideResult.items.map((r) => r.id);
       expect(insideIds).toContain(scopedReq);
-      expect(insideIds).toContain(unscopedReq);
 
       const outsideResult = await getActiveRequests(ctx.db)(outsiderEmail);
       const outsideIds = outsideResult.items.map((r) => r.id);
       expect(outsideIds).not.toContain(scopedReq);
-      expect(outsideIds).toContain(unscopedReq);
     });
 
-    it("getDateDetail filters noResponse pool + response list to group members", async () => {
+    it("getDateDetail surfaces non-group responses but scopes the no-response pool", async () => {
       const inGroup = await seedTestUser(ctx.db, {
         email: `dt-in-${crypto.randomUUID()}@test.com`,
         withMember: true,
@@ -688,7 +681,6 @@ describe("availability service (integration)", () => {
       );
       await seedFixture(reqId, teamId, "2027-06-01");
 
-      // Both members respond; only the in-group one should surface.
       await respond(ctx.db)(inGroup.email, reqId, {
         responses: [{ matchDate: "2027-06-01", status: "available" }],
       });
@@ -698,45 +690,19 @@ describe("availability service (integration)", () => {
 
       const detail = await getDateDetail(ctx.db)(reqId, "2027-06-01");
 
-      const availableIds = detail.pools.available.map((r) => r.member_id);
-      expect(availableIds).toContain(inGroup.memberId);
-      expect(availableIds).not.toContain(outsider.memberId);
-
-      const noResponseIds = detail.pools.noResponse.map((m) => m.id);
-      expect(noResponseIds).not.toContain(outsider.memberId);
-    });
-
-    it("previewNotifyRecipients filters by the request's group", async () => {
-      const inGroup = await seedTestUser(ctx.db, {
-        email: `nf-in-${crypto.randomUUID()}@test.com`,
-        withMember: true,
-      });
-      const outsider = await seedTestUser(ctx.db, {
-        email: `nf-out-${crypto.randomUUID()}@test.com`,
-        withMember: true,
-      });
-      if (!inGroup.memberId || !outsider.memberId) {
-        throw new Error("expected members");
-      }
-
-      const admin = await seedTestUser(ctx.db, {
-        email: `nf-admin-${crypto.randomUUID()}@test.com`,
-        role: "admin",
-      });
-      const groupId = await seedGroup("Notify group", [inGroup.memberId]);
-
-      const reqId = await seedRequest(
-        admin.userId,
-        "2027-07-01",
-        "2027-07-07",
-        "open",
-        groupId,
+      // Amendments §2: both responses (group + non-group) surface to
+      // officials.
+      const availableIds = detail.pools.available.map(
+        (r: { member_id: string }) => r.member_id,
       );
+      expect(availableIds).toContain(inGroup.memberId);
+      expect(availableIds).toContain(outsider.memberId);
 
-      const { recipients } = await previewNotifyRecipients(ctx.db)(reqId, {});
-      const recipientEmails = recipients.map((r) => r.email);
-      expect(recipientEmails).toContain(inGroup.email);
-      expect(recipientEmails).not.toContain(outsider.email);
+      // No-response pool stays scoped to the request's groups.
+      const noResponseIds = detail.pools.noResponse.map(
+        (m: { id: string }) => m.id,
+      );
+      expect(noResponseIds).not.toContain(outsider.memberId);
     });
   });
 });

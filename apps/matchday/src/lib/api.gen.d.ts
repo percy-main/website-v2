@@ -5170,7 +5170,8 @@ export interface paths {
                     "application/json": {
                         dateFrom: string;
                         dateTo: string;
-                        userGroupId?: string;
+                        userGroupIds: string[];
+                        additionalEmails?: string[];
                     };
                 };
             };
@@ -5184,6 +5185,11 @@ export interface paths {
                         "application/json": {
                             id: string;
                             fixtureCount: number;
+                            notify: {
+                                sent: number;
+                                failed: number;
+                                recipientCount: number;
+                            };
                         };
                     };
                 };
@@ -5563,7 +5569,6 @@ export interface paths {
                 query: {
                     dateFrom: string;
                     dateTo: string;
-                    userGroupId?: string;
                 };
                 header?: never;
                 path?: never;
@@ -5594,59 +5599,6 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/availability/requests/{requestId}/notify/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    requestId: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        memberCategory?: string;
-                        /** @enum {string} */
-                        membershipStatus?: "active" | "lapsed";
-                        additionalEmails?: string[];
-                    };
-                };
-            };
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            recipients: {
-                                email: string;
-                                name: string | null;
-                                /** @enum {string} */
-                                source: "filter" | "manual";
-                            }[];
-                        };
-                    };
-                };
-            };
-        };
         delete?: never;
         options?: never;
         head?: never;
@@ -12077,6 +12029,49 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            groups: {
+                                id: string;
+                                name: string;
+                                description: string | null;
+                                memberCount: number;
+                                createdAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;

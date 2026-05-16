@@ -1,7 +1,7 @@
 import type { DB } from "@percy-main/db";
 import { AvailabilityRequest } from "@percy-main/email";
 import type { FastifyBaseLogger } from "fastify";
-import type { ExpressionBuilder, Kysely } from "kysely";
+import type { Kysely } from "kysely";
 import { createElement } from "react";
 import { render } from "react-email";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
@@ -9,12 +9,17 @@ import type {
   AssignPlayer,
   CreateRequest,
   ListRequests,
-  NotifyPreview,
   NotifySend,
   Respond,
   SetAvailability,
   UpdateRequestStatus,
 } from "./schemas.ts";
+
+type SendEmail = (email: {
+  to: string;
+  subject: string;
+  html: string;
+}) => Promise<void>;
 
 // ── Helpers ──
 
@@ -37,8 +42,20 @@ export function createRequest(
   db: Kysely<DB>,
   playCricketApi: PlayCricketApiClient,
   siteId: string,
+  sendEmail: SendEmail,
+  baseUrl: string,
 ) {
-  return async (userId: string, data: CreateRequest) => {
+  const dispatchNotifications = sendAvailabilityNotification(
+    db,
+    sendEmail,
+    baseUrl,
+  );
+
+  return async (
+    userId: string,
+    data: CreateRequest,
+    log: FastifyBaseLogger,
+  ) => {
     if (data.dateFrom > data.dateTo) {
       throwHttpError(400, "dateFrom must be before or equal to dateTo");
     }
@@ -57,6 +74,16 @@ export function createRequest(
         409,
         "An availability request already exists that overlaps with this date range",
       );
+    }
+
+    const groups = await db
+      .selectFrom("user_group")
+      .where("id", "in", data.userGroupIds)
+      .select("id")
+      .execute();
+
+    if (groups.length !== data.userGroupIds.length) {
+      throwHttpError(400, "One or more selected user groups do not exist");
     }
 
     // Fetch senior team IDs
@@ -110,17 +137,7 @@ export function createRequest(
         };
       });
 
-    // Create request and fixtures in a transaction
     const requestId = crypto.randomUUID();
-
-    if (data.userGroupId) {
-      const group = await db
-        .selectFrom("user_group")
-        .where("id", "=", data.userGroupId)
-        .select("id")
-        .executeTakeFirst();
-      if (!group) throwHttpError(400, "Selected user group does not exist");
-    }
 
     await db.transaction().execute(async (trx) => {
       await trx
@@ -131,8 +148,17 @@ export function createRequest(
           date_from: data.dateFrom,
           date_to: data.dateTo,
           status: "open",
-          user_group_id: data.userGroupId ?? null,
         })
+        .execute();
+
+      await trx
+        .insertInto("availability_request_group")
+        .values(
+          data.userGroupIds.map((groupId) => ({
+            request_id: requestId,
+            user_group_id: groupId,
+          })),
+        )
         .execute();
 
       for (const fixture of fixtures) {
@@ -154,8 +180,60 @@ export function createRequest(
       }
     });
 
-    return { id: requestId, fixtureCount: fixtures.length };
+    const recipients = await resolveRecipients(
+      db,
+      data.userGroupIds,
+      data.additionalEmails ?? [],
+    );
+
+    const result = await dispatchNotifications(
+      requestId,
+      { recipients },
+      log,
+    );
+
+    return {
+      id: requestId,
+      fixtureCount: fixtures.length,
+      notify: {
+        sent: result.sent,
+        failed: result.failed,
+        recipientCount: recipients.length,
+      },
+    };
   };
+}
+
+async function resolveRecipients(
+  db: Kysely<DB>,
+  userGroupIds: string[],
+  additionalEmails: string[],
+): Promise<Array<{ email: string; name: string | null }>> {
+  const members = await db
+    .selectFrom("member")
+    .innerJoin("user_group_member", "user_group_member.member_id", "member.id")
+    .where("user_group_member.group_id", "in", userGroupIds)
+    .where("member.deleted_at", "is", null)
+    .where("member.email", "is not", null)
+    .select(["member.email", "member.name"])
+    .execute();
+
+  const seen = new Set<string>();
+  const recipients: Array<{ email: string; name: string | null }> = [];
+  for (const m of members) {
+    if (!m.email) continue;
+    const key = m.email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    recipients.push({ email: m.email, name: m.name });
+  }
+  for (const email of additionalEmails) {
+    const key = email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    recipients.push({ email, name: null });
+  }
+  return recipients;
 }
 
 export function listRequests(db: Kysely<DB>) {
@@ -327,10 +405,18 @@ export function getDateDetail(db: Kysely<DB>) {
     const request = await db
       .selectFrom("availability_request")
       .where("id", "=", requestId)
-      .select(["id", "status", "user_group_id"])
+      .select(["id", "status"])
       .executeTakeFirst();
 
     if (!request) throwHttpError(404, "Availability request not found");
+
+    const requestGroupIds = (
+      await db
+        .selectFrom("availability_request_group")
+        .where("request_id", "=", requestId)
+        .select("user_group_id")
+        .execute()
+    ).map((r) => r.user_group_id);
 
     // Get fixtures for this date
     const fixtures = await db
@@ -376,29 +462,14 @@ export function getDateDetail(db: Kysely<DB>) {
       assignmentsByFixture.set(a.availability_fixture_id, list);
     }
 
-    // When the request is scoped to a user_group, both the response
-    // pool and the no-response pool are restricted to members of that
-    // group. Members outside the group can still POST responses via
-    // the public link, but they won't surface here for the captain.
-    const groupMemberSubquery = (eb: ExpressionBuilder<DB, "member">) =>
-      eb
-        .selectFrom("user_group_member")
-        .select("member_id")
-        .where("group_id", "=", request.user_group_id);
-
-    let responsesQuery = db
+    // Per amendments §2: all responses surface to officials, regardless
+    // of whether the responder is in one of the request's user groups.
+    // (The pre-amendment behaviour filtered non-group respondents out.)
+    const responses = await db
       .selectFrom("availability_response")
       .innerJoin("member", "member.id", "availability_response.member_id")
       .where("availability_response.availability_request_id", "=", requestId)
-      .where("availability_response.match_date", "=", date);
-
-    if (request.user_group_id) {
-      responsesQuery = responsesQuery.where("member.id", "in", (eb) =>
-        groupMemberSubquery(eb),
-      );
-    }
-
-    const responses = await responsesQuery
+      .where("availability_response.match_date", "=", date)
       .select([
         "availability_response.id",
         "availability_response.member_id",
@@ -410,20 +481,21 @@ export function getDateDetail(db: Kysely<DB>) {
       .orderBy("member.name", "asc")
       .execute();
 
-    // Get all members for "no response" pool
-    let allMembersQuery = db
+    // The no-response pool stays scoped to the union of the request's
+    // user groups — without a group anchor it would be every member in
+    // the club, which is rarely what an official wants to see.
+    const allMembers = await db
       .selectFrom("member")
-      .where("deleted_at", "is", null);
-
-    if (request.user_group_id) {
-      allMembersQuery = allMembersQuery.where("id", "in", (eb) =>
-        groupMemberSubquery(eb),
-      );
-    }
-
-    const allMembers = await allMembersQuery
-      .select(["id", "name", "member_category"])
-      .orderBy("name", "asc")
+      .innerJoin(
+        "user_group_member",
+        "user_group_member.member_id",
+        "member.id",
+      )
+      .where("user_group_member.group_id", "in", requestGroupIds)
+      .where("member.deleted_at", "is", null)
+      .select(["member.id", "member.name", "member.member_category"])
+      .distinct()
+      .orderBy("member.name", "asc")
       .execute();
 
     const respondedMemberIds = new Set(responses.map((r) => r.member_id));
@@ -713,33 +785,28 @@ export function getActiveRequests(db: Kysely<DB>) {
       .select("id")
       .executeTakeFirst();
 
-    // A request scoped to a user_group is only visible to members of
-    // that group. Unscoped requests (user_group_id IS NULL) are
-    // club-wide and visible to everyone.
-    let requestsQuery = db
-      .selectFrom("availability_request")
-      .where("status", "=", "open");
+    // Every request is now scoped to one or more user groups (no
+    // implicit club-wide case). A member sees a request if they are a
+    // member of any of its groups; users with no member record see
+    // nothing here.
+    if (!member) {
+      return { memberId: null, items: [] };
+    }
 
-    if (member) {
-      requestsQuery = requestsQuery.where((eb) =>
-        eb.or([
-          eb("user_group_id", "is", null),
-          eb(
-            "user_group_id",
-            "in",
-            eb
+    const requests = await db
+      .selectFrom("availability_request")
+      .where("status", "=", "open")
+      .where("id", "in", (eb) =>
+        eb
+          .selectFrom("availability_request_group")
+          .select("request_id")
+          .where("user_group_id", "in", (sub) =>
+            sub
               .selectFrom("user_group_member")
               .select("group_id")
               .where("member_id", "=", member.id),
           ),
-        ]),
-      );
-    } else {
-      // No member record → can only see unscoped requests.
-      requestsQuery = requestsQuery.where("user_group_id", "is", null);
-    }
-
-    const requests = await requestsQuery
+      )
       .selectAll()
       .orderBy("date_from", "asc")
       .execute();
@@ -960,98 +1027,6 @@ export function previewFixtures(
 }
 
 // ── Notification Services ──
-
-export function previewNotifyRecipients(db: Kysely<DB>) {
-  return async (requestId: string, data: NotifyPreview) => {
-    // Verify request exists and pick up its group scope so the
-    // recipient list always matches who the request is for. There's
-    // no separate notify-time group toggle: the group is set at
-    // request creation and inherited by all downstream filters.
-    const request = await db
-      .selectFrom("availability_request")
-      .where("id", "=", requestId)
-      .select(["id", "user_group_id"])
-      .executeTakeFirst();
-
-    if (!request) throwHttpError(404, "Availability request not found");
-
-    // Query members with optional filters (reuses admin listUsers pattern)
-    let query = db
-      .selectFrom("member")
-      .leftJoin(
-        (eb) =>
-          eb
-            .selectFrom("membership")
-            .select([
-              "membership.member_id",
-              "membership.id",
-              "membership.paid_until",
-            ])
-            .distinctOn("membership.member_id")
-            .orderBy("membership.member_id")
-            .orderBy("membership.paid_until", "desc")
-            .as("membership"),
-        (join) => join.onRef("membership.member_id", "=", "member.id"),
-      )
-      .where("member.deleted_at", "is", null)
-      .where("member.email", "is not", null);
-
-    if (data.memberCategory) {
-      query = query.where("member.member_category", "=", data.memberCategory);
-    }
-
-    if (data.membershipStatus) {
-      const now = new Date().toISOString();
-      if (data.membershipStatus === "active") {
-        query = query.where("membership.paid_until", ">", now);
-      } else if (data.membershipStatus === "lapsed") {
-        query = query
-          .where("membership.paid_until", "is not", null)
-          .where("membership.paid_until", "<=", now);
-      }
-    }
-
-    if (request.user_group_id) {
-      query = query
-        .innerJoin(
-          "user_group_member",
-          "user_group_member.member_id",
-          "member.id",
-        )
-        .where("user_group_member.group_id", "=", request.user_group_id);
-    }
-
-    const members = await query
-      .select(["member.email", "member.name"])
-      .orderBy("member.name", "asc")
-      .execute();
-
-    const recipients: Array<{
-      email: string;
-      name: string | null;
-      source: "filter" | "manual";
-    }> = members.flatMap((m) =>
-      m.email
-        ? [{ email: m.email, name: m.name, source: "filter" as const }]
-        : [],
-    );
-
-    // Merge in additional emails (deduplicated)
-    if (data.additionalEmails?.length) {
-      const existingEmails = new Set(
-        recipients.map((r) => r.email.toLowerCase()),
-      );
-      for (const email of data.additionalEmails) {
-        if (!existingEmails.has(email.toLowerCase())) {
-          recipients.push({ email, name: null, source: "manual" });
-          existingEmails.add(email.toLowerCase());
-        }
-      }
-    }
-
-    return { recipients };
-  };
-}
 
 export function sendAvailabilityNotification(
   db: Kysely<DB>,

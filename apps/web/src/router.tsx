@@ -198,14 +198,6 @@ export const router = createBrowserRouter([
                 path: "membership/junior",
                 lazy: () => import("./pages/membership/membership-junior.js"),
               },
-              // Matchday hub — all members see availability, officials see more.
-              // Runs in parallel with the new PWA at matchday.percymain.org
-              // for now; cutover redirects will land in a later phase once
-              // we've exercised the new app on real fixtures.
-              {
-                path: "matchday",
-                lazy: () => import("./pages/matchday/matchday-hub.js"),
-              },
               // Scout — AI cricket analyst, gated to admin/official roles
               // server-side. The route is mounted for everyone but the API
               // returns 403 for users without the role.
@@ -235,41 +227,6 @@ export const router = createBrowserRouter([
                   {
                     path: "admin",
                     lazy: () => import("./pages/admin/admin-panel.js"),
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-
-      // Official routes (matchday management + availability management)
-      {
-        element: <RequireAuth />,
-        children: [
-          {
-            element: <RequireVerifiedEmail />,
-            children: [
-              {
-                element: (
-                  <RequirePermission resource="matchday" action="view" />
-                ),
-                children: [
-                  {
-                    path: "matchday/teams",
-                    lazy: () => import("./pages/official/official.js"),
-                  },
-                  {
-                    path: "matchday/availability",
-                    lazy: () => import("./pages/official/availability.js"),
-                  },
-                  {
-                    path: "matchday/availability/:requestId",
-                    lazy: () => import("./pages/official/availability.js"),
-                  },
-                  {
-                    path: "matchday/availability/:requestId/:date",
-                    lazy: () => import("./pages/official/availability.js"),
                   },
                 ],
               },

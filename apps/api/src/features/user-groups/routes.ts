@@ -31,6 +31,7 @@ export const userGroupsRoutes: FastifyPluginAsyncZod = async (app) => {
   // Record Linking sub-tabs. Groups are still emerging; a dedicated
   // permission pair can be added later if usage expands.
   const usersManage = requirePermission("users", "manage");
+  const matchdayManage = requirePermission("matchday", "manage");
 
   const list = listGroups(app.db);
   const get = getGroup(app.db);
@@ -43,6 +44,20 @@ export const userGroupsRoutes: FastifyPluginAsyncZod = async (app) => {
     "/admin/user-groups",
     {
       preHandler: [requireAuth, usersManage],
+      schema: { response: { 200: listGroupsResponseSchema } },
+    },
+    async () => {
+      return await list();
+    },
+  );
+
+  // Lower-privilege listing for matchday managers picking groups to
+  // notify when creating an availability request. Returns the same
+  // shape; gating is the only difference.
+  app.get(
+    "/user-groups",
+    {
+      preHandler: [requireAuth, matchdayManage],
       schema: { response: { 200: listGroupsResponseSchema } },
     },
     async () => {

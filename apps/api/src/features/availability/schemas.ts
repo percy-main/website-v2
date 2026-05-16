@@ -28,7 +28,13 @@ export const requestDateMemberParamSchema = z.object({
 export const createRequestSchema = z.object({
   dateFrom: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
   dateTo: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
-  userGroupId: z.string().optional(),
+  userGroupIds: z.array(z.string()).min(1),
+  additionalEmails: z.array(z.email()).optional(),
+});
+
+export const previewRangeSchema = z.object({
+  dateFrom: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
+  dateTo: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
 });
 
 export const assignPlayerSchema = z.object({
@@ -67,6 +73,11 @@ export const listRequestsSchema = z.object({
 export const createRequestResponseSchema = z.object({
   id: z.string(),
   fixtureCount: z.number(),
+  notify: z.object({
+    sent: z.number(),
+    failed: z.number(),
+    recipientCount: z.number(),
+  }),
 });
 
 const requestItemSchema = z.object({
@@ -237,22 +248,6 @@ export const previewFixturesResponseSchema = z.object({
 
 // ── Notification schemas ──
 
-export const notifyPreviewSchema = z.object({
-  memberCategory: z.string().optional(),
-  membershipStatus: z.enum(["active", "lapsed"]).optional(),
-  additionalEmails: z.array(z.email()).optional(),
-});
-
-const recipientSchema = z.object({
-  email: z.string(),
-  name: z.string().nullable(),
-  source: z.enum(["filter", "manual"]),
-});
-
-export const notifyPreviewResponseSchema = z.object({
-  recipients: z.array(recipientSchema),
-});
-
 export const notifySendSchema = z.object({
   recipients: z.array(
     z.object({
@@ -293,5 +288,4 @@ export type SetAvailability = z.infer<typeof setAvailabilitySchema>;
 export type Respond = z.infer<typeof respondSchema>;
 export type UpdateRequestStatus = z.infer<typeof updateRequestStatusSchema>;
 export type ListRequests = z.infer<typeof listRequestsSchema>;
-export type NotifyPreview = z.infer<typeof notifyPreviewSchema>;
 export type NotifySend = z.infer<typeof notifySendSchema>;
