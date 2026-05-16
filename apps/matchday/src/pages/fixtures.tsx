@@ -71,9 +71,7 @@ export default function Fixtures() {
       )}
       {!isLoading && !isError && (
         <div>
-          {(
-            ["This week", "Next week", "Later this month", "Recent"] as const
-          ).map(
+          {(["Recent", "Next week", "Future"] as const).map(
             (bucket) =>
               groups[bucket].length > 0 && (
                 <section key={bucket}>
@@ -155,46 +153,51 @@ function FixtureSkeleton() {
   );
 }
 
-type Bucket = "This week" | "Next week" | "Later this month" | "Recent";
+type Bucket = "Recent" | "Next week" | "Future";
 
 function groupByBucket(games: Game[]): Record<Bucket, Game[]> {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
   // All comparisons happen on the ISO-normalised date — Play-Cricket
   // gives us DD/MM/YYYY which `new Date(...)` parses inconsistently
   // across browsers and breaks string-sort.
-  const inDays = (iso: string | null, days: number) => {
-    if (!iso) return false;
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return false;
-    d.setHours(0, 0, 0, 0);
-    return (d.getTime() - now.getTime()) / 86_400_000 <= days;
-  };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nextWeekEnd = new Date(today);
+  nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
+
   const byIso = new Map<string, string | null>();
   for (const g of games) byIso.set(g.id, gameIsoDate(g));
   const isoFor = (g: Game) => byIso.get(g.id) ?? null;
   const compare = (a: Game, b: Game) =>
     (isoFor(a) ?? "").localeCompare(isoFor(b) ?? "");
 
+  const dateOf = (g: Game) => {
+    const iso = isoFor(g);
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
   const out: Record<Bucket, Game[]> = {
-    "This week": [],
-    "Next week": [],
-    "Later this month": [],
     Recent: [],
+    "Next week": [],
+    Future: [],
   };
   for (const g of games) {
-    if (played(g)) {
+    const d = dateOf(g);
+    // Anything in the past or already played belongs in Recent -
+    // including past-date matches whose result hasn't been entered
+    // yet, which previously leaked into "This week".
+    if (played(g) || (d && d < today)) {
       out.Recent.push(g);
       continue;
     }
-    const iso = isoFor(g);
-    if (inDays(iso, 7)) out["This week"].push(g);
-    else if (inDays(iso, 14)) out["Next week"].push(g);
-    else out["Later this month"].push(g);
+    if (!d || d < nextWeekEnd) out["Next week"].push(g);
+    else out.Future.push(g);
   }
-  out["This week"].sort(compare);
   out["Next week"].sort(compare);
-  out["Later this month"].sort(compare);
+  out.Future.sort(compare);
   out.Recent.sort((a, b) => compare(b, a));
   out.Recent = out.Recent.slice(0, 8);
   return out;
