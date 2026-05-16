@@ -1,51 +1,5 @@
 # Matchday amendments - dev issues log
 
-## Where the branch is
-
-Six commits landed before 1Password's SSH signing agent stopped responding:
-
-```
-f7c45ff feat(matchday): user-group multi-select on availability create
-165b51e feat(api): availability create takes multiple user groups; notify on submit
-e727456 feat(db): availability_request_group join table
-2bb154c fix(matchday): debounce member search input on the squad picker
-41ac92d fix(matchday): allow tapping created matchdays in the new-matchday list
-1dd08d8 docs: matchday amendments plan
-```
-
-The remaining work is in the working tree (typechecks clean, lint clean,
-all 507 API unit tests pass). The commit plan I wanted to split it into
-once signing comes back:
-
-1. `feat(api): shift charges + status flip out of confirm into post-match wrap`
-   - apps/api/src/features/matchday/{service,routes,schemas}.ts
-   - apps/api/src/features/matchday/{service,integration}.test.ts
-   - apps/matchday/src/pages/matchday-confirm.tsx (delete)
-   - apps/matchday/src/pages/matchday-edit.tsx (drop confirm-step CTA)
-   - apps/matchday/src/router.tsx (new /wrap route, /live alias)
-   - apps/{matchday,web}/src/lib/api.gen.*
-2. `feat(api): expense window switches from status gate to match_date + 5 days`
-   - apps/api/src/features/matchday/service.ts (recordExpense + helper)
-   - apps/api/src/features/matchday/service.test.ts (mock match_date)
-3. `feat(matchday): inline captain/keeper role buttons on squad picker`
-   - apps/matchday/src/pages/matchday-edit.tsx
-4. `feat(matchday): rebuild matchday-live as the post-match wrap screen`
-   - apps/matchday/src/pages/matchday-live.tsx
-5. `feat(matchday): hide expense FAB after match_date + 5 days`
-   - apps/matchday/src/pages/matchday-live.tsx
-6. `feat(api,matchday): fixture detail surfaces official actions`
-   - apps/api/src/features/games/{schemas,service}.ts (add matchdayId to lineup)
-   - apps/matchday/src/pages/fixture-detail.tsx (Manage squad / Wrap / Pick team)
-   - apps/{matchday,web}/src/lib/api.gen.*
-7. `docs: dev issues log`
-   - docs/plans/matchday/dev_issues.md
-
-Some of these are already in `git add`'d state (M ) from earlier attempts;
-others are unstaged (MM). `git reset HEAD` to clear before splitting, or
-just `git commit -a` if a single commit is acceptable.
-
-
-
 Live log of decisions, blockers, and things needing review while working through `amendments.md`. Each entry is dated; oldest at the top.
 
 Branch: `matchday-amendments`.
