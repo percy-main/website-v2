@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
+import { useDebouncedValue } from "@/hooks/use-debounced-value.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeftIcon, SearchIcon, UserPlusIcon, XIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
 type PerDateData =
@@ -12,6 +13,8 @@ type PerDateData =
 type Pool = PerDateData["pools"]["available"][number];
 type NoResp = PerDateData["pools"]["noResponse"][number];
 type Fixture = PerDateData["fixtures"][number];
+type Assignment = Fixture["assignments"][number];
+type OverrideStatus = "available" | "unavailable";
 
 type Tab = "available" | "unavailable" | "noResponse";
 
@@ -19,20 +22,25 @@ type Tab = "available" | "unavailable" | "noResponse";
  * Phase 3 per-date picker.
  *
  * Mobile (<md): three-tab segmented control (Available, Unavailable,
- * No response). On Available tab, tapping a player opens a
- * fixture-picker sheet to assign them.
+ * No response). Each row exposes the same actions as the desktop view -
+ * assign / move / mark available / mark unavailable.
  *
  * Desktop (md+): the same data laid out as a 3-column side-by-side view
  * (per DESIGN_PROMPT_official tile 7 / Flow 3). Below the columns sits
  * an assignment rail with a card per fixture showing X/11 and the
- * picked players. The tab control is hidden at md+ so everything is
- * visible at once.
+ * picked players; each assigned player has an inline Remove button so
+ * officials can swap people between teams without leaving the screen.
+ *
+ * A search input at the top filters all three pools by name. A guest
+ * entry block lets officials add a non-member directly to a fixture.
  */
 export default function OfficialAvailabilityDate() {
   const { requestId, date } = useParams();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("available");
   const [assignTarget, setAssignTarget] = useState<Pool | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebouncedValue(searchTerm, 200);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["availability", "request", requestId, "date", date],
@@ -47,9 +55,14 @@ export default function OfficialAvailabilityDate() {
     enabled: !!requestId && !!date,
   });
 
+  const invalidate = () =>
+    void qc.invalidateQueries({
+      queryKey: ["availability", "request", requestId, "date", date],
+    });
+
   const assign = useMutation({
     mutationFn: (vars: {
-      memberId: string;
+      memberId?: string;
       fixtureId: string;
       playerName: string;
     }) =>
@@ -60,15 +73,81 @@ export default function OfficialAvailabilityDate() {
           },
           body: {
             fixtureId: vars.fixtureId,
-            memberId: vars.memberId,
+            ...(vars.memberId ? { memberId: vars.memberId } : {}),
             playerName: vars.playerName,
           },
         }),
       ),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["availability"] });
+      invalidate();
       setAssignTarget(null);
     },
+  });
+
+  const unassign = useMutation({
+    mutationFn: (assignmentId: string) =>
+      callApi(
+        api.DELETE("/api/availability/assignments/{assignmentId}", {
+          params: { path: { assignmentId } },
+        }),
+      ),
+    onSuccess: () => {
+      invalidate();
+    },
+  });
+
+  const move = useMutation({
+    // Move = delete the existing assignment, then create a new one on the
+    // target fixture. The API doesn't have a single "move" endpoint and
+    // a duplicate assign would 409, so the two-step is the only path.
+    mutationFn: async (vars: {
+      assignmentId: string;
+      memberId: string;
+      playerName: string;
+      fixtureId: string;
+    }) => {
+      await callApi(
+        api.DELETE("/api/availability/assignments/{assignmentId}", {
+          params: { path: { assignmentId: vars.assignmentId } },
+        }),
+      );
+      return callApi(
+        api.POST("/api/availability/requests/{requestId}/dates/{date}/assign", {
+          params: {
+            path: { requestId: requestId ?? "", date: date ?? "" },
+          },
+          body: {
+            fixtureId: vars.fixtureId,
+            memberId: vars.memberId,
+            playerName: vars.playerName,
+          },
+        }),
+      );
+    },
+    onSuccess: () => {
+      invalidate();
+      setAssignTarget(null);
+    },
+  });
+
+  const override = useMutation({
+    mutationFn: (vars: { memberId: string; status: OverrideStatus }) =>
+      callApi(
+        api.PUT(
+          "/api/availability/requests/{requestId}/dates/{date}/members/{memberId}/availability",
+          {
+            params: {
+              path: {
+                requestId: requestId ?? "",
+                date: date ?? "",
+                memberId: vars.memberId,
+              },
+            },
+            body: { status: vars.status },
+          },
+        ),
+      ),
+    onSuccess: invalidate,
   });
 
   if (isLoading) return <Skel />;
@@ -80,6 +159,55 @@ export default function OfficialAvailabilityDate() {
     );
 
   const pd = data;
+  const filter = debouncedSearch.trim().toLowerCase();
+  const matchPool = (p: Pool) =>
+    filter === "" || (p.member_name ?? "").toLowerCase().includes(filter);
+  const matchNoResp = (m: NoResp) =>
+    filter === "" || (m.name ?? "").toLowerCase().includes(filter);
+
+  const available = pd.pools.available.filter(matchPool);
+  const unavailable = pd.pools.unavailable.filter(matchPool);
+  const noResponse = pd.pools.noResponse.filter(matchNoResp);
+
+  // Index of each member's current assignment (if any) so each list can
+  // surface a "currently in <team>" pill and "Move" action without a
+  // per-row scan of every fixture.
+  const assignmentByMember = new Map<
+    string,
+    { fixture: Fixture; assignment: Assignment }
+  >();
+  for (const f of pd.fixtures) {
+    for (const a of f.assignments) {
+      if (a.member_id)
+        assignmentByMember.set(a.member_id, { fixture: f, assignment: a });
+    }
+  }
+
+  const actions = {
+    assign: (
+      memberId: string | undefined,
+      playerName: string,
+      fixtureId: string,
+    ) => assign.mutate({ memberId, playerName, fixtureId }),
+    move: (vars: {
+      assignmentId: string;
+      memberId: string;
+      playerName: string;
+      fixtureId: string;
+    }) => move.mutate(vars),
+    unassign: (assignmentId: string) => unassign.mutate(assignmentId),
+    setAvailable: (memberId: string) =>
+      override.mutate({ memberId, status: "available" }),
+    setUnavailable: (memberId: string) =>
+      override.mutate({ memberId, status: "unavailable" }),
+    openAssignSheet: (p: Pool) => setAssignTarget(p),
+  };
+
+  const actionPending =
+    assign.isPending ||
+    unassign.isPending ||
+    move.isPending ||
+    override.isPending;
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-24 md:max-w-6xl">
@@ -101,6 +229,10 @@ export default function OfficialAvailabilityDate() {
         </div>
       </header>
 
+      <div className="px-4 pt-3">
+        <SearchInput value={searchTerm} onChange={setSearchTerm} />
+      </div>
+
       {/* Mobile (<md): tabbed view. */}
       <div className="md:hidden">
         <div className="bg-surface-raised mx-4 mt-3 grid grid-cols-3 gap-1 rounded-xl p-1">
@@ -108,38 +240,51 @@ export default function OfficialAvailabilityDate() {
             active={tab === "available"}
             onClick={() => setTab("available")}
           >
-            {pd.pools.available.length} Available
+            {available.length} Available
           </SegBtn>
           <SegBtn
             active={tab === "unavailable"}
             onClick={() => setTab("unavailable")}
           >
-            {pd.pools.unavailable.length} Unavailable
+            {unavailable.length} Unavailable
           </SegBtn>
           <SegBtn
             active={tab === "noResponse"}
             onClick={() => setTab("noResponse")}
           >
-            {pd.pools.noResponse.length} No response
+            {noResponse.length} No response
           </SegBtn>
         </div>
 
         <section className="mt-3">
           {tab === "available" && (
             <AvailableList
-              pools={pd.pools.available}
+              players={available}
               fixtures={pd.fixtures}
-              assignedIds={pd.assignedMemberIds}
-              onAssign={(p) => setAssignTarget(p)}
+              assignmentByMember={assignmentByMember}
+              actions={actions}
+              actionPending={actionPending}
             />
           )}
           {tab === "unavailable" && (
-            <SimpleList items={pd.pools.unavailable} muted />
+            <UnavailableList
+              players={unavailable}
+              actions={actions}
+              actionPending={actionPending}
+            />
           )}
           {tab === "noResponse" && (
-            <NoResponseList items={pd.pools.noResponse} />
+            <NoResponseList
+              players={noResponse}
+              actions={actions}
+              actionPending={actionPending}
+            />
           )}
         </section>
+
+        <div className="border-border-light mt-6 border-t px-4 pt-4">
+          <GuestEntry fixtures={pd.fixtures} onAdd={actions.assign} />
+        </div>
       </div>
 
       {/* Desktop (md+): 3-column side-by-side + assignment rail. */}
@@ -149,32 +294,50 @@ export default function OfficialAvailabilityDate() {
             <DesktopColumn
               tone="available"
               label="Available"
-              count={pd.pools.available.length}
+              count={available.length}
             >
               <AvailableList
-                pools={pd.pools.available}
+                players={available}
                 fixtures={pd.fixtures}
-                assignedIds={pd.assignedMemberIds}
-                onAssign={(p) => setAssignTarget(p)}
+                assignmentByMember={assignmentByMember}
+                actions={actions}
+                actionPending={actionPending}
                 compact
               />
             </DesktopColumn>
             <DesktopColumn
               tone="unavailable"
               label="Unavailable"
-              count={pd.pools.unavailable.length}
+              count={unavailable.length}
             >
-              <SimpleList items={pd.pools.unavailable} muted compact />
+              <UnavailableList
+                players={unavailable}
+                actions={actions}
+                actionPending={actionPending}
+                compact
+              />
             </DesktopColumn>
             <DesktopColumn
               tone="noResponse"
               label="No response"
-              count={pd.pools.noResponse.length}
+              count={noResponse.length}
             >
-              <NoResponseList items={pd.pools.noResponse} compact />
+              <NoResponseList
+                players={noResponse}
+                actions={actions}
+                actionPending={actionPending}
+                compact
+              />
             </DesktopColumn>
           </div>
-          <AssignmentRail fixtures={pd.fixtures} />
+          <AssignmentRail
+            fixtures={pd.fixtures}
+            onRemove={actions.unassign}
+            removing={unassign.isPending}
+          />
+          <div className="border-border bg-surface-raised border-t p-4">
+            <GuestEntry fixtures={pd.fixtures} onAdd={actions.assign} />
+          </div>
         </div>
       </div>
 
@@ -182,17 +345,294 @@ export default function OfficialAvailabilityDate() {
         <AssignSheet
           target={assignTarget}
           fixtures={pd.fixtures}
-          onCancel={() => setAssignTarget(null)}
-          onAssign={(fixtureId) =>
-            assign.mutate({
-              memberId: assignTarget.member_id,
-              fixtureId,
-              playerName: assignTarget.member_name ?? "Unknown",
-            })
+          currentAssignment={
+            assignmentByMember.get(assignTarget.member_id)?.assignment ?? null
           }
-          pending={assign.isPending}
+          onCancel={() => setAssignTarget(null)}
+          onAssign={(fixtureId) => {
+            const current = assignmentByMember.get(assignTarget.member_id);
+            if (current) {
+              move.mutate({
+                assignmentId: current.assignment.id,
+                memberId: assignTarget.member_id,
+                playerName: assignTarget.member_name ?? "Unknown",
+                fixtureId,
+              });
+            } else {
+              actions.assign(
+                assignTarget.member_id,
+                assignTarget.member_name ?? "Unknown",
+                fixtureId,
+              );
+            }
+          }}
+          onUnassign={() => {
+            const current = assignmentByMember.get(assignTarget.member_id);
+            if (current) actions.unassign(current.assignment.id);
+          }}
+          pending={actionPending}
         />
       )}
+    </div>
+  );
+}
+
+interface ListActions {
+  assign: (
+    memberId: string | undefined,
+    playerName: string,
+    fixtureId: string,
+  ) => void;
+  move: (vars: {
+    assignmentId: string;
+    memberId: string;
+    playerName: string;
+    fixtureId: string;
+  }) => void;
+  unassign: (assignmentId: string) => void;
+  setAvailable: (memberId: string) => void;
+  setUnavailable: (memberId: string) => void;
+  openAssignSheet: (p: Pool) => void;
+}
+
+function SearchInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="bg-surface-raised flex items-center gap-2 rounded-xl px-3 py-2">
+      <SearchIcon className="text-text-secondary size-4" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.currentTarget.value)}
+        placeholder="Search players…"
+        className="placeholder:text-text-muted w-full bg-transparent text-sm outline-none"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="Clear search"
+          className="text-text-secondary hover:text-text grid size-6 place-items-center rounded"
+        >
+          <XIcon className="size-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SegBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-lg py-2 text-center text-xs font-semibold",
+        active
+          ? "bg-surface text-navy shadow-sm dark:text-white"
+          : "text-text-secondary",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function AvailableList({
+  players,
+  fixtures,
+  assignmentByMember,
+  actions,
+  actionPending,
+  compact,
+}: {
+  players: Pool[];
+  fixtures: Fixture[];
+  assignmentByMember: Map<string, { fixture: Fixture; assignment: Assignment }>;
+  actions: ListActions;
+  actionPending: boolean;
+  compact?: boolean;
+}) {
+  const pad = compact ? "px-4 py-2" : "px-4 py-3";
+  return (
+    <div className="divide-border-light divide-y">
+      {players.length === 0 && (
+        <p className="text-text-secondary px-4 py-6 text-sm">No one matches.</p>
+      )}
+      {players.map((p) => {
+        const current = assignmentByMember.get(p.member_id);
+        return (
+          <div
+            key={p.id}
+            className={cn("bg-surface flex items-center gap-3", pad)}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{p.member_name}</p>
+              {p.note && (
+                <p className="text-text-secondary truncate text-xs">
+                  "{p.note}"
+                </p>
+              )}
+              {p.overridden_by && (
+                <p className="text-warning text-[10px] font-semibold tracking-wide uppercase">
+                  Overridden
+                </p>
+              )}
+            </div>
+            {current ? (
+              <button
+                type="button"
+                onClick={() => actions.openAssignSheet(p)}
+                disabled={actionPending}
+                className="bg-info-bg text-navy rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-60 dark:text-white"
+              >
+                {current.fixture.team_name ?? current.fixture.opposition}
+              </button>
+            ) : fixtures.length === 1 ? (
+              <Button
+                size="sm"
+                tone="ghost"
+                disabled={actionPending}
+                onClick={() =>
+                  actions.assign(
+                    p.member_id,
+                    p.member_name ?? "Unknown",
+                    fixtures[0].id,
+                  )
+                }
+              >
+                Assign →
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                tone="ghost"
+                disabled={actionPending}
+                onClick={() => actions.openAssignSheet(p)}
+              >
+                Assign →
+              </Button>
+            )}
+            <button
+              type="button"
+              onClick={() => actions.setUnavailable(p.member_id)}
+              disabled={actionPending}
+              className="text-text-secondary hover:text-danger text-[11px] font-medium disabled:opacity-60"
+            >
+              Mark unavail.
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function UnavailableList({
+  players,
+  actions,
+  actionPending,
+  compact,
+}: {
+  players: Pool[];
+  actions: ListActions;
+  actionPending: boolean;
+  compact?: boolean;
+}) {
+  const pad = compact ? "px-4 py-2" : "px-4 py-3";
+  return (
+    <div className="divide-border-light divide-y opacity-90">
+      {players.length === 0 && (
+        <p className="text-text-secondary px-4 py-6 text-sm">No one here.</p>
+      )}
+      {players.map((p) => (
+        <div
+          key={p.id}
+          className={cn("bg-surface flex items-center gap-3", pad)}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{p.member_name}</p>
+            {p.note && (
+              <p className="text-text-secondary truncate text-xs">"{p.note}"</p>
+            )}
+            {p.overridden_by && (
+              <p className="text-warning text-[10px] font-semibold tracking-wide uppercase">
+                Overridden
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => actions.setAvailable(p.member_id)}
+            disabled={actionPending}
+            className="text-success text-[11px] font-medium disabled:opacity-60"
+          >
+            Mark avail.
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NoResponseList({
+  players,
+  actions,
+  actionPending,
+  compact,
+}: {
+  players: NoResp[];
+  actions: ListActions;
+  actionPending: boolean;
+  compact?: boolean;
+}) {
+  const pad = compact ? "px-4 py-2" : "px-4 py-3";
+  return (
+    <div className="divide-border-light divide-y">
+      {players.length === 0 && (
+        <p className="text-text-secondary px-4 py-6 text-sm">No one here.</p>
+      )}
+      {players.map((m) => (
+        <div
+          key={m.id}
+          className={cn("bg-surface flex items-center gap-3", pad)}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{m.name}</p>
+            {m.member_category && (
+              <p className="text-text-secondary text-xs">{m.member_category}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => actions.setAvailable(m.id)}
+            disabled={actionPending}
+            className="text-success text-[11px] font-medium disabled:opacity-60"
+          >
+            Avail.
+          </button>
+          <button
+            type="button"
+            onClick={() => actions.setUnavailable(m.id)}
+            disabled={actionPending}
+            className="text-danger text-[11px] font-medium disabled:opacity-60"
+          >
+            Unavail.
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -229,7 +669,15 @@ function DesktopColumn({
   );
 }
 
-function AssignmentRail({ fixtures }: { fixtures: Fixture[] }) {
+function AssignmentRail({
+  fixtures,
+  onRemove,
+  removing,
+}: {
+  fixtures: Fixture[];
+  onRemove: (assignmentId: string) => void;
+  removing: boolean;
+}) {
   return (
     <div className="border-border bg-surface-raised border-t p-4">
       <p className="text-text-secondary mb-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
@@ -249,17 +697,40 @@ function AssignmentRail({ fixtures }: { fixtures: Fixture[] }) {
                 {f.assignments.length} / 11
               </span>
             </div>
-            <p className="text-text-secondary mt-2 text-xs">
-              {f.assignments.length === 0
-                ? "No one picked yet."
-                : f.assignments
-                    .slice(0, 6)
-                    .map((a) => a.player_name)
-                    .join(", ") +
-                  (f.assignments.length > 6
-                    ? `, +${f.assignments.length - 6} more`
-                    : "")}
-            </p>
+            {f.assignments.length === 0 ? (
+              <p className="text-text-secondary mt-2 text-xs">
+                No one picked yet.
+              </p>
+            ) : (
+              <ol className="mt-2 space-y-1">
+                {f.assignments.map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex items-center justify-between text-xs"
+                  >
+                    <span className="truncate">
+                      <span className="text-text-secondary mr-1.5 tabular-nums">
+                        {a.position}.
+                      </span>
+                      {a.player_name}
+                      {!a.member_id && (
+                        <span className="text-text-secondary ml-1.5 italic">
+                          (guest)
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onRemove(a.id)}
+                      disabled={removing}
+                      className="text-text-secondary hover:text-danger ml-2 text-[11px] disabled:opacity-60"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
         ))}
       </div>
@@ -267,142 +738,68 @@ function AssignmentRail({ fixtures }: { fixtures: Fixture[] }) {
   );
 }
 
-function SegBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-lg py-2 text-center text-xs font-semibold",
-        active
-          ? "bg-surface text-navy shadow-sm dark:text-white"
-          : "text-text-secondary",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function AvailableList({
-  pools,
+function GuestEntry({
   fixtures,
-  assignedIds,
-  onAssign,
-  compact,
+  onAdd,
 }: {
-  pools: Pool[];
   fixtures: Fixture[];
-  assignedIds: string[];
-  onAssign: (p: Pool) => void;
-  compact?: boolean;
+  onAdd: (
+    memberId: string | undefined,
+    playerName: string,
+    fixtureId: string,
+  ) => void;
 }) {
-  const assigned = new Set(assignedIds);
-  const pad = compact ? "px-4 py-2" : "px-4 py-3";
+  const [name, setName] = useState("");
+  const [fixtureId, setFixtureId] = useState(fixtures[0]?.id ?? "");
+  const fixtureValue = useMemo(
+    () =>
+      fixtures.find((f) => f.id === fixtureId)
+        ? fixtureId
+        : (fixtures[0]?.id ?? ""),
+    [fixtures, fixtureId],
+  );
+  const canAdd = name.trim().length > 0 && !!fixtureValue;
   return (
-    <div className="divide-border-light divide-y">
-      {pools.length === 0 && (
-        <p className="text-text-secondary px-4 py-6 text-sm">
-          No one's said yes yet.
-        </p>
-      )}
-      {pools.map((p) => {
-        const assignedFix = fixtures.find((f) =>
-          f.assignments.some((a) => a.member_id === p.member_id),
-        );
-        return (
-          <div
-            key={p.id}
-            className={cn("bg-surface flex items-center gap-3", pad)}
+    <div>
+      <p className="text-text-secondary mb-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
+        Add a guest
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+          placeholder="Guest name"
+          className="border-border bg-surface h-10 min-w-[10rem] flex-1 rounded-lg border px-3 text-sm"
+        />
+        {fixtures.length > 1 && (
+          <select
+            value={fixtureValue}
+            onChange={(e) => setFixtureId(e.currentTarget.value)}
+            className="border-border bg-surface h-10 rounded-lg border px-3 text-sm"
           >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{p.member_name}</p>
-              {p.note && (
-                <p className="text-text-secondary truncate text-xs">
-                  "{p.note}"
-                </p>
-              )}
-            </div>
-            {assignedFix ? (
-              <span className="bg-info-bg text-navy rounded-full px-2.5 py-1 text-[11px] font-semibold">
-                {assignedFix.team_name ?? assignedFix.opposition}
-              </span>
-            ) : assigned.has(p.member_id) ? null : (
-              <Button size="sm" tone="ghost" onClick={() => onAssign(p)}>
-                Assign →
-              </Button>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function SimpleList({
-  items,
-  muted,
-  compact,
-}: {
-  items: Pool[];
-  muted?: boolean;
-  compact?: boolean;
-}) {
-  const pad = compact ? "px-4 py-2" : "px-4 py-3";
-  return (
-    <div className={cn("divide-border-light divide-y", muted && "opacity-80")}>
-      {items.length === 0 && (
-        <p className="text-text-secondary px-4 py-6 text-sm">No one here.</p>
-      )}
-      {items.map((p) => (
-        <div key={p.id} className={cn("bg-surface", pad)}>
-          <p className="text-sm font-medium">{p.member_name}</p>
-          {p.note && <p className="text-text-secondary text-xs">"{p.note}"</p>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function NoResponseList({
-  items,
-  compact,
-}: {
-  items: NoResp[];
-  compact?: boolean;
-}) {
-  const pad = compact ? "px-4 py-2" : "px-4 py-3";
-  return (
-    <div className="divide-border-light divide-y">
-      {items.length === 0 && (
-        <p className="text-text-secondary px-4 py-6 text-sm">
-          Everyone's responded. Nice.
-        </p>
-      )}
-      {items.map((m) => (
-        <div
-          key={m.id}
-          className={cn("bg-surface flex items-center gap-3", pad)}
+            {fixtures.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.team_name ?? "Senior"} vs {f.opposition}
+              </option>
+            ))}
+          </select>
+        )}
+        <Button
+          tone="outline"
+          disabled={!canAdd}
+          onClick={() => {
+            onAdd(undefined, name.trim(), fixtureValue);
+            setName("");
+          }}
         >
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{m.name}</p>
-            {m.member_category && (
-              <p className="text-text-secondary text-xs">{m.member_category}</p>
-            )}
-          </div>
-          {/* Nudging individuals is a phase 3.1 surface (uses
-              POST /availability/requests/:id/notify/send) — for now,
-              chase from the request-detail page. */}
-        </div>
-      ))}
+          <UserPlusIcon className="size-4" />
+          Add
+        </Button>
+      </div>
+      <p className="text-text-secondary mt-1 text-[11px]">
+        Guests don't receive donation emails - useful for ringers, mates'
+        cousins, etc.
+      </p>
     </div>
   );
 }
@@ -410,23 +807,31 @@ function NoResponseList({
 function AssignSheet({
   target,
   fixtures,
+  currentAssignment,
   onCancel,
   onAssign,
+  onUnassign,
   pending,
 }: {
   target: Pool;
   fixtures: Fixture[];
+  currentAssignment: Assignment | null;
   onCancel: () => void;
   onAssign: (fixtureId: string) => void;
+  onUnassign: () => void;
   pending: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 md:items-center">
       <div className="bg-surface w-full max-w-md rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl">
         <div className="bg-border mx-auto mb-3 h-1 w-9 rounded-full" />
-        <h2 className="text-lg font-semibold">Assign {target.member_name}</h2>
+        <h2 className="text-lg font-semibold">
+          {currentAssignment ? "Move" : "Assign"} {target.member_name}
+        </h2>
         <p className="text-text-secondary mt-1 text-sm">
-          Pick which fixture to put them in.
+          {currentAssignment
+            ? "Pick a different fixture, or unassign them."
+            : "Pick which fixture to put them in."}
         </p>
         <div className="mt-4 space-y-2">
           {fixtures.length === 0 && (
@@ -434,35 +839,47 @@ function AssignSheet({
               No fixtures on this date.
             </p>
           )}
-          {fixtures.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              disabled={pending}
-              onClick={() => onAssign(f.id)}
-              className="border-border bg-surface flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left disabled:opacity-60"
-            >
-              <div>
-                <p className="text-sm font-semibold">
-                  {f.team_name ?? "Senior"} vs {f.opposition}
-                </p>
-                <p className="text-text-secondary text-xs">
-                  {[
-                    f.is_home ? "Home" : "Away",
-                    f.competition_name,
-                    f.match_time,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              </div>
-              <span className="text-text-secondary text-[11px] font-semibold">
-                {f.assignments.length} / 11
-              </span>
-            </button>
-          ))}
+          {fixtures.map((f) => {
+            const isCurrent =
+              currentAssignment?.availability_fixture_id === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                disabled={pending || isCurrent}
+                onClick={() => onAssign(f.id)}
+                className={cn(
+                  "border-border bg-surface flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left disabled:opacity-60",
+                  isCurrent && "border-info bg-info-bg",
+                )}
+              >
+                <div>
+                  <p className="text-sm font-semibold">
+                    {f.team_name ?? "Senior"} vs {f.opposition}
+                  </p>
+                  <p className="text-text-secondary text-xs">
+                    {[
+                      f.is_home ? "Home" : "Away",
+                      f.competition_name,
+                      f.match_time,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+                <span className="text-text-secondary text-[11px] font-semibold">
+                  {isCurrent ? "Current" : `${f.assignments.length} / 11`}
+                </span>
+              </button>
+            );
+          })}
         </div>
         <div className="mt-5 flex justify-end gap-2">
+          {currentAssignment && (
+            <Button tone="destructive" disabled={pending} onClick={onUnassign}>
+              Unassign
+            </Button>
+          )}
           <Button tone="outline" onClick={onCancel}>
             Cancel
           </Button>
