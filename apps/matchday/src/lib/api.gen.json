@@ -8915,6 +8915,43 @@
                           },
                           "respondentCount": {
                             "type": "number"
+                          },
+                          "fixtures": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "match_date": {
+                                  "type": "string"
+                                },
+                                "opposition": {
+                                  "type": "string"
+                                },
+                                "is_home": {
+                                  "type": "boolean"
+                                },
+                                "team_name": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "competition_name": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "match_date",
+                                "opposition",
+                                "is_home",
+                                "team_name",
+                                "competition_name"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
@@ -8926,7 +8963,8 @@
                           "created_by",
                           "created_by_name",
                           "fixtureCount",
-                          "respondentCount"
+                          "respondentCount",
+                          "fixtures"
                         ],
                         "additionalProperties": false
                       }
@@ -9045,6 +9083,10 @@
                                 "match_time": {
                                   "nullable": true,
                                   "type": "string"
+                                },
+                                "team_name": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -9057,7 +9099,8 @@
                                 "is_home",
                                 "competition_name",
                                 "competition_type",
-                                "match_time"
+                                "match_time",
+                                "team_name"
                               ],
                               "additionalProperties": false
                             }

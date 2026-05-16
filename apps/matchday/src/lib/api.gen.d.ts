@@ -5112,6 +5112,14 @@ export interface paths {
                                 created_by_name: string | null;
                                 fixtureCount: number;
                                 respondentCount: number;
+                                fixtures: {
+                                    id: string;
+                                    match_date: string;
+                                    opposition: string;
+                                    is_home: boolean;
+                                    team_name: string | null;
+                                    competition_name: string | null;
+                                }[];
                             }[];
                         };
                     };
@@ -5209,6 +5217,7 @@ export interface paths {
                                     competition_name: string | null;
                                     competition_type: string | null;
                                     match_time: string | null;
+                                    team_name: string | null;
                                 }[];
                                 responseCount: number;
                                 assignmentCount: number;

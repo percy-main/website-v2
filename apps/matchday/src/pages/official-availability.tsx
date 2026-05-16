@@ -91,10 +91,17 @@ function Section({
 }
 
 function Card({ r, muted }: { r: RequestRow; muted?: boolean }) {
-  // Expected respondent count isn't returned by the list endpoint —
-  // show fixtureCount instead and treat respondentCount as a simple
-  // counter. Detail view has full breakdown.
   const isOpen = r.status === "open";
+  // Group fixtures by date so a request covering several dates renders
+  // as a stack of "Sat 23 May · 1st XI vs Backworth, 2nd XI vs Newcastle"
+  // rather than a flat list.
+  const byDate = new Map<string, RequestRow["fixtures"]>();
+  for (const f of r.fixtures) {
+    const list = byDate.get(f.match_date) ?? [];
+    list.push(f);
+    byDate.set(f.match_date, list);
+  }
+  const dates = Array.from(byDate.entries());
   return (
     <Link
       to={`/official/availability/${r.id}`}
@@ -113,6 +120,25 @@ function Card({ r, muted }: { r: RequestRow; muted?: boolean }) {
           {isOpen ? "Open" : r.status}
         </StatusPill>
       </div>
+      {dates.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {dates.map(([date, fixtures]) => (
+            <li key={date} className="text-text-secondary text-xs">
+              <span className="text-text font-semibold">
+                {fmtDate(date, "EEE d MMM")}
+              </span>
+              {" · "}
+              {fixtures
+                .map((f) =>
+                  f.team_name
+                    ? `${f.team_name} vs ${f.opposition}`
+                    : `vs ${f.opposition}`,
+                )
+                .join(", ")}
+            </li>
+          ))}
+        </ul>
+      )}
       <p className="text-text-secondary mt-3 text-xs">
         {r.respondentCount} response{r.respondentCount === 1 ? "" : "s"}
         {r.created_by_name ? ` · created by ${r.created_by_name}` : ""}

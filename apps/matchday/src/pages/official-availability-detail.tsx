@@ -104,7 +104,22 @@ export default function OfficialAvailabilityDetail() {
                 {d.fixtures.length} fixture{d.fixtures.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+            <ul className="mt-2 space-y-0.5 text-[12px]">
+              {d.fixtures.map((f) => (
+                <li key={f.id} className="text-text-secondary">
+                  <span className="text-text font-medium">
+                    {f.team_name ? `${f.team_name} ` : ""}vs {f.opposition}
+                  </span>
+                  <span>
+                    {" · "}
+                    {[f.is_home ? "Home" : "Away", f.competition_name]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
               <span className="bg-info-bg text-navy rounded px-2 py-0.5 dark:text-white">
                 {d.responseCount} response
                 {d.responseCount === 1 ? "" : "s"}

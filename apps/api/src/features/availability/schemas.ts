@@ -80,6 +80,15 @@ export const createRequestResponseSchema = z.object({
   }),
 });
 
+const requestItemFixtureSchema = z.object({
+  id: z.string(),
+  match_date: z.string(),
+  opposition: z.string(),
+  is_home: z.boolean(),
+  team_name: z.string().nullable(),
+  competition_name: z.string().nullable(),
+});
+
 const requestItemSchema = z.object({
   id: z.string(),
   date_from: z.string(),
@@ -90,6 +99,7 @@ const requestItemSchema = z.object({
   created_by_name: z.string().nullable(),
   fixtureCount: z.number(),
   respondentCount: z.number(),
+  fixtures: z.array(requestItemFixtureSchema),
 });
 
 export const listRequestsResponseSchema = z.object({
@@ -107,6 +117,7 @@ const fixtureSchema = z.object({
   competition_name: z.string().nullable(),
   competition_type: z.string().nullable(),
   match_time: z.string().nullable(),
+  team_name: z.string().nullable(),
 });
 
 const dateEntrySchema = z.object({

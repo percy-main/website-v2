@@ -290,11 +290,50 @@ export function listRequests(db: Kysely<DB>) {
       ]),
     );
 
+    // Pull the actual fixtures so the list cards can show what's in
+    // each request (team + opposition + date) without a per-card
+    // round-trip.
+    const fixtures = await db
+      .selectFrom("availability_fixture")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "availability_fixture.play_cricket_team_id",
+      )
+      .where("availability_request_id", "in", requestIds)
+      .select([
+        "availability_fixture.id",
+        "availability_fixture.availability_request_id",
+        "availability_fixture.match_date",
+        "availability_fixture.opposition",
+        "availability_fixture.is_home",
+        "availability_fixture.competition_name",
+        "play_cricket_team.name as team_name",
+      ])
+      .orderBy("availability_fixture.match_date", "asc")
+      .orderBy("play_cricket_team.name", "asc")
+      .execute();
+
+    const fixturesByRequest = new Map<string, typeof fixtures>();
+    for (const f of fixtures) {
+      const list = fixturesByRequest.get(f.availability_request_id) ?? [];
+      list.push(f);
+      fixturesByRequest.set(f.availability_request_id, list);
+    }
+
     return {
       items: requests.map((r) => ({
         ...r,
         fixtureCount: fixtureMap.get(r.id) ?? 0,
         respondentCount: responseMap.get(r.id) ?? 0,
+        fixtures: (fixturesByRequest.get(r.id) ?? []).map((f) => ({
+          id: f.id,
+          match_date: f.match_date,
+          opposition: f.opposition,
+          is_home: f.is_home,
+          team_name: f.team_name,
+          competition_name: f.competition_name,
+        })),
       })),
     };
   };
@@ -321,9 +360,27 @@ export function getRequest(db: Kysely<DB>) {
 
     const fixtures = await db
       .selectFrom("availability_fixture")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "availability_fixture.play_cricket_team_id",
+      )
       .where("availability_request_id", "=", requestId)
-      .selectAll()
+      .select([
+        "availability_fixture.id",
+        "availability_fixture.availability_request_id",
+        "availability_fixture.match_date",
+        "availability_fixture.play_cricket_match_id",
+        "availability_fixture.play_cricket_team_id",
+        "availability_fixture.opposition",
+        "availability_fixture.is_home",
+        "availability_fixture.competition_name",
+        "availability_fixture.competition_type",
+        "availability_fixture.match_time",
+        "play_cricket_team.name as team_name",
+      ])
       .orderBy("match_date", "asc")
+      .orderBy("play_cricket_team.name", "asc")
       .execute();
 
     // Group fixtures by date and get counts
