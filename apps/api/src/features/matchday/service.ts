@@ -665,21 +665,71 @@ export function createMatchday(db: Kysely<DB>) {
     }
 
     const id = crypto.randomUUID();
-    await db
-      .insertInto("matchday")
-      .values({
-        id,
-        play_cricket_team_id: data.teamId,
-        match_date: data.matchDate,
-        opposition: data.opposition,
-        competition_type: data.competitionType ?? null,
-        play_cricket_match_id: data.playCricketMatchId ?? null,
-        status: "pending",
-        created_by: userId,
-      })
-      .execute();
+    let importedPlayers = 0;
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .insertInto("matchday")
+        .values({
+          id,
+          play_cricket_team_id: data.teamId,
+          match_date: data.matchDate,
+          opposition: data.opposition,
+          competition_type: data.competitionType ?? null,
+          play_cricket_match_id: data.playCricketMatchId ?? null,
+          status: "pending",
+          created_by: userId,
+        })
+        .execute();
 
-    return { id };
+      // If an availability_fixture matches this Play Cricket match, copy
+      // any pre-existing assignments straight into matchday_player so
+      // the squad-picker page doesn't open empty. Pre-amendment this
+      // was done by an explicit "Confirm teams" step on the per-date
+      // picker; we run it implicitly here instead.
+      if (data.playCricketMatchId) {
+        const assignments = await trx
+          .selectFrom("availability_assignment")
+          .innerJoin(
+            "availability_fixture",
+            "availability_fixture.id",
+            "availability_assignment.availability_fixture_id",
+          )
+          .where(
+            "availability_fixture.play_cricket_match_id",
+            "=",
+            data.playCricketMatchId,
+          )
+          .where(
+            "availability_fixture.play_cricket_team_id",
+            "=",
+            data.teamId,
+          )
+          .select([
+            "availability_assignment.member_id",
+            "availability_assignment.player_name",
+          ])
+          .orderBy("availability_assignment.position", "asc")
+          .execute();
+
+        if (assignments.length > 0) {
+          await trx
+            .insertInto("matchday_player")
+            .values(
+              assignments.map((a) => ({
+                id: crypto.randomUUID(),
+                matchday_id: id,
+                member_id: a.member_id,
+                player_name: a.player_name,
+                status: "selected" as const,
+              })),
+            )
+            .execute();
+          importedPlayers = assignments.length;
+        }
+      }
+    });
+
+    return { id, importedPlayers };
   };
 }
 

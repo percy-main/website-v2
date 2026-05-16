@@ -4049,6 +4049,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             id: string;
+                            importedPlayers: number;
                         };
                     };
                 };

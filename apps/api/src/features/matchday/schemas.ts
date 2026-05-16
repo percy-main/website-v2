@@ -346,6 +346,7 @@ export const pastUnfinishedMatchdaysResponseSchema = z.array(
 
 export const createMatchdayResponseSchema = z.object({
   id: z.string(),
+  importedPlayers: z.number().int().nonnegative(),
 });
 
 const searchMemberItemSchema = z.object({
