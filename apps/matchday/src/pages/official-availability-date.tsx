@@ -18,11 +18,15 @@ type Tab = "available" | "unavailable" | "noResponse";
 /**
  * Phase 3 per-date picker.
  *
- * Mobile: three tabs (Available, Unavailable, No response). On Available
- * tab, tapping a player opens a fixture-picker sheet to assign them.
- * On No response tab, each row has a Nudge button.
+ * Mobile (<md): three-tab segmented control (Available, Unavailable,
+ * No response). On Available tab, tapping a player opens a
+ * fixture-picker sheet to assign them.
  *
- * The plan calls for a 3-column desktop layout — phase 3.1 polish.
+ * Desktop (md+): the same data laid out as a 3-column side-by-side view
+ * (per DESIGN_PROMPT_official tile 7 / Flow 3). Below the columns sits
+ * an assignment rail with a card per fixture showing X/11 and the
+ * picked players. The tab control is hidden at md+ so everything is
+ * visible at once.
  */
 export default function OfficialAvailabilityDate() {
   const { requestId, date } = useParams();
@@ -78,7 +82,7 @@ export default function OfficialAvailabilityDate() {
   const pd = data;
 
   return (
-    <div className="mx-auto w-full max-w-2xl pb-24">
+    <div className="mx-auto w-full max-w-2xl pb-24 md:max-w-6xl">
       <header className="border-border flex items-center gap-3 border-b p-3">
         <Link
           to={`/official/availability/${requestId}`}
@@ -97,41 +101,82 @@ export default function OfficialAvailabilityDate() {
         </div>
       </header>
 
-      <div className="bg-surface-raised mx-4 mt-3 grid grid-cols-3 gap-1 rounded-xl p-1">
-        <SegBtn
-          active={tab === "available"}
-          onClick={() => setTab("available")}
-        >
-          {pd.pools.available.length} Available
-        </SegBtn>
-        <SegBtn
-          active={tab === "unavailable"}
-          onClick={() => setTab("unavailable")}
-        >
-          {pd.pools.unavailable.length} Unavailable
-        </SegBtn>
-        <SegBtn
-          active={tab === "noResponse"}
-          onClick={() => setTab("noResponse")}
-        >
-          {pd.pools.noResponse.length} No response
-        </SegBtn>
+      {/* Mobile (<md): tabbed view. */}
+      <div className="md:hidden">
+        <div className="bg-surface-raised mx-4 mt-3 grid grid-cols-3 gap-1 rounded-xl p-1">
+          <SegBtn
+            active={tab === "available"}
+            onClick={() => setTab("available")}
+          >
+            {pd.pools.available.length} Available
+          </SegBtn>
+          <SegBtn
+            active={tab === "unavailable"}
+            onClick={() => setTab("unavailable")}
+          >
+            {pd.pools.unavailable.length} Unavailable
+          </SegBtn>
+          <SegBtn
+            active={tab === "noResponse"}
+            onClick={() => setTab("noResponse")}
+          >
+            {pd.pools.noResponse.length} No response
+          </SegBtn>
+        </div>
+
+        <section className="mt-3">
+          {tab === "available" && (
+            <AvailableList
+              pools={pd.pools.available}
+              fixtures={pd.fixtures}
+              assignedIds={pd.assignedMemberIds}
+              onAssign={(p) => setAssignTarget(p)}
+            />
+          )}
+          {tab === "unavailable" && (
+            <SimpleList items={pd.pools.unavailable} muted />
+          )}
+          {tab === "noResponse" && (
+            <NoResponseList items={pd.pools.noResponse} />
+          )}
+        </section>
       </div>
 
-      <section className="mt-3">
-        {tab === "available" && (
-          <AvailableList
-            pools={pd.pools.available}
-            fixtures={pd.fixtures}
-            assignedIds={pd.assignedMemberIds}
-            onAssign={(p) => setAssignTarget(p)}
-          />
-        )}
-        {tab === "unavailable" && (
-          <SimpleList items={pd.pools.unavailable} muted />
-        )}
-        {tab === "noResponse" && <NoResponseList items={pd.pools.noResponse} />}
-      </section>
+      {/* Desktop (md+): 3-column side-by-side + assignment rail. */}
+      <div className="hidden md:block">
+        <div className="border-border bg-surface mx-4 mt-4 overflow-hidden rounded-2xl border">
+          <div className="grid min-h-[480px] grid-cols-3">
+            <DesktopColumn
+              tone="available"
+              label="Available"
+              count={pd.pools.available.length}
+            >
+              <AvailableList
+                pools={pd.pools.available}
+                fixtures={pd.fixtures}
+                assignedIds={pd.assignedMemberIds}
+                onAssign={(p) => setAssignTarget(p)}
+                compact
+              />
+            </DesktopColumn>
+            <DesktopColumn
+              tone="unavailable"
+              label="Unavailable"
+              count={pd.pools.unavailable.length}
+            >
+              <SimpleList items={pd.pools.unavailable} muted compact />
+            </DesktopColumn>
+            <DesktopColumn
+              tone="noResponse"
+              label="No response"
+              count={pd.pools.noResponse.length}
+            >
+              <NoResponseList items={pd.pools.noResponse} compact />
+            </DesktopColumn>
+          </div>
+          <AssignmentRail fixtures={pd.fixtures} />
+        </div>
+      </div>
 
       {assignTarget && (
         <AssignSheet
@@ -148,6 +193,76 @@ export default function OfficialAvailabilityDate() {
           pending={assign.isPending}
         />
       )}
+    </div>
+  );
+}
+
+function DesktopColumn({
+  tone,
+  label,
+  count,
+  children,
+}: {
+  tone: "available" | "unavailable" | "noResponse";
+  label: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  const headTone = {
+    available: "bg-success-bg text-success border-b border-success/30",
+    unavailable: "bg-danger-bg text-danger border-b border-danger/30",
+    noResponse: "border-border bg-surface-raised text-text-secondary border-b",
+  }[tone];
+  return (
+    <div className="border-border flex flex-col border-r last:border-r-0">
+      <div
+        className={cn(
+          "flex items-center justify-between px-4 py-2.5 text-[11px] font-semibold tracking-[0.06em] uppercase",
+          headTone,
+        )}
+      >
+        <span>{label}</span>
+        <span>{count}</span>
+      </div>
+      <div className="flex-1">{children}</div>
+    </div>
+  );
+}
+
+function AssignmentRail({ fixtures }: { fixtures: Fixture[] }) {
+  return (
+    <div className="border-border bg-surface-raised border-t p-4">
+      <p className="text-text-secondary mb-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
+        Current assignments
+      </p>
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        {fixtures.map((f) => (
+          <div
+            key={f.id}
+            className="border-border bg-surface rounded-xl border p-3"
+          >
+            <div className="flex items-baseline justify-between">
+              <strong className="text-sm">
+                {f.team_name ?? "Senior"} vs {f.opposition}
+              </strong>
+              <span className="text-text-secondary text-[11px] font-semibold">
+                {f.assignments.length} / 11
+              </span>
+            </div>
+            <p className="text-text-secondary mt-2 text-xs">
+              {f.assignments.length === 0
+                ? "No one picked yet."
+                : f.assignments
+                    .slice(0, 6)
+                    .map((a) => a.player_name)
+                    .join(", ") +
+                  (f.assignments.length > 6
+                    ? `, +${f.assignments.length - 6} more`
+                    : "")}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -182,13 +297,16 @@ function AvailableList({
   fixtures,
   assignedIds,
   onAssign,
+  compact,
 }: {
   pools: Pool[];
   fixtures: Fixture[];
   assignedIds: string[];
   onAssign: (p: Pool) => void;
+  compact?: boolean;
 }) {
   const assigned = new Set(assignedIds);
+  const pad = compact ? "px-4 py-2" : "px-4 py-3";
   return (
     <div className="divide-border-light divide-y">
       {pools.length === 0 && (
@@ -203,7 +321,7 @@ function AvailableList({
         return (
           <div
             key={p.id}
-            className="bg-surface flex items-center gap-3 px-4 py-3"
+            className={cn("bg-surface flex items-center gap-3", pad)}
           >
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{p.member_name}</p>
@@ -229,14 +347,23 @@ function AvailableList({
   );
 }
 
-function SimpleList({ items, muted }: { items: Pool[]; muted?: boolean }) {
+function SimpleList({
+  items,
+  muted,
+  compact,
+}: {
+  items: Pool[];
+  muted?: boolean;
+  compact?: boolean;
+}) {
+  const pad = compact ? "px-4 py-2" : "px-4 py-3";
   return (
     <div className={cn("divide-border-light divide-y", muted && "opacity-80")}>
       {items.length === 0 && (
         <p className="text-text-secondary px-4 py-6 text-sm">No one here.</p>
       )}
       {items.map((p) => (
-        <div key={p.id} className="bg-surface px-4 py-3">
+        <div key={p.id} className={cn("bg-surface", pad)}>
           <p className="text-sm font-medium">{p.member_name}</p>
           {p.note && <p className="text-text-secondary text-xs">"{p.note}"</p>}
         </div>
@@ -245,7 +372,14 @@ function SimpleList({ items, muted }: { items: Pool[]; muted?: boolean }) {
   );
 }
 
-function NoResponseList({ items }: { items: NoResp[] }) {
+function NoResponseList({
+  items,
+  compact,
+}: {
+  items: NoResp[];
+  compact?: boolean;
+}) {
+  const pad = compact ? "px-4 py-2" : "px-4 py-3";
   return (
     <div className="divide-border-light divide-y">
       {items.length === 0 && (
@@ -256,7 +390,7 @@ function NoResponseList({ items }: { items: NoResp[] }) {
       {items.map((m) => (
         <div
           key={m.id}
-          className="bg-surface flex items-center gap-3 px-4 py-3"
+          className={cn("bg-surface flex items-center gap-3", pad)}
         >
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{m.name}</p>
