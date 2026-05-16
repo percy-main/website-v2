@@ -105,6 +105,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
           async onSuccess() {
             if (cancelled) return;
             await refetchSession();
+            if (cancelled) return;
             navigateBack("/members");
           },
         },
