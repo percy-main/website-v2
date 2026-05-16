@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
+import { useDebouncedValue } from "@/hooks/use-debounced-value.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, SearchIcon, UserPlusIcon, XIcon } from "lucide-react";
@@ -19,6 +20,7 @@ export default function MatchdayEdit() {
   const qc = useQueryClient();
   const { matchdayId } = useParams();
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [guestName, setGuestName] = useState("");
 
   const { data: detail, isLoading } = useQuery({
@@ -33,12 +35,12 @@ export default function MatchdayEdit() {
   });
 
   const searchResults = useQuery({
-    queryKey: ["matchday", "members", "search", search],
-    enabled: search.length >= 2,
+    queryKey: ["matchday", "members", "search", debouncedSearch],
+    enabled: debouncedSearch.length >= 2,
     queryFn: () =>
       callApi(
         api.GET("/api/matchday/members/search", {
-          params: { query: { query: search } },
+          params: { query: { query: debouncedSearch } },
         }),
       ),
   });
@@ -126,7 +128,7 @@ export default function MatchdayEdit() {
             className="placeholder:text-text-muted w-full bg-transparent text-sm outline-none"
           />
         </div>
-        {search.length >= 2 && candidates.length > 0 && (
+        {debouncedSearch.length >= 2 && candidates.length > 0 && (
           <ul className="mt-2 space-y-1">
             {candidates
               .filter((c) =>
