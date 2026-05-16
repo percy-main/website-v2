@@ -1,12 +1,12 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
-import { fmtDate } from "@/features/format.js";
+import { fmtDate, toIsoDate } from "@/features/format.js";
 import { oppositionName, played, type GameDetail } from "@/features/games.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { useSession, type SessionUser } from "@/lib/auth-client.js";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 function isOfficial(role: string | null | undefined): boolean {
   return role === "official" || role === "admin";
@@ -28,15 +28,54 @@ export default function FixtureDetail() {
       ),
     enabled: !!matchId,
   });
+  const navigate = useNavigate();
+  const qc = useQueryClient();
   const { data: session } = useSession();
   const user = session?.user as SessionUser | undefined;
   const showOfficialActions = isOfficial(user?.role ?? null);
+  const create = useMutation({
+    mutationFn: (vars: {
+      teamId: string;
+      matchDate: string;
+      opposition: string;
+      playCricketMatchId: string;
+      competitionType?: string | null;
+    }) =>
+      callApi(
+        api.POST("/api/matchday", {
+          body: {
+            teamId: vars.teamId,
+            matchDate: vars.matchDate,
+            opposition: vars.opposition,
+            playCricketMatchId: vars.playCricketMatchId,
+            ...(vars.competitionType
+              ? { competitionType: vars.competitionType }
+              : {}),
+          },
+        }),
+      ),
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["games"] });
+      void navigate(`/matchday/${data.id}/edit`);
+    },
+  });
   if (isLoading) return <Skel />;
   if (isError || !game) return <ErrState />;
   const directionsQuery = directionsTarget(game);
   const matchdayId = game.lineup?.matchdayId ?? null;
   const isPast = played(game) || isAfterMatchDate(game.matchDate);
   const expensesOpen = !isPastExpenseCutoff(game.matchDate);
+  const handlePickTeam = () => {
+    const iso = toIsoDate(game.matchDate);
+    if (!iso) return;
+    create.mutate({
+      teamId: game.team.id,
+      matchDate: iso,
+      opposition: oppositionName(game),
+      playCricketMatchId: game.id,
+      competitionType: game.competition.type ?? null,
+    });
+  };
   return (
     <div className="mx-auto w-full max-w-2xl pb-12">
       <header className="bg-navy px-5 py-6 text-white">
@@ -106,11 +145,19 @@ export default function FixtureDetail() {
                 )}
               </>
             ) : (
-              <Button asChild tone="primary" className="w-full">
-                <Link to={`/squad/new?teamId=${game.team.id}`}>
-                  Pick team →
-                </Link>
+              <Button
+                tone="primary"
+                className="w-full"
+                disabled={create.isPending}
+                onClick={handlePickTeam}
+              >
+                {create.isPending ? "Creating…" : "Pick team →"}
               </Button>
+            )}
+            {create.isError && (
+              <p className="text-danger text-xs">
+                Couldn't create the matchday. Try again.
+              </p>
             )}
           </section>
         )}

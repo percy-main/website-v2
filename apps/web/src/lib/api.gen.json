@@ -8148,6 +8148,66 @@
         }
       }
     },
+    "/api/matchday/past-unfinished": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "match_date": {
+                        "type": "string"
+                      },
+                      "opposition": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "competition_type": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "play_cricket_match_id": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "team_id": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "team_name": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "match_date",
+                      "opposition",
+                      "status",
+                      "competition_type",
+                      "play_cricket_match_id",
+                      "team_id",
+                      "team_name"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/matchday/teams/{teamId}/past-unfinished": {
       "get": {
         "parameters": [

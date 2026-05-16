@@ -4655,6 +4655,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/matchday/past-unfinished": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            match_date: string;
+                            opposition: string;
+                            status: string;
+                            competition_type: string | null;
+                            play_cricket_match_id: string | null;
+                            team_id: string | null;
+                            team_name: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/matchday/teams/{teamId}/past-unfinished": {
         parameters: {
             query?: never;

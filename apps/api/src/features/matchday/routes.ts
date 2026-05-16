@@ -8,6 +8,7 @@ import { createApiClient } from "../play-cricket/api-client.ts";
 import {
   addPlayerResponseSchema,
   addPlayerSchema,
+  allPastUnfinishedMatchdaysResponseSchema,
   cancelMatchdaySchema,
   createMatchdayResponseSchema,
   createMatchdaySchema,
@@ -46,6 +47,7 @@ import {
   createMatchday,
   deleteExpense,
   finishMatch,
+  getAllPastUnfinishedMatchdays,
   getMatch,
   getMatchPublic,
   getPastUnfinishedMatchdays,
@@ -327,6 +329,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const teams = listTeams(app.db);
   const create = createMatchday(app.db);
   const pastUnfinished = getPastUnfinishedMatchdays(app.db);
+  const allPastUnfinished = getAllPastUnfinishedMatchdays(app.db);
   const search = searchMembers(app.db);
   const add = addPlayer(app.db);
   const removeP = removePlayer(app.db);
@@ -360,6 +363,21 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
       return await teams(user.id, role);
+    },
+  );
+
+  app.get(
+    "/matchday/past-unfinished",
+    {
+      preHandler: [officialRole],
+      schema: {
+        response: { 200: allPastUnfinishedMatchdaysResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await allPastUnfinished(user.id, role);
     },
   );
 

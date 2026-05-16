@@ -344,6 +344,14 @@ export const pastUnfinishedMatchdaysResponseSchema = z.array(
   pastUnfinishedMatchdaySchema,
 );
 
+export const allPastUnfinishedMatchdaysResponseSchema = z.array(
+  pastUnfinishedMatchdaySchema.extend({
+    play_cricket_match_id: z.string().nullable(),
+    team_id: z.string().nullable(),
+    team_name: z.string().nullable(),
+  }),
+);
+
 export const createMatchdayResponseSchema = z.object({
   id: z.string(),
   importedPlayers: z.number().int().nonnegative(),

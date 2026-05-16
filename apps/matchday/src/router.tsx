@@ -40,14 +40,6 @@ const routes: RouteObject[] = [
           },
           // Phase 3 official surfaces — lazy-loaded.
           {
-            path: "squad",
-            Component: lazy(() => import("./pages/squad.js")),
-          },
-          {
-            path: "squad/new",
-            Component: lazy(() => import("./pages/squad-new.js")),
-          },
-          {
             path: "matchday/:matchdayId/edit",
             Component: lazy(() => import("./pages/matchday-edit.js")),
           },

@@ -5,7 +5,6 @@ import {
   HomeIcon,
   type LucideIcon,
   UserIcon,
-  UsersIcon,
   WalletIcon,
 } from "lucide-react";
 import { NavLink } from "react-router";
@@ -22,11 +21,14 @@ export interface TabDef {
  * Build the tab list for the user's effective role. Per design:
  *
  *   - Player        Home · Fixtures · Donations · Me      (4 tabs)
- *   - Official      + Squad + Availability                (6 tabs)
+ *   - Official      + Availability                        (5 tabs)
  *
  * Officials are also players, so Donations stays for them. Players never
- * see Squad / Availability. Admin surfaces (expense approvals, fee rate
- * admin) stay on the main site — not duplicated here.
+ * see Availability. Admin surfaces (expense approvals, fee rate admin)
+ * stay on the main site - not duplicated here. The old Squad tab was
+ * dropped: per-team rollups now live on the Home dashboard's "Needs
+ * attention" card, and matchday-management actions hang off
+ * fixture-detail directly.
  */
 export function tabsForRole(role: "player" | "official"): TabDef[] {
   const home: TabDef = { to: "/", label: "Home", icon: HomeIcon, end: true };
@@ -47,7 +49,6 @@ export function tabsForRole(role: "player" | "official"): TabDef[] {
   }
   return [
     home,
-    { to: "/squad", label: "Squad", icon: UsersIcon },
     {
       to: "/official/availability",
       label: "Availability",

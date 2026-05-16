@@ -642,6 +642,43 @@ export function getPastUnfinishedMatchdays(db: Kysely<DB>) {
   };
 }
 
+/**
+ * All past-unfinished matchdays across every team the user has access
+ * to. Powers the home dashboard's "Needs attention" card without
+ * forcing the client to fan out per-team queries.
+ */
+export function getAllPastUnfinishedMatchdays(db: Kysely<DB>) {
+  return async (userId: string, role: string) => {
+    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
+    if (accessibleIds.length === 0) return [];
+
+    const today = formatDate(startOfDay(new Date()), "yyyy-MM-dd");
+
+    return db
+      .selectFrom("matchday")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
+      .where("matchday.play_cricket_team_id", "in", accessibleIds)
+      .where("matchday.status", "in", ["pending", "confirmed"])
+      .where("matchday.match_date", "<", today)
+      .select([
+        "matchday.id",
+        "matchday.match_date",
+        "matchday.opposition",
+        "matchday.status",
+        "matchday.competition_type",
+        "matchday.play_cricket_match_id",
+        "play_cricket_team.id as team_id",
+        "play_cricket_team.name as team_name",
+      ])
+      .orderBy("matchday.match_date", "desc")
+      .execute();
+  };
+}
+
 export function createMatchday(db: Kysely<DB>) {
   return async (userId: string, role: string, data: CreateMatchday) => {
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
@@ -699,11 +736,7 @@ export function createMatchday(db: Kysely<DB>) {
             "=",
             data.playCricketMatchId,
           )
-          .where(
-            "availability_fixture.play_cricket_team_id",
-            "=",
-            data.teamId,
-          )
+          .where("availability_fixture.play_cricket_team_id", "=", data.teamId)
           .select([
             "availability_assignment.member_id",
             "availability_assignment.player_name",

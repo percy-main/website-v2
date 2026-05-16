@@ -116,11 +116,19 @@ export default function MatchdayEdit() {
 
   const candidates = searchResults.data ?? [];
 
+  // Where "Back" / "Done" / "Save & close" send the user. Prefer the
+  // fixture detail screen if we have a Play Cricket match id (the
+  // matchday-edit page is always opened from there); otherwise fall
+  // back to the fixtures list.
+  const exitTo = md.matchday.play_cricket_match_id
+    ? `/fixture/${md.matchday.play_cricket_match_id}`
+    : "/fixtures";
+
   return (
     <div className="mx-auto w-full max-w-2xl pb-32">
       <header className="border-border flex items-center gap-3 border-b p-3">
         <Link
-          to="/squad"
+          to={exitTo}
           aria-label="Back"
           className="text-text-secondary hover:bg-surface-raised grid size-9 place-items-center rounded-md"
         >
@@ -308,13 +316,13 @@ export default function MatchdayEdit() {
       <div className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur md:static">
         <div className="mx-auto flex max-w-2xl items-center justify-end gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)] md:pb-3">
           <Button asChild tone="outline">
-            <Link to="/squad">Save & close</Link>
+            <Link to={exitTo}>Save & close</Link>
           </Button>
           <Button
             tone="primary"
             disabled={players.length === 0}
             onClick={() => {
-              void navigate("/squad");
+              void navigate(exitTo);
             }}
           >
             Done
