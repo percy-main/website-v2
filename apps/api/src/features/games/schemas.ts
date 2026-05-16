@@ -93,6 +93,7 @@ const lineupPlayerSchema = z.object({
 const lineupSchema = z
   .object({
     confirmed: z.boolean(),
+    matchdayId: z.string(),
     players: z.array(lineupPlayerSchema),
   })
   .nullable();

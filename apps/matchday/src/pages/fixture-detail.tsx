@@ -3,9 +3,14 @@ import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
 import { oppositionName, played, type GameDetail } from "@/features/games.js";
 import { api, callApi } from "@/lib/api-client.js";
+import { useSession, type SessionUser } from "@/lib/auth-client.js";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { Link, useParams } from "react-router";
+
+function isOfficial(role: string | null | undefined): boolean {
+  return role === "official" || role === "admin";
+}
 
 export default function FixtureDetail() {
   const { matchId } = useParams();
@@ -23,9 +28,15 @@ export default function FixtureDetail() {
       ),
     enabled: !!matchId,
   });
+  const { data: session } = useSession();
+  const user = session?.user as SessionUser | undefined;
+  const showOfficialActions = isOfficial(user?.role ?? null);
   if (isLoading) return <Skel />;
   if (isError || !game) return <ErrState />;
   const directionsQuery = directionsTarget(game);
+  const matchdayId = game.lineup?.matchdayId ?? null;
+  const isPast = played(game) || isAfterMatchDate(game.matchDate);
+  const expensesOpen = !isPastExpenseCutoff(game.matchDate);
   return (
     <div className="mx-auto w-full max-w-2xl pb-12">
       <header className="bg-navy px-5 py-6 text-white">
@@ -65,6 +76,43 @@ export default function FixtureDetail() {
               Get directions ↗
             </a>
           </Button>
+        )}
+
+        {showOfficialActions && (
+          <section className="border-border bg-surface space-y-2 rounded-2xl border p-3">
+            <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
+              Manage this match
+            </p>
+            {matchdayId ? (
+              <>
+                <Button asChild tone="outline" className="w-full">
+                  <Link to={`/matchday/${matchdayId}/edit`}>
+                    Manage squad →
+                  </Link>
+                </Button>
+                {isPast && (
+                  <Button asChild tone="primary" className="w-full">
+                    <Link to={`/matchday/${matchdayId}/wrap`}>
+                      Wrap match up →
+                    </Link>
+                  </Button>
+                )}
+                {expensesOpen && !isPast && (
+                  <Button asChild tone="outline" className="w-full">
+                    <Link to={`/matchday/${matchdayId}/wrap`}>
+                      Add expense →
+                    </Link>
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Button asChild tone="primary" className="w-full">
+                <Link to={`/squad/new?teamId=${game.team.id}`}>
+                  Pick team →
+                </Link>
+              </Button>
+            )}
+          </section>
         )}
 
         <div className="mt-4">
@@ -121,6 +169,20 @@ export default function FixtureDetail() {
  * have it (geocodes much better than a plain ground name), fall back
  * to the bare groundName otherwise.
  */
+function isAfterMatchDate(matchDate: string, now = new Date()): boolean {
+  const match = new Date(`${matchDate}T23:59:59Z`);
+  if (Number.isNaN(match.getTime())) return false;
+  return now > match;
+}
+
+function isPastExpenseCutoff(matchDate: string, now = new Date()): boolean {
+  const match = new Date(`${matchDate}T00:00:00Z`);
+  if (Number.isNaN(match.getTime())) return false;
+  const cutoff = new Date(match);
+  cutoff.setUTCDate(cutoff.getUTCDate() + 6);
+  return now >= cutoff;
+}
+
 function directionsTarget(g: GameDetail): string | null {
   if (g.home) return null;
   if (g.location) {
