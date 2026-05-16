@@ -4486,6 +4486,9 @@
                         "confirmed": {
                           "type": "boolean"
                         },
+                        "matchdayId": {
+                          "type": "string"
+                        },
                         "players": {
                           "type": "array",
                           "items": {
@@ -4504,6 +4507,7 @@
                       },
                       "required": [
                         "confirmed",
+                        "matchdayId",
                         "players"
                       ],
                       "additionalProperties": false
@@ -8464,79 +8468,6 @@
         }
       }
     },
-    "/api/matchday/{matchId}/confirm": {
-      "post": {
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "playerStatuses": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "matchdayPlayerId": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "playing",
-                            "dropped_out",
-                            "no_show"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "matchdayPlayerId",
-                        "status"
-                      ]
-                    }
-                  }
-                },
-                "required": [
-                  "playerStatuses"
-                ]
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "matchId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/matchday/{matchId}/roles": {
       "put": {
         "requestBody": {
@@ -8682,6 +8613,49 @@
                       "C",
                       "N"
                     ]
+                  },
+                  "playerStatuses": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "matchdayPlayerId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "playing",
+                            "dropped_out",
+                            "no_show"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "matchdayPlayerId",
+                        "status"
+                      ]
+                    }
+                  },
+                  "feeOverrides": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "matchdayPlayerId": {
+                          "type": "string"
+                        },
+                        "amountPence": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "matchdayPlayerId",
+                        "amountPence"
+                      ]
+                    }
                   }
                 },
                 "required": [

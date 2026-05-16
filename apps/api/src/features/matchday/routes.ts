@@ -9,7 +9,6 @@ import {
   addPlayerResponseSchema,
   addPlayerSchema,
   cancelMatchdaySchema,
-  confirmTeamSchema,
   createMatchdayResponseSchema,
   createMatchdaySchema,
   expenseIdParamSchema,
@@ -44,7 +43,6 @@ import {
   addPlayer,
   approveExpense,
   cancelMatchday,
-  confirmTeam,
   createMatchday,
   deleteExpense,
   finishMatch,
@@ -332,7 +330,6 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const search = searchMembers(app.db);
   const add = addPlayer(app.db);
   const removeP = removePlayer(app.db);
-  const confirm = confirmTeam(app.db);
   const setRoles = setMatchRoles(app.db);
   const paid = markFeePaid(app.db);
   const finish = finishMatch(app.db, app.send, app.config);
@@ -465,23 +462,6 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
         request.params.matchId,
         request.params.playerId,
       );
-    },
-  );
-
-  app.post(
-    "/matchday/:matchId/confirm",
-    {
-      preHandler: [officialRole],
-      schema: {
-        params: matchIdParamSchema,
-        body: confirmTeamSchema,
-        response: { 200: successResponseSchema },
-      },
-    },
-    async (request) => {
-      const { user } = getAuthSession(request);
-      const role = (user as { role?: string | null }).role ?? "user";
-      return await confirm(user.id, role, request.params.matchId, request.body);
     },
   );
 

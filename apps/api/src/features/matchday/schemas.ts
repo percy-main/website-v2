@@ -80,13 +80,14 @@ export const addPlayerSchema = z.object({
   playerName: z.string().min(1),
 });
 
-export const confirmTeamSchema = z.object({
-  playerStatuses: z.array(
-    z.object({
-      matchdayPlayerId: z.string(),
-      status: z.enum(["playing", "dropped_out", "no_show"]),
-    }),
-  ),
+export const playerStatusSchema = z.object({
+  matchdayPlayerId: z.string(),
+  status: z.enum(["playing", "dropped_out", "no_show"]),
+});
+
+export const feeOverrideSchema = z.object({
+  matchdayPlayerId: z.string(),
+  amountPence: z.number().int().min(0),
 });
 
 export const setRolesSchema = z.object({
@@ -118,6 +119,8 @@ export const resultTypeSchema = z.enum(["W", "L", "D", "T", "A", "C", "N"]);
 
 export const finishMatchSchema = z.object({
   resultType: resultTypeSchema,
+  playerStatuses: z.array(playerStatusSchema).optional(),
+  feeOverrides: z.array(feeOverrideSchema).optional(),
 });
 
 // ── Cancel matchday schemas ──
@@ -383,7 +386,8 @@ export type UpdateExpense = z.infer<typeof updateExpenseSchema>;
 export type DeleteExpense = z.infer<typeof deleteExpenseSchema>;
 export type CreateMatchday = z.infer<typeof createMatchdaySchema>;
 export type AddPlayer = z.infer<typeof addPlayerSchema>;
-export type ConfirmTeam = z.infer<typeof confirmTeamSchema>;
+export type PlayerStatus = z.infer<typeof playerStatusSchema>;
+export type FeeOverride = z.infer<typeof feeOverrideSchema>;
 export type SetRoles = z.infer<typeof setRolesSchema>;
 export type MarkPaid = z.infer<typeof markPaidSchema>;
 export type SearchMembers = z.infer<typeof searchMembersSchema>;

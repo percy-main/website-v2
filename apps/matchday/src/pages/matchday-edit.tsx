@@ -1,7 +1,9 @@
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
+import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
+import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, SearchIcon, UserPlusIcon, XIcon } from "lucide-react";
 import { useState } from "react";
@@ -71,6 +73,22 @@ export default function MatchdayEdit() {
           params: {
             path: { matchId: matchdayId ?? "", playerId },
           },
+        }),
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["matchday", matchdayId] });
+    },
+  });
+
+  const setRoles = useMutation({
+    mutationFn: (vars: {
+      captainPlayerId: string | null;
+      wicketkeeperPlayerId: string | null;
+    }) =>
+      callApi(
+        api.PUT("/api/matchday/{matchId}/roles", {
+          params: { path: { matchId: matchdayId ?? "" } },
+          body: vars,
         }),
       ),
     onSuccess: () => {
@@ -186,35 +204,81 @@ export default function MatchdayEdit() {
             No players yet. Search above or add a guest.
           </p>
         )}
-        {players.map((p) => (
-          <div
-            key={p.id}
-            className="border-border bg-surface flex items-center gap-2 rounded-xl border px-3 py-2"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">
-                {p.player_name}
-                {p.dependent_id ? (
-                  <span className="text-text-secondary ml-2 text-[11px] italic">
-                    junior
-                  </span>
-                ) : !p.member_id ? (
-                  <span className="text-text-secondary ml-2 text-[11px] italic">
-                    guest
-                  </span>
-                ) : null}
-              </p>
-            </div>
-            <button
-              type="button"
-              aria-label="Remove"
-              onClick={() => removePlayer.mutate(p.id)}
-              className="text-danger hover:bg-danger-bg grid size-9 place-items-center rounded-md"
+        {players.map((p) => {
+          const captainId = players.find((x) => x.is_captain)?.id ?? null;
+          const keeperId = players.find((x) => x.is_wicketkeeper)?.id ?? null;
+          return (
+            <div
+              key={p.id}
+              className="border-border bg-surface flex items-center gap-2 rounded-xl border px-3 py-2"
             >
-              <XIcon className="size-4" />
-            </button>
-          </div>
-        ))}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {p.player_name}
+                  {p.dependent_id ? (
+                    <span className="text-text-secondary ml-2 text-[11px] italic">
+                      junior
+                    </span>
+                  ) : !p.member_id ? (
+                    <span className="text-text-secondary ml-2 text-[11px] italic">
+                      guest
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label={p.is_captain ? "Unset captain" : "Set as captain"}
+                aria-pressed={p.is_captain}
+                disabled={setRoles.isPending}
+                onClick={() =>
+                  setRoles.mutate({
+                    captainPlayerId: p.is_captain ? null : p.id,
+                    wicketkeeperPlayerId: keeperId,
+                  })
+                }
+                className={cn(
+                  "grid size-9 place-items-center rounded-md border",
+                  p.is_captain
+                    ? "border-warning bg-warning-bg text-warning"
+                    : "border-border text-text-secondary",
+                )}
+              >
+                <CrownIcon className="size-4" />
+              </button>
+              <button
+                type="button"
+                aria-label={
+                  p.is_wicketkeeper ? "Unset keeper" : "Set as keeper"
+                }
+                aria-pressed={p.is_wicketkeeper}
+                disabled={setRoles.isPending}
+                onClick={() =>
+                  setRoles.mutate({
+                    captainPlayerId: captainId,
+                    wicketkeeperPlayerId: p.is_wicketkeeper ? null : p.id,
+                  })
+                }
+                className={cn(
+                  "grid size-9 place-items-center rounded-md border",
+                  p.is_wicketkeeper
+                    ? "border-info bg-info-bg text-info"
+                    : "border-border text-text-secondary",
+                )}
+              >
+                <GloveIcon className="size-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Remove"
+                onClick={() => removePlayer.mutate(p.id)}
+                className="text-danger hover:bg-danger-bg grid size-9 place-items-center rounded-md"
+              >
+                <XIcon className="size-4" />
+              </button>
+            </div>
+          );
+        })}
       </section>
 
       <section className="border-border bg-surface-raised border-t p-4">
@@ -250,10 +314,10 @@ export default function MatchdayEdit() {
             tone="primary"
             disabled={players.length === 0}
             onClick={() => {
-              void navigate(`/matchday/${matchdayId ?? ""}/confirm`);
+              void navigate("/squad");
             }}
           >
-            Continue → Confirm
+            Done
           </Button>
         </div>
       </div>

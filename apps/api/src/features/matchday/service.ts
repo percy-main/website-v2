@@ -15,7 +15,6 @@ import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 import type {
   AddPlayer,
   CancelMatchday,
-  ConfirmTeam,
   CreateMatchday,
   FinishMatch,
   ListMatches,
@@ -58,6 +57,16 @@ async function getAccessibleTeamIds(
 
 function throwHttpError(statusCode: number, message: string): never {
   throw Object.assign(new Error(message), { statusCode });
+}
+
+const EXPENSE_WINDOW_DAYS_AFTER = 5;
+
+function isPastExpenseCutoff(matchDate: string, now = new Date()): boolean {
+  const match = new Date(`${matchDate}T00:00:00Z`);
+  if (Number.isNaN(match.getTime())) return false;
+  const cutoff = new Date(match);
+  cutoff.setUTCDate(cutoff.getUTCDate() + EXPENSE_WINDOW_DAYS_AFTER + 1);
+  return now >= cutoff;
 }
 
 /**
@@ -387,18 +396,20 @@ export function recordExpense(db: Kysely<DB>, s3: S3Uploader) {
     const matchday = await db
       .selectFrom("matchday")
       .where("id", "=", data.matchId)
-      .select(["id", "play_cricket_team_id", "status"])
+      .select(["id", "play_cricket_team_id", "status", "match_date"])
       .executeTakeFirst();
 
     if (!matchday) throwHttpError(404, "Matchday not found");
 
-    if (matchday.status !== "confirmed") {
-      throwHttpError(
-        400,
-        matchday.status === "pending"
-          ? "Cannot add expenses to a pending matchday. Confirm the team first."
-          : "Cannot add expenses to a finished matchday.",
-      );
+    if (matchday.status === "cancelled") {
+      throwHttpError(400, "Cannot add expenses to a cancelled matchday.");
+    }
+
+    // Amendments §1/§4: expenses are open from matchday creation
+    // through match_date + 5 days. After that the option is hard-closed
+    // (no soft override).
+    if (isPastExpenseCutoff(matchday.match_date)) {
+      throwHttpError(400, "Expense window closed (5 days after match date).");
     }
 
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
@@ -722,8 +733,11 @@ export function addPlayer(db: Kysely<DB>) {
 
     if (!matchday) throwHttpError(404, "Matchday not found");
 
-    if (matchday.status === "finished") {
-      throwHttpError(400, "Cannot add players to a finished matchday");
+    if (matchday.status === "finished" || matchday.status === "cancelled") {
+      throwHttpError(
+        400,
+        `Cannot add players to a ${matchday.status} matchday`,
+      );
     }
 
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
@@ -823,8 +837,14 @@ export function removePlayer(db: Kysely<DB>) {
 
     if (!player) throwHttpError(404, "Player not found");
 
-    if (player.matchday_status === "finished") {
-      throwHttpError(400, "Cannot remove players from a finished matchday");
+    if (
+      player.matchday_status === "finished" ||
+      player.matchday_status === "cancelled"
+    ) {
+      throwHttpError(
+        400,
+        `Cannot remove players from a ${player.matchday_status} matchday`,
+      );
     }
 
     const accessibleIds = await getAccessibleTeamIds(db, userId, role);
@@ -838,188 +858,10 @@ export function removePlayer(db: Kysely<DB>) {
   };
 }
 
-export function confirmTeam(db: Kysely<DB>) {
-  return async (
-    userId: string,
-    role: string,
-    matchdayId: string,
-    data: ConfirmTeam,
-  ) => {
-    const matchday = await db
-      .selectFrom("matchday")
-      .where("id", "=", matchdayId)
-      .selectAll()
-      .executeTakeFirst();
-
-    if (!matchday) throwHttpError(404, "Matchday not found");
-
-    if (matchday.status !== "pending") {
-      throwHttpError(400, "Matchday has already been confirmed");
-    }
-
-    const accessibleIds = await getAccessibleTeamIds(db, userId, role);
-    if (!accessibleIds.includes(matchday.play_cricket_team_id)) {
-      throwHttpError(403, "You do not have access to this matchday");
-    }
-
-    // Validate all player IDs belong to this matchday BEFORE changing status
-    const playerIds = data.playerStatuses.map((ps) => ps.matchdayPlayerId);
-    if (playerIds.length > 0) {
-      const validPlayers = await db
-        .selectFrom("matchday_player")
-        .where("matchday_id", "=", matchdayId)
-        .where("id", "in", playerIds)
-        .select("id")
-        .execute();
-
-      const validIds = new Set(validPlayers.map((p) => p.id));
-      const invalid = playerIds.filter((id) => !validIds.has(id));
-      if (invalid.length > 0) {
-        throwHttpError(
-          400,
-          "One or more player IDs do not belong to this matchday",
-        );
-      }
-    }
-
-    // Wrap all mutations in a transaction for atomicity
-    await db.transaction().execute(async (trx) => {
-      // Update matchday status
-      await trx
-        .updateTable("matchday")
-        .set({
-          status: "confirmed",
-          confirmed_at: new Date().toISOString(),
-          confirmed_by: userId,
-        })
-        .where("id", "=", matchdayId)
-        .execute();
-
-      // Update player statuses
-      for (const { matchdayPlayerId, status } of data.playerStatuses) {
-        await trx
-          .updateTable("matchday_player")
-          .set({ status })
-          .where("id", "=", matchdayPlayerId)
-          .where("matchday_id", "=", matchdayId)
-          .execute();
-      }
-
-      // Generate match fees for "playing" players. Junior players are
-      // stored against `dependent_id`; their charge is raised on the
-      // parent member at the "junior" rate and linked back via
-      // `charge_dependent` so the parent's portal shows who the
-      // donation is for.
-      const playingPlayers = await trx
-        .selectFrom("matchday_player")
-        .leftJoin("member", "member.id", "matchday_player.member_id")
-        .leftJoin("dependent", "dependent.id", "matchday_player.dependent_id")
-        .where("matchday_player.matchday_id", "=", matchdayId)
-        .where("matchday_player.status", "=", "playing")
-        .select([
-          "matchday_player.id as matchdayPlayerId",
-          "matchday_player.member_id",
-          "matchday_player.dependent_id",
-          "matchday_player.player_name",
-          "member.member_category",
-          "dependent.member_id as dependentParentId",
-          "dependent.name as dependentName",
-        ])
-        .execute();
-
-      const feeRates = await trx
-        .selectFrom("match_fee_rate")
-        .where((eb) =>
-          eb.or([
-            eb("play_cricket_team_id", "=", matchday.play_cricket_team_id),
-            eb("play_cricket_team_id", "is", null),
-          ]),
-        )
-        .selectAll()
-        .execute();
-
-      const applyRelief = applyReliefIfAny(trx);
-      for (const player of playingPlayers) {
-        let chargeMemberId: string;
-        let category: string;
-        let chargeDependentId: string | null = null;
-        let descriptionSuffix = "";
-
-        if (player.member_id) {
-          chargeMemberId = player.member_id;
-          category = player.member_category ?? "guest";
-        } else if (player.dependent_id && player.dependentParentId) {
-          chargeMemberId = player.dependentParentId;
-          category = "junior";
-          chargeDependentId = player.dependent_id;
-          descriptionSuffix = player.dependentName
-            ? ` for ${player.dependentName}`
-            : "";
-        } else {
-          // Orphan rows (no member, no dependent) get no fee — captains
-          // shouldn't be able to create these via the UI.
-          continue;
-        }
-
-        const rate = findFeeRate(
-          feeRates,
-          matchday.play_cricket_team_id,
-          matchday.competition_type,
-          category,
-        );
-
-        if (!rate || rate.amount_pence === 0) continue;
-
-        const chargeId = crypto.randomUUID();
-        await trx
-          .insertInto("charge")
-          .values({
-            id: chargeId,
-            member_id: chargeMemberId,
-            description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})${descriptionSuffix}`,
-            amount_pence: rate.amount_pence,
-            charge_date: matchday.match_date,
-            created_by: userId,
-            type: "match_fee",
-            source: "matchday",
-          })
-          .execute();
-
-        await trx
-          .updateTable("matchday_player")
-          .set({ charge_id: chargeId })
-          .where("id", "=", player.matchdayPlayerId)
-          .execute();
-
-        // Junior charges link to the registered dependent so the
-        // parent's portal can show which child a donation was for.
-        if (chargeDependentId) {
-          await trx
-            .insertInto("charge_dependent")
-            .values({
-              charge_id: chargeId,
-              dependent_id: chargeDependentId,
-            })
-            .execute();
-        }
-
-        // Auto-forgive if this member has an active relief grant
-        // covering match fees on this date. The charge keeps its
-        // amount_pence so reporting can still sum it. For juniors the
-        // grant is checked against the parent member who owns the
-        // charge — matching how relief is administered today.
-        await applyRelief({
-          chargeId,
-          memberId: chargeMemberId,
-          type: "match_fee",
-          chargeDate: matchday.match_date,
-        });
-      }
-    });
-
-    return { success: true };
-  };
-}
+// `confirmTeam` was removed in the matchday amendments rework: picking a
+// provisional team is now just assignment via addPlayer/removePlayer, and
+// the charges + status flip the old endpoint did now live in finishMatch
+// (post-match wrap). See docs/plans/matchday/amendments.md §2 + §4.
 
 export function setMatchRoles(db: Kysely<DB>) {
   return async (
@@ -1246,17 +1088,119 @@ export function finishMatch(
       throwHttpError(403, "You do not have access to this matchday");
     }
 
-    // Allow finishing a confirmed match, or re-submitting result on an already-finished match (idempotent)
-    if (matchday.status !== "confirmed" && matchday.status !== "finished") {
-      throwHttpError(400, "Can only finish a confirmed matchday");
+    // The wrap-up flow accepts pending or confirmed matchdays - a
+    // captain who never went through the (now-removed) pre-match
+    // confirm step still lands here. Re-submitting the result on a
+    // finished matchday is allowed and idempotent.
+    if (matchday.status === "cancelled") {
+      throwHttpError(400, "Cannot finish a cancelled matchday");
     }
 
-    // Set matchday to finished with result
+    const playerStatuses = data.playerStatuses ?? [];
+    const playerIds = playerStatuses.map((ps) => ps.matchdayPlayerId);
+    if (playerIds.length > 0) {
+      const validPlayers = await db
+        .selectFrom("matchday_player")
+        .where("matchday_id", "=", matchdayId)
+        .where("id", "in", playerIds)
+        .select("id")
+        .execute();
+      const validIds = new Set(validPlayers.map((p) => p.id));
+      const invalid = playerIds.filter((id) => !validIds.has(id));
+      if (invalid.length > 0) {
+        throwHttpError(
+          400,
+          "One or more player IDs do not belong to this matchday",
+        );
+      }
+    }
+
+    const overrides = new Map(
+      (data.feeOverrides ?? []).map((o) => [o.matchdayPlayerId, o.amountPence]),
+    );
+
+    const isFirstFinish = matchday.status !== "finished";
     const finishedAt = new Date().toISOString();
+
+    // Validate that every player who will end up "playing" can have a
+    // fee resolved (either from a match_fee_rate row or from a
+    // feeOverride). Done before the status flip so the matchday can't
+    // get stuck half-finished if the captain forgot an override.
+    if (isFirstFinish) {
+      const statusOverrides = new Map(
+        playerStatuses.map((p) => [p.matchdayPlayerId, p.status]),
+      );
+      const players = await db
+        .selectFrom("matchday_player")
+        .leftJoin("member", "member.id", "matchday_player.member_id")
+        .leftJoin("dependent", "dependent.id", "matchday_player.dependent_id")
+        .where("matchday_player.matchday_id", "=", matchdayId)
+        .where("matchday_player.charge_id", "is", null)
+        .select([
+          "matchday_player.id as matchdayPlayerId",
+          "matchday_player.player_name",
+          "matchday_player.member_id",
+          "matchday_player.dependent_id",
+          "matchday_player.status as current_status",
+          "member.member_category",
+          "dependent.member_id as dependentParentId",
+        ])
+        .execute();
+      const feeRates = await db
+        .selectFrom("match_fee_rate")
+        .where((eb) =>
+          eb.or([
+            eb("play_cricket_team_id", "=", matchday.play_cricket_team_id),
+            eb("play_cricket_team_id", "is", null),
+          ]),
+        )
+        .selectAll()
+        .execute();
+      const missing: string[] = [];
+      for (const p of players) {
+        const willPlay =
+          (statusOverrides.get(p.matchdayPlayerId) ?? p.current_status) ===
+          "playing";
+        if (!willPlay) continue;
+        let category: string | null = null;
+        if (p.member_id) {
+          category = p.member_category ?? "guest";
+        } else if (p.dependent_id && p.dependentParentId) {
+          category = "junior";
+        }
+        if (!category) continue;
+        if (overrides.has(p.matchdayPlayerId)) continue;
+        const rate = findFeeRate(
+          feeRates,
+          matchday.play_cricket_team_id,
+          matchday.competition_type,
+          category,
+        );
+        if (!rate) missing.push(p.player_name);
+      }
+      if (missing.length > 0) {
+        throwHttpError(
+          400,
+          `Missing fee for: ${missing.join(", ")}. Captain must enter an amount inline.`,
+        );
+      }
+    }
+
+    for (const { matchdayPlayerId, status } of playerStatuses) {
+      await db
+        .updateTable("matchday_player")
+        .set({ status })
+        .where("id", "=", matchdayPlayerId)
+        .where("matchday_id", "=", matchdayId)
+        .execute();
+    }
+
     await db
       .updateTable("matchday")
       .set({
         status: "finished",
+        confirmed_at: matchday.confirmed_at ?? finishedAt,
+        confirmed_by: matchday.confirmed_by ?? userId,
         finished_at: matchday.finished_at ?? finishedAt,
         finished_by: matchday.finished_by ?? userId,
         result_type: data.resultType,
@@ -1266,9 +1210,6 @@ export function finishMatch(
       })
       .where("id", "=", matchdayId)
       .execute();
-
-    // Only run charges/expenses/emails on the first finish, not on result resubmission
-    const isFirstFinish = matchday.status === "confirmed";
 
     if (isFirstFinish) {
       // Submit all draft expenses for treasurer review
@@ -1344,8 +1285,10 @@ export function finishMatch(
             matchday.competition_type,
             category,
           );
+          const overrideAmount = overrides.get(player.matchdayPlayerId);
+          const amountPence = overrideAmount ?? rate?.amount_pence ?? 0;
 
-          if (!rate || rate.amount_pence === 0) continue;
+          if (amountPence === 0) continue;
 
           const chargeId = crypto.randomUUID();
           await db
@@ -1354,7 +1297,7 @@ export function finishMatch(
               id: chargeId,
               member_id: chargeMemberId,
               description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})${descriptionSuffix}`,
-              amount_pence: rate.amount_pence,
+              amount_pence: amountPence,
               charge_date: matchday.match_date,
               created_by: userId,
               type: "match_fee",

@@ -10,9 +10,9 @@ import {
   addPlayer,
   approveExpense,
   cancelMatchday,
-  confirmTeam,
   createMatchday,
   deleteExpense,
+  finishMatch,
   getMatch,
   getPastUnfinishedMatchdays,
   listMatches,
@@ -26,6 +26,35 @@ import {
   searchMembers,
   submitExpenseClaim,
 } from "./service.ts";
+
+const noopSendEmail = () => Promise.resolve();
+const testConfig = { BASE_URL: "https://example.test" };
+
+async function finishAsTest(
+  matchdayId: string,
+  userId: string,
+  data: {
+    playerStatuses?: Array<{
+      matchdayPlayerId: string;
+      status: "playing" | "dropped_out" | "no_show";
+    }>;
+    feeOverrides?: Array<{ matchdayPlayerId: string; amountPence: number }>;
+    resultType?: "W" | "L" | "D" | "T" | "A" | "C" | "N";
+  } = {},
+) {
+  const { createNoopLogger } = await import("../../lib/worker-logger.ts");
+  return finishMatch(ctx.db, noopSendEmail, testConfig)(
+    userId,
+    "admin",
+    matchdayId,
+    {
+      resultType: data.resultType ?? "W",
+      playerStatuses: data.playerStatuses ?? [],
+      feeOverrides: data.feeOverrides ?? [],
+    },
+    createNoopLogger(),
+  );
+}
 
 const s3 = noopS3Uploader;
 
@@ -447,8 +476,8 @@ describe("matchday service (integration)", () => {
     });
   });
 
-  describe("confirmTeam with fee generation", () => {
-    it("confirms team and generates match fees", async () => {
+  describe("finishMatch with fee generation", () => {
+    it("finishes the match and generates match fees", async () => {
       const { userId } = await seedTestUser(ctx.db, {
         email: `confirm-${crypto.randomUUID()}@test.com`,
         role: "admin",
@@ -472,18 +501,17 @@ describe("matchday service (integration)", () => {
         { memberId, playerName: "Fee Player" },
       );
 
-      // Confirm with player as "playing"
-      await confirmTeam(ctx.db)(userId, "admin", matchdayId, {
+      // Wrap up with player as "playing"
+      await finishAsTest(matchdayId, userId, {
         playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
       });
 
-      // Verify matchday is confirmed
       const md = await ctx.db
         .selectFrom("matchday")
         .where("id", "=", matchdayId)
         .selectAll()
         .executeTakeFirst();
-      expect(md?.status).toBe("confirmed");
+      expect(md?.status).toBe("finished");
 
       // Verify charge was created
       const player = await ctx.db
@@ -539,7 +567,7 @@ describe("matchday service (integration)", () => {
         { dependentId, playerName: "Junior Player" },
       );
 
-      await confirmTeam(ctx.db)(userId, "admin", matchdayId, {
+      await finishAsTest(matchdayId, userId, {
         playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
       });
 
@@ -599,7 +627,7 @@ describe("matchday service (integration)", () => {
         { memberId, playerName: "Late Payer" },
       );
 
-      await confirmTeam(ctx.db)(userId, "admin", matchdayId, {
+      await finishAsTest(matchdayId, userId, {
         playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
       });
 
@@ -951,38 +979,13 @@ describe("matchday service (integration)", () => {
       expect(md?.cancelled_reason).toBe("Rained off");
     });
 
-    it("cancels a confirmed matchday when no charges exist", async () => {
-      // A confirmed matchday with only bursary players has no charges.
+    it("cancels a pending matchday when no charges exist", async () => {
       const { userId } = await seedTestUser(ctx.db, {
-        email: `cancel-confirmed-${crypto.randomUUID()}@test.com`,
+        email: `cancel-pending-${crypto.randomUUID()}@test.com`,
         role: "admin",
       });
       const teamId = await seedTeam();
       const matchdayId = await seedMatchday({ teamId, createdBy: userId });
-      const memberId = await seedMember(
-        "Bursary Player",
-        `bursary-${crypto.randomUUID()}@test.com`,
-        "bursary",
-      );
-      await seedFeeRate({ teamId, memberCategory: "senior", amountPence: 500 });
-
-      const { id: playerId } = await addPlayer(ctx.db)(
-        userId,
-        "admin",
-        matchdayId,
-        { memberId, playerName: "Bursary Player" },
-      );
-
-      await confirmTeam(ctx.db)(userId, "admin", matchdayId, {
-        playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
-      });
-
-      const md = await ctx.db
-        .selectFrom("matchday")
-        .where("id", "=", matchdayId)
-        .select(["status"])
-        .executeTakeFirst();
-      expect(md?.status).toBe("confirmed");
 
       const result = await cancelMatchday(ctx.db)(
         userId,
@@ -1000,7 +1003,9 @@ describe("matchday service (integration)", () => {
       expect(after?.status).toBe("cancelled");
     });
 
-    it("blocks cancel when any active match-fee charge exists", async () => {
+    it("blocks cancel when an active match-fee charge already exists", async () => {
+      // Under the amended flow charges only exist post-wrap, but the
+      // safety net stays in place against manual / data-fix scenarios.
       const { userId } = await seedTestUser(ctx.db, {
         email: `cancel-blocked-${crypto.randomUUID()}@test.com`,
         role: "admin",
@@ -1012,7 +1017,6 @@ describe("matchday service (integration)", () => {
         `paying-${crypto.randomUUID()}@test.com`,
         "senior",
       );
-      await seedFeeRate({ teamId, memberCategory: "senior", amountPence: 500 });
 
       const { id: playerId } = await addPlayer(ctx.db)(
         userId,
@@ -1021,21 +1025,30 @@ describe("matchday service (integration)", () => {
         { memberId, playerName: "Paying Player" },
       );
 
-      await confirmTeam(ctx.db)(userId, "admin", matchdayId, {
-        playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
-      });
+      // Inject an outstanding charge directly to simulate a half-state.
+      const chargeId = crypto.randomUUID();
+      await ctx.db
+        .insertInto("charge")
+        .values({
+          id: chargeId,
+          member_id: memberId,
+          description: "Stray match donation",
+          amount_pence: 500,
+          charge_date: "2026-05-01",
+          created_by: userId,
+          type: "match_fee",
+          source: "matchday",
+        })
+        .execute();
+      await ctx.db
+        .updateTable("matchday_player")
+        .set({ charge_id: chargeId })
+        .where("id", "=", playerId)
+        .execute();
 
       await expect(
         cancelMatchday(ctx.db)(userId, "admin", matchdayId, {}),
       ).rejects.toThrow("Cannot cancel");
-
-      // Status unchanged
-      const md = await ctx.db
-        .selectFrom("matchday")
-        .where("id", "=", matchdayId)
-        .select(["status"])
-        .executeTakeFirst();
-      expect(md?.status).toBe("confirmed");
     });
 
     it("rejects cancelling a finished matchday", async () => {

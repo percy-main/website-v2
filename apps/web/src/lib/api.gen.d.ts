@@ -2545,6 +2545,7 @@ export interface paths {
                             } | null;
                             lineup: {
                                 confirmed: boolean;
+                                matchdayId: string;
                                 players: {
                                     name: string;
                                 }[];
@@ -4880,55 +4881,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/matchday/{matchId}/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    matchId: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        playerStatuses: {
-                            matchdayPlayerId: string;
-                            /** @enum {string} */
-                            status: "playing" | "dropped_out" | "no_show";
-                        }[];
-                    };
-                };
-            };
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            success: boolean;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/matchday/{matchId}/roles": {
         parameters: {
             query?: never;
@@ -5045,6 +4997,15 @@ export interface paths {
                     "application/json": {
                         /** @enum {string} */
                         resultType: "W" | "L" | "D" | "T" | "A" | "C" | "N";
+                        playerStatuses?: {
+                            matchdayPlayerId: string;
+                            /** @enum {string} */
+                            status: "playing" | "dropped_out" | "no_show";
+                        }[];
+                        feeOverrides?: {
+                            matchdayPlayerId: string;
+                            amountPence: number;
+                        }[];
                     };
                 };
             };

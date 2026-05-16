@@ -228,11 +228,13 @@ describe("matchday service", () => {
 
   describe("recordExpense", () => {
     it("creates expense record and returns id", async () => {
+      const todayIso = new Date().toISOString().slice(0, 10);
       // Matchday lookup
       mockExecuteTakeFirst.mockResolvedValueOnce({
         id: "m-1",
         play_cricket_team_id: "t1",
-        status: "confirmed",
+        status: "pending",
+        match_date: todayIso,
       });
       // getAccessibleTeamIds
       mockExecute.mockResolvedValueOnce([{ id: "t1" }]);
@@ -398,22 +400,34 @@ describe("expense approval workflow", () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
 
       await expect(
-        finish("user-1", "admin", "match-1", { resultType: "W" }, log),
+        finish(
+          "user-1",
+          "admin",
+          "match-1",
+          { resultType: "W", playerStatuses: [], feeOverrides: [] },
+          log,
+        ),
       ).rejects.toThrow("Matchday not found");
     });
 
-    it("rejects if matchday is pending", async () => {
+    it("rejects if matchday is cancelled", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce({
         id: "match-1",
-        status: "pending",
+        status: "cancelled",
         play_cricket_team_id: "team-1",
       });
       // getAccessibleTeamIds
       mockExecute.mockResolvedValueOnce([{ id: "team-1" }]);
 
       await expect(
-        finish("user-1", "admin", "match-1", { resultType: "W" }, log),
-      ).rejects.toThrow("Can only finish a confirmed matchday");
+        finish(
+          "user-1",
+          "admin",
+          "match-1",
+          { resultType: "W", playerStatuses: [], feeOverrides: [] },
+          log,
+        ),
+      ).rejects.toThrow("Cannot finish a cancelled matchday");
     });
 
     it("rejects if user has no access to the matchday team", async () => {
@@ -426,7 +440,13 @@ describe("expense approval workflow", () => {
       mockExecute.mockResolvedValueOnce([]);
 
       await expect(
-        finish("user-1", "admin", "match-1", { resultType: "W" }, log),
+        finish(
+          "user-1",
+          "admin",
+          "match-1",
+          { resultType: "W", playerStatuses: [], feeOverrides: [] },
+          log,
+        ),
       ).rejects.toThrow("You do not have access to this matchday");
     });
 
@@ -443,6 +463,9 @@ describe("expense approval workflow", () => {
       });
       // getAccessibleTeamIds - admin gets all teams
       mockExecute.mockResolvedValueOnce([{ id: "team-1" }]);
+      // upfront fee-validation: players + fee rates
+      mockExecute.mockResolvedValueOnce([]);
+      mockExecute.mockResolvedValueOnce([]);
       // update matchday
       mockExecute.mockResolvedValueOnce([]);
       // submit draft expenses
@@ -458,6 +481,8 @@ describe("expense approval workflow", () => {
         "match-1",
         {
           resultType: "W",
+          playerStatuses: [],
+          feeOverrides: [],
         },
         log,
       );
@@ -493,6 +518,8 @@ describe("expense approval workflow", () => {
         "match-1",
         {
           resultType: "L",
+          playerStatuses: [],
+          feeOverrides: [],
         },
         log,
       );
