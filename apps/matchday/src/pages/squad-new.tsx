@@ -132,7 +132,7 @@ export default function SquadNew() {
                 <button
                   type="button"
                   key={m.matchId}
-                  disabled={alreadyCreated || create.isPending}
+                  disabled={create.isPending}
                   onClick={() => {
                     if (alreadyCreated) {
                       void navigate(`/matchday/${m.matchdayId ?? ""}/edit`);
