@@ -11,10 +11,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable("availability_request_group")
     .addColumn("request_id", "text", (col) =>
-      col
-        .notNull()
-        .references("availability_request.id")
-        .onDelete("cascade"),
+      col.notNull().references("availability_request.id").onDelete("cascade"),
     )
     .addColumn("user_group_id", "text", (col) =>
       col.notNull().references("user_group.id").onDelete("cascade"),

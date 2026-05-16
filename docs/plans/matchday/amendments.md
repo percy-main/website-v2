@@ -9,43 +9,43 @@ Owner: @alexyoung
 ## 1. Revised end-to-end flow
 
 1. Official creates an availability request and picks one or more user groups at creation time.
-    1. Notifications (email, and push when wired up) fire to members of the selected groups as part of the create call.
-    2. Any player can respond via the direct link, regardless of group membership. Their responses surface to officials.
+   1. Notifications (email, and push when wired up) fire to members of the selected groups as part of the create call.
+   2. Any player can respond via the direct link, regardless of group membership. Their responses surface to officials.
 2. Players respond in the app.
 3. Official picks a provisional team. On finishing the pick, the UI prompts the official to close the parent availability request.
 4. Provisional teams remain changeable up until the post-match wrap.
 5. Post-match, the captain runs a single wrap-up flow:
-    1. Confirm who actually played. Drop-outs and no-shows recorded here.
-    2. Enter the result.
-    3. Confirming this step is what creates the match-fee charges. For any player whose resolved fee is null (no matching rate), the captain enters the amount inline.
-    4. Captain marks charges paid, picking the payment method (cash / bank / card).
-    5. Captain closes the match off.
+   1. Confirm who actually played. Drop-outs and no-shows recorded here.
+   2. Enter the result.
+   3. Confirming this step is what creates the match-fee charges. For any player whose resolved fee is null (no matching rate), the captain enters the amount inline.
+   4. Captain marks charges paid, picking the payment method (cash / bank / card).
+   5. Captain closes the match off.
 6. Expenses can be added at any point from matchday creation through to match_date + 5 days. After that the option is hard-closed (no soft override). Existing draft expenses still auto-submit on finish, as today.
 
 ## 2. Deltas vs. current code
 
-| Area | Current | New |
-|---|---|---|
-| Availability create payload | Optional single `user_group_id` on the request; recipients chosen later via `/notify/preview` + `/notify/send`; filters by `memberCategory` + `membershipStatus` | Multiple user groups selected at creation; notifications fire as part of the create call |
-| Direct-link responses | Anyone with the public link can respond, but non-group responses are filtered out of `getDateDetail` and similar picker queries | Same response gate, but non-group responses are surfaced to officials |
-| Provisional team pick | `POST /matchday/:id/confirm` flips status `pending → confirmed` AND creates charges in one transaction (`matchday/service.ts:908-1017`) | Picking a provisional team is just assignment via `POST /matchday/:id/players`. No status flip, no charges |
-| Close availability request | Manual `PATCH /availability/requests/:id status:closed` | UI prompts the official to close the request once a provisional team is set. Still uses the same PATCH; UI-only change |
-| Add / remove players post-pick | Allowed while `confirmed`, blocked at `finished` | Allowed any time before the post-match wrap, regardless of intermediate state |
-| Captain post-match | Pre-match `confirm` (charges) → pitch-side `mark-paid` → `finish` (auto-submit expenses, fallback charge creation, charge emails) | Single post-match wrap: confirm-who-played + result + charges + mark-paid + close. `/confirm` endpoint removed from the public API |
-| No-show recording | At pre-match `confirmTeam` via `playerStatuses` | At the post-match wrap step |
-| Per-player fee override | None. Resolver fails or returns null if no matching `match_fee_rate` row | Captain enters an amount inline at the wrap step for any player whose resolved fee is null. Captain-only power (not admin-only) |
-| Mark-paid | Allowed any time after charges exist (post pre-match confirm) | Same mechanic, but charges now only exist after the post-match wrap |
-| Expense window | Only while `matchday.status = 'confirmed'` (`matchday/service.ts:395-402`); auto-submit on finish | Open from matchday creation through match_date + 5 days. Hard cutoff after that. Auto-submit on finish unchanged |
+| Area                           | Current                                                                                                                                                          | New                                                                                                                                |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Availability create payload    | Optional single `user_group_id` on the request; recipients chosen later via `/notify/preview` + `/notify/send`; filters by `memberCategory` + `membershipStatus` | Multiple user groups selected at creation; notifications fire as part of the create call                                           |
+| Direct-link responses          | Anyone with the public link can respond, but non-group responses are filtered out of `getDateDetail` and similar picker queries                                  | Same response gate, but non-group responses are surfaced to officials                                                              |
+| Provisional team pick          | `POST /matchday/:id/confirm` flips status `pending → confirmed` AND creates charges in one transaction (`matchday/service.ts:908-1017`)                          | Picking a provisional team is just assignment via `POST /matchday/:id/players`. No status flip, no charges                         |
+| Close availability request     | Manual `PATCH /availability/requests/:id status:closed`                                                                                                          | UI prompts the official to close the request once a provisional team is set. Still uses the same PATCH; UI-only change             |
+| Add / remove players post-pick | Allowed while `confirmed`, blocked at `finished`                                                                                                                 | Allowed any time before the post-match wrap, regardless of intermediate state                                                      |
+| Captain post-match             | Pre-match `confirm` (charges) → pitch-side `mark-paid` → `finish` (auto-submit expenses, fallback charge creation, charge emails)                                | Single post-match wrap: confirm-who-played + result + charges + mark-paid + close. `/confirm` endpoint removed from the public API |
+| No-show recording              | At pre-match `confirmTeam` via `playerStatuses`                                                                                                                  | At the post-match wrap step                                                                                                        |
+| Per-player fee override        | None. Resolver fails or returns null if no matching `match_fee_rate` row                                                                                         | Captain enters an amount inline at the wrap step for any player whose resolved fee is null. Captain-only power (not admin-only)    |
+| Mark-paid                      | Allowed any time after charges exist (post pre-match confirm)                                                                                                    | Same mechanic, but charges now only exist after the post-match wrap                                                                |
+| Expense window                 | Only while `matchday.status = 'confirmed'` (`matchday/service.ts:395-402`); auto-submit on finish                                                                | Open from matchday creation through match_date + 5 days. Hard cutoff after that. Auto-submit on finish unchanged                   |
 
 ## 3. Schema changes
 
 Small.
 
 1. New `availability_request_group` join table replacing the singular `availability_request.user_group_id` column. Migration steps:
-    - Create `availability_request_group (request_id, user_group_id)` with composite PK.
-    - Backfill from existing `availability_request.user_group_id` where not null.
-    - Drop the column.
-2. No matchday-table changes. The `pending` / `confirmed` / `finished` / `cancelled` state machine stays. What changes is *when* `confirmed` is reached - now as part of the post-match wrap, not the pre-match pick.
+   - Create `availability_request_group (request_id, user_group_id)` with composite PK.
+   - Backfill from existing `availability_request.user_group_id` where not null.
+   - Drop the column.
+2. No matchday-table changes. The `pending` / `confirmed` / `finished` / `cancelled` state machine stays. What changes is _when_ `confirmed` is reached - now as part of the post-match wrap, not the pre-match pick.
 3. Optional: `charge.amount_overridden_by` + `charge.amount_override_reason` for audit on captain overrides. Skip in v1 - the existing `charge.created_by` plus the amount column already capture who set it and to what.
 
 ## 4. API changes
@@ -54,9 +54,9 @@ Small.
 - Drop the public `/notify/preview` endpoint if no other caller relies on it.
 - Drop the public `POST /matchday/:id/confirm` endpoint. The work it did - status flip plus charge creation - moves into `finishMatch`. Keep `confirmTeam` as an internal step inside the finish transaction if it simplifies the service.
 - `POST /matchday/:id/finish` payload extends to:
-    - `playerStatuses` (today this is on the confirm payload).
-    - `resultType` (today).
-    - `feeOverrides?: { playerId: string; amountPence: number }[]` for the captain override.
+  - `playerStatuses` (today this is on the confirm payload).
+  - `resultType` (today).
+  - `feeOverrides?: { playerId: string; amountPence: number }[]` for the captain override.
 - Lift the `status === 'confirmed'` gate on `POST /matchday/:id/players` and `DELETE /matchday/:id/players/:playerId`. Replace with `status !== 'finished' && status !== 'cancelled'`.
 - Replace the expense status gate (`matchday/service.ts:395-402`) with a date-window check: reject if `now() > match_date + 5 days` or the matchday is cancelled. Status no longer gates expense creation.
 - The picker queries in `availability/service.ts` (`getDateDetail` and friends) drop the user-group filter so direct-link responses from non-group members surface to officials.
@@ -69,11 +69,11 @@ Most of the wireframes in the design prompts already fit. The deltas:
 - **Squad picker** (flow 5 in `DESIGN_PROMPT_official.md`). Drop the "Continue → Confirm" step at the end. After picking, surface a prompt: "Close availability request?" with a single confirm action. The captain/keeper role assignment folds into the squad picker itself (crown / gloves icons inline), removing the separate roles stepper from flow 6.
 - **Confirm stepper** (`apps/matchday/src/pages/matchday/[id]/confirm.tsx` per the v1 plan). Cut entirely - the team-confirm + result + charges + mark-paid all happen in the post-match wrap.
 - **Post-match wrap** (replaces `live.tsx` in the v1 design). Same single-screen layout as the captain "live view" wireframe in `DESIGN_PROMPT_official.md`, but reframed as a post-match step rather than pitch-side:
-    - Player list with played / dropped-out / no-show selectors.
-    - Result picker.
-    - Confirm button - this is the action that creates charges. Inline amount input appears beside any player whose resolved fee is null.
-    - Once confirm has fired, the row toggles become paid / unpaid + payment method dropdown (today's `mark-paid` flow).
-    - Close-match button at the bottom.
+  - Player list with played / dropped-out / no-show selectors.
+  - Result picker.
+  - Confirm button - this is the action that creates charges. Inline amount input appears beside any player whose resolved fee is null.
+  - Once confirm has fired, the row toggles become paid / unpaid + payment method dropdown (today's `mark-paid` flow).
+  - Close-match button at the bottom.
 - **Expenses entry**. Available from the matchday detail page from creation through match_date + 5 days. The Floating Action Button in the captain wrap-up wireframe stays, but appears on the matchday detail screen too, not only post-match. Hidden / disabled after the 5-day cutoff.
 
 ## 6. Suggested order of execution
@@ -154,6 +154,7 @@ Search inputs in the matchday app fire a network request on every keystroke. The
 Fix: debounce the search state by ~250-300ms before it becomes the query key. A small `useDebouncedValue` hook is the right shape - reuse anywhere a free-text input drives a query.
 
 Other places to apply the same hook once we have it:
+
 - `apps/matchday/src/pages/matchday-edit.tsx:120-128` (member search - the screen above).
 - Any future search field in availability management, expenses history, fee-rate admin.
 

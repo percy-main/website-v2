@@ -186,11 +186,7 @@ export function createRequest(
       data.additionalEmails ?? [],
     );
 
-    const result = await dispatchNotifications(
-      requestId,
-      { recipients },
-      log,
-    );
+    const result = await dispatchNotifications(requestId, { recipients }, log);
 
     return {
       id: requestId,
