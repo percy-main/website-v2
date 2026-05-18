@@ -339,7 +339,7 @@ function IncidentDetailBody({
   );
 }
 
-// eslint-disable-next-line react-doctor/no-giant-component -- incident review form: 12 fields all submit together as a PATCH with one validation/mutation lifecycle; splitting fragments a single H&S record's edit semantics. TODO: extract the safeguarding sub-section once it grows attachments.
+// eslint-disable-next-line react-doctor/no-giant-component -- incident review form: 12 fields all submit together as a PATCH with one validation/mutation lifecycle; splitting fragments a single H&S record's edit semantics.
 function IncidentEditForm({
   id,
   initial,

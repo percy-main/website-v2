@@ -76,7 +76,6 @@ export function handleCheckoutCompleted({
     // --- Game sponsorship ---
     const sponsorMeta = gameSponsoredSchema.safeParse(fullSession.metadata);
     if (fullSession.payment_status === "paid" && sponsorMeta.success) {
-      // TODO: Slack notification (skip for now)
       const email = fullSession.customer_details?.email;
       if (email && fullSession.amount_total) {
         const result = await charge({
@@ -566,8 +565,6 @@ export function handlePaymentIntentSucceeded({
         .executeTakeFirst();
 
       if (sponsorship) {
-        // TODO: Slack notification (skip for now)
-
         await send({
           to: sponsorship.sponsor_email,
           subject: SponsorshipConfirmation.subject,
@@ -582,7 +579,6 @@ export function handlePaymentIntentSucceeded({
         });
       }
     } else {
-      // TODO: Slack notification (skip for now)
       log.info(
         { gameId: meta.gameId },
         "Game sponsored (no sponsorship record)",
@@ -642,8 +638,6 @@ export function handlePaymentIntentSucceeded({
       .executeTakeFirst();
 
     if (sponsorship) {
-      // TODO: Slack notification (skip for now)
-
       await send({
         to: sponsorship.sponsor_email,
         subject: PlayerSponsorshipConfirmation.subject,

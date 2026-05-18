@@ -207,7 +207,7 @@ function SocialMembershipUpsell() {
   );
 }
 
-// eslint-disable-next-line react-doctor/no-giant-component -- multi-step junior registration wizard: parent-account / dependents / consent / payment all share the wizard reducer + 4 mutations + Stripe integration. TODO: extract step bodies (StepParent, StepDependents, StepConsent, StepPayment) as siblings — sized job, deferred to its own PR.
+// eslint-disable-next-line react-doctor/no-giant-component -- multi-step junior registration wizard: parent-account / dependents / consent / payment all share the wizard reducer + 4 mutations + Stripe integration.
 function JuniorRegistrationInner() {
   const [wizard, dispatch] = useReducer(juniorWizardReducer, undefined, () =>
     initialJuniorWizardState(),

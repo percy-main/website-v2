@@ -609,8 +609,6 @@ async function syncMatches(
  *
  * Follows the curried factory pattern: `runSync(db, api)` returns an async
  * function that accepts sync config and performs the sync.
- *
- * TODO: Wire up as EventBridge scheduled task or admin HTTP trigger
  */
 export function runSync(
   db: Kysely<DB>,
