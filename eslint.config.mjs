@@ -1,7 +1,7 @@
 import eslint from "@eslint/js";
 import reactPlugin from "eslint-plugin-react";
+import reactDoctor from "eslint-plugin-react-doctor";
 import hooksPlugin from "eslint-plugin-react-hooks";
-import reactDoctor from "react-doctor/eslint-plugin";
 import tseslint from "typescript-eslint";
 
 // Project-wide policy: every ESLint rule is "error" or "off" — never "warn".

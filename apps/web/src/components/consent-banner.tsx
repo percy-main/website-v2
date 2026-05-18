@@ -3,17 +3,16 @@ import {
   onConsentReopenRequested,
   setConsent,
 } from "@/lib/marketing/consent.js";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 export function ConsentBanner() {
-  // eslint-disable-next-line react-doctor/rerender-state-only-in-handlers -- `open` drives the early-return below; useRef would not trigger the unmount.
   const [open, setOpen] = useState<boolean>(() => needsConsent());
-  const [reopened, setReopened] = useState(false);
+  const reopenedRef = useRef(false);
 
   useEffect(() => {
     return onConsentReopenRequested(() => {
-      setReopened(true);
+      reopenedRef.current = true;
       setOpen(true);
     });
   }, []);
@@ -21,8 +20,8 @@ export function ConsentBanner() {
   if (!open) return null;
 
   const handle = (state: "granted" | "denied") => {
-    setConsent(state, reopened ? "settings-link" : "banner");
-    setReopened(false);
+    setConsent(state, reopenedRef.current ? "settings-link" : "banner");
+    reopenedRef.current = false;
     setOpen(false);
   };
 
