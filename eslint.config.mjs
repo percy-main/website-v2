@@ -55,6 +55,10 @@ export default tseslint.config(
         { allowNumber: true },
       ],
       "react-hooks/exhaustive-deps": "error",
+      "no-warning-comments": [
+        "error",
+        { terms: ["todo"], location: "anywhere" },
+      ],
     },
   },
   // apps/web runs the React Compiler — recommended-latest's compiler-aware
