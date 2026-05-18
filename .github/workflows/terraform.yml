@@ -28,6 +28,14 @@ env:
 jobs:
   plan:
     runs-on: ubuntu-latest
+    # Backend-wide serialization. The workflow-level concurrency above
+    # handles cancel-on-new-commit within a single PR; this job-level
+    # group queues plans across PRs against the same backend so they
+    # don't race on the DynamoDB state lock. Per-environment so shared
+    # and production can plan in parallel.
+    concurrency:
+      group: terraform-plan-${{ matrix.environment }}
+      cancel-in-progress: false
     strategy:
       matrix:
         environment: [shared, production]
