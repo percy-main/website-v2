@@ -184,6 +184,7 @@ export function getDependents(db: Kysely<DB>) {
         "dependent.previous_cricket",
         "dependent.whatsapp_consent",
         "dependent.photo_consent",
+        "dependent.user_id",
         "dependent.created_at",
         "membership.paid_until",
       ])
@@ -195,8 +196,9 @@ export function getDependents(db: Kysely<DB>) {
     ).length;
 
     return {
-      dependents: dependents.map((d) => ({
+      dependents: dependents.map(({ user_id, ...d }) => ({
         ...d,
+        hasOwnAccount: user_id != null,
         parent: {
           name: member.name,
           telephone: member.telephone,
