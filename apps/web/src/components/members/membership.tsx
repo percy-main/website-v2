@@ -4,10 +4,9 @@ import { formatDate, isPast, parseISO } from "date-fns";
 import { Link } from "react-router";
 import { match } from "ts-pattern";
 
-// TODO: photo_consent and hasOwnAccount are returned at runtime but missing
-// from the OpenAPI spec. Remove this extension once the spec is updated.
+// TODO: hasOwnAccount is returned at runtime but missing from the OpenAPI
+// spec. Remove this extension once the spec is updated.
 interface DependentExtension {
-  photo_consent: boolean | null;
   hasOwnAccount: boolean;
 }
 

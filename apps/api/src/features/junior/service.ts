@@ -183,6 +183,7 @@ export function getDependents(db: Kysely<DB>) {
         "dependent.played_before",
         "dependent.previous_cricket",
         "dependent.whatsapp_consent",
+        "dependent.photo_consent",
         "dependent.created_at",
         "membership.paid_until",
       ])
