@@ -14,7 +14,7 @@
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.1047.0",
     "date-fns": "^4.1.0",
-    "html-to-text": "^9.0.5",
+    "html-to-text": "^10.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-email": "^6.1.4"
