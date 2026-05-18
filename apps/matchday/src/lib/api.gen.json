@@ -939,6 +939,13 @@
                             "nullable": true,
                             "type": "boolean"
                           },
+                          "photo_consent": {
+                            "nullable": true,
+                            "type": "boolean"
+                          },
+                          "hasOwnAccount": {
+                            "type": "boolean"
+                          },
                           "created_at": {
                             "type": "string"
                           },
@@ -979,6 +986,8 @@
                           "played_before",
                           "previous_cricket",
                           "whatsapp_consent",
+                          "photo_consent",
+                          "hasOwnAccount",
                           "created_at",
                           "paid_until",
                           "parent"

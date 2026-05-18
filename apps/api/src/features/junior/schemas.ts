@@ -65,6 +65,8 @@ export const getDependentsResponseSchema = z.object({
       played_before: z.boolean().nullable(),
       previous_cricket: z.string().nullable(),
       whatsapp_consent: z.boolean().nullable(),
+      photo_consent: z.boolean().nullable(),
+      hasOwnAccount: z.boolean(),
       created_at: z.string(),
       paid_until: z.string().nullable(),
       parent: parentSchema,

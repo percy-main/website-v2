@@ -655,6 +655,8 @@ export interface paths {
                                 played_before: boolean | null;
                                 previous_cricket: string | null;
                                 whatsapp_consent: boolean | null;
+                                photo_consent: boolean | null;
+                                hasOwnAccount: boolean;
                                 created_at: string;
                                 paid_until: string | null;
                                 parent: {
