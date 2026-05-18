@@ -216,7 +216,7 @@ export function sendChargeNotification(db: Kysely<DB>) {
       return { sent: false, reason: "No outstanding charges" };
     }
 
-    // TODO: Send email notification via email service
+    // Email send not wired up - see #367
     return { sent: true, chargeCount: unpaidCharges.length };
   };
 }
@@ -1500,8 +1500,7 @@ export function chasePayment(db: Kysely<DB>) {
       throw error;
     }
 
-    // TODO: Send PaymentReminder email via email service
-    // For now, return success — email integration will be wired when packages/email is complete
+    // Email send not wired up - see #367
     return { success: true };
   };
 }

@@ -39,7 +39,7 @@ const SOURCE_OPTIONS = [
   { value: "contact_form", label: "Contact form" },
 ];
 
-// eslint-disable-next-line react-doctor/no-giant-component -- admin leads tab: filter bar + table + per-row status mutations and detail dialog share the filters reducer and a single query. TODO: extract LeadRow when row actions grow beyond status changes.
+// eslint-disable-next-line react-doctor/no-giant-component -- admin leads tab: filter bar + table + per-row status mutations and detail dialog share the filters reducer and a single query.
 export function LeadsTab() {
   const [filters, dispatch] = useReducer(
     leadsFilterReducer,

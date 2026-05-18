@@ -559,7 +559,7 @@ function TeamMatchesView({
   );
 }
 
-// eslint-disable-next-line react-doctor/no-giant-component -- captain/official matchday view: player roster + add/remove + payment confirmation + result selector + expense management + team-news image; all sections share the matchday query and 6+ mutations. Sub-sections (RoleSelectors, DownloadTeamNewsButton, ExpensesSection) are already siblings. TODO: extract the result-entry bar once additional result-types are added.
+// eslint-disable-next-line react-doctor/no-giant-component -- captain/official matchday view: player roster + add/remove + payment confirmation + result selector + expense management + team-news image; all sections share the matchday query and 6+ mutations. Sub-sections (RoleSelectors, DownloadTeamNewsButton, ExpensesSection) are already siblings.
 function MatchdayView({
   matchdayId,
   isHome,
