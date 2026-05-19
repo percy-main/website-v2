@@ -65,7 +65,7 @@
     "react-dom": "^19.2.6",
     "react-email": "^6.1.5",
     "sharp": "^0.34.5",
-    "stripe": "^17.5.0",
+    "stripe": "^22.1.1",
     "ts-pattern": "^5.6.0",
     "zod": "^4.4.3"
   },

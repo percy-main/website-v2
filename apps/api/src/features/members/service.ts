@@ -74,13 +74,18 @@ export function getMySubscriptions(stripe: Stripe) {
         typeof item?.price?.product === "string" ? item.price.product : "";
       const product = products.get(productId) ?? { id: "", name: "" };
 
+      // In API 2025-03-31.basil onwards, `current_period_end` moved off
+      // the Subscription onto each item. For single-item subscriptions
+      // (our only flavour) the item period == the subscription period.
+      const periodEnd = item?.current_period_end ?? sub.created;
+
       return {
         id: sub.id,
         name: item?.price?.nickname ?? null,
         product,
         created: new Date(sub.created * 1000).toISOString(),
         status: sub.status,
-        paidUntil: new Date(sub.current_period_end * 1000).toISOString(),
+        paidUntil: new Date(periodEnd * 1000).toISOString(),
       };
     });
   };

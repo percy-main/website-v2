@@ -150,10 +150,19 @@ export function createSubscription(db: Kysely<DB>, stripe: Stripe) {
         payment_settings: {
           save_default_payment_method: "on_subscription",
         },
-        expand: ["latest_invoice.payment_intent"],
+        expand: ["latest_invoice.confirmation_secret"],
+        // The webhook handler parses this with `membershipSchema`, which
+        // requires `type: "membership"` to discriminate from sponsorship
+        // metadata. The `source: "direct"` flag tells handleInvoicePayment
+        // that this subscription came from /api/subscribe (not Checkout),
+        // so its initial subscription_create invoice should be processed
+        // here rather than skipped (Checkout's first invoice is handled
+        // by checkout.session.completed).
         metadata: {
+          type: "membership",
           membership: data.membership,
           email: data.email,
+          source: "direct",
         },
       };
 
@@ -174,12 +183,20 @@ export function createSubscription(db: Kysely<DB>, stripe: Stripe) {
 
     const subscription = await stripe.subscriptions.create(subscriptionParams);
 
-    const invoice = subscription.latest_invoice as {
-      payment_intent: { client_secret: string };
-    };
+    // In API 2025-03-31.basil onwards, the PaymentIntent's client_secret is
+    // surfaced via Invoice.confirmation_secret rather than the (now-removed)
+    // Invoice.payment_intent expansion.
+    const invoice =
+      subscription.latest_invoice as import("stripe").Stripe.Invoice;
+    const clientSecret = invoice.confirmation_secret?.client_secret;
+    if (!clientSecret) {
+      throw new Error(
+        `Subscription ${subscription.id} has no confirmation_secret on its latest invoice`,
+      );
+    }
 
     return {
-      clientSecret: invoice.payment_intent.client_secret,
+      clientSecret,
       subscriptionId: subscription.id,
     };
   };

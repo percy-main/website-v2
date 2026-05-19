@@ -178,21 +178,51 @@ export function handleCheckoutCompleted({
  * Skips initial invoices for checkout-created subscriptions (those are
  * handled by checkout.session.completed).
  */
+/**
+ * Pull the subscription ID off an invoice.
+ *
+ * Reads both shapes because the wire format depends on the webhook
+ * endpoint's configured API version, NOT the SDK version:
+ *  - Pre-Basil endpoints (api_version <= 2025-03-30): `invoice.subscription`
+ *  - Basil+ endpoints (2025-03-31 onwards): `invoice.parent.subscription_details.subscription`
+ *
+ * Until every endpoint is rotated to Basil+, code that runs against v22
+ * types still needs to read the legacy field that those types no longer
+ * declare. The `LegacyInvoiceShape` cast is the bridge.
+ */
+type LegacyInvoiceShape = {
+  subscription?: string | Stripe.Subscription | null;
+  payment_intent?: string | Stripe.PaymentIntent | null;
+};
+
+function invoiceSubscriptionId(invoice: Stripe.Invoice): string | undefined {
+  const basilRef = invoice.parent?.subscription_details?.subscription;
+  if (basilRef) {
+    return typeof basilRef === "string" ? basilRef : basilRef.id;
+  }
+  const legacyRef = (invoice as Stripe.Invoice & LegacyInvoiceShape)
+    .subscription;
+  if (legacyRef) {
+    return typeof legacyRef === "string" ? legacyRef : legacyRef.id;
+  }
+  return undefined;
+}
+
+type MembershipMeta = ReturnType<typeof membershipSchema.parse>;
+
 async function resolveSubscriptionMembershipMetadata(
   db: Kysely<DB>,
   stripe: Stripe,
   invoice: Stripe.Invoice,
   email: string | null,
   log: FastifyBaseLogger,
-) {
-  if (!invoice.subscription) {
+): Promise<
+  { meta: MembershipMeta; subscription: Stripe.Subscription } | undefined
+> {
+  const subscriptionId = invoiceSubscriptionId(invoice);
+  if (!subscriptionId) {
     return undefined;
   }
-
-  const subscriptionId =
-    typeof invoice.subscription === "string"
-      ? invoice.subscription
-      : invoice.subscription.id;
 
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
@@ -206,7 +236,7 @@ async function resolveSubscriptionMembershipMetadata(
 
   const parsed = membershipSchema.safeParse(subscription.metadata);
   if (parsed.success) {
-    return parsed.data;
+    return { meta: parsed.data, subscription };
   }
 
   // Fallback: look up member's existing membership type from DB
@@ -229,7 +259,7 @@ async function resolveSubscriptionMembershipMetadata(
           { email, membershipType: existing.type },
           "Resolved membership type from DB fallback",
         );
-        return fallbackParsed.data;
+        return { meta: fallbackParsed.data, subscription };
       }
     }
   }
@@ -239,6 +269,43 @@ async function resolveSubscriptionMembershipMetadata(
     "Could not resolve membership metadata for subscription",
   );
   return undefined;
+}
+
+/**
+ * Resolve the PaymentIntent ID that paid an invoice.
+ *
+ * Reads both shapes for the same reason as `invoiceSubscriptionId`:
+ *  - Pre-Basil endpoints: `invoice.payment_intent` is the PI directly
+ *  - Basil+ endpoints: PI lives in the (paginated) InvoicePayments list
+ */
+async function invoicePaymentIntentId(
+  stripe: Stripe,
+  invoice: Stripe.Invoice,
+  log: FastifyBaseLogger,
+): Promise<string | undefined> {
+  const legacyPi = (invoice as Stripe.Invoice & LegacyInvoiceShape)
+    .payment_intent;
+  if (legacyPi) {
+    return typeof legacyPi === "string" ? legacyPi : legacyPi.id;
+  }
+
+  try {
+    const payments = await stripe.invoicePayments.list({
+      invoice: invoice.id,
+      limit: 10,
+    });
+    const defaultPayment =
+      payments.data.find((p) => p.is_default) ?? payments.data[0];
+    const pi = defaultPayment?.payment.payment_intent;
+    if (!pi) return undefined;
+    return typeof pi === "string" ? pi : pi.id;
+  } catch (err) {
+    log.warn(
+      { err, invoiceId: invoice.id },
+      "invoice_payment_intent_lookup_failed",
+    );
+    return undefined;
+  }
 }
 
 export function handleInvoicePayment({
@@ -276,7 +343,7 @@ export function handleInvoicePayment({
       throw new Error(`Customer missing email: ${customerId}`);
     }
 
-    const meta = await resolveSubscriptionMembershipMetadata(
+    const resolved = await resolveSubscriptionMembershipMetadata(
       db,
       stripe,
       invoice,
@@ -284,16 +351,17 @@ export function handleInvoicePayment({
       log,
     );
 
-    if (!meta) {
+    if (!resolved) {
       return;
     }
 
+    const { meta, subscription } = resolved;
     const paidAt = stripeDate(eventCreated);
 
     const result = await membership({
       membershipType: meta.membership,
       email,
-      addedDuration: invoiceLinesToDuration(invoice.lines.data),
+      addedDuration: invoiceLinesToDuration(subscription.items.data),
       paidAt,
     });
 
@@ -302,10 +370,7 @@ export function handleInvoicePayment({
       ? `Membership renewal - ${meta.membership}`
       : `Membership payment - ${meta.membership}`;
 
-    const paymentIntentId =
-      typeof invoice.payment_intent === "string"
-        ? invoice.payment_intent
-        : invoice.payment_intent?.id;
+    const paymentIntentId = await invoicePaymentIntentId(stripe, invoice, log);
 
     const chargeResult = await charge({
       memberEmail: email,
