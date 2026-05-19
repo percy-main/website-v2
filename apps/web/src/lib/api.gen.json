@@ -6563,6 +6563,7 @@
                   },
                   "amountPence": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   },
@@ -6644,6 +6645,7 @@
                   },
                   "amountPence": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   },
@@ -7605,6 +7607,7 @@
                   },
                   "amountPence": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   },
@@ -7680,6 +7683,7 @@
                   },
                   "amountPence": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   }
@@ -7924,6 +7928,7 @@
                   },
                   "amountPence": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   },
@@ -10323,11 +10328,13 @@
                   },
                   "quantity": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   },
                   "customAmountPence": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   },
@@ -11528,6 +11535,7 @@
                   },
                   "amountPence": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   },
@@ -14588,6 +14596,7 @@
                   },
                   "expectedVersion": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   }
@@ -17405,6 +17414,7 @@
                   },
                   "sizeBytes": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   }
@@ -17455,6 +17465,7 @@
                     },
                     "sizeBytes": {
                       "type": "integer",
+                      "minimum": 0,
                       "exclusiveMinimum": true,
                       "maximum": 9007199254740991
                     },
@@ -17464,6 +17475,7 @@
                     },
                     "uploadUrlExpiresInSeconds": {
                       "type": "integer",
+                      "minimum": 0,
                       "exclusiveMinimum": true,
                       "maximum": 9007199254740991
                     },
@@ -17547,6 +17559,7 @@
                     },
                     "sizeBytes": {
                       "type": "integer",
+                      "minimum": 0,
                       "exclusiveMinimum": true,
                       "maximum": 9007199254740991
                     },
@@ -17637,6 +17650,7 @@
                     },
                     "sizeBytes": {
                       "type": "integer",
+                      "minimum": 0,
                       "exclusiveMinimum": true,
                       "maximum": 9007199254740991
                     },
@@ -17664,6 +17678,7 @@
                     },
                     "signedUrlExpiresInSeconds": {
                       "type": "integer",
+                      "minimum": 0,
                       "exclusiveMinimum": true,
                       "maximum": 9007199254740991
                     }
@@ -17782,6 +17797,7 @@
             "schema": {
               "default": 1,
               "type": "integer",
+              "minimum": 0,
               "exclusiveMinimum": true,
               "maximum": 9007199254740991
             },
@@ -17793,6 +17809,7 @@
             "schema": {
               "default": 50,
               "type": "integer",
+              "minimum": 0,
               "exclusiveMinimum": true,
               "maximum": 100
             },
@@ -18582,6 +18599,7 @@
                     },
                     "expiresInSeconds": {
                       "type": "integer",
+                      "minimum": 0,
                       "exclusiveMinimum": true,
                       "maximum": 9007199254740991
                     }
@@ -18773,6 +18791,7 @@
                   },
                   "sizeBytes": {
                     "type": "integer",
+                    "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 9007199254740991
                   },
@@ -18841,6 +18860,7 @@
                     },
                     "uploadUrlExpiresInSeconds": {
                       "type": "integer",
+                      "minimum": 0,
                       "exclusiveMinimum": true,
                       "maximum": 9007199254740991
                     },
@@ -19065,6 +19085,7 @@
                     },
                     "signedUrlExpiresInSeconds": {
                       "type": "integer",
+                      "minimum": 0,
                       "exclusiveMinimum": true,
                       "maximum": 9007199254740991
                     }
