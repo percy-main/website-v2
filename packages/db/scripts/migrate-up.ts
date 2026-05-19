@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { promises as fs } from "fs";
-import { FileMigrationProvider, Migrator } from "kysely";
+import { FileMigrationProvider, Migrator } from "kysely/migration";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "../src/client.js";

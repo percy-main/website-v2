@@ -2,12 +2,8 @@ import type { DB } from "@percy-main/db";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { promises as fs } from "fs";
-import {
-  FileMigrationProvider,
-  Kysely,
-  Migrator,
-  PostgresDialect,
-} from "kysely";
+import { Kysely, PostgresDialect } from "kysely";
+import { FileMigrationProvider, Migrator } from "kysely/migration";
 import path from "path";
 import pg from "pg";
 import { fileURLToPath } from "url";

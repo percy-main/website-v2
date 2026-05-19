@@ -8,7 +8,7 @@
 
 import "dotenv/config";
 import { promises as fs } from "fs";
-import { FileMigrationProvider, Migrator } from "kysely";
+import { FileMigrationProvider, Migrator } from "kysely/migration";
 import path from "path";
 import pg from "pg";
 import { fileURLToPath } from "url";

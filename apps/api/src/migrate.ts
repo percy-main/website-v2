@@ -7,12 +7,8 @@
  */
 
 import type { DB } from "@percy-main/db";
-import {
-  FileMigrationProvider,
-  Kysely,
-  Migrator,
-  PostgresDialect,
-} from "kysely";
+import { Kysely, PostgresDialect } from "kysely";
+import { FileMigrationProvider, Migrator } from "kysely/migration";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import pg from "pg";
