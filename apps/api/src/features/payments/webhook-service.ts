@@ -190,10 +190,10 @@ export function handleCheckoutCompleted({
  * types still needs to read the legacy field that those types no longer
  * declare. The `LegacyInvoiceShape` cast is the bridge.
  */
-type LegacyInvoiceShape = {
+interface LegacyInvoiceShape {
   subscription?: string | Stripe.Subscription | null;
   payment_intent?: string | Stripe.PaymentIntent | null;
-};
+}
 
 function invoiceSubscriptionId(invoice: Stripe.Invoice): string | undefined {
   const basilRef = invoice.parent?.subscription_details?.subscription;
