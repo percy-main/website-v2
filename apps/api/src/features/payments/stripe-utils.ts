@@ -19,9 +19,15 @@ const addDurations = (a: Duration, b: Duration): Duration => {
  * - One-time prices are treated as 12 months.
  * - Recurring prices use the interval and interval_count.
  * - Unknown items contribute zero duration.
+ *
+ * Accepts checkout-session `LineItem`s or `SubscriptionItem`s — both expose
+ * a `.price` with the `type`/`recurring` we need. `InvoiceLineItem` is not
+ * supported: in API 2025-03-31.basil onwards its `price` field moved to
+ * `pricing.price_details.price` and is not expanded on webhook payloads,
+ * so callers should resolve the subscription and pass its items instead.
  */
 export const invoiceLinesToDuration = (
-  lineItems: Stripe.InvoiceLineItem[] | Stripe.LineItem[],
+  lineItems: Stripe.LineItem[] | Stripe.SubscriptionItem[],
 ): Duration =>
   lineItems
     .map((li): Duration => {

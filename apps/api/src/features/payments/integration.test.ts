@@ -338,6 +338,7 @@ describe("handleInvoicePayment", () => {
 
     const paymentIntentId = `pi_${randomUUID()}`;
     const subscriptionId = `sub_${randomUUID()}`;
+    const invoiceId = `in_${randomUUID()}`;
 
     const mockStripe = {
       customers: {
@@ -355,6 +356,26 @@ describe("handleInvoicePayment", () => {
             membership: "senior_player",
             source: "direct",
           },
+          items: {
+            data: [
+              {
+                price: {
+                  type: "recurring",
+                  recurring: { interval: "month", interval_count: 1 },
+                },
+              },
+            ],
+          },
+        }),
+      },
+      invoicePayments: {
+        list: vi.fn().mockResolvedValue({
+          data: [
+            {
+              is_default: true,
+              payment: { payment_intent: paymentIntentId },
+            },
+          ],
         }),
       },
     } as any;
@@ -369,21 +390,14 @@ describe("handleInvoicePayment", () => {
 
     await handler(
       {
+        id: invoiceId,
         customer: `cus_123`,
-        subscription: subscriptionId,
-        billing_reason: "subscription_create",
-        payment_intent: paymentIntentId,
-        amount_paid: 5000,
-        lines: {
-          data: [
-            {
-              price: {
-                type: "recurring",
-                recurring: { interval: "month", interval_count: 1 },
-              },
-            },
-          ],
+        parent: {
+          type: "subscription_details",
+          subscription_details: { subscription: subscriptionId },
         },
+        billing_reason: "subscription_create",
+        amount_paid: 5000,
       } as any,
       EVENT_CREATED,
     );
@@ -412,6 +426,7 @@ describe("handleInvoicePayment", () => {
     });
 
     const subscriptionId = `sub_${randomUUID()}`;
+    const invoiceId = `in_${randomUUID()}`;
 
     const mockStripe = {
       customers: {
@@ -428,7 +443,20 @@ describe("handleInvoicePayment", () => {
             type: "membership",
             membership: "senior_player",
           },
+          items: {
+            data: [
+              {
+                price: {
+                  type: "recurring",
+                  recurring: { interval: "month", interval_count: 1 },
+                },
+              },
+            ],
+          },
         }),
+      },
+      invoicePayments: {
+        list: vi.fn().mockResolvedValue({ data: [] }),
       },
     } as any;
 
@@ -442,21 +470,14 @@ describe("handleInvoicePayment", () => {
 
     await handler(
       {
+        id: invoiceId,
         customer: `cus_123`,
-        subscription: subscriptionId,
-        billing_reason: "subscription_create",
-        payment_intent: `pi_${randomUUID()}`,
-        amount_paid: 5000,
-        lines: {
-          data: [
-            {
-              price: {
-                type: "recurring",
-                recurring: { interval: "month", interval_count: 1 },
-              },
-            },
-          ],
+        parent: {
+          type: "subscription_details",
+          subscription_details: { subscription: subscriptionId },
         },
+        billing_reason: "subscription_create",
+        amount_paid: 5000,
       } as any,
       EVENT_CREATED,
     );
@@ -476,6 +497,7 @@ describe("handleInvoicePayment", () => {
 
     const paymentIntentId = `pi_${randomUUID()}`;
     const subscriptionId = `sub_${randomUUID()}`;
+    const invoiceId = `in_${randomUUID()}`;
 
     const mockStripe = {
       customers: {
@@ -489,6 +511,26 @@ describe("handleInvoicePayment", () => {
         retrieve: vi.fn().mockResolvedValue({
           id: subscriptionId,
           metadata: { type: "membership", membership: "social" },
+          items: {
+            data: [
+              {
+                price: {
+                  type: "recurring",
+                  recurring: { interval: "month", interval_count: 1 },
+                },
+              },
+            ],
+          },
+        }),
+      },
+      invoicePayments: {
+        list: vi.fn().mockResolvedValue({
+          data: [
+            {
+              is_default: true,
+              payment: { payment_intent: paymentIntentId },
+            },
+          ],
         }),
       },
     } as any;
@@ -503,21 +545,14 @@ describe("handleInvoicePayment", () => {
 
     await handler(
       {
+        id: invoiceId,
         customer: `cus_123`,
-        subscription: subscriptionId,
-        billing_reason: "subscription_cycle",
-        payment_intent: paymentIntentId,
-        amount_paid: 3000,
-        lines: {
-          data: [
-            {
-              price: {
-                type: "recurring",
-                recurring: { interval: "month", interval_count: 1 },
-              },
-            },
-          ],
+        parent: {
+          type: "subscription_details",
+          subscription_details: { subscription: subscriptionId },
         },
+        billing_reason: "subscription_cycle",
+        amount_paid: 3000,
       } as any,
       EVENT_CREATED,
     );
@@ -530,6 +565,88 @@ describe("handleInvoicePayment", () => {
       .executeTakeFirst();
     expect(charge).toBeDefined();
     expect(charge?.description).toContain("Membership renewal");
+  });
+
+  it("reads legacy (pre-Basil) invoice.subscription + payment_intent shape", async () => {
+    // Webhook endpoints configured for api_version <= 2025-03-30 deliver
+    // invoices with `subscription` and `payment_intent` at the top level,
+    // not under `parent.subscription_details`. We must handle both until
+    // every endpoint is rotated to Basil+.
+    const { email, memberId } = await seedTestUser(ctx.db, {
+      email: `invoice-legacy-${randomUUID()}@test.com`,
+    });
+
+    const paymentIntentId = `pi_${randomUUID()}`;
+    const subscriptionId = `sub_${randomUUID()}`;
+    const invoiceId = `in_${randomUUID()}`;
+
+    const mockStripe = {
+      customers: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: `cus_${randomUUID()}`,
+          email,
+          deleted: false,
+        }),
+      },
+      subscriptions: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: subscriptionId,
+          metadata: {
+            type: "membership",
+            membership: "senior_player",
+            source: "direct",
+          },
+          items: {
+            data: [
+              {
+                price: {
+                  type: "recurring",
+                  recurring: { interval: "month", interval_count: 1 },
+                },
+              },
+            ],
+          },
+        }),
+      },
+      // Legacy shape: invoicePayments.list should never be called because
+      // payment_intent is read directly off the invoice.
+      invoicePayments: {
+        list: vi.fn(),
+      },
+    } as any;
+
+    const handler = handleInvoicePayment({
+      db: ctx.db,
+      stripe: mockStripe,
+      log: mockLog,
+      baseUrl: "http://localhost:5173",
+      send: vi.fn(),
+    });
+
+    await handler(
+      {
+        id: invoiceId,
+        customer: `cus_123`,
+        // Pre-Basil top-level fields:
+        subscription: subscriptionId,
+        payment_intent: paymentIntentId,
+        // parent is omitted entirely on legacy payloads
+        billing_reason: "subscription_create",
+        amount_paid: 5000,
+      } as any,
+      EVENT_CREATED,
+    );
+
+    expect(mockStripe.invoicePayments.list).not.toHaveBeenCalled();
+
+    const charge = await ctx.db
+      .selectFrom("charge")
+      .where("member_id", "=", memberId ?? "")
+      .where("stripe_payment_intent_id", "=", paymentIntentId)
+      .selectAll()
+      .executeTakeFirst();
+    expect(charge).toBeDefined();
+    expect(charge?.description).toContain("Membership payment");
   });
 
   it("throws on missing customer", async () => {
@@ -591,6 +708,7 @@ describe("handleInvoicePayment", () => {
 
     const paymentIntentId = `pi_${randomUUID()}`;
     const subscriptionId = `sub_${randomUUID()}`;
+    const invoiceId = `in_${randomUUID()}`;
 
     const mockStripe = {
       customers: {
@@ -604,6 +722,26 @@ describe("handleInvoicePayment", () => {
         retrieve: vi.fn().mockResolvedValue({
           id: subscriptionId,
           metadata: {},
+          items: {
+            data: [
+              {
+                price: {
+                  type: "recurring",
+                  recurring: { interval: "month", interval_count: 1 },
+                },
+              },
+            ],
+          },
+        }),
+      },
+      invoicePayments: {
+        list: vi.fn().mockResolvedValue({
+          data: [
+            {
+              is_default: true,
+              payment: { payment_intent: paymentIntentId },
+            },
+          ],
         }),
       },
     } as any;
@@ -618,21 +756,14 @@ describe("handleInvoicePayment", () => {
 
     await handler(
       {
+        id: invoiceId,
         customer: `cus_123`,
-        subscription: subscriptionId,
-        billing_reason: "subscription_cycle",
-        payment_intent: paymentIntentId,
-        amount_paid: 3000,
-        lines: {
-          data: [
-            {
-              price: {
-                type: "recurring",
-                recurring: { interval: "month", interval_count: 1 },
-              },
-            },
-          ],
+        parent: {
+          type: "subscription_details",
+          subscription_details: { subscription: subscriptionId },
         },
+        billing_reason: "subscription_cycle",
+        amount_paid: 3000,
       } as any,
       EVENT_CREATED,
     );

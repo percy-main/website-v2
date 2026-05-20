@@ -43,7 +43,7 @@ describe("stripe-utils", () => {
     it("returns 12 months (1 year) for one-time price", () => {
       const lineItems = [
         { price: { type: "one_time" as const } },
-      ] as unknown as Stripe.InvoiceLineItem[];
+      ] as unknown as Stripe.LineItem[];
       const result = invoiceLinesToDuration(lineItems);
       // 12 months normalises to 1 year via date-fns intervalToDuration
       expect(result.years).toBe(1);
@@ -57,7 +57,7 @@ describe("stripe-utils", () => {
             recurring: { interval: "month", interval_count: 1 },
           },
         },
-      ] as unknown as Stripe.InvoiceLineItem[];
+      ] as unknown as Stripe.LineItem[];
       const result = invoiceLinesToDuration(lineItems);
       expect(result.months).toBe(1);
     });
@@ -65,7 +65,7 @@ describe("stripe-utils", () => {
     it("returns zero duration for unknown price type", () => {
       const lineItems = [
         { price: { type: "unknown" } },
-      ] as unknown as Stripe.InvoiceLineItem[];
+      ] as unknown as Stripe.LineItem[];
       const result = invoiceLinesToDuration(lineItems);
       expect(result.years ?? 0).toBe(0);
       expect(result.months ?? 0).toBe(0);
@@ -80,7 +80,7 @@ describe("stripe-utils", () => {
             recurring: { interval: "month", interval_count: 3 },
           },
         }, // 3 months
-      ] as unknown as Stripe.InvoiceLineItem[];
+      ] as unknown as Stripe.LineItem[];
       const result = invoiceLinesToDuration(lineItems);
       // 12 + 3 = 15 months = 1 year 3 months
       expect(result.years).toBe(1);
@@ -94,9 +94,7 @@ describe("stripe-utils", () => {
     });
 
     it("handles null price gracefully", () => {
-      const lineItems = [
-        { price: null },
-      ] as unknown as Stripe.InvoiceLineItem[];
+      const lineItems = [{ price: null }] as unknown as Stripe.LineItem[];
       const result = invoiceLinesToDuration(lineItems);
       expect(result.years ?? 0).toBe(0);
       expect(result.months ?? 0).toBe(0);

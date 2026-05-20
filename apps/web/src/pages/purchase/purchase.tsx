@@ -109,8 +109,8 @@ export function Component() {
         );
         return {
           clientSecret: result.clientSecret,
-          amount: 0,
-          productName: "Subscription",
+          amount: totalAmount,
+          productName: priceInfo?.productName ?? "Subscription",
         };
       }
 
