@@ -277,11 +277,19 @@ async function resolveSubscriptionMembershipMetadata(
  * Reads both shapes for the same reason as `invoiceSubscriptionId`:
  *  - Pre-Basil endpoints: `invoice.payment_intent` is the PI directly
  *  - Basil+ endpoints: PI lives in the (paginated) InvoicePayments list
+ *
+ * The `stripe.invoicePayments.list` call is NOT wrapped in a try/catch:
+ * transient Stripe API failures must surface so the webhook 500s and
+ * Stripe retries. Otherwise we'd record a charge with no PI link, and
+ * `createPaymentCharge` dedups by PI — a retried webhook would then
+ * double-charge the member.
+ *
+ * Returns `undefined` only when the call succeeded and no PI is
+ * attached (e.g. invoice paid by BACS / out-of-band).
  */
 async function invoicePaymentIntentId(
   stripe: Stripe,
   invoice: Stripe.Invoice,
-  log: FastifyBaseLogger,
 ): Promise<string | undefined> {
   const legacyPi = (invoice as Stripe.Invoice & LegacyInvoiceShape)
     .payment_intent;
@@ -289,23 +297,15 @@ async function invoicePaymentIntentId(
     return typeof legacyPi === "string" ? legacyPi : legacyPi.id;
   }
 
-  try {
-    const payments = await stripe.invoicePayments.list({
-      invoice: invoice.id,
-      limit: 10,
-    });
-    const defaultPayment =
-      payments.data.find((p) => p.is_default) ?? payments.data[0];
-    const pi = defaultPayment?.payment.payment_intent;
-    if (!pi) return undefined;
-    return typeof pi === "string" ? pi : pi.id;
-  } catch (err) {
-    log.warn(
-      { err, invoiceId: invoice.id },
-      "invoice_payment_intent_lookup_failed",
-    );
-    return undefined;
-  }
+  const payments = await stripe.invoicePayments.list({
+    invoice: invoice.id,
+    limit: 10,
+  });
+  const defaultPayment =
+    payments.data.find((p) => p.is_default) ?? payments.data[0];
+  const pi = defaultPayment?.payment.payment_intent;
+  if (!pi) return undefined;
+  return typeof pi === "string" ? pi : pi.id;
 }
 
 export function handleInvoicePayment({
@@ -370,7 +370,7 @@ export function handleInvoicePayment({
       ? `Membership renewal - ${meta.membership}`
       : `Membership payment - ${meta.membership}`;
 
-    const paymentIntentId = await invoicePaymentIntentId(stripe, invoice, log);
+    const paymentIntentId = await invoicePaymentIntentId(stripe, invoice);
 
     const chargeResult = await charge({
       memberEmail: email,
