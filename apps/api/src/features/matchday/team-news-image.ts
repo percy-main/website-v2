@@ -73,9 +73,13 @@ function shortTeamLabel(teamName: string): string {
   return teamName.replace(/^Percy Main\s*/i, "").trim() || teamName;
 }
 
+function stripTeamSuffix(name: string): string {
+  return name.replace(/\s+-\s+.*$/, "").trim() || name;
+}
+
 function venueLabel(data: TeamNewsData): string {
   if (data.isHome) return "PERCY MAIN";
-  const first = data.opposition.split(" ")[0];
+  const first = stripTeamSuffix(data.opposition).split(" ")[0];
   return first.toUpperCase();
 }
 
@@ -133,8 +137,10 @@ function textPath(
 }
 
 function buildSvg(data: TeamNewsData, hasMatchSponsorLogo: boolean): string {
-  const teamShort = shortTeamLabel(data.teamName).toUpperCase();
-  const opposition = data.opposition.toUpperCase();
+  const teamShort = stripTeamSuffix(
+    shortTeamLabel(data.teamName),
+  ).toUpperCase();
+  const opposition = stripTeamSuffix(data.opposition).toUpperCase();
   const homeAway = data.isHome ? "H" : "A";
   const title = `${teamShort} V ${opposition} (${homeAway})`;
 
