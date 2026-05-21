@@ -23,6 +23,8 @@ import {
   listTeamsResponseSchema,
   markPaidSchema,
   matchIdParamSchema,
+  myRecentPerformanceResponseSchema,
+  myUpcomingMatchesResponseSchema,
   pastUnfinishedMatchdaysResponseSchema,
   playerIdParamSchema,
   publicMatchdayResponseSchema,
@@ -50,6 +52,8 @@ import {
   getAllPastUnfinishedMatchdays,
   getMatch,
   getMatchPublic,
+  getMyRecentPerformance,
+  getMyUpcomingMatches,
   getPastUnfinishedMatchdays,
   getTeamNewsData,
   getUpcomingMatches,
@@ -82,6 +86,39 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const record = recordExpense(app.db, app.s3);
   const update = updateExpense(app.db);
   const remove = deleteExpense(app.db);
+  const myUpcoming = getMyUpcomingMatches(app.db);
+  const myPerformance = getMyRecentPerformance(app.db);
+
+  // Static "mine" routes — registered before /matchday/:matchId so the
+  // radix router resolves them as exact matches, not as a matchId of
+  // "mine". They expose only the signed-in member's own data.
+  app.get(
+    "/matchday/mine/upcoming",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        response: { 200: myUpcomingMatchesResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      return await myUpcoming(user.email);
+    },
+  );
+
+  app.get(
+    "/matchday/mine/recent-performance",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        response: { 200: myRecentPerformanceResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      return await myPerformance(user.email);
+    },
+  );
 
   app.get(
     "/matchday",

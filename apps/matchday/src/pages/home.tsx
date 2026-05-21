@@ -22,6 +22,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRightIcon, CalendarDaysIcon } from "lucide-react";
 import { Link } from "react-router";
 
+type MyUpcomingMatch = ApiResponse<"/api/matchday/mine/upcoming">[number];
+
 type ActiveAvailability = ApiResponse<"/api/availability/active">;
 type ChargesResponse = ApiResponse<"/api/charges">;
 type Charge = ChargesResponse["charges"][number];
@@ -56,8 +58,10 @@ export default function Home() {
       <div className="space-y-3">
         <NeedsAttentionCard />
         <AvailabilityAwaitingCard />
+        <YourUpcomingGamesCard />
         <OutstandingDonationsCard />
         <UpcomingFixturesCard />
+        <YourRecentPerformanceCard />
         <RecentResultsCard />
         <InstallPrompt />
       </div>
@@ -146,6 +150,126 @@ function AvailabilityAwaitingCard() {
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+function YourUpcomingGamesCard() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["matchday", "mine", "upcoming"],
+    queryFn: () => callApi(api.GET("/api/matchday/mine/upcoming")),
+  });
+  if (isLoading) return <CardSkeleton />;
+  if (isError) return <CardError label="Couldn't load your selection" />;
+  const games = data ?? [];
+  if (games.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardEyebrow>Your upcoming games</CardEyebrow>
+          <StatusPill tone="success" dot>
+            You're in{" "}
+            {games.length === 1 ? "1 squad" : `${games.length} squads`}
+          </StatusPill>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-0">
+        {games.map((g) => (
+          <MyMatchRow key={g.matchdayId} match={g} />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MyMatchRow({ match }: { match: MyUpcomingMatch }) {
+  const d = new Date(match.matchDate);
+  const day = Number.isNaN(d.getTime()) ? "" : d.getDate();
+  const dayName = Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString("en-GB", { weekday: "short" });
+  const role = match.isCaptain
+    ? "Captain"
+    : match.isWicketkeeper
+      ? "Keeper"
+      : null;
+  return (
+    <Link
+      to={`/matchday/${match.matchdayId}`}
+      className="border-border-light grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t py-2.5 first:border-t-0"
+    >
+      <div className="bg-surface-raised flex flex-col items-center justify-center rounded-md py-1">
+        <div className="text-navy text-base leading-none font-bold dark:text-white">
+          {day}
+        </div>
+        <div className="text-text-secondary text-[10px] tracking-wide uppercase">
+          {dayName}
+        </div>
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-sm leading-tight font-medium">
+          vs {match.opposition}
+        </div>
+        <div className="text-text-secondary mt-0.5 text-xs">
+          {[match.teamName, match.competitionType].filter(Boolean).join(" · ")}
+        </div>
+      </div>
+      {role ? (
+        <StatusPill tone="navy">{role}</StatusPill>
+      ) : (
+        <StatusPill tone="neutral">Selected</StatusPill>
+      )}
+    </Link>
+  );
+}
+
+function YourRecentPerformanceCard() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["matchday", "mine", "recent-performance"],
+    queryFn: () => callApi(api.GET("/api/matchday/mine/recent-performance")),
+  });
+  if (isLoading) return null;
+  if (isError) return null;
+  if (!data) return null;
+  // Quiet card — hide when there's nothing to celebrate. A member who
+  // played but scored 0/0/0 stays visible because matchesPlayed > 0
+  // still tells a story ("you played 2 games").
+  if (data.matchesPlayed === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardEyebrow>Your recent performance</CardEyebrow>
+          <span className="text-text-secondary text-xs">
+            Last {data.windowDays} days
+          </span>
+        </div>
+        <CardTitle>
+          {data.matchesPlayed} {data.matchesPlayed === 1 ? "match" : "matches"}{" "}
+          played
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-3 gap-2">
+          <PerfStat label="Runs" value={data.runs} />
+          <PerfStat label="Wickets" value={data.wickets} />
+          <PerfStat label="Catches" value={data.catches} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PerfStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-surface-raised rounded-md py-3 text-center">
+      <div className="text-navy text-2xl font-bold tracking-[-0.02em] dark:text-white">
+        {value}
+      </div>
+      <div className="text-text-secondary mt-0.5 text-[11px] tracking-wide uppercase">
+        {label}
+      </div>
+    </div>
   );
 }
 
