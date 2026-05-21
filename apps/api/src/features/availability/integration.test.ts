@@ -173,8 +173,6 @@ describe("availability service (integration)", () => {
         role: "admin",
       });
       const teamId = await seedTeam("3rd XI");
-      const reqId = await seedRequest(userId, "2026-08-01", "2026-08-07");
-      const fixId = await seedFixture(reqId, teamId, "2026-08-01");
 
       // Seed some members
       const memberId1 = await seedMember(
@@ -185,6 +183,26 @@ describe("availability service (integration)", () => {
         "Bob",
         `bob-${crypto.randomUUID()}@test.com`,
       );
+      const memberId3 = await seedMember(
+        "Carol",
+        `carol-${crypto.randomUUID()}@test.com`,
+      );
+
+      // The request scopes its no-response pool to its user groups; put
+      // all three members in one group so Carol surfaces as no-response.
+      const groupId = await seedGroup("3rd XI group", [
+        memberId1,
+        memberId2,
+        memberId3,
+      ]);
+      const reqId = await seedRequest(
+        userId,
+        "2026-08-01",
+        "2026-08-07",
+        "open",
+        groupId,
+      );
+      const fixId = await seedFixture(reqId, teamId, "2026-08-01");
 
       // Alice responds available
       await ctx.db
@@ -495,17 +513,21 @@ describe("availability service (integration)", () => {
   describe("getActiveRequests (member flow)", () => {
     it("returns open requests with fixtures and member responses", async () => {
       const email = `active-${crypto.randomUUID()}@test.com`;
-      await seedTestUser(ctx.db, { email, withMember: true });
+      const seeded = await seedTestUser(ctx.db, { email, withMember: true });
+      if (!seeded.memberId) throw new Error("expected member to be seeded");
 
       const adminUser = await seedTestUser(ctx.db, {
         email: `admin-active-${crypto.randomUUID()}@test.com`,
         role: "admin",
       });
       const teamId = await seedTeam("Active XI");
+      const groupId = await seedGroup("Active group", [seeded.memberId]);
       const reqId = await seedRequest(
         adminUser.userId,
         "2027-02-01",
         "2027-02-07",
+        "open",
+        groupId,
       );
       await seedFixture(reqId, teamId, "2027-02-01");
 

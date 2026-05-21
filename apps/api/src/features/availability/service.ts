@@ -535,21 +535,26 @@ export function getDateDetail(db: Kysely<DB>) {
       .execute();
 
     // The no-response pool stays scoped to the union of the request's
-    // user groups — without a group anchor it would be every member in
-    // the club, which is rarely what an official wants to see.
-    const allMembers = await db
-      .selectFrom("member")
-      .innerJoin(
-        "user_group_member",
-        "user_group_member.member_id",
-        "member.id",
-      )
-      .where("user_group_member.group_id", "in", requestGroupIds)
-      .where("member.deleted_at", "is", null)
-      .select(["member.id", "member.name", "member.member_category"])
-      .distinct()
-      .orderBy("member.name", "asc")
-      .execute();
+    // user groups - without a group anchor it would be every member in
+    // the club, which is rarely what an official wants to see. A request
+    // with zero groups (legacy data) yields an empty pool rather than a
+    // SQL `IN ()` syntax error.
+    const allMembers =
+      requestGroupIds.length === 0
+        ? []
+        : await db
+            .selectFrom("member")
+            .innerJoin(
+              "user_group_member",
+              "user_group_member.member_id",
+              "member.id",
+            )
+            .where("user_group_member.group_id", "in", requestGroupIds)
+            .where("member.deleted_at", "is", null)
+            .select(["member.id", "member.name", "member.member_category"])
+            .distinct()
+            .orderBy("member.name", "asc")
+            .execute();
 
     const respondedMemberIds = new Set(responses.map((r) => r.member_id));
     const noResponse = allMembers.filter((m) => !respondedMemberIds.has(m.id));

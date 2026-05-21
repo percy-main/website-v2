@@ -116,6 +116,7 @@ describe("availability service", () => {
       mockExecute.mockResolvedValueOnce([
         { availability_request_id: "req-1", respondent_count: "5" },
       ]);
+      mockExecute.mockResolvedValueOnce([]); // fixtures query
 
       const result = await listRequests(db)({ limit: 20, offset: 0 });
       expect(result.items).toHaveLength(1);
