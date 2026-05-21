@@ -288,6 +288,15 @@ describe("expense approval workflow", () => {
         (val as ReturnType<typeof vi.fn>).mockReturnValue(mockQueryBuilder);
       }
     }
+    // The for-loop above resets `transaction` to return mockQueryBuilder,
+    // which makes `db.transaction().execute(cb)` short-circuit through
+    // mockExecute without ever running `cb`. Restore the callback-running
+    // shape so finishMatch's transactional writes actually fire.
+    mockQueryBuilder.transaction.mockReturnValue({
+      execute: vi.fn(async (cb: (trx: unknown) => Promise<unknown>) =>
+        cb(mockQueryBuilder),
+      ),
+    });
   });
 
   describe("submitExpenseClaim", () => {
@@ -467,6 +476,8 @@ describe("expense approval workflow", () => {
       mockExecute.mockResolvedValueOnce([]);
       mockExecute.mockResolvedValueOnce([]);
       // update matchday
+      mockExecute.mockResolvedValueOnce([]);
+      // flip any leftover "selected" players to "playing"
       mockExecute.mockResolvedValueOnce([]);
       // submit draft expenses
       mockExecute.mockResolvedValueOnce([]);

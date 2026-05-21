@@ -422,6 +422,11 @@ export function recordExpense(db: Kysely<DB>, s3: S3Uploader) {
 
     const receiptImageUrl = await uploadReceiptImage(data.receiptImage, id, s3);
 
+    // On a finished matchday the draft -> submitted auto-flip in
+    // finishMatch has already run, so a fresh draft would be invisible
+    // to the treasurer forever. Insert as submitted instead.
+    const isPostFinish = matchday.status === "finished";
+
     await db
       .insertInto("matchday_expense")
       .values({
@@ -433,6 +438,10 @@ export function recordExpense(db: Kysely<DB>, s3: S3Uploader) {
         created_by: userId,
         created_at: now,
         receipt_image_url: receiptImageUrl,
+        ...(isPostFinish && {
+          status: "submitted",
+          submitted_at: now,
+        }),
       })
       .execute();
 
@@ -1241,9 +1250,13 @@ export function finishMatch(
         .execute();
       const missing: string[] = [];
       for (const p of players) {
+        // "selected" is the pre-finish squad-picked state; if the captain
+        // submits the wrap without an explicit per-player status, default
+        // to playing so we still charge them.
+        const effectiveStatus =
+          statusOverrides.get(p.matchdayPlayerId) ?? p.current_status;
         const willPlay =
-          (statusOverrides.get(p.matchdayPlayerId) ?? p.current_status) ===
-          "playing";
+          effectiveStatus === "playing" || effectiveStatus === "selected";
         if (!willPlay) continue;
         let category: string | null = null;
         if (p.member_id) {
@@ -1269,34 +1282,51 @@ export function finishMatch(
       }
     }
 
-    for (const { matchdayPlayerId, status } of playerStatuses) {
-      await db
-        .updateTable("matchday_player")
-        .set({ status })
-        .where("id", "=", matchdayPlayerId)
-        .where("matchday_id", "=", matchdayId)
+    // All status / charge / expense writes commit atomically: a partial
+    // failure would leave the matchday flagged "finished" with the
+    // first-finish branch (charges, draft expense submission) skipped
+    // forever on retry.
+    await db.transaction().execute(async (trx) => {
+      for (const { matchdayPlayerId, status } of playerStatuses) {
+        await trx
+          .updateTable("matchday_player")
+          .set({ status })
+          .where("id", "=", matchdayPlayerId)
+          .where("matchday_id", "=", matchdayId)
+          .execute();
+      }
+
+      await trx
+        .updateTable("matchday")
+        .set({
+          status: "finished",
+          confirmed_at: matchday.confirmed_at ?? finishedAt,
+          confirmed_by: matchday.confirmed_by ?? userId,
+          finished_at: matchday.finished_at ?? finishedAt,
+          finished_by: matchday.finished_by ?? userId,
+          result_type: data.resultType,
+          result_confirmed_at: finishedAt,
+          result_confirmed_by: userId,
+          result_source: "manual",
+        })
+        .where("id", "=", matchdayId)
         .execute();
-    }
 
-    await db
-      .updateTable("matchday")
-      .set({
-        status: "finished",
-        confirmed_at: matchday.confirmed_at ?? finishedAt,
-        confirmed_by: matchday.confirmed_by ?? userId,
-        finished_at: matchday.finished_at ?? finishedAt,
-        finished_by: matchday.finished_by ?? userId,
-        result_type: data.resultType,
-        result_confirmed_at: finishedAt,
-        result_confirmed_by: userId,
-        result_source: "manual",
-      })
-      .where("id", "=", matchdayId)
-      .execute();
+      if (!isFirstFinish) return;
 
-    if (isFirstFinish) {
+      // Any player still "selected" at finish time played - the captain
+      // just didn't send an explicit per-player status. Normalise them
+      // to "playing" so the charge loop's `status = "playing"` filter
+      // doesn't silently skip them.
+      await trx
+        .updateTable("matchday_player")
+        .set({ status: "playing" })
+        .where("matchday_id", "=", matchdayId)
+        .where("status", "=", "selected")
+        .execute();
+
       // Submit all draft expenses for treasurer review
-      await db
+      await trx
         .updateTable("matchday_expense")
         .set({
           status: "submitted",
@@ -1311,7 +1341,7 @@ export function finishMatch(
       // (junior rate against the parent + charge_dependent link), so a
       // matchday finished without an explicit confirm doesn't drop
       // junior donations.
-      const uncharged = await db
+      const uncharged = await trx
         .selectFrom("matchday_player")
         .leftJoin("member", "member.id", "matchday_player.member_id")
         .leftJoin("dependent", "dependent.id", "matchday_player.dependent_id")
@@ -1329,93 +1359,96 @@ export function finishMatch(
         ])
         .execute();
 
-      if (uncharged.length > 0) {
-        const feeRates = await db
-          .selectFrom("match_fee_rate")
-          .where((eb) =>
-            eb.or([
-              eb("play_cricket_team_id", "=", matchday.play_cricket_team_id),
-              eb("play_cricket_team_id", "is", null),
-            ]),
-          )
-          .selectAll()
+      if (uncharged.length === 0) return;
+
+      const feeRates = await trx
+        .selectFrom("match_fee_rate")
+        .where((eb) =>
+          eb.or([
+            eb("play_cricket_team_id", "=", matchday.play_cricket_team_id),
+            eb("play_cricket_team_id", "is", null),
+          ]),
+        )
+        .selectAll()
+        .execute();
+
+      const applyRelief = applyReliefIfAny(trx);
+      for (const player of uncharged) {
+        let chargeMemberId: string;
+        let category: string;
+        let chargeDependentId: string | null = null;
+        let descriptionSuffix = "";
+
+        if (player.member_id) {
+          chargeMemberId = player.member_id;
+          category = player.member_category ?? "guest";
+        } else if (player.dependent_id && player.dependentParentId) {
+          chargeMemberId = player.dependentParentId;
+          category = "junior";
+          chargeDependentId = player.dependent_id;
+          descriptionSuffix = player.dependentName
+            ? ` for ${player.dependentName}`
+            : "";
+        } else {
+          continue;
+        }
+
+        const rate = findFeeRate(
+          feeRates,
+          matchday.play_cricket_team_id,
+          matchday.competition_type,
+          category,
+        );
+        const overrideAmount = overrides.get(player.matchdayPlayerId);
+        const amountPence = overrideAmount ?? rate?.amount_pence ?? 0;
+
+        if (amountPence === 0) continue;
+
+        const chargeId = crypto.randomUUID();
+        await trx
+          .insertInto("charge")
+          .values({
+            id: chargeId,
+            member_id: chargeMemberId,
+            description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})${descriptionSuffix}`,
+            amount_pence: amountPence,
+            charge_date: matchday.match_date,
+            created_by: userId,
+            type: "match_fee",
+            source: "matchday",
+          })
           .execute();
 
-        const applyRelief = applyReliefIfAny(db);
-        for (const player of uncharged) {
-          let chargeMemberId: string;
-          let category: string;
-          let chargeDependentId: string | null = null;
-          let descriptionSuffix = "";
+        await trx
+          .updateTable("matchday_player")
+          .set({ charge_id: chargeId })
+          .where("id", "=", player.matchdayPlayerId)
+          .execute();
 
-          if (player.member_id) {
-            chargeMemberId = player.member_id;
-            category = player.member_category ?? "guest";
-          } else if (player.dependent_id && player.dependentParentId) {
-            chargeMemberId = player.dependentParentId;
-            category = "junior";
-            chargeDependentId = player.dependent_id;
-            descriptionSuffix = player.dependentName
-              ? ` for ${player.dependentName}`
-              : "";
-          } else {
-            continue;
-          }
-
-          const rate = findFeeRate(
-            feeRates,
-            matchday.play_cricket_team_id,
-            matchday.competition_type,
-            category,
-          );
-          const overrideAmount = overrides.get(player.matchdayPlayerId);
-          const amountPence = overrideAmount ?? rate?.amount_pence ?? 0;
-
-          if (amountPence === 0) continue;
-
-          const chargeId = crypto.randomUUID();
-          await db
-            .insertInto("charge")
+        if (chargeDependentId) {
+          await trx
+            .insertInto("charge_dependent")
             .values({
-              id: chargeId,
-              member_id: chargeMemberId,
-              description: `Match donation - ${matchday.opposition} (${formatDate(new Date(matchday.match_date), "dd/MM/yyyy")})${descriptionSuffix}`,
-              amount_pence: amountPence,
-              charge_date: matchday.match_date,
-              created_by: userId,
-              type: "match_fee",
-              source: "matchday",
+              charge_id: chargeId,
+              dependent_id: chargeDependentId,
             })
             .execute();
-
-          await db
-            .updateTable("matchday_player")
-            .set({ charge_id: chargeId })
-            .where("id", "=", player.matchdayPlayerId)
-            .execute();
-
-          if (chargeDependentId) {
-            await db
-              .insertInto("charge_dependent")
-              .values({
-                charge_id: chargeId,
-                dependent_id: chargeDependentId,
-              })
-              .execute();
-          }
-
-          await applyRelief({
-            chargeId,
-            memberId: chargeMemberId,
-            type: "match_fee",
-            chargeDate: matchday.match_date,
-          });
         }
-      }
 
-      // Send notification emails for unpaid charges. Join `member` via
+        await applyRelief({
+          chargeId,
+          memberId: chargeMemberId,
+          type: "match_fee",
+          chargeDate: matchday.match_date,
+        });
+      }
+    });
+
+    if (isFirstFinish) {
+      // Send notification emails AFTER the transaction commits so a
+      // mailer hiccup can't roll back the charges. Join `member` via
       // `charge.member_id` (not `matchday_player.member_id`) so junior
-      // donations — which sit on the parent's member row — also get a
+      // donations - which sit on the parent's member row - also get a
       // notification.
       const unpaidPlayers = await db
         .selectFrom("matchday_player")
