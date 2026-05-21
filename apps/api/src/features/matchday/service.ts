@@ -387,6 +387,153 @@ export function getMatchPublic(db: Kysely<DB>) {
   };
 }
 
+/**
+ * Upcoming matchdays the signed-in user has been picked for.
+ *
+ * "Picked" = matchday_player row exists for this user's member, with
+ * status "selected" or "playing" (matches getMatchPublic's squad
+ * projection). Matchday itself must be in "confirmed" status — pending
+ * means the squad isn't announced; finished/cancelled drop off this
+ * list naturally.
+ *
+ * Privacy: callers only see their own selections — resolved through
+ * the member.email = user.email link used elsewhere (e.g.
+ * charges/service.ts). If a member row doesn't exist for the user's
+ * email yet, returns an empty list.
+ */
+export function getMyUpcomingMatches(db: Kysely<DB>) {
+  return async (email: string) => {
+    const member = await db
+      .selectFrom("member")
+      .where("email", "=", email)
+      .select(["id"])
+      .executeTakeFirst();
+    if (!member) return [];
+
+    const todayIso = formatDate(new Date(), "yyyy-MM-dd");
+
+    const rows = await db
+      .selectFrom("matchday_player")
+      .innerJoin("matchday", "matchday.id", "matchday_player.matchday_id")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
+      .where("matchday_player.member_id", "=", member.id)
+      .where("matchday_player.status", "in", ["selected", "playing"])
+      .where("matchday.status", "=", "confirmed")
+      .where("matchday.match_date", ">=", todayIso)
+      .select([
+        "matchday.id as matchdayId",
+        "matchday.match_date as matchDate",
+        "matchday.opposition",
+        "matchday.competition_type as competitionType",
+        "play_cricket_team.name as teamName",
+        "matchday_player.is_captain as isCaptain",
+        "matchday_player.is_wicketkeeper as isWicketkeeper",
+      ])
+      .orderBy("matchday.match_date", "asc")
+      .execute();
+
+    return rows;
+  };
+}
+
+/**
+ * Aggregate runs / wickets / catches for the signed-in user across
+ * matches in the trailing `windowDays` window (default 28).
+ *
+ * Performance rows are keyed by Play-Cricket player_id (string), so we
+ * resolve email → member.play_cricket_id. Members without a linked
+ * Play-Cricket ID get zeros — they exist in the DB but no historical
+ * stats can be attributed to them.
+ *
+ * matchesPlayed is the count of distinct match_ids the player appears
+ * in across any of the three perf tables (a member can have no
+ * batting row but still be on the team sheet's bowling/fielding card).
+ */
+export function getMyRecentPerformance(db: Kysely<DB>) {
+  return async (email: string, windowDays = 28) => {
+    const empty = {
+      windowDays,
+      matchesPlayed: 0,
+      runs: 0,
+      wickets: 0,
+      catches: 0,
+    };
+
+    const member = await db
+      .selectFrom("member")
+      .where("email", "=", email)
+      .select(["play_cricket_id"])
+      .executeTakeFirst();
+    if (!member?.play_cricket_id) return empty;
+
+    const sinceIso = formatDate(subDays(new Date(), windowDays), "yyyy-MM-dd");
+    const playerId = member.play_cricket_id;
+
+    const batting = await db
+      .selectFrom("match_performance_batting")
+      .where("player_id", "=", playerId)
+      .where("match_date", ">=", sinceIso)
+      .select((eb) => eb.fn.sum<string>("runs").as("runs"))
+      .executeTakeFirst();
+
+    const bowling = await db
+      .selectFrom("match_performance_bowling")
+      .where("player_id", "=", playerId)
+      .where("match_date", ">=", sinceIso)
+      .select((eb) => eb.fn.sum<string>("wickets").as("wickets"))
+      .executeTakeFirst();
+
+    const fielding = await db
+      .selectFrom("match_performance_fielding")
+      .where("player_id", "=", playerId)
+      .where("match_date", ">=", sinceIso)
+      .select((eb) => eb.fn.sum<string>("catches").as("catches"))
+      .executeTakeFirst();
+
+    // matchesPlayed: distinct match_ids across all three tables, since
+    // a player can appear in bowling/fielding but not batting (and
+    // vice versa). Cheap separate query; the three aggregates above
+    // can't capture this without UNION gymnastics.
+    const distinctMatches = await db
+      .selectFrom(
+        db
+          .selectFrom("match_performance_batting")
+          .where("player_id", "=", playerId)
+          .where("match_date", ">=", sinceIso)
+          .select("match_id")
+          .union(
+            db
+              .selectFrom("match_performance_bowling")
+              .where("player_id", "=", playerId)
+              .where("match_date", ">=", sinceIso)
+              .select("match_id"),
+          )
+          .union(
+            db
+              .selectFrom("match_performance_fielding")
+              .where("player_id", "=", playerId)
+              .where("match_date", ">=", sinceIso)
+              .select("match_id"),
+          )
+          .as("m"),
+      )
+      .select((eb) => eb.fn.count<string>("match_id").as("matches"))
+      .executeTakeFirst();
+
+    return {
+      windowDays,
+      matchesPlayed: Number(distinctMatches?.matches ?? 0),
+      runs: Number(batting?.runs ?? 0),
+      wickets: Number(bowling?.wickets ?? 0),
+      catches: Number(fielding?.catches ?? 0),
+    };
+  };
+}
+
 export function recordExpense(db: Kysely<DB>, s3: S3Uploader) {
   return async (
     userId: string,

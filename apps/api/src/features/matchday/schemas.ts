@@ -386,6 +386,28 @@ export const finishMatchResponseSchema = z.object({
   emailErrors: z.array(z.string()),
 });
 
+// ── "Mine" routes — per-user home cards ──
+
+const myUpcomingMatchSchema = z.object({
+  matchdayId: z.string(),
+  matchDate: z.string(),
+  opposition: z.string(),
+  teamName: z.string().nullable(),
+  competitionType: z.string().nullable(),
+  isCaptain: z.boolean(),
+  isWicketkeeper: z.boolean(),
+});
+
+export const myUpcomingMatchesResponseSchema = z.array(myUpcomingMatchSchema);
+
+export const myRecentPerformanceResponseSchema = z.object({
+  windowDays: z.number().int().positive(),
+  matchesPlayed: z.number().int().nonnegative(),
+  runs: z.number().int().nonnegative(),
+  wickets: z.number().int().nonnegative(),
+  catches: z.number().int().nonnegative(),
+});
+
 // ── Types ──
 
 export type ListMatches = z.infer<typeof listMatchesSchema>;

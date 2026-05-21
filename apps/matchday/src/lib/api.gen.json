@@ -6836,6 +6836,112 @@
         }
       }
     },
+    "/api/matchday/mine/upcoming": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "matchdayId": {
+                        "type": "string"
+                      },
+                      "matchDate": {
+                        "type": "string"
+                      },
+                      "opposition": {
+                        "type": "string"
+                      },
+                      "teamName": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "competitionType": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "isCaptain": {
+                        "type": "boolean"
+                      },
+                      "isWicketkeeper": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "matchdayId",
+                      "matchDate",
+                      "opposition",
+                      "teamName",
+                      "competitionType",
+                      "isCaptain",
+                      "isWicketkeeper"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matchday/mine/recent-performance": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "windowDays": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 9007199254740991
+                    },
+                    "matchesPlayed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "runs": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "wickets": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "catches": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "windowDays",
+                    "matchesPlayed",
+                    "runs",
+                    "wickets",
+                    "catches"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/matchday": {
       "get": {
         "parameters": [
