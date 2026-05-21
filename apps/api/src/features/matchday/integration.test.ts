@@ -603,26 +603,41 @@ describe("matchday service (integration)", () => {
       expect(link?.dependent_id).toBe(dependentId);
     });
 
-    it("treats a team with no team-scoped fee rates as fee-free and finishes cleanly", async () => {
+    it("treats a team with no team-scoped fee rates as fee-free even when a global rate exists", async () => {
       // Women's softball case: the club deliberately leaves no
-      // match_fee_rate row for the team. A global / null-team default
-      // rate may exist for guests, but seniors on this team aren't
-      // covered by anything, so the validation must not fire and the
-      // charge loop just skips them.
+      // match_fee_rate row for the team. A global (null-team) default
+      // rate exists for the player's category, but it must NOT raise a
+      // charge here - that's the bug codex flagged. The team having no
+      // own rates is the signal that it's fee-free.
       const { userId } = await seedTestUser(ctx.db, {
         email: `nofees-${crypto.randomUUID()}@test.com`,
         role: "admin",
       });
       const teamId = await seedTeam();
       const matchdayId = await seedMatchday({ teamId, createdBy: userId });
-      // Use a category no prior test has seeded a global rate for, so
-      // the shared DB state from other tests can't accidentally make a
-      // rate "applicable" to this player.
+      // Stamp a unique competition_type so the global rate below is
+      // uniquely scoped (the unique constraint on match_fee_rate covers
+      // (team, competition, category)).
+      const competitionType = `FeeFreeTest-${crypto.randomUUID().slice(0, 8)}`;
+      await ctx.db
+        .updateTable("matchday")
+        .set({ competition_type: competitionType })
+        .where("id", "=", matchdayId)
+        .execute();
       const memberId = await seedMember(
         "Free Player",
         `free-${crypto.randomUUID()}@test.com`,
-        "no_fee_test_category",
+        "senior",
       );
+
+      // Global null-team senior rate exists for this competition -
+      // mirrors the production null-team guest default. The fee-free
+      // team must still skip it.
+      await seedFeeRate({
+        competitionType,
+        memberCategory: "senior",
+        amountPence: 1000,
+      });
 
       const { id: playerId } = await addPlayer(ctx.db)(
         userId,
@@ -631,8 +646,6 @@ describe("matchday service (integration)", () => {
         { memberId, playerName: "Free Player" },
       );
 
-      // No seedFeeRate call for teamId - the team has zero team-specific
-      // rates, so the captain can finish without inline overrides.
       await finishAsTest(matchdayId, userId, {
         playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
       });

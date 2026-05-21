@@ -1385,6 +1385,14 @@ export function finishMatch(
         .selectAll()
         .execute();
 
+      // A team with zero team-specific rates is fee-free by design:
+      // ignore global / null-team fallback rates entirely so a generic
+      // guest-default doesn't sneak a charge onto a women's softball
+      // match. Inline overrides from the captain still apply.
+      const teamHasOwnRateForCharges = feeRates.some(
+        (r) => r.play_cricket_team_id === matchday.play_cricket_team_id,
+      );
+
       const applyRelief = applyReliefIfAny(trx);
       for (const player of uncharged) {
         let chargeMemberId: string;
@@ -1406,12 +1414,14 @@ export function finishMatch(
           continue;
         }
 
-        const rate = findFeeRate(
-          feeRates,
-          matchday.play_cricket_team_id,
-          matchday.competition_type,
-          category,
-        );
+        const rate = teamHasOwnRateForCharges
+          ? findFeeRate(
+              feeRates,
+              matchday.play_cricket_team_id,
+              matchday.competition_type,
+              category,
+            )
+          : undefined;
         const overrideAmount = overrides.get(player.matchdayPlayerId);
         const amountPence = overrideAmount ?? rate?.amount_pence ?? 0;
 

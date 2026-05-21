@@ -139,17 +139,19 @@ export default function MatchdayLive() {
   const finished = md.matchday.status === "finished";
   const playing = md.players.filter((p) => resolveStatus(p) === "playing");
   const dropouts = md.players.filter((p) => resolveStatus(p) !== "playing");
-  // "Settled" means the captain doesn't need to chase the player — either
+  // "Settled" means the captain doesn't need to chase the player - either
   // they've paid or the treasurer's already waived the donation via the
   // financial-relief workflow (charge.relieved_at, projected as
   // chargeStatus === "waived"). Either way, the row shows green and is
-  // unactionable.
+  // unactionable. chargeStatus === null means there's no charge to
+  // settle at all (fee-free teams like women's softball, or a player
+  // whose category resolves to 0 pence), so they shouldn't count as
+  // unpaid and shouldn't get a mark-paid affordance.
   const isSettled = (status: string | null) =>
     status === "paid" || status === "waived";
+  const hasCharge = (p: MatchdayPlayer) => p.chargeStatus !== null;
   const paid = playing.filter((p) => isSettled(p.chargeStatus)).length;
-  const unpaid = playing.filter(
-    (p) => p.chargeStatus === "unpaid" || p.chargeStatus === null,
-  ).length;
+  const unpaid = playing.filter((p) => p.chargeStatus === "unpaid").length;
 
   return (
     <div className="bg-surface flex min-h-dvh flex-col">
@@ -215,7 +217,7 @@ export default function MatchdayLive() {
               {finished ? (
                 <button
                   type="button"
-                  disabled={isPaid || status !== "playing"}
+                  disabled={isPaid || status !== "playing" || !hasCharge(p)}
                   onClick={() =>
                     markPaid.mutate({ playerId: p.id, paymentMethod: method })
                   }
@@ -255,11 +257,13 @@ export default function MatchdayLive() {
                         ? p.chargePaidAt
                           ? `Paid · ${new Date(p.chargePaidAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
                           : "Paid"
-                        : `${resolveCategory(p)} · donation due`
+                        : hasCharge(p)
+                          ? `${resolveCategory(p)} · donation due`
+                          : resolveCategory(p)
                     : resolveCategory(p)}
                 </p>
               </div>
-              {finished && status === "playing" && !isPaid && (
+              {finished && status === "playing" && !isPaid && hasCharge(p) && (
                 <select
                   aria-label="Payment method"
                   value={method}
