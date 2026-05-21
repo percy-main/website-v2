@@ -41,6 +41,9 @@ export async function buildTestApp(db: Kysely<DB>, dialect: PostgresDialect) {
     PHOENIX_API_KEY: "test-phoenix-key",
     PHOENIX_COLLECTOR_ENDPOINT: "http://localhost:6006/v1/traces",
     PHOENIX_PROJECT_NAME: "percy-main-scout-test",
+    VAPID_PUBLIC_KEY: "BTestPublicKey_PlaceholderForIntegrationTests",
+    VAPID_PRIVATE_KEY: "TestPrivateKey_PlaceholderForIntegrationTests",
+    VAPID_SUBJECT: "mailto:test@example.com",
   });
 
   return buildApp({ db, dialect, config });

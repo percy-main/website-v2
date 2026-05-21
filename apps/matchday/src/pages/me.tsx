@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card.js";
+import { NotificationsCard } from "@/features/notifications/notifications-card.js";
 import { signOut, useSession, type SessionUser } from "@/lib/auth-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
 
@@ -27,6 +28,8 @@ export default function Me() {
           />
         </CardContent>
       </Card>
+
+      <NotificationsCard />
 
       <Card>
         <CardHeader>

@@ -69,6 +69,11 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
+        // Layer the push + notificationclick handlers on top of the
+        // generated workbox SW via importScripts. Keeps the existing
+        // generateSW pipeline intact - we just need event listeners,
+        // not a hand-rolled SW.
+        importScripts: ["/push-handler.js"],
         // SPA fallback — any navigation request to a path we don't have
         // cached falls back to the precached index.html (offline launch).
         navigateFallback: "/index.html",

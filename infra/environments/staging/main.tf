@@ -199,6 +199,13 @@ module "ecs" {
     BETTER_AUTH_RP_NAME  = aws_ssm_parameter.better_auth_rp_name.arn
     PLAY_CRICKET_SITE_ID = aws_ssm_parameter.play_cricket_site_id.arn
     SES_FROM_ADDRESS     = aws_ssm_parameter.ses_from_address.arn
+
+    # Web Push (VAPID). Public half from SSM, private + subject from
+    # app_secrets. All three required by config — populate both halves
+    # in app_secrets before this task definition redeploys.
+    VAPID_PUBLIC_KEY  = aws_ssm_parameter.vapid_public_key.arn
+    VAPID_PRIVATE_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:VAPID_PRIVATE_KEY::"
+    VAPID_SUBJECT     = "${aws_secretsmanager_secret.app_secrets.arn}:VAPID_SUBJECT::"
   }
 }
 

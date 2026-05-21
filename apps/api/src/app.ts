@@ -15,6 +15,7 @@ import type { Kysely, PostgresDialect } from "kysely";
 import type { Config } from "./config.ts";
 import { createAuth, type Auth } from "./features/auth/auth.ts";
 import { createPhoenixTracer } from "./lib/phoenix-tracer.ts";
+import { createPushSender, type SendPush } from "./lib/push-sender.ts";
 import {
   createS3DocumentStore,
   type S3DocumentStore,
@@ -54,10 +55,12 @@ import { marketingRoutes } from "./features/marketing/routes.ts";
 import { matchdayRoutes } from "./features/matchday/routes.ts";
 import { memberRoutes } from "./features/members/routes.ts";
 import { membershipRoutes } from "./features/membership/routes.ts";
+import { notifPrefsRoutes } from "./features/notification-preferences/routes.ts";
 import { ogImageRoutes } from "./features/og-image/routes.ts";
 import { paymentRoutes } from "./features/payments/routes.ts";
 import { webhookRoutes } from "./features/payments/webhook.ts";
 import { playCricketRoutes } from "./features/play-cricket/routes.ts";
+import { pushSubscriptionRoutes } from "./features/push-subscriptions/routes.ts";
 import { recordsRoutes } from "./features/records/routes.ts";
 import { scoutRoutes } from "./features/scout/routes.ts";
 import { sponsorshipRoutes } from "./features/sponsorship/routes.ts";
@@ -72,6 +75,7 @@ declare module "fastify" {
     config: Config;
     auth: Auth;
     send: (email: Email) => Promise<void>;
+    sendPush: SendPush;
     s3: S3Uploader;
     s3Documents: S3DocumentStore;
     scoutReports: ScoutReportStore;
@@ -174,6 +178,16 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
     fromAddress: config.SES_FROM_ADDRESS,
   });
   app.decorate("send", send);
+
+  // Create and decorate the Web Push sender. Same per-app pattern as
+  // sendEmail - features call app.sendPush(subscription, payload) and
+  // we surface a single retry / gone-detection point here.
+  const sendPush = createPushSender({
+    publicKey: config.VAPID_PUBLIC_KEY,
+    privateKey: config.VAPID_PRIVATE_KEY,
+    subject: config.VAPID_SUBJECT,
+  });
+  app.decorate("sendPush", sendPush);
 
   // Create and decorate the auth instance
   const auth = createAuth(config, dialect, db, send, app.log);
@@ -306,6 +320,8 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(financialReliefRoutes, { prefix: "/api" });
   await app.register(userGroupsRoutes, { prefix: "/api" });
   await app.register(marketingRoutes, { prefix: "/api" });
+  await app.register(notifPrefsRoutes, { prefix: "/api" });
+  await app.register(pushSubscriptionRoutes, { prefix: "/api" });
   await app.register(webhookRoutes, { prefix: "/api" });
   await app.register(ogImageRoutes, { prefix: "/api" });
 

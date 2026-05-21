@@ -4,7 +4,7 @@
 #   STRIPE_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
 #   PLAY_CRICKET_API_TOKEN, SLACK_WEBHOOK_URL, NEW_RELIC_LICENSE_KEY,
 #   ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, VOYAGE_API_KEY, TAVILY_API_KEY,
-#   SCOUT_DB_URL, PHOENIX_API_KEY
+#   SCOUT_DB_URL, PHOENIX_API_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
 
 resource "aws_secretsmanager_secret" "app_secrets" {
   name = "production/percy-main/app"
@@ -173,6 +173,31 @@ resource "aws_ssm_parameter" "www_url" {
 
 resource "aws_ssm_parameter" "cookie_domain" {
   name  = "/production/percy-main/COOKIE_DOMAIN"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "production"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+# Web Push (VAPID) public key. The private half + subject live in the
+# app_secrets blob (Secrets Manager). Generate the keypair once with
+# `npx web-push generate-vapid-keys` and set both halves before the API
+# first redeploys with the push code wired in - the API fails fast at
+# boot if any of the three are missing.
+#
+#   aws --profile percy-main ssm put-parameter --overwrite \
+#     --name /production/percy-main/VAPID_PUBLIC_KEY \
+#     --value "<public key from web-push generate-vapid-keys>"
+resource "aws_ssm_parameter" "vapid_public_key" {
+  name  = "/production/percy-main/VAPID_PUBLIC_KEY"
   type  = "String"
   value = "placeholder"
 

@@ -44,6 +44,9 @@ const config = parseConfig({
   LOG_LEVEL: "error",
   PLAY_CRICKET_API_TOKEN: "placeholder",
   PLAY_CRICKET_SITE_ID: "0",
+  VAPID_PUBLIC_KEY: "placeholder",
+  VAPID_PRIVATE_KEY: "placeholder",
+  VAPID_SUBJECT: "mailto:placeholder@example.com",
 });
 
 const { client: db, dialect } = createClient(config.DATABASE_URL);

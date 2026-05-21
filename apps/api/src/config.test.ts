@@ -29,6 +29,9 @@ const baseEnv = {
   PHOENIX_API_KEY: "phx-test",
   PHOENIX_COLLECTOR_ENDPOINT: "http://localhost:6006/v1/traces",
   PHOENIX_PROJECT_NAME: "percy-main-scout-test",
+  VAPID_PUBLIC_KEY: "BTestPublicKey_PlaceholderForUnitTestsOnly",
+  VAPID_PRIVATE_KEY: "TestPrivateKey_PlaceholderForUnitTestsOnly",
+  VAPID_SUBJECT: "mailto:test@example.com",
 };
 
 describe("parseConfig — defaults", () => {

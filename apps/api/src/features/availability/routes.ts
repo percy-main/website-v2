@@ -67,7 +67,14 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
 
   const create =
     apiClient && siteId
-      ? createRequest(app.db, apiClient, siteId, app.send, app.config.BASE_URL)
+      ? createRequest(
+          app.db,
+          apiClient,
+          siteId,
+          app.send,
+          app.sendPush,
+          app.config.BASE_URL,
+        )
       : null;
 
   app.post(
@@ -260,6 +267,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   const sendNotification = sendAvailabilityNotification(
     app.db,
     app.send,
+    app.sendPush,
     app.config.BASE_URL,
   );
   app.post(

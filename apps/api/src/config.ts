@@ -176,6 +176,18 @@ const configSchema = z.object({
   // Better Auth Dash (infra plugin — optional, only enabled when API key is set)
   BETTER_AUTH_API_KEY: z.string().optional(),
 
+  // Web Push (VAPID). Public + private keypair identifies this application
+  // server to the browser push services. Generated once via
+  // `npx web-push generate-vapid-keys` and stored: public key in SSM (the
+  // matchday app fetches it from /push/public-key before subscribing),
+  // private key in app_secrets Secrets Manager blob. VAPID_SUBJECT is a
+  // `mailto:` URL push services use to reach us if a push is misbehaving.
+  // All three required so a half-configured deploy fails fast at boot
+  // rather than at first send.
+  VAPID_PUBLIC_KEY: z.string().min(1),
+  VAPID_PRIVATE_KEY: z.string().min(1),
+  VAPID_SUBJECT: z.string().min(1),
+
   // External services
   SLACK_WEBHOOK_URL: z.url().optional(),
   PLAY_CRICKET_API_TOKEN: z.string().optional(),

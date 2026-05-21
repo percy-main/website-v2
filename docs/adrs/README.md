@@ -22,3 +22,6 @@ To add a new ADR, use the [`add-adr` skill](../../.claude/skills/add-adr/SKILL.m
 | [012](012-prod-db-access.md)                             | Production DB Access via Tailscale                          | 2026-04-20 | Accepted |
 | [042](042-scout-recognition-sources.md)                  | Scout Recognition Sources - Public-Source Discovery         | 2026-05-14 | Accepted |
 | [043](043-db-role-split-principle-of-least-privilege.md) | DB Role Split - Principle of Least Privilege                | 2026-05-15 | Accepted |
+| [044](044-matchday-notification-channel-modelling.md)    | Matchday notification channel modelling                     | 2026-05-21 | Accepted |
+| [045](045-matchday-service-worker-push-integration.md)   | Matchday service worker push integration via importScripts  | 2026-05-21 | Accepted |
+| [046](046-vapid-public-key-via-api.md)                   | VAPID public key delivered via API, not bundled             | 2026-05-21 | Accepted |

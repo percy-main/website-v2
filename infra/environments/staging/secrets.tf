@@ -9,7 +9,7 @@
 #       STRIPE_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
 #       PLAY_CRICKET_API_TOKEN, SLACK_WEBHOOK_URL,
 #       ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, VOYAGE_API_KEY, TAVILY_API_KEY,
-#       SCOUT_DB_URL, PHOENIX_API_KEY
+#       SCOUT_DB_URL, PHOENIX_API_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
 
 resource "aws_secretsmanager_secret" "app_secrets" {
   name = "staging/percy-main/app"
@@ -109,6 +109,25 @@ resource "aws_ssm_parameter" "play_cricket_site_id" {
 
 resource "aws_ssm_parameter" "ses_from_address" {
   name  = "/staging/percy-main/SES_FROM_ADDRESS"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "staging"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+# Web Push (VAPID) public key. The private half + subject live in the
+# app_secrets blob. Use the same keypair as production - matchday subscribers
+# can roam between environments only if the keys match.
+resource "aws_ssm_parameter" "vapid_public_key" {
+  name  = "/staging/percy-main/VAPID_PUBLIC_KEY"
   type  = "String"
   value = "placeholder"
 

@@ -311,6 +311,13 @@ module "ecs" {
     MATCHDAY_URL  = aws_ssm_parameter.matchday_url.arn
     WWW_URL       = aws_ssm_parameter.www_url.arn
     COOKIE_DOMAIN = aws_ssm_parameter.cookie_domain.arn
+
+    # Web Push (VAPID). Public half from SSM, private + subject from
+    # app_secrets. The private half MUST be populated in app_secrets
+    # before this task definition redeploys or ECS will fail to start.
+    VAPID_PUBLIC_KEY  = aws_ssm_parameter.vapid_public_key.arn
+    VAPID_PRIVATE_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:VAPID_PRIVATE_KEY::"
+    VAPID_SUBJECT     = "${aws_secretsmanager_secret.app_secrets.arn}:VAPID_SUBJECT::"
   }
 }
 
