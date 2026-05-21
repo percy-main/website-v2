@@ -23020,11 +23020,13 @@
                     "properties": {
                       "p256dh": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "maxLength": 200
                       },
                       "auth": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "maxLength": 200
                       }
                     },
                     "required": [

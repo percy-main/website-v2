@@ -29,8 +29,12 @@ const baseEnv = {
   PHOENIX_API_KEY: "phx-test",
   PHOENIX_COLLECTOR_ENDPOINT: "http://localhost:6006/v1/traces",
   PHOENIX_PROJECT_NAME: "percy-main-scout-test",
-  VAPID_PUBLIC_KEY: "BTestPublicKey_PlaceholderForUnitTestsOnly",
-  VAPID_PRIVATE_KEY: "TestPrivateKey_PlaceholderForUnitTestsOnly",
+  // Real-shape dummy VAPID keypair (generated via web-push); config now
+  // validates by length/charset so the placeholder strings we used
+  // previously fail at parse time.
+  VAPID_PUBLIC_KEY:
+    "BJk5OBwHXbimx6NVTZT-4dLvrm9PkYCu1n3g-4KfRpkqSefZWi_b34N2JzEqvh0lEXTghy5NI8BLdGfhsa7iPvk",
+  VAPID_PRIVATE_KEY: "5zXXF30AFmWdn5V-K_W8spVINdk405SAyjSp5_a6aek",
   VAPID_SUBJECT: "mailto:test@example.com",
 };
 

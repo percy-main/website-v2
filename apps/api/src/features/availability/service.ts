@@ -1159,6 +1159,42 @@ export function sendAvailabilityNotification(
     let sent = 0;
     const failures: Array<{ email: string; reason: string }> = [];
 
+    const sendOneEmail = async (recipient: {
+      email: string;
+      name: string | null;
+    }): Promise<{ ok: true } | { ok: false; reason: string }> => {
+      try {
+        const html = await render(
+          createElement(AvailabilityRequest.component, {
+            imageBaseUrl,
+            name: recipient.name,
+            dateFrom: request.date_from,
+            dateTo: request.date_to,
+            fixtureCount,
+            url,
+          }),
+        );
+        await sendEmail({
+          to: recipient.email,
+          subject: AvailabilityRequest.subject,
+          html,
+        });
+        return { ok: true };
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        log.warn(
+          {
+            err,
+            requestId,
+            recipientEmail: recipient.email,
+            channel: "email",
+          },
+          "availability_notification_failed",
+        );
+        return { ok: false, reason };
+      }
+    };
+
     for (const recipient of data.recipients) {
       const userId = userIdByEmail.get(recipient.email.toLowerCase());
       const channel: MatchdayChannel = userId
@@ -1174,40 +1210,16 @@ export function sendAvailabilityNotification(
       // expect a push or simply haven't enabled it on any device yet.
       const subscriptions = userId ? (pushSubsByUser.get(userId) ?? []) : [];
       const pushAvailable = wantsPush && subscriptions.length > 0;
-      const sendEmailNow = wantsEmail || (wantsPush && !pushAvailable);
 
       let deliveredAny = false;
       let recipientFailure: string | null = null;
 
-      if (sendEmailNow) {
-        try {
-          const html = await render(
-            createElement(AvailabilityRequest.component, {
-              imageBaseUrl,
-              name: recipient.name,
-              dateFrom: request.date_from,
-              dateTo: request.date_to,
-              fixtureCount,
-              url,
-            }),
-          );
-          await sendEmail({
-            to: recipient.email,
-            subject: AvailabilityRequest.subject,
-            html,
-          });
+      if (wantsEmail || (wantsPush && !pushAvailable)) {
+        const result = await sendOneEmail(recipient);
+        if (result.ok) {
           deliveredAny = true;
-        } catch (err) {
-          recipientFailure = err instanceof Error ? err.message : String(err);
-          log.warn(
-            {
-              err,
-              requestId,
-              recipientEmail: recipient.email,
-              channel: "email",
-            },
-            "availability_notification_failed",
-          );
+        } else {
+          recipientFailure = result.reason;
         }
       }
 
@@ -1218,10 +1230,14 @@ export function sendAvailabilityNotification(
           url,
           tag: `availability:${requestId}`,
         };
+        let pushDelivered = false;
+        let allGone = true;
         for (const sub of subscriptions) {
           const result = await sendPush(sub, payload);
           if (result.ok) {
             deliveredAny = true;
+            pushDelivered = true;
+            allGone = false;
           } else if (result.gone) {
             await pruneSubscription(result.endpoint);
             log.info(
@@ -1229,6 +1245,7 @@ export function sendAvailabilityNotification(
               "push_subscription_gone_pruned",
             );
           } else {
+            allGone = false;
             log.warn(
               {
                 requestId,
@@ -1240,6 +1257,20 @@ export function sendAvailabilityNotification(
               "availability_notification_failed",
             );
             recipientFailure ??= result.reason;
+          }
+        }
+
+        // Push-only recipient whose every subscription was pruned this
+        // turn - they look "subscribed" in our store but the push service
+        // disagrees. Treat it the same as the "no subscriptions" branch
+        // above and email them so they don't silently miss the notice.
+        if (!wantsEmail && !pushDelivered && allGone) {
+          const fallback = await sendOneEmail(recipient);
+          if (fallback.ok) {
+            deliveredAny = true;
+            recipientFailure = null;
+          } else {
+            recipientFailure ??= fallback.reason;
           }
         }
       }

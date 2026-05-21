@@ -21,6 +21,16 @@ function detectSupport(): Support {
   return { supported: true, permission: Notification.permission };
 }
 
+function bytesEqual(a: ArrayBuffer, b: ArrayBuffer): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+  const aView = new Uint8Array(a);
+  const bView = new Uint8Array(b);
+  for (let i = 0; i < aView.length; i++) {
+    if (aView[i] !== bView[i]) return false;
+  }
+  return true;
+}
+
 // Convert the base64url-encoded VAPID public key the API hands us into
 // the raw Uint8Array<ArrayBuffer> that PushManager.subscribe() expects.
 // Backed by a real ArrayBuffer (not ArrayBufferLike) so the DOM types
@@ -101,12 +111,25 @@ export async function enablePushOnThisDevice(): Promise<{
   // Pull the VAPID public key from the API rather than baking it into
   // the bundle - lets us rotate the keypair without a matchday rebuild.
   const { publicKey } = await callApi(api.GET("/api/push/public-key"));
-  const existing = await reg.pushManager.getSubscription();
+  const serverKey = urlBase64ToUint8Array(publicKey);
+
+  // Existing subscription? Reuse it only if it was created with the
+  // *current* VAPID key. After a key rotation the old subscription is
+  // still in PushManager but the push service will reject any sends to
+  // it - so unsubscribe + re-subscribe with the new key transparently.
+  let existing = await reg.pushManager.getSubscription();
+  if (existing) {
+    const existingKey = existing.options.applicationServerKey;
+    if (!existingKey || !bytesEqual(existingKey, serverKey.buffer)) {
+      await existing.unsubscribe();
+      existing = null;
+    }
+  }
   const sub =
     existing ??
     (await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
+      applicationServerKey: serverKey,
     }));
 
   const json = sub.toJSON();

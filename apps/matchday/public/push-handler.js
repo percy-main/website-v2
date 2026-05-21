@@ -53,12 +53,18 @@ self.addEventListener("notificationclick", (event) => {
           if ("navigate" in client) {
             try {
               await client.navigate(targetUrl);
+              return;
             } catch {
-              // navigate() is restricted to same-origin; fall back to
-              // opening a new window below.
+              // navigate() is restricted to same-origin and can also be
+              // disallowed if the tab is suspended; fall through to
+              // openWindow rather than leaving the user looking at the
+              // wrong page in the focused tab.
             }
+          } else {
+            // No navigate() (older browsers): focusing the existing tab
+            // is the best we can do.
+            return;
           }
-          return;
         }
       }
       if (clients.openWindow) {

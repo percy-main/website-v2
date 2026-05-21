@@ -215,6 +215,51 @@ describe("sendAvailabilityNotification channel routing", () => {
     expect(remaining[0]?.endpoint).toBe("https://push.example/live");
   });
 
+  it("falls back to email when every push subscription is gone", async () => {
+    const { userId, email } = await seedTestUser(ctx.db, { withMember: false });
+    await upsertNotificationPreferences(ctx.db)(userId, {
+      matchdayChannel: "push",
+    });
+    await upsertPushSubscription(ctx.db)(userId, {
+      endpoint: "https://push.example/zombie-1",
+      keys: { p256dh: "p", auth: "a" },
+    });
+    await upsertPushSubscription(ctx.db)(userId, {
+      endpoint: "https://push.example/zombie-2",
+      keys: { p256dh: "p", auth: "a" },
+    });
+    const requestId = await seedRequest(userId);
+
+    const sendEmail = vi.fn().mockResolvedValue(undefined);
+    const sendPush: SendPush = vi.fn(
+      (sub: PushSubscriptionInput): Promise<SendPushResult> =>
+        Promise.resolve({
+          ok: false,
+          endpoint: sub.endpoint,
+          gone: true,
+          reason: "Gone",
+        }),
+    );
+
+    const result = await sendAvailabilityNotification(
+      ctx.db,
+      sendEmail,
+      sendPush,
+      "https://example.com",
+    )(requestId, { recipients: [{ email, name: "Test" }] }, log);
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(result.sent).toBe(1);
+    expect(result.failed).toBe(0);
+
+    const remaining = await ctx.db
+      .selectFrom("push_subscription")
+      .selectAll()
+      .where("user_id", "=", userId)
+      .execute();
+    expect(remaining).toHaveLength(0);
+  });
+
   it("falls back to email for additional emails that have no matching user", async () => {
     const { userId } = await seedTestUser(ctx.db, { withMember: false });
     const requestId = await seedRequest(userId);

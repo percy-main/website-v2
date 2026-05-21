@@ -44,9 +44,12 @@ const config = parseConfig({
   LOG_LEVEL: "error",
   PLAY_CRICKET_API_TOKEN: "placeholder",
   PLAY_CRICKET_SITE_ID: "0",
-  VAPID_PUBLIC_KEY: "placeholder",
-  VAPID_PRIVATE_KEY: "placeholder",
-  VAPID_SUBJECT: "mailto:placeholder@example.com",
+  // Real-shape dummy VAPID keypair so config's regex validators pass
+  // during spec generation. The OpenAPI run never calls a push service.
+  VAPID_PUBLIC_KEY:
+    "BJk5OBwHXbimx6NVTZT-4dLvrm9PkYCu1n3g-4KfRpkqSefZWi_b34N2JzEqvh0lEXTghy5NI8BLdGfhsa7iPvk",
+  VAPID_PRIVATE_KEY: "5zXXF30AFmWdn5V-K_W8spVINdk405SAyjSp5_a6aek",
+  VAPID_SUBJECT: "mailto:openapi-generator@example.com",
 });
 
 const { client: db, dialect } = createClient(config.DATABASE_URL);

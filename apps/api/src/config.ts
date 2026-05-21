@@ -182,11 +182,28 @@ const configSchema = z.object({
   // matchday app fetches it from /push/public-key before subscribing),
   // private key in app_secrets Secrets Manager blob. VAPID_SUBJECT is a
   // `mailto:` URL push services use to reach us if a push is misbehaving.
-  // All three required so a half-configured deploy fails fast at boot
-  // rather than at first send.
-  VAPID_PUBLIC_KEY: z.string().min(1),
-  VAPID_PRIVATE_KEY: z.string().min(1),
-  VAPID_SUBJECT: z.string().min(1),
+  //
+  // All three are validated by *shape* at boot (not just non-empty) so a
+  // deploy that forgets to populate the SSM/Secrets values - Terraform
+  // seeds them as the literal string "placeholder" - fails fast at task
+  // startup instead of silently breaking PushManager.subscribe() in the
+  // browser at first opt-in. Public key is 65 raw bytes (~87 base64url
+  // chars), private key is 32 raw bytes (~43 base64url chars).
+  VAPID_PUBLIC_KEY: z
+    .string()
+    .regex(
+      /^[A-Za-z0-9_-]{80,90}$/,
+      "VAPID_PUBLIC_KEY must be a base64url-encoded P-256 public key (~87 chars)",
+    ),
+  VAPID_PRIVATE_KEY: z
+    .string()
+    .regex(
+      /^[A-Za-z0-9_-]{40,50}$/,
+      "VAPID_PRIVATE_KEY must be a base64url-encoded P-256 private key (~43 chars)",
+    ),
+  VAPID_SUBJECT: z
+    .string()
+    .regex(/^mailto:.+@.+/, "VAPID_SUBJECT must be a mailto: URL"),
 
   // External services
   SLACK_WEBHOOK_URL: z.url().optional(),

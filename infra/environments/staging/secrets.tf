@@ -124,8 +124,10 @@ resource "aws_ssm_parameter" "ses_from_address" {
 }
 
 # Web Push (VAPID) public key. The private half + subject live in the
-# app_secrets blob. Use the same keypair as production - matchday subscribers
-# can roam between environments only if the keys match.
+# app_secrets blob. Generate a fresh keypair per environment - subscriptions
+# are origin-scoped, so there's no benefit to sharing keys with production,
+# and a separate staging keypair means a leaked staging private key cannot
+# be used to push to production subscribers.
 resource "aws_ssm_parameter" "vapid_public_key" {
   name  = "/staging/percy-main/VAPID_PUBLIC_KEY"
   type  = "String"
