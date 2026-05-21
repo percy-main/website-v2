@@ -63,8 +63,6 @@ export default function FixtureDetail() {
   if (isError || !game) return <ErrState />;
   const directionsQuery = directionsTarget(game);
   const matchdayId = game.lineup?.matchdayId ?? null;
-  const isPast = played(game) || isAfterMatchDate(game.matchDate);
-  const expensesOpen = !isPastExpenseCutoff(game.matchDate);
   const handlePickTeam = () => {
     const iso = toIsoDate(game.matchDate);
     if (!iso) return;
@@ -129,20 +127,14 @@ export default function FixtureDetail() {
                     Manage squad →
                   </Link>
                 </Button>
-                {isPast && (
-                  <Button asChild tone="primary" className="w-full">
-                    <Link to={`/matchday/${matchdayId}/wrap`}>
-                      Wrap match up →
-                    </Link>
-                  </Button>
-                )}
-                {expensesOpen && !isPast && (
-                  <Button asChild tone="outline" className="w-full">
-                    <Link to={`/matchday/${matchdayId}/wrap`}>
-                      Add expense →
-                    </Link>
-                  </Button>
-                )}
+                {/* Same screen pre- and post-match: pre-match it's the
+                    captain's live view (squad statuses, expenses), post-
+                    match it's the wrap-up (result picker, mark-paid).
+                    No gate on match date - captains wrap up the same
+                    evening, before the date-based isPast check flips. */}
+                <Button asChild tone="primary" className="w-full">
+                  <Link to={`/matchday/${matchdayId}/wrap`}>Manage game →</Link>
+                </Button>
               </>
             ) : (
               <Button
@@ -216,20 +208,6 @@ export default function FixtureDetail() {
  * have it (geocodes much better than a plain ground name), fall back
  * to the bare groundName otherwise.
  */
-function isAfterMatchDate(matchDate: string, now = new Date()): boolean {
-  const match = new Date(`${matchDate}T23:59:59Z`);
-  if (Number.isNaN(match.getTime())) return false;
-  return now > match;
-}
-
-function isPastExpenseCutoff(matchDate: string, now = new Date()): boolean {
-  const match = new Date(`${matchDate}T00:00:00Z`);
-  if (Number.isNaN(match.getTime())) return false;
-  const cutoff = new Date(match);
-  cutoff.setUTCDate(cutoff.getUTCDate() + 6);
-  return now >= cutoff;
-}
-
 function directionsTarget(g: GameDetail): string | null {
   if (g.home) return null;
   if (g.location) {
