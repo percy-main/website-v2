@@ -2545,6 +2545,7 @@ export interface paths {
                             } | null;
                             lineup: {
                                 confirmed: boolean;
+                                matchdayId: string;
                                 players: {
                                     name: string;
                                 }[];
@@ -4048,6 +4049,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             id: string;
+                            importedPlayers: number;
                         };
                     };
                 };
@@ -4653,6 +4655,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/matchday/past-unfinished": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            match_date: string;
+                            opposition: string;
+                            status: string;
+                            competition_type: string | null;
+                            play_cricket_match_id: string | null;
+                            team_id: string | null;
+                            team_name: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/matchday/teams/{teamId}/past-unfinished": {
         parameters: {
             query?: never;
@@ -4880,55 +4926,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/matchday/{matchId}/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    matchId: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        playerStatuses: {
-                            matchdayPlayerId: string;
-                            /** @enum {string} */
-                            status: "playing" | "dropped_out" | "no_show";
-                        }[];
-                    };
-                };
-            };
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            success: boolean;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/matchday/{matchId}/roles": {
         parameters: {
             query?: never;
@@ -5045,6 +5042,15 @@ export interface paths {
                     "application/json": {
                         /** @enum {string} */
                         resultType: "W" | "L" | "D" | "T" | "A" | "C" | "N";
+                        playerStatuses?: {
+                            matchdayPlayerId: string;
+                            /** @enum {string} */
+                            status: "playing" | "dropped_out" | "no_show";
+                        }[];
+                        feeOverrides?: {
+                            matchdayPlayerId: string;
+                            amountPence: number;
+                        }[];
                     };
                 };
             };
@@ -5151,6 +5157,14 @@ export interface paths {
                                 created_by_name: string | null;
                                 fixtureCount: number;
                                 respondentCount: number;
+                                fixtures: {
+                                    id: string;
+                                    match_date: string;
+                                    opposition: string;
+                                    is_home: boolean;
+                                    team_name: string | null;
+                                    competition_name: string | null;
+                                }[];
                             }[];
                         };
                     };
@@ -5170,7 +5184,8 @@ export interface paths {
                     "application/json": {
                         dateFrom: string;
                         dateTo: string;
-                        userGroupId?: string;
+                        userGroupIds: string[];
+                        additionalEmails?: string[];
                     };
                 };
             };
@@ -5184,6 +5199,11 @@ export interface paths {
                         "application/json": {
                             id: string;
                             fixtureCount: number;
+                            notify: {
+                                sent: number;
+                                failed: number;
+                                recipientCount: number;
+                            };
                         };
                     };
                 };
@@ -5242,6 +5262,7 @@ export interface paths {
                                     competition_name: string | null;
                                     competition_type: string | null;
                                     match_time: string | null;
+                                    team_name: string | null;
                                 }[];
                                 responseCount: number;
                                 assignmentCount: number;
@@ -5563,7 +5584,6 @@ export interface paths {
                 query: {
                     dateFrom: string;
                     dateTo: string;
-                    userGroupId?: string;
                 };
                 header?: never;
                 path?: never;
@@ -5594,59 +5614,6 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/availability/requests/{requestId}/notify/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    requestId: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        memberCategory?: string;
-                        /** @enum {string} */
-                        membershipStatus?: "active" | "lapsed";
-                        additionalEmails?: string[];
-                    };
-                };
-            };
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            recipients: {
-                                email: string;
-                                name: string | null;
-                                /** @enum {string} */
-                                source: "filter" | "manual";
-                            }[];
-                        };
-                    };
-                };
-            };
-        };
         delete?: never;
         options?: never;
         head?: never;
@@ -12077,6 +12044,49 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            groups: {
+                                id: string;
+                                name: string;
+                                description: string | null;
+                                memberCount: number;
+                                createdAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;

@@ -72,6 +72,7 @@ export interface GameDetail extends GameListItem {
   } | null;
   lineup: {
     confirmed: boolean;
+    matchdayId: string;
     players: Array<{ name: string }>;
   } | null;
 }
@@ -367,6 +368,7 @@ export function getGame(
 
       lineup = {
         confirmed: confirmedMatchday.confirmed_at !== null,
+        matchdayId: confirmedMatchday.id,
         players: players.map((p) => ({ name: p.player_name })),
       };
     }

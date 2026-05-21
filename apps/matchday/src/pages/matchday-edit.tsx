@@ -1,6 +1,9 @@
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
+import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
+import { useDebouncedValue } from "@/hooks/use-debounced-value.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
+import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, SearchIcon, UserPlusIcon, XIcon } from "lucide-react";
 import { useState } from "react";
@@ -19,6 +22,7 @@ export default function MatchdayEdit() {
   const qc = useQueryClient();
   const { matchdayId } = useParams();
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [guestName, setGuestName] = useState("");
 
   const { data: detail, isLoading } = useQuery({
@@ -33,12 +37,12 @@ export default function MatchdayEdit() {
   });
 
   const searchResults = useQuery({
-    queryKey: ["matchday", "members", "search", search],
-    enabled: search.length >= 2,
+    queryKey: ["matchday", "members", "search", debouncedSearch],
+    enabled: debouncedSearch.length >= 2,
     queryFn: () =>
       callApi(
         api.GET("/api/matchday/members/search", {
-          params: { query: { query: search } },
+          params: { query: { query: debouncedSearch } },
         }),
       ),
   });
@@ -76,6 +80,22 @@ export default function MatchdayEdit() {
     },
   });
 
+  const setRoles = useMutation({
+    mutationFn: (vars: {
+      captainPlayerId: string | null;
+      wicketkeeperPlayerId: string | null;
+    }) =>
+      callApi(
+        api.PUT("/api/matchday/{matchId}/roles", {
+          params: { path: { matchId: matchdayId ?? "" } },
+          body: vars,
+        }),
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["matchday", matchdayId] });
+    },
+  });
+
   if (isLoading)
     return (
       <div className="space-y-2 p-4">
@@ -96,11 +116,19 @@ export default function MatchdayEdit() {
 
   const candidates = searchResults.data ?? [];
 
+  // Where "Back" / "Done" / "Save & close" send the user. Prefer the
+  // fixture detail screen if we have a Play Cricket match id (the
+  // matchday-edit page is always opened from there); otherwise fall
+  // back to the fixtures list.
+  const exitTo = md.matchday.play_cricket_match_id
+    ? `/fixture/${md.matchday.play_cricket_match_id}`
+    : "/fixtures";
+
   return (
     <div className="mx-auto w-full max-w-2xl pb-32">
       <header className="border-border flex items-center gap-3 border-b p-3">
         <Link
-          to="/squad"
+          to={exitTo}
           aria-label="Back"
           className="text-text-secondary hover:bg-surface-raised grid size-9 place-items-center rounded-md"
         >
@@ -126,7 +154,7 @@ export default function MatchdayEdit() {
             className="placeholder:text-text-muted w-full bg-transparent text-sm outline-none"
           />
         </div>
-        {search.length >= 2 && candidates.length > 0 && (
+        {debouncedSearch.length >= 2 && candidates.length > 0 && (
           <ul className="mt-2 space-y-1">
             {candidates
               .filter((c) =>
@@ -184,35 +212,81 @@ export default function MatchdayEdit() {
             No players yet. Search above or add a guest.
           </p>
         )}
-        {players.map((p) => (
-          <div
-            key={p.id}
-            className="border-border bg-surface flex items-center gap-2 rounded-xl border px-3 py-2"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">
-                {p.player_name}
-                {p.dependent_id ? (
-                  <span className="text-text-secondary ml-2 text-[11px] italic">
-                    junior
-                  </span>
-                ) : !p.member_id ? (
-                  <span className="text-text-secondary ml-2 text-[11px] italic">
-                    guest
-                  </span>
-                ) : null}
-              </p>
-            </div>
-            <button
-              type="button"
-              aria-label="Remove"
-              onClick={() => removePlayer.mutate(p.id)}
-              className="text-danger hover:bg-danger-bg grid size-9 place-items-center rounded-md"
+        {players.map((p) => {
+          const captainId = players.find((x) => x.is_captain)?.id ?? null;
+          const keeperId = players.find((x) => x.is_wicketkeeper)?.id ?? null;
+          return (
+            <div
+              key={p.id}
+              className="border-border bg-surface flex items-center gap-2 rounded-xl border px-3 py-2"
             >
-              <XIcon className="size-4" />
-            </button>
-          </div>
-        ))}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {p.player_name}
+                  {p.dependent_id ? (
+                    <span className="text-text-secondary ml-2 text-[11px] italic">
+                      junior
+                    </span>
+                  ) : !p.member_id ? (
+                    <span className="text-text-secondary ml-2 text-[11px] italic">
+                      guest
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label={p.is_captain ? "Unset captain" : "Set as captain"}
+                aria-pressed={p.is_captain}
+                disabled={setRoles.isPending}
+                onClick={() =>
+                  setRoles.mutate({
+                    captainPlayerId: p.is_captain ? null : p.id,
+                    wicketkeeperPlayerId: keeperId,
+                  })
+                }
+                className={cn(
+                  "grid size-9 place-items-center rounded-md border",
+                  p.is_captain
+                    ? "border-warning bg-warning-bg text-warning"
+                    : "border-border text-text-secondary",
+                )}
+              >
+                <CrownIcon className="size-4" />
+              </button>
+              <button
+                type="button"
+                aria-label={
+                  p.is_wicketkeeper ? "Unset keeper" : "Set as keeper"
+                }
+                aria-pressed={p.is_wicketkeeper}
+                disabled={setRoles.isPending}
+                onClick={() =>
+                  setRoles.mutate({
+                    captainPlayerId: captainId,
+                    wicketkeeperPlayerId: p.is_wicketkeeper ? null : p.id,
+                  })
+                }
+                className={cn(
+                  "grid size-9 place-items-center rounded-md border",
+                  p.is_wicketkeeper
+                    ? "border-info bg-info-bg text-info"
+                    : "border-border text-text-secondary",
+                )}
+              >
+                <GloveIcon className="size-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Remove"
+                onClick={() => removePlayer.mutate(p.id)}
+                className="text-danger hover:bg-danger-bg grid size-9 place-items-center rounded-md"
+              >
+                <XIcon className="size-4" />
+              </button>
+            </div>
+          );
+        })}
       </section>
 
       <section className="border-border bg-surface-raised border-t p-4">
@@ -242,16 +316,16 @@ export default function MatchdayEdit() {
       <div className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur md:static">
         <div className="mx-auto flex max-w-2xl items-center justify-end gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)] md:pb-3">
           <Button asChild tone="outline">
-            <Link to="/squad">Save & close</Link>
+            <Link to={exitTo}>Save & close</Link>
           </Button>
           <Button
             tone="primary"
             disabled={players.length === 0}
             onClick={() => {
-              void navigate(`/matchday/${matchdayId ?? ""}/confirm`);
+              void navigate(exitTo);
             }}
           >
-            Continue → Confirm
+            Done
           </Button>
         </div>
       </div>

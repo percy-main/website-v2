@@ -40,21 +40,16 @@ const routes: RouteObject[] = [
           },
           // Phase 3 official surfaces — lazy-loaded.
           {
-            path: "squad",
-            Component: lazy(() => import("./pages/squad.js")),
-          },
-          {
-            path: "squad/new",
-            Component: lazy(() => import("./pages/squad-new.js")),
-          },
-          {
             path: "matchday/:matchdayId/edit",
             Component: lazy(() => import("./pages/matchday-edit.js")),
           },
           {
-            path: "matchday/:matchdayId/confirm",
-            Component: lazy(() => import("./pages/matchday-confirm.js")),
+            path: "matchday/:matchdayId/wrap",
+            Component: lazy(() => import("./pages/matchday-live.js")),
           },
+          // Old /live path stays as an alias so any bookmarked or
+          // in-flight links land on the new wrap screen until UI links
+          // are updated.
           {
             path: "matchday/:matchdayId/live",
             Component: lazy(() => import("./pages/matchday-live.js")),

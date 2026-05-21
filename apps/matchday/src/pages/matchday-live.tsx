@@ -7,30 +7,45 @@ import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, PlusIcon, XIcon } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useParams } from "react-router";
 
 /**
- * Phase 3 captain match day — the single most important phone screen.
+ * Post-match wrap (amendments §5). One screen carries the captain
+ * through:
+ *   1. Confirm who actually played - per-player playing / dropped-out
+ *      / no-show selector.
+ *   2. Result picker.
+ *   3. Confirm - this is what creates the match-fee charges. If the
+ *      API reports any player without a resolved fee, the captain
+ *      enters the amount inline and re-submits.
+ *   4. Mark each charge paid + payment method (post-finish only).
+ *   5. Close match.
  *
- * Squad with paid toggles + payment method, FAB add-expense bottom sheet,
- * finish-match bottom sheet with result picker. Optimistic mark-paid so
- * patchy 4G doesn't slow the captain down.
+ * Pre-finish there are no charges yet, so the mark-paid UI is hidden.
  */
 
 type MatchdayDetail = ApiResponse<"/api/matchday/{matchId}">;
+type MatchdayPlayer = MatchdayDetail["players"][number];
+type PlayerStatus = "playing" | "dropped_out" | "no_show";
 
 type PaymentMethod = "cash" | "bank_transfer" | "card";
 type Result = "W" | "L" | "D" | "T" | "A" | "C" | "N";
 
 export default function MatchdayLive() {
   const { matchdayId } = useParams();
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const [methodOverrides, setMethodOverrides] = useState<
     Record<string, PaymentMethod>
+  >({});
+  // Pre-finish wrap state - captain's per-player playing/dropped/no-show
+  // call. Defaults to whatever's already in the DB (selected → playing,
+  // existing playing/dropped/no-show kept) so a captain can submit
+  // without touching every row.
+  const [statusOverrides, setStatusOverrides] = useState<
+    Record<string, PlayerStatus>
   >({});
 
   const { data } = useQuery({
@@ -99,15 +114,22 @@ export default function MatchdayLive() {
     );
   }
 
-  const playing = md.players.filter(
-    (p) => p.status === "playing" || p.status === "selected",
-  );
-  const dropouts = md.players.filter(
-    (p) =>
+  const resolveStatus = (p: MatchdayPlayer): PlayerStatus => {
+    const override = statusOverrides[p.id];
+    if (override) return override;
+    if (
       p.status === "dropped_out" ||
       p.status === "no_show" ||
-      p.status === "withdrawn",
-  );
+      p.status === "withdrawn"
+    ) {
+      return p.status === "withdrawn" ? "dropped_out" : p.status;
+    }
+    return "playing";
+  };
+
+  const finished = md.matchday.status === "finished";
+  const playing = md.players.filter((p) => resolveStatus(p) === "playing");
+  const dropouts = md.players.filter((p) => resolveStatus(p) !== "playing");
   // "Settled" means the captain doesn't need to chase the player — either
   // they've paid or the treasurer's already waived the donation via the
   // financial-relief workflow (charge.relieved_at, projected as
@@ -119,7 +141,6 @@ export default function MatchdayLive() {
   const unpaid = playing.filter(
     (p) => p.chargeStatus === "unpaid" || p.chargeStatus === null,
   ).length;
-  const finished = md.matchday.status === "finished";
 
   return (
     <div className="bg-surface flex min-h-dvh flex-col">
@@ -162,35 +183,51 @@ export default function MatchdayLive() {
 
       <div className="flex-1 pb-44">
         <h2 className="text-text-secondary px-4 pt-3 pb-1 text-[11px] font-semibold tracking-[0.06em] uppercase">
-          Squad · {playing.length}
+          Squad · {md.players.length}
         </h2>
-        {playing.map((p) => {
+        {md.players.map((p) => {
+          const status = resolveStatus(p);
           const isPaid = isSettled(p.chargeStatus);
           const method = methodOverrides[p.id] ?? "cash";
+          const rowTone =
+            finished && status === "playing" && isPaid
+              ? "bg-success-bg"
+              : status !== "playing"
+                ? "bg-surface-raised"
+                : "bg-surface";
           return (
             <div
               key={p.id}
               className={cn(
-                "border-border-light flex items-center gap-3 border-t px-4 py-3",
-                isPaid ? "bg-success-bg" : "bg-surface",
+                "border-border-light flex flex-wrap items-center gap-3 border-t px-4 py-3",
+                rowTone,
               )}
             >
-              <button
-                type="button"
-                disabled={isPaid || finished}
-                onClick={() =>
-                  markPaid.mutate({ playerId: p.id, paymentMethod: method })
-                }
-                aria-label={`Mark ${p.player_name} paid`}
-                className={cn(
-                  "grid size-9 place-items-center rounded-full border-2",
-                  isPaid
-                    ? "border-success bg-success text-white"
-                    : "border-border bg-surface text-transparent",
-                )}
-              >
-                <CheckIcon className="size-4" strokeWidth={3} />
-              </button>
+              {finished ? (
+                <button
+                  type="button"
+                  disabled={isPaid || status !== "playing"}
+                  onClick={() =>
+                    markPaid.mutate({ playerId: p.id, paymentMethod: method })
+                  }
+                  aria-label={`Mark ${p.player_name} paid`}
+                  className={cn(
+                    "grid size-9 place-items-center rounded-full border-2",
+                    isPaid
+                      ? "border-success bg-success text-white"
+                      : "border-border bg-surface text-transparent",
+                  )}
+                >
+                  <CheckIcon className="size-4" strokeWidth={3} />
+                </button>
+              ) : (
+                <StatusToggle
+                  value={status}
+                  onChange={(next) =>
+                    setStatusOverrides((prev) => ({ ...prev, [p.id]: next }))
+                  }
+                />
+              )}
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 text-[15px] font-semibold">
                   {p.is_captain && (
@@ -202,23 +239,22 @@ export default function MatchdayLive() {
                   <span className="truncate">{p.player_name}</span>
                 </p>
                 <p className="text-text-secondary mt-0.5 text-[12px]">
-                  {isPaid
-                    ? p.chargePaidAt
-                      ? `Paid · ${new Date(p.chargePaidAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
-                      : "Paid"
-                    : `${p.member_category ?? "Adult"} · donation due`}
+                  {finished
+                    ? status !== "playing"
+                      ? labelStatus(status)
+                      : isPaid
+                        ? p.chargePaidAt
+                          ? `Paid · ${new Date(p.chargePaidAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+                          : "Paid"
+                        : `${p.member_category ?? "Adult"} · donation due`
+                    : (p.member_category ?? "Adult")}
                 </p>
               </div>
-              {!isPaid && !finished && (
+              {finished && status === "playing" && !isPaid && (
                 <select
                   aria-label="Payment method"
                   value={method}
                   onChange={(e) => {
-                    // Read the value synchronously inside the handler.
-                    // React 17+ nulls e.currentTarget after the handler
-                    // returns, and the functional setState updater runs
-                    // in a later tick — so capturing `e` and reading
-                    // currentTarget inside it would crash.
                     const next = e.currentTarget.value as PaymentMethod;
                     setMethodOverrides((prev) => ({
                       ...prev,
@@ -236,22 +272,10 @@ export default function MatchdayLive() {
           );
         })}
 
-        {dropouts.length > 0 && (
-          <details className="mt-2">
-            <summary className="bg-surface-raised text-text-secondary cursor-pointer px-4 py-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
-              Drop-outs · {dropouts.length}
-            </summary>
-            <ul className="divide-border-light divide-y">
-              {dropouts.map((p) => (
-                <li
-                  key={p.id}
-                  className="bg-surface text-text-secondary px-4 py-2.5 text-sm"
-                >
-                  {p.player_name}
-                </li>
-              ))}
-            </ul>
-          </details>
+        {!finished && dropouts.length > 0 && (
+          <p className="text-text-secondary px-4 pt-3 text-[12px]">
+            {dropouts.length} marked as not playing.
+          </p>
         )}
 
         {md.expenses.length > 0 && (
@@ -285,16 +309,17 @@ export default function MatchdayLive() {
         )}
       </div>
 
-      {!finished && (
-        <button
-          type="button"
-          onClick={() => setExpenseOpen(true)}
-          aria-label="Add expense"
-          className="bg-navy fixed right-4 bottom-28 z-30 grid size-14 place-items-center rounded-full text-white shadow-lg"
-        >
-          <PlusIcon className="size-6" />
-        </button>
-      )}
+      {!isPastExpenseCutoff(md.matchday.match_date) &&
+        md.matchday.status !== "cancelled" && (
+          <button
+            type="button"
+            onClick={() => setExpenseOpen(true)}
+            aria-label="Add expense"
+            className="bg-navy fixed right-4 bottom-28 z-30 grid size-14 place-items-center rounded-full text-white shadow-lg"
+          >
+            <PlusIcon className="size-6" />
+          </button>
+        )}
 
       <div className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur md:static">
         <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)]">
@@ -328,7 +353,8 @@ export default function MatchdayLive() {
       {finishOpen && (
         <FinishSheet
           matchdayId={matchdayId ?? ""}
-          unpaidCount={unpaid}
+          players={md.players}
+          resolveStatus={resolveStatus}
           draftExpenseCount={
             md.expenses.filter((e) => e.status === "draft").length
           }
@@ -336,11 +362,47 @@ export default function MatchdayLive() {
           onFinished={() => {
             void qc.invalidateQueries({ queryKey: ["matchday", matchdayId] });
             setFinishOpen(false);
-            void navigate(`/matchday/${matchdayId ?? ""}/live`);
           }}
         />
       )}
     </div>
+  );
+}
+
+// Expense window mirrors the API gate from amendments §4: open from
+// matchday creation through match_date + 5 days, hard-closed after.
+function isPastExpenseCutoff(matchDate: string, now = new Date()): boolean {
+  const match = new Date(`${matchDate}T00:00:00Z`);
+  if (Number.isNaN(match.getTime())) return false;
+  const cutoff = new Date(match);
+  cutoff.setUTCDate(cutoff.getUTCDate() + 6);
+  return now >= cutoff;
+}
+
+function labelStatus(s: PlayerStatus): string {
+  if (s === "dropped_out") return "Dropped out";
+  if (s === "no_show") return "No-show";
+  return "Playing";
+}
+
+function StatusToggle({
+  value,
+  onChange,
+}: {
+  value: PlayerStatus;
+  onChange: (next: PlayerStatus) => void;
+}) {
+  return (
+    <select
+      aria-label="Player status"
+      value={value}
+      onChange={(e) => onChange(e.currentTarget.value as PlayerStatus)}
+      className="bg-surface-raised rounded-md border border-transparent px-2 py-1 text-[11px] font-semibold"
+    >
+      <option value="playing">Playing</option>
+      <option value="dropped_out">Dropped out</option>
+      <option value="no_show">No-show</option>
+    </select>
   );
 }
 
@@ -489,32 +551,96 @@ function AddExpenseSheet({
 
 function FinishSheet({
   matchdayId,
-  unpaidCount,
+  players,
+  resolveStatus,
   draftExpenseCount,
   onClose,
   onFinished,
 }: {
   matchdayId: string;
-  unpaidCount: number;
+  players: MatchdayPlayer[];
+  resolveStatus: (p: MatchdayPlayer) => PlayerStatus;
   draftExpenseCount: number;
   onClose: () => void;
   onFinished: () => void;
 }) {
   const [result, setResult] = useState<Result>("W");
+  // Per-player fee overrides, keyed by matchdayPlayer id, in pounds-as-
+  // string so the input is friendly. The API rejects finish until every
+  // null-fee playing player has an override entered, surfacing the
+  // affected names via the error payload. We parse those names and pin
+  // input rows for them here.
+  const [overrideInputs, setOverrideInputs] = useState<Record<string, string>>(
+    {},
+  );
+  const [missingNames, setMissingNames] = useState<string[]>([]);
+  const [errorText, setErrorText] = useState<string | null>(null);
+
+  const playingPlayers = useMemo(
+    () => players.filter((p) => resolveStatus(p) === "playing"),
+    [players, resolveStatus],
+  );
+
+  const missingPlayers = useMemo(
+    () =>
+      missingNames.length > 0
+        ? playingPlayers.filter((p) => missingNames.includes(p.player_name))
+        : [],
+    [missingNames, playingPlayers],
+  );
 
   const finish = useMutation({
-    mutationFn: () =>
-      callApi(
+    mutationFn: () => {
+      const body: {
+        resultType: Result;
+        playerStatuses: Array<{
+          matchdayPlayerId: string;
+          status: PlayerStatus;
+        }>;
+        feeOverrides: Array<{ matchdayPlayerId: string; amountPence: number }>;
+      } = {
+        resultType: result,
+        playerStatuses: players.map((p) => ({
+          matchdayPlayerId: p.id,
+          status: resolveStatus(p),
+        })),
+        feeOverrides: Object.entries(overrideInputs).flatMap(
+          ([matchdayPlayerId, raw]) => {
+            const parsed = Math.round(parseFloat(raw || "0") * 100);
+            if (!Number.isFinite(parsed) || parsed < 0) return [];
+            return [{ matchdayPlayerId, amountPence: parsed }];
+          },
+        ),
+      };
+      return callApi(
         api.POST("/api/matchday/{matchId}/finish", {
           params: { path: { matchId: matchdayId } },
-          body: { resultType: result },
+          body,
         }),
-      ),
-    onSuccess: onFinished,
+      );
+    },
+    onSuccess: () => {
+      setMissingNames([]);
+      setErrorText(null);
+      onFinished();
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      const match = /Missing fee for: ([^.]+)\./.exec(message);
+      if (match) {
+        const names = match[1].split(",").map((s) => s.trim());
+        setMissingNames(names);
+        setErrorText(
+          "Some players don't have a fee. Enter the donation amount inline before finishing.",
+        );
+      } else {
+        setErrorText(message);
+      }
+    },
   });
 
   return (
-    <Sheet onClose={onClose} title="Finish match">
+    <Sheet onClose={onClose} title="Wrap up match">
       <Eyebrow>Result</Eyebrow>
       <div className="mt-1 grid grid-cols-7 gap-1">
         {(["W", "L", "D", "T", "A", "C", "N"] as Result[]).map((r) => (
@@ -539,12 +665,37 @@ function FinishSheet({
       </p>
 
       <div className="bg-surface-raised mt-4 space-y-1 rounded-xl p-3 text-sm">
-        <Row label={`${unpaidCount} unpaid`}>will be charged</Row>
+        <Row label={`${playingPlayers.length} playing`}>
+          will be charged · donation emails sent
+        </Row>
         <Row label={`${draftExpenseCount} draft expenses`}>
           will be submitted
         </Row>
-        <Row label="Donation emails">will be sent</Row>
       </div>
+
+      {missingPlayers.length > 0 && (
+        <div className="border-warning bg-warning-bg/40 mt-4 space-y-2 rounded-xl border p-3">
+          <p className="text-warning text-[11px] font-semibold tracking-[0.06em] uppercase">
+            Enter donation
+          </p>
+          {missingPlayers.map((p) => (
+            <label key={p.id} className="flex items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">{p.player_name}</span>
+              <span className="text-text-secondary">£</span>
+              <input
+                inputMode="decimal"
+                value={overrideInputs[p.id] ?? ""}
+                onChange={(e) => {
+                  const next = e.currentTarget.value;
+                  setOverrideInputs((prev) => ({ ...prev, [p.id]: next }));
+                }}
+                placeholder="0.00"
+                className="border-border bg-surface h-9 w-24 rounded-md border px-2 text-sm"
+              />
+            </label>
+          ))}
+        </div>
+      )}
 
       <Button
         tone="primary"
@@ -553,23 +704,12 @@ function FinishSheet({
         disabled={finish.isPending}
         onClick={() => finish.mutate()}
       >
-        {finish.isPending ? "Finishing…" : "Confirm · finish match"}
+        {finish.isPending ? "Wrapping…" : "Confirm · create charges"}
       </Button>
       <Button tone="outline" className="mt-2 w-full" onClick={onClose}>
         Cancel
       </Button>
-      {/*
-        "Cancel match (no charges)" used to live here but it's been
-        removed: confirming a team creates donation charges, and the
-        backend cancel endpoint rejects any matchday that has
-        non-relieved charges. For a rain-off after team confirmation,
-        the captain finishes with result "A" (abandoned) — that's the
-        scorebook convention anyway. True cancellation needs the
-        treasurer to void the charges on the main site first.
-      */}
-      {finish.isError && (
-        <p className="text-danger mt-2 text-sm">Couldn't finish, try again.</p>
-      )}
+      {errorText && <p className="text-danger mt-2 text-sm">{errorText}</p>}
     </Sheet>
   );
 }

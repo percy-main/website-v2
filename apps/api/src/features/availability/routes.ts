@@ -18,11 +18,10 @@ import {
   getRequestResponseSchema,
   listRequestsResponseSchema,
   listRequestsSchema,
-  notifyPreviewResponseSchema,
-  notifyPreviewSchema,
   notifySendResponseSchema,
   notifySendSchema,
   previewFixturesResponseSchema,
+  previewRangeSchema,
   requestDateMemberParamSchema,
   requestDateParamSchema,
   requestIdParamSchema,
@@ -41,7 +40,6 @@ import {
   getRequest,
   listRequests,
   previewFixtures,
-  previewNotifyRecipients,
   removeAssignment,
   respond,
   sendAvailabilityNotification,
@@ -68,7 +66,9 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   // ── Official Routes ──
 
   const create =
-    apiClient && siteId ? createRequest(app.db, apiClient, siteId) : null;
+    apiClient && siteId
+      ? createRequest(app.db, apiClient, siteId, app.send, app.config.BASE_URL)
+      : null;
 
   app.post(
     "/availability/requests",
@@ -86,7 +86,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
         });
       }
       const { user } = getAuthSession(request);
-      return await create(user.id, request.body);
+      return await create(user.id, request.body, request.log);
     },
   );
 
@@ -238,7 +238,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       preHandler: [matchdayView],
       schema: {
-        querystring: createRequestSchema,
+        querystring: previewRangeSchema,
         response: { 200: previewFixturesResponseSchema },
       },
     },
@@ -253,22 +253,9 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   );
 
   // ── Notification Routes ──
-
-  const previewRecipients = previewNotifyRecipients(app.db);
-  app.post(
-    "/availability/requests/:requestId/notify/preview",
-    {
-      preHandler: [matchdayManage],
-      schema: {
-        params: requestIdParamSchema,
-        body: notifyPreviewSchema,
-        response: { 200: notifyPreviewResponseSchema },
-      },
-    },
-    async (request) => {
-      return await previewRecipients(request.params.requestId, request.body);
-    },
-  );
+  //
+  // Notifications fire automatically on create (see /availability/requests
+  // POST above). This endpoint exists for re-sends / follow-up nudges.
 
   const sendNotification = sendAvailabilityNotification(
     app.db,

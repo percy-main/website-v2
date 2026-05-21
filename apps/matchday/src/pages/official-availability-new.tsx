@@ -9,15 +9,17 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 /**
- * Phase 3 availability request create flow. Two visible steps:
+ * Phase 3 availability request create flow.
  *
  *   1. Date range → preview fixtures.
- *   2. Confirm → POST /api/availability/requests creates the record.
+ *   2. Pick the user groups the request is for (notifications fire to
+ *      members of these groups when the request is created).
+ *   3. Confirm → POST /api/availability/requests creates the record
+ *      and dispatches notifications inline.
  *
- * The original UX bundled an initial recipient picker step as well —
- * that lives behind a follow-up "Send notification" action on the detail
- * page rather than the create flow itself, so a manager can stage the
- * request before fanning out emails.
+ * Per amendments §2: there is no implicit club-wide case - at least one
+ * user group must be selected. The old memberCategory + membershipStatus
+ * filter UI and the separate notify-later screen are both gone.
  */
 export default function OfficialAvailabilityNew() {
   const navigate = useNavigate();
@@ -28,6 +30,7 @@ export default function OfficialAvailabilityNew() {
   const defaultTo = inTwoWeeks.toISOString().slice(0, 10);
   const [dateFrom, setDateFrom] = useState(defaultFrom);
   const [dateTo, setDateTo] = useState(defaultTo);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
 
   const preview = useQuery({
     queryKey: ["availability", "preview", dateFrom, dateTo],
@@ -40,11 +43,16 @@ export default function OfficialAvailabilityNew() {
     enabled: !!dateFrom && !!dateTo && dateFrom <= dateTo,
   });
 
+  const groups = useQuery({
+    queryKey: ["user-groups"],
+    queryFn: () => callApi(api.GET("/api/user-groups")),
+  });
+
   const create = useMutation({
     mutationFn: () =>
       callApi(
         api.POST("/api/availability/requests", {
-          body: { dateFrom, dateTo },
+          body: { dateFrom, dateTo, userGroupIds: selectedGroupIds },
         }),
       ),
     onSuccess: (data) => {
@@ -53,7 +61,16 @@ export default function OfficialAvailabilityNew() {
     },
   });
 
+  const toggleGroup = (id: string) => {
+    setSelectedGroupIds((prev) =>
+      prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id],
+    );
+  };
+
   const fixtures = preview.data?.fixtures ?? [];
+  const groupList = groups.data?.groups ?? [];
+  const canSubmit =
+    fixtures.length > 0 && selectedGroupIds.length > 0 && !create.isPending;
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-24">
@@ -96,6 +113,50 @@ export default function OfficialAvailabilityNew() {
               onClick={() => setRangeDays(setDateFrom, setDateTo, 0, 30)}
             />
           </div>
+        </section>
+
+        <section>
+          <div className="mb-2 flex items-baseline justify-between">
+            <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
+              Notify these groups
+            </p>
+            <StatusPill tone="navy">{selectedGroupIds.length}</StatusPill>
+          </div>
+          {groups.isPending && (
+            <div className="border-border bg-surface-raised text-text-secondary rounded-2xl border p-4 text-sm">
+              Loading groups…
+            </div>
+          )}
+          {!groups.isPending && groupList.length === 0 && (
+            <div className="border-border bg-surface-raised text-text-secondary rounded-2xl border p-4 text-sm">
+              No user groups set up yet. Ask an admin to create one (e.g. "First
+              XI", "Seniors") so you can pick who to notify.
+            </div>
+          )}
+          {groupList.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {groupList.map((g) => {
+                const selected = selectedGroupIds.includes(g.id);
+                return (
+                  <button
+                    type="button"
+                    key={g.id}
+                    onClick={() => toggleGroup(g.id)}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-xs font-medium",
+                      selected
+                        ? "border-navy bg-navy text-white"
+                        : "border-border bg-surface text-text-secondary",
+                    )}
+                  >
+                    {g.name}
+                    <span className="ml-1 opacity-70">·</span>
+                    <span className="ml-1 opacity-70">{g.memberCount}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <section>
@@ -162,12 +223,12 @@ export default function OfficialAvailabilityNew() {
           </Button>
           <Button
             tone="primary"
-            disabled={fixtures.length === 0 || create.isPending}
+            disabled={!canSubmit}
             onClick={() => create.mutate()}
           >
             {create.isPending
               ? "Creating…"
-              : `Create request · ${fixtures.length} fixtures`}
+              : `Create & notify · ${fixtures.length} fixtures`}
           </Button>
         </div>
       </div>

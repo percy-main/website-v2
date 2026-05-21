@@ -114,7 +114,12 @@ export interface AvailabilityRequest {
   date_to: string;
   id: string;
   status: Generated<string>;
-  user_group_id: string | null;
+}
+
+export interface AvailabilityRequestGroup {
+  created_at: Generated<Timestamp>;
+  request_id: string;
+  user_group_id: string;
 }
 
 export interface AvailabilityResponse {
@@ -952,6 +957,7 @@ export interface DB {
   availability_assignment: AvailabilityAssignment;
   availability_fixture: AvailabilityFixture;
   availability_request: AvailabilityRequest;
+  availability_request_group: AvailabilityRequestGroup;
   availability_response: AvailabilityResponse;
   charge: Charge;
   charge_dependent: ChargeDependent;

@@ -90,12 +90,15 @@ export function Component() {
               </Link>
             )}
 
-            <Link
+            <a
               className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
-              to="/matchday"
+              href={
+                (import.meta.env.VITE_MATCHDAY_URL as string | undefined) ??
+                "https://matchday.percymain.org"
+              }
             >
               Matchday
-            </Link>
+            </a>
             <Link
               className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
               to="/members/fantasy"
@@ -241,14 +244,17 @@ function AvailabilityBanner() {
   if (unansweredCount === 0) return null;
 
   return (
-    <Link
-      to="/matchday"
+    <a
+      href={
+        (import.meta.env.VITE_MATCHDAY_URL as string | undefined) ??
+        "https://matchday.percymain.org"
+      }
       className="block w-full rounded border border-blue-300 bg-blue-50 p-3 text-sm text-blue-800 transition-colors hover:bg-blue-100"
     >
       You have <strong>{unansweredCount}</strong> availability{" "}
       {unansweredCount === 1 ? "date" : "dates"} to respond to.{" "}
       <span className="underline">Respond now</span>
-    </Link>
+    </a>
   );
 }
 

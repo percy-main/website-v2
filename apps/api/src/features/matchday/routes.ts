@@ -8,8 +8,8 @@ import { createApiClient } from "../play-cricket/api-client.ts";
 import {
   addPlayerResponseSchema,
   addPlayerSchema,
+  allPastUnfinishedMatchdaysResponseSchema,
   cancelMatchdaySchema,
-  confirmTeamSchema,
   createMatchdayResponseSchema,
   createMatchdaySchema,
   expenseIdParamSchema,
@@ -44,10 +44,10 @@ import {
   addPlayer,
   approveExpense,
   cancelMatchday,
-  confirmTeam,
   createMatchday,
   deleteExpense,
   finishMatch,
+  getAllPastUnfinishedMatchdays,
   getMatch,
   getMatchPublic,
   getPastUnfinishedMatchdays,
@@ -182,7 +182,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/matchday/:matchId/expenses",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         params: matchIdParamSchema,
         body: recordExpenseSchema,
@@ -202,7 +202,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     "/matchday/expenses/:expenseId",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         params: expenseIdParamSchema,
         body: updateExpenseSchema,
@@ -222,7 +222,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/matchday/expenses/:expenseId",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         params: expenseIdParamSchema,
         response: { 200: successResponseSchema },
@@ -261,7 +261,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/matchday/:matchId/expenses/submit",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         params: matchIdParamSchema,
         body: submitExpenseSchema,
@@ -329,10 +329,10 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const teams = listTeams(app.db);
   const create = createMatchday(app.db);
   const pastUnfinished = getPastUnfinishedMatchdays(app.db);
+  const allPastUnfinished = getAllPastUnfinishedMatchdays(app.db);
   const search = searchMembers(app.db);
   const add = addPlayer(app.db);
   const removeP = removePlayer(app.db);
-  const confirm = confirmTeam(app.db);
   const setRoles = setMatchRoles(app.db);
   const paid = markFeePaid(app.db);
   const finish = finishMatch(app.db, app.send, app.config);
@@ -363,6 +363,21 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
       return await teams(user.id, role);
+    },
+  );
+
+  app.get(
+    "/matchday/past-unfinished",
+    {
+      preHandler: [officialRole],
+      schema: {
+        response: { 200: allPastUnfinishedMatchdaysResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await allPastUnfinished(user.id, role);
     },
   );
 
@@ -403,7 +418,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/matchday",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         body: createMatchdaySchema,
         response: { 200: createMatchdayResponseSchema },
@@ -433,7 +448,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/matchday/:matchId/players",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         params: matchIdParamSchema,
         body: addPlayerSchema,
@@ -450,7 +465,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     "/matchday/:matchId/players/:playerId",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         params: playerIdParamSchema,
         response: { 200: successResponseSchema },
@@ -468,27 +483,10 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
-  app.post(
-    "/matchday/:matchId/confirm",
-    {
-      preHandler: [officialRole],
-      schema: {
-        params: matchIdParamSchema,
-        body: confirmTeamSchema,
-        response: { 200: successResponseSchema },
-      },
-    },
-    async (request) => {
-      const { user } = getAuthSession(request);
-      const role = (user as { role?: string | null }).role ?? "user";
-      return await confirm(user.id, role, request.params.matchId, request.body);
-    },
-  );
-
   app.put(
     "/matchday/:matchId/roles",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         params: matchIdParamSchema,
         body: setRolesSchema,
@@ -510,7 +508,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/matchday/:matchId/players/:playerId/mark-paid",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         params: playerIdParamSchema,
         body: markPaidSchema,
@@ -533,7 +531,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/matchday/:matchId/finish",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         params: matchIdParamSchema,
         body: finishMatchSchema,
@@ -556,7 +554,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/matchday/:matchId/cancel",
     {
-      preHandler: [officialRole],
+      preHandler: [adminRole],
       schema: {
         params: matchIdParamSchema,
         body: cancelMatchdaySchema,

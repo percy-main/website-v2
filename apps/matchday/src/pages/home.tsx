@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card.js";
-import { fmtMoneyPence } from "@/features/format.js";
+import { fmtDate, fmtMoneyPence } from "@/features/format.js";
 import {
   gameIsoDate,
   oppositionName,
@@ -57,6 +57,7 @@ export default function Home() {
         </p>
       </div>
       <div className="space-y-3">
+        <NeedsAttentionCard />
         <AvailabilityAwaitingCard />
         <OutstandingDonationsCard />
         <UpcomingFixturesCard />
@@ -64,6 +65,51 @@ export default function Home() {
         <InstallPrompt />
       </div>
     </div>
+  );
+}
+
+function NeedsAttentionCard() {
+  // Officials-only endpoint - a 403 just means the card stays hidden,
+  // so we swallow the error rather than surfacing it. Used to be a
+  // per-team roll-up on the dropped /squad tab.
+  const { data, isError } = useQuery({
+    queryKey: ["matchday", "past-unfinished"],
+    queryFn: () => callApi(api.GET("/api/matchday/past-unfinished")),
+    retry: false,
+  });
+  if (isError) return null;
+  const items = data ?? [];
+  if (items.length === 0) return null;
+  const oldest = items[items.length - 1];
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardEyebrow>Needs attention</CardEyebrow>
+          <StatusPill tone="warning" dot>
+            {items.length} match{items.length === 1 ? "" : "es"}
+          </StatusPill>
+        </div>
+        <CardTitle>
+          {items.length === 1
+            ? "1 match still needs wrapping up"
+            : `${items.length} matches still need wrapping up`}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-text-secondary mb-3 text-sm">
+          {oldest.team_name ? `${oldest.team_name} · ` : ""}vs{" "}
+          {oldest.opposition} ({fmtDate(oldest.match_date, "d MMM")}) is the
+          oldest.
+        </p>
+        <Button asChild tone="primary" className="w-full">
+          <Link to={`/matchday/${oldest.id}/wrap`}>
+            Wrap the oldest
+            <ArrowRightIcon className="size-4" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

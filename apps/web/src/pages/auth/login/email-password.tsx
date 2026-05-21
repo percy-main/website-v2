@@ -73,7 +73,11 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
   // BEFORE the new session is in the atom — RequireAuth sees data=null
   // and bounces straight back here. Awaiting refetch() forces the
   // /get-session call to complete before we navigate.
-  const { refetch: refetchSession } = useSession();
+  const {
+    data: session,
+    isPending: sessionPending,
+    refetch: refetchSession,
+  } = useSession();
 
   /**
    * Send the user to their destination after a successful sign-in.
@@ -91,6 +95,19 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
     }
     void navigate(target);
   };
+
+  // Already signed in? Bounce straight to wherever returnTo points (or
+  // /members). Covers the case where a logged-in user clicks an old
+  // bookmark for /auth/login or follows a stale matchday RequireAuth
+  // redirect after the cookie has been refreshed in another tab.
+  useEffect(() => {
+    if (sessionPending) return;
+    if (!session) return;
+    navigateBack("/members");
+    // navigateBack closes over returnTo; the eslint rule wants every
+    // closed-over value listed but `returnTo` already covers it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, sessionPending, returnTo]);
 
   useEffect(() => {
     let cancelled = false;
