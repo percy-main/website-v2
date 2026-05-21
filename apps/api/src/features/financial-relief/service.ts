@@ -6,7 +6,7 @@ import {
 } from "@percy-main/email";
 import type { RequestStatus } from "@percy-main/shared";
 import type { FastifyBaseLogger } from "fastify";
-import { sql, type Kysely } from "kysely";
+import { sql, type Kysely, type Transaction } from "kysely";
 import { createElement } from "react";
 import { render } from "react-email";
 import type Stripe from "stripe";
@@ -16,6 +16,7 @@ import type {
   DecideReliefRequest,
   DeclineRequest,
   ListReliefRequests,
+  MembershipApply,
   ReliefReport,
   SubmitReliefRequest,
   TransitionStatus,
@@ -700,6 +701,102 @@ export function declineReliefRequest(db: Kysely<DB>) {
   };
 }
 
+/**
+ * Inserts a relieved membership charge, upserts the member's
+ * membership.paid_until, and emits a membership_relief_applied
+ * audit event. Shared between the inline-from-decide path (when a
+ * grant covering membership is created with membership details in
+ * one round-trip) and the legacy /grants/:id/apply-membership route
+ * used to retro-apply against existing grants.
+ *
+ * Must be invoked inside an existing transaction so the grant +
+ * membership rows commit together.
+ */
+async function applyMembershipReliefInTrx(
+  trx: Transaction<DB>,
+  args: {
+    adminUserId: string;
+    grantId: string;
+    requestId: string;
+    memberId: string;
+    chargeDate: string; // ISO date for the synthetic charge
+    apply: MembershipApply;
+  },
+): Promise<{ chargeId: string }> {
+  const chargeId = crypto.randomUUID();
+  const nowIso = new Date().toISOString();
+
+  await trx
+    .insertInto("charge")
+    .values({
+      id: chargeId,
+      member_id: args.memberId,
+      description: args.apply.description,
+      amount_pence: args.apply.amountPence,
+      charge_date: args.chargeDate,
+      created_by: args.adminUserId,
+      type: "membership",
+      source: "financial_relief",
+      relieved_at: nowIso,
+      relieved_by: args.adminUserId,
+      relieved_reason: "financial relief",
+      relief_grant_id: args.grantId,
+    })
+    .execute();
+
+  const existing = await trx
+    .selectFrom("membership")
+    .where("member_id", "=", args.memberId)
+    .where((eb) =>
+      eb.or([
+        eb("type", "=", args.apply.membershipType),
+        eb("type", "is", null),
+      ]),
+    )
+    .select(["id", "type", "paid_until"])
+    .executeTakeFirst();
+
+  if (existing) {
+    const nextPaidUntil =
+      new Date(args.apply.membershipPaidUntil) > new Date(existing.paid_until)
+        ? args.apply.membershipPaidUntil
+        : existing.paid_until;
+    await trx
+      .updateTable("membership")
+      .set({
+        paid_until: nextPaidUntil,
+        ...(existing.type ? {} : { type: args.apply.membershipType }),
+      })
+      .where("id", "=", existing.id)
+      .execute();
+  } else {
+    await trx
+      .insertInto("membership")
+      .values({
+        id: crypto.randomUUID(),
+        member_id: args.memberId,
+        type: args.apply.membershipType,
+        paid_until: args.apply.membershipPaidUntil,
+      })
+      .execute();
+  }
+
+  await trx
+    .insertInto("financial_relief_event")
+    .values({
+      id: crypto.randomUUID(),
+      request_id: args.requestId,
+      event_type: "membership_relief_applied",
+      from_status: null,
+      to_status: null,
+      note: `${args.apply.membershipType} until ${args.apply.membershipPaidUntil} (£${(args.apply.amountPence / 100).toFixed(2)})`,
+      actor_user_id: args.adminUserId,
+    })
+    .execute();
+
+  return { chargeId };
+}
+
 interface DecideDeps {
   stripe: Stripe;
   baseUrl: string;
@@ -810,6 +907,21 @@ export function decideReliefRequest(db: Kysely<DB>, deps: DecideDeps) {
           actor_user_id: adminUserId,
         })
         .execute();
+
+      // If the grant covers membership, apply it atomically here so
+      // the member's paid_until + relieved charge land together with
+      // the grant. The decide schema's refine guarantees that
+      // `membershipApply` is present whenever `coversMembership`.
+      if (data.coversMembership && data.membershipApply) {
+        await applyMembershipReliefInTrx(trx, {
+          adminUserId,
+          grantId,
+          requestId,
+          memberId: request.member_id,
+          chargeDate: data.effectiveFrom,
+          apply: data.membershipApply,
+        });
+      }
 
       // Retroactively forgive unpaid match-fee charges issued on or
       // after `effective_from`, with no live Stripe PI. A PI in
@@ -1041,82 +1153,21 @@ export function applyMembershipRelief(db: Kysely<DB>) {
       httpError(400, "This grant does not cover membership");
     }
 
-    const chargeId = crypto.randomUUID();
-    const nowIso = new Date().toISOString();
-
-    await db.transaction().execute(async (trx) => {
-      // 1. Relieved membership charge — keeps amount_pence for reporting.
-      await trx
-        .insertInto("charge")
-        .values({
-          id: chargeId,
-          member_id: grant.member_id,
+    return db.transaction().execute((trx) =>
+      applyMembershipReliefInTrx(trx, {
+        adminUserId,
+        grantId,
+        requestId: grant.request_id,
+        memberId: grant.member_id,
+        chargeDate: data.effectiveDate,
+        apply: {
+          amountPence: data.amountPence,
+          membershipPaidUntil: data.membershipPaidUntil,
+          membershipType: data.membershipType,
           description: data.description,
-          amount_pence: data.amountPence,
-          charge_date: data.effectiveDate,
-          created_by: adminUserId,
-          type: "membership",
-          source: "financial_relief",
-          relieved_at: nowIso,
-          relieved_by: adminUserId,
-          relieved_reason: "financial relief",
-          relief_grant_id: grantId,
-        })
-        .execute();
-
-      // 2. Upsert membership.paid_until.
-      const existing = await trx
-        .selectFrom("membership")
-        .where("member_id", "=", grant.member_id)
-        .where((eb) =>
-          eb.or([eb("type", "=", data.membershipType), eb("type", "is", null)]),
-        )
-        .select(["id", "type", "paid_until"])
-        .executeTakeFirst();
-
-      if (existing) {
-        // Only extend, never shorten. (Admins occasionally call this
-        // twice in a session; second call shouldn't roll back paid_until.)
-        const nextPaidUntil =
-          new Date(data.membershipPaidUntil) > new Date(existing.paid_until)
-            ? data.membershipPaidUntil
-            : existing.paid_until;
-        await trx
-          .updateTable("membership")
-          .set({
-            paid_until: nextPaidUntil,
-            ...(existing.type ? {} : { type: data.membershipType }),
-          })
-          .where("id", "=", existing.id)
-          .execute();
-      } else {
-        await trx
-          .insertInto("membership")
-          .values({
-            id: crypto.randomUUID(),
-            member_id: grant.member_id,
-            type: data.membershipType,
-            paid_until: data.membershipPaidUntil,
-          })
-          .execute();
-      }
-
-      // 3. Audit event.
-      await trx
-        .insertInto("financial_relief_event")
-        .values({
-          id: crypto.randomUUID(),
-          request_id: grant.request_id,
-          event_type: "membership_relief_applied",
-          from_status: null,
-          to_status: null,
-          note: `${data.membershipType} until ${data.membershipPaidUntil} (£${(data.amountPence / 100).toFixed(2)})`,
-          actor_user_id: adminUserId,
-        })
-        .execute();
-    });
-
-    return { chargeId };
+        },
+      }),
+    );
   };
 }
 

@@ -11793,6 +11793,12 @@ export interface paths {
                         effectiveToExclusive?: string | null;
                         adminNotes?: string | null;
                         memberFacingNote?: string | null;
+                        membershipApply?: {
+                            amountPence: number;
+                            membershipPaidUntil: string;
+                            membershipType: string;
+                            description: string;
+                        } | null;
                     };
                 };
             };

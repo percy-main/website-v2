@@ -21385,6 +21385,37 @@
                     "nullable": true,
                     "type": "string",
                     "maxLength": 2000
+                  },
+                  "membershipApply": {
+                    "nullable": true,
+                    "type": "object",
+                    "properties": {
+                      "amountPence": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "membershipPaidUntil": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "membershipType": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "description": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      }
+                    },
+                    "required": [
+                      "amountPence",
+                      "membershipPaidUntil",
+                      "membershipType",
+                      "description"
+                    ]
                   }
                 },
                 "required": [

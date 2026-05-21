@@ -896,6 +896,89 @@ describe("financial-relief (integration)", () => {
     expect(event.note).toContain("senior_player");
   });
 
+  it("decideReliefRequest with membershipApply atomically applies membership relief", async () => {
+    const admin = await seedTestUser(ctx.db, { role: "admin" });
+    const member = await seedMember();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const submit = submitReliefRequest(ctx.db, {
+      baseUrl: "https://percymain.org",
+      send,
+    });
+    const { id: requestId } = await submit(
+      member.userId,
+      member.email,
+      validSubmission({
+        memberId: member.memberId,
+        requestedMembershipFull: true,
+        requestedMatchFees: false,
+      }),
+      log,
+    );
+    const stripeStub = {
+      paymentIntents: { retrieve: vi.fn() },
+    } as unknown as import("stripe").default;
+
+    const result = await decideReliefRequest(ctx.db, {
+      stripe: stripeStub,
+      baseUrl: "https://percymain.org",
+      send,
+    })(
+      admin.userId,
+      requestId,
+      {
+        decision: "approved_temporary",
+        coversMembership: true,
+        coversMatchFees: false,
+        membershipPartialPence: null,
+        effectiveFrom: "2026-05-21",
+        effectiveToExclusive: "2026-12-31",
+        adminNotes: null,
+        memberFacingNote: null,
+        membershipApply: {
+          amountPence: 2500,
+          membershipPaidUntil: "2026-12-31",
+          membershipType: "concessionary",
+          description: "Concessionary membership (relief)",
+        },
+      },
+      log,
+    );
+
+    expect(result.grantId).toBeTruthy();
+
+    // Relieved charge created with the right grant linkage.
+    const charge = await ctx.db
+      .selectFrom("charge")
+      .where("relief_grant_id", "=", result.grantId)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(charge.type).toBe("membership");
+    expect(charge.amount_pence).toBe(2500);
+    expect(charge.relieved_at).not.toBeNull();
+    expect(charge.charge_date).toContain("2026-05-21");
+
+    // Membership row upserted with paid_until.
+    const membership = await ctx.db
+      .selectFrom("membership")
+      .where("member_id", "=", member.memberId)
+      .where("type", "=", "concessionary")
+      .select(["paid_until"])
+      .executeTakeFirstOrThrow();
+    expect(membership.paid_until).toContain("2026-12-31");
+
+    // Audit event emitted alongside grant_created in the same tx.
+    const events = await ctx.db
+      .selectFrom("financial_relief_event")
+      .where("request_id", "=", requestId)
+      .select(["event_type"])
+      .orderBy("created_at", "asc")
+      .execute();
+    expect(events.map((e) => e.event_type)).toEqual([
+      "grant_created",
+      "membership_relief_applied",
+    ]);
+  });
+
   it("applyMembershipRelief rejects when the grant does not cover membership or is closed", async () => {
     const admin = await seedTestUser(ctx.db, { role: "admin" });
     const member = await seedMember();

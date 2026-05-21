@@ -95,6 +95,14 @@ export type DeclineRequest = z.infer<typeof declineRequestSchema>;
 
 // --- Admin decide --------------------------------------------------------
 
+const membershipApplySchema = z.object({
+  amountPence: z.number().int().nonnegative(),
+  membershipPaidUntil: z.string().min(1), // ISO date
+  membershipType: z.string().min(1).max(100),
+  description: z.string().min(1).max(500),
+});
+export type MembershipApply = z.infer<typeof membershipApplySchema>;
+
 export const decideReliefRequestSchema = z
   .object({
     decision: grantDecisionSchema,
@@ -110,10 +118,20 @@ export const decideReliefRequestSchema = z
     effectiveToExclusive: z.string().nullable().optional(),
     adminNotes: z.string().max(4000).nullable().optional(),
     memberFacingNote: z.string().max(2000).nullable().optional(),
+    // Required when coversMembership=true: rolls the existing
+    // applyMembershipRelief work into the decide transaction so the
+    // member's paid_until + relieved charge land atomically with the
+    // grant. Kept optional at the schema level so the refine below
+    // owns the error message.
+    membershipApply: membershipApplySchema.nullable().optional(),
   })
   .refine((d) => d.coversMembership || d.coversMatchFees, {
     message: "Approval must cover at least one of membership or match fees",
     path: ["coversMatchFees"],
+  })
+  .refine((d) => !d.coversMembership || !!d.membershipApply, {
+    message: "Membership details are required when coversMembership is true",
+    path: ["membershipApply"],
   });
 export type DecideReliefRequest = z.infer<typeof decideReliefRequestSchema>;
 

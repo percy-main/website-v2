@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen";
 import {
   CONTACT_PREFERENCE_LABELS,
   CONTRIBUTION_ABILITY_LABELS,
@@ -573,9 +574,10 @@ function RequestDetailDialog({
             onClose={() => setDeclineDialogOpen(false)}
           />
         ) : null}
-        {decideDialogOpen ? (
+        {decideDialogOpen && detailQuery.data ? (
           <DecideDialog
             requestId={requestId}
+            request={detailQuery.data.request}
             onClose={() => setDecideDialogOpen(false)}
           />
         ) : null}
@@ -688,7 +690,19 @@ interface DecideFormState {
   effectiveToExclusive: string;
   adminNotes: string;
   memberFacingNote: string;
+  // Membership apply fields — only sent when coversMembership=true.
+  membershipPresetKey: string;
+  membershipAmountPounds: string;
+  membershipPaidUntil: string;
+  membershipType: string;
+  membershipDescription: string;
 }
+
+type ReliefRequestDetail =
+  paths["/api/admin/financial-relief/requests/{requestId}"]["get"]["responses"]["200"]["content"]["application/json"]["request"];
+
+type MembershipPrices =
+  paths["/api/membership/prices"]["get"]["responses"]["200"]["content"]["application/json"];
 
 function todayIso(): string {
   const d = new Date();
@@ -704,24 +718,214 @@ function poundsToPenceOrNull(input: string): number | null {
   return Math.round(parsed * 100);
 }
 
+const FREEFORM_PRESET_KEY = "__freeform__";
+
+interface MembershipPreset {
+  key: string;
+  label: string;
+  amountPounds: string;
+  membershipType: string;
+  description: string;
+}
+
+function buildMembershipPresets(
+  prices: MembershipPrices | undefined,
+): MembershipPreset[] {
+  if (!prices) return [];
+  const presets: MembershipPreset[] = [];
+  const categories: Array<keyof MembershipPrices> = [
+    "senior_player",
+    "senior_women_player",
+    "social",
+    "concessionary",
+  ];
+  for (const key of categories) {
+    const product = prices[key];
+    for (const period of ["annually", "monthly"] as const) {
+      const price = product[period];
+      const periodLabel = period === "annually" ? "annual" : "monthly";
+      presets.push({
+        key: `${key}__${period}`,
+        label: `${product.name} (${periodLabel}) - ${price.formattedPrice}`,
+        amountPounds: (price.unitAmount / 100).toFixed(2),
+        membershipType: key,
+        description: `${product.name} (${periodLabel}) - financial relief`,
+      });
+    }
+  }
+  return presets;
+}
+
+interface MembershipFieldsValue {
+  presetKey: string;
+  amountPounds: string;
+  paidUntil: string;
+  type: string;
+  description: string;
+}
+
+function MembershipReliefFields({
+  value,
+  onChange,
+}: {
+  value: MembershipFieldsValue;
+  onChange: (patch: Partial<MembershipFieldsValue>) => void;
+}) {
+  const pricesQuery = useQuery({
+    queryKey: ["membership-prices"],
+    queryFn: () => callApi(api.GET("/api/membership/prices")),
+    staleTime: 5 * 60 * 1000,
+  });
+  const presets = useMemo(
+    () => buildMembershipPresets(pricesQuery.data),
+    [pricesQuery.data],
+  );
+
+  const applyPreset = (presetKey: string) => {
+    if (presetKey === FREEFORM_PRESET_KEY) {
+      onChange({ presetKey: FREEFORM_PRESET_KEY });
+      return;
+    }
+    const preset = presets.find((p) => p.key === presetKey);
+    if (!preset) return;
+    onChange({
+      presetKey: preset.key,
+      amountPounds: preset.amountPounds,
+      type: preset.membershipType,
+      description: preset.description,
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-3 rounded border border-stone-200 p-3">
+      <p className="text-sm font-medium">Membership relief details</p>
+      <p className="text-xs text-stone-600">
+        Applied atomically with the grant - creates a relieved membership charge
+        for reporting and extends the member&apos;s paid-until date.
+      </p>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="membershipPresetKey">Category</Label>
+        <Select
+          value={value.presetKey}
+          onValueChange={applyPreset}
+          disabled={pricesQuery.isLoading}
+        >
+          <SelectTrigger id="membershipPresetKey">
+            <SelectValue
+              placeholder={
+                pricesQuery.isLoading
+                  ? "Loading categories..."
+                  : "Choose category"
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {presets.map((p) => (
+              <SelectItem key={p.key} value={p.key}>
+                {p.label}
+              </SelectItem>
+            ))}
+            <SelectItem value={FREEFORM_PRESET_KEY}>Other (custom)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="membershipAmountPounds">Amount (in £)</Label>
+          <Input
+            id="membershipAmountPounds"
+            type="number"
+            min="0"
+            step="0.01"
+            value={value.amountPounds}
+            onChange={(e) =>
+              onChange({
+                amountPounds: e.target.value,
+                presetKey: FREEFORM_PRESET_KEY,
+              })
+            }
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="membershipPaidUntil">Paid until</Label>
+          <Input
+            id="membershipPaidUntil"
+            type="date"
+            value={value.paidUntil}
+            onChange={(e) => onChange({ paidUntil: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="membershipType">Membership type</Label>
+        <Input
+          id="membershipType"
+          placeholder="e.g. concessionary"
+          value={value.type}
+          onChange={(e) =>
+            onChange({
+              type: e.target.value,
+              presetKey: FREEFORM_PRESET_KEY,
+            })
+          }
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="membershipDescription">Description</Label>
+        <Input
+          id="membershipDescription"
+          placeholder="e.g. Senior membership (relief)"
+          value={value.description}
+          onChange={(e) =>
+            onChange({
+              description: e.target.value,
+              presetKey: FREEFORM_PRESET_KEY,
+            })
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
 function DecideDialog({
   requestId,
+  request,
   onClose,
 }: {
   requestId: string;
+  request: ReliefRequestDetail;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [form, update] = useState<DecideFormState>({
+  const requestedMembership =
+    request.requestedMembershipFull || request.requestedMembershipPartial;
+  const [form, update] = useState<DecideFormState>(() => ({
     decision: "approved_temporary",
-    coversMembership: false,
-    coversMatchFees: true,
+    coversMembership: requestedMembership,
+    coversMatchFees: request.requestedMatchFees,
     membershipPartialPounds: "",
     effectiveFrom: todayIso(),
-    effectiveToExclusive: "",
+    effectiveToExclusive: endOfYearIso(),
     adminNotes: "",
     memberFacingNote: "",
-  });
+    membershipPresetKey: FREEFORM_PRESET_KEY,
+    membershipAmountPounds: "",
+    membershipPaidUntil: endOfYearIso(),
+    membershipType: "",
+    membershipDescription: "",
+  }));
+
+  const membershipAmountPence = poundsToPenceOrNull(
+    form.membershipAmountPounds,
+  );
+  const membershipApplyValid =
+    !form.coversMembership ||
+    (membershipAmountPence !== null &&
+      membershipAmountPence > 0 &&
+      !!form.membershipPaidUntil &&
+      !!form.membershipType &&
+      !!form.membershipDescription);
 
   const decide = useMutation({
     mutationFn: () =>
@@ -740,6 +944,14 @@ function DecideDialog({
             effectiveToExclusive: form.effectiveToExclusive || null,
             adminNotes: form.adminNotes || null,
             memberFacingNote: form.memberFacingNote || null,
+            membershipApply: form.coversMembership
+              ? {
+                  amountPence: membershipAmountPence ?? 0,
+                  membershipPaidUntil: form.membershipPaidUntil,
+                  membershipType: form.membershipType,
+                  description: form.membershipDescription,
+                }
+              : null,
           },
         }),
       ),
@@ -755,6 +967,7 @@ function DecideDialog({
   const canSubmit =
     (form.coversMembership || form.coversMatchFees) &&
     !!form.effectiveFrom &&
+    membershipApplyValid &&
     !decide.isPending;
 
   return (
@@ -845,6 +1058,37 @@ function DecideDialog({
                 }
               />
             </div>
+          ) : null}
+          {form.coversMembership ? (
+            <MembershipReliefFields
+              value={{
+                presetKey: form.membershipPresetKey,
+                amountPounds: form.membershipAmountPounds,
+                paidUntil: form.membershipPaidUntil,
+                type: form.membershipType,
+                description: form.membershipDescription,
+              }}
+              onChange={(patch) =>
+                update((s) => ({
+                  ...s,
+                  ...(patch.presetKey !== undefined
+                    ? { membershipPresetKey: patch.presetKey }
+                    : {}),
+                  ...(patch.amountPounds !== undefined
+                    ? { membershipAmountPounds: patch.amountPounds }
+                    : {}),
+                  ...(patch.paidUntil !== undefined
+                    ? { membershipPaidUntil: patch.paidUntil }
+                    : {}),
+                  ...(patch.type !== undefined
+                    ? { membershipType: patch.type }
+                    : {}),
+                  ...(patch.description !== undefined
+                    ? { membershipDescription: patch.description }
+                    : {}),
+                }))
+              }
+            />
           ) : null}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
