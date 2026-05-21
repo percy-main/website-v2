@@ -34,6 +34,11 @@ const FILTERS = [
     label: "Women's Softball",
     pred: (g: Game) => /women/i.test(g.team.name),
   },
+  {
+    key: "juniors",
+    label: "Juniors",
+    pred: (g: Game) => /under|junior|colts|\bU\d{2}\b/i.test(g.team.name),
+  },
 ] as const;
 
 type FilterKey = (typeof FILTERS)[number]["key"];
