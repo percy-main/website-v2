@@ -127,6 +127,15 @@ export default function MatchdayLive() {
     return "playing";
   };
 
+  // Juniors live in the `dependent` table - they have no member row of
+  // their own, so member_category comes back null and the row would
+  // otherwise label as the generic "Adult" fallback. Match the
+  // server-side fee derivation in finishMatch (see service.ts:1382).
+  const resolveCategory = (p: MatchdayPlayer): string => {
+    if (p.dependent_id) return "junior";
+    return p.member_category ?? "adult";
+  };
+
   const finished = md.matchday.status === "finished";
   const playing = md.players.filter((p) => resolveStatus(p) === "playing");
   const dropouts = md.players.filter((p) => resolveStatus(p) !== "playing");
@@ -246,8 +255,8 @@ export default function MatchdayLive() {
                         ? p.chargePaidAt
                           ? `Paid · ${new Date(p.chargePaidAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
                           : "Paid"
-                        : `${p.member_category ?? "Adult"} · donation due`
-                    : (p.member_category ?? "Adult")}
+                        : `${resolveCategory(p)} · donation due`
+                    : resolveCategory(p)}
                 </p>
               </div>
               {finished && status === "playing" && !isPaid && (
