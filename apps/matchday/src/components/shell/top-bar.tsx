@@ -23,9 +23,15 @@ export function TopBar() {
   return (
     <header className="border-border bg-surface sticky top-0 z-20 flex items-center justify-between border-b px-4 py-2.5 md:hidden">
       <div className="flex items-center gap-2">
-        <div className="bg-navy grid size-7 place-items-center rounded-md text-[11px] font-bold tracking-wide text-white">
-          PM
-        </div>
+        <img
+          src="/images/club_logo.png"
+          alt="Percy Main CSC"
+          width={28}
+          height={28}
+          className="size-7 rounded-md object-contain"
+          loading="eager"
+          fetchPriority="high"
+        />
         <div>
           <div className="text-[14px] leading-none font-bold">Matchday</div>
           <div className="text-text-secondary mt-0.5 text-[11px]">
