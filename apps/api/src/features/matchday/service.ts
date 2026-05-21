@@ -1248,37 +1248,50 @@ export function finishMatch(
         )
         .selectAll()
         .execute();
-      const missing: string[] = [];
-      for (const p of players) {
-        // "selected" is the pre-finish squad-picked state; if the captain
-        // submits the wrap without an explicit per-player status, default
-        // to playing so we still charge them.
-        const effectiveStatus =
-          statusOverrides.get(p.matchdayPlayerId) ?? p.current_status;
-        const willPlay =
-          effectiveStatus === "playing" || effectiveStatus === "selected";
-        if (!willPlay) continue;
-        let category: string | null = null;
-        if (p.member_id) {
-          category = p.member_category ?? "guest";
-        } else if (p.dependent_id && p.dependentParentId) {
-          category = "junior";
+      // A team with zero team-specific fee rates is intentionally
+      // fee-free (e.g. women's softball - the club deliberately leaves
+      // no match_fee_rate row for that team). Global / null-team rates
+      // still apply to guests, but they shouldn't force "missing fee"
+      // errors on the captains of fee-free teams. Only validate when
+      // the team has at least one rate of its own configured - that's
+      // when "we charge most of the team but accidentally skipped a
+      // category" becomes the likely interpretation.
+      const teamHasOwnRate = feeRates.some(
+        (r) => r.play_cricket_team_id === matchday.play_cricket_team_id,
+      );
+      if (teamHasOwnRate) {
+        const missing: string[] = [];
+        for (const p of players) {
+          // "selected" is the pre-finish squad-picked state; if the captain
+          // submits the wrap without an explicit per-player status, default
+          // to playing so we still charge them.
+          const effectiveStatus =
+            statusOverrides.get(p.matchdayPlayerId) ?? p.current_status;
+          const willPlay =
+            effectiveStatus === "playing" || effectiveStatus === "selected";
+          if (!willPlay) continue;
+          let category: string | null = null;
+          if (p.member_id) {
+            category = p.member_category ?? "guest";
+          } else if (p.dependent_id && p.dependentParentId) {
+            category = "junior";
+          }
+          if (!category) continue;
+          if (overrides.has(p.matchdayPlayerId)) continue;
+          const rate = findFeeRate(
+            feeRates,
+            matchday.play_cricket_team_id,
+            matchday.competition_type,
+            category,
+          );
+          if (!rate) missing.push(p.player_name);
         }
-        if (!category) continue;
-        if (overrides.has(p.matchdayPlayerId)) continue;
-        const rate = findFeeRate(
-          feeRates,
-          matchday.play_cricket_team_id,
-          matchday.competition_type,
-          category,
-        );
-        if (!rate) missing.push(p.player_name);
-      }
-      if (missing.length > 0) {
-        throwHttpError(
-          400,
-          `Missing fee for: ${missing.join(", ")}. Captain must enter an amount inline.`,
-        );
+        if (missing.length > 0) {
+          throwHttpError(
+            400,
+            `Missing fee for: ${missing.join(", ")}. Captain must enter an amount inline.`,
+          );
+        }
       }
     }
 
@@ -1372,6 +1385,14 @@ export function finishMatch(
         .selectAll()
         .execute();
 
+      // A team with zero team-specific rates is fee-free by design:
+      // ignore global / null-team fallback rates entirely so a generic
+      // guest-default doesn't sneak a charge onto a women's softball
+      // match. Inline overrides from the captain still apply.
+      const teamHasOwnRateForCharges = feeRates.some(
+        (r) => r.play_cricket_team_id === matchday.play_cricket_team_id,
+      );
+
       const applyRelief = applyReliefIfAny(trx);
       for (const player of uncharged) {
         let chargeMemberId: string;
@@ -1393,12 +1414,14 @@ export function finishMatch(
           continue;
         }
 
-        const rate = findFeeRate(
-          feeRates,
-          matchday.play_cricket_team_id,
-          matchday.competition_type,
-          category,
-        );
+        const rate = teamHasOwnRateForCharges
+          ? findFeeRate(
+              feeRates,
+              matchday.play_cricket_team_id,
+              matchday.competition_type,
+              category,
+            )
+          : undefined;
         const overrideAmount = overrides.get(player.matchdayPlayerId);
         const amountPence = overrideAmount ?? rate?.amount_pence ?? 0;
 

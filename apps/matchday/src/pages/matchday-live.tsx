@@ -127,20 +127,31 @@ export default function MatchdayLive() {
     return "playing";
   };
 
+  // Juniors live in the `dependent` table - they have no member row of
+  // their own, so member_category comes back null and the row would
+  // otherwise label as the generic "Adult" fallback. Match the
+  // server-side fee derivation in finishMatch (see service.ts:1382).
+  const resolveCategory = (p: MatchdayPlayer): string => {
+    if (p.dependent_id) return "junior";
+    return p.member_category ?? "adult";
+  };
+
   const finished = md.matchday.status === "finished";
   const playing = md.players.filter((p) => resolveStatus(p) === "playing");
   const dropouts = md.players.filter((p) => resolveStatus(p) !== "playing");
-  // "Settled" means the captain doesn't need to chase the player — either
+  // "Settled" means the captain doesn't need to chase the player - either
   // they've paid or the treasurer's already waived the donation via the
   // financial-relief workflow (charge.relieved_at, projected as
   // chargeStatus === "waived"). Either way, the row shows green and is
-  // unactionable.
+  // unactionable. chargeStatus === null means there's no charge to
+  // settle at all (fee-free teams like women's softball, or a player
+  // whose category resolves to 0 pence), so they shouldn't count as
+  // unpaid and shouldn't get a mark-paid affordance.
   const isSettled = (status: string | null) =>
     status === "paid" || status === "waived";
+  const hasCharge = (p: MatchdayPlayer) => p.chargeStatus !== null;
   const paid = playing.filter((p) => isSettled(p.chargeStatus)).length;
-  const unpaid = playing.filter(
-    (p) => p.chargeStatus === "unpaid" || p.chargeStatus === null,
-  ).length;
+  const unpaid = playing.filter((p) => p.chargeStatus === "unpaid").length;
 
   return (
     <div className="bg-surface flex min-h-dvh flex-col">
@@ -206,7 +217,7 @@ export default function MatchdayLive() {
               {finished ? (
                 <button
                   type="button"
-                  disabled={isPaid || status !== "playing"}
+                  disabled={isPaid || status !== "playing" || !hasCharge(p)}
                   onClick={() =>
                     markPaid.mutate({ playerId: p.id, paymentMethod: method })
                   }
@@ -246,11 +257,13 @@ export default function MatchdayLive() {
                         ? p.chargePaidAt
                           ? `Paid · ${new Date(p.chargePaidAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
                           : "Paid"
-                        : `${p.member_category ?? "Adult"} · donation due`
-                    : (p.member_category ?? "Adult")}
+                        : hasCharge(p)
+                          ? `${resolveCategory(p)} · donation due`
+                          : resolveCategory(p)
+                    : resolveCategory(p)}
                 </p>
               </div>
-              {finished && status === "playing" && !isPaid && (
+              {finished && status === "playing" && !isPaid && hasCharge(p) && (
                 <select
                   aria-label="Payment method"
                   value={method}
@@ -664,6 +677,15 @@ function FinishSheet({
         no-result
       </p>
 
+      {errorText && (
+        <div
+          role="alert"
+          className="border-danger bg-danger-bg/40 text-danger mt-4 rounded-xl border p-3 text-sm"
+        >
+          {errorText}
+        </div>
+      )}
+
       <div className="bg-surface-raised mt-4 space-y-1 rounded-xl p-3 text-sm">
         <Row label={`${playingPlayers.length} playing`}>
           will be charged · donation emails sent
@@ -709,7 +731,6 @@ function FinishSheet({
       <Button tone="outline" className="mt-2 w-full" onClick={onClose}>
         Cancel
       </Button>
-      {errorText && <p className="text-danger mt-2 text-sm">{errorText}</p>}
     </Sheet>
   );
 }
@@ -784,7 +805,7 @@ function Sheet({
       <div
         ref={panelRef}
         onClick={(e) => e.stopPropagation()}
-        className="bg-surface w-full max-w-md rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl"
+        className="bg-surface max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl"
       >
         <div className="bg-border mx-auto mb-3 h-1 w-9 rounded-full" />
         <div className="flex items-center justify-between">
