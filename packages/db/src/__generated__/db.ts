@@ -667,6 +667,13 @@ export interface Membership {
   type: string | null;
 }
 
+export interface NotificationPreferences {
+  created_at: Generated<Timestamp>;
+  matchday_channel: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  user_id: string;
+}
+
 export interface Passkey {
   backedUp: boolean;
   counter: number;
@@ -723,6 +730,17 @@ export interface PlayerSponsorship {
   sponsor_phone: string | null;
   sponsor_website: string | null;
   stripe_payment_intent_id: string | null;
+}
+
+export interface PushSubscription {
+  auth: string;
+  created_at: Generated<Timestamp>;
+  endpoint: string;
+  id: Generated<string>;
+  p256dh: string;
+  updated_at: Generated<Timestamp>;
+  user_agent: string | null;
+  user_id: string;
 }
 
 export interface RvPlayerMapping {
@@ -996,11 +1014,13 @@ export interface DB {
   member: Member;
   member_parent_link: MemberParentLink;
   membership: Membership;
+  notification_preferences: NotificationPreferences;
   passkey: Passkey;
   play_cricket_match_cache: PlayCricketMatchCache;
   play_cricket_sync_log: PlayCricketSyncLog;
   play_cricket_team: PlayCricketTeam;
   player_sponsorship: PlayerSponsorship;
+  push_subscription: PushSubscription;
   rv_player_mapping: RvPlayerMapping;
   scout_attachment: ScoutAttachment;
   scout_attachment_cache: ScoutAttachmentCache;

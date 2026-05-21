@@ -4,7 +4,17 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { createElement } from "react";
 import { render } from "react-email";
+import type { SendPush } from "../../lib/push-sender.ts";
+import type { MatchdayChannel } from "../notification-preferences/schemas.ts";
+import {
+  DEFAULT_MATCHDAY_CHANNEL,
+  getNotificationPreferencesByUserIds,
+} from "../notification-preferences/service.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
+import {
+  deletePushSubscriptionByEndpoint,
+  listPushSubscriptionsForUsers,
+} from "../push-subscriptions/service.ts";
 import type {
   AssignPlayer,
   CreateRequest,
@@ -43,11 +53,13 @@ export function createRequest(
   playCricketApi: PlayCricketApiClient,
   siteId: string,
   sendEmail: SendEmail,
+  sendPush: SendPush,
   baseUrl: string,
 ) {
   const dispatchNotifications = sendAvailabilityNotification(
     db,
     sendEmail,
+    sendPush,
     baseUrl,
   );
 
@@ -1088,19 +1100,19 @@ export function previewFixtures(
 
 export function sendAvailabilityNotification(
   db: Kysely<DB>,
-  sendEmail: (email: {
-    to: string;
-    subject: string;
-    html: string;
-  }) => Promise<void>,
+  sendEmail: SendEmail,
+  sendPush: SendPush,
   baseUrl: string,
 ) {
+  const fetchPrefs = getNotificationPreferencesByUserIds(db);
+  const fetchPushSubs = listPushSubscriptionsForUsers(db);
+  const pruneSubscription = deletePushSubscriptionByEndpoint(db);
+
   return async (
     requestId: string,
     data: NotifySend,
     log: FastifyBaseLogger,
   ) => {
-    // Fetch request details
     const request = await db
       .selectFrom("availability_request")
       .where("id", "=", requestId)
@@ -1109,7 +1121,6 @@ export function sendAvailabilityNotification(
 
     if (!request) throwHttpError(404, "Availability request not found");
 
-    // Count fixtures
     const fixtureResult = await db
       .selectFrom("availability_fixture")
       .where("availability_request_id", "=", requestId)
@@ -1120,12 +1131,38 @@ export function sendAvailabilityNotification(
     const imageBaseUrl = `${baseUrl}/images`;
     const url = `${baseUrl}/availability/${requestId}`;
 
+    // Resolve user ids for the recipient emails so we can apply each
+    // recipient's matchday_channel preference. Recipients without a
+    // matching user (additional emails added by an admin) have no
+    // preferences and no push subscriptions - fall back to email-only,
+    // which is what they got pre-#379.
+    const recipientEmails = data.recipients.map((r) => r.email.toLowerCase());
+    const userRows =
+      recipientEmails.length > 0
+        ? await db
+            .selectFrom("user")
+            .where("email", "in", recipientEmails)
+            .select(["id", "email"])
+            .execute()
+        : [];
+    const userIdByEmail = new Map<string, string>();
+    for (const u of userRows) {
+      userIdByEmail.set(u.email.toLowerCase(), u.id);
+    }
+    const userIds = userRows.map((u) => u.id);
+
+    const [prefs, pushSubsByUser] = await Promise.all([
+      fetchPrefs(userIds),
+      fetchPushSubs(userIds),
+    ]);
+
     let sent = 0;
     const failures: Array<{ email: string; reason: string }> = [];
-    for (const recipient of data.recipients) {
-      // Render INSIDE the try so a render-time failure for one
-      // recipient (template throw, missing locale, etc) doesn't abort
-      // the rest of the batch — same isolation as a SES send failure.
+
+    const sendOneEmail = async (recipient: {
+      email: string;
+      name: string | null;
+    }): Promise<{ ok: true } | { ok: false; reason: string }> => {
       try {
         const html = await render(
           createElement(AvailabilityRequest.component, {
@@ -1142,18 +1179,109 @@ export function sendAvailabilityNotification(
           subject: AvailabilityRequest.subject,
           html,
         });
-        sent++;
+        return { ok: true };
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
-        failures.push({ email: recipient.email, reason });
         log.warn(
           {
             err,
             requestId,
             recipientEmail: recipient.email,
+            channel: "email",
           },
           "availability_notification_failed",
         );
+        return { ok: false, reason };
+      }
+    };
+
+    for (const recipient of data.recipients) {
+      const userId = userIdByEmail.get(recipient.email.toLowerCase());
+      const channel: MatchdayChannel = userId
+        ? (prefs.get(userId) ?? DEFAULT_MATCHDAY_CHANNEL)
+        : "email";
+
+      const wantsEmail = channel === "email" || channel === "both";
+      const wantsPush = channel === "push" || channel === "both";
+
+      // A push-only user with no live subscriptions falls back to email
+      // so they don't silently miss the notification - subscribing is
+      // opt-in and we can't tell from the prefs alone whether they
+      // expect a push or simply haven't enabled it on any device yet.
+      const subscriptions = userId ? (pushSubsByUser.get(userId) ?? []) : [];
+      const pushAvailable = wantsPush && subscriptions.length > 0;
+
+      let deliveredAny = false;
+      let recipientFailure: string | null = null;
+
+      if (wantsEmail || (wantsPush && !pushAvailable)) {
+        const result = await sendOneEmail(recipient);
+        if (result.ok) {
+          deliveredAny = true;
+        } else {
+          recipientFailure = result.reason;
+        }
+      }
+
+      if (pushAvailable) {
+        const payload = {
+          title: AvailabilityRequest.subject,
+          body: `${fixtureCount} fixture${fixtureCount === 1 ? "" : "s"} ${request.date_from} - ${request.date_to}`,
+          url,
+          tag: `availability:${requestId}`,
+        };
+        let pushDelivered = false;
+        let allGone = true;
+        for (const sub of subscriptions) {
+          const result = await sendPush(sub, payload);
+          if (result.ok) {
+            deliveredAny = true;
+            pushDelivered = true;
+            allGone = false;
+          } else if (result.gone) {
+            await pruneSubscription(result.endpoint);
+            log.info(
+              { requestId, endpoint: result.endpoint },
+              "push_subscription_gone_pruned",
+            );
+          } else {
+            allGone = false;
+            log.warn(
+              {
+                requestId,
+                recipientEmail: recipient.email,
+                endpoint: result.endpoint,
+                reason: result.reason,
+                channel: "push",
+              },
+              "availability_notification_failed",
+            );
+            recipientFailure ??= result.reason;
+          }
+        }
+
+        // Push-only recipient whose every subscription was pruned this
+        // turn - they look "subscribed" in our store but the push service
+        // disagrees. Treat it the same as the "no subscriptions" branch
+        // above and email them so they don't silently miss the notice.
+        if (!wantsEmail && !pushDelivered && allGone) {
+          const fallback = await sendOneEmail(recipient);
+          if (fallback.ok) {
+            deliveredAny = true;
+            recipientFailure = null;
+          } else {
+            recipientFailure ??= fallback.reason;
+          }
+        }
+      }
+
+      if (deliveredAny) {
+        sent++;
+      } else {
+        failures.push({
+          email: recipient.email,
+          reason: recipientFailure ?? "no delivery channel",
+        });
       }
     }
 
