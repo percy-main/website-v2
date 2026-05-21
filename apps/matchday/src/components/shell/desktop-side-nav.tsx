@@ -11,9 +11,15 @@ export function DesktopSideNav({ tabs }: { tabs: TabDef[] }) {
     <aside className="border-border bg-surface sticky top-0 hidden h-dvh w-56 shrink-0 border-r px-3 py-5 md:flex md:flex-col md:gap-1">
       <div className="px-2 pb-4">
         <div className="flex items-center gap-2">
-          <div className="bg-navy grid size-8 place-items-center rounded-md text-[11px] font-bold tracking-wide text-white">
-            PM
-          </div>
+          <img
+            src="/images/club_logo.png"
+            alt="Percy Main CSC"
+            width={32}
+            height={32}
+            className="size-8 rounded-md object-contain"
+            loading="eager"
+            fetchPriority="high"
+          />
           <div>
             <div className="text-sm leading-none font-bold">Matchday</div>
             <div className="text-text-secondary mt-0.5 text-[11px]">

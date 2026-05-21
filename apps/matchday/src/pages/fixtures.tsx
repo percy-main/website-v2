@@ -9,8 +9,8 @@ import {
 import { api, callApi } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link } from "react-router";
+import { ChevronDown } from "lucide-react";
+import { Link, useSearchParams } from "react-router";
 
 const FILTERS = [
   { key: "all", label: "All", pred: (_: Game) => true },
@@ -24,10 +24,67 @@ const FILTERS = [
     label: "2nd XI",
     pred: (g: Game) => g.team.name.toLowerCase().includes("2nd"),
   },
+  {
+    key: "mid",
+    label: "Midweek XI",
+    pred: (g: Game) => /midweek/i.test(g.team.name),
+  },
+  {
+    key: "womens",
+    label: "Women's Softball",
+    pred: (g: Game) => /women/i.test(g.team.name),
+  },
+  {
+    key: "juniors",
+    label: "Juniors",
+    pred: (g: Game) => /under|junior|colts|\bU\d{2}\b/i.test(g.team.name),
+  },
 ] as const;
 
+type FilterKey = (typeof FILTERS)[number]["key"];
+
+const BUCKETS = [
+  { key: "next", label: "Next week" },
+  { key: "recent", label: "Recent" },
+  { key: "future", label: "Future" },
+] as const;
+type BucketKey = (typeof BUCKETS)[number]["key"];
+const DEFAULT_OPEN: ReadonlySet<BucketKey> = new Set(["next"]);
+
 export default function Fixtures() {
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParam = searchParams.get("filter");
+  const filter: FilterKey =
+    FILTERS.find((f) => f.key === filterParam)?.key ?? "all";
+  const openSet = parseOpen(searchParams.get("open"));
+
+  const setFilter = (next: FilterKey) => {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === "all") params.delete("filter");
+        else params.set("filter", next);
+        return params;
+      },
+      { replace: true },
+    );
+  };
+
+  const toggleBucket = (key: BucketKey) => {
+    const nextOpen = new Set(openSet);
+    if (nextOpen.has(key)) nextOpen.delete(key);
+    else nextOpen.add(key);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (sameSet(nextOpen, DEFAULT_OPEN)) params.delete("open");
+        else params.set("open", serialiseOpen(nextOpen));
+        return params;
+      },
+      { replace: true },
+    );
+  };
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ["games"],
     queryFn: () => callApi(api.GET("/api/games")),
@@ -69,21 +126,38 @@ export default function Fixtures() {
           No fixtures match this filter.
         </p>
       )}
-      {!isLoading && !isError && (
+      {!isLoading && !isError && filtered.length > 0 && (
         <div>
-          {(["Recent", "Next week", "Future"] as const).map(
-            (bucket) =>
-              groups[bucket].length > 0 && (
-                <section key={bucket}>
-                  <h2 className="text-text-secondary px-4 pt-4 pb-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
-                    {bucket}
-                  </h2>
-                  {groups[bucket].map((g) => (
-                    <FixtureItem key={g.id} game={g} />
-                  ))}
-                </section>
-              ),
-          )}
+          {BUCKETS.map(({ key, label }) => {
+            const items = groups[key];
+            if (items.length === 0) return null;
+            const isOpen = openSet.has(key);
+            return (
+              <section key={key}>
+                <button
+                  type="button"
+                  onClick={() => toggleBucket(key)}
+                  aria-expanded={isOpen}
+                  className="text-text-secondary flex w-full items-center justify-between px-4 pt-4 pb-2 text-[11px] font-semibold tracking-[0.06em] uppercase"
+                >
+                  <span>
+                    {label}
+                    <span className="text-text-secondary ml-2 normal-case opacity-70">
+                      ({items.length})
+                    </span>
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "size-4 transition-transform",
+                      isOpen ? "rotate-0" : "-rotate-90",
+                    )}
+                  />
+                </button>
+                {isOpen &&
+                  items.map((g) => <FixtureItem key={g.id} game={g} />)}
+              </section>
+            );
+          })}
         </div>
       )}
     </div>
@@ -110,7 +184,7 @@ function FixtureItem({ game }: { game: Game }) {
       </div>
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">
-          vs {oppositionName(game)}
+          {oppositionName(game)}
         </div>
         <div className="text-text-secondary mt-0.5 text-xs">
           {[game.team.name, game.home ? "Home" : "Away", game.competition.name]
@@ -153,9 +227,28 @@ function FixtureSkeleton() {
   );
 }
 
-type Bucket = "Recent" | "Next week" | "Future";
+function parseOpen(raw: string | null): Set<BucketKey> {
+  if (raw === null) return new Set(DEFAULT_OPEN);
+  if (raw === "") return new Set();
+  const valid = new Set(BUCKETS.map((b) => b.key));
+  return new Set(
+    raw.split(",").filter((k): k is BucketKey => valid.has(k as BucketKey)),
+  );
+}
 
-function groupByBucket(games: Game[]): Record<Bucket, Game[]> {
+function serialiseOpen(set: Set<BucketKey>): string {
+  return BUCKETS.map((b) => b.key)
+    .filter((k) => set.has(k))
+    .join(",");
+}
+
+function sameSet<T>(a: Set<T>, b: ReadonlySet<T>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
+}
+
+function groupByBucket(games: Game[]): Record<BucketKey, Game[]> {
   // All comparisons happen on the ISO-normalised date — Play-Cricket
   // gives us DD/MM/YYYY which `new Date(...)` parses inconsistently
   // across browsers and breaks string-sort.
@@ -179,10 +272,10 @@ function groupByBucket(games: Game[]): Record<Bucket, Game[]> {
     return d;
   };
 
-  const out: Record<Bucket, Game[]> = {
-    Recent: [],
-    "Next week": [],
-    Future: [],
+  const out: Record<BucketKey, Game[]> = {
+    recent: [],
+    next: [],
+    future: [],
   };
   for (const g of games) {
     const d = dateOf(g);
@@ -190,15 +283,15 @@ function groupByBucket(games: Game[]): Record<Bucket, Game[]> {
     // including past-date matches whose result hasn't been entered
     // yet, which previously leaked into "This week".
     if (played(g) || (d && d < today)) {
-      out.Recent.push(g);
+      out.recent.push(g);
       continue;
     }
-    if (!d || d < nextWeekEnd) out["Next week"].push(g);
-    else out.Future.push(g);
+    if (!d || d < nextWeekEnd) out.next.push(g);
+    else out.future.push(g);
   }
-  out["Next week"].sort(compare);
-  out.Future.sort(compare);
-  out.Recent.sort((a, b) => compare(b, a));
-  out.Recent = out.Recent.slice(0, 8);
+  out.next.sort(compare);
+  out.future.sort(compare);
+  out.recent.sort((a, b) => compare(b, a));
+  out.recent = out.recent.slice(0, 8);
   return out;
 }

@@ -47,25 +47,23 @@ export default function Donations() {
         <p className="text-navy mt-1 text-4xl font-bold tracking-[-0.02em] dark:text-white">
           {fmtMoneyPence(total)}
         </p>
-        <p className="text-text-secondary mt-1 text-sm">
-          {outstanding.length === 0
-            ? "Nothing outstanding. Cheers."
-            : `${outstanding.length} unpaid match donation${outstanding.length === 1 ? "" : "s"}`}
-        </p>
         {outstanding.length > 0 && (
-          <Button asChild tone="primary" className="mt-3 w-full">
-            <a
-              href={mainSiteUrl("/members?tab=payments")}
-              target="_blank"
-              rel="noopener"
-            >
-              Pay on main site ↗
-            </a>
-          </Button>
+          <>
+            <p className="text-text-secondary mt-1 text-sm">
+              {outstanding.length} unpaid match donation
+              {outstanding.length === 1 ? "" : "s"}
+            </p>
+            <Button asChild tone="primary" className="mt-3 w-full">
+              <a
+                href={mainSiteUrl("/members?tab=payments")}
+                target="_blank"
+                rel="noopener"
+              >
+                Pay on main site ↗
+              </a>
+            </Button>
+          </>
         )}
-        <p className="text-text-muted mt-2 text-xs">
-          Payments are handled by Stripe on the main Percy Main site.
-        </p>
       </header>
 
       <div className="bg-surface-raised mx-4 grid grid-cols-2 gap-1 rounded-xl p-1">

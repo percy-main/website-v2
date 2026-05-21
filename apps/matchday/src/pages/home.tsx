@@ -52,9 +52,6 @@ export default function Home() {
         <h1 className="text-2xl font-semibold tracking-[-0.015em]">
           Hi {firstName}
         </h1>
-        <p className="text-text-secondary text-sm">
-          What needs doing on Matchday today.
-        </p>
       </div>
       <div className="space-y-3">
         <NeedsAttentionCard />
