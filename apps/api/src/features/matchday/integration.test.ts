@@ -602,6 +602,55 @@ describe("matchday service (integration)", () => {
         .executeTakeFirst();
       expect(link?.dependent_id).toBe(dependentId);
     });
+
+    it("treats a team with no team-scoped fee rates as fee-free and finishes cleanly", async () => {
+      // Women's softball case: the club deliberately leaves no
+      // match_fee_rate row for the team. A global / null-team default
+      // rate may exist for guests, but seniors on this team aren't
+      // covered by anything, so the validation must not fire and the
+      // charge loop just skips them.
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `nofees-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+      // Use a category no prior test has seeded a global rate for, so
+      // the shared DB state from other tests can't accidentally make a
+      // rate "applicable" to this player.
+      const memberId = await seedMember(
+        "Free Player",
+        `free-${crypto.randomUUID()}@test.com`,
+        "no_fee_test_category",
+      );
+
+      const { id: playerId } = await addPlayer(ctx.db)(
+        userId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Free Player" },
+      );
+
+      // No seedFeeRate call for teamId - the team has zero team-specific
+      // rates, so the captain can finish without inline overrides.
+      await finishAsTest(matchdayId, userId, {
+        playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
+      });
+
+      const md = await ctx.db
+        .selectFrom("matchday")
+        .where("id", "=", matchdayId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(md?.status).toBe("finished");
+
+      const player = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(player?.charge_id).toBeNull();
+    });
   });
 
   describe("markFeePaid", () => {

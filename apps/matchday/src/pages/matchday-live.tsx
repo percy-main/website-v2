@@ -664,6 +664,15 @@ function FinishSheet({
         no-result
       </p>
 
+      {errorText && (
+        <div
+          role="alert"
+          className="border-danger bg-danger-bg/40 text-danger mt-4 rounded-xl border p-3 text-sm"
+        >
+          {errorText}
+        </div>
+      )}
+
       <div className="bg-surface-raised mt-4 space-y-1 rounded-xl p-3 text-sm">
         <Row label={`${playingPlayers.length} playing`}>
           will be charged · donation emails sent
@@ -709,7 +718,6 @@ function FinishSheet({
       <Button tone="outline" className="mt-2 w-full" onClick={onClose}>
         Cancel
       </Button>
-      {errorText && <p className="text-danger mt-2 text-sm">{errorText}</p>}
     </Sheet>
   );
 }
@@ -784,7 +792,7 @@ function Sheet({
       <div
         ref={panelRef}
         onClick={(e) => e.stopPropagation()}
-        className="bg-surface w-full max-w-md rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl"
+        className="bg-surface max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),24px)] shadow-2xl md:rounded-3xl"
       >
         <div className="bg-border mx-auto mb-3 h-1 w-9 rounded-full" />
         <div className="flex items-center justify-between">
