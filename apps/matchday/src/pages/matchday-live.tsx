@@ -6,7 +6,7 @@ import { resizeImageForUpload } from "@/features/image-resize.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckIcon, PlusIcon, XIcon } from "lucide-react";
+import { CheckIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 
@@ -192,7 +192,7 @@ export default function MatchdayLive() {
         </div>
       </header>
 
-      <div className="flex-1 pb-44">
+      <div>
         <h2 className="text-text-secondary px-4 pt-3 pb-1 text-[11px] font-semibold tracking-[0.06em] uppercase">
           Squad · {md.players.length}
         </h2>
@@ -322,31 +322,30 @@ export default function MatchdayLive() {
         )}
       </div>
 
-      {!isPastExpenseCutoff(md.matchday.match_date) &&
-        md.matchday.status !== "cancelled" && (
-          <button
-            type="button"
-            onClick={() => setExpenseOpen(true)}
-            aria-label="Add expense"
-            className="bg-navy fixed right-4 bottom-28 z-30 grid size-14 place-items-center rounded-full text-white shadow-lg"
-          >
-            <PlusIcon className="size-6" />
-          </button>
-        )}
-
-      <div className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur md:static">
-        <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)]">
+      <div className="border-border bg-surface mt-4 border-t">
+        <div className="mx-auto flex max-w-2xl flex-col gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)] md:flex-row md:items-center">
+          {!isPastExpenseCutoff(md.matchday.match_date) &&
+            md.matchday.status !== "cancelled" && (
+              <Button
+                tone="outline"
+                size="lg"
+                className="w-full md:flex-1"
+                onClick={() => setExpenseOpen(true)}
+              >
+                Add expense
+              </Button>
+            )}
           {!finished ? (
             <Button
               tone="destructive"
               size="lg"
-              className="flex-1"
+              className="w-full md:flex-1"
               onClick={() => setFinishOpen(true)}
             >
               Finish match
             </Button>
           ) : (
-            <p className="text-text-secondary flex-1 text-center text-sm">
+            <p className="text-text-secondary w-full text-center text-sm md:flex-1">
               Match finished · result {md.matchday.result_type ?? "—"}
             </p>
           )}
