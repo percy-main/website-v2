@@ -3,14 +3,14 @@ import { Button } from "@/components/ui/button.js";
 import { fmtDate, toIsoDate } from "@/features/format.js";
 import { oppositionName, played, type GameDetail } from "@/features/games.js";
 import { api, callApi } from "@/lib/api-client.js";
-import { useSession, type SessionUser } from "@/lib/auth-client.js";
+import {
+  canViewMatchdayAdmin,
+  useSession,
+  type SessionUser,
+} from "@/lib/auth-client.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router";
-
-function isOfficial(role: string | null | undefined): boolean {
-  return role === "official" || role === "admin";
-}
 
 export default function FixtureDetail() {
   const { matchId } = useParams();
@@ -32,7 +32,7 @@ export default function FixtureDetail() {
   const qc = useQueryClient();
   const { data: session } = useSession();
   const user = session?.user as SessionUser | undefined;
-  const showOfficialActions = isOfficial(user?.role ?? null);
+  const showOfficialActions = canViewMatchdayAdmin(user);
   const create = useMutation({
     mutationFn: (vars: {
       teamId: string;

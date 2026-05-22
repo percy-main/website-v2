@@ -1,5 +1,5 @@
+import { DateSquare } from "@/components/primitives/date-square.js";
 import { StatusPill } from "@/components/primitives/status-pill.js";
-import { fmtDate } from "@/features/format.js";
 import {
   gameIsoDate,
   oppositionName,
@@ -95,10 +95,10 @@ export default function Fixtures() {
   const groups = groupByBucket(filtered);
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
-      <header className="px-4 pt-6 pb-2">
+      <header className="hidden px-4 pt-6 pb-2 md:block">
         <h1 className="text-2xl font-semibold tracking-[-0.015em]">Fixtures</h1>
       </header>
-      <div className="flex gap-2 overflow-x-auto px-4 py-2">
+      <div className="flex gap-2 overflow-x-auto px-4 py-3 md:py-2">
         {FILTERS.map((f) => (
           <button
             key={f.key}
@@ -168,20 +168,12 @@ function FixtureItem({ game }: { game: Game }) {
   // Play-Cricket sends DD/MM/YYYY — normalise to ISO before passing to
   // new Date(), which is otherwise locale-dependent.
   const iso = gameIsoDate(game);
-  const d = iso ? new Date(iso) : null;
   return (
     <Link
       to={`/fixture/${game.id}`}
       className="border-border-light bg-surface grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t px-4 py-3 first:border-t-0"
     >
-      <div className="bg-surface-raised flex flex-col items-center justify-center rounded-md py-1">
-        <div className="text-navy text-base leading-none font-bold dark:text-white">
-          {d ? d.getDate() : ""}
-        </div>
-        <div className="text-text-secondary text-[10px] tracking-wide uppercase">
-          {fmtDate(game.matchDate, "MMM")}
-        </div>
-      </div>
+      <DateSquare iso={iso} dayLabel="month" />
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">
           {oppositionName(game)}
@@ -203,12 +195,20 @@ function FixtureItem({ game }: { game: Game }) {
 
 function FixtureResultPill({ game }: { game: Game }) {
   const o = game.outcome;
+  const tone =
+    o === "W"
+      ? ("success" as const)
+      : o === "L"
+        ? ("danger" as const)
+        : o === "D" || o === "T"
+          ? ("warning" as const)
+          : ("neutral" as const);
   const label = game.scoreDescription ?? o ?? "—";
-  if (o === "W") return <StatusPill tone="success">{label}</StatusPill>;
-  if (o === "L") return <StatusPill tone="danger">{label}</StatusPill>;
-  if (o === "D" || o === "T")
-    return <StatusPill tone="warning">{label}</StatusPill>;
-  return <StatusPill tone="neutral">{label}</StatusPill>;
+  return (
+    <StatusPill tone={tone} size="lg">
+      {label}
+    </StatusPill>
+  );
 }
 
 function FixtureSkeleton() {

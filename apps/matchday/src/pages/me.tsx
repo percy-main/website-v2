@@ -9,6 +9,7 @@ import {
 import { NotificationsCard } from "@/features/notifications/notifications-card.js";
 import { signOut, useSession, type SessionUser } from "@/lib/auth-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
+import { ExternalLinkIcon, UserIcon } from "lucide-react";
 
 export default function Me() {
   const { data: session } = useSession();
@@ -17,7 +18,7 @@ export default function Me() {
     <div className="mx-auto w-full max-w-md space-y-3 px-4 py-6">
       <Card>
         <CardHeader>
-          <CardEyebrow>Account</CardEyebrow>
+          <CardEyebrow icon={UserIcon}>Account</CardEyebrow>
           <CardTitle>{user?.name ?? "You"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -33,7 +34,7 @@ export default function Me() {
 
       <Card>
         <CardHeader>
-          <CardEyebrow>Main site</CardEyebrow>
+          <CardEyebrow icon={ExternalLinkIcon}>Main site</CardEyebrow>
           <CardTitle>Membership & payments</CardTitle>
         </CardHeader>
         <CardContent>

@@ -11,7 +11,7 @@ import { cva, type VariantProps } from "class-variance-authority";
  *   dot:   prefix with a 6px filled dot for emphasis
  */
 const pillStyles = cva(
-  "inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[11px] font-semibold tracking-[0.02em] leading-none whitespace-nowrap",
+  "inline-flex items-center gap-1 rounded-full font-semibold tracking-[0.02em] leading-none whitespace-nowrap",
   {
     variants: {
       tone: {
@@ -21,8 +21,15 @@ const pillStyles = cva(
         warning: "bg-warning-bg text-warning",
         danger: "bg-danger-bg text-danger",
       },
+      size: {
+        // Default — fits inside a row, alongside other text.
+        default: "px-2 py-[3px] text-[11px]",
+        // Result badges — bigger type, bigger pill, room for a score
+        // description like "Won by 4 wickets" without feeling cramped.
+        lg: "px-2.5 py-1 text-xs",
+      },
     },
-    defaultVariants: { tone: "neutral" },
+    defaultVariants: { tone: "neutral", size: "default" },
   },
 );
 
@@ -35,13 +42,14 @@ export interface StatusPillProps
 
 export function StatusPill({
   tone,
+  size,
   dot,
   className,
   children,
   ...props
 }: StatusPillProps) {
   return (
-    <span className={cn(pillStyles({ tone }), className)} {...props}>
+    <span className={cn(pillStyles({ tone, size }), className)} {...props}>
       {dot && (
         <span aria-hidden className="size-[6px] rounded-full bg-current" />
       )}

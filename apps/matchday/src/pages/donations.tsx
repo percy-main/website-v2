@@ -6,6 +6,7 @@ import { mainSiteUrl } from "@/lib/main-site.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
+import { CheckIcon, ReceiptIcon } from "lucide-react";
 import { useState } from "react";
 
 type Tab = "outstanding" | "history";
@@ -89,8 +90,10 @@ export default function Donations() {
           <>
             {outstanding.length === 0 ? (
               <EmptyState
-                title="No outstanding donations"
-                body="Everything is up to date."
+                tone="success"
+                icon={<CheckIcon className="size-7" strokeWidth={2.4} />}
+                title="All paid up"
+                body="No outstanding donations. Thanks for keeping your match donations square."
               />
             ) : (
               outstanding.map((c) => <ChargeRowItem key={c.id} c={c} />)
@@ -101,8 +104,10 @@ export default function Donations() {
           <>
             {history.length === 0 ? (
               <EmptyState
+                tone="neutral"
+                icon={<ReceiptIcon className="size-7" strokeWidth={1.8} />}
                 title="No history yet"
-                body="Your paid donations will show here."
+                body="Your paid donations will show here once you've made one."
               />
             ) : (
               history.map((c) => <ChargeRowItem key={c.id} c={c} muted />)
@@ -216,11 +221,31 @@ function ChargeSkeleton() {
   );
 }
 
-function EmptyState({ title, body }: { title: string; body: string }) {
+function EmptyState({
+  tone,
+  icon,
+  title,
+  body,
+}: {
+  tone: "success" | "neutral";
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+}) {
   return (
-    <div className="px-6 py-10 text-center">
-      <p className="text-sm font-semibold">{title}</p>
-      <p className="text-text-secondary mt-1 text-sm">{body}</p>
+    <div className="mx-auto flex max-w-sm flex-col items-center px-6 py-12 text-center">
+      <div
+        className={cn(
+          "grid size-14 place-items-center rounded-full",
+          tone === "success"
+            ? "bg-success-bg text-success"
+            : "bg-border text-text-secondary",
+        )}
+      >
+        {icon}
+      </div>
+      <p className="mt-4 text-base font-semibold tracking-[-0.01em]">{title}</p>
+      <p className="text-text-secondary mt-1 text-sm leading-relaxed">{body}</p>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { DesktopSideNav } from "@/components/shell/desktop-side-nav.js";
 import { OfflineIndicator } from "@/components/shell/offline-indicator.js";
 import { ServiceWorkerUpdate } from "@/components/shell/sw-update.js";
 import { TopBar } from "@/components/shell/top-bar.js";
-import { useSession, type SessionUser } from "@/lib/auth-client.js";
+import { canViewMatchdayAdmin, useSession } from "@/lib/auth-client.js";
 import { Outlet } from "react-router";
 
 /**
@@ -22,16 +22,13 @@ import { Outlet } from "react-router";
  */
 export function AppShell() {
   const { data: session } = useSession();
-  // Coarse role detection. better-auth's admin plugin stores role on the
-  // user. Anyone with `official` (or any admin-ish role that's also a
-  // team official) sees the extra Squad + Availability tabs. Pure
-  // members see the player view. Admin-only matchday admin surfaces
-  // stay on the main site, so we don't branch on them here.
-  const role: "player" | "official" = (() => {
-    const r = (session?.user as SessionUser | undefined)?.role ?? "";
-    if (r === "official" || r.includes("admin")) return "official";
-    return "player";
-  })();
+  // Anyone with the matchday:view permission gets the official surfaces
+  // (Availability tab, past-unfinished card, etc.) - same source of
+  // truth as the server-side `requirePermission("matchday", "view")`
+  // preHandler, so the UI never offers something the API will 403.
+  const role: "player" | "official" = canViewMatchdayAdmin(session?.user)
+    ? "official"
+    : "player";
   const tabs = tabsForRole(role);
   return (
     <div className="bg-surface-raised text-text flex min-h-dvh">

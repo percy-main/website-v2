@@ -1,5 +1,9 @@
 import { passkeyClient } from "@better-auth/passkey/client";
-import { ac, roles } from "@percy-main/shared/auth/permissions";
+import {
+  ac,
+  checkPermission,
+  roles,
+} from "@percy-main/shared/auth/permissions";
 import { adminClient, twoFactorClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
@@ -32,6 +36,20 @@ export interface SessionUser {
   name: string;
   email: string;
   role?: string | null;
+}
+
+/**
+ * True iff the user has the `matchday:view` permission — i.e. access to
+ * the officials-only surfaces (extra Availability tab,
+ * /api/matchday/past-unfinished, etc.). Mirrors the server-side
+ * `requirePermission("matchday", "view")` preHandler so client-side
+ * gates (`enabled:` on queries, tab visibility) and server-side
+ * authorization use the same source of truth.
+ */
+export function canViewMatchdayAdmin(
+  user: { role?: string | null } | null | undefined,
+): boolean {
+  return checkPermission(user?.role ?? null, "matchday", "view");
 }
 
 /**
