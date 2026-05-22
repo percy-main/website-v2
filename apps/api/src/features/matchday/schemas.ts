@@ -266,10 +266,10 @@ export const publicMatchdayResponseSchema = z.object({
   // Returning a hardcoded `false` here lied to the matchday app, which
   // rendered every fixture as a home game.
   away: z.boolean().nullable(),
-  // The service throws 404 for `pending` (team not yet announced) and
-  // `cancelled` (free-text reason may carry PII), so the public 200
-  // response only ever exposes confirmed-or-finished fixtures.
-  status: z.enum(["confirmed", "finished"]),
+  // The service throws 404 for `cancelled` (free-text reason may carry
+  // PII). `pending` is the live state captains pick squads into now
+  // that the pre-match confirm step is gone, so it's exposed here too.
+  status: z.enum(["pending", "confirmed", "finished"]),
   result: z.string().nullable(),
   scoreSummary: z.string().nullable(),
   squad: z.array(publicMatchdayPlayerSchema),

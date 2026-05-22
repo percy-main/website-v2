@@ -1,6 +1,7 @@
 import type { DB } from "@percy-main/db";
 import { hasClubWideAccess } from "@percy-main/shared/auth/permissions";
 import {
+  addDays,
   format as formatDate,
   isBefore,
   parse,
@@ -318,14 +319,13 @@ export function getMatchPublic(db: Kysely<DB>) {
     if (!match) {
       throwHttpError(404, "Matchday not found");
     }
-    // Pending teams aren't picked yet — don't leak the picker state.
-    if (match.status === "pending") {
-      throwHttpError(404, "Team not yet announced");
-    }
     // Cancelled matchdays: the cancel reason on the parent record is a
     // free-text field captured from officials and may carry PII. The
     // public projection doesn't expose the reason today, but skip the
-    // squad reveal too — a cancelled fixture has no team sheet to show.
+    // squad reveal too - a cancelled fixture has no team sheet to show.
+    // `pending` used to 404 here ("team not yet announced") but the
+    // pre-match confirm step was removed; pending is the live state
+    // captains pick squads into, so the team sheet must be readable.
     if (match.status === "cancelled") {
       throwHttpError(404, "Matchday cancelled");
     }
@@ -388,7 +388,7 @@ export function getMatchPublic(db: Kysely<DB>) {
       ground: null as string | null,
       competition: match.competition_type,
       away: null as boolean | null,
-      status: match.status as "confirmed" | "finished",
+      status: match.status as "pending" | "confirmed" | "finished",
       result: match.result_type,
       scoreSummary: null as string | null,
       squad,
@@ -402,15 +402,21 @@ export function getMatchPublic(db: Kysely<DB>) {
  *
  * "Picked" = matchday_player row exists for this user's member, with
  * status "selected" or "playing" (matches getMatchPublic's squad
- * projection). Matchday itself must be in "confirmed" status — pending
- * means the squad isn't announced; finished/cancelled drop off this
- * list naturally.
+ * projection). Matchday itself must still be active — `pending` is the
+ * normal state since the pre-match confirm step was removed; legacy
+ * `confirmed` rows still count. `finished` / `cancelled` drop off.
  *
- * Privacy: callers only see their own selections — resolved through
+ * Date window: today through the next UPCOMING_WINDOW_DAYS - games
+ * further out aren't "upcoming", they're "future", and belong in the
+ * fixtures view rather than the home dashboard.
+ *
+ * Privacy: callers only see their own selections - resolved through
  * the member.email = user.email link used elsewhere (e.g.
  * charges/service.ts). If a member row doesn't exist for the user's
  * email yet, returns an empty list.
  */
+const UPCOMING_WINDOW_DAYS = 5;
+
 export function getMyUpcomingMatches(db: Kysely<DB>) {
   return async (email: string) => {
     const member = await db
@@ -420,7 +426,12 @@ export function getMyUpcomingMatches(db: Kysely<DB>) {
       .executeTakeFirst();
     if (!member) return [];
 
-    const todayIso = formatDate(new Date(), "yyyy-MM-dd");
+    const now = new Date();
+    const todayIso = formatDate(now, "yyyy-MM-dd");
+    const untilIso = formatDate(
+      addDays(now, UPCOMING_WINDOW_DAYS),
+      "yyyy-MM-dd",
+    );
 
     const rows = await db
       .selectFrom("matchday_player")
@@ -432,8 +443,9 @@ export function getMyUpcomingMatches(db: Kysely<DB>) {
       )
       .where("matchday_player.member_id", "=", member.id)
       .where("matchday_player.status", "in", ["selected", "playing"])
-      .where("matchday.status", "=", "confirmed")
+      .where("matchday.status", "in", ["pending", "confirmed"])
       .where("matchday.match_date", ">=", todayIso)
+      .where("matchday.match_date", "<=", untilIso)
       .select([
         "matchday.id as matchdayId",
         "matchday.match_date as matchDate",

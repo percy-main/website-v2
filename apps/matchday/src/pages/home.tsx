@@ -185,8 +185,7 @@ function YourUpcomingGamesCard() {
         <div className="flex items-center justify-between">
           <CardEyebrow icon={UsersIcon}>Your upcoming games</CardEyebrow>
           <StatusPill tone="success" dot>
-            You're in{" "}
-            {games.length === 1 ? "1 squad" : `${games.length} squads`}
+            You're in {games.length === 1 ? "1 team" : `${games.length} teams`}
           </StatusPill>
         </div>
       </CardHeader>
@@ -213,7 +212,7 @@ function MyMatchRow({ match }: { match: MyUpcomingMatch }) {
       <DateSquare iso={match.matchDate} />
       <div className="min-w-0">
         <div className="truncate text-sm leading-tight font-medium">
-          vs {match.opposition}
+          {match.opposition}
         </div>
         <div className="text-text-secondary mt-0.5 text-xs">
           {[match.teamName, match.competitionType].filter(Boolean).join(" · ")}
@@ -420,7 +419,7 @@ function FixtureRow({ game }: { game: Game }) {
       <DateSquare iso={iso} />
       <div className="min-w-0">
         <div className="truncate text-sm leading-tight font-medium">
-          vs {oppositionName(game)}
+          {oppositionName(game)}
         </div>
         <div className="text-text-secondary mt-0.5 text-xs">
           {[game.team.name, game.home ? "Home" : "Away", game.competition.name]
