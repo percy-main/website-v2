@@ -13,11 +13,12 @@ export default defineConfig({
     }),
     tailwindcss(),
     VitePWA({
-      // Register an auto-updating service worker. Phase 1 ships the
-      // skeleton only — no offline caching yet (that's phase 5). The
-      // important part is that the SW is registered and we can roll
-      // a new version with a "tap to reload" toast.
-      registerType: "autoUpdate",
+      // Prompt mode: a waiting SW stays waiting until the user taps
+      // Reload on the toast — never auto-applies. Pairs with the
+      // workbox config below (no skipWaiting / no clientsClaim) so
+      // the live session keeps resolving its lazy chunks against the
+      // old precache until the user opts in.
+      registerType: "prompt",
       injectRegister: "auto",
       manifest: {
         name: "Percy Main Matchday",
@@ -63,12 +64,16 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Pre-cache the app shell. New deploys win immediately via
-        // skipWaiting + clientsClaim; cleanupOutdatedCaches keeps the
-        // old SW's caches from sticking around as zombies.
+        // Prompt-to-reload, NOT auto-takeover. The old SW keeps serving
+        // the old precache (and therefore the old route chunks) until
+        // the user taps Reload on the toast — at which point we send
+        // SKIP_WAITING and reload the page, fetching the new shell + new
+        // chunks together. Setting skipWaiting/clientsClaim to true here
+        // (an earlier attempt) caused mid-session chunk 404s: the new SW
+        // would claim live clients and cleanupOutdatedCaches would purge
+        // the old precache while the old shell was still navigating to
+        // lazy routes that no longer existed under the new build hashes.
         cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true,
         // Layer the push + notificationclick handlers on top of the
         // generated workbox SW via importScripts. Keeps the existing
         // generateSW pipeline intact - we just need event listeners,
