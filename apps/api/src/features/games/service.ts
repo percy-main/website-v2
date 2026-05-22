@@ -513,12 +513,9 @@ export function getWagonWheel(db: Kysely<DB>) {
           "match_ball.s_desc",
           "match_ball.shot_angle",
           "match_ball.shot_length",
-          "match_ball.ball_time_utc",
           "batter.player_name as batter_name",
           "bowler.player_name as bowler_name",
         ])
-        .orderBy("match_ball.ball_time_utc", "asc")
-        .orderBy("match_ball.innings_number", "asc")
         .orderBy("match_ball.rv_result_id", "asc")
         .orderBy("match_ball.over_no", "asc")
         .orderBy("match_ball.ball_no", "asc")
@@ -530,8 +527,10 @@ export function getWagonWheel(db: Kysely<DB>) {
     // Group by rv_result_id. RV serves both teams' batting innings as
     // innings_number=1 in their respective team feeds, so innings_number
     // alone collapses both innings into one. rv_result_id is the canonical
-    // per-innings discriminator. Assign display innings numbers in the
-    // order each result first appears in the time-ordered ball list.
+    // per-innings discriminator. ball_time_utc is nullable and frequently
+    // null for non-live-scored matches, so we order by (rv_result_id,
+    // over_no, ball_no) for deterministic ordering without the risk of
+    // null timestamps shuffling balls around.
     const byResult = new Map<string, WagonWheelBall[]>();
     for (const r of rows) {
       const ball: WagonWheelBall = {

@@ -26,7 +26,15 @@ export function useWagonWheelQuery(matchId: string, enabled = true) {
 }
 
 export function hasWagonWheel(data: WagonWheelData | undefined): boolean {
-  return !!data && data.innings.some((inn) => inn.balls.length > 0);
+  // Require at least one ball with a recorded shot direction — otherwise
+  // the viewer would open onto an empty wheel even though the API
+  // technically returned ball-by-ball rows.
+  return (
+    !!data &&
+    data.innings.some((inn) =>
+      inn.balls.some((b) => b.shotAngle !== null),
+    )
+  );
 }
 
 interface WagonWheelModalProps {
@@ -48,11 +56,6 @@ export function WagonWheelModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-screen max-h-screen w-screen max-w-none rounded-none border-0 bg-stone-950 p-0 text-stone-100">
         <div className="flex h-full flex-col">
-          <header className="flex shrink-0 items-center justify-between border-b border-stone-800 px-4 py-3 sm:px-6">
-            <h2 className="text-base font-semibold sm:text-lg">
-              Ball by ball viewer
-            </h2>
-          </header>
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {isLoading && <LoadingState />}
             {isError && <ErrorState />}
@@ -679,7 +682,9 @@ function CumulativeChart({
 // --- Wheel ---
 
 const ROPE = 240;
-const VIEW = 260;
+// Must be > the maximum shotRadius (278 for sixes) plus marker padding so
+// dismissal rings on boundaries don't clip against the viewBox edge.
+const VIEW = 295;
 const MAX_LEN = 50;
 
 function shotRadius(b: Pick<Ball, "runsBat" | "shotLength">): number {
