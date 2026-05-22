@@ -4398,6 +4398,9 @@
                         "toss": {
                           "type": "string"
                         },
+                        "gameType": {
+                          "type": "string"
+                        },
                         "innings": {
                           "type": "array",
                           "items": {
@@ -4423,6 +4426,10 @@
                               },
                               "allOut": {
                                 "type": "boolean"
+                              },
+                              "netScore": {
+                                "nullable": true,
+                                "type": "number"
                               }
                             },
                             "required": [
@@ -4432,7 +4439,8 @@
                               "wickets",
                               "overs",
                               "declared",
-                              "allOut"
+                              "allOut",
+                              "netScore"
                             ],
                             "additionalProperties": false
                           }
@@ -4442,6 +4450,7 @@
                         "outcome",
                         "description",
                         "toss",
+                        "gameType",
                         "innings"
                       ],
                       "additionalProperties": false

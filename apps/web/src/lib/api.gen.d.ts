@@ -2526,6 +2526,7 @@ export interface paths {
                                 outcome: "W" | "L" | "D" | "T" | "A" | "C" | "N" | null;
                                 description: string;
                                 toss: string;
+                                gameType: string;
                                 innings: {
                                     teamBattingId: string;
                                     teamName: string;
@@ -2534,6 +2535,7 @@ export interface paths {
                                     overs: string;
                                     declared: boolean;
                                     allOut: boolean;
+                                    netScore: number | null;
                                 }[];
                             } | null;
                             sponsor: {

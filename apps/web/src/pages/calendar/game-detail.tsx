@@ -111,11 +111,17 @@ function ResultSummary({
 }: {
   result: NonNullable<GameData["result"]>;
 }) {
+  const isPairs = result.gameType === "Pairs";
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {result.outcome && <OutcomeBadge outcome={result.outcome} />}
+          {isPairs && (
+            <span className="rounded-full bg-stone-700 px-2 py-0.5 text-xs font-semibold text-white">
+              Women&apos;s Softball
+            </span>
+          )}
           {result.toss && (
             <span className="text-sm text-stone-600">{result.toss}</span>
           )}
@@ -127,8 +133,13 @@ function ResultSummary({
               className="flex items-baseline justify-between gap-4"
             >
               <span className="text-sm font-medium">{inn.teamName}</span>
-              <span className="font-mono text-sm font-semibold tabular-nums">
-                {formatInningsScore(inn)}
+              <span className="flex items-baseline gap-2 font-mono text-sm font-semibold tabular-nums">
+                <span>{formatInningsScore(inn)}</span>
+                {inn.netScore !== null && (
+                  <span className="rounded bg-green-50 px-1.5 py-0.5 text-xs font-bold text-green-800">
+                    Net {inn.netScore}
+                  </span>
+                )}
               </span>
             </div>
           ))}

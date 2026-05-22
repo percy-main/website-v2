@@ -53,6 +53,7 @@ export interface GameDetail extends GameListItem {
     outcome: Outcome | null;
     description: string;
     toss: string;
+    gameType: string;
     innings: Array<{
       teamBattingId: string;
       teamName: string;
@@ -61,6 +62,7 @@ export interface GameDetail extends GameListItem {
       overs: string;
       declared: boolean;
       allOut: boolean;
+      netScore: number | null;
     }>;
   } | null;
   sponsor: {
@@ -315,6 +317,14 @@ export function getGame(
     }
 
     if (detail.innings.some((inn) => inn.bat.length > 0)) {
+      const gameType = detail.game_type || "Standard";
+      const startingRuns = parseInt(detail.starting_runs || "");
+      const dismissalPenalty = parseInt(detail.dismissal_penalty || "");
+      const hasNetScore =
+        gameType === "Pairs" &&
+        Number.isFinite(startingRuns) &&
+        Number.isFinite(dismissalPenalty);
+
       const innings = detail.innings.map((inn) => {
         const isHome = inn.team_batting_id === detail.home_team_id;
         const teamName = isHome
@@ -331,6 +341,11 @@ export function getGame(
           overs: inn.overs,
           declared: inn.declared ?? false,
           allOut: wickets >= 10,
+          // Play Cricket's "Net Score" for Pairs games. Hardball innings
+          // get null and the UI hides the column.
+          netScore: hasNetScore
+            ? startingRuns + runs - wickets * dismissalPenalty
+            : null,
         };
       });
 
@@ -338,6 +353,7 @@ export function getGame(
         outcome,
         description: detail.result_description ?? "",
         toss: detail.toss ?? "",
+        gameType,
         innings,
       };
     }
