@@ -126,8 +126,12 @@ export const MatchDetailInnings = z.object({
 // hardball and softball matches. For Pairs games the only populated entry is
 // `game_points` (e.g. winning side gets 15); for hardball there are also
 // batting / bowling bonus point breakdowns.
+//
+// team_id is observed as a number in real responses but every other team_id
+// in this API is a string - the union guards against PC emitting a string
+// here in the future without breaking the whole match-detail parse.
 export const MatchDetailPoints = z.object({
-  team_id: z.number(),
+  team_id: z.union([z.number(), z.string()]),
   game_points: z.string().optional().default(""),
   penalty_points: z.string().optional().default(""),
   bonus_points_together: z.string().optional().default(""),

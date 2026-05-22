@@ -213,14 +213,13 @@ function transformMatchDetail(
     const bowl = (inn.bowl as Array<Record<string, string>>) ?? [];
     const fow = (inn.fow as Array<Record<string, unknown>>) ?? [];
 
-    // Mirror the server-side didBat() filter: drop rows the API includes
-    // for players who didn't take strike. In Pairs every batter has a null
-    // how_out, so we have to use the quantitative fields - otherwise empty
-    // DNB-style rows ("0" runs, empty balls / times_out) would render as
-    // ghost "retired not out" batters.
+    // Drop empty Pairs ghost rows but keep explicit "dnb" rows so the
+    // "Did not bat" section below can still render them. In Pairs every
+    // batter has a null how_out, so we can't tell DNB from "took strike"
+    // by how_out alone - fall back to the quantitative fields. Hardball
+    // DNB rows arrive with how_out = "dnb" and pass through untouched.
     const battingRaw = bat.filter((b) => {
       const code = (b.how_out ?? "").toLowerCase().trim();
-      if (code === "dnb") return false;
       if (code !== "") return true;
       const runs = parseInt(b.runs);
       const balls = parseInt(b.balls);
