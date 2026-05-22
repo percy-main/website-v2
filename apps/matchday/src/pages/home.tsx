@@ -170,6 +170,11 @@ function AvailabilityAwaitingCard() {
   );
 }
 
+// Home-card window: "upcoming" on the dashboard means near-term, not
+// every future selection. The API returns the full list so other
+// surfaces can use it; we slice locally.
+const UPCOMING_WINDOW_DAYS = 5;
+
 function YourUpcomingGamesCard() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["matchday", "mine", "upcoming"],
@@ -177,7 +182,9 @@ function YourUpcomingGamesCard() {
   });
   if (isLoading) return <CardSkeleton />;
   if (isError) return <CardError label="Couldn't load your selection" />;
-  const games = data ?? [];
+  const all = data ?? [];
+  const cutoff = todayPlusDaysIso(UPCOMING_WINDOW_DAYS);
+  const games = all.filter((g) => g.matchDate <= cutoff);
   if (games.length === 0) return null;
   return (
     <Card>
@@ -185,8 +192,7 @@ function YourUpcomingGamesCard() {
         <div className="flex items-center justify-between">
           <CardEyebrow icon={UsersIcon}>Your upcoming games</CardEyebrow>
           <StatusPill tone="success" dot>
-            You're in{" "}
-            {games.length === 1 ? "1 squad" : `${games.length} squads`}
+            You're in {games.length === 1 ? "1 team" : `${games.length} teams`}
           </StatusPill>
         </div>
       </CardHeader>
@@ -213,7 +219,7 @@ function MyMatchRow({ match }: { match: MyUpcomingMatch }) {
       <DateSquare iso={match.matchDate} />
       <div className="min-w-0">
         <div className="truncate text-sm leading-tight font-medium">
-          vs {match.opposition}
+          {match.opposition}
         </div>
         <div className="text-text-secondary mt-0.5 text-xs">
           {[match.teamName, match.competitionType].filter(Boolean).join(" · ")}
@@ -420,7 +426,7 @@ function FixtureRow({ game }: { game: Game }) {
       <DateSquare iso={iso} />
       <div className="min-w-0">
         <div className="truncate text-sm leading-tight font-medium">
-          vs {oppositionName(game)}
+          {oppositionName(game)}
         </div>
         <div className="text-text-secondary mt-0.5 text-xs">
           {[game.team.name, game.home ? "Home" : "Away", game.competition.name]
@@ -484,9 +490,19 @@ function CardError({ label }: { label: string }) {
   );
 }
 
-/** Today as a YYYY-MM-DD ISO date — for string comparison against gameIsoDate. */
+/** Today as a YYYY-MM-DD ISO date - for string comparison against gameIsoDate. */
 function todayIsoDate(): string {
   const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** Today + N days as a YYYY-MM-DD ISO date, in local time. */
+function todayPlusDaysIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");

@@ -7545,6 +7545,7 @@
                     "status": {
                       "type": "string",
                       "enum": [
+                        "pending",
                         "confirmed",
                         "finished"
                       ]
