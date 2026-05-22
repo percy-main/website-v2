@@ -7,8 +7,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
+import type { paths } from "@/lib/api.gen";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
+
+type CareerStats = NonNullable<
+  paths["/api/play-cricket/player-career-stats"]["get"]["responses"]["200"]["content"]["application/json"]
+>;
+type FormatStats = CareerStats["formats"][number];
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -19,53 +25,26 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function PlayerStats({ slug }: { slug: string }) {
-  const careerQuery = useQuery({
-    queryKey: ["player-career-stats", slug],
-    queryFn: () =>
-      callApi(
-        api.GET("/api/play-cricket/player-career-stats", {
-          params: { query: { slug } },
-        }),
-      ),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  if (careerQuery.isPending) {
-    return (
-      <div className="mt-6 space-y-3">
-        <div className="h-6 w-32 animate-pulse rounded bg-stone-200" />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-          {["s1", "s2", "s3", "s4", "s5"].map((k) => (
-            <div
-              key={k}
-              className="h-16 animate-pulse rounded-lg bg-stone-100"
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!careerQuery.data) {
-    return null;
-  }
-
-  const { career, battingSeasons, bowlingSeasons } = careerQuery.data;
-
-  if (battingSeasons.length === 0 && bowlingSeasons.length === 0) {
-    return null;
-  }
-
+function FormatSection({
+  format,
+  showHeading,
+}: {
+  format: FormatStats;
+  showHeading: boolean;
+}) {
+  const { career, battingSeasons, bowlingSeasons } = format;
   const bestBowling = career.bowling.bestBowling
     ? `${career.bowling.bestBowling.wickets}/${career.bowling.bestBowling.runs}`
     : null;
 
   return (
-    <div className="mt-6">
-      <h2 className="mb-4 text-lg font-semibold">Statistics</h2>
+    <section className="mb-8 last:mb-0">
+      {showHeading && (
+        <h3 className="mb-3 text-base font-semibold text-stone-700">
+          {format.label}
+        </h3>
+      )}
 
-      {/* Career headline stats */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
         <StatCard label="Matches" value={String(career.batting.matches)} />
         <StatCard label="Total Runs" value={String(career.batting.runs)} />
@@ -84,7 +63,6 @@ export function PlayerStats({ slug }: { slug: string }) {
         )}
       </div>
 
-      {/* Batting by season */}
       {battingSeasons.length > 0 && (
         <div>
           <p className="mb-1 text-xs font-medium text-stone-500">Batting</p>
@@ -151,7 +129,6 @@ export function PlayerStats({ slug }: { slug: string }) {
         </div>
       )}
 
-      {/* Bowling by season */}
       {bowlingSeasons.length > 0 && (
         <div className="mt-4">
           <p className="mb-1 text-xs font-medium text-stone-500">Bowling</p>
@@ -209,16 +186,69 @@ export function PlayerStats({ slug }: { slug: string }) {
           </div>
         </div>
       )}
+    </section>
+  );
+}
 
-      {/* Leaderboard link */}
-      {battingSeasons.length > 0 && (
+export function PlayerStats({ slug }: { slug: string }) {
+  const careerQuery = useQuery({
+    queryKey: ["player-career-stats", slug],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/play-cricket/player-career-stats", {
+          params: { query: { slug } },
+        }),
+      ),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (careerQuery.isPending) {
+    return (
+      <div className="mt-6 space-y-3">
+        <div className="h-6 w-32 animate-pulse rounded bg-stone-200" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+          {["s1", "s2", "s3", "s4", "s5"].map((k) => (
+            <div
+              key={k}
+              className="h-16 animate-pulse rounded-lg bg-stone-100"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!careerQuery.data || careerQuery.data.formats.length === 0) {
+    return null;
+  }
+
+  const { formats } = careerQuery.data;
+  // Only label sections when there is more than one — players with a single
+  // format see the same headline-stats-and-tables view they always have.
+  const showHeadings = formats.length > 1;
+  const hardballSeasons =
+    formats.find((f) => f.gameType === "Standard")?.battingSeasons ?? [];
+
+  return (
+    <div className="mt-6">
+      <h2 className="mb-4 text-lg font-semibold">Statistics</h2>
+
+      {formats.map((format) => (
+        <FormatSection
+          key={format.gameType}
+          format={format}
+          showHeading={showHeadings}
+        />
+      ))}
+
+      {hardballSeasons.length > 0 && (
         <p className="mt-4 text-xs text-stone-400">
           View the full{" "}
           <Link
-            to={`/cricket/records/leaderboards?season=${battingSeasons[0].season}`}
+            to={`/cricket/records/leaderboards?season=${hardballSeasons[0].season}`}
             className="text-green-800 underline decoration-green-800/30 underline-offset-2 hover:decoration-green-800"
           >
-            {battingSeasons[0].season} season leaderboard
+            {hardballSeasons[0].season} season leaderboard
           </Link>
         </p>
       )}

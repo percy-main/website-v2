@@ -64,6 +64,9 @@ export const MatchDetailBat = z.object({
   fours: z.string(),
   sixes: z.string(),
   balls: z.string(),
+  // Pairs / Women's Softball: per-batter dismissal count (can be 0, 1, 2+).
+  // Empty string for "did not bat". Absent on older / non-Pairs responses.
+  times_out: z.string().optional().default(""),
 });
 
 export type MatchDetailBat = z.output<typeof MatchDetailBat>;
@@ -119,6 +122,24 @@ export const MatchDetailInnings = z.object({
   fow: z.array(MatchDetailFoW),
 });
 
+// Per-team scoring metadata (game points, bonus points, etc.) returned for both
+// hardball and softball matches. For Pairs games the only populated entry is
+// `game_points` (e.g. winning side gets 15); for hardball there are also
+// batting / bowling bonus point breakdowns.
+//
+// team_id is observed as a number in real responses but every other team_id
+// in this API is a string - the union guards against PC emitting a string
+// here in the future without breaking the whole match-detail parse.
+export const MatchDetailPoints = z.object({
+  team_id: z.union([z.number(), z.string()]),
+  game_points: z.string().optional().default(""),
+  penalty_points: z.string().optional().default(""),
+  bonus_points_together: z.string().optional().default(""),
+  bonus_points_batting: z.string().optional().default(""),
+  bonus_points_bowling: z.string().optional().default(""),
+  bonus_points_2nd_innings_together: z.string().optional().default(""),
+});
+
 export const MatchDetail = z.object({
   id: z.number(),
   home_team_name: z.string(),
@@ -138,6 +159,17 @@ export const MatchDetail = z.object({
   competition_type: z.string().optional().default(""),
   match_date: z.string().optional().default(""),
   season: z.string().optional().default(""),
+  // "Standard" for hardball, "Pairs" for Women's Softball etc. Drives scoring
+  // rules (starting_runs + dismissal_penalty are only populated for Pairs).
+  game_type: z.string().optional().default(""),
+  // Pairs-specific: the team's starting score before runs are added (e.g. 200)
+  // and the runs deducted per dismissal (e.g. 5). Net score is
+  // starting_runs + innings.runs - innings.wickets * dismissal_penalty.
+  starting_runs: z.string().optional().default(""),
+  dismissal_penalty: z.string().optional().default(""),
+  league_name: z.string().optional().default(""),
+  competition_name: z.string().optional().default(""),
+  points: z.array(MatchDetailPoints).optional().default([]),
   players: z.array(
     z.object({
       home_team: z.array(MatchDetailPlayer).optional(),

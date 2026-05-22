@@ -21,6 +21,11 @@ export const playerStatsSchema = z.object({
 export const playerSeasonStatsSchema = z.object({
   slug: z.string(),
   season: z.coerce.number().int(),
+  // Career stats are partitioned by game_type; season stats default to
+  // hardball ("Standard") and accept "Pairs" for Women's Softball. Without
+  // a filter a dual-format player's averages would mix incompatible units
+  // (hardball runs / softball net runs).
+  gameType: z.enum(["Standard", "Pairs"]).default("Standard"),
 });
 
 // Response schemas
@@ -79,6 +84,9 @@ const battingPerformanceSchema = z.object({
   sixes: z.number(),
   how_out: z.string(),
   not_out: z.boolean(),
+  times_out: z.number(),
+  dismissal_penalty: z.number(),
+  game_type: z.string(),
   created_at: z.string(),
 });
 
@@ -97,6 +105,7 @@ const bowlingPerformanceSchema = z.object({
   wickets: z.number(),
   wides: z.number(),
   no_balls: z.number(),
+  game_type: z.string(),
   created_at: z.string(),
 });
 
@@ -139,30 +148,40 @@ const bowlingSeasonSchema = z.object({
   bestBowling: z.string().nullable(),
 });
 
+// Stats are partitioned by game_type so hardball and Women's Softball
+// (Play Cricket "Pairs") get their own section on the profile. A format is
+// omitted entirely when the player has no batting and no bowling data for it,
+// so the UI never renders an empty card.
+const playerFormatStatsSchema = z.object({
+  gameType: z.enum(["Standard", "Pairs"]),
+  label: z.string(),
+  seasons: z.array(z.number()),
+  battingSeasons: z.array(battingSeasonSchema),
+  bowlingSeasons: z.array(bowlingSeasonSchema),
+  career: z.object({
+    batting: z.object({
+      matches: z.number(),
+      runs: z.number(),
+      highScore: z.number(),
+      notOuts: z.number(),
+    }),
+    bowling: z.object({
+      innings: z.number(),
+      wickets: z.number(),
+      bestBowling: z
+        .object({
+          wickets: z.number(),
+          runs: z.number(),
+        })
+        .nullable(),
+    }),
+  }),
+});
+
 export const playerCareerStatsResponseSchema = z
   .object({
     playCricketId: z.string(),
-    seasons: z.array(z.number()),
-    battingSeasons: z.array(battingSeasonSchema),
-    bowlingSeasons: z.array(bowlingSeasonSchema),
-    career: z.object({
-      batting: z.object({
-        matches: z.number(),
-        runs: z.number(),
-        highScore: z.number(),
-        notOuts: z.number(),
-      }),
-      bowling: z.object({
-        innings: z.number(),
-        wickets: z.number(),
-        bestBowling: z
-          .object({
-            wickets: z.number(),
-            runs: z.number(),
-          })
-          .nullable(),
-      }),
-    }),
+    formats: z.array(playerFormatStatsSchema),
   })
   .nullable();
 

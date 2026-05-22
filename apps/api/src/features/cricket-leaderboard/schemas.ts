@@ -8,6 +8,9 @@ export const cricketLeaderboardQuerySchema = z.object({
     .optional(),
   teamId: z.string().optional(),
   competitionTypes: z.string().optional(),
+  // "Standard" (hardball) is the default; "Pairs" returns Women's Softball
+  // leaderboards using the same unified average formula.
+  gameType: z.enum(["Standard", "Pairs"]).default("Standard"),
   limit: z.coerce.number().int().min(1).max(50).default(50),
 });
 

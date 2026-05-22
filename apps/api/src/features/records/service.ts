@@ -87,6 +87,7 @@ async function getHighestScore(
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
     .where("t.is_junior", "=", isJunior)
+    .where("b.game_type", "=", "Standard")
     .select([
       "b.player_name as playerName",
       "m.slug",
@@ -118,6 +119,7 @@ async function getBestBowling(
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
     .where("t.is_junior", "=", isJunior)
+    .where("b.game_type", "=", "Standard")
     .select([
       "b.player_name as playerName",
       "m.slug",
@@ -149,6 +151,7 @@ async function getMostRunsSeason(
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
     .where("t.is_junior", "=", isJunior)
+    .where("b.game_type", "=", "Standard")
     .groupBy(["b.player_id", "b.season", "m.slug"])
     .select([
       sql<string>`MAX(b.player_name)`.as("playerName"),
@@ -179,6 +182,7 @@ async function getMostWicketsSeason(
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
     .where("t.is_junior", "=", isJunior)
+    .where("b.game_type", "=", "Standard")
     .groupBy(["b.player_id", "b.season", "m.slug"])
     .select([
       sql<string>`MAX(b.player_name)`.as("playerName"),
@@ -209,6 +213,7 @@ async function getMostCareerRuns(
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
     .where("t.is_junior", "=", isJunior)
+    .where("b.game_type", "=", "Standard")
     .groupBy(["b.player_id", "m.slug"])
     .select([
       sql<string>`MAX(b.player_name)`.as("playerName"),
@@ -238,6 +243,7 @@ async function getMostCareerWickets(
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
     .where("t.is_junior", "=", isJunior)
+    .where("b.game_type", "=", "Standard")
     .groupBy(["b.player_id", "m.slug"])
     .select([
       sql<string>`MAX(b.player_name)`.as("playerName"),
@@ -267,6 +273,7 @@ async function getMostCareerMatches(
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
     .where("t.is_junior", "=", isJunior)
+    .where("b.game_type", "=", "Standard")
     .groupBy(["b.player_id", "m.slug"])
     .select([
       sql<string>`MAX(b.player_name)`.as("playerName"),
@@ -298,6 +305,7 @@ async function getCenturies(
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
     .where("t.is_junior", "=", isJunior)
+    .where("b.game_type", "=", "Standard")
     .where("b.runs", ">=", 100)
     .select([
       "b.player_name as playerName",
@@ -329,6 +337,7 @@ async function getFiveWicketHauls(
     .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
     .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
     .where("t.is_junior", "=", isJunior)
+    .where("b.game_type", "=", "Standard")
     .where("b.wickets", ">=", 5)
     .select([
       "b.player_name as playerName",

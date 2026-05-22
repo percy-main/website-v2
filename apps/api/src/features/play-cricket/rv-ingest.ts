@@ -262,6 +262,9 @@ async function upsertBalls(
       ball_spot_y: b.ball_spot_y ?? null,
       shot_angle: b.shot_angle ?? null,
       shot_length: b.shot_length ?? null,
+      batter_inst_num: b.batter_inst_num ?? null,
+      batter_ns_inst_num: b.batter_ns_inst_num ?? null,
+      dismissed_batter_inst_num: b.dismissed_batter_inst_num ?? null,
     };
   });
 
@@ -293,6 +296,10 @@ async function upsertBalls(
         ball_spot_y: (eb) => eb.ref("excluded.ball_spot_y"),
         shot_angle: (eb) => eb.ref("excluded.shot_angle"),
         shot_length: (eb) => eb.ref("excluded.shot_length"),
+        batter_inst_num: (eb) => eb.ref("excluded.batter_inst_num"),
+        batter_ns_inst_num: (eb) => eb.ref("excluded.batter_ns_inst_num"),
+        dismissed_batter_inst_num: (eb) =>
+          eb.ref("excluded.dismissed_batter_inst_num"),
       }),
     )
     .execute();

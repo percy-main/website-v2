@@ -63,17 +63,43 @@ describe("sync helpers", () => {
   });
 
   describe("didBat", () => {
-    it("returns false for null/undefined/empty/dnb", () => {
-      expect(didBat(null)).toBe(false);
-      expect(didBat(undefined)).toBe(false);
-      expect(didBat("")).toBe(false);
-      expect(didBat("dnb")).toBe(false);
+    it("returns false when how_out is dnb regardless of stats", () => {
+      expect(didBat({ how_out: "dnb" })).toBe(false);
+      // Even if Play Cricket sends quantitative fields for a DNB row, "dnb"
+      // is the explicit signal that they didn't take strike.
+      expect(didBat({ how_out: "dnb", runs: "5", balls: "10" })).toBe(false);
     });
 
-    it("returns true for batting dismissals", () => {
-      expect(didBat("caught")).toBe(true);
-      expect(didBat("bowled")).toBe(true);
-      expect(didBat("no")).toBe(true);
+    it("returns false for null/empty how_out with no runs / balls / times_out", () => {
+      expect(didBat({ how_out: null })).toBe(false);
+      expect(didBat({ how_out: undefined })).toBe(false);
+      expect(didBat({ how_out: "" })).toBe(false);
+      expect(didBat({ how_out: "", runs: "", balls: "", times_out: "" })).toBe(
+        false,
+      );
+      expect(
+        didBat({ how_out: "", runs: "0", balls: "0", times_out: "0" }),
+      ).toBe(false);
+    });
+
+    it("returns true for hardball dismissals", () => {
+      expect(didBat({ how_out: "caught" })).toBe(true);
+      expect(didBat({ how_out: "bowled" })).toBe(true);
+      expect(didBat({ how_out: "no" })).toBe(true);
+    });
+
+    it("returns true for softball batters (null how_out with runs/balls)", () => {
+      // Women's Softball: every batter has how_out=null; runs/balls/times_out
+      // tell us they actually batted.
+      expect(
+        didBat({ how_out: null, runs: "5", balls: "8", times_out: "0" }),
+      ).toBe(true);
+      expect(
+        didBat({ how_out: null, runs: "0", balls: "11", times_out: "1" }),
+      ).toBe(true);
+      expect(
+        didBat({ how_out: null, runs: "0", balls: "0", times_out: "1" }),
+      ).toBe(true);
     });
   });
 

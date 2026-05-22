@@ -171,20 +171,24 @@ describe("play-cricket service", () => {
       expect(result).toBeNull();
     });
 
-    it("returns career stats when player found", async () => {
-      // Member lookup
+    it("returns career stats partitioned by game_type, hardball only", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce({
         play_cricket_id: "pc-100",
       });
 
-      // Batting by season (full columns)
+      // Batting aggregated by (season, game_type). Hardball rows only —
+      // dismissal_penalty is 0 so the unified average collapses to
+      // runs / times_out.
       mockExecute.mockResolvedValueOnce([
         {
           season: 2024,
+          game_type: "Standard",
           innings: "10",
           total_runs: "350",
           high_score: "85",
+          total_times_out: "8",
           not_outs: "2",
+          total_penalty_runs: "0",
           total_balls: "300",
           total_fours: "30",
           total_sixes: "5",
@@ -193,10 +197,13 @@ describe("play-cricket service", () => {
         },
         {
           season: 2023,
+          game_type: "Standard",
           innings: "8",
           total_runs: "200",
           high_score: "62",
+          total_times_out: "7",
           not_outs: "1",
+          total_penalty_runs: "0",
           total_balls: "200",
           total_fours: "15",
           total_sixes: "2",
@@ -205,10 +212,11 @@ describe("play-cricket service", () => {
         },
       ]);
 
-      // Bowling by season (ball-based)
+      // Bowling aggregated by (season, game_type)
       mockExecute.mockResolvedValueOnce([
         {
           season: 2024,
+          game_type: "Standard",
           innings: "9",
           total_maidens: "15",
           total_runs_conceded: "280",
@@ -218,29 +226,38 @@ describe("play-cricket service", () => {
         },
       ]);
 
-      // Best bowling per season
+      // Best bowling per (season, game_type)
       mockExecute.mockResolvedValueOnce([
-        { season: 2024, wickets: "5", runs: "28" },
+        {
+          season: 2024,
+          game_type: "Standard",
+          wickets: "5",
+          runs: "28",
+        },
       ]);
 
-      // Best bowling figures overall
-      mockExecuteTakeFirst.mockResolvedValueOnce({
-        wickets: 5,
-        runs: 28,
-        overs: "8",
-      });
+      // All bowling rows (for per-format overall best — reduced in JS now).
+      mockExecute.mockResolvedValueOnce([
+        { game_type: "Standard", wickets: 5, runs: 28 },
+        { game_type: "Standard", wickets: 3, runs: 40 },
+      ]);
 
       const result = await getPlayerCareerStats(db)("entry-123");
 
       assert(result !== null);
       expect(result.playCricketId).toBe("pc-100");
-      expect(result.career.batting.runs).toBe(550);
-      expect(result.career.batting.highScore).toBe(85);
-      expect(result.career.batting.matches).toBe(18);
-      expect(result.career.bowling.wickets).toBe(22);
-      expect(result.battingSeasons).toHaveLength(2);
-      expect(result.bowlingSeasons).toHaveLength(1);
-      expect(result.bowlingSeasons[0].bestBowling).toBe("5/28");
+      // Hardball-only player → exactly one format section, no empty card.
+      expect(result.formats).toHaveLength(1);
+      const hardball = result.formats[0];
+      expect(hardball.gameType).toBe("Standard");
+      expect(hardball.label).toBe("Hardball");
+      expect(hardball.career.batting.runs).toBe(550);
+      expect(hardball.career.batting.highScore).toBe(85);
+      expect(hardball.career.batting.matches).toBe(18);
+      expect(hardball.career.bowling.wickets).toBe(22);
+      expect(hardball.battingSeasons).toHaveLength(2);
+      expect(hardball.bowlingSeasons).toHaveLength(1);
+      expect(hardball.bowlingSeasons[0].bestBowling).toBe("5/28");
     });
   });
 });

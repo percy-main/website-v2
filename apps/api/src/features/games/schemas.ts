@@ -65,6 +65,9 @@ const inningsSchema = z.object({
   overs: z.string(),
   declared: z.boolean(),
   allOut: z.boolean(),
+  // Play Cricket net score for Women's Softball (Pairs): starting_runs +
+  // runs - wickets * dismissal_penalty. Null for hardball.
+  netScore: z.number().nullable(),
 });
 
 const resultSchema = z
@@ -72,6 +75,9 @@ const resultSchema = z
     outcome: outcomeSchema,
     description: z.string(),
     toss: z.string(),
+    // "Standard" hardball or "Pairs" Women's Softball - drives Net Score
+    // display on the result summary card.
+    gameType: z.string(),
     innings: z.array(inningsSchema),
   })
   .nullable();

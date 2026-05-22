@@ -459,10 +459,13 @@ export interface MatchBall {
   ball_spot_x: number | null;
   ball_spot_y: number | null;
   ball_time_utc: Timestamp | null;
+  batter_inst_num: number | null;
+  batter_ns_inst_num: number | null;
   batter_ns_rv_id: number | null;
   batter_rv_id: number | null;
   bowler_rv_id: number | null;
   created_at: Generated<Timestamp>;
+  dismissed_batter_inst_num: number | null;
   dismissed_batter_rv_id: number | null;
   extras_type: string | null;
   highlight_events: Generated<Json>;
@@ -548,7 +551,9 @@ export interface MatchPerformanceBatting {
   balls: Generated<number>;
   competition_type: Generated<string>;
   created_at: Generated<string>;
+  dismissal_penalty: Generated<number>;
   fours: Generated<number>;
+  game_type: Generated<string>;
   how_out: Generated<string>;
   id: string;
   match_date: string;
@@ -560,11 +565,13 @@ export interface MatchPerformanceBatting {
   season: number;
   sixes: Generated<number>;
   team_id: string;
+  times_out: Generated<number>;
 }
 
 export interface MatchPerformanceBowling {
   competition_type: Generated<string>;
   created_at: Generated<string>;
+  game_type: Generated<string>;
   id: string;
   maidens: Generated<number>;
   match_date: string;
@@ -584,6 +591,7 @@ export interface MatchPerformanceFielding {
   catches: Generated<number>;
   competition_type: Generated<string>;
   created_at: Generated<string>;
+  game_type: Generated<string>;
   id: string;
   is_wicketkeeper: Generated<boolean>;
   match_date: string;
@@ -603,6 +611,8 @@ export interface MatchResult {
   away_team_name: string;
   competition_type: Generated<string>;
   created_at: Generated<string>;
+  dismissal_penalty: number | null;
+  game_type: Generated<string>;
   home_club_id: string | null;
   home_club_name: string | null;
   home_team_id: string;
@@ -614,6 +624,7 @@ export interface MatchResult {
   result_applied_to: Generated<string>;
   result_description: Generated<string>;
   season: number;
+  starting_runs: number | null;
 }
 
 export interface MatchStream {

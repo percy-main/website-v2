@@ -11,17 +11,29 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
       .selectFrom("match_performance_batting as b")
       .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
+      .where("b.game_type", "=", params.gameType)
       .groupBy(["b.player_id", "m.slug"])
       .select(["b.player_id as playerId", "m.slug"])
       .select((eb) => [
         eb.fn.max("b.player_name").as("playerName"),
         eb.fn.countAll().as("innings"),
         eb.fn.sum<string>("b.runs").as("totalRuns"),
+        // Sum of dismissals across all innings: 0/1 per innings in hardball,
+        // 0..n per innings in Pairs (a batter can be out twice). Drives the
+        // unified average formula below.
+        eb.fn.sum<string>("b.times_out").as("totalTimesOut"),
+        // Innings where the batter was never dismissed. Can't be derived
+        // from innings − Σ times_out because Pairs allows times_out > 1 in
+        // a single innings.
         eb.fn
-          .sum<string>(
-            sql<number>`CASE WHEN ${eb.ref("b.not_out")} THEN 1 ELSE 0 END`,
-          )
-          .as("notOuts"),
+          .sum<string>(sql<number>`CASE WHEN b.times_out = 0 THEN 1 ELSE 0 END`)
+          .as("notOutInnings"),
+        // Net-runs penalty applied by Play Cricket for Pairs games (5 runs
+        // per dismissal in a 200-base game). 0 for hardball, so the unified
+        // formula collapses to standard runs / dismissals.
+        eb.fn
+          .sum<string>(sql<number>`b.times_out * b.dismissal_penalty`)
+          .as("totalPenaltyRuns"),
         eb.fn.max("b.runs").as("highScore"),
         eb.fn.sum<string>("b.balls").as("totalBalls"),
         eb.fn.sum<string>("b.fours").as("totalFours"),
@@ -67,23 +79,31 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
     return {
       entries: rows.map((row) => {
         const innings = Number(row.innings);
-        const notOuts = Number(row.notOuts);
+        const timesOut = Number(row.totalTimesOut);
+        const notOuts = Number(row.notOutInnings);
+        const penaltyRuns = Number(row.totalPenaltyRuns);
         const runs = Number(row.totalRuns);
         const totalBalls = Number(row.totalBalls);
-        const dismissals = innings - notOuts;
+
+        // Unified average: (runs − times_out × penalty_per_out) / times_out.
+        // For hardball the penalty is 0, so this is the conventional average.
+        // For Pairs it matches Play Cricket's "Net average" calculation.
+        const average =
+          innings >= 3 && timesOut > 0
+            ? Number(((runs - penaltyRuns) / timesOut).toFixed(2))
+            : null;
 
         return {
           playerId: row.playerId,
           playerName: row.playerName,
           slug: row.slug,
           innings,
+          // Innings where the batter was never dismissed. Counted directly
+          // because Pairs allows times_out > 1 per innings.
           notOuts,
           runs,
           highScore: row.highScore,
-          average:
-            innings >= 3 && dismissals > 0
-              ? Number((runs / dismissals).toFixed(2))
-              : null,
+          average,
           strikeRate:
             totalBalls > 0
               ? Number(((runs / totalBalls) * 100).toFixed(2))
@@ -118,6 +138,7 @@ export function listBowlingLeaderboard(db: Kysely<DB>) {
       .selectFrom("match_performance_bowling as b")
       .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
+      .where("b.game_type", "=", params.gameType)
       .groupBy(["b.player_id", "m.slug"])
       .select(["b.player_id as playerId", "m.slug"])
       .select((eb) => [
