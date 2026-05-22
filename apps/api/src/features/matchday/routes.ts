@@ -372,7 +372,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const removeP = removePlayer(app.db);
   const setRoles = setMatchRoles(app.db);
   const paid = markFeePaid(app.db);
-  const finish = finishMatch(app.db, app.send, app.config);
+  const finish = finishMatch(app.db, app.send, app.sendPush, app.config);
   const cancel = cancelMatchday(app.db);
 
   // Play-Cricket API client for upcoming matches — wired at registration time

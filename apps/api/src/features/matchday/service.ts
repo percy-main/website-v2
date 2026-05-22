@@ -9,9 +9,19 @@ import {
 } from "date-fns";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
+import type { SendPush } from "../../lib/push-sender.ts";
 import type { S3Uploader } from "../../lib/s3-upload.ts";
 import { applyReliefIfAny } from "../financial-relief/apply-relief.ts";
+import type { MatchdayChannel } from "../notification-preferences/schemas.ts";
+import {
+  DEFAULT_MATCHDAY_CHANNEL,
+  getNotificationPreferencesByUserIds,
+} from "../notification-preferences/service.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
+import {
+  deletePushSubscriptionByEndpoint,
+  listPushSubscriptionsForUsers,
+} from "../push-subscriptions/service.ts";
 import type {
   AddPlayer,
   CancelMatchday,
@@ -1305,8 +1315,12 @@ export function finishMatch(
     subject: string;
     html: string;
   }) => Promise<void>,
-  config: { BASE_URL: string },
+  sendPush: SendPush,
+  config: { BASE_URL: string; MATCHDAY_URL?: string },
 ) {
+  const fetchPrefs = getNotificationPreferencesByUserIds(db);
+  const fetchPushSubs = listPushSubscriptionsForUsers(db);
+  const pruneSubscription = deletePushSubscriptionByEndpoint(db);
   return async (
     userId: string,
     role: string,
@@ -1615,8 +1629,8 @@ export function finishMatch(
     });
 
     if (isFirstFinish) {
-      // Send notification emails AFTER the transaction commits so a
-      // mailer hiccup can't roll back the charges. Join `member` via
+      // Send notifications AFTER the transaction commits so a delivery
+      // hiccup can't roll back the charges. Join `member` via
       // `charge.member_id` (not `matchday_player.member_id`) so junior
       // donations - which sit on the parent's member row - also get a
       // notification.
@@ -1630,6 +1644,7 @@ export function finishMatch(
         // Don't nag members about charges the club has waived.
         .where("charge.relieved_at", "is", null)
         .select([
+          "charge.id as charge_id",
           "member.name as member_name",
           "member.email as member_email",
           "charge.description as charge_description",
@@ -1646,16 +1661,41 @@ export function finishMatch(
       const { render } = await import("react-email");
       const { ChargeNotification } = await import("@percy-main/email");
 
+      // Resolve user ids so we can apply each recipient's matchday_channel
+      // preference. Member rows whose email doesn't match a user (legacy
+      // members who never registered) get email-only delivery, matching
+      // pre-push behavior.
+      const recipientEmails = unpaidPlayers
+        .map((p) => p.member_email?.toLowerCase())
+        .filter((e): e is string => Boolean(e));
+
+      const userRows =
+        recipientEmails.length > 0
+          ? await db
+              .selectFrom("user")
+              .where("email", "in", recipientEmails)
+              .select(["id", "email"])
+              .execute()
+          : [];
+      const userIdByEmail = new Map<string, string>();
+      for (const u of userRows) {
+        userIdByEmail.set(u.email.toLowerCase(), u.id);
+      }
+      const userIds = userRows.map((u) => u.id);
+
+      const [prefs, pushSubsByUser] = await Promise.all([
+        fetchPrefs(userIds),
+        fetchPushSubs(userIds),
+      ]);
+
       let emailsSent = 0;
       const emailErrors: string[] = [];
-      for (const player of unpaidPlayers) {
-        if (!player.member_email) continue;
 
+      const sendOneEmail = async (
+        player: (typeof unpaidPlayers)[number],
+        amountFormatted: string,
+      ): Promise<{ ok: true } | { ok: false; reason: string }> => {
         try {
-          const amountFormatted = currencyFormatter.format(
-            player.amount_pence / 100,
-          );
-
           const element = ChargeNotification.component({
             imageBaseUrl: `${config.BASE_URL}/images`,
             name: player.member_name ?? "Member",
@@ -1664,22 +1704,130 @@ export function finishMatch(
             chargeDate: formatDate(new Date(player.charge_date), "dd/MM/yyyy"),
             loginUrl: `${config.BASE_URL}/auth/login`,
           });
-
           // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
           const html = await render(element as any);
           await sendEmail({
-            to: player.member_email,
+            to: player.member_email ?? "",
             subject: ChargeNotification.subject,
             html,
           });
-          emailsSent++;
+          return { ok: true };
         } catch (err) {
-          const msg =
-            err instanceof Error ? err.message : "Unknown email error";
-          emailErrors.push(`${player.member_email}: ${msg}`);
+          const reason = err instanceof Error ? err.message : String(err);
           log.error(
-            { err, recipientEmail: player.member_email, matchdayId },
+            {
+              err,
+              recipientEmail: player.member_email,
+              matchdayId,
+              channel: "email",
+            },
             "matchday_charge_notification_failed",
+          );
+          return { ok: false, reason };
+        }
+      };
+
+      for (const player of unpaidPlayers) {
+        if (!player.member_email) continue;
+
+        const amountFormatted = currencyFormatter.format(
+          player.amount_pence / 100,
+        );
+
+        const userId = userIdByEmail.get(player.member_email.toLowerCase());
+        const channel: MatchdayChannel = userId
+          ? (prefs.get(userId) ?? DEFAULT_MATCHDAY_CHANNEL)
+          : "email";
+
+        const wantsEmail = channel === "email" || channel === "both";
+        const wantsPush = channel === "push" || channel === "both";
+
+        const subscriptions = userId ? (pushSubsByUser.get(userId) ?? []) : [];
+        const pushAvailable = wantsPush && subscriptions.length > 0;
+
+        let deliveredAny = false;
+        let recipientFailure: string | null = null;
+
+        // Push-only recipients with no live subscriptions fall back to
+        // email - opt-in subscriptions plus a payment ask is too easy to
+        // miss otherwise.
+        if (wantsEmail || (wantsPush && !pushAvailable)) {
+          const result = await sendOneEmail(player, amountFormatted);
+          if (result.ok) {
+            deliveredAny = true;
+          } else {
+            recipientFailure = result.reason;
+          }
+        }
+
+        if (pushAvailable) {
+          // The matchday PWA's service worker registered this subscription,
+          // so opening the URL on that origin keeps the user inside the app
+          // and at the new in-app pay-outstanding flow. Fall back to the
+          // main-site payments tab when MATCHDAY_URL is unset (dev/preview).
+          const payUrl = config.MATCHDAY_URL
+            ? `${config.MATCHDAY_URL}/donations`
+            : `${config.BASE_URL}/members?tab=payments`;
+          const payload = {
+            title: ChargeNotification.subject,
+            body: `${amountFormatted} - ${player.charge_description}`,
+            url: payUrl,
+            tag: `charge:${player.charge_id}`,
+          };
+          let pushDelivered = false;
+          let allGone = true;
+          for (const sub of subscriptions) {
+            const result = await sendPush(sub, payload);
+            if (result.ok) {
+              deliveredAny = true;
+              pushDelivered = true;
+              allGone = false;
+            } else if (result.gone) {
+              await pruneSubscription(result.endpoint);
+              log.info(
+                {
+                  matchdayId,
+                  chargeId: player.charge_id,
+                  endpoint: result.endpoint,
+                },
+                "push_subscription_gone_pruned",
+              );
+            } else {
+              allGone = false;
+              log.warn(
+                {
+                  matchdayId,
+                  chargeId: player.charge_id,
+                  recipientEmail: player.member_email,
+                  endpoint: result.endpoint,
+                  reason: result.reason,
+                  channel: "push",
+                },
+                "matchday_charge_notification_failed",
+              );
+              recipientFailure ??= result.reason;
+            }
+          }
+
+          // Push-only recipient whose every subscription was pruned this
+          // turn looks subscribed in our store but the push service
+          // disagrees - email them so they don't silently miss the charge.
+          if (!wantsEmail && !pushDelivered && allGone) {
+            const fallback = await sendOneEmail(player, amountFormatted);
+            if (fallback.ok) {
+              deliveredAny = true;
+              recipientFailure = null;
+            } else {
+              recipientFailure ??= fallback.reason;
+            }
+          }
+        }
+
+        if (deliveredAny) {
+          emailsSent++;
+        } else {
+          emailErrors.push(
+            `${player.member_email}: ${recipientFailure ?? "no delivery channel"}`,
           );
         }
       }

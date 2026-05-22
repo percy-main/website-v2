@@ -93,9 +93,13 @@ export async function callApi<T>(
 
 /**
  * Best-effort delete of `url` from every runtime cache. Used to flush
- * stale authenticated responses when the server returns 401.
+ * stale authenticated responses when the server returns 401, and when
+ * a write changes server state that the SW would otherwise keep
+ * serving stale (StaleWhileRevalidate handlers).
  */
-async function evictResponseFromRuntimeCaches(url: string): Promise<void> {
+export async function evictResponseFromRuntimeCaches(
+  url: string,
+): Promise<void> {
   if (typeof caches === "undefined" || !url) return;
   await Promise.all(
     PER_USER_RUNTIME_CACHES.map(async (name) => {

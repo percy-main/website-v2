@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { SendPush } from "../../lib/push-sender.ts";
 import { noopS3Uploader } from "../../lib/s3-upload.ts";
 import {
   seedTestUser,
@@ -28,6 +29,8 @@ import {
 } from "./service.ts";
 
 const noopSendEmail = () => Promise.resolve();
+const noopSendPush: SendPush = (sub) =>
+  Promise.resolve({ ok: true, endpoint: sub.endpoint });
 const testConfig = { BASE_URL: "https://example.test" };
 
 async function finishAsTest(
@@ -43,7 +46,7 @@ async function finishAsTest(
   } = {},
 ) {
   const { createNoopLogger } = await import("../../lib/worker-logger.ts");
-  return finishMatch(ctx.db, noopSendEmail, testConfig)(
+  return finishMatch(ctx.db, noopSendEmail, noopSendPush, testConfig)(
     userId,
     "admin",
     matchdayId,
@@ -531,6 +534,103 @@ describe("matchday service (integration)", () => {
         expect(charge?.amount_pence).toBe(500);
         expect(charge?.type).toBe("match_fee");
       }
+    });
+
+    it("sends a push notification when the recipient prefers push", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `push-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const playerEmail = `push-player-${crypto.randomUUID()}@test.com`;
+      const { userId: playerUserId, memberId } = await seedTestUser(ctx.db, {
+        email: playerEmail,
+        name: "Push Player",
+      });
+      if (!memberId) throw new Error("expected memberId");
+      // seedTestUser inserts a member without a category; finishMatch's
+      // fee resolver keys on member_category so set it explicitly.
+      await ctx.db
+        .updateTable("member")
+        .set({ member_category: "senior" })
+        .where("id", "=", memberId)
+        .execute();
+
+      await ctx.db
+        .insertInto("notification_preferences")
+        .values({ user_id: playerUserId, matchday_channel: "push" })
+        .execute();
+
+      const endpoint = `https://push.test/${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("push_subscription")
+        .values({
+          id: crypto.randomUUID(),
+          user_id: playerUserId,
+          endpoint,
+          p256dh: "test-p256dh",
+          auth: "test-auth",
+        })
+        .execute();
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      await seedFeeRate({ teamId, memberCategory: "senior", amountPence: 500 });
+
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Push Player" },
+      );
+
+      const pushCalls: Array<{ endpoint: string; payload: unknown }> = [];
+      const emailCalls: Array<{ to: string }> = [];
+      const recordingSendPush: SendPush = (sub, payload) => {
+        pushCalls.push({ endpoint: sub.endpoint, payload });
+        return Promise.resolve({ ok: true, endpoint: sub.endpoint });
+      };
+      const recordingSendEmail = (e: {
+        to: string;
+        subject: string;
+        html: string;
+      }) => {
+        emailCalls.push({ to: e.to });
+        return Promise.resolve();
+      };
+
+      const { createNoopLogger } = await import("../../lib/worker-logger.ts");
+      const result = await finishMatch(
+        ctx.db,
+        recordingSendEmail,
+        recordingSendPush,
+        testConfig,
+      )(
+        adminId,
+        "admin",
+        matchdayId,
+        {
+          resultType: "W",
+          playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
+          feeOverrides: [],
+        },
+        createNoopLogger(),
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.emailsSent).toBe(1);
+      expect(emailCalls).toHaveLength(0);
+      expect(pushCalls).toHaveLength(1);
+      expect(pushCalls[0]?.endpoint).toBe(endpoint);
+      const payload = pushCalls[0]?.payload as {
+        title: string;
+        body: string;
+        url: string;
+        tag: string;
+      };
+      expect(payload.title).toBeTruthy();
+      expect(payload.body).toContain("£5.00");
+      expect(payload.tag.startsWith("charge:")).toBe(true);
     });
 
     it("raises a junior-rate charge against the parent when a dependent plays", async () => {

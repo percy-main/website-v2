@@ -6,7 +6,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { fmtMoneyPence } from "@/features/format.js";
-import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
+import {
+  API_BASE,
+  api,
+  callApi,
+  evictResponseFromRuntimeCaches,
+  type ApiResponse,
+} from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import {
   Elements,
@@ -137,6 +143,18 @@ function PayBody({
     return <PreparingState />;
   }
 
+  // Without VITE_STRIPE_PUBLIC_KEY, getStripe() resolves to null and the
+  // PaymentElement silently refuses to render - the user just sees a
+  // disabled "Pay" button with no clue why. Surface the misconfig instead.
+  if (!import.meta.env.VITE_STRIPE_PUBLIC_KEY) {
+    return (
+      <p className="text-danger mt-3 text-sm" role="alert">
+        Payments aren&apos;t configured for this build. Please refresh, or get
+        in touch with the club if it keeps happening.
+      </p>
+    );
+  }
+
   return (
     <Elements
       stripe={getStripe()}
@@ -249,8 +267,14 @@ function PayForm({
           ),
         };
       });
-      // Fire-and-forget the refetch so paid_at lands when the webhook does.
-      void queryClient.invalidateQueries({ queryKey: ["charges"] });
+      // Evict the SW's StaleWhileRevalidate copy of /api/charges before
+      // invalidating - otherwise the refetch is served the pre-payment
+      // cached response and overwrites the optimistic update above,
+      // making just-paid donations briefly reappear as Outstanding.
+      const chargesUrl = `${API_BASE.replace(/\/api$/, "")}/api/charges`;
+      void evictResponseFromRuntimeCaches(chargesUrl).then(() =>
+        queryClient.invalidateQueries({ queryKey: ["charges"] }),
+      );
       onPaid();
     },
   });
