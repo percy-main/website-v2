@@ -1181,10 +1181,17 @@ describe("ingestRvDataForMatch (integration)", () => {
       l_desc: " K Pattison to S Knight: 4 runs",
       s_desc: " 4",
       match_highlight_events: [{ event_id: 1002, metric: 4 }],
+      // Sample shot vector + Pairs-style 2nd-trip inst_num so we cover both
+      // visualisation fields and the new instance-number columns end-to-end.
+      shot_angle: 67.88,
+      shot_length: 34.21,
+      batter_inst_num: 2,
+      batter_ns_inst_num: 1,
     });
     const wicket = makeBall(0, 3, {
       runs_bat: 0,
       dismissed_batter_id: 11680433,
+      dismissed_batter_inst_num: 2,
       l_desc: " K Pattison to S Knight: dismissed",
       s_desc: " W",
     });
@@ -1220,7 +1227,12 @@ describe("ingestRvDataForMatch (integration)", () => {
     expect(balls[0]?.s_desc).toBe(" .");
     expect(balls[1]?.runs_bat).toBe(4);
     expect(balls[1]?.highlight_events).toEqual([{ event_id: 1002, metric: 4 }]);
+    expect(balls[1]?.shot_angle).toBeCloseTo(67.88, 1);
+    expect(balls[1]?.shot_length).toBeCloseTo(34.21, 1);
+    expect(balls[1]?.batter_inst_num).toBe(2);
+    expect(balls[1]?.batter_ns_inst_num).toBe(1);
     expect(balls[2]?.dismissed_batter_rv_id).toBe(11680433);
+    expect(balls[2]?.dismissed_batter_inst_num).toBe(2);
     expect(balls[2]?.s_desc).toBe(" W");
 
     // ball_offset_seconds is rounded(ball_time - recording_started_utc).

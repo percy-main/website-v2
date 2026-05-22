@@ -459,10 +459,13 @@ export interface MatchBall {
   ball_spot_x: number | null;
   ball_spot_y: number | null;
   ball_time_utc: Timestamp | null;
+  batter_inst_num: number | null;
+  batter_ns_inst_num: number | null;
   batter_ns_rv_id: number | null;
   batter_rv_id: number | null;
   bowler_rv_id: number | null;
   created_at: Generated<Timestamp>;
+  dismissed_batter_inst_num: number | null;
   dismissed_batter_rv_id: number | null;
   extras_type: string | null;
   highlight_events: Generated<Json>;

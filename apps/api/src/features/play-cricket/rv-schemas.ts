@@ -205,6 +205,13 @@ export const RvBall = z.looseObject({
   ball_spot_y: z.number().nullable().optional(),
   shot_angle: z.number().nullable().optional(),
   shot_length: z.number().nullable().optional(),
+  // Per-batter instance counter within an innings. Always 1 in hardball;
+  // in Pairs a batter can be dismissed and return later, so the second
+  // trip-to-the-crease carries inst_num = 2. Required to split a player's
+  // wagon-wheel between instances.
+  batter_inst_num: z.number().nullable().optional(),
+  batter_ns_inst_num: z.number().nullable().optional(),
+  dismissed_batter_inst_num: z.number().nullable().optional(),
 });
 export type RvBall = z.output<typeof RvBall>;
 
