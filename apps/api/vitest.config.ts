@@ -10,6 +10,7 @@ export default defineConfig({
       "**/dist/**",
       "**/integration.test.ts",
       "**/*-integration.test.ts",
+      "**/*.integration.test.ts",
     ],
     coverage: {
       provider: "v8",
