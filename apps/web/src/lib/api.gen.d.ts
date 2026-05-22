@@ -2565,6 +2565,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/games/{matchId}/wagon-wheel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            matchId: string;
+                            dismissalPenalty: number;
+                            innings: {
+                                inningsNumber: number;
+                                balls: {
+                                    over: number;
+                                    ball: number;
+                                    ballDisp: number;
+                                    batterRvId: number | null;
+                                    batterName: string | null;
+                                    bowlerRvId: number | null;
+                                    bowlerName: string | null;
+                                    dismissed: boolean;
+                                    runsBat: number;
+                                    runsExtra: number;
+                                    extrasType: string | null;
+                                    lDesc: string;
+                                    sDesc: string;
+                                    shotAngle: number | null;
+                                    shotLength: number | null;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/play-cricket/admin/sync": {
         parameters: {
             query?: never;

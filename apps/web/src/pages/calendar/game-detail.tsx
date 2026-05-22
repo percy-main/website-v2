@@ -3,9 +3,11 @@ import { mdxComponents } from "@/components/mdx-components.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { Scorecard } from "@/components/scorecard.js";
 import { Badge } from "@/components/ui/badge.js";
-import { buttonVariants } from "@/components/ui/button.js";
+import { Button, buttonVariants } from "@/components/ui/button.js";
 import { Card, CardContent } from "@/components/ui/card.js";
+import { WagonWheelModal } from "@/components/wagon-wheel-modal.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
+import { hasWagonWheel, useWagonWheelQuery } from "@/hooks/use-wagon-wheel.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
 import { getGameReport } from "@/lib/game-reports.js";
@@ -208,6 +210,49 @@ function SponsorBadge({
   return content;
 }
 
+function BallByBallTrigger({ game }: { game: GameData }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const open = searchParams.get("bbb") === "1";
+  // Always run the query — needed to decide whether to show the button at
+  // all. react-query caches it for the modal so opening is instant.
+  const { data, isLoading } = useWagonWheelQuery(game.id);
+  const available = hasWagonWheel(data);
+
+  function setOpen(next: boolean) {
+    const params = new URLSearchParams(searchParams);
+    if (next) params.set("bbb", "1");
+    else params.delete("bbb");
+    setSearchParams(params, { replace: true });
+  }
+
+  // Hide button when no data — but if the URL says open, still mount the
+  // modal so the fallback shows.
+  if (!open && (isLoading || !available)) return null;
+
+  const inningsTeamNames = game.result?.innings.map((inn) => inn.teamName);
+
+  return (
+    <>
+      {available && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setOpen(true)}
+        >
+          Ball by ball viewer
+        </Button>
+      )}
+      <WagonWheelModal
+        matchId={game.id}
+        open={open}
+        onOpenChange={setOpen}
+        inningsTeamNames={inningsTeamNames}
+      />
+    </>
+  );
+}
+
 function GameDetailContent({ game }: { game: GameData }) {
   const report = getGameReport(game.id);
 
@@ -388,6 +433,11 @@ function GameDetailContent({ game }: { game: GameData }) {
             </Card>
           )
         )}
+
+        {/* Ball-by-ball viewer — button only renders if wagon-wheel data
+            exists; modal still mounts when ?bbb=1 is in the URL so direct
+            links show a fallback. */}
+        <BallByBallTrigger game={game} />
 
         {/* MDX game report */}
         {report && (

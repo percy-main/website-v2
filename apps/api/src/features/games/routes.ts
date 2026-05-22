@@ -5,8 +5,9 @@ import {
   gameDetailResponseSchema,
   gamesListResponseSchema,
   gamesListSchema,
+  wagonWheelResponseSchema,
 } from "./schemas.ts";
-import { getGame, listGames } from "./service.ts";
+import { getGame, getWagonWheel, listGames } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const gamesRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -28,6 +29,7 @@ export const gamesRoutes: FastifyPluginAsyncZod = async (app) => {
 
   const list = listGames(app.db, api, siteId);
   const detail = getGame(app.db, api, siteId);
+  const wagonWheel = getWagonWheel(app.db);
 
   app.get(
     "/games",
@@ -63,6 +65,19 @@ export const gamesRoutes: FastifyPluginAsyncZod = async (app) => {
         throw error;
       }
       return game;
+    },
+  );
+
+  app.get(
+    "/games/:matchId/wagon-wheel",
+    {
+      schema: {
+        params: gameDetailParamsSchema,
+        response: { 200: wagonWheelResponseSchema },
+      },
+    },
+    async (request) => {
+      return await wagonWheel(request.params.matchId);
     },
   );
 };

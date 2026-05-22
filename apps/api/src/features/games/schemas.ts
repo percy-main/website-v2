@@ -110,3 +110,34 @@ export const gameDetailResponseSchema = gameListItemSchema.extend({
   sponsor: sponsorSchema,
   lineup: lineupSchema,
 });
+
+// --- Wagon wheel ---
+
+const wagonWheelBallSchema = z.object({
+  over: z.number(),
+  ball: z.number(),
+  ballDisp: z.number(),
+  batterRvId: z.number().nullable(),
+  batterName: z.string().nullable(),
+  bowlerRvId: z.number().nullable(),
+  bowlerName: z.string().nullable(),
+  dismissed: z.boolean(),
+  runsBat: z.number(),
+  runsExtra: z.number(),
+  extrasType: z.string().nullable(),
+  lDesc: z.string(),
+  sDesc: z.string(),
+  shotAngle: z.number().nullable(),
+  shotLength: z.number().nullable(),
+});
+
+export const wagonWheelResponseSchema = z.object({
+  matchId: z.string(),
+  dismissalPenalty: z.number(),
+  innings: z.array(
+    z.object({
+      inningsNumber: z.number(),
+      balls: z.array(wagonWheelBallSchema),
+    }),
+  ),
+});

@@ -4550,6 +4550,141 @@
         }
       }
     },
+    "/api/games/{matchId}/wagon-wheel": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "matchId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "matchId": {
+                      "type": "string"
+                    },
+                    "dismissalPenalty": {
+                      "type": "number"
+                    },
+                    "innings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "inningsNumber": {
+                            "type": "number"
+                          },
+                          "balls": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "over": {
+                                  "type": "number"
+                                },
+                                "ball": {
+                                  "type": "number"
+                                },
+                                "ballDisp": {
+                                  "type": "number"
+                                },
+                                "batterRvId": {
+                                  "nullable": true,
+                                  "type": "number"
+                                },
+                                "batterName": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "bowlerRvId": {
+                                  "nullable": true,
+                                  "type": "number"
+                                },
+                                "bowlerName": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "dismissed": {
+                                  "type": "boolean"
+                                },
+                                "runsBat": {
+                                  "type": "number"
+                                },
+                                "runsExtra": {
+                                  "type": "number"
+                                },
+                                "extrasType": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "lDesc": {
+                                  "type": "string"
+                                },
+                                "sDesc": {
+                                  "type": "string"
+                                },
+                                "shotAngle": {
+                                  "nullable": true,
+                                  "type": "number"
+                                },
+                                "shotLength": {
+                                  "nullable": true,
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "over",
+                                "ball",
+                                "ballDisp",
+                                "batterRvId",
+                                "batterName",
+                                "bowlerRvId",
+                                "bowlerName",
+                                "dismissed",
+                                "runsBat",
+                                "runsExtra",
+                                "extrasType",
+                                "lDesc",
+                                "sDesc",
+                                "shotAngle",
+                                "shotLength"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "inningsNumber",
+                          "balls"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "matchId",
+                    "dismissalPenalty",
+                    "innings"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/play-cricket/admin/sync": {
       "post": {
         "responses": {
