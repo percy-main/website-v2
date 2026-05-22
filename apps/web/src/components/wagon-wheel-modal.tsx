@@ -1,41 +1,12 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog.js";
-import { api, callApi } from "@/lib/api-client.js";
-import type { paths } from "@/lib/api.gen.js";
-import { useQuery } from "@tanstack/react-query";
+import {
+  hasWagonWheel,
+  useWagonWheelQuery,
+  type WagonWheelData,
+} from "@/hooks/use-wagon-wheel.js";
 import { useMemo, useState } from "react";
 
-type WagonWheelData =
-  paths["/api/games/{matchId}/wagon-wheel"]["get"]["responses"]["200"]["content"]["application/json"];
-
 type Ball = WagonWheelData["innings"][number]["balls"][number];
-
-const STALE_TIME = 5 * 60 * 1000;
-
-export function useWagonWheelQuery(matchId: string, enabled = true) {
-  return useQuery({
-    queryKey: ["wagon-wheel", matchId],
-    queryFn: () =>
-      callApi(
-        api.GET("/api/games/{matchId}/wagon-wheel", {
-          params: { path: { matchId } },
-        }),
-      ),
-    enabled: !!matchId && enabled,
-    staleTime: STALE_TIME,
-  });
-}
-
-export function hasWagonWheel(data: WagonWheelData | undefined): boolean {
-  // Require at least one ball with a recorded shot direction — otherwise
-  // the viewer would open onto an empty wheel even though the API
-  // technically returned ball-by-ball rows.
-  return (
-    !!data &&
-    data.innings.some((inn) =>
-      inn.balls.some((b) => b.shotAngle !== null),
-    )
-  );
-}
 
 interface WagonWheelModalProps {
   matchId: string;
@@ -540,8 +511,14 @@ function CumulativeChart({
   const otherTotal = other?.points.at(-1)?.y ?? 0;
 
   function dismissalText(b: Ball): string {
-    const batter = b.batterName ?? "Batter";
-    const bowler = b.bowlerName ?? "bowler";
+    // batterName / bowlerName can be null when the RV player has no PC
+    // external_id (placeholder ids like -101 / -102 don't get stored in
+    // rv_player_mapping). Fall back to parsing the canonical
+    // " <bowler> to <batter>: ..." prefix in lDesc so the tooltip never
+    // shows "Batter out — bowler bowling".
+    const parsed = /^\s*(.+?)\s+to\s+(.+?):/.exec(b.lDesc);
+    const batter = b.batterName ?? parsed?.[2] ?? "Batter";
+    const bowler = b.bowlerName ?? parsed?.[1] ?? "bowler";
     return `${batter} out — ${bowler} bowling`;
   }
 

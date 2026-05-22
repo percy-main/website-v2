@@ -5,12 +5,9 @@ import { Scorecard } from "@/components/scorecard.js";
 import { Badge } from "@/components/ui/badge.js";
 import { Button, buttonVariants } from "@/components/ui/button.js";
 import { Card, CardContent } from "@/components/ui/card.js";
-import {
-  hasWagonWheel,
-  useWagonWheelQuery,
-  WagonWheelModal,
-} from "@/components/wagon-wheel-modal.js";
+import { WagonWheelModal } from "@/components/wagon-wheel-modal.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
+import { hasWagonWheel, useWagonWheelQuery } from "@/hooks/use-wagon-wheel.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
 import { getGameReport } from "@/lib/game-reports.js";
