@@ -10,10 +10,12 @@ const UPDATE_POLL_MS = 30 * 60 * 1000;
 
 /**
  * Toast shown when a new service worker is waiting. Tapping "Reload"
- * activates the new SW + reloads the page. Workbox is configured with
- * skipWaiting + clientsClaim so this is mostly a courtesy - but visible
- * confirmation that the upgrade happened, and a manual escape hatch if
- * the auto-apply ever doesn't kick.
+ * sends SKIP_WAITING + reloads the page, which is the ONLY moment we
+ * swap to the new build. Until then the old SW keeps serving the old
+ * precache so the currently-loaded shell's lazy route chunks still
+ * resolve. (Earlier versions enabled skipWaiting + clientsClaim, which
+ * caused mid-session "Importing a module script failed" errors when
+ * navigation hit a chunk the new precache no longer carried.)
  */
 export function ServiceWorkerUpdate() {
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
