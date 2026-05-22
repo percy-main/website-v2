@@ -20,6 +20,23 @@ const config: Record<
   N: { label: "N/R", bg: "bg-stone-100", text: "text-stone-500", icon: null },
 };
 
+// Play Cricket returns score descriptions like
+// "Tynemouth CC - Tynemouth Willows - Women's Softball - Won" for matches
+// without an innings-level score. The outcome word is already in the badge
+// above, so a description that ends in a bare outcome word is noise we
+// drop. Substantive descriptions ("Won by 50 runs") survive.
+function tidyScoreDescription(desc: string): string | null {
+  const trimmed = desc.trim();
+  if (!trimmed) return null;
+  const outcomeWord = /^(won|lost|drew|tied|abandoned|cancelled|no result)$/i;
+  if (outcomeWord.test(trimmed)) return null;
+  const lastSegment = trimmed.split(/\s+-\s+/).pop();
+  if (lastSegment && outcomeWord.test(lastSegment) && lastSegment !== trimmed) {
+    return null;
+  }
+  return trimmed;
+}
+
 export function OutcomeBadge({
   outcome,
   scoreDescription,
@@ -28,6 +45,7 @@ export function OutcomeBadge({
   scoreDescription?: string;
 }) {
   const c = config[outcome];
+  const tidy = scoreDescription ? tidyScoreDescription(scoreDescription) : null;
 
   return (
     <div className="flex shrink-0 flex-col items-end gap-1">
@@ -58,10 +76,8 @@ export function OutcomeBadge({
         )}
         {c.label}
       </span>
-      {scoreDescription && (
-        <span className="text-[11px] font-semibold text-stone-400">
-          {scoreDescription}
-        </span>
+      {tidy && (
+        <span className="text-[11px] font-semibold text-stone-400">{tidy}</span>
       )}
     </div>
   );

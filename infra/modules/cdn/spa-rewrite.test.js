@@ -53,6 +53,41 @@ describe("spa-rewrite CloudFront function", () => {
       expect(result.statusCode).toBeUndefined();
     });
 
+    it("forwards non-og query params to the OG page", () => {
+      const result = handler(
+        makeEvent("/calendar/game/12345", "www.percymain.org", {
+          bbb: { value: "1" },
+        }),
+      );
+      expect(result.statusCode).toBe(302);
+      expect(result.headers.location.value).toBe(
+        "https://api.v2.percymain.org/api/og/game/12345/page?bbb=1",
+      );
+    });
+
+    it("strips the og param when forwarding (defensive — only set on bypass)", () => {
+      const result = handler(
+        makeEvent("/calendar/game/12345", "www.percymain.org", {
+          foo: { value: "bar" },
+        }),
+      );
+      expect(result.statusCode).toBe(302);
+      expect(result.headers.location.value).toBe(
+        "https://api.v2.percymain.org/api/og/game/12345/page?foo=bar",
+      );
+    });
+
+    it("URL-encodes forwarded query values", () => {
+      const result = handler(
+        makeEvent("/calendar/game/12345", "www.percymain.org", {
+          q: { value: "hello world & friends" },
+        }),
+      );
+      expect(result.headers.location.value).toBe(
+        "https://api.v2.percymain.org/api/og/game/12345/page?q=hello%20world%20%26%20friends",
+      );
+    });
+
     it("does not redirect non-game pages", () => {
       const result = handler(makeEvent("/about", "www.percymain.org"));
       expect(result.uri).toBe("/index.html");
