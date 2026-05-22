@@ -402,8 +402,13 @@ describe("expense approval workflow", () => {
 
   describe("finishMatch", () => {
     const mockSendEmail = vi.fn().mockResolvedValue(undefined);
+    const mockSendPush = vi
+      .fn()
+      .mockImplementation((sub: { endpoint: string }) =>
+        Promise.resolve({ ok: true, endpoint: sub.endpoint }),
+      );
     const mockConfig = { BASE_URL: "https://example.com" };
-    const finish = finishMatch(db, mockSendEmail, mockConfig);
+    const finish = finishMatch(db, mockSendEmail, mockSendPush, mockConfig);
 
     it("rejects if matchday not found", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
