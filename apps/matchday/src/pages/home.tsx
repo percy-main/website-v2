@@ -18,7 +18,6 @@ import {
 } from "@/features/games.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { canViewMatchdayAdmin, useSession } from "@/lib/auth-client.js";
-import { mainSiteUrl } from "@/lib/main-site.js";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -334,13 +333,7 @@ function OutstandingDonationsCard() {
           {outstanding.length === 1 ? "donation" : "donations"}
         </p>
         <Button asChild tone="primary" className="w-full">
-          <a
-            href={mainSiteUrl("/members?tab=payments")}
-            rel="noopener"
-            target="_blank"
-          >
-            Pay on main site ↗
-          </a>
+          <Link to="/donations">Pay {fmtMoneyPence(total)}</Link>
         </Button>
       </CardContent>
     </Card>
