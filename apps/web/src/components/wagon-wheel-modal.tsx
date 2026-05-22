@@ -550,52 +550,45 @@ function CumulativeChart({
           {other && <span className="text-stone-500"> (vs {otherTotal})</span>}
         </span>
       </div>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="block h-[120px] w-full"
-        role="img"
-        aria-label={`Cumulative runs: ${totalRuns} runs, ${wickets.length} wickets`}
-      >
-        {/* Baseline at y=0 (or yMin if negative) */}
-        <line
-          x1={0}
-          x2={W}
-          y1={sy(0)}
-          y2={sy(0)}
-          stroke="#3b4253"
-          strokeWidth={1}
-          strokeDasharray="3 4"
-        />
-        {otherPath && (
+      <div className="relative">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="none"
+          className="block h-[120px] w-full"
+          role="img"
+          aria-label={`Cumulative runs: ${totalRuns} runs, ${wickets.length} wickets`}
+        >
+          {/* Baseline at y=0 (or yMin if negative) */}
+          <line
+            x1={0}
+            x2={W}
+            y1={sy(0)}
+            y2={sy(0)}
+            stroke="#3b4253"
+            strokeWidth={1}
+            strokeDasharray="3 4"
+          />
+          {otherPath && (
+            <path
+              d={otherPath}
+              fill="none"
+              stroke="#5eb3ff"
+              strokeWidth={2}
+              strokeDasharray="4 3"
+              opacity={0.35}
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
           <path
-            d={otherPath}
+            d={path}
             fill="none"
-            stroke="#5eb3ff"
+            stroke={COLORS.r1}
             strokeWidth={2}
-            strokeDasharray="4 3"
-            opacity={0.35}
             vectorEffect="non-scaling-stroke"
           />
-        )}
-        <path
-          d={path}
-          fill="none"
-          stroke={COLORS.r1}
-          strokeWidth={2}
-          vectorEffect="non-scaling-stroke"
-        />
-        {wickets.map((w) => (
-          <g
-            key={`${w.ball.over}-${w.ball.ball}`}
-            onMouseEnter={() => setHover(w)}
-            onMouseLeave={() => setHover(null)}
-            onFocus={() => setHover(w)}
-            onBlur={() => setHover(null)}
-            tabIndex={0}
-            style={{ cursor: "pointer" }}
-          >
+          {wickets.map((w) => (
             <line
+              key={`${w.ball.over}-${w.ball.ball}-line`}
               x1={sx(w.x)}
               x2={sx(w.x)}
               y1={padY}
@@ -606,24 +599,35 @@ function CumulativeChart({
               opacity={0.5}
               vectorEffect="non-scaling-stroke"
             />
-            <circle cx={sx(w.x)} cy={sy(w.y)} r={9} fill={COLORS.wkt} />
-            <text
-              x={sx(w.x)}
-              y={sy(w.y)}
-              fill="#0c0a09"
-              fontSize={11}
-              fontWeight={700}
-              textAnchor="middle"
-              dominantBaseline="central"
-              style={{ pointerEvents: "none" }}
+          ))}
+        </svg>
+        {/* W markers as HTML overlays. The SVG uses preserveAspectRatio="none",
+          so shapes drawn in viewBox units stretch non-uniformly (tall/skinny
+          ovals on mobile). HTML divs anchored by % stay circular. */}
+        {wickets.map((w) => {
+          const pctX = (sx(w.x) / W) * 100;
+          const pctY = (sy(w.y) / H) * 100;
+          return (
+            <button
+              key={`${w.ball.over}-${w.ball.ball}`}
+              type="button"
+              onMouseEnter={() => setHover(w)}
+              onMouseLeave={() => setHover(null)}
+              onFocus={() => setHover(w)}
+              onBlur={() => setHover(null)}
+              className="absolute flex size-[18px] -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-[11px] font-bold text-stone-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-100"
+              style={{
+                left: `${pctX}%`,
+                top: `${pctY}%`,
+                backgroundColor: COLORS.wkt,
+              }}
+              aria-label={`Wicket at over ${w.ball.over}.${w.ball.ballDisp}`}
             >
               W
-            </text>
-            {/* Bigger invisible hit target */}
-            <circle cx={sx(w.x)} cy={sy(w.y)} r={16} fill="transparent" />
-          </g>
-        ))}
-      </svg>
+            </button>
+          );
+        })}
+      </div>
       {hover &&
         (() => {
           const pctX = (sx(hover.x) / W) * 100;
