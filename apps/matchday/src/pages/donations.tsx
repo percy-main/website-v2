@@ -1,5 +1,6 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
+import { isChargeOpen } from "@/features/charges/is-open.js";
 import { PayOutstandingDialog } from "@/features/donations/pay-outstanding-dialog.js";
 import { fmtDate, fmtMoneyPence } from "@/features/format.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
@@ -13,16 +14,6 @@ type Tab = "outstanding" | "history";
 
 type ChargesResponse = ApiResponse<"/api/charges">;
 type Charge = ChargesResponse["charges"][number];
-
-function isOpen(c: Charge): boolean {
-  // `payment_confirmed_at` is set by POST /charges/confirm-payment the moment
-  // Stripe accepts the payment, before the webhook flips `paid_at`. Treating
-  // it as "not open" keeps the row out of Outstanding (and the optimistic
-  // cache update) so the user doesn't see a stale unpaid state mid-settlement.
-  return (
-    !c.paid_at && !c.deleted_at && !c.relieved_at && !c.payment_confirmed_at
-  );
-}
 
 /**
  * Donations view. Members can:
@@ -39,11 +30,11 @@ export default function Donations() {
     queryFn: () => callApi(api.GET("/api/charges")),
   });
   const charges = useMemo(() => data?.charges ?? [], [data]);
-  const outstanding = useMemo(() => charges.filter(isOpen), [charges]);
+  const outstanding = useMemo(() => charges.filter(isChargeOpen), [charges]);
   const history = useMemo(
     () =>
       charges
-        .filter((c) => !isOpen(c))
+        .filter((c) => !isChargeOpen(c))
         .sort((a, b) =>
           (b.paid_at ?? b.created_at).localeCompare(a.paid_at ?? a.created_at),
         ),
@@ -215,7 +206,7 @@ function ChargeRowItem({
   selected?: boolean;
   onToggle?: () => void;
 }) {
-  const overdue = isOpen(c) && isOverdue(c);
+  const overdue = isChargeOpen(c) && isOverdue(c);
   const status = c.paid_at
     ? { tone: "success" as const, label: `Paid ${fmtDate(c.paid_at)}` }
     : c.deleted_at

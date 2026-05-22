@@ -3,7 +3,7 @@ import { Card, CardEyebrow } from "@/components/ui/card.js";
 import { fmtDate } from "@/features/format.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
-import { differenceInDays, isPast, parseISO } from "date-fns";
+import { differenceInDays, endOfDay, isPast, parseISO } from "date-fns";
 import { IdCardIcon } from "lucide-react";
 
 const MEMBERSHIP_LABELS: Record<string, string> = {
@@ -25,7 +25,10 @@ type MembershipStatus =
   | { tone: "danger"; label: "Expired" };
 
 function computeStatus(paidUntil: string): MembershipStatus {
-  const expiry = parseISO(paidUntil);
+  // `paid_until` is a YYYY-MM-DD date stamp meaning "membership runs through
+  // the end of this day". parseISO would treat it as 00:00 local, which would
+  // (wrongly) flip the membership to Expired for the whole of its last day.
+  const expiry = endOfDay(parseISO(paidUntil));
   if (isPast(expiry)) return { tone: "danger", label: "Expired" };
   const days = differenceInDays(expiry, new Date());
   if (days <= 30) return { tone: "warning", label: "Expires soon" };

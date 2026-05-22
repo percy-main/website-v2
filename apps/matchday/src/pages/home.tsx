@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card.js";
+import { isChargeOpen } from "@/features/charges/is-open.js";
 import { fmtDate, fmtMoneyPence } from "@/features/format.js";
 import {
   gameIsoDate,
@@ -301,10 +302,7 @@ function OutstandingDonationsCard() {
   if (isError) return <CardError label="Couldn't load donations" />;
 
   const charges = data?.charges ?? [];
-  const outstanding = charges.filter(
-    (c) =>
-      c.paid_at === null && c.deleted_at === null && c.relieved_at === null,
-  );
+  const outstanding = charges.filter(isChargeOpen);
   if (outstanding.length === 0) return null;
   const total = outstanding.reduce((acc, c) => acc + c.amount_pence, 0);
   const overdueCount = outstanding.filter(isOverdue).length;

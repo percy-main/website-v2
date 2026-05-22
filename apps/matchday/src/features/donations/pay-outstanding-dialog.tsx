@@ -15,7 +15,7 @@ import {
   useStripe,
 } from "@stripe/react-stripe-js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getStripe } from "./stripe.js";
 
 type ChargesResponse = ApiResponse<"/api/charges">;
@@ -30,20 +30,35 @@ interface PayOutstandingDialogProps {
  * Mounts <PayBody> only while `open` is true, so opening the dialog
  * triggers a fresh PaymentIntent and closing it tears everything down —
  * no useEffect/setState dances required to keep the two in sync.
+ *
+ * Close is blocked while a payment is in flight (Stripe requires the
+ * PaymentElement to stay mounted through confirmPayment, otherwise it
+ * throws "elements should have a mounted Payment Element").
  */
 export function PayOutstandingDialog({
   open,
   onOpenChange,
   chargeIds,
 }: PayOutstandingDialogProps) {
+  const [paying, setPaying] = useState(false);
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && paying) return;
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[calc(100%-1.5rem)] max-w-md sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Pay donations</DialogTitle>
         </DialogHeader>
         {open && (
-          <PayBody chargeIds={chargeIds} onClose={() => onOpenChange(false)} />
+          <PayBody
+            chargeIds={chargeIds}
+            onClose={() => onOpenChange(false)}
+            onPayingChange={setPaying}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -62,12 +77,21 @@ export function PayOutstandingDialog({
 function PayBody({
   chargeIds,
   onClose,
+  onPayingChange,
 }: {
   chargeIds: string[];
   onClose: () => void;
+  onPayingChange: (paying: boolean) => void;
 }) {
+  // Stable for the lifetime of PayBody (one mount per dialog-open). Reusing
+  // a cached PaymentIntent on reopen would be wrong — PIs are single-use,
+  // and the server's stale-PI recovery path expects a fresh request when
+  // the user retries.
+  const [nonce] = useState(
+    () => `${String(Date.now())}-${Math.random().toString(36).slice(2, 10)}`,
+  );
   const intentQuery = useQuery({
-    queryKey: ["pay-outstanding", chargeIds],
+    queryKey: ["pay-outstanding", nonce, chargeIds],
     queryFn: () =>
       callApi(
         api.POST("/api/charges/pay-outstanding", {
@@ -126,6 +150,7 @@ function PayBody({
         chargeIds={intentQuery.data.chargeIds}
         onCancel={onClose}
         onPaid={onClose}
+        onPayingChange={onPayingChange}
       />
     </Elements>
   );
@@ -148,11 +173,13 @@ function PayForm({
   chargeIds,
   onCancel,
   onPaid,
+  onPayingChange,
 }: {
   totalAmountPence: number;
   chargeIds: string[];
   onCancel: () => void;
   onPaid: () => void;
+  onPayingChange: (paying: boolean) => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -174,7 +201,13 @@ function PayForm({
         await stripe.confirmPayment({
           elements,
           // No funky redirect screens — the Payment Element handles 3DS in-place,
-          // and Apple Pay / Google Pay never need a redirect.
+          // and Apple Pay / Google Pay never need a redirect. `return_url` is
+          // only honoured if Stripe DOES need to redirect (rare, only certain
+          // payment methods like Klarna/iDEAL); we keep the user on /donations
+          // so the post-redirect refetch lands them on the same screen.
+          confirmParams: {
+            return_url: `${window.location.origin}/donations`,
+          },
           redirect: "if_required",
         });
 
@@ -221,6 +254,17 @@ function PayForm({
       onPaid();
     },
   });
+
+  useEffect(() => {
+    onPayingChange(pay.isPending);
+    return () => {
+      // Make sure the parent doesn't stay locked in "paying" if PayForm
+      // unmounts mid-flight (e.g. the intentQuery resets via parent re-render).
+      onPayingChange(false);
+    };
+    // onPayingChange is a parent-provided setter, stable across renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pay.isPending]);
 
   return (
     // The PaymentElement must stay mounted across the whole confirmPayment
