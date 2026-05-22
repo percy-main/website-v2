@@ -22,6 +22,7 @@ test-results/
 
 # Claude Code
 .claude/settings.local.json
+.claude/tmp/
 
 # JetBrains IDEs
 .idea/

@@ -148,7 +148,7 @@ describe("play-cricket service (integration)", () => {
       expect(result).toBeNull();
     });
 
-    it("aggregates batting and bowling stats correctly", async () => {
+    it("aggregates hardball batting and bowling stats correctly", async () => {
       const email = `career-${crypto.randomUUID()}@test.com`;
       const { memberId } = await seedTestUser(ctx.db, { email });
 
@@ -164,7 +164,6 @@ describe("play-cricket service (integration)", () => {
         .where("id", "=", memberId ?? "")
         .execute();
 
-      // Seed batting performances across two seasons
       await ctx.db
         .insertInto("match_performance_batting")
         .values([
@@ -182,6 +181,9 @@ describe("play-cricket service (integration)", () => {
             sixes: 1,
             how_out: "caught",
             not_out: false,
+            times_out: 1,
+            dismissal_penalty: 0,
+            game_type: "Standard",
             competition_type: "league",
           },
           {
@@ -196,14 +198,16 @@ describe("play-cricket service (integration)", () => {
             balls: 80,
             fours: 10,
             sixes: 3,
-            how_out: "not out",
+            how_out: "no",
             not_out: true,
+            times_out: 0,
+            dismissal_penalty: 0,
+            game_type: "Standard",
             competition_type: "league",
           },
         ])
         .execute();
 
-      // Seed bowling performances
       await ctx.db
         .insertInto("match_performance_bowling")
         .values([
@@ -221,6 +225,7 @@ describe("play-cricket service (integration)", () => {
             wickets: 3,
             wides: 1,
             no_balls: 0,
+            game_type: "Standard",
             competition_type: "league",
           },
         ])
@@ -230,23 +235,142 @@ describe("play-cricket service (integration)", () => {
       expect(result).not.toBeNull();
       expect(result?.playCricketId).toBe(playCricketId);
 
-      // Career batting totals
-      expect(result?.career.batting.runs).toBe(150); // 50 + 100
-      expect(result?.career.batting.matches).toBe(2);
-      expect(result?.career.batting.highScore).toBe(100);
-      expect(result?.career.batting.notOuts).toBe(1);
+      // Hardball-only player → exactly one format section
+      expect(result?.formats).toHaveLength(1);
+      const hardball = result?.formats.find((f) => f.gameType === "Standard");
+      expect(hardball).toBeDefined();
 
-      // Career bowling totals
-      expect(result?.career.bowling.wickets).toBe(3);
-      expect(result?.career.bowling.innings).toBe(1);
+      expect(hardball?.career.batting.runs).toBe(150);
+      expect(hardball?.career.batting.matches).toBe(2);
+      expect(hardball?.career.batting.highScore).toBe(100);
+      expect(hardball?.career.batting.notOuts).toBe(1);
 
-      // Per-season batting breakdown
-      expect(result?.battingSeasons).toHaveLength(2);
-      expect(result?.bowlingSeasons).toHaveLength(1);
+      expect(hardball?.career.bowling.wickets).toBe(3);
+      expect(hardball?.career.bowling.innings).toBe(1);
 
-      // Seasons list
-      expect(result?.seasons).toContain(2025);
-      expect(result?.seasons).toContain(2026);
+      expect(hardball?.battingSeasons).toHaveLength(2);
+      expect(hardball?.bowlingSeasons).toHaveLength(1);
+
+      expect(hardball?.seasons).toContain(2025);
+      expect(hardball?.seasons).toContain(2026);
+    });
+
+    it("partitions softball stats into a separate format section with Play Cricket net average", async () => {
+      const email = `softball-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+
+      const slug = `slug-${crypto.randomUUID()}`;
+      const playCricketId = `pc-${crypto.randomUUID()}`;
+
+      await ctx.db
+        .updateTable("member")
+        .set({
+          slug,
+          play_cricket_id: playCricketId,
+        })
+        .where("id", "=", memberId ?? "")
+        .execute();
+
+      // Three Women's Softball innings: raw runs 30, all out twice with a
+      // 5-run penalty per dismissal. Net average should match Play Cricket:
+      //   (30 − 2 × 5) / 2 = 10.00
+      await ctx.db
+        .insertInto("match_performance_batting")
+        .values([
+          {
+            id: crypto.randomUUID(),
+            match_id: `m-${crypto.randomUUID()}`,
+            match_date: "2026-05-20",
+            season: 2026,
+            team_id: "team-sb",
+            player_id: playCricketId,
+            player_name: "Test Player",
+            runs: 12,
+            balls: 10,
+            fours: 1,
+            sixes: 0,
+            how_out: "",
+            not_out: true,
+            times_out: 0,
+            dismissal_penalty: 5,
+            game_type: "Pairs",
+            competition_type: "league",
+          },
+          {
+            id: crypto.randomUUID(),
+            match_id: `m-${crypto.randomUUID()}`,
+            match_date: "2026-06-03",
+            season: 2026,
+            team_id: "team-sb",
+            player_id: playCricketId,
+            player_name: "Test Player",
+            runs: 6,
+            balls: 12,
+            fours: 0,
+            sixes: 0,
+            how_out: "",
+            not_out: false,
+            times_out: 1,
+            dismissal_penalty: 5,
+            game_type: "Pairs",
+            competition_type: "league",
+          },
+          {
+            id: crypto.randomUUID(),
+            match_id: `m-${crypto.randomUUID()}`,
+            match_date: "2026-06-17",
+            season: 2026,
+            team_id: "team-sb",
+            player_id: playCricketId,
+            player_name: "Test Player",
+            runs: 12,
+            balls: 14,
+            fours: 1,
+            sixes: 0,
+            how_out: "",
+            not_out: false,
+            times_out: 1,
+            dismissal_penalty: 5,
+            game_type: "Pairs",
+            competition_type: "league",
+          },
+        ])
+        .execute();
+
+      const result = await getPlayerCareerStats(ctx.db)(slug);
+      expect(result?.formats).toHaveLength(1);
+      const softball = result?.formats.find((f) => f.gameType === "Pairs");
+      expect(softball).toBeDefined();
+      expect(softball?.label).toBe("Softball");
+
+      expect(softball?.battingSeasons).toHaveLength(1);
+      const season = softball?.battingSeasons[0];
+      expect(season?.season).toBe(2026);
+      expect(season?.innings).toBe(3);
+      expect(season?.runs).toBe(30);
+      expect(season?.notOuts).toBe(1);
+      // (runs − times_out × penalty) / times_out = (30 − 2*5) / 2 = 10.00
+      expect(season?.average).toBe(10);
+    });
+
+    it("returns an empty formats array for a player with no batting or bowling rows", async () => {
+      const email = `nodata-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+
+      const slug = `slug-${crypto.randomUUID()}`;
+      const playCricketId = `pc-${crypto.randomUUID()}`;
+
+      await ctx.db
+        .updateTable("member")
+        .set({
+          slug,
+          play_cricket_id: playCricketId,
+        })
+        .where("id", "=", memberId ?? "")
+        .execute();
+
+      const result = await getPlayerCareerStats(ctx.db)(slug);
+      expect(result?.formats).toEqual([]);
     });
   });
 });
@@ -448,6 +572,188 @@ function makeMatchDetail(matchId: number) {
   };
 }
 
+// Women's Softball ("Pairs") fixture modeled on the real Play Cricket
+// response for match 7660052 (saved in .claude/tmp). The shape is the same
+// as hardball plus game_type, starting_runs, dismissal_penalty, and the
+// per-batter times_out field — and every how_out is null because softball
+// batters rotate at their balls limit instead of being dismissed by code.
+function makeSoftballMatchSummary(id: number, matchDate = "20/05/2026") {
+  return {
+    id,
+    status: "Completed",
+    published: "Yes",
+    last_updated: "2026-05-20",
+    season: "2026",
+    match_date: matchDate,
+    match_type: "Limited Overs",
+    game_type: "Pairs",
+    home_club_name: "Percy Main",
+    home_team_name: "Womens Softball",
+    home_team_id: OUR_TEAM_ID,
+    home_club_id: SITE_ID,
+    away_club_name: "Tynemouth CC",
+    away_team_name: "Womens Softball",
+    away_team_id: OPPONENT_TEAM_ID,
+    away_club_id: "999",
+  };
+}
+
+function makeSoftballMatchDetail(matchId: number) {
+  return {
+    match_details: [
+      {
+        id: matchId,
+        home_team_name: "Womens Softball",
+        home_team_id: OUR_TEAM_ID,
+        home_club_name: "Percy Main",
+        home_club_id: SITE_ID,
+        away_team_name: "Womens Softball",
+        away_team_id: OPPONENT_TEAM_ID,
+        away_club_name: "Tynemouth CC",
+        away_club_id: "999",
+        result: "L",
+        result_description: "Tynemouth CC won",
+        result_applied_to: OPPONENT_TEAM_ID,
+        match_type: "Limited Overs",
+        competition_type: "League",
+        game_type: "Pairs",
+        starting_runs: "200",
+        dismissal_penalty: "5",
+        players: [
+          {
+            home_team: [
+              {
+                position: 1,
+                player_name: "Eve Hage",
+                player_id: 1101,
+                captain: false,
+                wicket_keeper: false,
+              },
+            ],
+          },
+        ],
+        innings: [
+          {
+            team_batting_name: "Percy Main CC - Womens Softball",
+            team_batting_id: OUR_TEAM_ID,
+            innings_number: 1,
+            extra_byes: "10",
+            extra_leg_byes: "0",
+            extra_wides: "14",
+            extra_no_balls: "2",
+            extra_penalty_runs: "0",
+            penalties_runs_awarded_in_other_innings: "0",
+            total_extras: "26",
+            runs: "77",
+            wickets: "3",
+            overs: "15.0",
+            declared: false,
+            revised_target_runs: "",
+            revised_target_overs: "",
+            bat: [
+              {
+                position: "1",
+                batsman_name: "Eve Hage",
+                batsman_id: "1101",
+                how_out: null,
+                fielder_name: "",
+                fielder_id: "",
+                bowler_name: "",
+                bowler_id: "",
+                runs: "5",
+                fours: "0",
+                sixes: "0",
+                balls: "8",
+                times_out: "0",
+              },
+              {
+                position: "2",
+                batsman_name: "Lyndsey Surrey",
+                batsman_id: "1102",
+                how_out: null,
+                fielder_name: "",
+                fielder_id: "",
+                bowler_name: "",
+                bowler_id: "",
+                runs: "4",
+                fours: "0",
+                sixes: "0",
+                balls: "8",
+                times_out: "1",
+              },
+              {
+                position: "3",
+                batsman_name: "Tim Grimshaw",
+                batsman_id: "1103",
+                how_out: null,
+                fielder_name: "",
+                fielder_id: "",
+                bowler_name: "",
+                bowler_id: "",
+                runs: "1",
+                fours: "0",
+                sixes: "0",
+                balls: "9",
+                times_out: "2",
+              },
+              {
+                // DNB-style empty row that we expect to be skipped.
+                position: "4",
+                batsman_name: "Did Not Bat",
+                batsman_id: "1199",
+                how_out: null,
+                fielder_name: "",
+                fielder_id: "",
+                bowler_name: "",
+                bowler_id: "",
+                runs: "0",
+                fours: "",
+                sixes: "",
+                balls: "",
+                times_out: "",
+              },
+            ],
+            bowl: [],
+            fow: [],
+          },
+          {
+            team_batting_name: "Tynemouth - Women's Softball",
+            team_batting_id: OPPONENT_TEAM_ID,
+            innings_number: 1,
+            extra_byes: "1",
+            extra_leg_byes: "0",
+            extra_wides: "49",
+            extra_no_balls: "6",
+            extra_penalty_runs: "0",
+            penalties_runs_awarded_in_other_innings: "0",
+            total_extras: "56",
+            runs: "113",
+            wickets: "0",
+            overs: "15.0",
+            declared: false,
+            revised_target_runs: "",
+            revised_target_overs: "",
+            bat: [],
+            bowl: [
+              {
+                bowler_name: "Eve Hage",
+                bowler_id: "1101",
+                overs: "1.0",
+                maidens: "0",
+                runs: "9",
+                wickets: "0",
+                wides: "6",
+                no_balls: "2",
+              },
+            ],
+            fow: [],
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe("play-cricket sync (integration)", () => {
   it("syncs teams from API", async () => {
     const api = createMockApi({
@@ -584,6 +890,74 @@ describe("play-cricket sync (integration)", () => {
     expect(result.home_club_name).toBe("Percy Main");
     expect(result.away_club_id).toBe("999");
     expect(result.away_club_name).toBe("Opposition CC");
+  });
+
+  it("ingests Women's Softball (Pairs) batting with null how_out and per-batter times_out", async () => {
+    const matchId = 76600 + Math.floor(Math.random() * 1000);
+    const api = createMockApi({
+      getMatchesSummary: vi
+        .fn()
+        .mockResolvedValue({ matches: [makeSoftballMatchSummary(matchId)] }),
+      getMatchDetail: vi
+        .fn()
+        .mockResolvedValue(makeSoftballMatchDetail(matchId)),
+    });
+
+    const sync = runSync(ctx.db, api, null, log);
+    const syncResult = await sync({ siteId: SITE_ID });
+    expect(syncResult.matchesProcessed).toBe(1);
+    expect(syncResult.errors).toHaveLength(0);
+
+    // Every batter who took strike (all how_out = null) should be persisted —
+    // the previous didBat() returned false for null how_out and dropped them.
+    const batting = await ctx.db
+      .selectFrom("match_performance_batting")
+      .where("match_id", "=", matchId.toString())
+      .selectAll()
+      .execute();
+
+    expect(batting).toHaveLength(3);
+    expect(batting.map((b) => b.player_id).sort()).toEqual([
+      "1101",
+      "1102",
+      "1103",
+    ]);
+
+    for (const row of batting) {
+      expect(row.game_type).toBe("Pairs");
+      expect(row.dismissal_penalty).toBe(5);
+    }
+
+    const surrey = batting.find((b) => b.player_id === "1102");
+    assert(surrey, "Expected batting record for Lyndsey Surrey");
+    expect(surrey.runs).toBe(4);
+    expect(surrey.times_out).toBe(1);
+
+    const grimshaw = batting.find((b) => b.player_id === "1103");
+    assert(grimshaw, "Expected batting record for Tim Grimshaw");
+    // Pairs lets a single batter be dismissed more than once — the API field
+    // is the source of truth, not the not_out boolean.
+    expect(grimshaw.times_out).toBe(2);
+
+    // No fielding rows: Pairs scorecards have no how_out attribution.
+    const fielding = await ctx.db
+      .selectFrom("match_performance_fielding")
+      .where("match_id", "=", matchId.toString())
+      .selectAll()
+      .execute();
+    expect(fielding).toHaveLength(0);
+
+    // match_result captures format + softball scoring constants for the
+    // scorecard's Net Score rendering.
+    const matchResult = await ctx.db
+      .selectFrom("match_result")
+      .where("match_id", "=", matchId.toString())
+      .selectAll()
+      .executeTakeFirst();
+    assert(matchResult, "Expected match_result row for softball match");
+    expect(matchResult.game_type).toBe("Pairs");
+    expect(matchResult.starting_runs).toBe(200);
+    expect(matchResult.dismissal_penalty).toBe(5);
   });
 
   it("logs sync to play_cricket_sync_log", async () => {

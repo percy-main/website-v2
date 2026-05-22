@@ -2817,6 +2817,9 @@ export interface paths {
                                     sixes: number;
                                     how_out: string;
                                     not_out: boolean;
+                                    times_out: number;
+                                    dismissal_penalty: number;
+                                    game_type: string;
                                     created_at: string;
                                 }[];
                                 bowling: {
@@ -2834,6 +2837,7 @@ export interface paths {
                                     wickets: number;
                                     wides: number;
                                     no_balls: number;
+                                    game_type: string;
                                     created_at: string;
                                 }[];
                                 status: string;
@@ -2877,48 +2881,53 @@ export interface paths {
                     content: {
                         "application/json": {
                             playCricketId: string;
-                            seasons: number[];
-                            battingSeasons: {
-                                season: number;
-                                innings: number;
-                                notOuts: number;
-                                runs: number;
-                                highScore: number;
-                                average: number | null;
-                                strikeRate: number | null;
-                                fours: number;
-                                sixes: number;
-                                fifties: number;
-                                hundreds: number;
-                            }[];
-                            bowlingSeasons: {
-                                season: number;
-                                innings: number;
-                                overs: string;
-                                maidens: number;
-                                runs: number;
-                                wickets: number;
-                                average: number | null;
-                                economy: number | null;
-                                strikeRate: number | null;
-                                bestBowling: string | null;
-                            }[];
-                            career: {
-                                batting: {
-                                    matches: number;
+                            formats: {
+                                /** @enum {string} */
+                                gameType: "Standard" | "Pairs";
+                                label: string;
+                                seasons: number[];
+                                battingSeasons: {
+                                    season: number;
+                                    innings: number;
+                                    notOuts: number;
                                     runs: number;
                                     highScore: number;
-                                    notOuts: number;
-                                };
-                                bowling: {
+                                    average: number | null;
+                                    strikeRate: number | null;
+                                    fours: number;
+                                    sixes: number;
+                                    fifties: number;
+                                    hundreds: number;
+                                }[];
+                                bowlingSeasons: {
+                                    season: number;
                                     innings: number;
+                                    overs: string;
+                                    maidens: number;
+                                    runs: number;
                                     wickets: number;
-                                    bestBowling: {
-                                        wickets: number;
+                                    average: number | null;
+                                    economy: number | null;
+                                    strikeRate: number | null;
+                                    bestBowling: string | null;
+                                }[];
+                                career: {
+                                    batting: {
+                                        matches: number;
                                         runs: number;
-                                    } | null;
+                                        highScore: number;
+                                        notOuts: number;
+                                    };
+                                    bowling: {
+                                        innings: number;
+                                        wickets: number;
+                                        bestBowling: {
+                                            wickets: number;
+                                            runs: number;
+                                        } | null;
+                                    };
                                 };
-                            };
+                            }[];
                         } | null;
                     };
                 };
@@ -9269,6 +9278,7 @@ export interface paths {
                     isJunior?: "true" | "false";
                     teamId?: string;
                     competitionTypes?: string;
+                    gameType?: "Standard" | "Pairs";
                     limit?: number;
                 };
                 header?: never;
@@ -9326,6 +9336,7 @@ export interface paths {
                     isJunior?: "true" | "false";
                     teamId?: string;
                     competitionTypes?: string;
+                    gameType?: "Standard" | "Pairs";
                     limit?: number;
                 };
                 header?: never;

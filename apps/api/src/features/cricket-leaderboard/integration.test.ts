@@ -67,7 +67,11 @@ async function seedBattingPerformance(overrides: {
   fours?: number;
   sixes?: number;
   competitionType?: string;
+  gameType?: string;
+  timesOut?: number;
+  dismissalPenalty?: number;
 }) {
+  const notOut = overrides.notOut ?? false;
   await ctx.db
     .insertInto("match_performance_batting")
     .values({
@@ -80,7 +84,13 @@ async function seedBattingPerformance(overrides: {
       season: overrides.season,
       runs: overrides.runs,
       balls: overrides.balls ?? 30,
-      not_out: overrides.notOut ?? false,
+      not_out: notOut,
+      // Default to "dismissed once if not_out=false, never if not_out=true" so
+      // existing hardball seeds continue to behave the same after the softball
+      // schema additions. Tests covering softball can pass timesOut directly.
+      times_out: overrides.timesOut ?? (notOut ? 0 : 1),
+      dismissal_penalty: overrides.dismissalPenalty ?? 0,
+      game_type: overrides.gameType ?? "Standard",
       fours: overrides.fours ?? 0,
       sixes: overrides.sixes ?? 0,
       competition_type: overrides.competitionType ?? "League",
@@ -150,6 +160,7 @@ describe("cricket leaderboard service (integration)", () => {
       const result = await listBattingLeaderboard(ctx.db)({
         season: 2024,
         limit: 50,
+        gameType: "Standard",
       });
 
       const entry = result.entries.find((e) => e.playerId === playerId);
@@ -186,6 +197,7 @@ describe("cricket leaderboard service (integration)", () => {
       const result = await listBattingLeaderboard(ctx.db)({
         season: 2024,
         limit: 50,
+        gameType: "Standard",
       });
 
       const entry = result.entries.find((e) => e.playerId === playerId);
@@ -219,11 +231,13 @@ describe("cricket leaderboard service (integration)", () => {
         season: 2024,
         isJunior: false,
         limit: 50,
+        gameType: "Standard",
       });
       const juniorsOnly = await listBattingLeaderboard(ctx.db)({
         season: 2024,
         isJunior: true,
         limit: 50,
+        gameType: "Standard",
       });
 
       expect(
@@ -262,6 +276,7 @@ describe("cricket leaderboard service (integration)", () => {
         season: 2024,
         competitionTypes: "League",
         limit: 50,
+        gameType: "Standard",
       });
 
       const entry = leagueOnly.entries.find((e) => e.playerId === playerId);
@@ -289,6 +304,7 @@ describe("cricket leaderboard service (integration)", () => {
       const result = await listBattingLeaderboard(ctx.db)({
         season: 2024,
         limit: 50,
+        gameType: "Standard",
       });
 
       const entry = result.entries.find((e) => e.playerId === playerId);
@@ -326,6 +342,7 @@ describe("cricket leaderboard service (integration)", () => {
       const result = await listBowlingLeaderboard(ctx.db)({
         season: 2024,
         limit: 50,
+        gameType: "Standard",
       });
 
       const entry = result.entries.find((e) => e.playerId === playerId);
@@ -362,6 +379,7 @@ describe("cricket leaderboard service (integration)", () => {
       const result = await listBowlingLeaderboard(ctx.db)({
         season: 2024,
         limit: 50,
+        gameType: "Standard",
       });
 
       const entry = result.entries.find((e) => e.playerId === playerId);

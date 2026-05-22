@@ -34,6 +34,9 @@ interface BattingEntry {
   balls: number;
   fours: number;
   sixes: number;
+  // Women's Softball (Play Cricket "Pairs") only: count of dismissals for
+  // this batter in this innings (can be 0, 1, or 2+). Always 0 for hardball.
+  timesOut: number;
 }
 
 interface BowlingEntry {
@@ -79,6 +82,18 @@ interface ScorecardInnings {
   total: InningsTotal;
 }
 
+// Per-team points entry from Play Cricket — game points + bonus point
+// breakdown for the match. Bonus rows are hardball-only; Pairs returns
+// game_points alone.
+interface PointsEntry {
+  teamId: string;
+  gamePoints: number;
+  bonusPointsBatting: number;
+  bonusPointsBowling: number;
+  bonusPointsTogether: number;
+  penaltyPoints: number;
+}
+
 interface MatchDetailData {
   homeTeamName: string;
   homeTeamId: string;
@@ -92,6 +107,14 @@ interface MatchDetailData {
   result: string;
   resultDescription: string;
   resultAppliedTo: string;
+  // "Standard" hardball or "Pairs" Women's Softball. Drives Net Score
+  // rendering + dismissal-label fallbacks.
+  gameType: string;
+  // Pairs only: starting score added to runs, penalty subtracted per
+  // dismissal. Null for hardball — Net Score is not displayed.
+  startingRuns: number | null;
+  dismissalPenalty: number | null;
+  points: PointsEntry[];
   innings: ScorecardInnings[];
 }
 
@@ -107,6 +130,13 @@ function fetchMatchDetail(matchId: string) {
 
 function formatDismissal(entry: BattingEntry): string {
   const { howOut, fielderName, bowlerName } = entry;
+  // Play Cricket leaves how_out null for every batter in a Pairs (Women's
+  // Softball) innings — players rotate at their balls limit instead of being
+  // dismissed individually. Show "retired not out" to match Play Cricket's
+  // own UI label.
+  if (howOut === null || howOut === "" || howOut === "rtno") {
+    return "retired not out";
+  }
   switch (howOut) {
     case "b":
       return `b ${bowlerName}`;
@@ -129,7 +159,7 @@ function formatDismissal(entry: BattingEntry): string {
     case "dnb":
       return "did not bat";
     default:
-      return howOut ?? "unknown";
+      return howOut;
   }
 }
 
@@ -194,6 +224,7 @@ function transformMatchDetail(
       balls: parseInt(b.balls) || 0,
       fours: parseInt(b.fours) || 0,
       sixes: parseInt(b.sixes) || 0,
+      timesOut: parseInt(b.times_out ?? "") || 0,
     }));
 
     const bowling: BowlingEntry[] = bowl.map((b) => ({
@@ -239,6 +270,31 @@ function transformMatchDetail(
     };
   });
 
+  // Play Cricket emits points as { team_id: number, game_points: string, ... }
+  // for both hardball and softball. Bonus rows are populated for hardball only.
+  const rawPoints =
+    (d.points as
+      | Array<{
+          team_id?: number | string;
+          game_points?: string;
+          bonus_points_batting?: string;
+          bonus_points_bowling?: string;
+          bonus_points_together?: string;
+          penalty_points?: string;
+        }>
+      | undefined) ?? [];
+  const points: PointsEntry[] = rawPoints.map((p) => ({
+    teamId: p.team_id === undefined ? "" : String(p.team_id),
+    gamePoints: parseInt(p.game_points ?? "") || 0,
+    bonusPointsBatting: parseFloat(p.bonus_points_batting ?? "") || 0,
+    bonusPointsBowling: parseFloat(p.bonus_points_bowling ?? "") || 0,
+    bonusPointsTogether: parseFloat(p.bonus_points_together ?? "") || 0,
+    penaltyPoints: parseFloat(p.penalty_points ?? "") || 0,
+  }));
+
+  const startingRunsRaw = parseInt((d.starting_runs as string) ?? "");
+  const dismissalPenaltyRaw = parseInt((d.dismissal_penalty as string) ?? "");
+
   return {
     homeTeamName: d.home_team_name as string,
     homeTeamId: d.home_team_id as string,
@@ -252,8 +308,22 @@ function transformMatchDetail(
     result: (d.result as string) ?? "",
     resultDescription: (d.result_description as string) ?? "",
     resultAppliedTo: (d.result_applied_to as string) ?? "",
+    gameType: (d.game_type as string) ?? "Standard",
+    startingRuns: Number.isFinite(startingRunsRaw) ? startingRunsRaw : null,
+    dismissalPenalty: Number.isFinite(dismissalPenaltyRaw)
+      ? dismissalPenaltyRaw
+      : null,
+    points,
     innings,
   };
+}
+
+function netScore(
+  total: InningsTotal,
+  startingRuns: number,
+  dismissalPenalty: number,
+): number {
+  return startingRuns + total.runs - total.wickets * dismissalPenalty;
 }
 
 // --- Sub-components ---
@@ -288,13 +358,19 @@ function BattingCard({
   batting,
   extras,
   total,
+  isPairs,
 }: {
   batting: BattingEntry[];
   extras: Extras;
   total: InningsTotal;
+  isPairs: boolean;
 }) {
   const activeBatters = batting.filter((b) => b.howOut !== "dnb");
   const didNotBat = batting.filter((b) => b.howOut === "dnb");
+  // Pairs swaps the SR column for "TO" (times out) — softball batters don't
+  // get individual dismissal codes, so SR adds less than a per-batter
+  // dismissal count.
+  const totalColSpan = isPairs ? 5 : 5;
 
   return (
     <div>
@@ -306,7 +382,9 @@ function BattingCard({
             <TableHead className="text-right">B</TableHead>
             <TableHead className="text-right">4s</TableHead>
             <TableHead className="text-right">6s</TableHead>
-            <TableHead className="text-right">SR</TableHead>
+            <TableHead className="text-right">
+              {isPairs ? "TO" : "SR"}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -337,7 +415,11 @@ function BattingCard({
                 {b.sixes}
               </TableCell>
               <TableCell className="text-right font-mono tabular-nums">
-                {b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : "-"}
+                {isPairs
+                  ? b.timesOut
+                  : b.balls > 0
+                    ? ((b.runs / b.balls) * 100).toFixed(1)
+                    : "-"}
               </TableCell>
             </TableRow>
           ))}
@@ -356,7 +438,7 @@ function BattingCard({
             <TableCell>Total</TableCell>
             <TableCell
               className="text-right font-mono tabular-nums"
-              colSpan={5}
+              colSpan={totalColSpan}
             >
               {formatTotalScore(total)}
             </TableCell>
@@ -443,7 +525,19 @@ function FallOfWickets({ fow }: { fow: FoWEntry[] }) {
   );
 }
 
-function InningsCard({ innings }: { innings: ScorecardInnings }) {
+function InningsCard({
+  innings,
+  isPairs,
+  startingRuns,
+  dismissalPenalty,
+}: {
+  innings: ScorecardInnings;
+  isPairs: boolean;
+  startingRuns: number | null;
+  dismissalPenalty: number | null;
+}) {
+  const showNetScore =
+    isPairs && startingRuns !== null && dismissalPenalty !== null;
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -451,12 +545,18 @@ function InningsCard({ innings }: { innings: ScorecardInnings }) {
         <div className="text-sm font-semibold text-stone-700">
           {formatTotalScore(innings.total)}
         </div>
+        {showNetScore && (
+          <div className="text-base font-bold text-stone-800">
+            Net Score {netScore(innings.total, startingRuns, dismissalPenalty)}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <BattingCard
           batting={innings.batting}
           extras={innings.extras}
           total={innings.total}
+          isPairs={isPairs}
         />
         <FallOfWickets fow={innings.fallOfWickets} />
         <div className="border-t pt-4">
@@ -494,12 +594,26 @@ function ScorecardSkeleton() {
 }
 
 function ScorecardDisplay({ data }: { data: MatchDetailData }) {
+  const isPairs = data.gameType === "Pairs";
   return (
     <div className="flex flex-col gap-4">
-      <h4 className="text-lg font-semibold md:text-xl">Scorecard</h4>
+      <div className="flex items-center gap-2">
+        <h4 className="text-lg font-semibold md:text-xl">Scorecard</h4>
+        {isPairs && (
+          <span className="rounded-full bg-stone-700 px-2 py-0.5 text-xs font-semibold text-white">
+            Women&apos;s Softball
+          </span>
+        )}
+      </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {data.innings.map((inn) => (
-          <InningsCard key={inn.inningsNumber} innings={inn} />
+          <InningsCard
+            key={inn.inningsNumber}
+            innings={inn}
+            isPairs={isPairs}
+            startingRuns={data.startingRuns}
+            dismissalPenalty={data.dismissalPenalty}
+          />
         ))}
       </div>
     </div>

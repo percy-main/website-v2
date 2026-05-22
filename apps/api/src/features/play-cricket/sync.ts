@@ -22,17 +22,44 @@ function isJuniorTeam(teamName: string): boolean {
   return JUNIOR_PATTERNS.some((p) => p.test(teamName));
 }
 
-const NOT_OUT_CODES = new Set(["no", "dnb", "rtd", "ro", "ret out", ""]);
+const NOT_OUT_CODES = new Set([
+  "no",
+  "dnb",
+  "rtd",
+  "ro",
+  "ret out",
+  "rtno",
+  "",
+]);
 
 function isNotOut(howOut: string | null | undefined): boolean {
   if (!howOut) return true;
   return NOT_OUT_CODES.has(howOut.toLowerCase().trim());
 }
 
-function didBat(howOut: string | null | undefined): boolean {
-  if (!howOut) return false;
-  const code = howOut.toLowerCase().trim();
-  return code !== "dnb" && code !== "";
+// In Pairs (Women's Softball) every batter rotates after their allotted balls
+// without a per-player dismissal code, so `how_out` is null for everyone who
+// played. We can't use it as the sole "did this player bat" signal — fall
+// back to runs, balls, and times_out, which softball does populate.
+function didBat(bat: {
+  how_out?: string | null;
+  runs?: string | null;
+  balls?: string | null;
+  times_out?: string | null;
+}): boolean {
+  const code = (bat.how_out ?? "").toLowerCase().trim();
+  if (code === "dnb") return false;
+  if (code !== "") return true;
+  // Empty / null how_out: must have at least one quantitative signal that
+  // this player took strike.
+  const runs = parseInt(bat.runs ?? "");
+  const balls = parseInt(bat.balls ?? "");
+  const timesOut = parseInt(bat.times_out ?? "");
+  return (
+    (Number.isFinite(runs) && runs !== 0) ||
+    (Number.isFinite(balls) && balls > 0) ||
+    (Number.isFinite(timesOut) && timesOut > 0)
+  );
 }
 
 function parseDismissalType(
@@ -215,9 +242,22 @@ async function storeBattingPerformances(
   competitionType: string,
   matchDate: string,
   season: number,
+  gameType: string,
+  dismissalPenalty: number,
 ): Promise<void> {
   for (const bat of innings) {
-    if (!didBat(bat.how_out)) continue;
+    if (!didBat(bat)) continue;
+
+    // For Pairs games trust the API's per-batter times_out (can be 2+); for
+    // Standard, derive it from not_out so the column stays consistent across
+    // formats. The unified average formula relies on this column for both.
+    const apiTimesOut = parseInt(bat.times_out ?? "");
+    const timesOut =
+      gameType === "Pairs" && Number.isFinite(apiTimesOut)
+        ? apiTimesOut
+        : isNotOut(bat.how_out)
+          ? 0
+          : 1;
 
     await db
       .insertInto("match_performance_batting")
@@ -236,6 +276,9 @@ async function storeBattingPerformances(
         sixes: parseInt(bat.sixes) || 0,
         how_out: bat.how_out ?? "",
         not_out: isNotOut(bat.how_out),
+        times_out: timesOut,
+        dismissal_penalty: dismissalPenalty,
+        game_type: gameType,
       })
       .onConflict((oc) =>
         oc.columns(["match_id", "player_id"]).doUpdateSet({
@@ -247,6 +290,9 @@ async function storeBattingPerformances(
           sixes: parseInt(bat.sixes) || 0,
           how_out: bat.how_out ?? "",
           not_out: isNotOut(bat.how_out),
+          times_out: timesOut,
+          dismissal_penalty: dismissalPenalty,
+          game_type: gameType,
         }),
       )
       .execute();
@@ -270,6 +316,7 @@ async function storeBowlingPerformances(
   competitionType: string,
   matchDate: string,
   season: number,
+  gameType: string,
 ): Promise<void> {
   for (const bowl of bowlers) {
     await db
@@ -289,6 +336,7 @@ async function storeBowlingPerformances(
         wickets: parseInt(bowl.wickets) || 0,
         wides: parseInt(bowl.wides) || 0,
         no_balls: parseInt(bowl.no_balls) || 0,
+        game_type: gameType,
       })
       .onConflict((oc) =>
         oc.columns(["match_id", "player_id"]).doUpdateSet({
@@ -300,6 +348,7 @@ async function storeBowlingPerformances(
           wickets: parseInt(bowl.wickets) || 0,
           wides: parseInt(bowl.wides) || 0,
           no_balls: parseInt(bowl.no_balls) || 0,
+          game_type: gameType,
         }),
       )
       .execute();
@@ -314,6 +363,7 @@ async function storeFieldingPerformances(
   competitionType: string,
   matchDate: string,
   season: number,
+  gameType: string,
 ): Promise<void> {
   for (const [fielderId, agg] of fieldingCredits) {
     await db
@@ -331,6 +381,7 @@ async function storeFieldingPerformances(
         run_outs: agg.runOuts,
         stumpings: agg.stumpings,
         is_wicketkeeper: agg.isWicketkeeper,
+        game_type: gameType,
       })
       .onConflict((oc) =>
         oc.columns(["match_id", "player_id"]).doUpdateSet({
@@ -340,6 +391,7 @@ async function storeFieldingPerformances(
           run_outs: agg.runOuts,
           stumpings: agg.stumpings,
           is_wicketkeeper: agg.isWicketkeeper,
+          game_type: gameType,
         }),
       )
       .execute();
@@ -464,6 +516,13 @@ async function syncMatches(
       const homeKeeperIds = getWicketkeeperIds(detail.players, "home");
       const awayKeeperIds = getWicketkeeperIds(detail.players, "away");
 
+      // "Standard" hardball or "Pairs" (Women's Softball). Drives the
+      // unified scoring formula and decides whether to attempt fielding
+      // attribution.
+      const gameType = detail.game_type || "Standard";
+      const dismissalPenalty = parseInt(detail.dismissal_penalty || "") || 0;
+      const startingRuns = parseInt(detail.starting_runs || "");
+
       for (const innings of detail.innings) {
         const battingTeamId = innings.team_batting_id;
         const isBattingTeamOurs = ourTeamIds.has(battingTeamId);
@@ -486,6 +545,8 @@ async function syncMatches(
             match.competition_type ?? "",
             matchDateIso,
             season,
+            gameType,
+            dismissalPenalty,
           );
         }
 
@@ -498,21 +559,29 @@ async function syncMatches(
             match.competition_type ?? "",
             matchDateIso,
             season,
+            gameType,
           );
 
-          const fieldingCredits = extractFieldingCredits(
-            innings.bat,
-            fieldingKeeperIds,
-          );
-          await storeFieldingPerformances(
-            db,
-            fieldingCredits,
-            matchId,
-            fieldingTeamId,
-            match.competition_type ?? "",
-            matchDateIso,
-            season,
-          );
+          // Pairs scorecards don't carry per-dismissal fielder attribution
+          // (how_out is null for every batter), so we can't credit catches /
+          // run-outs / stumpings to individuals. Skip rather than write zero
+          // rows that would shadow real attribution from any future format.
+          if (gameType !== "Pairs") {
+            const fieldingCredits = extractFieldingCredits(
+              innings.bat,
+              fieldingKeeperIds,
+            );
+            await storeFieldingPerformances(
+              db,
+              fieldingCredits,
+              matchId,
+              fieldingTeamId,
+              match.competition_type ?? "",
+              matchDateIso,
+              season,
+              gameType,
+            );
+          }
         }
       }
 
@@ -522,6 +591,12 @@ async function syncMatches(
       const shouldWriteResult = matchResult || !isRecent;
 
       if (shouldWriteResult) {
+        const startingRunsForResult = Number.isFinite(startingRuns)
+          ? startingRuns
+          : null;
+        const dismissalPenaltyForResult =
+          gameType === "Pairs" ? dismissalPenalty : null;
+
         await db
           .insertInto("match_result")
           .values({
@@ -545,6 +620,9 @@ async function syncMatches(
             competition_type: match.competition_type ?? "",
             match_date: matchDateIso,
             season,
+            game_type: gameType,
+            starting_runs: startingRunsForResult,
+            dismissal_penalty: dismissalPenaltyForResult,
           })
           .onConflict((oc) =>
             oc.column("match_id").doUpdateSet({
@@ -556,6 +634,9 @@ async function syncMatches(
               home_club_name: match.home_club_name,
               away_club_id: match.away_club_id,
               away_club_name: match.away_club_name,
+              game_type: gameType,
+              starting_runs: startingRunsForResult,
+              dismissal_penalty: dismissalPenaltyForResult,
             }),
           )
           .execute();
