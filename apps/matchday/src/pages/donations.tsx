@@ -1,13 +1,14 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
+import { MembershipCard } from "@/features/donations/membership-card.js";
+import { PayOutstandingDialog } from "@/features/donations/pay-outstanding-dialog.js";
 import { fmtDate, fmtMoneyPence } from "@/features/format.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
-import { mainSiteUrl } from "@/lib/main-site.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
 import { CheckIcon, ReceiptIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 type Tab = "outstanding" | "history";
 
@@ -19,11 +20,12 @@ function isOpen(c: Charge): boolean {
 }
 
 /**
- * Donations view. Total + history.
- *
- * Per the plan, payment stays on the main site — we view here, deep-link
- * to `/members/charges` (Stripe) for the actual settlement. PR #297 means
- * user-facing copy is "donation" not "fee" from day one.
+ * Donations view. Members can:
+ *  - See their current membership category + expiry at a glance
+ *  - Tick which outstanding donations to settle and pay inline (Stripe
+ *    PaymentElement — Apple Pay / Google Pay surface automatically on
+ *    mobile via `automatic_payment_methods`)
+ *  - Browse their payment history
  */
 export default function Donations() {
   const [tab, setTab] = useState<Tab>("outstanding");
@@ -31,41 +33,69 @@ export default function Donations() {
     queryKey: ["charges"],
     queryFn: () => callApi(api.GET("/api/charges")),
   });
-  const charges = data?.charges ?? [];
-  const outstanding = charges.filter(isOpen);
-  const history = charges
-    .filter((c) => !isOpen(c))
-    .sort((a, b) =>
-      (b.paid_at ?? b.created_at).localeCompare(a.paid_at ?? a.created_at),
-    );
-  const total = outstanding.reduce((acc, c) => acc + c.amount_pence, 0);
+  const charges = useMemo(() => data?.charges ?? [], [data]);
+  const outstanding = useMemo(() => charges.filter(isOpen), [charges]);
+  const history = useMemo(
+    () =>
+      charges
+        .filter((c) => !isOpen(c))
+        .sort((a, b) =>
+          (b.paid_at ?? b.created_at).localeCompare(a.paid_at ?? a.created_at),
+        ),
+    [charges],
+  );
+
+  // Track *deselected* rows, not selected ones. Outstanding is "everything by
+  // default"; encoding the exception set means we don't need a useEffect to
+  // sync the selection whenever the outstanding list changes (e.g. after a
+  // payment lands and the query refetches).
+  const [deselected, setDeselected] = useState<Set<string>>(new Set());
+  const isSelected = (id: string) => !deselected.has(id);
+
+  const selectedIds = useMemo(
+    () => outstanding.filter((c) => isSelected(c.id)).map((c) => c.id),
+    // isSelected is a closure over deselected.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [outstanding, deselected],
+  );
+  const selectedTotal = outstanding
+    .filter((c) => isSelected(c.id))
+    .reduce((acc, c) => acc + c.amount_pence, 0);
+
+  const [paying, setPaying] = useState<{ ids: string[] } | null>(null);
+
+  function toggle(id: string) {
+    setDeselected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
   return (
-    <div className="mx-auto w-full max-w-2xl pb-6">
+    <div className="mx-auto w-full max-w-2xl pb-28">
       <header className="px-4 pt-6 pb-4">
         <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
           You owe
         </p>
         <p className="text-navy mt-1 text-4xl font-bold tracking-[-0.02em] dark:text-white">
-          {fmtMoneyPence(total)}
+          {fmtMoneyPence(
+            outstanding.reduce((acc, c) => acc + c.amount_pence, 0),
+          )}
         </p>
         {outstanding.length > 0 && (
-          <>
-            <p className="text-text-secondary mt-1 text-sm">
-              {outstanding.length} unpaid match donation
-              {outstanding.length === 1 ? "" : "s"}
-            </p>
-            <Button asChild tone="primary" className="mt-3 w-full">
-              <a
-                href={mainSiteUrl("/members?tab=payments")}
-                target="_blank"
-                rel="noopener"
-              >
-                Pay on main site ↗
-              </a>
-            </Button>
-          </>
+          <p className="text-text-secondary mt-1 text-sm">
+            {outstanding.length} unpaid match donation
+            {outstanding.length === 1 ? "" : "s"}
+          </p>
         )}
       </header>
+
+      <MembershipCard />
 
       <div className="bg-surface-raised mx-4 grid grid-cols-2 gap-1 rounded-xl p-1">
         <TabBtn
@@ -96,7 +126,16 @@ export default function Donations() {
                 body="No outstanding donations. Thanks for keeping your match donations square."
               />
             ) : (
-              outstanding.map((c) => <ChargeRowItem key={c.id} c={c} />)
+              outstanding.map((c) => (
+                <ChargeRowItem
+                  key={c.id}
+                  c={c}
+                  selected={isSelected(c.id)}
+                  onToggle={() => {
+                    toggle(c.id);
+                  }}
+                />
+              ))
             )}
           </>
         )}
@@ -115,6 +154,24 @@ export default function Donations() {
           </>
         )}
       </div>
+
+      {tab === "outstanding" && outstanding.length > 0 && (
+        <PayBar
+          amountPence={selectedTotal}
+          count={selectedIds.length}
+          onPay={() => {
+            setPaying({ ids: selectedIds });
+          }}
+        />
+      )}
+
+      <PayOutstandingDialog
+        open={!!paying}
+        onOpenChange={(open) => {
+          if (!open) setPaying(null);
+        }}
+        chargeIds={paying?.ids ?? []}
+      />
     </div>
   );
 }
@@ -144,7 +201,17 @@ function TabBtn({
   );
 }
 
-function ChargeRowItem({ c, muted }: { c: Charge; muted?: boolean }) {
+function ChargeRowItem({
+  c,
+  muted,
+  selected,
+  onToggle,
+}: {
+  c: Charge;
+  muted?: boolean;
+  selected?: boolean;
+  onToggle?: () => void;
+}) {
   const overdue = isOpen(c) && isOverdue(c);
   const status = c.paid_at
     ? { tone: "success" as const, label: `Paid ${fmtDate(c.paid_at)}` }
@@ -153,13 +220,37 @@ function ChargeRowItem({ c, muted }: { c: Charge; muted?: boolean }) {
       : c.relieved_at
         ? { tone: "warning" as const, label: "Relieved" }
         : null;
+
+  const selectable = onToggle !== undefined;
+  // Whole row is the tap target on a phone — bigger than a 16px checkbox.
+  const RowEl: "button" | "div" = selectable ? "button" : "div";
+
   return (
-    <div
+    <RowEl
+      type={selectable ? "button" : undefined}
+      onClick={selectable ? onToggle : undefined}
+      aria-pressed={selectable ? selected : undefined}
       className={cn(
-        "border-border-light grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t px-4 py-3",
+        "border-border-light grid w-full items-center gap-3 border-t px-4 py-3 text-left",
+        selectable
+          ? "focus:bg-surface-raised/60 grid-cols-[24px_44px_1fr_auto] focus:outline-none"
+          : "grid-cols-[44px_1fr_auto]",
         muted && "opacity-70",
       )}
     >
+      {selectable && (
+        <span
+          aria-hidden
+          className={cn(
+            "grid size-5 place-items-center rounded-md border transition-colors",
+            selected
+              ? "bg-navy border-navy dark:text-navy text-white dark:border-white dark:bg-white"
+              : "border-border bg-surface",
+          )}
+        >
+          {selected && <CheckIcon className="size-3.5" strokeWidth={3} />}
+        </span>
+      )}
       {c.charge_date ? (
         <div className="bg-surface-raised flex flex-col items-center justify-center rounded-md py-1">
           <div className="text-navy text-base leading-none font-bold dark:text-white">
@@ -200,7 +291,7 @@ function ChargeRowItem({ c, muted }: { c: Charge; muted?: boolean }) {
           </StatusPill>
         )}
       </div>
-    </div>
+    </RowEl>
   );
 }
 
@@ -246,6 +337,42 @@ function EmptyState({
       </div>
       <p className="mt-4 text-base font-semibold tracking-[-0.01em]">{title}</p>
       <p className="text-text-secondary mt-1 text-sm leading-relaxed">{body}</p>
+    </div>
+  );
+}
+
+function PayBar({
+  amountPence,
+  count,
+  onPay,
+}: {
+  amountPence: number;
+  count: number;
+  onPay: () => void;
+}) {
+  const disabled = count === 0 || amountPence <= 0;
+  return (
+    <div
+      // Floats above the bottom tab bar (h-16 on mobile shell). pb env safe-area
+      // for iOS home-indicator gestures.
+      className="bg-surface border-border-light supports-[backdrop-filter]:bg-surface/95 fixed inset-x-0 bottom-16 z-40 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:mx-auto sm:max-w-2xl"
+    >
+      <Button
+        tone="primary"
+        size="lg"
+        className="w-full"
+        disabled={disabled}
+        onClick={onPay}
+      >
+        {disabled
+          ? "Select donations to pay"
+          : `Pay ${fmtMoneyPence(amountPence)}`}
+        {!disabled && count > 1 && (
+          <span className="ml-1 text-xs font-medium opacity-80">
+            ({count} donations)
+          </span>
+        )}
+      </Button>
     </div>
   );
 }
