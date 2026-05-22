@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog.js";
 import { fmtMoneyPence } from "@/features/format.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
+import { cn } from "@/lib/utils.js";
 import {
   Elements,
   PaymentElement,
@@ -221,55 +222,64 @@ function PayForm({
     },
   });
 
-  if (pay.isPending) {
-    return <ProcessingState amountPence={totalAmountPence} />;
-  }
-
   return (
-    <div className="mt-4 flex flex-col gap-4">
-      <PaymentElement
-        onReady={() => {
-          setReady(true);
-        }}
-        options={{ layout: "tabs" }}
-      />
-      {pay.error && (
-        <p className="text-danger text-sm" role="alert">
-          {pay.error instanceof Error ? pay.error.message : "Payment failed."}
-        </p>
-      )}
-      <div className="flex flex-col gap-2">
-        <Button
-          tone="primary"
-          size="lg"
-          onClick={() => {
-            pay.mutate();
+    // The PaymentElement must stay mounted across the whole confirmPayment
+    // round-trip — Stripe throws "elements should have a mounted Payment
+    // Element" if we swap it out mid-flight. So the processing UI is an
+    // absolutely-positioned overlay; the form behind it is opacity-0'd and
+    // pointer-events-none'd, but still in the DOM.
+    <div className="relative mt-4">
+      <div
+        className={cn(
+          "flex flex-col gap-4 transition-opacity",
+          pay.isPending && "pointer-events-none opacity-0",
+        )}
+      >
+        <PaymentElement
+          onReady={() => {
+            setReady(true);
           }}
-          disabled={!stripe || !ready}
-        >
-          Pay {fmtMoneyPence(totalAmountPence)}
-        </Button>
-        <Button tone="ghost" onClick={onCancel} type="button">
-          Cancel
-        </Button>
+          options={{ layout: "tabs" }}
+        />
+        {pay.error && (
+          <p className="text-danger text-sm" role="alert">
+            {pay.error instanceof Error ? pay.error.message : "Payment failed."}
+          </p>
+        )}
+        <div className="flex flex-col gap-2">
+          <Button
+            tone="primary"
+            size="lg"
+            onClick={() => {
+              pay.mutate();
+            }}
+            disabled={!stripe || !ready}
+          >
+            Pay {fmtMoneyPence(totalAmountPence)}
+          </Button>
+          <Button tone="ghost" onClick={onCancel} type="button">
+            Cancel
+          </Button>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function ProcessingState({ amountPence }: { amountPence: number }) {
-  return (
-    <div className="mt-4 flex flex-col items-center gap-3 py-8 text-center">
-      <span
-        aria-hidden
-        className="border-border border-t-navy size-9 animate-spin rounded-full border-[3px]"
-      />
-      <p className="text-navy text-base font-semibold tracking-[-0.01em] dark:text-white">
-        Taking {fmtMoneyPence(amountPence)}…
-      </p>
-      <p className="text-text-secondary text-sm">
-        Hang on — confirming the payment with your bank.
-      </p>
+      {pay.isPending && (
+        <div
+          className="bg-surface/95 absolute inset-0 flex flex-col items-center justify-center gap-3 backdrop-blur"
+          role="status"
+          aria-live="polite"
+        >
+          <span
+            aria-hidden
+            className="border-border border-t-navy size-9 animate-spin rounded-full border-[3px]"
+          />
+          <p className="text-navy text-base font-semibold tracking-[-0.01em] dark:text-white">
+            Taking {fmtMoneyPence(totalAmountPence)}…
+          </p>
+          <p className="text-text-secondary text-sm">
+            Hang on — confirming with your bank.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
