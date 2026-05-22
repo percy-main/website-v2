@@ -65,13 +65,17 @@ describe("spa-rewrite CloudFront function", () => {
       );
     });
 
-    it("strips the og param when forwarding (defensive — only set on bypass)", () => {
+    it("strips the og param from forwarded query (only og=1 should round-trip via bypass)", () => {
       const result = handler(
         makeEvent("/calendar/game/12345", "www.percymain.org", {
+          og: { value: "0" },
           foo: { value: "bar" },
         }),
       );
       expect(result.statusCode).toBe(302);
+      // og must not appear in the forwarded URL — the OG page sets og=1
+      // itself on the bypass redirect, so re-forwarding would let a caller
+      // sneak a non-bypass og value into the SPA's URL bar.
       expect(result.headers.location.value).toBe(
         "https://api.v2.percymain.org/api/og/game/12345/page?foo=bar",
       );

@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseParams } from "../../lib/validation.ts";
+import { parseParams, parseQuery } from "../../lib/validation.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
-import { ogImageParamsSchema } from "./schemas.ts";
+import { ogImageParamsSchema, ogPageQuerySchema } from "./schemas.ts";
 import { buildOgHtmlPage, generateOgImage } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
@@ -49,11 +49,11 @@ export const ogImageRoutes: FastifyPluginAsync = async (app) => {
     // Capture any forwarded query params (e.g. ?bbb=1) so we can reflect
     // them back in the bypass redirect URL. The CloudFront SPA rewrite
     // strips the `og` param itself when forwarding; we drop it defensively.
-    const rawQuery = request.query as Record<string, unknown>;
+    const query = parseQuery(request, ogPageQuerySchema);
     const extraParams: Record<string, string> = {};
-    for (const [k, v] of Object.entries(rawQuery)) {
+    for (const [k, v] of Object.entries(query)) {
       if (k === "og") continue;
-      if (typeof v === "string") extraParams[k] = v;
+      extraParams[k] = v;
     }
 
     const hasResult = await app.db
