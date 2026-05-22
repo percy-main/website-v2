@@ -442,6 +442,128 @@ export function getGame(
   };
 }
 
+// --- Wagon wheel ---
+
+export interface WagonWheelBall {
+  over: number;
+  ball: number;
+  ballDisp: number;
+  batterRvId: number | null;
+  batterName: string | null;
+  bowlerRvId: number | null;
+  bowlerName: string | null;
+  dismissed: boolean;
+  runsBat: number;
+  runsExtra: number;
+  extrasType: string | null;
+  lDesc: string;
+  sDesc: string;
+  shotAngle: number | null;
+  shotLength: number | null;
+}
+
+export interface WagonWheelInnings {
+  inningsNumber: number;
+  balls: WagonWheelBall[];
+}
+
+export interface WagonWheelData {
+  matchId: string;
+  // Runs deducted per dismissal — 0 for hardball, configured per Pairs
+  // match (typically 5). Stored once on match_result; consumers apply it
+  // when computing net scores or rendering cumulative charts.
+  dismissalPenalty: number;
+  innings: WagonWheelInnings[];
+}
+
+export function getWagonWheel(db: Kysely<DB>) {
+  return async (matchId: string): Promise<WagonWheelData> => {
+    const [matchResult, rows] = await Promise.all([
+      db
+        .selectFrom("match_result")
+        .where("match_id", "=", matchId)
+        .select(["dismissal_penalty"])
+        .executeTakeFirst(),
+      db
+        .selectFrom("match_ball")
+        .leftJoin(
+          "rv_player_mapping as batter",
+          "batter.rv_player_id",
+          "match_ball.batter_rv_id",
+        )
+        .leftJoin(
+          "rv_player_mapping as bowler",
+          "bowler.rv_player_id",
+          "match_ball.bowler_rv_id",
+        )
+        .where("match_ball.match_id", "=", matchId)
+        .select([
+          "match_ball.rv_result_id",
+          "match_ball.innings_number",
+          "match_ball.over_no",
+          "match_ball.ball_no",
+          "match_ball.ball_no_disp",
+          "match_ball.batter_rv_id",
+          "match_ball.bowler_rv_id",
+          "match_ball.dismissed_batter_rv_id",
+          "match_ball.runs_bat",
+          "match_ball.runs_extra",
+          "match_ball.extras_type",
+          "match_ball.l_desc",
+          "match_ball.s_desc",
+          "match_ball.shot_angle",
+          "match_ball.shot_length",
+          "match_ball.ball_time_utc",
+          "batter.player_name as batter_name",
+          "bowler.player_name as bowler_name",
+        ])
+        .orderBy("match_ball.ball_time_utc", "asc")
+        .orderBy("match_ball.innings_number", "asc")
+        .orderBy("match_ball.rv_result_id", "asc")
+        .orderBy("match_ball.over_no", "asc")
+        .orderBy("match_ball.ball_no", "asc")
+        .execute(),
+    ]);
+
+    const dismissalPenalty = matchResult?.dismissal_penalty ?? 0;
+
+    // Group by rv_result_id. RV serves both teams' batting innings as
+    // innings_number=1 in their respective team feeds, so innings_number
+    // alone collapses both innings into one. rv_result_id is the canonical
+    // per-innings discriminator. Assign display innings numbers in the
+    // order each result first appears in the time-ordered ball list.
+    const byResult = new Map<string, WagonWheelBall[]>();
+    for (const r of rows) {
+      const ball: WagonWheelBall = {
+        over: r.over_no,
+        ball: r.ball_no,
+        ballDisp: r.ball_no_disp,
+        batterRvId: r.batter_rv_id,
+        batterName: r.batter_name,
+        bowlerRvId: r.bowler_rv_id,
+        bowlerName: r.bowler_name,
+        dismissed: r.dismissed_batter_rv_id !== null,
+        runsBat: r.runs_bat,
+        runsExtra: r.runs_extra,
+        extrasType: r.extras_type,
+        lDesc: r.l_desc,
+        sDesc: r.s_desc,
+        shotAngle: r.shot_angle,
+        shotLength: r.shot_length,
+      };
+      const list = byResult.get(r.rv_result_id);
+      if (list) list.push(ball);
+      else byResult.set(r.rv_result_id, [ball]);
+    }
+
+    const innings: WagonWheelInnings[] = Array.from(byResult.entries()).map(
+      ([, balls], idx) => ({ inningsNumber: idx + 1, balls }),
+    );
+
+    return { matchId, dismissalPenalty, innings };
+  };
+}
+
 // --- Internal: cached fetch ---
 
 async function fetchMatchSummaries(
