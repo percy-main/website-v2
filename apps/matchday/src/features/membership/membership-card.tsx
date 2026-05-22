@@ -42,7 +42,7 @@ export function MembershipCard() {
   const membership = data?.membership;
 
   return (
-    <Card className="mx-4 mb-4 p-4">
+    <Card className="p-4">
       <CardEyebrow icon={IdCardIcon}>Your membership</CardEyebrow>
       {membership ? (
         <ActiveMembership

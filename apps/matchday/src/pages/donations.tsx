@@ -1,6 +1,5 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
-import { MembershipCard } from "@/features/donations/membership-card.js";
 import { PayOutstandingDialog } from "@/features/donations/pay-outstanding-dialog.js";
 import { fmtDate, fmtMoneyPence } from "@/features/format.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
@@ -100,8 +99,6 @@ export default function Donations() {
           </p>
         )}
       </header>
-
-      <MembershipCard />
 
       <div className="bg-surface-raised mx-4 grid grid-cols-2 gap-1 rounded-xl p-1">
         <TabBtn
