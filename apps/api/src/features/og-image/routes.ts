@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
-import { parseParams } from "../../lib/validation.ts";
+import { parseParams, parseQuery } from "../../lib/validation.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
-import { ogImageParamsSchema } from "./schemas.ts";
+import { ogImageParamsSchema, ogPageQuerySchema } from "./schemas.ts";
 import { buildOgHtmlPage, generateOgImage } from "./service.ts";
 
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
@@ -46,6 +46,16 @@ export const ogImageRoutes: FastifyPluginAsync = async (app) => {
   app.get("/og/game/:matchId/page", async (request, reply) => {
     const { matchId } = parseParams(request, ogImageParamsSchema);
 
+    // Capture any forwarded query params (e.g. ?bbb=1) so we can reflect
+    // them back in the bypass redirect URL. The CloudFront SPA rewrite
+    // strips the `og` param itself when forwarding; we drop it defensively.
+    const query = parseQuery(request, ogPageQuerySchema);
+    const extraParams: Record<string, string> = {};
+    for (const [k, v] of Object.entries(query)) {
+      if (k === "og") continue;
+      extraParams[k] = v;
+    }
+
     const hasResult = await app.db
       .selectFrom("match_result")
       .where("match_id", "=", matchId)
@@ -53,13 +63,14 @@ export const ogImageRoutes: FastifyPluginAsync = async (app) => {
       .executeTakeFirst();
 
     const label = hasResult ? "Match Result" : "Fixture Details";
-    const title = `${label} — Percy Main Cricket & Sports Club`;
+    const title = `${label} - Percy Main Cricket & Sports Club`;
 
     const html = buildOgHtmlPage(
       config.BASE_URL,
       config.API_BASE_URL,
       matchId,
       title,
+      extraParams,
     );
 
     return await reply.header("Content-Type", "text/html").send(html);

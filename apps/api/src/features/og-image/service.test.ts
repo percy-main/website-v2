@@ -265,4 +265,36 @@ describe("buildOgHtmlPage", () => {
 
     expect(html).toContain("Percy Main &amp; Friends &lt;test&gt;");
   });
+
+  it("appends extra query params to the bypass redirect URL", () => {
+    const html = buildOgHtmlPage(
+      "https://percymain.org",
+      "https://api.percymain.org",
+      "12345",
+      "Match",
+      { bbb: "1" },
+    );
+
+    expect(html).toContain(
+      'http-equiv="refresh" content="0;url=https://percymain.org/calendar/game/12345?og=1&amp;bbb=1"',
+    );
+    // canonical og:url should still not include the bypass or extras
+    expect(html).toContain(
+      'og:url" content="https://percymain.org/calendar/game/12345"',
+    );
+  });
+
+  it("drops the og key from extra params", () => {
+    const html = buildOgHtmlPage(
+      "https://percymain.org",
+      "https://api.percymain.org",
+      "12345",
+      "Match",
+      { og: "should-not-double-up", bbb: "1" },
+    );
+
+    expect(html).toContain(
+      'http-equiv="refresh" content="0;url=https://percymain.org/calendar/game/12345?og=1&amp;bbb=1"',
+    );
+  });
 });

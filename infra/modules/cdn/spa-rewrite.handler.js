@@ -44,12 +44,34 @@ export function createHandler(apiBaseUrl) {
       var gameMatch = uri.match(/^\/calendar\/game\/(\d+)$/);
       var bypass = qs && qs.og && qs.og.value === "1";
       if (gameMatch && !bypass) {
+        // Forward any non-`og` query params so the OG page can reflect them
+        // back in the bypass redirect. Without this, deep links like
+        // ?bbb=1 (open ball-by-ball modal) get dropped on the round-trip.
+        var forwarded = "";
+        if (qs) {
+          var parts = [];
+          for (var k in qs) {
+            if (k === "og") continue;
+            var entry = qs[k];
+            if (entry && typeof entry.value === "string") {
+              parts.push(
+                encodeURIComponent(k) + "=" + encodeURIComponent(entry.value),
+              );
+            }
+          }
+          if (parts.length) forwarded = "?" + parts.join("&");
+        }
         return {
           statusCode: 302,
           statusDescription: "Found",
           headers: {
             location: {
-              value: apiBaseUrl + "/api/og/game/" + gameMatch[1] + "/page",
+              value:
+                apiBaseUrl +
+                "/api/og/game/" +
+                gameMatch[1] +
+                "/page" +
+                forwarded,
             },
           },
         };

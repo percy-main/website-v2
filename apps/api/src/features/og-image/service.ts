@@ -464,10 +464,17 @@ export function buildOgHtmlPage(
   apiBaseUrl: string,
   matchId: string,
   title: string,
+  extraParams?: Record<string, string>,
 ): string {
   const imageUrl = `${apiBaseUrl}/api/og/game/${encodeURIComponent(matchId)}`;
   const canonicalUrl = `${baseUrl}/calendar/game/${encodeURIComponent(matchId)}`;
-  const redirectUrl = `${canonicalUrl}?og=1`;
+  const extraQs = extraParams
+    ? Object.entries(extraParams)
+        .filter(([k]) => k !== "og")
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join("&")
+    : "";
+  const redirectUrl = `${canonicalUrl}?og=1${extraQs ? `&${extraQs}` : ""}`;
 
   return `<!DOCTYPE html>
 <html>
