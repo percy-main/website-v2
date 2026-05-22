@@ -16,7 +16,13 @@ type ChargesResponse = ApiResponse<"/api/charges">;
 type Charge = ChargesResponse["charges"][number];
 
 function isOpen(c: Charge): boolean {
-  return !c.paid_at && !c.deleted_at && !c.relieved_at;
+  // `payment_confirmed_at` is set by POST /charges/confirm-payment the moment
+  // Stripe accepts the payment, before the webhook flips `paid_at`. Treating
+  // it as "not open" keeps the row out of Outstanding (and the optimistic
+  // cache update) so the user doesn't see a stale unpaid state mid-settlement.
+  return (
+    !c.paid_at && !c.deleted_at && !c.relieved_at && !c.payment_confirmed_at
+  );
 }
 
 /**
@@ -77,7 +83,7 @@ export default function Donations() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl pb-28">
+    <div className="mx-auto w-full max-w-2xl pb-6">
       <header className="px-4 pt-6 pb-4">
         <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
           You owe
@@ -219,7 +225,9 @@ function ChargeRowItem({
       ? { tone: "neutral" as const, label: "Voided" }
       : c.relieved_at
         ? { tone: "warning" as const, label: "Relieved" }
-        : null;
+        : c.payment_confirmed_at
+          ? { tone: "navy" as const, label: "Processing…" }
+          : null;
 
   const selectable = onToggle !== undefined;
   // Whole row is the tap target on a phone — bigger than a 16px checkbox.
@@ -352,27 +360,29 @@ function PayBar({
 }) {
   const disabled = count === 0 || amountPence <= 0;
   return (
-    <div
-      // Floats above the bottom tab bar (h-16 on mobile shell). pb env safe-area
-      // for iOS home-indicator gestures.
-      className="bg-surface border-border-light supports-[backdrop-filter]:bg-surface/95 fixed inset-x-0 bottom-16 z-40 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:mx-auto sm:max-w-2xl"
-    >
-      <Button
-        tone="primary"
-        size="lg"
-        className="w-full"
-        disabled={disabled}
-        onClick={onPay}
-      >
-        {disabled
-          ? "Select donations to pay"
-          : `Pay ${fmtMoneyPence(amountPence)}`}
-        {!disabled && count > 1 && (
-          <span className="ml-1 text-xs font-medium opacity-80">
-            ({count} donations)
-          </span>
-        )}
-      </Button>
+    // `sticky` inside the donations max-w-2xl column auto-aligns the bar with
+    // the list. `bottom-16` clears the mobile bottom tab bar; on desktop the
+    // tab bar is hidden and the AppShell adds a w-56 side nav, so we float a
+    // few pixels above the viewport edge instead.
+    <div className="sticky bottom-16 z-40 mt-4 px-4 md:bottom-4">
+      <div className="bg-surface border-border-light supports-[backdrop-filter]:bg-surface/95 rounded-xl border px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg backdrop-blur">
+        <Button
+          tone="primary"
+          size="lg"
+          className="w-full"
+          disabled={disabled}
+          onClick={onPay}
+        >
+          {disabled
+            ? "Select donations to pay"
+            : `Pay ${fmtMoneyPence(amountPence)}`}
+          {!disabled && count > 1 && (
+            <span className="ml-1 text-xs font-medium opacity-80">
+              ({count} donations)
+            </span>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }

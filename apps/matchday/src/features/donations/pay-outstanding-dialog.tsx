@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { fmtMoneyPence } from "@/features/format.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import {
   Elements,
   PaymentElement,
@@ -16,6 +16,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { getStripe } from "./stripe.js";
+
+type ChargesResponse = ApiResponse<"/api/charges">;
 
 interface PayOutstandingDialogProps {
   open: boolean;
@@ -120,6 +122,7 @@ function PayBody({
     >
       <PayForm
         totalAmountPence={intentQuery.data.totalAmountPence}
+        chargeIds={intentQuery.data.chargeIds}
         onCancel={onClose}
         onPaid={onClose}
       />
@@ -141,10 +144,12 @@ function PreparingState() {
 
 function PayForm({
   totalAmountPence,
+  chargeIds,
   onCancel,
   onPaid,
 }: {
   totalAmountPence: number;
+  chargeIds: string[];
   onCancel: () => void;
   onPaid: () => void;
 }) {
@@ -190,11 +195,35 @@ function PayForm({
         }
       }
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["charges"] });
+    onSuccess: () => {
+      // Optimistic cache update. The webhook (which writes `paid_at`) often
+      // lands a beat after confirmPayment resolves, and in production the SW
+      // serves /api/charges StaleWhileRevalidate — so awaiting a refetch isn't
+      // enough to guarantee the user sees the new state. Marking the bundled
+      // charges as confirmed locally flips them out of Outstanding instantly;
+      // the eventual refetch will reconcile `paid_at` from the webhook.
+      const now = new Date().toISOString();
+      queryClient.setQueryData<ChargesResponse>(["charges"], (old) => {
+        if (!old) return old;
+        const ids = new Set(chargeIds);
+        return {
+          ...old,
+          charges: old.charges.map((c) =>
+            ids.has(c.id)
+              ? { ...c, payment_confirmed_at: c.payment_confirmed_at ?? now }
+              : c,
+          ),
+        };
+      });
+      // Fire-and-forget the refetch so paid_at lands when the webhook does.
+      void queryClient.invalidateQueries({ queryKey: ["charges"] });
       onPaid();
     },
   });
+
+  if (pay.isPending) {
+    return <ProcessingState amountPence={totalAmountPence} />;
+  }
 
   return (
     <div className="mt-4 flex flex-col gap-4">
@@ -216,21 +245,31 @@ function PayForm({
           onClick={() => {
             pay.mutate();
           }}
-          disabled={!stripe || !ready || pay.isPending}
+          disabled={!stripe || !ready}
         >
-          {pay.isPending
-            ? "Processing…"
-            : `Pay ${fmtMoneyPence(totalAmountPence)}`}
+          Pay {fmtMoneyPence(totalAmountPence)}
         </Button>
-        <Button
-          tone="ghost"
-          onClick={onCancel}
-          disabled={pay.isPending}
-          type="button"
-        >
+        <Button tone="ghost" onClick={onCancel} type="button">
           Cancel
         </Button>
       </div>
+    </div>
+  );
+}
+
+function ProcessingState({ amountPence }: { amountPence: number }) {
+  return (
+    <div className="mt-4 flex flex-col items-center gap-3 py-8 text-center">
+      <span
+        aria-hidden
+        className="border-border border-t-navy size-9 animate-spin rounded-full border-[3px]"
+      />
+      <p className="text-navy text-base font-semibold tracking-[-0.01em] dark:text-white">
+        Taking {fmtMoneyPence(amountPence)}…
+      </p>
+      <p className="text-text-secondary text-sm">
+        Hang on — confirming the payment with your bank.
+      </p>
     </div>
   );
 }
