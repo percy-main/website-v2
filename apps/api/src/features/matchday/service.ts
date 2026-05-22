@@ -1,7 +1,6 @@
 import type { DB } from "@percy-main/db";
 import { hasClubWideAccess } from "@percy-main/shared/auth/permissions";
 import {
-  addDays,
   format as formatDate,
   isBefore,
   parse,
@@ -290,11 +289,12 @@ export function getMatch(db: Kysely<DB>) {
 /**
  * Reduced-shape team sheet visible to any signed-in member.
  *
- * Same access guardrails as the public-facing matchday hub on the main
- * site — only matchdays in `confirmed` or `finished` status are visible
- * (pending teams aren't picked yet), and the response strips every
- * sensitive surface (no expenses, no charge IDs, no amounts, no audit
- * timestamps).
+ * Any signed-in member can read pending/confirmed/finished matchdays -
+ * `pending` is the live squad-pick state since the pre-match confirm
+ * step was removed, so the team sheet must be readable there. Only
+ * cancelled matchdays 404 (cancel reason may carry PII and there's no
+ * sensible squad to show). The response strips every sensitive
+ * surface (no expenses, no charge IDs, no amounts, no audit timestamps).
  */
 export function getMatchPublic(db: Kysely<DB>) {
   return async (matchId: string) => {
@@ -402,21 +402,19 @@ export function getMatchPublic(db: Kysely<DB>) {
  *
  * "Picked" = matchday_player row exists for this user's member, with
  * status "selected" or "playing" (matches getMatchPublic's squad
- * projection). Matchday itself must still be active — `pending` is the
+ * projection). Matchday itself must still be active - `pending` is the
  * normal state since the pre-match confirm step was removed; legacy
  * `confirmed` rows still count. `finished` / `cancelled` drop off.
  *
- * Date window: today through the next UPCOMING_WINDOW_DAYS - games
- * further out aren't "upcoming", they're "future", and belong in the
- * fixtures view rather than the home dashboard.
+ * Returns all future selections (no near-term window): callers like
+ * the home dashboard slice locally to a few days; other surfaces
+ * (e.g. a "what am I picked for this season" view) want the full list.
  *
  * Privacy: callers only see their own selections - resolved through
  * the member.email = user.email link used elsewhere (e.g.
  * charges/service.ts). If a member row doesn't exist for the user's
  * email yet, returns an empty list.
  */
-const UPCOMING_WINDOW_DAYS = 5;
-
 export function getMyUpcomingMatches(db: Kysely<DB>) {
   return async (email: string) => {
     const member = await db
@@ -426,12 +424,7 @@ export function getMyUpcomingMatches(db: Kysely<DB>) {
       .executeTakeFirst();
     if (!member) return [];
 
-    const now = new Date();
-    const todayIso = formatDate(now, "yyyy-MM-dd");
-    const untilIso = formatDate(
-      addDays(now, UPCOMING_WINDOW_DAYS),
-      "yyyy-MM-dd",
-    );
+    const todayIso = formatDate(new Date(), "yyyy-MM-dd");
 
     const rows = await db
       .selectFrom("matchday_player")
@@ -445,7 +438,6 @@ export function getMyUpcomingMatches(db: Kysely<DB>) {
       .where("matchday_player.status", "in", ["selected", "playing"])
       .where("matchday.status", "in", ["pending", "confirmed"])
       .where("matchday.match_date", ">=", todayIso)
-      .where("matchday.match_date", "<=", untilIso)
       .select([
         "matchday.id as matchdayId",
         "matchday.match_date as matchDate",
