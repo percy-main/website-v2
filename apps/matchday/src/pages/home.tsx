@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card.js";
+import { isChargeOpen } from "@/features/charges/is-open.js";
 import { fmtDate, fmtMoneyPence } from "@/features/format.js";
 import {
   gameIsoDate,
@@ -18,7 +19,6 @@ import {
 } from "@/features/games.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { canViewMatchdayAdmin, useSession } from "@/lib/auth-client.js";
-import { mainSiteUrl } from "@/lib/main-site.js";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -302,10 +302,7 @@ function OutstandingDonationsCard() {
   if (isError) return <CardError label="Couldn't load donations" />;
 
   const charges = data?.charges ?? [];
-  const outstanding = charges.filter(
-    (c) =>
-      c.paid_at === null && c.deleted_at === null && c.relieved_at === null,
-  );
+  const outstanding = charges.filter(isChargeOpen);
   if (outstanding.length === 0) return null;
   const total = outstanding.reduce((acc, c) => acc + c.amount_pence, 0);
   const overdueCount = outstanding.filter(isOverdue).length;
@@ -334,13 +331,7 @@ function OutstandingDonationsCard() {
           {outstanding.length === 1 ? "donation" : "donations"}
         </p>
         <Button asChild tone="primary" className="w-full">
-          <a
-            href={mainSiteUrl("/members?tab=payments")}
-            rel="noopener"
-            target="_blank"
-          >
-            Pay on main site ↗
-          </a>
+          <Link to="/donations">Pay {fmtMoneyPence(total)}</Link>
         </Button>
       </CardContent>
     </Card>

@@ -893,6 +893,7 @@ jobs:
         env:
           VITE_API_URL: https://api.v2.percymain.org/api
           VITE_MAIN_SITE_URL: https://percymain.org
+          VITE_STRIPE_PUBLIC_KEY: ${{ vars.STRIPE_PUBLIC_KEY }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6

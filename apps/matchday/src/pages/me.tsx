@@ -6,10 +6,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card.js";
+import { MembershipCard } from "@/features/membership/membership-card.js";
 import { NotificationsCard } from "@/features/notifications/notifications-card.js";
 import { signOut, useSession, type SessionUser } from "@/lib/auth-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
-import { ExternalLinkIcon, UserIcon } from "lucide-react";
+import { UserIcon } from "lucide-react";
 
 export default function Me() {
   const { data: session } = useSession();
@@ -30,25 +31,15 @@ export default function Me() {
         </CardContent>
       </Card>
 
+      <MembershipCard />
+
       <NotificationsCard />
 
-      <Card>
-        <CardHeader>
-          <CardEyebrow icon={ExternalLinkIcon}>Main site</CardEyebrow>
-          <CardTitle>Membership & payments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-text-secondary mb-3 text-sm">
-            Member details, donation payments, and admin tools live on the main
-            site.
-          </p>
-          <Button asChild tone="outline" className="w-full">
-            <a href={mainSiteUrl("/members")} target="_blank" rel="noopener">
-              Open percymain.org ↗
-            </a>
-          </Button>
-        </CardContent>
-      </Card>
+      <Button asChild tone="outline" className="w-full">
+        <a href={mainSiteUrl("/members")} target="_blank" rel="noopener">
+          Open percymain.org ↗
+        </a>
+      </Button>
 
       <Button
         tone="ghost"
