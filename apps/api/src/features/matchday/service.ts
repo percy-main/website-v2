@@ -1316,7 +1316,7 @@ export function finishMatch(
     html: string;
   }) => Promise<void>,
   sendPush: SendPush,
-  config: { BASE_URL: string },
+  config: { BASE_URL: string; MATCHDAY_URL?: string },
 ) {
   const fetchPrefs = getNotificationPreferencesByUserIds(db);
   const fetchPushSubs = listPushSubscriptionsForUsers(db);
@@ -1761,10 +1761,17 @@ export function finishMatch(
         }
 
         if (pushAvailable) {
+          // The matchday PWA's service worker registered this subscription,
+          // so opening the URL on that origin keeps the user inside the app
+          // and at the new in-app pay-outstanding flow. Fall back to the
+          // main-site payments tab when MATCHDAY_URL is unset (dev/preview).
+          const payUrl = config.MATCHDAY_URL
+            ? `${config.MATCHDAY_URL}/donations`
+            : `${config.BASE_URL}/members?tab=payments`;
           const payload = {
             title: ChargeNotification.subject,
             body: `${amountFormatted} - ${player.charge_description}`,
-            url: `${config.BASE_URL}/charges`,
+            url: payUrl,
             tag: `charge:${player.charge_id}`,
           };
           let pushDelivered = false;
