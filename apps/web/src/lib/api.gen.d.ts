@@ -2955,6 +2955,7 @@ export interface paths {
                 query: {
                     slug: string;
                     season: number;
+                    gameType?: "Standard" | "Pairs";
                 };
                 header?: never;
                 path?: never;

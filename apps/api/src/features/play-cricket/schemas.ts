@@ -21,6 +21,11 @@ export const playerStatsSchema = z.object({
 export const playerSeasonStatsSchema = z.object({
   slug: z.string(),
   season: z.coerce.number().int(),
+  // Career stats are partitioned by game_type; season stats default to
+  // hardball ("Standard") and accept "Pairs" for Women's Softball. Without
+  // a filter a dual-format player's averages would mix incompatible units
+  // (hardball runs / softball net runs).
+  gameType: z.enum(["Standard", "Pairs"]).default("Standard"),
 });
 
 // Response schemas

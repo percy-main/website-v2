@@ -258,6 +258,11 @@ async function storeBattingPerformances(
         : isNotOut(bat.how_out)
           ? 0
           : 1;
+    // Derive not_out from times_out for both formats. In Pairs, how_out is
+    // null for every batter so the old how_out-based check would mark a
+    // dismissed Pairs batter as not out, which would corrupt any consumer
+    // still reading the legacy column.
+    const notOut = timesOut === 0;
 
     await db
       .insertInto("match_performance_batting")
@@ -275,7 +280,7 @@ async function storeBattingPerformances(
         fours: parseInt(bat.fours) || 0,
         sixes: parseInt(bat.sixes) || 0,
         how_out: bat.how_out ?? "",
-        not_out: isNotOut(bat.how_out),
+        not_out: notOut,
         times_out: timesOut,
         dismissal_penalty: dismissalPenalty,
         game_type: gameType,
@@ -289,7 +294,7 @@ async function storeBattingPerformances(
           fours: parseInt(bat.fours) || 0,
           sixes: parseInt(bat.sixes) || 0,
           how_out: bat.how_out ?? "",
-          not_out: isNotOut(bat.how_out),
+          not_out: notOut,
           times_out: timesOut,
           dismissal_penalty: dismissalPenalty,
           game_type: gameType,

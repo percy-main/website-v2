@@ -22,6 +22,12 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
         // 0..n per innings in Pairs (a batter can be out twice). Drives the
         // unified average formula below.
         eb.fn.sum<string>("b.times_out").as("totalTimesOut"),
+        // Innings where the batter was never dismissed. Can't be derived
+        // from innings − Σ times_out because Pairs allows times_out > 1 in
+        // a single innings.
+        eb.fn
+          .sum<string>(sql<number>`CASE WHEN b.times_out = 0 THEN 1 ELSE 0 END`)
+          .as("notOutInnings"),
         // Net-runs penalty applied by Play Cricket for Pairs games (5 runs
         // per dismissal in a 200-base game). 0 for hardball, so the unified
         // formula collapses to standard runs / dismissals.
@@ -74,6 +80,7 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
       entries: rows.map((row) => {
         const innings = Number(row.innings);
         const timesOut = Number(row.totalTimesOut);
+        const notOuts = Number(row.notOutInnings);
         const penaltyRuns = Number(row.totalPenaltyRuns);
         const runs = Number(row.totalRuns);
         const totalBalls = Number(row.totalBalls);
@@ -91,9 +98,9 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
           playerName: row.playerName,
           slug: row.slug,
           innings,
-          // Innings where the batter was never dismissed (could include
-          // softball innings where they batted out their balls).
-          notOuts: Math.max(innings - timesOut, 0),
+          // Innings where the batter was never dismissed. Counted directly
+          // because Pairs allows times_out > 1 per innings.
+          notOuts,
           runs,
           highScore: row.highScore,
           average,

@@ -213,7 +213,25 @@ function transformMatchDetail(
     const bowl = (inn.bowl as Array<Record<string, string>>) ?? [];
     const fow = (inn.fow as Array<Record<string, unknown>>) ?? [];
 
-    const batting: BattingEntry[] = bat.map((b) => ({
+    // Mirror the server-side didBat() filter: drop rows the API includes
+    // for players who didn't take strike. In Pairs every batter has a null
+    // how_out, so we have to use the quantitative fields - otherwise empty
+    // DNB-style rows ("0" runs, empty balls / times_out) would render as
+    // ghost "retired not out" batters.
+    const battingRaw = bat.filter((b) => {
+      const code = (b.how_out ?? "").toLowerCase().trim();
+      if (code === "dnb") return false;
+      if (code !== "") return true;
+      const runs = parseInt(b.runs);
+      const balls = parseInt(b.balls);
+      const timesOut = parseInt(b.times_out ?? "");
+      return (
+        (Number.isFinite(runs) && runs !== 0) ||
+        (Number.isFinite(balls) && balls > 0) ||
+        (Number.isFinite(timesOut) && timesOut > 0)
+      );
+    });
+    const batting: BattingEntry[] = battingRaw.map((b) => ({
       position: b.position,
       name: b.batsman_name,
       memberSlug: b.batsman_member_slug ?? null,

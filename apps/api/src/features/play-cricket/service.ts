@@ -313,6 +313,12 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
         sql<string>`sum(runs)`.as("total_runs"),
         sql<string>`max(runs)`.as("high_score"),
         sql<string>`sum(times_out)`.as("total_times_out"),
+        // Innings where the batter was never dismissed. Pairs allows
+        // times_out > 1 in a single innings so we can't derive this from
+        // innings − Σ times_out.
+        sql<string>`sum(case when times_out = 0 then 1 else 0 end)`.as(
+          "not_outs",
+        ),
         sql<string>`sum(times_out * dismissal_penalty)`.as(
           "total_penalty_runs",
         ),
@@ -386,37 +392,32 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
       inner.set(row.season, `${row.wickets}/${row.runs}`);
     }
 
-    // Best bowling figures overall, per format
-    const bestBowlingOverallRows = await db
+    // Best bowling figures overall, computed per game_type. A player can
+    // have rows in both Standard and Pairs and we want the top figures
+    // for each, not a single global winner. Reduce in JS - small data,
+    // and the subquery / window patterns are awkward to mock in
+    // service.test.ts.
+    const allBowlingRows = await db
       .selectFrom("match_performance_bowling")
       .where("player_id", "=", playCricketId)
-      .select([
-        "game_type",
-        sql<string>`wickets`.as("wickets"),
-        sql<string>`runs`.as("runs"),
-      ])
-      .where(
-        sql`(game_type, wickets, runs, overs)`,
-        "in",
-        sql`(
-          SELECT game_type, wickets, runs, overs
-          FROM match_performance_bowling
-          WHERE player_id = ${playCricketId}
-          ORDER BY wickets DESC, runs ASC, cast(overs as numeric) ASC
-          LIMIT 1
-        )`,
-      )
+      .select(["game_type", "wickets", "runs"])
       .execute();
 
     const bestBowlingOverallByFormat = new Map<
       string,
       { wickets: number; runs: number }
     >();
-    for (const row of bestBowlingOverallRows) {
-      bestBowlingOverallByFormat.set(row.game_type, {
-        wickets: Number(row.wickets ?? 0),
-        runs: Number(row.runs ?? 0),
-      });
+    for (const row of allBowlingRows) {
+      const wickets = row.wickets ?? 0;
+      const runs = row.runs ?? 0;
+      const current = bestBowlingOverallByFormat.get(row.game_type);
+      const isBetter =
+        !current ||
+        wickets > current.wickets ||
+        (wickets === current.wickets && runs < current.runs);
+      if (isBetter) {
+        bestBowlingOverallByFormat.set(row.game_type, { wickets, runs });
+      }
     }
 
     const formats = GAME_TYPES.map(({ code, label }) => {
@@ -438,7 +439,7 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
           return {
             season: row.season,
             innings,
-            notOuts: Math.max(innings - timesOut, 0),
+            notOuts: Number(row.not_outs),
             runs,
             highScore: Number(row.high_score),
             average,
@@ -527,7 +528,11 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
 }
 
 export function getPlayerSeasonStats(db: Kysely<DB>) {
-  return async (slug: string, season: number) => {
+  return async (
+    slug: string,
+    season: number,
+    gameType: "Standard" | "Pairs" = "Standard",
+  ) => {
     const member = await db
       .selectFrom("member")
       .where("slug", "=", slug)
@@ -544,6 +549,7 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
       .selectFrom("match_performance_batting")
       .where("player_id", "=", playCricketId)
       .where("season", "=", season)
+      .where("game_type", "=", gameType)
       .selectAll()
       .execute();
 
@@ -551,6 +557,7 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
       .selectFrom("match_performance_bowling")
       .where("player_id", "=", playCricketId)
       .where("season", "=", season)
+      .where("game_type", "=", gameType)
       .selectAll()
       .execute();
 
@@ -568,7 +575,9 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
       (sum, r) => sum + (r.times_out ?? 0) * (r.dismissal_penalty ?? 0),
       0,
     );
-    const notOuts = Math.max(innings - totalTimesOut, 0);
+    // Count innings where the batter was never dismissed. Pairs allows
+    // times_out > 1 in a single innings so we can't subtract from innings.
+    const notOuts = battingRows.filter((r) => (r.times_out ?? 0) === 0).length;
     const battingAverage =
       innings >= 3 && totalTimesOut > 0
         ? (totalRuns - totalPenaltyRuns) / totalTimesOut

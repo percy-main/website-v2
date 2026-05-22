@@ -5291,6 +5291,19 @@
             "in": "query",
             "name": "season",
             "required": true
+          },
+          {
+            "schema": {
+              "default": "Standard",
+              "type": "string",
+              "enum": [
+                "Standard",
+                "Pairs"
+              ]
+            },
+            "in": "query",
+            "name": "gameType",
+            "required": false
           }
         ],
         "responses": {

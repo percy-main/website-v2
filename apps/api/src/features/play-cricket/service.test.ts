@@ -187,6 +187,7 @@ describe("play-cricket service", () => {
           total_runs: "350",
           high_score: "85",
           total_times_out: "8",
+          not_outs: "2",
           total_penalty_runs: "0",
           total_balls: "300",
           total_fours: "30",
@@ -201,6 +202,7 @@ describe("play-cricket service", () => {
           total_runs: "200",
           high_score: "62",
           total_times_out: "7",
+          not_outs: "1",
           total_penalty_runs: "0",
           total_balls: "200",
           total_fours: "15",
@@ -234,11 +236,10 @@ describe("play-cricket service", () => {
         },
       ]);
 
-      // Best bowling overall, per format (now an .execute() array, not
-      // executeTakeFirst — we need one entry per format the player has
-      // bowled in).
+      // All bowling rows (for per-format overall best — reduced in JS now).
       mockExecute.mockResolvedValueOnce([
         { game_type: "Standard", wickets: 5, runs: 28 },
+        { game_type: "Standard", wickets: 3, runs: 40 },
       ]);
 
       const result = await getPlayerCareerStats(db)("entry-123");

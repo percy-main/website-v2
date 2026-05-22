@@ -148,8 +148,8 @@ export const playCricketRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      const { slug, season } = request.query;
-      return await seasonStats(slug, season);
+      const { slug, season, gameType } = request.query;
+      return await seasonStats(slug, season, gameType);
     },
   );
 };
