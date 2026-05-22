@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
 import * as React from "react";
 
 type DivProps = React.HTMLAttributes<HTMLDivElement> & {
@@ -80,22 +81,39 @@ export function CardFooter({ className, ref, ...props }: DivProps) {
 /**
  * Eyebrow label used above a CardTitle. Matches the design mocks —
  * 11px, 600-weight, tracking-wide, uppercase, secondary text colour.
+ *
+ * Optional `icon` prop renders a small lucide glyph in a tinted square
+ * to the left of the label, so a stack of cards can be scanned by
+ * shape rather than reading every uppercase eyebrow.
  */
 export function CardEyebrow({
   className,
+  icon: Icon,
+  children,
   ref,
   ...props
 }: React.HTMLAttributes<HTMLSpanElement> & {
   ref?: React.Ref<HTMLSpanElement>;
+  icon?: LucideIcon;
 }) {
   return (
     <span
       ref={ref}
       className={cn(
-        "text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase",
+        "text-text-secondary inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.06em] uppercase",
         className,
       )}
       {...props}
-    />
+    >
+      {Icon && (
+        <span
+          aria-hidden
+          className="bg-surface-raised text-navy grid size-5 place-items-center rounded-md dark:bg-white/10 dark:text-white"
+        >
+          <Icon className="size-3" strokeWidth={2.4} />
+        </span>
+      )}
+      {children}
+    </span>
   );
 }

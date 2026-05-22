@@ -1,4 +1,5 @@
 import { InstallPrompt } from "@/components/install-prompt.js";
+import { DateSquare } from "@/components/primitives/date-square.js";
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -16,10 +17,20 @@ import {
   type Game,
 } from "@/features/games.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
-import { useSession } from "@/lib/auth-client.js";
+import { canViewMatchdayAdmin, useSession } from "@/lib/auth-client.js";
 import { mainSiteUrl } from "@/lib/main-site.js";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRightIcon, CalendarDaysIcon } from "lucide-react";
+import { format } from "date-fns";
+import {
+  ArrowRightIcon,
+  CalendarDaysIcon,
+  CircleAlertIcon,
+  CircleCheckIcon,
+  HistoryIcon,
+  TrophyIcon,
+  UsersIcon,
+  WalletIcon,
+} from "lucide-react";
 import { Link } from "react-router";
 
 type MyUpcomingMatch = ApiResponse<"/api/matchday/mine/upcoming">[number];
@@ -50,10 +61,13 @@ export default function Home() {
   const firstName = userName.split(/\s+/)[0];
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-4 md:py-8">
-      <div className="mb-4 hidden md:block">
-        <h1 className="text-2xl font-semibold tracking-[-0.015em]">
+      <div className="mb-4 flex items-baseline justify-between">
+        <h1 className="text-xl font-semibold tracking-[-0.015em] md:text-2xl">
           Hi {firstName}
         </h1>
+        <span className="text-text-secondary text-xs md:text-sm">
+          {format(new Date(), "EEEE, d MMM")}
+        </span>
       </div>
       <div className="space-y-3">
         <NeedsAttentionCard />
@@ -70,15 +84,18 @@ export default function Home() {
 }
 
 function NeedsAttentionCard() {
-  // Officials-only endpoint - a 403 just means the card stays hidden,
-  // so we swallow the error rather than surfacing it. Used to be a
-  // per-team roll-up on the dropped /squad tab.
+  // Officials-only endpoint — gate the query on the matchday:view
+  // permission so non-officials never fire a request that's destined
+  // for a 403. Used to be a per-team roll-up on the dropped /squad tab.
+  const { data: session } = useSession();
+  const enabled = canViewMatchdayAdmin(session?.user);
   const { data, isError } = useQuery({
     queryKey: ["matchday", "past-unfinished"],
     queryFn: () => callApi(api.GET("/api/matchday/past-unfinished")),
+    enabled,
     retry: false,
   });
-  if (isError) return null;
+  if (!enabled || isError) return null;
   const items = data ?? [];
   if (items.length === 0) return null;
   const oldest = items[items.length - 1];
@@ -86,7 +103,7 @@ function NeedsAttentionCard() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardEyebrow>Needs attention</CardEyebrow>
+          <CardEyebrow icon={CircleAlertIcon}>Needs attention</CardEyebrow>
           <StatusPill tone="warning" dot>
             {items.length} match{items.length === 1 ? "" : "es"}
           </StatusPill>
@@ -129,7 +146,7 @@ function AvailabilityAwaitingCard() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardEyebrow>Availability</CardEyebrow>
+          <CardEyebrow icon={CircleCheckIcon}>Availability</CardEyebrow>
           <StatusPill tone="warning" dot>
             {count} to answer
           </StatusPill>
@@ -166,7 +183,7 @@ function YourUpcomingGamesCard() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardEyebrow>Your upcoming games</CardEyebrow>
+          <CardEyebrow icon={UsersIcon}>Your upcoming games</CardEyebrow>
           <StatusPill tone="success" dot>
             You're in{" "}
             {games.length === 1 ? "1 squad" : `${games.length} squads`}
@@ -183,11 +200,6 @@ function YourUpcomingGamesCard() {
 }
 
 function MyMatchRow({ match }: { match: MyUpcomingMatch }) {
-  const d = new Date(match.matchDate);
-  const day = Number.isNaN(d.getTime()) ? "" : d.getDate();
-  const dayName = Number.isNaN(d.getTime())
-    ? ""
-    : d.toLocaleDateString("en-GB", { weekday: "short" });
   const role = match.isCaptain
     ? "Captain"
     : match.isWicketkeeper
@@ -198,14 +210,7 @@ function MyMatchRow({ match }: { match: MyUpcomingMatch }) {
       to={`/matchday/${match.matchdayId}`}
       className="border-border-light grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t py-2.5 first:border-t-0"
     >
-      <div className="bg-surface-raised flex flex-col items-center justify-center rounded-md py-1">
-        <div className="text-navy text-base leading-none font-bold dark:text-white">
-          {day}
-        </div>
-        <div className="text-text-secondary text-[10px] tracking-wide uppercase">
-          {dayName}
-        </div>
-      </div>
+      <DateSquare iso={match.matchDate} />
       <div className="min-w-0">
         <div className="truncate text-sm leading-tight font-medium">
           vs {match.opposition}
@@ -239,7 +244,7 @@ function YourRecentPerformanceCard() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardEyebrow>Your recent performance</CardEyebrow>
+          <CardEyebrow icon={TrophyIcon}>Your recent performance</CardEyebrow>
           <span className="text-text-secondary text-xs">
             Last {data.windowDays} days
           </span>
@@ -308,7 +313,7 @@ function OutstandingDonationsCard() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardEyebrow>Outstanding donations</CardEyebrow>
+          <CardEyebrow icon={WalletIcon}>Outstanding donations</CardEyebrow>
           {overdueCount > 0 ? (
             <StatusPill tone="danger" dot>
               Overdue ×{overdueCount}
@@ -366,7 +371,7 @@ function UpcomingFixturesCard() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardEyebrow>Upcoming fixtures</CardEyebrow>
+          <CardEyebrow icon={CalendarDaysIcon}>Upcoming fixtures</CardEyebrow>
           <Link to="/fixtures" className="text-text-secondary text-xs">
             See all
           </Link>
@@ -400,7 +405,7 @@ function RecentResultsCard() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardEyebrow>Recent results</CardEyebrow>
+          <CardEyebrow icon={HistoryIcon}>Recent results</CardEyebrow>
         </div>
       </CardHeader>
       <CardContent className="space-y-0">
@@ -416,22 +421,12 @@ function FixtureRow({ game }: { game: Game }) {
   // Use the normalised ISO form for date math — game.matchDate is
   // Play-Cricket's DD/MM/YYYY which `new Date(...)` parses wrong.
   const iso = gameIsoDate(game);
-  const d = iso ? new Date(iso) : null;
-  const day = d ? d.getDate() : "";
-  const dayName = d ? d.toLocaleDateString("en-GB", { weekday: "short" }) : "";
   return (
     <Link
       to={`/fixture/${game.id}`}
       className="border-border-light grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t py-2.5 first:border-t-0"
     >
-      <div className="bg-surface-raised flex flex-col items-center justify-center rounded-md py-1">
-        <div className="text-navy text-base leading-none font-bold dark:text-white">
-          {day}
-        </div>
-        <div className="text-text-secondary text-[10px] tracking-wide uppercase">
-          {dayName}
-        </div>
-      </div>
+      <DateSquare iso={iso} />
       <div className="min-w-0">
         <div className="truncate text-sm leading-tight font-medium">
           vs {oppositionName(game)}
@@ -453,17 +448,23 @@ function TimePill({ game }: { game: Game }) {
 
 function ResultPill({ game }: { game: Game }) {
   const o = game.outcome;
-  if (o === "W")
-    return (
-      <StatusPill tone="success">{game.scoreDescription ?? "W"}</StatusPill>
-    );
-  if (o === "L")
-    return (
-      <StatusPill tone="danger">{game.scoreDescription ?? "L"}</StatusPill>
-    );
-  if (o === "D" || o === "T")
-    return <StatusPill tone="warning">{game.scoreDescription ?? o}</StatusPill>;
-  return <StatusPill tone="neutral">{o ?? "—"}</StatusPill>;
+  // Bigger, clearly-typed pill — recent results should read like a
+  // result, not a status. Falls back to the single-letter outcome
+  // when Play-Cricket hasn't populated a score description yet.
+  const tone =
+    o === "W"
+      ? ("success" as const)
+      : o === "L"
+        ? ("danger" as const)
+        : o === "D" || o === "T"
+          ? ("warning" as const)
+          : ("neutral" as const);
+  const label = game.scoreDescription ?? o ?? "—";
+  return (
+    <StatusPill tone={tone} size="lg">
+      {label}
+    </StatusPill>
+  );
 }
 
 function CardSkeleton() {
