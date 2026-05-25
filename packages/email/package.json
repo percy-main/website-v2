@@ -20,10 +20,10 @@
     "react-email": "^6.1.5"
   },
   "devDependencies": {
-    "@react-email/ui": "6.1.5",
+    "@react-email/ui": "6.3.2",
     "@types/html-to-text": "^9.0.4",
-    "@types/node": "^25.9.0",
-    "@types/react": "^19.0.2",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^19.0.2",
     "typescript": "^5.9.3"
   }
