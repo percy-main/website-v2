@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "better-auth": "^1.6.11",
-    "date-fns": "^4.2.1",
+    "date-fns": "^4.3.0",
     "ts-pattern": "^5.6.0",
     "zod": "^4.4.3"
   },
