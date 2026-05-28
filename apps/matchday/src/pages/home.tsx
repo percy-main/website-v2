@@ -139,20 +139,57 @@ function AvailabilityAwaitingCard() {
   if (isLoading) return <CardSkeleton />;
   if (isError) return <CardError label="Couldn't load availability" />;
 
-  const count = countUnansweredDates(data);
-  // Quiet — don't take up real estate when there's nothing to do.
-  if (count === 0) return null;
+  const openItems = (data?.items ?? []).filter((i) => i.status === "open");
+  if (openItems.length === 0) return null;
+
+  const unanswered = countUnansweredDates(data);
+  // All answered: a quiet "review" card so players can find and change
+  // what they said. The "X to answer" prompt below handles the unanswered
+  // case with a primary CTA.
+  if (unanswered === 0) {
+    const answered = openItems.reduce(
+      (acc, i) => acc + i.myResponses.length,
+      0,
+    );
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardEyebrow icon={CircleCheckIcon}>Availability</CardEyebrow>
+            <StatusPill tone="success" dot>
+              All answered
+            </StatusPill>
+          </div>
+          <CardTitle>
+            You've answered {answered} {answered === 1 ? "date" : "dates"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-text-secondary mb-3 text-sm">
+            Need to change one? Review or update your responses.
+          </p>
+          <Button asChild tone="outline" className="w-full">
+            <Link to="/availability">
+              Review your availability
+              <ArrowRightIcon className="size-4" />
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardEyebrow icon={CircleCheckIcon}>Availability</CardEyebrow>
           <StatusPill tone="warning" dot>
-            {count} to answer
+            {unanswered} to answer
           </StatusPill>
         </div>
         <CardTitle>
-          You've {count} {count === 1 ? "date" : "dates"} to confirm
+          You've {unanswered} {unanswered === 1 ? "date" : "dates"} to confirm
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -165,6 +202,12 @@ function AvailabilityAwaitingCard() {
             <ArrowRightIcon className="size-4" />
           </Link>
         </Button>
+        <Link
+          to="/availability"
+          className="text-text-secondary mt-2 block text-center text-xs underline"
+        >
+          Review what you've said
+        </Link>
       </CardContent>
     </Card>
   );
