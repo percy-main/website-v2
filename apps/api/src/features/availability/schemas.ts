@@ -234,6 +234,11 @@ const myResponseSchema = z.object({
   note: z.string().nullable(),
 });
 
+const availableCountSchema = z.object({
+  match_date: z.string(),
+  count: z.number(),
+});
+
 export const getActiveRequestsResponseSchema = z.object({
   memberId: z.string().nullable(),
   items: z.array(
@@ -246,6 +251,7 @@ export const getActiveRequestsResponseSchema = z.object({
       created_at: z.string(),
       fixtures: z.array(activeFixtureSchema),
       myResponses: z.array(myResponseSchema),
+      availableCounts: z.array(availableCountSchema),
     }),
   ),
 });

@@ -39,7 +39,7 @@ export default function AvailabilityRespond() {
     queryFn: () => callApi(api.GET("/api/availability/active")),
   });
 
-  const steps = useMemo<Step[]>(() => {
+  const computedSteps = useMemo<Step[]>(() => {
     if (!data) return [];
     const out: Step[] = [];
     for (const item of data.items) {
@@ -62,9 +62,39 @@ export default function AvailabilityRespond() {
     return out;
   }, [data]);
 
+  // Snapshot the unanswered step set once data first loads with at least
+  // one entry. We invalidate the availability query after each save so
+  // the home card stays fresh, but the refetch removes the just-answered
+  // date from `computedSteps` - without this snapshot the list shrinks
+  // under us and bounces the user to the "all done" screen after the
+  // first answer. (Setting state from render is the documented React
+  // pattern for "store info from previous renders"; the conditional
+  // makes it idempotent.)
+  const [snapshot, setSnapshot] = useState<Step[] | null>(null);
+  if (snapshot === null && computedSteps.length > 0) {
+    setSnapshot(computedSteps);
+  }
+  const flowSteps = snapshot ?? computedSteps;
+
+  // Available-so-far counts come back fresh on every refetch (we want
+  // these to update as other players answer), so they're keyed off the
+  // live `data` rather than the snapshotted `flowSteps`.
+  const availableCountByKey = useMemo<Map<string, number>>(() => {
+    const m = new Map<string, number>();
+    for (const item of data?.items ?? []) {
+      for (const c of item.availableCounts) {
+        m.set(`${item.id}:${c.match_date}`, c.count);
+      }
+    }
+    return m;
+  }, [data]);
+
   const [stepIndex, setStepIndex] = useState(0);
   const [note, setNote] = useState("");
-  const current = steps[stepIndex];
+  const current = flowSteps[stepIndex];
+  const currentAvailableCount = current
+    ? (availableCountByKey.get(`${current.requestId}:${current.date}`) ?? 0)
+    : 0;
 
   // Player-side endpoint — gated on requireAuth, accepts a batch of
   // { matchDate, status, note? } per request. Per-date PUT is the
@@ -103,27 +133,7 @@ export default function AvailabilityRespond() {
       ],
     });
     setNote("");
-    setStepIndex((prev) => Math.min(prev + 1, steps.length));
-  }
-
-  async function applyToAllRemaining(answer: "available" | "unavailable") {
-    // Batch by request so we make one POST per active request.
-    const remaining = steps.slice(stepIndex);
-    const byRequest = new Map<
-      string,
-      Array<{ matchDate: string; status: "available" | "unavailable" }>
-    >();
-    for (const s of remaining) {
-      const list = byRequest.get(s.requestId) ?? [];
-      list.push({ matchDate: s.date, status: answer });
-      byRequest.set(s.requestId, list);
-    }
-    await Promise.all(
-      Array.from(byRequest.entries()).map(([requestId, responses]) =>
-        respond.mutateAsync({ requestId, responses }),
-      ),
-    );
-    setStepIndex(steps.length);
+    setStepIndex((prev) => Math.min(prev + 1, flowSteps.length));
   }
 
   if (isLoading) {
@@ -152,7 +162,7 @@ export default function AvailabilityRespond() {
       </FlowFrame>
     );
   }
-  if (steps.length === 0) {
+  if (flowSteps.length === 0) {
     return (
       <FlowFrame>
         <EmptyDone
@@ -165,7 +175,7 @@ export default function AvailabilityRespond() {
       </FlowFrame>
     );
   }
-  if (stepIndex >= steps.length || !current) {
+  if (stepIndex >= flowSteps.length || !current) {
     return (
       <FlowFrame>
         <EmptyDone
@@ -180,7 +190,7 @@ export default function AvailabilityRespond() {
     );
   }
 
-  const total = steps.length;
+  const total = flowSteps.length;
   return (
     <FlowFrame>
       <header className="border-border flex items-center gap-3 border-b p-3">
@@ -195,7 +205,7 @@ export default function AvailabilityRespond() {
           <ArrowLeftIcon className="size-5" />
         </button>
         <div className="flex flex-1 gap-1.5">
-          {steps.map((s, i) => (
+          {flowSteps.map((s, i) => (
             <span
               key={`${s.requestId}:${s.date}`}
               className={cn(
@@ -257,6 +267,12 @@ export default function AvailabilityRespond() {
           ))}
         </div>
 
+        <p className="text-text-secondary mt-3 text-xs">
+          {currentAvailableCount}{" "}
+          {currentAvailableCount === 1 ? "player is" : "players are"} available
+          so far
+        </p>
+
         <div className="mt-6 grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -297,29 +313,6 @@ export default function AvailabilityRespond() {
             className="placeholder:text-text-muted mt-1 w-full bg-transparent text-sm outline-none"
           />
         </div>
-
-        {steps.length - stepIndex > 1 && (
-          <div className="mt-6 flex flex-col items-center gap-1 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                void applyToAllRemaining("available");
-              }}
-              className="text-text-secondary text-xs font-medium underline"
-            >
-              Apply Available to all {steps.length - stepIndex} remaining
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void applyToAllRemaining("unavailable");
-              }}
-              className="text-text-secondary text-xs font-medium underline"
-            >
-              Apply Unavailable to all {steps.length - stepIndex} remaining
-            </button>
-          </div>
-        )}
 
         {respond.isError && (
           <p className="text-danger mt-4 flex items-center gap-1.5 text-sm">

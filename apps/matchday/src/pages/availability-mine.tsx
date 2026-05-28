@@ -32,6 +32,7 @@ type ActiveResponse = ApiResponse<"/api/availability/active">;
 type ActiveItem = ActiveResponse["items"][number];
 type Fixture = ActiveItem["fixtures"][number];
 type MyResponse = ActiveItem["myResponses"][number];
+type AvailableCount = ActiveItem["availableCounts"][number];
 
 export default function AvailabilityMine() {
   const { data, isLoading, isError } = useQuery({
@@ -115,6 +116,10 @@ function RequestCard({ request }: { request: ActiveItem }) {
   const dates = Array.from(byDate.keys()).sort();
   const responseByDate = new Map<string, MyResponse>();
   for (const r of request.myResponses) responseByDate.set(r.match_date, r);
+  const availableCountByDate = new Map<string, AvailableCount>();
+  for (const c of request.availableCounts) {
+    availableCountByDate.set(c.match_date, c);
+  }
 
   return (
     <Card>
@@ -136,6 +141,7 @@ function RequestCard({ request }: { request: ActiveItem }) {
             date={date}
             fixtures={byDate.get(date) ?? []}
             existing={responseByDate.get(date)}
+            availableCount={availableCountByDate.get(date)?.count ?? 0}
           />
         ))}
       </CardContent>
@@ -148,11 +154,13 @@ function DateRow({
   date,
   fixtures,
   existing,
+  availableCount,
 }: {
   requestId: string;
   date: string;
   fixtures: Fixture[];
   existing: MyResponse | undefined;
+  availableCount: number;
 }) {
   const qc = useQueryClient();
   const [pendingStatus, setPendingStatus] = useState<
@@ -231,6 +239,10 @@ function DateRow({
           "{existing.note}"
         </p>
       )}
+      <p className="text-text-secondary mt-2 text-xs">
+        {availableCount} {availableCount === 1 ? "player is" : "players are"}{" "}
+        available so far
+      </p>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button
           type="button"

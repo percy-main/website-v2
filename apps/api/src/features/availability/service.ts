@@ -1009,6 +1009,23 @@ export function getActiveRequests(db: Kysely<DB>) {
     const today = new Date().toISOString().split("T")[0];
     const activeFixtures = fixtures.filter((f) => f.match_date >= today);
 
+    // Count "available" responses per (request, date) so the response
+    // and review screens can show "N players are available so far".
+    // Scoped to today+ so we match the active-fixtures filter and don't
+    // ship counts for past dates the UI can't display.
+    const availableRows = await db
+      .selectFrom("availability_response")
+      .where("availability_request_id", "in", requestIds)
+      .where("status", "=", "available")
+      .where("match_date", ">=", today)
+      .groupBy(["availability_request_id", "match_date"])
+      .select([
+        "availability_request_id",
+        "match_date",
+        db.fn.countAll<string>().as("count"),
+      ])
+      .execute();
+
     const fixturesByRequest = new Map<string, typeof fixtures>();
     for (const f of activeFixtures) {
       const list = fixturesByRequest.get(f.availability_request_id) ?? [];
@@ -1023,12 +1040,24 @@ export function getActiveRequests(db: Kysely<DB>) {
       responsesByRequest.set(r.availability_request_id, list);
     }
 
+    const availableCountsByRequest = new Map<
+      string,
+      Array<{ match_date: string; count: number }>
+    >();
+    for (const r of availableRows) {
+      const list =
+        availableCountsByRequest.get(r.availability_request_id) ?? [];
+      list.push({ match_date: r.match_date, count: Number(r.count) });
+      availableCountsByRequest.set(r.availability_request_id, list);
+    }
+
     return {
       memberId: member?.id ?? null,
       items: requests.map((r) => ({
         ...r,
         fixtures: fixturesByRequest.get(r.id) ?? [],
         myResponses: responsesByRequest.get(r.id) ?? [],
+        availableCounts: availableCountsByRequest.get(r.id) ?? [],
       })),
     };
   };
