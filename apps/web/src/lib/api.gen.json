@@ -4520,6 +4520,27 @@
                         "players"
                       ],
                       "additionalProperties": false
+                    },
+                    "availabilityRequest": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "date": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status",
+                        "date"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -4540,7 +4561,8 @@
                     "location",
                     "result",
                     "sponsor",
-                    "lineup"
+                    "lineup",
+                    "availabilityRequest"
                   ],
                   "additionalProperties": false
                 }
@@ -9546,10 +9568,14 @@
                   "properties": {
                     "success": {
                       "type": "boolean"
+                    },
+                    "matchdaysCreated": {
+                      "type": "number"
                     }
                   },
                   "required": [
-                    "success"
+                    "success",
+                    "matchdaysCreated"
                   ],
                   "additionalProperties": false
                 }

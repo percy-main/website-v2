@@ -167,6 +167,8 @@ describe("matchday service", () => {
       mockExecute.mockResolvedValueOnce([{ id: "t1" }]);
       // No existing matchday
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+      // No open availability request covering this (team, date)
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
       // Insert
       mockExecute.mockResolvedValueOnce([]);
 

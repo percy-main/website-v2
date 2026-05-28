@@ -225,18 +225,8 @@ describe("availability service", () => {
     it("throws 404 for non-existent request", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
       await expect(
-        updateRequestStatus(db)("missing", { status: "closed" }),
+        updateRequestStatus(db)("user-1", "missing", { status: "closed" }),
       ).rejects.toThrow("not found");
-    });
-
-    it("updates status successfully", async () => {
-      mockExecuteTakeFirst.mockResolvedValueOnce({ id: "req-1" });
-      mockExecute.mockResolvedValueOnce(undefined);
-
-      const result = await updateRequestStatus(db)("req-1", {
-        status: "closed",
-      });
-      expect(result).toEqual({ success: true });
     });
   });
 

@@ -2552,6 +2552,11 @@ export interface paths {
                                     name: string;
                                 }[];
                             } | null;
+                            availabilityRequest: {
+                                id: string;
+                                status: string;
+                                date: string;
+                            } | null;
                         };
                     };
                 };
@@ -5459,6 +5464,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             success: boolean;
+                            matchdaysCreated: number;
                         };
                     };
                 };

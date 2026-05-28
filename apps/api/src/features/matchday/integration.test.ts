@@ -319,6 +319,109 @@ describe("matchday service (integration)", () => {
         }),
       ).rejects.toThrow("already exists");
     });
+
+    it("rejects when an open availability request covers the match", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `openavail-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const playCricketMatchId = `pcm-${crypto.randomUUID()}`;
+
+      // Seed an open availability request + fixture for this PC match.
+      const requestId = `req-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("availability_request")
+        .values({
+          id: requestId,
+          created_by: userId,
+          date_from: "2026-07-03",
+          date_to: "2026-07-10",
+          status: "open",
+        })
+        .execute();
+      await ctx.db
+        .insertInto("availability_fixture")
+        .values({
+          id: `fix-${crypto.randomUUID()}`,
+          availability_request_id: requestId,
+          match_date: "2026-07-03",
+          play_cricket_match_id: playCricketMatchId,
+          play_cricket_team_id: teamId,
+          opposition: "Lintz CC",
+          is_home: true,
+        })
+        .execute();
+
+      await expect(
+        createMatchday(ctx.db)(userId, "admin", {
+          teamId,
+          matchDate: "2026-07-03",
+          opposition: "Lintz CC",
+          playCricketMatchId,
+        }),
+      ).rejects.toThrow("availability request is still open");
+
+      // Closing the request lets the matchday come into being via the
+      // close flow, NOT via createMatchday directly. Verify createMatchday
+      // also stops refusing once the request is closed.
+      await ctx.db
+        .updateTable("availability_request")
+        .set({ status: "closed" })
+        .where("id", "=", requestId)
+        .execute();
+
+      const result = await createMatchday(ctx.db)(userId, "admin", {
+        teamId,
+        matchDate: "2026-07-03",
+        opposition: "Lintz CC",
+        playCricketMatchId,
+      });
+      expect(result.id).toBeDefined();
+    });
+
+    it("rejects open-request even when caller omits playCricketMatchId", async () => {
+      // The "Pick team" FE flow always supplies playCricketMatchId, but
+      // the guard must still catch callers that don't (admin tools, future
+      // friendlies UI) by falling back to (team, date) matching.
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `nopcmid-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+
+      const requestId = `req-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("availability_request")
+        .values({
+          id: requestId,
+          created_by: userId,
+          date_from: "2026-08-01",
+          date_to: "2026-08-08",
+          status: "open",
+        })
+        .execute();
+      await ctx.db
+        .insertInto("availability_fixture")
+        .values({
+          id: `fix-${crypto.randomUUID()}`,
+          availability_request_id: requestId,
+          match_date: "2026-08-01",
+          play_cricket_match_id: `pcm-${crypto.randomUUID()}`,
+          play_cricket_team_id: teamId,
+          opposition: "Friendly CC",
+          is_home: true,
+        })
+        .execute();
+
+      await expect(
+        createMatchday(ctx.db)(userId, "admin", {
+          teamId,
+          matchDate: "2026-08-01",
+          opposition: "Friendly CC",
+        }),
+      ).rejects.toThrow("availability request is still open");
+    });
   });
 
   describe("addPlayer / removePlayer", () => {
