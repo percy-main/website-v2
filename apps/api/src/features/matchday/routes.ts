@@ -5,7 +5,6 @@ import {
   requirePermission,
 } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
-import { getMatchDetail as getPlayCricketMatchDetail } from "../play-cricket/service.ts";
 import {
   addPlayerResponseSchema,
   addPlayerSchema,
@@ -84,13 +83,18 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const get = getMatch(app.db);
   const getPublic = getMatchPublic(app.db);
   // Play-cricket lookup powers fallback derivation of isHome/matchTime
-  // inside the team-news-image endpoint. Wired here (not inside the
-  // service) so the service stays free of config + module-level deps.
+  // inside the team-news-image endpoint. Built from app.config (not
+  // process.env) per project convention; null when PC isn't configured
+  // so the service falls back to "home, no time" cleanly.
+  const playCricketApiClient =
+    app.config.PLAY_CRICKET_API_TOKEN && app.config.PLAY_CRICKET_SITE_ID
+      ? createApiClient({
+          apiToken: app.config.PLAY_CRICKET_API_TOKEN,
+          siteId: app.config.PLAY_CRICKET_SITE_ID,
+        })
+      : null;
   const getNewsData = getTeamNewsData(app.db, {
-    getPlayCricketMatchDetail:
-      app.config.PLAY_CRICKET_API_TOKEN && app.config.PLAY_CRICKET_SITE_ID
-        ? getPlayCricketMatchDetail(app.db)
-        : null,
+    apiClient: playCricketApiClient,
     siteId: app.config.PLAY_CRICKET_SITE_ID ?? null,
   });
   const record = recordExpense(app.db, app.s3);

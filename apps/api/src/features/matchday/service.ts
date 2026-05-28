@@ -2088,15 +2088,17 @@ export interface TeamNewsData {
 /**
  * Optional dependencies that let the service derive home/away + match
  * time from the upstream play-cricket fixture when the caller didn't
- * specify them. `getMatchDetail` is the cached lookup from
- * play-cricket/service.ts; `siteId` is our Percy Main club id.
+ * specify them. `apiClient` is the typed Play-Cricket client; `siteId`
+ * is our Percy Main club id.
  *
- * Pass `null` when play-cricket isn't configured (local dev without
- * the API token) - the service will fall back to `isHome=true` and
- * no time, which is the right default for the local case anyway.
+ * Pass both `null` when play-cricket isn't configured (local dev
+ * without the API token) - the service falls back to `isHome=true` and
+ * no time. With apiClient set, derivation failures THROW instead of
+ * silently defaulting: an away fixture rendered as home is a real bug
+ * (it's how we got here), so a noisy failure beats a wrong image.
  */
 export interface TeamNewsImageContext {
-  getPlayCricketMatchDetail: ((matchId: string) => Promise<unknown>) | null;
+  apiClient: PlayCricketApiClient | null;
   siteId: string | null;
 }
 
@@ -2199,29 +2201,31 @@ export function getTeamNewsData(db: Kysely<DB>, ctx: TeamNewsImageContext) {
     }
 
     // Resolve isHome + matchTime. Honour explicit caller overrides;
-    // otherwise look the fixture up on play-cricket so the image is
-    // accurate without the frontend having to know.
+    // otherwise look the fixture up via the play-cricket matches-summary
+    // endpoint (the match-detail endpoint's schema drops match_time -
+    // both fields live on the summary row). If play-cricket is wired
+    // and the lookup fails, propagate the error: a wrong home/away
+    // image is exactly the bug we're trying to stop shipping.
     let { isHome, matchTime } = overrides;
     if (
       (isHome === undefined || matchTime === undefined) &&
       match.play_cricket_match_id &&
-      ctx.getPlayCricketMatchDetail &&
+      ctx.apiClient &&
       ctx.siteId
     ) {
-      const detail = (await ctx
-        .getPlayCricketMatchDetail(match.play_cricket_match_id)
-        .catch(() => null)) as {
-        match_details?: Array<{ home_club_id?: string; match_time?: string }>;
-      } | null;
-      const d = detail?.match_details?.[0];
-      if (d) {
-        if (isHome === undefined && d.home_club_id) {
-          isHome = d.home_club_id === ctx.siteId;
-        }
-        if (matchTime === undefined && d.match_time) {
-          matchTime = d.match_time;
-        }
+      const season = Number(match.match_date.slice(0, 4));
+      const summary = await ctx.apiClient.getMatchesSummary(season);
+      const row = summary.matches.find(
+        (m) => m.id.toString() === match.play_cricket_match_id,
+      );
+      if (!row) {
+        throwHttpError(
+          502,
+          `play-cricket has no fixture with id ${match.play_cricket_match_id} in season ${season}`,
+        );
       }
+      isHome ??= row.home_club_id === ctx.siteId;
+      matchTime ??= row.match_time;
     }
 
     return {
