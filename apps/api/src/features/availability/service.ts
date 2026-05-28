@@ -1006,6 +1006,20 @@ export function getActiveRequests(db: Kysely<DB>) {
         .execute();
     }
 
+    // Count "available" responses per (request, date) so the response
+    // and review screens can show "N players are available so far".
+    const availableRows = await db
+      .selectFrom("availability_response")
+      .where("availability_request_id", "in", requestIds)
+      .where("status", "=", "available")
+      .groupBy(["availability_request_id", "match_date"])
+      .select([
+        "availability_request_id",
+        "match_date",
+        db.fn.countAll<string>().as("count"),
+      ])
+      .execute();
+
     const today = new Date().toISOString().split("T")[0];
     const activeFixtures = fixtures.filter((f) => f.match_date >= today);
 
@@ -1023,12 +1037,24 @@ export function getActiveRequests(db: Kysely<DB>) {
       responsesByRequest.set(r.availability_request_id, list);
     }
 
+    const availableCountsByRequest = new Map<
+      string,
+      Array<{ match_date: string; count: number }>
+    >();
+    for (const r of availableRows) {
+      const list =
+        availableCountsByRequest.get(r.availability_request_id) ?? [];
+      list.push({ match_date: r.match_date, count: Number(r.count) });
+      availableCountsByRequest.set(r.availability_request_id, list);
+    }
+
     return {
       memberId: member?.id ?? null,
       items: requests.map((r) => ({
         ...r,
         fixtures: fixturesByRequest.get(r.id) ?? [],
         myResponses: responsesByRequest.get(r.id) ?? [],
+        availableCounts: availableCountsByRequest.get(r.id) ?? [],
       })),
     };
   };

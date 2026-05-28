@@ -5942,6 +5942,10 @@ export interface paths {
                                     status: string;
                                     note: string | null;
                                 }[];
+                                availableCounts: {
+                                    match_date: string;
+                                    count: number;
+                                }[];
                             }[];
                         };
                     };

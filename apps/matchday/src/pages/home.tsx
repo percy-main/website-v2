@@ -189,25 +189,20 @@ function AvailabilityAwaitingCard() {
           </StatusPill>
         </div>
         <CardTitle>
-          You've {unanswered} {unanswered === 1 ? "date" : "dates"} to confirm
+          {countWord(unanswered)} upcoming{" "}
+          {unanswered === 1 ? "matchday" : "matchdays"}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-text-secondary mb-3 text-sm">
-          Manager picks the squad mid-week. Takes a minute.
-        </p>
         <Button asChild tone="primary" className="w-full">
           <Link to="/availability/respond">
             Answer availability
             <ArrowRightIcon className="size-4" />
           </Link>
         </Button>
-        <Link
-          to="/availability"
-          className="text-text-secondary mt-2 block text-center text-xs underline"
-        >
-          Review what you've said
-        </Link>
+        <Button asChild tone="outline" className="mt-2 w-full">
+          <Link to="/availability">Review what you've said</Link>
+        </Button>
       </CardContent>
     </Card>
   );
@@ -325,6 +320,22 @@ function PerfStat({ label, value }: { label: string; value: number }) {
       </div>
     </div>
   );
+}
+
+function countWord(n: number): string {
+  const words = [
+    "Zero",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+  ];
+  return words[n] ?? String(n);
 }
 
 function countUnansweredDates(data: ActiveAvailability | undefined): number {

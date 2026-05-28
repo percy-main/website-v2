@@ -10490,6 +10490,25 @@
                               ],
                               "additionalProperties": false
                             }
+                          },
+                          "availableCounts": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "match_date": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "match_date",
+                                "count"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
@@ -10500,7 +10519,8 @@
                           "status",
                           "created_at",
                           "fixtures",
-                          "myResponses"
+                          "myResponses",
+                          "availableCounts"
                         ],
                         "additionalProperties": false
                       }
