@@ -21,6 +21,12 @@ const routes: RouteObject[] = [
             Component: lazyWithReload(() => import("./pages/me.js")),
           },
           {
+            path: "availability",
+            Component: lazyWithReload(
+              () => import("./pages/availability-mine.js"),
+            ),
+          },
+          {
             path: "availability/respond",
             Component: lazyWithReload(
               () => import("./pages/availability-respond.js"),

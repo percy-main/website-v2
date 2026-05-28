@@ -2,11 +2,12 @@ import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
 import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
+import { shareOrDownloadTeamNewsImage } from "@/features/team-news-image.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
-import { useSession } from "@/lib/auth-client.js";
+import { canViewMatchdayAdmin, useSession } from "@/lib/auth-client.js";
 import { cn } from "@/lib/utils.js";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftIcon, ShareIcon } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { ArrowLeftIcon, ImageIcon, ShareIcon } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 
@@ -29,6 +30,7 @@ export default function TeamSheet() {
   const { matchdayId } = useParams();
   const { data: session } = useSession();
   const myUserId = session?.user.id;
+  const isOfficial = canViewMatchdayAdmin(session?.user);
   const {
     data: md,
     isLoading,
@@ -46,11 +48,29 @@ export default function TeamSheet() {
   const [showDropouts, setShowDropouts] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const downloadImage = useMutation({
+    mutationFn: () => {
+      if (!matchdayId || !md) {
+        throw new Error("Match details not loaded");
+      }
+      return shareOrDownloadTeamNewsImage({
+        matchId: matchdayId,
+        isHome: md.away === false,
+        matchTime: md.startTime,
+      });
+    },
+  });
+
   if (isLoading) return <Skel />;
   if (isError || !md) return <ErrState />;
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-12">
+      {downloadImage.isError && (
+        <p className="text-danger px-4 pt-3 text-xs">
+          Couldn't generate team image. Try again.
+        </p>
+      )}
       <div className="flex items-center justify-between p-3">
         <Link
           to="/fixtures"
@@ -58,21 +78,35 @@ export default function TeamSheet() {
         >
           <ArrowLeftIcon className="size-4" /> Back
         </Link>
-        <button
-          type="button"
-          onClick={() => {
-            void navigator.clipboard.writeText(window.location.href);
-            setCopied(true);
-            setTimeout(() => {
-              setCopied(false);
-            }, 2200);
-          }}
-          className="text-text-secondary hover:bg-surface-raised inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium"
-          aria-label="Copy team-sheet link"
-        >
-          <ShareIcon className="size-4" />
-          {copied ? "Copied" : "Share"}
-        </button>
+        <div className="flex items-center gap-1">
+          {isOfficial && (
+            <button
+              type="button"
+              onClick={() => downloadImage.mutate()}
+              disabled={downloadImage.isPending}
+              className="text-text-secondary hover:bg-surface-raised inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium disabled:opacity-60"
+              aria-label="Download team news image"
+            >
+              <ImageIcon className="size-4" />
+              {downloadImage.isPending ? "Preparing…" : "Team image"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard.writeText(window.location.href);
+              setCopied(true);
+              setTimeout(() => {
+                setCopied(false);
+              }, 2200);
+            }}
+            className="text-text-secondary hover:bg-surface-raised inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium"
+            aria-label="Copy team-sheet link"
+          >
+            <ShareIcon className="size-4" />
+            {copied ? "Copied" : "Share"}
+          </button>
+        </div>
       </div>
       <header className="px-4 pb-3">
         <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">

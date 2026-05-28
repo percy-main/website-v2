@@ -1,11 +1,18 @@
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
 import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
+import { shareOrDownloadTeamNewsImage } from "@/features/team-news-image.js";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, SearchIcon, UserPlusIcon, XIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ImageIcon,
+  SearchIcon,
+  UserPlusIcon,
+  XIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -34,6 +41,31 @@ export default function MatchdayEdit() {
         }),
       ),
     enabled: !!matchdayId,
+  });
+
+  // Home/away + start time live on the public projection (sourced from
+  // play-cricket), not the official detail endpoint. Fetch it alongside
+  // so the team-news-image download has accurate query params.
+  const publicDetail = useQuery({
+    queryKey: ["matchday", matchdayId, "public"],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/matchday/{matchId}/public", {
+          params: { path: { matchId: matchdayId ?? "" } },
+        }),
+      ),
+    enabled: !!matchdayId,
+  });
+
+  const downloadImage = useMutation({
+    mutationFn: () => {
+      if (!matchdayId) throw new Error("Match id missing");
+      return shareOrDownloadTeamNewsImage({
+        matchId: matchdayId,
+        isHome: publicDetail.data?.away === false,
+        matchTime: publicDetail.data?.startTime ?? null,
+      });
+    },
   });
 
   const searchResults = useQuery({
@@ -134,15 +166,34 @@ export default function MatchdayEdit() {
         >
           <ArrowLeftIcon className="size-5" />
         </Link>
-        <div>
-          <strong className="block text-sm">
+        <div className="min-w-0 flex-1">
+          <strong className="block truncate text-sm">
             {md.team?.name ?? "Team"} vs {md.matchday.opposition}
           </strong>
           <span className="text-text-secondary text-[11px]">
             {fmtDate(md.matchday.match_date, "EEE d MMM")} · pick squad
           </span>
         </div>
+        <button
+          type="button"
+          onClick={() => downloadImage.mutate()}
+          disabled={
+            downloadImage.isPending ||
+            players.length === 0 ||
+            publicDetail.isLoading
+          }
+          className="text-text-secondary hover:bg-surface-raised inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium disabled:opacity-50"
+          aria-label="Download team news image"
+        >
+          <ImageIcon className="size-4" />
+          {downloadImage.isPending ? "Preparing…" : "Team image"}
+        </button>
       </header>
+      {downloadImage.isError && (
+        <p className="text-danger px-4 pt-2 text-xs">
+          Couldn't generate team image. Try again.
+        </p>
+      )}
 
       <section className="border-border bg-surface border-b p-3">
         <div className="bg-surface-raised flex items-center gap-2 rounded-xl px-3 py-2">
