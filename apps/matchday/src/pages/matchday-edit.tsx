@@ -46,35 +46,10 @@ export default function MatchdayEdit() {
     enabled: !!matchdayId,
   });
 
-  // Home/away + start time live on the public projection (sourced from
-  // play-cricket), not the official detail endpoint. Fetch it alongside
-  // so the team-news-image download has accurate query params.
-  const publicDetail = useQuery({
-    queryKey: ["matchday", matchdayId, "public"],
-    queryFn: () =>
-      callApi(
-        api.GET("/api/matchday/{matchId}/public", {
-          params: { path: { matchId: matchdayId ?? "" } },
-        }),
-      ),
-    enabled: !!matchdayId,
-  });
-
   const downloadImage = useMutation({
     mutationFn: () => {
       if (!matchdayId) throw new Error("Match id missing");
-      // `away` is nullable on the public projection (TBC fixtures), so
-      // a missing publicDetail.data here would silently flip the image
-      // to "away" - guard the mutation and let the disabled state
-      // below keep the user from triggering it before data lands.
-      if (!publicDetail.data) {
-        throw new Error("Match details not loaded yet");
-      }
-      return shareOrDownloadTeamNewsImage({
-        matchId: matchdayId,
-        isHome: publicDetail.data.away === false,
-        matchTime: publicDetail.data.startTime,
-      });
+      return shareOrDownloadTeamNewsImage({ matchId: matchdayId });
     },
   });
 
@@ -188,11 +163,7 @@ export default function MatchdayEdit() {
           <button
             type="button"
             onClick={() => downloadImage.mutate()}
-            disabled={
-              downloadImage.isPending ||
-              players.length === 0 ||
-              !publicDetail.data
-            }
+            disabled={downloadImage.isPending || players.length === 0}
             className="text-text-secondary hover:bg-surface-raised inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium disabled:opacity-50"
             aria-label="Download team news image"
           >

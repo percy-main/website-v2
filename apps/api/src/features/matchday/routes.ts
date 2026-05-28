@@ -82,7 +82,21 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const list = listMatches(app.db);
   const get = getMatch(app.db);
   const getPublic = getMatchPublic(app.db);
-  const getNewsData = getTeamNewsData(app.db);
+  // Play-cricket lookup powers fallback derivation of isHome/matchTime
+  // inside the team-news-image endpoint. Built from app.config (not
+  // process.env) per project convention; null when PC isn't configured
+  // so the service falls back to "home, no time" cleanly.
+  const playCricketApiClient =
+    app.config.PLAY_CRICKET_API_TOKEN && app.config.PLAY_CRICKET_SITE_ID
+      ? createApiClient({
+          apiToken: app.config.PLAY_CRICKET_API_TOKEN,
+          siteId: app.config.PLAY_CRICKET_SITE_ID,
+        })
+      : null;
+  const getNewsData = getTeamNewsData(app.db, {
+    apiClient: playCricketApiClient,
+    siteId: app.config.PLAY_CRICKET_SITE_ID ?? null,
+  });
   const record = recordExpense(app.db, app.s3);
   const update = updateExpense(app.db);
   const remove = deleteExpense(app.db);
@@ -190,13 +204,10 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request, reply) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const data = await getNewsData(
-        user.id,
-        role,
-        request.params.matchId,
-        request.query.isHome,
-        request.query.matchTime,
-      );
+      const data = await getNewsData(user.id, role, request.params.matchId, {
+        isHome: request.query.isHome,
+        matchTime: request.query.matchTime,
+      });
 
       if (data.players.length === 0) {
         throw Object.assign(new Error("No players selected yet"), {

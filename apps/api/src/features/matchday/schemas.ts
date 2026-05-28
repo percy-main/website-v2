@@ -105,11 +105,13 @@ export const searchMembersSchema = z.object({
 
 // ── Team news image schemas ──
 
+// Both are pure overrides. When absent, the route derives them from
+// the joined play-cricket fixture (home_club_id / match_time).
 export const teamNewsImageQuerySchema = z.object({
   isHome: z
     .string()
-    .default("true")
-    .transform((v) => v === "true"),
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
   matchTime: z.string().optional(),
 });
 

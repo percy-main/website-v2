@@ -50,14 +50,8 @@ export default function TeamSheet() {
 
   const downloadImage = useMutation({
     mutationFn: () => {
-      if (!matchdayId || !md) {
-        throw new Error("Match details not loaded");
-      }
-      return shareOrDownloadTeamNewsImage({
-        matchId: matchdayId,
-        isHome: md.away === false,
-        matchTime: md.startTime,
-      });
+      if (!matchdayId) throw new Error("Match id missing");
+      return shareOrDownloadTeamNewsImage({ matchId: matchdayId });
     },
   });
 
