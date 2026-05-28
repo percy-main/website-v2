@@ -605,6 +605,35 @@ describe("availability service (integration)", () => {
       expect(players[1].player_name).toBe("Guest Player");
       expect(players[1].member_id).toBeNull();
     });
+
+    it("throws 409 when a matchday already exists for the date", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `conflict-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Conflict XI");
+      const reqId = await seedRequest(userId, "2027-08-01", "2027-08-07");
+      const fixId = await seedFixture(
+        reqId,
+        teamId,
+        "2027-08-01",
+        "Conflict Opp CC",
+      );
+      await assignPlayer(ctx.db)(reqId, "2027-08-01", {
+        fixtureId: fixId,
+        playerName: "Guest",
+      });
+
+      // First confirmDate succeeds.
+      await confirmDate(ctx.db)(userId, reqId, "2027-08-01");
+
+      // Calling again must conflict rather than silently returning - the
+      // captain would otherwise be misled into thinking newly-added picks
+      // had been carried into the existing matchday.
+      await expect(
+        confirmDate(ctx.db)(userId, reqId, "2027-08-01"),
+      ).rejects.toThrow("already exists");
+    });
   });
 
   describe("updateRequestStatus", () => {
@@ -739,6 +768,44 @@ describe("availability service (integration)", () => {
         .selectAll()
         .execute();
       expect(matchdays).toHaveLength(1);
+    });
+
+    it("closing an already-closed request is a no-op", async () => {
+      // The trigger is the open->closed transition, not the target state.
+      // A repeated close must not iterate fixtures (saves work; documents
+      // that adding assignments after a close needs an explicit reopen).
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `noop-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Noop XI");
+      const reqId = await seedRequest(
+        userId,
+        "2027-09-01",
+        "2027-09-07",
+        "closed",
+      );
+      const fixId = await seedFixture(
+        reqId,
+        teamId,
+        "2027-09-01",
+        "Noop Opp CC",
+      );
+      await assignPlayer(ctx.db)(reqId, "2027-09-01", {
+        fixtureId: fixId,
+        playerName: "Guest",
+      });
+
+      const result = await updateRequestStatus(ctx.db)(userId, reqId, {
+        status: "closed",
+      });
+      expect(result.matchdaysCreated).toBe(0);
+      const matchdays = await ctx.db
+        .selectFrom("matchday")
+        .where("play_cricket_team_id", "=", teamId)
+        .selectAll()
+        .execute();
+      expect(matchdays).toHaveLength(0);
     });
 
     it("does not create matchdays on re-open", async () => {

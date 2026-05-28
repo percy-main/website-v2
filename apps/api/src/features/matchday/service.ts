@@ -871,34 +871,30 @@ export function createMatchday(db: Kysely<DB>) {
       throwHttpError(409, "A matchday already exists for this team and date");
     }
 
-    // If an availability request is still open for this Play Cricket
-    // match, refuse: creating the matchday now snapshots an empty (or
-    // half-picked) squad, and subsequent assignPlayer calls never
-    // propagate. Matchdays are materialised when the request closes -
-    // see updateRequestStatus.
-    if (data.playCricketMatchId) {
-      const openRequest = await db
-        .selectFrom("availability_fixture")
-        .innerJoin(
-          "availability_request",
-          "availability_request.id",
-          "availability_fixture.availability_request_id",
-        )
-        .where(
-          "availability_fixture.play_cricket_match_id",
-          "=",
-          data.playCricketMatchId,
-        )
-        .where("availability_request.status", "=", "open")
-        .select("availability_request.id")
-        .executeTakeFirst();
+    // If an availability request is still open covering this (team, date),
+    // refuse: creating the matchday now snapshots an empty (or half-picked)
+    // squad, and subsequent assignPlayer calls never propagate. Matchdays
+    // are materialised when the request closes - see updateRequestStatus.
+    // Match on (team, date) rather than playCricketMatchId so callers that
+    // omit the match id still hit the guard.
+    const openRequest = await db
+      .selectFrom("availability_fixture")
+      .innerJoin(
+        "availability_request",
+        "availability_request.id",
+        "availability_fixture.availability_request_id",
+      )
+      .where("availability_fixture.play_cricket_team_id", "=", data.teamId)
+      .where("availability_fixture.match_date", "=", data.matchDate)
+      .where("availability_request.status", "=", "open")
+      .select("availability_request.id")
+      .executeTakeFirst();
 
-      if (openRequest) {
-        throwHttpError(
-          409,
-          "An availability request is still open for this match - close it to confirm the squad",
-        );
-      }
+    if (openRequest) {
+      throwHttpError(
+        409,
+        "An availability request is still open for this match - close it to confirm the squad",
+      );
     }
 
     const id = crypto.randomUUID();

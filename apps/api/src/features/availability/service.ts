@@ -737,10 +737,15 @@ export function setAvailability(db: Kysely<DB>) {
 
 /**
  * Materialise matchday + matchday_player rows for one availability_fixture
- * from its current assignments. Idempotent: if a non-cancelled matchday
- * already exists for the (team, date) pair the fixture is skipped and
- * the existing matchdayId is returned. Fixtures with zero assignments
- * are also skipped (no team to confirm).
+ * from its current assignments. Fixtures with zero assignments are
+ * skipped (no team to confirm).
+ *
+ * `onExisting` controls behaviour when a non-cancelled matchday already
+ * exists for the (team, date) pair: "skip" returns the existing id (for
+ * the auto-close flow, which iterates every fixture and should be a
+ * no-op for the ones already handled), "conflict" throws 409 (for the
+ * captain-triggered per-date confirm route, where re-confirming would
+ * silently miss any assignments added since the matchday was created).
  */
 async function materialiseFixtureMatchday(
   trx: Kysely<DB>,
@@ -753,6 +758,7 @@ async function materialiseFixtureMatchday(
     opposition: string;
     competition_type: string | null;
   },
+  onExisting: "skip" | "conflict",
 ): Promise<{ matchdayId: string; created: boolean } | null> {
   const assignments = await trx
     .selectFrom("availability_assignment")
@@ -772,6 +778,12 @@ async function materialiseFixtureMatchday(
     .executeTakeFirst();
 
   if (existing) {
+    if (onExisting === "conflict") {
+      throwHttpError(
+        409,
+        `A matchday already exists for ${fixture.opposition} on ${fixture.match_date}`,
+      );
+    }
     return { matchdayId: existing.id, created: false };
   }
 
@@ -831,7 +843,12 @@ export function confirmDate(db: Kysely<DB>) {
 
     await db.transaction().execute(async (trx) => {
       for (const fixture of fixtures) {
-        const result = await materialiseFixtureMatchday(trx, userId, fixture);
+        const result = await materialiseFixtureMatchday(
+          trx,
+          userId,
+          fixture,
+          "conflict",
+        );
         if (result) {
           matchdayIds.push({
             fixtureId: fixture.id,
@@ -859,10 +876,13 @@ export function updateRequestStatus(db: Kysely<DB>) {
 
     if (!request) throwHttpError(404, "Availability request not found");
 
-    // Closing the request is the trigger that turns picks into matchdays:
+    // The open->closed transition is what turns picks into matchdays:
     // we materialise one matchday per fixture-with-assignments, skipping
-    // any fixture whose (team, date) already has a non-cancelled matchday
-    // so re-closing after a re-open is a no-op.
+    // any fixture whose (team, date) already has a non-cancelled
+    // matchday so re-closing after a re-open is a no-op. Closing an
+    // already-closed request is a status-set with no materialisation.
+    const shouldMaterialise =
+      data.status === "closed" && request.status !== "closed";
     let matchdaysCreated = 0;
     await db.transaction().execute(async (trx) => {
       await trx
@@ -871,7 +891,7 @@ export function updateRequestStatus(db: Kysely<DB>) {
         .where("id", "=", requestId)
         .execute();
 
-      if (data.status !== "closed") return;
+      if (!shouldMaterialise) return;
 
       const fixtures = await trx
         .selectFrom("availability_fixture")
@@ -880,7 +900,12 @@ export function updateRequestStatus(db: Kysely<DB>) {
         .execute();
 
       for (const fixture of fixtures) {
-        const result = await materialiseFixtureMatchday(trx, userId, fixture);
+        const result = await materialiseFixtureMatchday(
+          trx,
+          userId,
+          fixture,
+          "skip",
+        );
         if (result?.created) matchdaysCreated += 1;
       }
     });
