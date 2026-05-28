@@ -4,6 +4,7 @@ import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { shareOrDownloadTeamNewsImage } from "@/features/team-news-image.js";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
+import { canViewMatchdayAdmin, useSession } from "@/lib/auth-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,6 +29,8 @@ export default function MatchdayEdit() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { matchdayId } = useParams();
+  const { data: session } = useSession();
+  const isOfficial = canViewMatchdayAdmin(session?.user);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 250);
   const [guestName, setGuestName] = useState("");
@@ -60,10 +63,17 @@ export default function MatchdayEdit() {
   const downloadImage = useMutation({
     mutationFn: () => {
       if (!matchdayId) throw new Error("Match id missing");
+      // `away` is nullable on the public projection (TBC fixtures), so
+      // a missing publicDetail.data here would silently flip the image
+      // to "away" - guard the mutation and let the disabled state
+      // below keep the user from triggering it before data lands.
+      if (!publicDetail.data) {
+        throw new Error("Match details not loaded yet");
+      }
       return shareOrDownloadTeamNewsImage({
         matchId: matchdayId,
-        isHome: publicDetail.data?.away === false,
-        matchTime: publicDetail.data?.startTime ?? null,
+        isHome: publicDetail.data.away === false,
+        matchTime: publicDetail.data.startTime,
       });
     },
   });
@@ -174,20 +184,22 @@ export default function MatchdayEdit() {
             {fmtDate(md.matchday.match_date, "EEE d MMM")} · pick squad
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => downloadImage.mutate()}
-          disabled={
-            downloadImage.isPending ||
-            players.length === 0 ||
-            publicDetail.isLoading
-          }
-          className="text-text-secondary hover:bg-surface-raised inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium disabled:opacity-50"
-          aria-label="Download team news image"
-        >
-          <ImageIcon className="size-4" />
-          {downloadImage.isPending ? "Preparing…" : "Team image"}
-        </button>
+        {isOfficial && (
+          <button
+            type="button"
+            onClick={() => downloadImage.mutate()}
+            disabled={
+              downloadImage.isPending ||
+              players.length === 0 ||
+              !publicDetail.data
+            }
+            className="text-text-secondary hover:bg-surface-raised inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium disabled:opacity-50"
+            aria-label="Download team news image"
+          >
+            <ImageIcon className="size-4" />
+            {downloadImage.isPending ? "Preparing…" : "Team image"}
+          </button>
+        )}
       </header>
       {downloadImage.isError && (
         <p className="text-danger px-4 pt-2 text-xs">

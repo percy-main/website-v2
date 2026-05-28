@@ -3,11 +3,15 @@ import { API_BASE } from "@/lib/api-client.js";
 /**
  * Fetch the server-generated team news PNG and hand it to the user.
  *
+ * Uses raw fetch (not the openapi-fetch typed client) because the
+ * endpoint returns binary PNG bytes - the typed client only handles
+ * application/json responses. Same pattern as the fantasy share button.
+ *
  * The backend route is officials-only; this helper assumes the caller
  * has already gated the affordance behind `canViewMatchdayAdmin`. On
- * mobile we try Web Share first (so it lands in the user's photo roll
- * / a chat) and fall back to a download anchor if share is unavailable
- * or the user cancels.
+ * mobile we try Web Share first; if the user cancels the share sheet
+ * we treat that as "done" (no download fallback). Only unsupported
+ * share or a real share failure falls through to a download anchor.
  */
 export async function shareOrDownloadTeamNewsImage(opts: {
   matchId: string;
@@ -21,14 +25,7 @@ export async function shareOrDownloadTeamNewsImage(opts: {
 
   const res = await fetch(url, { credentials: "include" });
   if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: string; message?: string };
-      detail = body.error ?? body.message ?? detail;
-    } catch {
-      // not JSON, keep the status text
-    }
-    throw new Error(detail || `HTTP ${res.status}`);
+    throw new Error(res.statusText || `HTTP ${res.status}`);
   }
   const blob = await res.blob();
   const filename = `team-news-${opts.matchId}.png`;
@@ -38,11 +35,20 @@ export async function shareOrDownloadTeamNewsImage(opts: {
     try {
       await navigator.share({ files: [file], title: "Team news" });
       return;
-    } catch {
-      // user cancelled or share failed - fall through to download
+    } catch (err) {
+      // User cancelled the share sheet: that's a deliberate "no" -
+      // not a signal to silently dump the file into Downloads. Only
+      // a non-abort failure should fall through to the download path.
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
     }
   }
 
+  triggerDownload(blob, filename);
+}
+
+function triggerDownload(blob: Blob, filename: string): void {
   const blobUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = blobUrl;
