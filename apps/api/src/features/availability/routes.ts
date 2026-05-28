@@ -28,6 +28,7 @@ import {
   respondSchema,
   setAvailabilitySchema,
   successResponseSchema,
+  updateRequestStatusResponseSchema,
   updateRequestStatusSchema,
 } from "./schemas.ts";
 import {
@@ -228,11 +229,16 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       schema: {
         params: requestIdParamSchema,
         body: updateRequestStatusSchema,
-        response: { 200: successResponseSchema },
+        response: { 200: updateRequestStatusResponseSchema },
       },
     },
     async (request) => {
-      return await updateStatus(request.params.requestId, request.body);
+      const { user } = getAuthSession(request);
+      return await updateStatus(
+        user.id,
+        request.params.requestId,
+        request.body,
+      );
     },
   );
 

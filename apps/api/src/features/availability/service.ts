@@ -735,6 +735,77 @@ export function setAvailability(db: Kysely<DB>) {
   };
 }
 
+/**
+ * Materialise matchday + matchday_player rows for one availability_fixture
+ * from its current assignments. Idempotent: if a non-cancelled matchday
+ * already exists for the (team, date) pair the fixture is skipped and
+ * the existing matchdayId is returned. Fixtures with zero assignments
+ * are also skipped (no team to confirm).
+ */
+async function materialiseFixtureMatchday(
+  trx: Kysely<DB>,
+  userId: string,
+  fixture: {
+    id: string;
+    play_cricket_team_id: string;
+    play_cricket_match_id: string;
+    match_date: string;
+    opposition: string;
+    competition_type: string | null;
+  },
+): Promise<{ matchdayId: string; created: boolean } | null> {
+  const assignments = await trx
+    .selectFrom("availability_assignment")
+    .where("availability_fixture_id", "=", fixture.id)
+    .selectAll()
+    .orderBy("position", "asc")
+    .execute();
+
+  if (assignments.length === 0) return null;
+
+  const existing = await trx
+    .selectFrom("matchday")
+    .where("play_cricket_team_id", "=", fixture.play_cricket_team_id)
+    .where("match_date", "=", fixture.match_date)
+    .where("status", "!=", "cancelled")
+    .select("id")
+    .executeTakeFirst();
+
+  if (existing) {
+    return { matchdayId: existing.id, created: false };
+  }
+
+  const matchdayId = crypto.randomUUID();
+  await trx
+    .insertInto("matchday")
+    .values({
+      id: matchdayId,
+      play_cricket_team_id: fixture.play_cricket_team_id,
+      match_date: fixture.match_date,
+      opposition: fixture.opposition,
+      competition_type: fixture.competition_type,
+      play_cricket_match_id: fixture.play_cricket_match_id,
+      status: "pending",
+      created_by: userId,
+    })
+    .execute();
+
+  await trx
+    .insertInto("matchday_player")
+    .values(
+      assignments.map((a) => ({
+        id: crypto.randomUUID(),
+        matchday_id: matchdayId,
+        member_id: a.member_id,
+        player_name: a.player_name,
+        status: "selected" as const,
+      })),
+    )
+    .execute();
+
+  return { matchdayId, created: true };
+}
+
 export function confirmDate(db: Kysely<DB>) {
   return async (userId: string, requestId: string, date: string) => {
     const request = await db
@@ -745,7 +816,6 @@ export function confirmDate(db: Kysely<DB>) {
 
     if (!request) throwHttpError(404, "Availability request not found");
 
-    // Get fixtures for this date with assignments
     const fixtures = await db
       .selectFrom("availability_fixture")
       .where("availability_request_id", "=", requestId)
@@ -761,61 +831,13 @@ export function confirmDate(db: Kysely<DB>) {
 
     await db.transaction().execute(async (trx) => {
       for (const fixture of fixtures) {
-        const assignments = await trx
-          .selectFrom("availability_assignment")
-          .where("availability_fixture_id", "=", fixture.id)
-          .selectAll()
-          .orderBy("position", "asc")
-          .execute();
-
-        if (assignments.length === 0) continue;
-
-        // Check if matchday already exists for this team + date
-        const existing = await trx
-          .selectFrom("matchday")
-          .where("play_cricket_team_id", "=", fixture.play_cricket_team_id)
-          .where("match_date", "=", fixture.match_date)
-          .select("id")
-          .executeTakeFirst();
-
-        if (existing) {
-          throwHttpError(
-            409,
-            `A matchday already exists for ${fixture.opposition} on ${fixture.match_date}`,
-          );
+        const result = await materialiseFixtureMatchday(trx, userId, fixture);
+        if (result) {
+          matchdayIds.push({
+            fixtureId: fixture.id,
+            matchdayId: result.matchdayId,
+          });
         }
-
-        // Create matchday record
-        const matchdayId = crypto.randomUUID();
-        await trx
-          .insertInto("matchday")
-          .values({
-            id: matchdayId,
-            play_cricket_team_id: fixture.play_cricket_team_id,
-            match_date: fixture.match_date,
-            opposition: fixture.opposition,
-            competition_type: fixture.competition_type,
-            play_cricket_match_id: fixture.play_cricket_match_id,
-            status: "pending",
-            created_by: userId,
-          })
-          .execute();
-
-        // Add assigned players to matchday
-        for (const assignment of assignments) {
-          await trx
-            .insertInto("matchday_player")
-            .values({
-              id: crypto.randomUUID(),
-              matchday_id: matchdayId,
-              member_id: assignment.member_id,
-              player_name: assignment.player_name,
-              status: "selected",
-            })
-            .execute();
-        }
-
-        matchdayIds.push({ fixtureId: fixture.id, matchdayId });
       }
     });
 
@@ -824,22 +846,46 @@ export function confirmDate(db: Kysely<DB>) {
 }
 
 export function updateRequestStatus(db: Kysely<DB>) {
-  return async (requestId: string, data: UpdateRequestStatus) => {
+  return async (
+    userId: string,
+    requestId: string,
+    data: UpdateRequestStatus,
+  ) => {
     const request = await db
       .selectFrom("availability_request")
       .where("id", "=", requestId)
-      .select("id")
+      .select(["id", "status"])
       .executeTakeFirst();
 
     if (!request) throwHttpError(404, "Availability request not found");
 
-    await db
-      .updateTable("availability_request")
-      .set({ status: data.status })
-      .where("id", "=", requestId)
-      .execute();
+    // Closing the request is the trigger that turns picks into matchdays:
+    // we materialise one matchday per fixture-with-assignments, skipping
+    // any fixture whose (team, date) already has a non-cancelled matchday
+    // so re-closing after a re-open is a no-op.
+    let matchdaysCreated = 0;
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable("availability_request")
+        .set({ status: data.status })
+        .where("id", "=", requestId)
+        .execute();
 
-    return { success: true };
+      if (data.status !== "closed") return;
+
+      const fixtures = await trx
+        .selectFrom("availability_fixture")
+        .where("availability_request_id", "=", requestId)
+        .selectAll()
+        .execute();
+
+      for (const fixture of fixtures) {
+        const result = await materialiseFixtureMatchday(trx, userId, fixture);
+        if (result?.created) matchdaysCreated += 1;
+      }
+    });
+
+    return { success: true, matchdaysCreated };
   };
 }
 

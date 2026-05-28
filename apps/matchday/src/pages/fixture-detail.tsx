@@ -63,6 +63,13 @@ export default function FixtureDetail() {
   if (isError || !game) return <ErrState />;
   const directionsQuery = directionsTarget(game);
   const matchdayId = game.lineup?.matchdayId ?? null;
+  // Surfacing only the open case: a closed request already auto-created
+  // the matchday (matchdayId is set above), so the squad-management
+  // buttons take over and this never renders.
+  const openAvailabilityRequest =
+    game.availabilityRequest?.status === "open"
+      ? game.availabilityRequest
+      : null;
   const handlePickTeam = () => {
     const iso = toIsoDate(game.matchDate);
     if (!iso) return;
@@ -134,6 +141,20 @@ export default function FixtureDetail() {
                     evening, before the date-based isPast check flips. */}
                 <Button asChild tone="primary" className="w-full">
                   <Link to={`/matchday/${matchdayId}/wrap`}>Manage game →</Link>
+                </Button>
+              </>
+            ) : openAvailabilityRequest ? (
+              <>
+                <p className="text-text-secondary text-xs leading-snug">
+                  Team selection is underway. The matchday will be created when
+                  the availability request is closed.
+                </p>
+                <Button asChild tone="primary" className="w-full">
+                  <Link
+                    to={`/official/availability/${openAvailabilityRequest.id}/date/${openAvailabilityRequest.date}`}
+                  >
+                    Go to selection →
+                  </Link>
                 </Button>
               </>
             ) : (

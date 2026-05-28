@@ -77,6 +77,16 @@ export interface GameDetail extends GameListItem {
     matchdayId: string;
     players: Array<{ name: string }>;
   } | null;
+  // Non-null while an availability_request covers this fixture. When
+  // status is "open" the FE swaps the "Pick team" CTA for a link into
+  // the selection picker - matchdays are auto-created when the request
+  // closes (see updateRequestStatus), so creating one early here would
+  // race the selection and is forbidden by createMatchday.
+  availabilityRequest: {
+    id: string;
+    status: string;
+    date: string;
+  } | null;
 }
 
 // --- Helpers ---
@@ -244,6 +254,7 @@ export function getGame(
       sponsorship,
       manualResult,
       confirmedMatchday,
+      availabilityRequest,
     ] = await Promise.all([
       api.getMatchDetail(matchId).catch((err: unknown) => {
         // Continue with degraded behaviour but log so a PC outage
@@ -280,6 +291,22 @@ export function getGame(
         .selectFrom("matchday")
         .where("play_cricket_match_id", "=", matchId)
         .select(["id", "confirmed_at"])
+        .executeTakeFirst(),
+      db
+        .selectFrom("availability_fixture")
+        .innerJoin(
+          "availability_request",
+          "availability_request.id",
+          "availability_fixture.availability_request_id",
+        )
+        .where("availability_fixture.play_cricket_match_id", "=", matchId)
+        .select([
+          "availability_request.id",
+          "availability_request.status",
+          "availability_fixture.match_date as date",
+        ])
+        .orderBy("availability_request.created_at", "desc")
+        .limit(1)
         .executeTakeFirst(),
     ]);
 
@@ -438,6 +465,13 @@ export function getGame(
           }
         : null,
       lineup,
+      availabilityRequest: availabilityRequest
+        ? {
+            id: availabilityRequest.id,
+            status: availabilityRequest.status,
+            date: availabilityRequest.date,
+          }
+        : null,
     };
   };
 }

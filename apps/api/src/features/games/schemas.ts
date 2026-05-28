@@ -104,11 +104,20 @@ const lineupSchema = z
   })
   .nullable();
 
+const availabilityRequestSummarySchema = z
+  .object({
+    id: z.string(),
+    status: z.string(),
+    date: z.string(),
+  })
+  .nullable();
+
 export const gameDetailResponseSchema = gameListItemSchema.extend({
   location: locationSchema,
   result: resultSchema,
   sponsor: sponsorSchema,
   lineup: lineupSchema,
+  availabilityRequest: availabilityRequestSummarySchema,
 });
 
 // --- Wagon wheel ---

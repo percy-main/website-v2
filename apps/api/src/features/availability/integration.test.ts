@@ -615,7 +615,7 @@ describe("availability service (integration)", () => {
       });
       const reqId = await seedRequest(userId, "2027-04-01", "2027-04-07");
 
-      await updateRequestStatus(ctx.db)(reqId, { status: "closed" });
+      await updateRequestStatus(ctx.db)(userId, reqId, { status: "closed" });
       const closed = await ctx.db
         .selectFrom("availability_request")
         .where("id", "=", reqId)
@@ -623,13 +623,152 @@ describe("availability service (integration)", () => {
         .executeTakeFirst();
       expect(closed?.status).toBe("closed");
 
-      await updateRequestStatus(ctx.db)(reqId, { status: "open" });
+      await updateRequestStatus(ctx.db)(userId, reqId, { status: "open" });
       const opened = await ctx.db
         .selectFrom("availability_request")
         .where("id", "=", reqId)
         .select("status")
         .executeTakeFirst();
       expect(opened?.status).toBe("open");
+    });
+
+    it("auto-creates matchdays on close from every fixture with assignments", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `close-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamA = await seedTeam("Auto XI A");
+      const teamB = await seedTeam("Auto XI B");
+      const reqId = await seedRequest(userId, "2027-05-01", "2027-05-08");
+      const fixA = await seedFixture(
+        reqId,
+        teamA,
+        "2027-05-01",
+        "Auto Opp A CC",
+      );
+      const fixB = await seedFixture(
+        reqId,
+        teamB,
+        "2027-05-08",
+        "Auto Opp B CC",
+      );
+      // Third fixture deliberately has zero assignments - must be skipped.
+      await seedFixture(reqId, teamA, "2027-05-05", "Auto Empty CC");
+
+      const memA = await seedMember(
+        "Anna",
+        `anna-${crypto.randomUUID()}@t.com`,
+      );
+      const memB = await seedMember("Bob", `bob-${crypto.randomUUID()}@t.com`);
+      await assignPlayer(ctx.db)(reqId, "2027-05-01", {
+        fixtureId: fixA,
+        memberId: memA,
+        playerName: "Anna",
+      });
+      await assignPlayer(ctx.db)(reqId, "2027-05-08", {
+        fixtureId: fixB,
+        memberId: memB,
+        playerName: "Bob",
+      });
+
+      const result = await updateRequestStatus(ctx.db)(userId, reqId, {
+        status: "closed",
+      });
+      expect(result.success).toBe(true);
+      expect(result.matchdaysCreated).toBe(2);
+
+      const matchdays = await ctx.db
+        .selectFrom("matchday")
+        .where("play_cricket_team_id", "in", [teamA, teamB])
+        .selectAll()
+        .execute();
+      expect(matchdays).toHaveLength(2);
+      const mdA = matchdays.find((m) => m.play_cricket_team_id === teamA);
+      const mdB = matchdays.find((m) => m.play_cricket_team_id === teamB);
+      expect(mdA?.opposition).toBe("Auto Opp A CC");
+      expect(mdB?.opposition).toBe("Auto Opp B CC");
+
+      const players = await ctx.db
+        .selectFrom("matchday_player")
+        .where("matchday_id", "in", [mdA?.id ?? "", mdB?.id ?? ""])
+        .select(["matchday_id", "player_name", "member_id"])
+        .execute();
+      expect(players).toHaveLength(2);
+      expect(players.find((p) => p.matchday_id === mdA?.id)?.member_id).toBe(
+        memA,
+      );
+    });
+
+    it("re-closing after re-open is idempotent", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `idem-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Idem XI");
+      const reqId = await seedRequest(userId, "2027-06-01", "2027-06-07");
+      const fixId = await seedFixture(
+        reqId,
+        teamId,
+        "2027-06-01",
+        "Idem Opp CC",
+      );
+      const memberId = await seedMember(
+        "Iggy",
+        `iggy-${crypto.randomUUID()}@t.com`,
+      );
+      await assignPlayer(ctx.db)(reqId, "2027-06-01", {
+        fixtureId: fixId,
+        memberId,
+        playerName: "Iggy",
+      });
+
+      const first = await updateRequestStatus(ctx.db)(userId, reqId, {
+        status: "closed",
+      });
+      expect(first.matchdaysCreated).toBe(1);
+
+      await updateRequestStatus(ctx.db)(userId, reqId, { status: "open" });
+      const second = await updateRequestStatus(ctx.db)(userId, reqId, {
+        status: "closed",
+      });
+      expect(second.matchdaysCreated).toBe(0);
+
+      const matchdays = await ctx.db
+        .selectFrom("matchday")
+        .where("play_cricket_team_id", "=", teamId)
+        .selectAll()
+        .execute();
+      expect(matchdays).toHaveLength(1);
+    });
+
+    it("does not create matchdays on re-open", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `reopen-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Reopen XI");
+      const reqId = await seedRequest(userId, "2027-07-01", "2027-07-07");
+      const fixId = await seedFixture(
+        reqId,
+        teamId,
+        "2027-07-01",
+        "Reopen Opp CC",
+      );
+      await assignPlayer(ctx.db)(reqId, "2027-07-01", {
+        fixtureId: fixId,
+        playerName: "Guest",
+      });
+
+      const result = await updateRequestStatus(ctx.db)(userId, reqId, {
+        status: "open",
+      });
+      expect(result.matchdaysCreated).toBe(0);
+      const matchdays = await ctx.db
+        .selectFrom("matchday")
+        .where("play_cricket_team_id", "=", teamId)
+        .selectAll()
+        .execute();
+      expect(matchdays).toHaveLength(0);
     });
   });
 

@@ -206,6 +206,13 @@ export const confirmDateResponseSchema = z.object({
   ),
 });
 
+export const updateRequestStatusResponseSchema = z.object({
+  success: z.boolean(),
+  // Number of matchdays auto-created when the request flipped to
+  // "closed". Always 0 when re-opening or when no date had assignments.
+  matchdaysCreated: z.number(),
+});
+
 const activeFixtureSchema = z.object({
   id: z.string(),
   availability_request_id: z.string(),
