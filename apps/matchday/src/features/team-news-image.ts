@@ -8,20 +8,18 @@ import { API_BASE } from "@/lib/api-client.js";
  * application/json responses. Same pattern as the fantasy share button.
  *
  * The backend route is officials-only; this helper assumes the caller
- * has already gated the affordance behind `canViewMatchdayAdmin`. On
- * mobile we try Web Share first; if the user cancels the share sheet
- * we treat that as "done" (no download fallback). Only unsupported
- * share or a real share failure falls through to a download anchor.
+ * has already gated the affordance behind `canViewMatchdayAdmin`. The
+ * backend derives home/away + match time from the play-cricket fixture
+ * itself, so callers don't pass them. On mobile we try Web Share first;
+ * if the user cancels the share sheet we treat that as "done" (no
+ * download fallback). Only unsupported share or a real share failure
+ * falls through to a download anchor.
  */
 export async function shareOrDownloadTeamNewsImage(opts: {
   matchId: string;
-  isHome: boolean;
-  matchTime: string | null;
 }): Promise<void> {
   const base = API_BASE.replace(/\/$/, "");
-  const params = new URLSearchParams({ isHome: String(opts.isHome) });
-  if (opts.matchTime) params.set("matchTime", opts.matchTime);
-  const url = `${base}/matchday/${encodeURIComponent(opts.matchId)}/team-news-image?${params.toString()}`;
+  const url = `${base}/matchday/${encodeURIComponent(opts.matchId)}/team-news-image`;
 
   const res = await fetch(url, { credentials: "include" });
   if (!res.ok) {

@@ -5,6 +5,7 @@ import {
   requirePermission,
 } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
+import { getMatchDetail as getPlayCricketMatchDetail } from "../play-cricket/service.ts";
 import {
   addPlayerResponseSchema,
   addPlayerSchema,
@@ -82,7 +83,16 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const list = listMatches(app.db);
   const get = getMatch(app.db);
   const getPublic = getMatchPublic(app.db);
-  const getNewsData = getTeamNewsData(app.db);
+  // Play-cricket lookup powers fallback derivation of isHome/matchTime
+  // inside the team-news-image endpoint. Wired here (not inside the
+  // service) so the service stays free of config + module-level deps.
+  const getNewsData = getTeamNewsData(app.db, {
+    getPlayCricketMatchDetail:
+      app.config.PLAY_CRICKET_API_TOKEN && app.config.PLAY_CRICKET_SITE_ID
+        ? getPlayCricketMatchDetail(app.db)
+        : null,
+    siteId: app.config.PLAY_CRICKET_SITE_ID ?? null,
+  });
   const record = recordExpense(app.db, app.s3);
   const update = updateExpense(app.db);
   const remove = deleteExpense(app.db);
@@ -190,13 +200,10 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request, reply) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      const data = await getNewsData(
-        user.id,
-        role,
-        request.params.matchId,
-        request.query.isHome,
-        request.query.matchTime,
-      );
+      const data = await getNewsData(user.id, role, request.params.matchId, {
+        isHome: request.query.isHome,
+        matchTime: request.query.matchTime,
+      });
 
       if (data.players.length === 0) {
         throw Object.assign(new Error("No players selected yet"), {

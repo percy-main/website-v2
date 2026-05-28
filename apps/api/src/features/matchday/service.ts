@@ -2085,13 +2085,27 @@ export interface TeamNewsData {
   matchSponsor: { name: string; logoUrl: string | null } | null;
 }
 
-export function getTeamNewsData(db: Kysely<DB>) {
+/**
+ * Optional dependencies that let the service derive home/away + match
+ * time from the upstream play-cricket fixture when the caller didn't
+ * specify them. `getMatchDetail` is the cached lookup from
+ * play-cricket/service.ts; `siteId` is our Percy Main club id.
+ *
+ * Pass `null` when play-cricket isn't configured (local dev without
+ * the API token) - the service will fall back to `isHome=true` and
+ * no time, which is the right default for the local case anyway.
+ */
+export interface TeamNewsImageContext {
+  getPlayCricketMatchDetail: ((matchId: string) => Promise<unknown>) | null;
+  siteId: string | null;
+}
+
+export function getTeamNewsData(db: Kysely<DB>, ctx: TeamNewsImageContext) {
   return async (
     userId: string,
     role: string,
     matchId: string,
-    isHome: boolean,
-    matchTime: string | undefined,
+    overrides: { isHome?: boolean; matchTime?: string },
   ): Promise<TeamNewsData> => {
     // Verify access (same pattern as getMatch)
     if (!hasClubWideAccess(role, "matchday", "view")) {
@@ -2184,12 +2198,38 @@ export function getTeamNewsData(db: Kysely<DB>) {
       }
     }
 
+    // Resolve isHome + matchTime. Honour explicit caller overrides;
+    // otherwise look the fixture up on play-cricket so the image is
+    // accurate without the frontend having to know.
+    let { isHome, matchTime } = overrides;
+    if (
+      (isHome === undefined || matchTime === undefined) &&
+      match.play_cricket_match_id &&
+      ctx.getPlayCricketMatchDetail &&
+      ctx.siteId
+    ) {
+      const detail = (await ctx
+        .getPlayCricketMatchDetail(match.play_cricket_match_id)
+        .catch(() => null)) as {
+        match_details?: Array<{ home_club_id?: string; match_time?: string }>;
+      } | null;
+      const d = detail?.match_details?.[0];
+      if (d) {
+        if (isHome === undefined && d.home_club_id) {
+          isHome = d.home_club_id === ctx.siteId;
+        }
+        if (matchTime === undefined && d.match_time) {
+          matchTime = d.match_time;
+        }
+      }
+    }
+
     return {
       teamName: team?.name ? `Percy Main ${team.name}` : "Percy Main",
       opposition: match.opposition,
       matchDate: match.match_date,
       matchTime: matchTime ?? null,
-      isHome,
+      isHome: isHome ?? true,
       players: players.map((p) => ({
         playerName: p.player_name,
         sponsorName: p.slug ? (sponsorBySlug.get(p.slug) ?? null) : null,
