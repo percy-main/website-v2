@@ -16,11 +16,14 @@ import { useParams } from "react-router";
  *   1. Confirm who actually played - per-player playing / dropped-out
  *      / no-show selector.
  *   2. Result picker.
- *   3. Confirm - this is what creates the match-fee charges. If the
- *      API reports any player without a resolved fee, the captain
- *      enters the amount inline and re-submits.
- *   4. Mark each charge paid + payment method (post-finish only).
- *   5. Close match.
+ *   3. Confirm - this is what creates the match-fee charges. No emails
+ *      go out yet. If the API reports any player without a resolved
+ *      fee, the captain enters the amount inline and re-submits.
+ *   4. Mark each charge paid + payment method (post-finish only) - the
+ *      captain ticks off anyone who paid cash / bank transfer on the day.
+ *   5. Send donation requests - emails/pushes only the players still
+ *      unpaid. One-shot: once sent it can't be re-sent, so later cash is
+ *      just recorded via the mark-paid tick without re-nagging anyone.
  *
  * Pre-finish there are no charges yet, so the mark-paid UI is hidden.
  */
@@ -47,6 +50,9 @@ export default function MatchdayLive() {
   const [statusOverrides, setStatusOverrides] = useState<
     Record<string, PlayerStatus>
   >({});
+  // Two-step confirm on the one-shot donation-request batch - sending
+  // emails/pushes to members is outward-facing and can't be undone.
+  const [confirmNotify, setConfirmNotify] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["matchday", matchdayId],
@@ -105,6 +111,19 @@ export default function MatchdayLive() {
     },
   });
 
+  const notify = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/matchday/{matchId}/notify-charges", {
+          params: { path: { matchId: matchdayId ?? "" } },
+        }),
+      ),
+    onSuccess: () => {
+      setConfirmNotify(false);
+      void qc.invalidateQueries({ queryKey: ["matchday", matchdayId] });
+    },
+  });
+
   if (!md) {
     return (
       <div className="space-y-2 p-4">
@@ -152,6 +171,10 @@ export default function MatchdayLive() {
   const hasCharge = (p: MatchdayPlayer) => p.chargeStatus !== null;
   const paid = playing.filter((p) => isSettled(p.chargeStatus)).length;
   const unpaid = playing.filter((p) => p.chargeStatus === "unpaid").length;
+  // Donation requests are a one-shot batch sent after wrap-up. Null until
+  // the captain fires it; once set, late cash is just recorded via the
+  // mark-paid tick and nobody is re-nagged.
+  const notified = md.matchday.charges_notified_at != null;
 
   return (
     <div className="bg-surface flex min-h-dvh flex-col">
@@ -196,6 +219,12 @@ export default function MatchdayLive() {
         <h2 className="text-text-secondary px-4 pt-3 pb-1 text-[11px] font-semibold tracking-[0.06em] uppercase">
           Squad · {md.players.length}
         </h2>
+        {finished && !notified && unpaid > 0 && (
+          <p className="text-text-secondary px-4 pb-1 text-[12px]">
+            Tick off anyone who paid on the day, then send donation requests to
+            the rest.
+          </p>
+        )}
         {md.players.map((p) => {
           const status = resolveStatus(p);
           const isPaid = isSettled(p.chargeStatus);
@@ -344,10 +373,57 @@ export default function MatchdayLive() {
             >
               Finish match
             </Button>
-          ) : (
+          ) : notified ? (
             <p className="text-text-secondary w-full text-center text-sm md:flex-1">
-              Match finished · result {md.matchday.result_type ?? "—"}
+              Donation requests sent · result {md.matchday.result_type ?? "—"}
             </p>
+          ) : unpaid === 0 ? (
+            <p className="text-text-secondary w-full text-center text-sm md:flex-1">
+              All donations settled · result {md.matchday.result_type ?? "—"}
+            </p>
+          ) : confirmNotify ? (
+            <div className="w-full md:flex-1">
+              <p className="text-text-secondary mb-2 text-center text-[13px]">
+                Email/push {unpaid} unpaid {unpaid === 1 ? "player" : "players"}
+                ? This can only be sent once.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  tone="outline"
+                  size="lg"
+                  className="flex-1"
+                  disabled={notify.isPending}
+                  onClick={() => setConfirmNotify(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  tone="primary"
+                  size="lg"
+                  className="flex-1"
+                  disabled={notify.isPending}
+                  onClick={() => notify.mutate()}
+                >
+                  {notify.isPending ? "Sending…" : "Send now"}
+                </Button>
+              </div>
+              {notify.isError && (
+                <p className="text-danger mt-2 text-center text-[12px]">
+                  {notify.error instanceof Error
+                    ? notify.error.message
+                    : "Could not send donation requests."}
+                </p>
+              )}
+            </div>
+          ) : (
+            <Button
+              tone="primary"
+              size="lg"
+              className="w-full md:flex-1"
+              onClick={() => setConfirmNotify(true)}
+            >
+              Send donation requests · {unpaid}
+            </Button>
           )}
         </div>
       </div>
@@ -687,7 +763,7 @@ function FinishSheet({
 
       <div className="bg-surface-raised mt-4 space-y-1 rounded-xl p-3 text-sm">
         <Row label={`${playingPlayers.length} playing`}>
-          will be charged · donation emails sent
+          will be charged · no emails yet
         </Row>
         <Row label={`${draftExpenseCount} draft expenses`}>
           will be submitted

@@ -25,6 +25,7 @@ import {
   matchIdParamSchema,
   myRecentPerformanceResponseSchema,
   myUpcomingMatchesResponseSchema,
+  notifyChargesResponseSchema,
   pastUnfinishedMatchdaysResponseSchema,
   playerIdParamSchema,
   publicMatchdayResponseSchema,
@@ -62,6 +63,7 @@ import {
   listTeams,
   markExpenseReimbursed,
   markFeePaid,
+  notifyMatchCharges,
   recordExpense,
   rejectExpense,
   removePlayer,
@@ -383,7 +385,8 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const removeP = removePlayer(app.db);
   const setRoles = setMatchRoles(app.db);
   const paid = markFeePaid(app.db);
-  const finish = finishMatch(app.db, app.send, app.sendPush, app.config);
+  const finish = finishMatch(app.db);
+  const notify = notifyMatchCharges(app.db, app.send, app.sendPush, app.config);
   const cancel = cancelMatchday(app.db);
 
   // Play-Cricket API client for upcoming matches — wired at registration time
@@ -589,13 +592,23 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      return await finish(
-        user.id,
-        role,
-        request.params.matchId,
-        request.body,
-        request.log,
-      );
+      return await finish(user.id, role, request.params.matchId, request.body);
+    },
+  );
+
+  app.post(
+    "/matchday/:matchId/notify-charges",
+    {
+      preHandler: [adminRole],
+      schema: {
+        params: matchIdParamSchema,
+        response: { 200: notifyChargesResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await notify(user.id, role, request.params.matchId, request.log);
     },
   );
 

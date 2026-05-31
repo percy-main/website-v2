@@ -4176,6 +4176,8 @@ export interface paths {
                                 cancelled_at: string | null;
                                 cancelled_by: string | null;
                                 cancelled_reason: string | null;
+                                charges_notified_at: string | null;
+                                charges_notified_by: string | null;
                             }[];
                         };
                     };
@@ -4268,6 +4270,8 @@ export interface paths {
                                 cancelled_at: string | null;
                                 cancelled_by: string | null;
                                 cancelled_reason: string | null;
+                                charges_notified_at: string | null;
+                                charges_notified_by: string | null;
                             };
                             team: {
                                 id: string;
@@ -5215,6 +5219,46 @@ export interface paths {
                     };
                 };
             };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                            chargesCreated: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/matchday/{matchId}/notify-charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
             responses: {
                 /** @description Default Response */
                 200: {

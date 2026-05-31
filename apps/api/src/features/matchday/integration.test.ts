@@ -21,6 +21,7 @@ import {
   listTeams,
   markExpenseReimbursed,
   markFeePaid,
+  notifyMatchCharges,
   recordExpense,
   rejectExpense,
   removePlayer,
@@ -45,18 +46,34 @@ async function finishAsTest(
     resultType?: "W" | "L" | "D" | "T" | "A" | "C" | "N";
   } = {},
 ) {
+  return finishMatch(ctx.db)(userId, "admin", matchdayId, {
+    resultType: data.resultType ?? "W",
+    playerStatuses: data.playerStatuses ?? [],
+    feeOverrides: data.feeOverrides ?? [],
+  });
+}
+
+// Fire the donation-request batch the way the route does, after the
+// match has been wrapped up.
+async function notifyAsTest(
+  matchdayId: string,
+  userId: string,
+  deps: {
+    sendEmail?: (e: {
+      to: string;
+      subject: string;
+      html: string;
+    }) => Promise<void>;
+    sendPush?: SendPush;
+  } = {},
+) {
   const { createNoopLogger } = await import("../../lib/worker-logger.ts");
-  return finishMatch(ctx.db, noopSendEmail, noopSendPush, testConfig)(
-    userId,
-    "admin",
-    matchdayId,
-    {
-      resultType: data.resultType ?? "W",
-      playerStatuses: data.playerStatuses ?? [],
-      feeOverrides: data.feeOverrides ?? [],
-    },
-    createNoopLogger(),
-  );
+  return notifyMatchCharges(
+    ctx.db,
+    deps.sendEmail ?? noopSendEmail,
+    deps.sendPush ?? noopSendPush,
+    testConfig,
+  )(userId, "admin", matchdayId, createNoopLogger());
 }
 
 const s3 = noopS3Uploader;
@@ -702,23 +719,18 @@ describe("matchday service (integration)", () => {
         return Promise.resolve();
       };
 
-      const { createNoopLogger } = await import("../../lib/worker-logger.ts");
-      const result = await finishMatch(
-        ctx.db,
-        recordingSendEmail,
-        recordingSendPush,
-        testConfig,
-      )(
-        adminId,
-        "admin",
-        matchdayId,
-        {
-          resultType: "W",
-          playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
-          feeOverrides: [],
-        },
-        createNoopLogger(),
-      );
+      // Wrapping up only creates the charge - no notifications yet.
+      await finishAsTest(matchdayId, adminId, {
+        playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
+      });
+      expect(pushCalls).toHaveLength(0);
+      expect(emailCalls).toHaveLength(0);
+
+      // The captain then sends the donation-request batch.
+      const result = await notifyAsTest(matchdayId, adminId, {
+        sendEmail: recordingSendEmail,
+        sendPush: recordingSendPush,
+      });
 
       expect(result.success).toBe(true);
       expect(result.emailsSent).toBe(1);
@@ -734,6 +746,83 @@ describe("matchday service (integration)", () => {
       expect(payload.title).toBeTruthy();
       expect(payload.body).toContain("£5.00");
       expect(payload.tag.startsWith("charge:")).toBe(true);
+
+      // One-shot: a second batch is refused.
+      await expect(notifyAsTest(matchdayId, adminId)).rejects.toThrow(
+        "Donation requests have already been sent",
+      );
+    });
+
+    it("skips players marked paid before the donation batch is sent", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `notify-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const paidEmail = `paid-${crypto.randomUUID()}@test.com`;
+      const unpaidEmail = `unpaid-${crypto.randomUUID()}@test.com`;
+      const paidMemberId = await seedMember("Paid Player", paidEmail, "senior");
+      const unpaidMemberId = await seedMember(
+        "Unpaid Player",
+        unpaidEmail,
+        "senior",
+      );
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      await seedFeeRate({ teamId, memberCategory: "senior", amountPence: 500 });
+
+      const { id: paidPlayerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId: paidMemberId, playerName: "Paid Player" },
+      );
+      const { id: unpaidPlayerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId: unpaidMemberId, playerName: "Unpaid Player" },
+      );
+
+      await finishAsTest(matchdayId, adminId, {
+        playerStatuses: [
+          { matchdayPlayerId: paidPlayerId, status: "playing" },
+          { matchdayPlayerId: unpaidPlayerId, status: "playing" },
+        ],
+      });
+
+      // Captain collects cash from one player on the day, before notifying.
+      await markFeePaid(ctx.db)(adminId, "admin", matchdayId, paidPlayerId, {
+        paymentMethod: "cash",
+      });
+
+      const emailCalls: Array<{ to: string }> = [];
+      const result = await notifyAsTest(matchdayId, adminId, {
+        sendEmail: (e) => {
+          emailCalls.push({ to: e.to });
+          return Promise.resolve();
+        },
+      });
+
+      // Only the still-unpaid player is emailed.
+      expect(result.emailsSent).toBe(1);
+      expect(emailCalls).toHaveLength(1);
+      expect(emailCalls[0]?.to).toBe(unpaidEmail);
+    });
+
+    it("refuses to notify before the match is wrapped up", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `early-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+
+      await expect(notifyAsTest(matchdayId, adminId)).rejects.toThrow(
+        "Wrap up the match before sending donation requests",
+      );
     });
 
     it("raises a junior-rate charge against the parent when a dependent plays", async () => {

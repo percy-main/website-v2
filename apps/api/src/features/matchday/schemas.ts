@@ -182,6 +182,11 @@ const matchdayItemSchema = z.object({
   cancelled_at: z.string().nullable(),
   cancelled_by: z.string().nullable(),
   cancelled_reason: z.string().nullable(),
+  // Null until the captain sends the donation-request batch. Lets the
+  // wrap-up UI show an unpaid count and a "Send donation requests" CTA
+  // before notifying, and switch to a "sent" state afterwards.
+  charges_notified_at: z.string().nullable(),
+  charges_notified_by: z.string().nullable(),
 });
 
 export const listMatchesResponseSchema = z.object({
@@ -382,7 +387,16 @@ export const addPlayerResponseSchema = z.object({
   id: z.string(),
 });
 
+// Wrapping up a match only creates the match-fee charges now - the
+// donation-request emails/pushes go out via a separate notify step. So
+// the response reports how many charges were raised, not how many
+// emails were sent.
 export const finishMatchResponseSchema = z.object({
+  success: z.boolean(),
+  chargesCreated: z.number(),
+});
+
+export const notifyChargesResponseSchema = z.object({
   success: z.boolean(),
   emailsSent: z.number(),
   emailErrors: z.array(z.string()),
