@@ -212,7 +212,7 @@ export default function OfficialAvailabilityNew() {
         )}
       </div>
 
-      <StickyActionBar>
+      <StickyActionBar outerClassName="md:border-t-0">
         <Button asChild tone="outline">
           <Link to="/official/availability">Cancel</Link>
         </Button>

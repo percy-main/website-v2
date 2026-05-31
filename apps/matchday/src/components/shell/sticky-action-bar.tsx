@@ -15,17 +15,26 @@ import type { ReactNode } from "react";
  * into normal flow at the foot of the content column (`md:static`).
  *
  * `className` is forwarded to the inner max-width row so callers can
- * tweak button alignment (defaults to right-aligned).
+ * tweak button alignment (defaults to right-aligned). `outerClassName`
+ * is forwarded to the outer positioned element for per-page tweaks to
+ * the desktop appearance (e.g. dropping the `md:border-t` divider).
  */
 export function StickyActionBar({
   children,
   className,
+  outerClassName,
 }: {
   children: ReactNode;
   className?: string;
+  outerClassName?: string;
 }) {
   return (
-    <div className="border-border bg-surface/95 fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-30 rounded-2xl border shadow-[0_8px_30px_-4px_rgba(0,0,0,0.28)] backdrop-blur md:static md:inset-x-auto md:bottom-auto md:rounded-none md:border-0 md:border-t md:shadow-none">
+    <div
+      className={cn(
+        "border-border bg-surface/95 fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-30 rounded-2xl border shadow-[0_8px_30px_-4px_rgba(0,0,0,0.28)] backdrop-blur md:static md:inset-x-auto md:bottom-auto md:rounded-none md:border-0 md:border-t md:shadow-none",
+        outerClassName,
+      )}
+    >
       <div
         className={cn(
           "mx-auto flex max-w-2xl items-center justify-end gap-2 px-4 py-3",
