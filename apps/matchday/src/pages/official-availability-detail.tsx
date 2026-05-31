@@ -1,8 +1,8 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
+import { StickyActionBar } from "@/components/shell/sticky-action-bar.js";
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
 import { api, callApi } from "@/lib/api-client.js";
-import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { Link, useParams } from "react-router";
@@ -132,32 +132,26 @@ export default function OfficialAvailabilityDetail() {
         ))}
       </section>
 
-      <div className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur md:static">
-        <div
-          className={cn(
-            "mx-auto flex max-w-2xl items-center gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)]",
-          )}
-        >
-          {request.status === "open" && (
-            <Button
-              tone="destructive"
-              className="flex-1"
-              disabled={close.isPending}
-              onClick={() => {
-                if (
-                  confirm(
-                    "Close this request? Players won't be able to respond after this.",
-                  )
-                ) {
-                  close.mutate();
-                }
-              }}
-            >
-              Close request
-            </Button>
-          )}
-        </div>
-      </div>
+      {request.status === "open" && (
+        <StickyActionBar>
+          <Button
+            tone="destructive"
+            className="flex-1"
+            disabled={close.isPending}
+            onClick={() => {
+              if (
+                confirm(
+                  "Close this request? Players won't be able to respond after this.",
+                )
+              ) {
+                close.mutate();
+              }
+            }}
+          >
+            Close request
+          </Button>
+        </StickyActionBar>
+      )}
     </div>
   );
 }
