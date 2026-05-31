@@ -304,10 +304,10 @@ importers:
         version: 1.2.4(@types/react@19.2.14)(react@19.2.6)
       '@stripe/react-stripe-js':
         specifier: ^6.5.0
-        version: 6.5.0(@stripe/stripe-js@8.9.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 6.5.0(@stripe/stripe-js@9.7.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@stripe/stripe-js':
-        specifier: ^8.9.0
-        version: 8.9.0
+        specifier: ^9.7.0
+        version: 9.7.0
       '@tanstack/react-query':
         specifier: ^5.100.14
         version: 5.100.14(react@19.2.6)
@@ -434,10 +434,10 @@ importers:
         version: 2.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@stripe/react-stripe-js':
         specifier: ^6.5.0
-        version: 6.5.0(@stripe/stripe-js@8.9.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 6.5.0(@stripe/stripe-js@9.7.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@stripe/stripe-js':
-        specifier: ^8.9.0
-        version: 8.9.0
+        specifier: ^9.7.0
+        version: 9.7.0
       '@tanstack/react-query':
         specifier: ^5.100.14
         version: 5.100.14(react@19.2.6)
@@ -3704,8 +3704,8 @@ packages:
       react: '>=16.8.0 <20.0.0'
       react-dom: '>=16.8.0 <20.0.0'
 
-  '@stripe/stripe-js@8.9.0':
-    resolution: {integrity: sha512-OJkXvUI5GAc56QdiSRimQDvWYEqn475J+oj8RzRtFTCPtkJNO2TWW619oDY+nn1ExR+2tCVTQuRQBbR4dRugww==}
+  '@stripe/stripe-js@9.7.0':
+    resolution: {integrity: sha512-r1ElolvWXM4aYnZZVHvKW3EDL8JcwEuIgTuWxlB5lvC+YsvjkQ0gX35x9d8dTDubX395fViLVqkaolVs1PmIQQ==}
     engines: {node: '>=12.16'}
 
   '@swc/helpers@0.5.15':
@@ -11708,14 +11708,14 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@stripe/react-stripe-js@6.5.0(@stripe/stripe-js@8.9.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@stripe/react-stripe-js@6.5.0(@stripe/stripe-js@9.7.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
-      '@stripe/stripe-js': 8.9.0
+      '@stripe/stripe-js': 9.7.0
       prop-types: 15.8.1
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
 
-  '@stripe/stripe-js@8.9.0': {}
+  '@stripe/stripe-js@9.7.0': {}
 
   '@swc/helpers@0.5.15':
     dependencies:
