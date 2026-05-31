@@ -52,10 +52,14 @@ export function ServiceWorkerUpdate() {
 
   if (!needRefresh) return null;
 
+  // Mobile offset (+160px) clears both the bottom tab bar and a
+  // <StickyActionBar /> when one is present on the page, so the toast
+  // never covers a page's primary action buttons. Desktop overrides to
+  // a corner (md:bottom-6 / md:right-6) where there is no tab bar.
   return (
     <div
       role="status"
-      className="bg-text fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+72px)] z-40 flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm text-white shadow-lg md:right-6 md:bottom-6 md:left-auto md:max-w-sm"
+      className="bg-text fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+160px)] z-40 flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm text-white shadow-lg md:right-6 md:bottom-6 md:left-auto md:max-w-sm"
     >
       <div>
         <div className="font-semibold">New version available</div>

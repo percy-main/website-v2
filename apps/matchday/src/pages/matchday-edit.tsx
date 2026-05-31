@@ -1,3 +1,4 @@
+import { StickyActionBar } from "@/components/shell/sticky-action-bar.js";
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
 import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
@@ -347,22 +348,20 @@ export default function MatchdayEdit() {
         </div>
       </section>
 
-      <div className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur md:static">
-        <div className="mx-auto flex max-w-2xl items-center justify-end gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)] md:pb-3">
-          <Button asChild tone="outline">
-            <Link to={exitTo}>Save & close</Link>
-          </Button>
-          <Button
-            tone="primary"
-            disabled={players.length === 0}
-            onClick={() => {
-              void navigate(exitTo);
-            }}
-          >
-            Done
-          </Button>
-        </div>
-      </div>
+      <StickyActionBar>
+        <Button asChild tone="outline">
+          <Link to={exitTo}>Save & close</Link>
+        </Button>
+        <Button
+          tone="primary"
+          disabled={players.length === 0}
+          onClick={() => {
+            void navigate(exitTo);
+          }}
+        >
+          Done
+        </Button>
+      </StickyActionBar>
     </div>
   );
 }
