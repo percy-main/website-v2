@@ -825,6 +825,51 @@ describe("matchday service (integration)", () => {
       );
     });
 
+    it("only one of two concurrent notify calls delivers the batch", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `race-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const playerEmail = `race-player-${crypto.randomUUID()}@test.com`;
+      const memberId = await seedMember("Race Player", playerEmail, "senior");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      await seedFeeRate({ teamId, memberCategory: "senior", amountPence: 500 });
+
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Race Player" },
+      );
+      await finishAsTest(matchdayId, adminId, {
+        playerStatuses: [{ matchdayPlayerId: playerId, status: "playing" }],
+      });
+
+      const emailCalls: Array<{ to: string }> = [];
+      const recordingSendEmail = (e: { to: string }) => {
+        emailCalls.push({ to: e.to });
+        return Promise.resolve();
+      };
+
+      // Fire both at once. The up-front conditional claim serialises them:
+      // exactly one stamps the row and delivers, the other updates zero
+      // rows and rejects - so the player is emailed once, not twice.
+      const settled = await Promise.allSettled([
+        notifyAsTest(matchdayId, adminId, { sendEmail: recordingSendEmail }),
+        notifyAsTest(matchdayId, adminId, { sendEmail: recordingSendEmail }),
+      ]);
+
+      const fulfilled = settled.filter((s) => s.status === "fulfilled");
+      const rejected = settled.filter((s) => s.status === "rejected");
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect(emailCalls).toHaveLength(1);
+      expect(emailCalls[0]?.to).toBe(playerEmail);
+    });
+
     it("raises a junior-rate charge against the parent when a dependent plays", async () => {
       const { userId } = await seedTestUser(ctx.db, {
         email: `junior-fee-${crypto.randomUUID()}@test.com`,

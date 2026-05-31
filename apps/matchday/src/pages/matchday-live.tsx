@@ -374,9 +374,17 @@ export default function MatchdayLive() {
               Finish match
             </Button>
           ) : notified ? (
-            <p className="text-text-secondary w-full text-center text-sm md:flex-1">
-              Donation requests sent · result {md.matchday.result_type ?? "—"}
-            </p>
+            <div className="w-full md:flex-1">
+              <p className="text-text-secondary text-center text-sm">
+                Donation requests sent · result {md.matchday.result_type ?? "—"}
+              </p>
+              {notify.data && notify.data.emailErrors.length > 0 && (
+                <p className="text-danger mt-1 text-center text-[12px]">
+                  {notify.data.emailErrors.length} could not be delivered -
+                  chase via the charges admin.
+                </p>
+              )}
+            </div>
           ) : unpaid === 0 ? (
             <p className="text-text-secondary w-full text-center text-sm md:flex-1">
               All donations settled · result {md.matchday.result_type ?? "—"}

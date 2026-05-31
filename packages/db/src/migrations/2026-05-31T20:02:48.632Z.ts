@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 
 // Decouple "create match-fee charges" from "notify players about them".
 // Wrapping up a match now only creates the charges; a separate captain
@@ -19,6 +19,20 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       col.references("user.id"),
     )
     .execute();
+
+  // Backfill already-finished matchdays. Under the previous single-step
+  // flow, finishing a match sent the donation requests immediately, so
+  // every existing finished match has already notified its players.
+  // Stamp them as notified (using finished_at, falling back to created_at
+  // for legacy rows that never recorded a finish time) so the new
+  // one-shot guard doesn't offer a *second* batch for historical matches
+  // the moment this deploys.
+  await sql`
+    UPDATE matchday
+    SET charges_notified_at = COALESCE(finished_at, created_at::text),
+        charges_notified_by = finished_by
+    WHERE status = 'finished'
+  `.execute(db);
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {

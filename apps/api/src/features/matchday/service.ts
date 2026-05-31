@@ -1708,8 +1708,32 @@ export function notifyMatchCharges(
     }
 
     // One-shot: a captain can only fire the batch once. Re-sends would
-    // re-nag players who've since paid, so we block them outright.
+    // re-nag players who've since paid. Cheap fast-path so the common
+    // re-tap returns a clear error without touching the DB again - but
+    // the authoritative guard is the conditional claim below.
     if (matchday.charges_notified_at) {
+      throwHttpError(400, "Donation requests have already been sent");
+    }
+
+    // Claim the batch atomically BEFORE sending anything: stamp the row
+    // only while charges_notified_at is still null. Two captains tapping
+    // "send" at once would both pass the read-side check above, so the
+    // conditional UPDATE is what actually serialises them - the loser
+    // updates zero rows and bails before delivering a duplicate blast.
+    // Claiming up-front (rather than after the send) means a crash
+    // mid-delivery leaves the match marked notified, which is the right
+    // call for a one-shot: better a few undelivered than a re-blast.
+    const claim = await db
+      .updateTable("matchday")
+      .set({
+        charges_notified_at: new Date().toISOString(),
+        charges_notified_by: userId,
+      })
+      .where("id", "=", matchdayId)
+      .where("status", "=", "finished")
+      .where("charges_notified_at", "is", null)
+      .executeTakeFirst();
+    if (claim.numUpdatedRows === 0n) {
       throwHttpError(400, "Donation requests have already been sent");
     }
 
@@ -1915,19 +1939,11 @@ export function notifyMatchCharges(
       }
     }
 
-    // Stamp the matchday as notified even if some deliveries failed - the
-    // batch is one-shot, and failed addresses are chased via the charges
-    // admin (emailErrors is surfaced to the captain so they know).
-    await db
-      .updateTable("matchday")
-      .set({
-        charges_notified_at: new Date().toISOString(),
-        charges_notified_by: userId,
-      })
-      .where("id", "=", matchdayId)
-      .where("charges_notified_at", "is", null)
-      .execute();
-
+    // The matchday was already stamped notified by the up-front claim, so
+    // there's nothing more to persist here. Partial delivery failures stay
+    // recorded as notified (the batch is one-shot) and are surfaced to the
+    // captain via emailErrors; failed addresses are chased via the charges
+    // admin rather than a re-send.
     return { success: true, emailsSent, emailErrors };
   };
 }
