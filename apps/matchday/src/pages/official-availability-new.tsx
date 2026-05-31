@@ -1,4 +1,5 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
+import { StickyActionBar } from "@/components/shell/sticky-action-bar.js";
 import { Button } from "@/components/ui/button.js";
 import { fmtDate } from "@/features/format.js";
 import { api, callApi } from "@/lib/api-client.js";
@@ -211,27 +212,20 @@ export default function OfficialAvailabilityNew() {
         )}
       </div>
 
-      <div className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur md:static md:border-t-0">
-        <div
-          className={cn(
-            "mx-auto flex max-w-2xl items-center justify-end gap-2 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),12px)]",
-            "md:pb-3",
-          )}
+      <StickyActionBar outerClassName="md:border-t-0">
+        <Button asChild tone="outline">
+          <Link to="/official/availability">Cancel</Link>
+        </Button>
+        <Button
+          tone="primary"
+          disabled={!canSubmit}
+          onClick={() => create.mutate()}
         >
-          <Button asChild tone="outline">
-            <Link to="/official/availability">Cancel</Link>
-          </Button>
-          <Button
-            tone="primary"
-            disabled={!canSubmit}
-            onClick={() => create.mutate()}
-          >
-            {create.isPending
-              ? "Creating…"
-              : `Create & notify · ${fixtures.length} fixtures`}
-          </Button>
-        </div>
-      </div>
+          {create.isPending
+            ? "Creating…"
+            : `Create & notify · ${fixtures.length} fixtures`}
+        </Button>
+      </StickyActionBar>
     </div>
   );
 }
