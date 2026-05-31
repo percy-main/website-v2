@@ -37,7 +37,6 @@ const { mockExecute, mockExecuteTakeFirst, mockQueryBuilder } = vi.hoisted(
 );
 
 import { noopS3Uploader } from "../../lib/s3-upload.ts";
-import { createNoopLogger } from "../../lib/worker-logger.ts";
 import {
   addPlayer,
   approveExpense,
@@ -53,8 +52,6 @@ import {
   searchMembers,
   submitExpenseClaim,
 } from "./service.ts";
-
-const log = createNoopLogger();
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
 const s3 = noopS3Uploader;
@@ -403,26 +400,17 @@ describe("expense approval workflow", () => {
   });
 
   describe("finishMatch", () => {
-    const mockSendEmail = vi.fn().mockResolvedValue(undefined);
-    const mockSendPush = vi
-      .fn()
-      .mockImplementation((sub: { endpoint: string }) =>
-        Promise.resolve({ ok: true, endpoint: sub.endpoint }),
-      );
-    const mockConfig = { BASE_URL: "https://example.com" };
-    const finish = finishMatch(db, mockSendEmail, mockSendPush, mockConfig);
+    const finish = finishMatch(db);
 
     it("rejects if matchday not found", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
 
       await expect(
-        finish(
-          "user-1",
-          "admin",
-          "match-1",
-          { resultType: "W", playerStatuses: [], feeOverrides: [] },
-          log,
-        ),
+        finish("user-1", "admin", "match-1", {
+          resultType: "W",
+          playerStatuses: [],
+          feeOverrides: [],
+        }),
       ).rejects.toThrow("Matchday not found");
     });
 
@@ -436,13 +424,11 @@ describe("expense approval workflow", () => {
       mockExecute.mockResolvedValueOnce([{ id: "team-1" }]);
 
       await expect(
-        finish(
-          "user-1",
-          "admin",
-          "match-1",
-          { resultType: "W", playerStatuses: [], feeOverrides: [] },
-          log,
-        ),
+        finish("user-1", "admin", "match-1", {
+          resultType: "W",
+          playerStatuses: [],
+          feeOverrides: [],
+        }),
       ).rejects.toThrow("Cannot finish a cancelled matchday");
     });
 
@@ -456,13 +442,11 @@ describe("expense approval workflow", () => {
       mockExecute.mockResolvedValueOnce([]);
 
       await expect(
-        finish(
-          "user-1",
-          "admin",
-          "match-1",
-          { resultType: "W", playerStatuses: [], feeOverrides: [] },
-          log,
-        ),
+        finish("user-1", "admin", "match-1", {
+          resultType: "W",
+          playerStatuses: [],
+          feeOverrides: [],
+        }),
       ).rejects.toThrow("You do not have access to this matchday");
     });
 
@@ -490,22 +474,16 @@ describe("expense approval workflow", () => {
       mockExecute.mockResolvedValueOnce([]);
       // uncharged players query
       mockExecute.mockResolvedValueOnce([]);
-      // unpaid players query
-      mockExecute.mockResolvedValueOnce([]);
 
-      const result = await finish(
-        "user-1",
-        "admin",
-        "match-1",
-        {
-          resultType: "W",
-          playerStatuses: [],
-          feeOverrides: [],
-        },
-        log,
-      );
+      const result = await finish("user-1", "admin", "match-1", {
+        resultType: "W",
+        playerStatuses: [],
+        feeOverrides: [],
+      });
 
       expect(result.success).toBe(true);
+      // No uncharged players seeded, so no charges are raised.
+      expect(result.chargesCreated).toBe(0);
       expect(mockQueryBuilder.set).toHaveBeenCalledWith(
         expect.objectContaining({
           status: "finished",
@@ -530,20 +508,15 @@ describe("expense approval workflow", () => {
       // update matchday
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await finish(
-        "user-1",
-        "admin",
-        "match-1",
-        {
-          resultType: "L",
-          playerStatuses: [],
-          feeOverrides: [],
-        },
-        log,
-      );
+      const result = await finish("user-1", "admin", "match-1", {
+        resultType: "L",
+        playerStatuses: [],
+        feeOverrides: [],
+      });
 
       expect(result.success).toBe(true);
-      expect(result.emailsSent).toBe(0);
+      // Re-submission never re-creates charges.
+      expect(result.chargesCreated).toBe(0);
       // Should preserve original finished_at/finished_by
       expect(mockQueryBuilder.set).toHaveBeenCalledWith(
         expect.objectContaining({

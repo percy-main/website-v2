@@ -487,6 +487,8 @@ export interface Matchday {
   cancelled_at: string | null;
   cancelled_by: string | null;
   cancelled_reason: string | null;
+  charges_notified_at: string | null;
+  charges_notified_by: string | null;
   competition_type: string | null;
   confirmed_at: string | null;
   confirmed_by: string | null;

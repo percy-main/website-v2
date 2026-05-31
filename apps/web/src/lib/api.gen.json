@@ -7296,6 +7296,14 @@
                           "cancelled_reason": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "charges_notified_at": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "charges_notified_by": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -7318,7 +7326,9 @@
                           "result_source",
                           "cancelled_at",
                           "cancelled_by",
-                          "cancelled_reason"
+                          "cancelled_reason",
+                          "charges_notified_at",
+                          "charges_notified_by"
                         ],
                         "additionalProperties": false
                       }
@@ -7493,6 +7503,14 @@
                         "cancelled_reason": {
                           "nullable": true,
                           "type": "string"
+                        },
+                        "charges_notified_at": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "charges_notified_by": {
+                          "nullable": true,
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -7515,7 +7533,9 @@
                         "result_source",
                         "cancelled_at",
                         "cancelled_by",
-                        "cancelled_reason"
+                        "cancelled_reason",
+                        "charges_notified_at",
+                        "charges_notified_by"
                       ],
                       "additionalProperties": false
                     },
@@ -9056,6 +9076,45 @@
             }
           }
         },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "matchId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "chargesCreated": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "chargesCreated"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matchday/{matchId}/notify-charges": {
+      "post": {
         "parameters": [
           {
             "schema": {
