@@ -154,8 +154,12 @@ export default function OfficialAvailabilityDate() {
       ),
     onSuccess: () => {
       invalidate();
-      // The fixture now has a matchday - the fixtures list (Pick team CTA)
-      // and any open request views should reflect the confirmed team.
+      // The fixture now has a matchday - refresh the request detail (its
+      // confirmed count badge), the fixtures list (Pick team CTA), and any
+      // open request views so they all reflect the confirmed team.
+      void qc.invalidateQueries({
+        queryKey: ["availability", "request", requestId],
+      });
       void qc.invalidateQueries({ queryKey: ["games"] });
     },
   });
@@ -198,6 +202,12 @@ export default function OfficialAvailabilityDate() {
   const available = pd.pools.available.filter(matchPool);
   const unavailable = pd.pools.unavailable.filter(matchPool);
   const noResponse = pd.pools.noResponse.filter(matchNoResp);
+
+  // Once a fixture is confirmed its squad is snapshotted into the
+  // matchday, so assignment edits here would no longer reach it. Confined
+  // assign/move/guest targets to still-open fixtures; the Teams rail still
+  // lists every fixture (confirmed ones get a "Manage squad" link).
+  const openFixtures = pd.fixtures.filter((f) => !f.matchdayId);
 
   // Index of each member's current assignment (if any) so each list can
   // surface a "currently in <team>" pill and "Move" action without a
@@ -297,7 +307,7 @@ export default function OfficialAvailabilityDate() {
           {tab === "available" && (
             <AvailableList
               players={available}
-              fixtures={pd.fixtures}
+              fixtures={openFixtures}
               assignmentByMember={assignmentByMember}
               actions={actions}
               actionPending={actionPending}
@@ -330,7 +340,7 @@ export default function OfficialAvailabilityDate() {
         </div>
 
         <div className="border-border-light mt-2 border-t px-4 pt-4">
-          <GuestEntry fixtures={pd.fixtures} onAdd={actions.assign} />
+          <GuestEntry fixtures={openFixtures} onAdd={actions.assign} />
         </div>
       </div>
 
@@ -345,7 +355,7 @@ export default function OfficialAvailabilityDate() {
             >
               <AvailableList
                 players={available}
-                fixtures={pd.fixtures}
+                fixtures={openFixtures}
                 assignmentByMember={assignmentByMember}
                 actions={actions}
                 actionPending={actionPending}
@@ -385,7 +395,7 @@ export default function OfficialAvailabilityDate() {
             confirming={confirmFixture.isPending}
           />
           <div className="border-border bg-surface-raised border-t p-4">
-            <GuestEntry fixtures={pd.fixtures} onAdd={actions.assign} />
+            <GuestEntry fixtures={openFixtures} onAdd={actions.assign} />
           </div>
         </div>
       </div>
@@ -393,7 +403,7 @@ export default function OfficialAvailabilityDate() {
       {assignTarget && (
         <AssignSheet
           target={assignTarget}
-          fixtures={pd.fixtures}
+          fixtures={openFixtures}
           currentAssignment={
             assignmentByMember.get(assignTarget.member_id)?.assignment ?? null
           }
@@ -522,6 +532,10 @@ function AvailableList({
       )}
       {players.map((p) => {
         const current = assignmentByMember.get(p.member_id);
+        // A player snapshotted into a confirmed matchday can't be moved
+        // from here - the team is owned by the matchday screen now - so we
+        // show their team as a static label rather than a move button.
+        const lockedIn = current?.fixture.matchdayId != null;
         return (
           <div
             key={p.id}
@@ -541,15 +555,21 @@ function AvailableList({
               )}
             </div>
             {current ? (
-              <button
-                type="button"
-                onClick={() => actions.openAssignSheet(p)}
-                disabled={actionPending}
-                className="bg-info-bg text-navy rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-60 dark:text-white"
-              >
-                {current.fixture.team_name ?? current.fixture.opposition}
-              </button>
-            ) : fixtures.length === 1 ? (
+              lockedIn ? (
+                <span className="bg-success-bg text-success rounded-full px-2.5 py-1 text-[11px] font-semibold">
+                  {current.fixture.team_name ?? current.fixture.opposition} ✓
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => actions.openAssignSheet(p)}
+                  disabled={actionPending}
+                  className="bg-info-bg text-navy rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-60 dark:text-white"
+                >
+                  {current.fixture.team_name ?? current.fixture.opposition}
+                </button>
+              )
+            ) : fixtures.length === 0 ? null : fixtures.length === 1 ? (
               <Button
                 size="sm"
                 tone="ghost"
@@ -875,6 +895,8 @@ function GuestEntry({
     [fixtures, fixtureId],
   );
   const canAdd = name.trim().length > 0 && !!fixtureValue;
+  // No open fixtures left to add to (all confirmed) - nothing to do here.
+  if (fixtures.length === 0) return null;
   return (
     <div>
       <p className="text-text-secondary mb-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
