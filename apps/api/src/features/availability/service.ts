@@ -403,6 +403,7 @@ export function getRequest(db: Kysely<DB>) {
         fixtures: typeof fixtures;
         responseCount: number;
         assignmentCount: number;
+        confirmedCount: number;
       }
     >();
 
@@ -413,10 +414,32 @@ export function getRequest(db: Kysely<DB>) {
           fixtures: [],
           responseCount: 0,
           assignmentCount: 0,
+          confirmedCount: 0,
         });
       }
       const entry = dates.get(fixture.match_date);
       if (entry) entry.fixtures.push(fixture);
+    }
+
+    // Count fixtures already confirmed into a (non-cancelled) matchday,
+    // per date, so the detail cards can show which dates are locked in.
+    const pcMatchIds = fixtures.map((f) => f.play_cricket_match_id);
+    const confirmedMatchdays =
+      pcMatchIds.length > 0
+        ? await db
+            .selectFrom("matchday")
+            .where("play_cricket_match_id", "in", pcMatchIds)
+            .where("status", "!=", "cancelled")
+            .select(["play_cricket_match_id"])
+            .execute()
+        : [];
+    const confirmedPcMatchIds = new Set(
+      confirmedMatchdays.map((m) => m.play_cricket_match_id),
+    );
+    for (const entry of dates.values()) {
+      entry.confirmedCount = entry.fixtures.filter((f) =>
+        confirmedPcMatchIds.has(f.play_cricket_match_id),
+      ).length;
     }
 
     // Get response counts per date
@@ -527,6 +550,24 @@ export function getDateDetail(db: Kysely<DB>) {
       assignmentsByFixture.set(a.availability_fixture_id, list);
     }
 
+    // A fixture is "confirmed" once a non-cancelled matchday exists for
+    // its Play Cricket match. Keyed by play_cricket_match_id (1:1 with the
+    // fixture) so the picker can show "Manage squad" instead of "Confirm
+    // team" for teams already locked in.
+    const pcMatchIds = fixtures.map((f) => f.play_cricket_match_id);
+    const matchdays =
+      pcMatchIds.length > 0
+        ? await db
+            .selectFrom("matchday")
+            .where("play_cricket_match_id", "in", pcMatchIds)
+            .where("status", "!=", "cancelled")
+            .select(["id", "play_cricket_match_id"])
+            .execute()
+        : [];
+    const matchdayByPcMatchId = new Map(
+      matchdays.map((m) => [m.play_cricket_match_id, m.id]),
+    );
+
     // Per amendments §2: all responses surface to officials, regardless
     // of whether the responder is in one of the request's user groups.
     // (The pre-amendment behaviour filtered non-group respondents out.)
@@ -587,6 +628,7 @@ export function getDateDetail(db: Kysely<DB>) {
       fixtures: fixtures.map((f) => ({
         ...f,
         assignments: assignmentsByFixture.get(f.id) ?? [],
+        matchdayId: matchdayByPcMatchId.get(f.play_cricket_match_id) ?? null,
       })),
       pools: {
         available,
@@ -859,6 +901,56 @@ export function confirmDate(db: Kysely<DB>) {
     });
 
     return { matchdays: matchdayIds };
+  };
+}
+
+/**
+ * Confirm a single fixture's team into a matchday, leaving the rest of
+ * the availability request open. This is the path that lets officials
+ * lock in an earlier game while later games in the same multi-day
+ * request keep collecting responses. Re-confirming an already-confirmed
+ * fixture throws 409 (per `materialiseFixtureMatchday`'s "conflict"
+ * mode) so picks added after the matchday exists aren't silently
+ * dropped - manage those on the matchday squad screen instead.
+ */
+export function confirmFixture(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    requestId: string,
+    date: string,
+    fixtureId: string,
+  ) => {
+    const request = await db
+      .selectFrom("availability_request")
+      .where("id", "=", requestId)
+      .select(["id"])
+      .executeTakeFirst();
+
+    if (!request) throwHttpError(404, "Availability request not found");
+
+    const fixture = await db
+      .selectFrom("availability_fixture")
+      .where("id", "=", fixtureId)
+      .where("availability_request_id", "=", requestId)
+      .where("match_date", "=", date)
+      .selectAll()
+      .executeTakeFirst();
+
+    if (!fixture) {
+      throwHttpError(404, "Fixture not found for this request and date");
+    }
+
+    const result = await db
+      .transaction()
+      .execute((trx) =>
+        materialiseFixtureMatchday(trx, userId, fixture, "conflict"),
+      );
+
+    if (!result) {
+      throwHttpError(400, "No players are assigned to this fixture yet");
+    }
+
+    return { matchdayId: result.matchdayId };
   };
 }
 

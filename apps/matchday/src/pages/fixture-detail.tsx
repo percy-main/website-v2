@@ -63,9 +63,10 @@ export default function FixtureDetail() {
   if (isError || !game) return <ErrState />;
   const directionsQuery = directionsTarget(game);
   const matchdayId = game.lineup?.matchdayId ?? null;
-  // Surfacing only the open case: a closed request already auto-created
-  // the matchday (matchdayId is set above), so the squad-management
-  // buttons take over and this never renders.
+  // Surfacing only the open case: once this fixture's team is confirmed
+  // (on the selection screen, or when the request closes) a matchday
+  // exists and matchdayId is set above, so the squad-management buttons
+  // take over and this never renders.
   const openAvailabilityRequest =
     game.availabilityRequest?.status === "open"
       ? game.availabilityRequest
@@ -146,8 +147,9 @@ export default function FixtureDetail() {
             ) : openAvailabilityRequest ? (
               <>
                 <p className="text-text-secondary text-xs leading-snug">
-                  Team selection is underway. The matchday will be created when
-                  the availability request is closed.
+                  Team selection is underway. Confirm this team on the selection
+                  screen to create the matchday - the rest of the availability
+                  request stays open.
                 </p>
                 <Button asChild tone="primary" className="w-full">
                   <Link
