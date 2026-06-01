@@ -5471,6 +5471,7 @@ export interface paths {
                                 }[];
                                 responseCount: number;
                                 assignmentCount: number;
+                                confirmedCount: number;
                             }[];
                         };
                     };
@@ -5561,6 +5562,7 @@ export interface paths {
                                     position: number;
                                     created_at: string;
                                 }[];
+                                matchdayId: string | null;
                             }[];
                             pools: {
                                 available: {
@@ -5767,6 +5769,47 @@ export interface paths {
                                 fixtureId: string;
                                 matchdayId: string;
                             }[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/availability/requests/{requestId}/dates/{date}/fixtures/{fixtureId}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    requestId: string;
+                    date: string;
+                    fixtureId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            matchdayId: string;
                         };
                     };
                 };

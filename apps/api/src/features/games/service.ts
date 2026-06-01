@@ -79,8 +79,10 @@ export interface GameDetail extends GameListItem {
   } | null;
   // Non-null while an availability_request covers this fixture. When
   // status is "open" the FE swaps the "Pick team" CTA for a link into
-  // the selection picker - matchdays are auto-created when the request
-  // closes (see updateRequestStatus), so creating one early here would
+  // the selection picker, where an official confirms this fixture's team
+  // to create its matchday (see confirmFixture) without closing the
+  // whole request. Closing the request also materialises any still-open
+  // fixtures (see updateRequestStatus). Creating one directly here would
   // race the selection and is forbidden by createMatchday.
   availabilityRequest: {
     id: string;

@@ -10,6 +10,7 @@ import {
   assignPlayerSchema,
   assignmentIdParamSchema,
   confirmDateResponseSchema,
+  confirmFixtureResponseSchema,
   createRequestResponseSchema,
   createRequestSchema,
   getActiveRequestsResponseSchema,
@@ -22,6 +23,7 @@ import {
   notifySendSchema,
   previewFixturesResponseSchema,
   previewRangeSchema,
+  requestDateFixtureParamSchema,
   requestDateMemberParamSchema,
   requestDateParamSchema,
   requestIdParamSchema,
@@ -34,6 +36,7 @@ import {
 import {
   assignPlayer,
   confirmDate,
+  confirmFixture,
   createRequest,
   getActiveRequests,
   getDateDetail,
@@ -217,6 +220,27 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
         user.id,
         request.params.requestId,
         request.params.date,
+      );
+    },
+  );
+
+  const confirmOneFixture = confirmFixture(app.db);
+  app.post(
+    "/availability/requests/:requestId/dates/:date/fixtures/:fixtureId/confirm",
+    {
+      preHandler: [matchdayManage],
+      schema: {
+        params: requestDateFixtureParamSchema,
+        response: { 200: confirmFixtureResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      return await confirmOneFixture(
+        user.id,
+        request.params.requestId,
+        request.params.date,
+        request.params.fixtureId,
       );
     },
   );

@@ -8,6 +8,7 @@ import {
 import {
   assignPlayer,
   confirmDate,
+  confirmFixture,
   getActiveRequests,
   getDateDetail,
   getRequest,
@@ -633,6 +634,149 @@ describe("availability service (integration)", () => {
       await expect(
         confirmDate(ctx.db)(userId, reqId, "2027-08-01"),
       ).rejects.toThrow("already exists");
+    });
+  });
+
+  describe("confirmFixture", () => {
+    it("creates a matchday for one fixture and leaves the request open", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `cf-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Confirm Fixture XI");
+      const reqId = await seedRequest(userId, "2027-05-01", "2027-05-14");
+      // Two dates in the same request: confirming the earlier one must not
+      // touch the later one, and must leave the request open.
+      const earlyFix = await seedFixture(
+        reqId,
+        teamId,
+        "2027-05-01",
+        "Early Opp CC",
+      );
+      const lateFix = await seedFixture(
+        reqId,
+        teamId,
+        "2027-05-08",
+        "Late Opp CC",
+      );
+      await assignPlayer(ctx.db)(reqId, "2027-05-01", {
+        fixtureId: earlyFix,
+        playerName: "Early Player",
+      });
+
+      const result = await confirmFixture(ctx.db)(
+        userId,
+        reqId,
+        "2027-05-01",
+        earlyFix,
+      );
+
+      const matchday = await ctx.db
+        .selectFrom("matchday")
+        .where("id", "=", result.matchdayId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(matchday?.opposition).toBe("Early Opp CC");
+      expect(matchday?.status).toBe("pending");
+
+      // Request stays open.
+      const request = await ctx.db
+        .selectFrom("availability_request")
+        .where("id", "=", reqId)
+        .select("status")
+        .executeTakeFirst();
+      expect(request?.status).toBe("open");
+
+      // The later fixture has no matchday yet.
+      const lateMatchday = await ctx.db
+        .selectFrom("matchday")
+        .where("play_cricket_match_id", "=", (eb) =>
+          eb
+            .selectFrom("availability_fixture")
+            .where("id", "=", lateFix)
+            .select("play_cricket_match_id"),
+        )
+        .executeTakeFirst();
+      expect(lateMatchday).toBeUndefined();
+    });
+
+    it("rejects confirming a fixture with no assignments", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `cf-empty-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Empty Confirm XI");
+      const reqId = await seedRequest(userId, "2027-06-01", "2027-06-07");
+      const fixId = await seedFixture(
+        reqId,
+        teamId,
+        "2027-06-01",
+        "Empty Opp CC",
+      );
+
+      await expect(
+        confirmFixture(ctx.db)(userId, reqId, "2027-06-01", fixId),
+      ).rejects.toThrow("No players");
+    });
+
+    it("throws 409 when re-confirming an already-confirmed fixture", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `cf-conflict-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Reconfirm XI");
+      const reqId = await seedRequest(userId, "2027-07-01", "2027-07-07");
+      const fixId = await seedFixture(
+        reqId,
+        teamId,
+        "2027-07-01",
+        "Reconfirm Opp CC",
+      );
+      await assignPlayer(ctx.db)(reqId, "2027-07-01", {
+        fixtureId: fixId,
+        playerName: "Guest",
+      });
+
+      await confirmFixture(ctx.db)(userId, reqId, "2027-07-01", fixId);
+      await expect(
+        confirmFixture(ctx.db)(userId, reqId, "2027-07-01", fixId),
+      ).rejects.toThrow("already exists");
+    });
+
+    it("surfaces the confirmed matchday on the date detail", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `cf-detail-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Detail Confirm XI");
+      const reqId = await seedRequest(userId, "2027-09-01", "2027-09-07");
+      const fixId = await seedFixture(
+        reqId,
+        teamId,
+        "2027-09-01",
+        "Detail Opp CC",
+      );
+      await assignPlayer(ctx.db)(reqId, "2027-09-01", {
+        fixtureId: fixId,
+        playerName: "Guest",
+      });
+
+      const before = await getDateDetail(ctx.db)(reqId, "2027-09-01");
+      expect(before.fixtures[0].matchdayId).toBeNull();
+
+      const { matchdayId } = await confirmFixture(ctx.db)(
+        userId,
+        reqId,
+        "2027-09-01",
+        fixId,
+      );
+
+      const after = await getDateDetail(ctx.db)(reqId, "2027-09-01");
+      expect(after.fixtures[0].matchdayId).toBe(matchdayId);
+
+      const detail = await getRequest(ctx.db)(reqId);
+      const dateEntry = detail.dates.find((d) => d.date === "2027-09-01");
+      expect(dateEntry?.confirmedCount).toBe(1);
     });
   });
 
