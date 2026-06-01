@@ -4,7 +4,13 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, SearchIcon, UserPlusIcon, XIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CheckCircle2Icon,
+  SearchIcon,
+  UserPlusIcon,
+  XIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
@@ -130,6 +136,30 @@ export default function OfficialAvailabilityDate() {
     },
   });
 
+  const confirmFixture = useMutation({
+    mutationFn: (fixtureId: string) =>
+      callApi(
+        api.POST(
+          "/api/availability/requests/{requestId}/dates/{date}/fixtures/{fixtureId}/confirm",
+          {
+            params: {
+              path: {
+                requestId: requestId ?? "",
+                date: date ?? "",
+                fixtureId,
+              },
+            },
+          },
+        ),
+      ),
+    onSuccess: () => {
+      invalidate();
+      // The fixture now has a matchday - the fixtures list (Pick team CTA)
+      // and any open request views should reflect the confirmed team.
+      void qc.invalidateQueries({ queryKey: ["games"] });
+    },
+  });
+
   const override = useMutation({
     mutationFn: (vars: { memberId: string; status: OverrideStatus }) =>
       callApi(
@@ -233,6 +263,13 @@ export default function OfficialAvailabilityDate() {
         <SearchInput value={searchTerm} onChange={setSearchTerm} />
       </div>
 
+      {confirmFixture.isError && (
+        <p className="text-danger mx-4 mt-3 text-sm">
+          Couldn't confirm that team. It may already have a matchday - reload
+          and check.
+        </p>
+      )}
+
       {/* Mobile (<md): tabbed view. */}
       <div className="md:hidden">
         <div className="bg-surface-raised mx-4 mt-3 grid grid-cols-3 gap-1 rounded-xl p-1">
@@ -282,7 +319,17 @@ export default function OfficialAvailabilityDate() {
           )}
         </section>
 
-        <div className="border-border-light mt-6 border-t px-4 pt-4">
+        <div className="mt-6">
+          <AssignmentRail
+            fixtures={pd.fixtures}
+            onRemove={actions.unassign}
+            removing={unassign.isPending}
+            onConfirm={(fixtureId) => confirmFixture.mutate(fixtureId)}
+            confirming={confirmFixture.isPending}
+          />
+        </div>
+
+        <div className="border-border-light mt-2 border-t px-4 pt-4">
           <GuestEntry fixtures={pd.fixtures} onAdd={actions.assign} />
         </div>
       </div>
@@ -334,6 +381,8 @@ export default function OfficialAvailabilityDate() {
             fixtures={pd.fixtures}
             onRemove={actions.unassign}
             removing={unassign.isPending}
+            onConfirm={(fixtureId) => confirmFixture.mutate(fixtureId)}
+            confirming={confirmFixture.isPending}
           />
           <div className="border-border bg-surface-raised border-t p-4">
             <GuestEntry fixtures={pd.fixtures} onAdd={actions.assign} />
@@ -673,15 +722,19 @@ function AssignmentRail({
   fixtures,
   onRemove,
   removing,
+  onConfirm,
+  confirming,
 }: {
   fixtures: Fixture[];
   onRemove: (assignmentId: string) => void;
   removing: boolean;
+  onConfirm: (fixtureId: string) => void;
+  confirming: boolean;
 }) {
   return (
     <div className="border-border bg-surface-raised border-t p-4">
       <p className="text-text-secondary mb-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
-        Current assignments
+        Teams
       </p>
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {fixtures.map((f) => (
@@ -719,22 +772,85 @@ function AssignmentRail({
                         </span>
                       )}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => onRemove(a.id)}
-                      disabled={removing}
-                      className="text-text-secondary hover:text-danger ml-2 text-[11px] disabled:opacity-60"
-                    >
-                      Remove
-                    </button>
+                    {/* Once confirmed the squad is owned by the matchday
+                        screen, so removing a pick here would no longer
+                        reach it - hide the action to avoid that trap. */}
+                    {!f.matchdayId && (
+                      <button
+                        type="button"
+                        onClick={() => onRemove(a.id)}
+                        disabled={removing}
+                        className="text-text-secondary hover:text-danger ml-2 text-[11px] disabled:opacity-60"
+                      >
+                        Remove
+                      </button>
+                    )}
                   </li>
                 ))}
               </ol>
             )}
+            <ConfirmTeamControl
+              fixture={f}
+              onConfirm={onConfirm}
+              confirming={confirming}
+            />
           </div>
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Per-fixture confirm control. Turning a provisional team into a matchday
+ * is what lets an official lock in one game while the request stays open
+ * for the others. Once confirmed, the squad is managed on the matchday
+ * screen, so we swap the button for a link there.
+ */
+function ConfirmTeamControl({
+  fixture,
+  onConfirm,
+  confirming,
+}: {
+  fixture: Fixture;
+  onConfirm: (fixtureId: string) => void;
+  confirming: boolean;
+}) {
+  if (fixture.matchdayId) {
+    return (
+      <div className="border-border-light mt-3 flex items-center justify-between border-t pt-3">
+        <span className="text-success inline-flex items-center gap-1.5 text-xs font-semibold">
+          <CheckCircle2Icon className="size-4" />
+          Team confirmed
+        </span>
+        <Link
+          to={`/matchday/${fixture.matchdayId}/edit`}
+          className="text-navy text-xs font-semibold underline dark:text-white"
+        >
+          Manage squad →
+        </Link>
+      </div>
+    );
+  }
+  if (fixture.assignments.length === 0) return null;
+  return (
+    <Button
+      tone="primary"
+      size="sm"
+      className="mt-3 w-full"
+      disabled={confirming}
+      onClick={() => {
+        if (
+          confirm(
+            `Confirm this team and create the matchday for ${fixture.team_name ?? "this team"} vs ${fixture.opposition}? Players can still update availability for other games in this request.`,
+          )
+        ) {
+          onConfirm(fixture.id);
+        }
+      }}
+    >
+      {confirming ? "Confirming…" : "Confirm team →"}
+    </Button>
   );
 }
 

@@ -17,6 +17,12 @@ export const assignmentIdParamSchema = z.object({
   assignmentId: z.string(),
 });
 
+export const requestDateFixtureParamSchema = z.object({
+  requestId: z.string(),
+  date: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
+  fixtureId: z.string(),
+});
+
 export const requestDateMemberParamSchema = z.object({
   requestId: z.string(),
   date: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
@@ -125,6 +131,10 @@ const dateEntrySchema = z.object({
   fixtures: z.array(fixtureSchema),
   responseCount: z.number(),
   assignmentCount: z.number(),
+  // Number of this date's fixtures that already have a (non-cancelled)
+  // matchday - i.e. teams confirmed individually without closing the
+  // whole request. Drives the per-date "confirmed" indicator.
+  confirmedCount: z.number(),
 });
 
 export const getRequestResponseSchema = z.object({
@@ -175,6 +185,10 @@ const dateDetailFixtureSchema = z.object({
   match_time: z.string().nullable(),
   team_name: z.string().nullable(),
   assignments: z.array(assignmentSchema),
+  // Set once this fixture's team has been confirmed into a matchday
+  // (per-fixture confirm, or on request close). Null while the picks are
+  // still provisional. Drives the "Confirm team" vs "Manage squad" CTA.
+  matchdayId: z.string().nullable(),
 });
 
 export const getDateDetailResponseSchema = z.object({
@@ -204,6 +218,10 @@ export const confirmDateResponseSchema = z.object({
       matchdayId: z.string(),
     }),
   ),
+});
+
+export const confirmFixtureResponseSchema = z.object({
+  matchdayId: z.string(),
 });
 
 export const updateRequestStatusResponseSchema = z.object({

@@ -127,6 +127,11 @@ export default function OfficialAvailabilityDetail() {
               <span className="bg-success-bg text-success rounded px-2 py-0.5">
                 {d.assignmentCount} assigned
               </span>
+              {d.confirmedCount > 0 && (
+                <span className="bg-success text-surface rounded px-2 py-0.5 font-semibold">
+                  {d.confirmedCount} of {d.fixtures.length} confirmed
+                </span>
+              )}
             </div>
           </Link>
         ))}
@@ -141,7 +146,7 @@ export default function OfficialAvailabilityDetail() {
             onClick={() => {
               if (
                 confirm(
-                  "Close this request? Players won't be able to respond after this.",
+                  "Close this request? Players won't be able to respond after this, and any picked-but-unconfirmed teams will be turned into matchdays.",
                 )
               ) {
                 close.mutate();
