@@ -1,6 +1,6 @@
 # Percy Main Community Sports Club — v2
 
-Greenfield rewrite of the Percy Main website. pnpm monorepo with a Fastify API, a React + Vite SPA (scaffold only), and Terraform-managed AWS infrastructure.
+The Percy Main website. pnpm monorepo with a Fastify API, a React + Vite SPA, a match-day PWA, and Terraform-managed AWS infrastructure.
 
 - Stack: Fastify v5, Kysely, PostgreSQL 16, React + Vite, better-auth, Stripe, React Email + SES, AWS (ECS Fargate, RDS, S3, CloudFront, SES, Route 53).
 - Architecture principles and coding standards: see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
@@ -26,19 +26,22 @@ Swagger UI for the API is at <http://localhost:3000/api/docs> in non-production 
 
 ```
 percy-main/
-├── apps/
-│   ├── api/              # Fastify API service (backend)
-│   └── web/              # React + Vite SPA (frontend)
-├── packages/
-│   ├── shared/           # Zod schemas, types, constants
-│   ├── db/               # Kysely client factory, migrations, generated types
+├── apps/                 # Deployable services + dev tools (each has its own README)
+│   ├── api/              # Fastify backend
+│   ├── web/              # React + Vite SPA (public + member site)
+│   ├── matchday/         # React PWA for match-day workflows
+│   └── email-viewer/     # Dev-only email preview tool
+├── packages/             # Shared workspace libraries (each has its own README)
+│   ├── shared/           # Zod schemas, types, permissions
+│   ├── db/               # Kysely client, migrations, generated types
 │   └── email/            # React Email templates + send logic
 ├── infra/                # Terraform modules + environments
-├── docs/
-│   └── adrs/             # Architecture Decision Records
+├── docs/adrs/            # Architecture Decision Records
 ├── .github/workflows/    # CI/CD pipelines
 └── docker-compose.yml    # Local PostgreSQL
 ```
+
+Each `apps/*` and `packages/*` directory has a README covering its purpose, layout, and non-obvious conventions.
 
 ## Scripts
 
