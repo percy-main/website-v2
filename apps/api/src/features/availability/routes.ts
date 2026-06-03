@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import {
   getAuthSession,
   requireAuth,
+  requireClubWidePermission,
   requirePermission,
 } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
@@ -55,6 +56,11 @@ import {
 export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   const matchdayView = requirePermission("matchday", "view");
   const matchdayManage = requirePermission("matchday", "manage");
+  // Whole-request / cross-team actions (create, preview, bulk notify) span
+  // every senior team, so they're restricted to club-wide matchday admins
+  // rather than team-scoped officials.
+  const clubWideView = requireClubWidePermission("matchday", "view");
+  const clubWideManage = requireClubWidePermission("matchday", "manage");
 
   // Build Play Cricket API client (if configured)
   const apiClient =
@@ -84,7 +90,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/availability/requests",
     {
-      preHandler: [matchdayManage],
+      preHandler: [clubWideManage],
       schema: {
         body: createRequestSchema,
         response: { 200: createRequestResponseSchema },
@@ -298,7 +304,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/availability/preview",
     {
-      preHandler: [matchdayView],
+      preHandler: [clubWideView],
       schema: {
         querystring: previewRangeSchema,
         response: { 200: previewFixturesResponseSchema },
@@ -328,7 +334,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/availability/requests/:requestId/notify/send",
     {
-      preHandler: [matchdayManage],
+      preHandler: [clubWideManage],
       schema: {
         params: requestIdParamSchema,
         body: notifySendSchema,

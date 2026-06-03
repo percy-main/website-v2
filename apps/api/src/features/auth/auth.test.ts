@@ -1,5 +1,52 @@
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { describe, expect, it } from "vitest";
-import { toWebHeaders } from "./middleware.ts";
+import { requireClubWidePermission, toWebHeaders } from "./middleware.ts";
+
+/** Minimal Fastify request/reply doubles that drive the auth preHandlers. */
+function makeReqReply(role: string) {
+  const session = { user: { role }, session: {} };
+  let statusCode: number | undefined;
+  let sent = false;
+  const reply = {
+    status(code: number) {
+      statusCode = code;
+      return reply;
+    },
+    send() {
+      sent = true;
+      return reply;
+    },
+    get sent() {
+      return sent;
+    },
+  } as unknown as FastifyReply;
+  const request = {
+    headers: {},
+    server: { auth: { api: { getSession: () => Promise.resolve(session) } } },
+  } as unknown as FastifyRequest;
+  return { request, reply, getStatus: () => statusCode };
+}
+
+describe("requireClubWidePermission", () => {
+  it("403s a team-scoped official", async () => {
+    const { request, reply, getStatus } = makeReqReply("official");
+    await requireClubWidePermission("matchday", "manage")(request, reply);
+    expect(getStatus()).toBe(403);
+  });
+
+  it("allows a club-wide matchday admin", async () => {
+    const { request, reply, getStatus } = makeReqReply("matchday_admin");
+    await requireClubWidePermission("matchday", "manage")(request, reply);
+    expect(reply.sent).toBe(false);
+    expect(getStatus()).toBeUndefined();
+  });
+
+  it("allows the legacy club-wide admin role", async () => {
+    const { request, reply } = makeReqReply("admin");
+    await requireClubWidePermission("matchday", "view")(request, reply);
+    expect(reply.sent).toBe(false);
+  });
+});
 
 describe("Auth middleware", () => {
   it("toWebHeaders converts fastify headers to Web Headers", () => {

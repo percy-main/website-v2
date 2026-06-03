@@ -331,15 +331,51 @@ export function listRequests(db: Kysely<DB>) {
       ])
       .execute();
 
-    const responseCounts = await db
-      .selectFrom("availability_response")
-      .where("availability_request_id", "in", requestIds)
-      .groupBy("availability_request_id")
-      .select([
-        "availability_request_id",
-        db.fn.count<string>("member_id").distinct().as("respondent_count"),
-      ])
-      .execute();
+    // For scoped officials the respondent count only reflects responses on
+    // dates that have a fixture they can access - otherwise the card leaks
+    // engagement for teams/dates they can't see. Joining responses to the
+    // in-scope fixtures on (request, date) does that; admins keep the simple
+    // unscoped count.
+    const responseCounts = teamIds
+      ? await db
+          .selectFrom("availability_response")
+          .innerJoin("availability_fixture", (join) =>
+            join
+              .onRef(
+                "availability_fixture.availability_request_id",
+                "=",
+                "availability_response.availability_request_id",
+              )
+              .onRef(
+                "availability_fixture.match_date",
+                "=",
+                "availability_response.match_date",
+              ),
+          )
+          .where(
+            "availability_response.availability_request_id",
+            "in",
+            requestIds,
+          )
+          .where("availability_fixture.play_cricket_team_id", "in", teamIds)
+          .groupBy("availability_response.availability_request_id")
+          .select([
+            "availability_response.availability_request_id as availability_request_id",
+            db.fn
+              .count<string>("availability_response.member_id")
+              .distinct()
+              .as("respondent_count"),
+          ])
+          .execute()
+      : await db
+          .selectFrom("availability_response")
+          .where("availability_request_id", "in", requestIds)
+          .groupBy("availability_request_id")
+          .select([
+            "availability_request_id",
+            db.fn.count<string>("member_id").distinct().as("respondent_count"),
+          ])
+          .execute();
 
     const fixtureMap = new Map(
       fixtureCounts.map((r) => [
@@ -539,7 +575,9 @@ export function getRequest(db: Kysely<DB>) {
       if (entry) entry.responseCount = Number(r.response_count);
     }
 
-    // Get assignment counts per date
+    // Get assignment counts per date. Scoped to the visible fixtures (not the
+    // whole request) so a hidden team's picks can't inflate the count on a
+    // date it shares with an accessible fixture.
     const fixtureIds = fixtures.map((f) => f.id);
     if (fixtureIds.length > 0) {
       const assignments = await db
@@ -549,7 +587,11 @@ export function getRequest(db: Kysely<DB>) {
           "availability_fixture.id",
           "availability_assignment.availability_fixture_id",
         )
-        .where("availability_fixture.availability_request_id", "=", requestId)
+        .where(
+          "availability_assignment.availability_fixture_id",
+          "in",
+          fixtureIds,
+        )
         .groupBy("availability_fixture.match_date")
         .select([
           "availability_fixture.match_date",

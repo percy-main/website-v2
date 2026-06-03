@@ -1343,5 +1343,88 @@ describe("availability service (integration)", () => {
         }),
       ).rejects.toThrow("club-wide");
     });
+
+    it("getRequest assignmentCount excludes hidden teams sharing a date", async () => {
+      const { official, reqId, myFix, otherFix } = await seedMixedTeamRequest();
+      // One pick on the official's fixture, one on the hidden fixture - both
+      // on the same date (2027-10-01).
+      await ctx.db
+        .insertInto("availability_assignment")
+        .values([
+          {
+            id: crypto.randomUUID(),
+            availability_fixture_id: myFix,
+            player_name: "Mine",
+            position: 1,
+          },
+          {
+            id: crypto.randomUUID(),
+            availability_fixture_id: otherFix,
+            player_name: "Theirs",
+            position: 1,
+          },
+        ])
+        .execute();
+
+      const result = await getRequest(ctx.db)(
+        official.userId,
+        "official",
+        reqId,
+      );
+      const dateEntry = result.dates.find((d) => d.date === "2027-10-01");
+      // Only the official's own pick is counted, not the hidden team's.
+      expect(dateEntry?.assignmentCount).toBe(1);
+    });
+
+    it("listRequests respondentCount ignores responses on inaccessible dates", async () => {
+      const admin = await seedTestUser(ctx.db, {
+        email: `rc-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const official = await seedTestUser(ctx.db, {
+        email: `rc-official-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      const myTeam = await seedTeam("1st XI");
+      const otherTeam = await seedTeam("Midweek XI");
+      await seedTeamOfficial(official.userId, myTeam);
+
+      // Two dates: the official can access 10-15 only; the response lands on
+      // the inaccessible team's date (10-22).
+      const reqId = await seedRequest(admin.userId, "2027-10-15", "2027-10-22");
+      await seedFixture(reqId, myTeam, "2027-10-15");
+      await seedFixture(reqId, otherTeam, "2027-10-22");
+      const memberId = await seedMember(
+        "Responder",
+        `resp-${crypto.randomUUID()}@test.com`,
+      );
+      await ctx.db
+        .insertInto("availability_response")
+        .values({
+          id: crypto.randomUUID(),
+          availability_request_id: reqId,
+          member_id: memberId,
+          match_date: "2027-10-22",
+          status: "available",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      const officialView = await listRequests(ctx.db)(
+        official.userId,
+        "official",
+        { limit: 50, offset: 0 },
+      );
+      const officialReq = officialView.items.find((r) => r.id === reqId);
+      expect(officialReq?.respondentCount).toBe(0);
+
+      const adminView = await listRequests(ctx.db)(admin.userId, "admin", {
+        limit: 50,
+        offset: 0,
+      });
+      const adminReq = adminView.items.find((r) => r.id === reqId);
+      expect(adminReq?.respondentCount).toBe(1);
+    });
   });
 });
