@@ -135,10 +135,12 @@ self.addEventListener("pushsubscriptionchange", (event) => {
       if (!json.endpoint || !keys.p256dh || !keys.auth) return;
 
       try {
-        // Cross-origin to the API subdomain; credentials carry the
+        // apiBase already includes the `/api` prefix (it's VITE_API_URL,
+        // e.g. https://api.v2.percymain.org/api), so this resolves to
+        // /api/me/push-subscriptions - the same route the typed client
+        // hits. Cross-origin to the API subdomain; credentials carry the
         // cross-subdomain session cookie (CORS-allowlisted for matchday).
-        // A 401 here (expired session) is fine - re-enable on next visit.
-        await fetch(`${apiBase}/me/push-subscriptions`, {
+        const res = await fetch(`${apiBase}/me/push-subscriptions`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -151,8 +153,13 @@ self.addEventListener("pushsubscriptionchange", (event) => {
             ).slice(0, 500),
           }),
         });
+        // A 401 (expired session) or other non-2xx is best-effort: the new
+        // endpoint stays unregistered until the user next opens the app,
+        // where the enable flow / backfill re-syncs it. Don't pretend a
+        // failed POST succeeded - just nothing more we can do from the SW.
+        if (!res.ok) return;
       } catch {
-        // best-effort; nothing more we can do from the SW
+        // network error - same best-effort fallback as a non-2xx response
       }
     })(),
   );
