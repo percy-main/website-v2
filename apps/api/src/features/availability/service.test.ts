@@ -94,7 +94,10 @@ describe("availability service", () => {
   describe("listRequests", () => {
     it("returns empty items when no requests exist", async () => {
       mockExecute.mockResolvedValueOnce([]); // requests query
-      const result = await listRequests(db)({ limit: 20, offset: 0 });
+      const result = await listRequests(db)("user-1", "admin", {
+        limit: 20,
+        offset: 0,
+      });
       expect(result).toEqual({ items: [] });
     });
 
@@ -118,7 +121,10 @@ describe("availability service", () => {
       ]);
       mockExecute.mockResolvedValueOnce([]); // fixtures query
 
-      const result = await listRequests(db)({ limit: 20, offset: 0 });
+      const result = await listRequests(db)("user-1", "admin", {
+        limit: 20,
+        offset: 0,
+      });
       expect(result.items).toHaveLength(1);
       expect(result.items[0].fixtureCount).toBe(3);
       expect(result.items[0].respondentCount).toBe(5);
@@ -128,16 +134,18 @@ describe("availability service", () => {
   describe("getRequest", () => {
     it("throws 404 for non-existent request", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
-      await expect(getRequest(db)("missing")).rejects.toThrow("not found");
+      await expect(
+        getRequest(db)("user-1", "admin", "missing"),
+      ).rejects.toThrow("not found");
     });
   });
 
   describe("getDateDetail", () => {
     it("throws 404 for non-existent request", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
-      await expect(getDateDetail(db)("missing", "2026-06-01")).rejects.toThrow(
-        "not found",
-      );
+      await expect(
+        getDateDetail(db)("user-1", "admin", "missing", "2026-06-01"),
+      ).rejects.toThrow("not found");
     });
   });
 
@@ -145,7 +153,7 @@ describe("availability service", () => {
     it("throws 404 when fixture not found", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // fixture lookup
       await expect(
-        assignPlayer(db)("req-1", "2026-06-01", {
+        assignPlayer(db)("user-1", "admin", "req-1", "2026-06-01", {
           fixtureId: "fix-1",
           playerName: "Test Player",
         }),
@@ -156,7 +164,7 @@ describe("availability service", () => {
       mockExecuteTakeFirst.mockResolvedValueOnce({ id: "fix-1" }); // fixture exists
       mockExecuteTakeFirst.mockResolvedValueOnce({ id: "assign-1" }); // duplicate check
       await expect(
-        assignPlayer(db)("req-1", "2026-06-01", {
+        assignPlayer(db)("user-1", "admin", "req-1", "2026-06-01", {
           fixtureId: "fix-1",
           memberId: "member-1",
           playerName: "Test Player",
@@ -168,9 +176,9 @@ describe("availability service", () => {
   describe("removeAssignment", () => {
     it("throws 404 for non-existent assignment", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
-      await expect(removeAssignment(db)("missing")).rejects.toThrow(
-        "not found",
-      );
+      await expect(
+        removeAssignment(db)("user-1", "admin", "missing"),
+      ).rejects.toThrow("not found");
     });
 
     it("removes assignment successfully", async () => {
@@ -180,7 +188,7 @@ describe("availability service", () => {
       });
       mockExecute.mockResolvedValueOnce(undefined); // delete
 
-      const result = await removeAssignment(db)("assign-1");
+      const result = await removeAssignment(db)("user-1", "admin", "assign-1");
       expect(result).toEqual({ success: true });
     });
   });
@@ -189,9 +197,16 @@ describe("availability service", () => {
     it("throws 404 when no fixture on date", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
       await expect(
-        setAvailability(db)("user-1", "req-1", "2026-06-01", "member-1", {
-          status: "available",
-        }),
+        setAvailability(db)(
+          "user-1",
+          "admin",
+          "req-1",
+          "2026-06-01",
+          "member-1",
+          {
+            status: "available",
+          },
+        ),
       ).rejects.toThrow("No fixtures");
     });
 
@@ -199,9 +214,16 @@ describe("availability service", () => {
       mockExecuteTakeFirst.mockResolvedValueOnce({ id: "fixture-1" }); // fixture lookup
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // member lookup
       await expect(
-        setAvailability(db)("user-1", "req-1", "2026-06-01", "missing", {
-          status: "available",
-        }),
+        setAvailability(db)(
+          "user-1",
+          "admin",
+          "req-1",
+          "2026-06-01",
+          "missing",
+          {
+            status: "available",
+          },
+        ),
       ).rejects.toThrow("Member not found");
     });
 
@@ -212,6 +234,7 @@ describe("availability service", () => {
 
       const result = await setAvailability(db)(
         "user-1",
+        "admin",
         "req-1",
         "2026-06-01",
         "member-1",
@@ -225,7 +248,9 @@ describe("availability service", () => {
     it("throws 404 for non-existent request", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
       await expect(
-        updateRequestStatus(db)("user-1", "missing", { status: "closed" }),
+        updateRequestStatus(db)("user-1", "admin", "missing", {
+          status: "closed",
+        }),
       ).rejects.toThrow("not found");
     });
   });

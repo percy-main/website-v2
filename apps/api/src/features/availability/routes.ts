@@ -112,7 +112,9 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await list(request.query);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await list(user.id, role, request.query);
     },
   );
 
@@ -127,7 +129,9 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await get(request.params.requestId);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await get(user.id, role, request.params.requestId);
     },
   );
 
@@ -142,7 +146,14 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await getDate(request.params.requestId, request.params.date);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await getDate(
+        user.id,
+        role,
+        request.params.requestId,
+        request.params.date,
+      );
     },
   );
 
@@ -158,7 +169,11 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       return await assign(
+        user.id,
+        role,
         request.params.requestId,
         request.params.date,
         request.body,
@@ -177,7 +192,9 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await removeAssign(request.params.assignmentId);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await removeAssign(user.id, role, request.params.assignmentId);
     },
   );
 
@@ -194,8 +211,10 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       return await setAvail(
         user.id,
+        role,
         request.params.requestId,
         request.params.date,
         request.params.memberId,
@@ -216,8 +235,10 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       return await confirm(
         user.id,
+        role,
         request.params.requestId,
         request.params.date,
       );
@@ -236,8 +257,10 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       return await confirmOneFixture(
         user.id,
+        role,
         request.params.requestId,
         request.params.date,
         request.params.fixtureId,
@@ -258,8 +281,10 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       return await updateStatus(
         user.id,
+        role,
         request.params.requestId,
         request.body,
       );

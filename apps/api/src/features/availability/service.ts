@@ -1,10 +1,12 @@
 import type { DB } from "@percy-main/db";
 import { AvailabilityRequest } from "@percy-main/email";
+import { hasClubWideAccess } from "@percy-main/shared/auth/permissions";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { createElement } from "react";
 import { render } from "react-email";
 import type { SendPush } from "../../lib/push-sender.ts";
+import { getAccessibleTeamIds } from "../../lib/team-access.ts";
 import type { MatchdayChannel } from "../notification-preferences/schemas.ts";
 import {
   DEFAULT_MATCHDAY_CHANNEL,
@@ -35,6 +37,26 @@ type SendEmail = (email: {
 
 function throwHttpError(statusCode: number, message: string): never {
   throw Object.assign(new Error(message), { statusCode });
+}
+
+/**
+ * The set of play_cricket_team IDs an official may see/act on for
+ * availability, or `null` when the role is club-wide (admins, matchday_admin)
+ * and therefore unrestricted. Mirrors the matchday feature's team scoping so a
+ * scoped `official` only ever touches fixtures for the teams they are assigned
+ * to via team_official - without this, every availability route leaked (and
+ * let officials manage) fixtures for teams they had no grant on.
+ *
+ * Club-wide roles short-circuit before any DB hit, so for those callers the
+ * query path is unchanged.
+ */
+async function accessibleTeamScope(
+  db: Kysely<DB>,
+  userId: string,
+  role: string,
+): Promise<Set<string> | null> {
+  if (hasClubWideAccess(role, "matchday", "view")) return null;
+  return new Set(await getAccessibleTeamIds(db, userId, role));
 }
 
 /**
@@ -245,10 +267,15 @@ async function resolveRecipients(
 }
 
 export function listRequests(db: Kysely<DB>) {
-  return async (params: ListRequests) => {
+  return async (userId: string, role: string, params: ListRequests) => {
     const { limit, offset } = params;
 
-    const requests = await db
+    const scope = await accessibleTeamScope(db, userId, role);
+    // A scoped official with no team grants sees nothing.
+    if (scope?.size === 0) return { items: [] };
+    const teamIds = scope ? [...scope] : null;
+
+    let requestsQuery = db
       .selectFrom("availability_request")
       .leftJoin("user", "user.id", "availability_request.created_by")
       .select([
@@ -259,7 +286,24 @@ export function listRequests(db: Kysely<DB>) {
         "availability_request.created_at",
         "availability_request.created_by",
         "user.name as created_by_name",
-      ])
+      ]);
+
+    // Scoped officials only see requests that contain at least one fixture
+    // for a team they're assigned to. Done as a subquery so pagination stays
+    // correct (filtering after the limit would under-fill pages).
+    if (teamIds) {
+      requestsQuery = requestsQuery.where(
+        "availability_request.id",
+        "in",
+        (eb) =>
+          eb
+            .selectFrom("availability_fixture")
+            .select("availability_request_id")
+            .where("play_cricket_team_id", "in", teamIds),
+      );
+    }
+
+    const requests = await requestsQuery
       .orderBy("availability_request.created_at", "desc")
       .limit(limit)
       .offset(offset)
@@ -269,9 +313,17 @@ export function listRequests(db: Kysely<DB>) {
     const requestIds = requests.map((r) => r.id);
     if (requestIds.length === 0) return { items: [] };
 
-    const fixtureCounts = await db
+    let fixtureCountsQuery = db
       .selectFrom("availability_fixture")
-      .where("availability_request_id", "in", requestIds)
+      .where("availability_request_id", "in", requestIds);
+    if (teamIds) {
+      fixtureCountsQuery = fixtureCountsQuery.where(
+        "play_cricket_team_id",
+        "in",
+        teamIds,
+      );
+    }
+    const fixtureCounts = await fixtureCountsQuery
       .groupBy("availability_request_id")
       .select([
         "availability_request_id",
@@ -304,15 +356,24 @@ export function listRequests(db: Kysely<DB>) {
 
     // Pull the actual fixtures so the list cards can show what's in
     // each request (team + opposition + date) without a per-card
-    // round-trip.
-    const fixtures = await db
+    // round-trip. Scoped officials only get their own teams' fixtures, so
+    // the cards never reveal e.g. a Midweek fixture to a 1st/2nd XI official.
+    let fixturesQuery = db
       .selectFrom("availability_fixture")
       .leftJoin(
         "play_cricket_team",
         "play_cricket_team.id",
         "availability_fixture.play_cricket_team_id",
       )
-      .where("availability_request_id", "in", requestIds)
+      .where("availability_request_id", "in", requestIds);
+    if (teamIds) {
+      fixturesQuery = fixturesQuery.where(
+        "availability_fixture.play_cricket_team_id",
+        "in",
+        teamIds,
+      );
+    }
+    const fixtures = await fixturesQuery
       .select([
         "availability_fixture.id",
         "availability_fixture.availability_request_id",
@@ -352,7 +413,10 @@ export function listRequests(db: Kysely<DB>) {
 }
 
 export function getRequest(db: Kysely<DB>) {
-  return async (requestId: string) => {
+  return async (userId: string, role: string, requestId: string) => {
+    const scope = await accessibleTeamScope(db, userId, role);
+    const teamIds = scope ? [...scope] : null;
+
     const request = await db
       .selectFrom("availability_request")
       .leftJoin("user", "user.id", "availability_request.created_by")
@@ -370,14 +434,28 @@ export function getRequest(db: Kysely<DB>) {
 
     if (!request) throwHttpError(404, "Availability request not found");
 
-    const fixtures = await db
+    // A scoped official with no accessible fixtures in this request is told
+    // it doesn't exist, rather than leaking that it does (and for whom).
+    if (scope?.size === 0) {
+      throwHttpError(404, "Availability request not found");
+    }
+
+    let fixturesQuery = db
       .selectFrom("availability_fixture")
       .leftJoin(
         "play_cricket_team",
         "play_cricket_team.id",
         "availability_fixture.play_cricket_team_id",
       )
-      .where("availability_request_id", "=", requestId)
+      .where("availability_request_id", "=", requestId);
+    if (teamIds) {
+      fixturesQuery = fixturesQuery.where(
+        "availability_fixture.play_cricket_team_id",
+        "in",
+        teamIds,
+      );
+    }
+    const fixtures = await fixturesQuery
       .select([
         "availability_fixture.id",
         "availability_fixture.availability_request_id",
@@ -394,6 +472,12 @@ export function getRequest(db: Kysely<DB>) {
       .orderBy("match_date", "asc")
       .orderBy("play_cricket_team.name", "asc")
       .execute();
+
+    // The request exists but holds only fixtures for teams this official
+    // can't access: treat as not found rather than returning an empty shell.
+    if (teamIds && fixtures.length === 0) {
+      throwHttpError(404, "Availability request not found");
+    }
 
     // Group fixtures by date and get counts
     const dates = new Map<
@@ -489,7 +573,15 @@ export function getRequest(db: Kysely<DB>) {
 }
 
 export function getDateDetail(db: Kysely<DB>) {
-  return async (requestId: string, date: string) => {
+  return async (
+    userId: string,
+    role: string,
+    requestId: string,
+    date: string,
+  ) => {
+    const scope = await accessibleTeamScope(db, userId, role);
+    const teamIds = scope ? [...scope] : null;
+
     const request = await db
       .selectFrom("availability_request")
       .where("id", "=", requestId)
@@ -497,6 +589,10 @@ export function getDateDetail(db: Kysely<DB>) {
       .executeTakeFirst();
 
     if (!request) throwHttpError(404, "Availability request not found");
+
+    if (scope?.size === 0) {
+      throwHttpError(404, "No fixtures found for this date");
+    }
 
     const requestGroupIds = (
       await db
@@ -506,8 +602,8 @@ export function getDateDetail(db: Kysely<DB>) {
         .execute()
     ).map((r) => r.user_group_id);
 
-    // Get fixtures for this date
-    const fixtures = await db
+    // Get fixtures for this date (scoped officials only see their teams')
+    let fixturesQuery = db
       .selectFrom("availability_fixture")
       .leftJoin(
         "play_cricket_team",
@@ -515,7 +611,15 @@ export function getDateDetail(db: Kysely<DB>) {
         "availability_fixture.play_cricket_team_id",
       )
       .where("availability_fixture.availability_request_id", "=", requestId)
-      .where("availability_fixture.match_date", "=", date)
+      .where("availability_fixture.match_date", "=", date);
+    if (teamIds) {
+      fixturesQuery = fixturesQuery.where(
+        "availability_fixture.play_cricket_team_id",
+        "in",
+        teamIds,
+      );
+    }
+    const fixtures = await fixturesQuery
       .select([
         "availability_fixture.id",
         "availability_fixture.match_date",
@@ -641,18 +745,30 @@ export function getDateDetail(db: Kysely<DB>) {
 }
 
 export function assignPlayer(db: Kysely<DB>) {
-  return async (requestId: string, date: string, data: AssignPlayer) => {
+  return async (
+    userId: string,
+    role: string,
+    requestId: string,
+    date: string,
+    data: AssignPlayer,
+  ) => {
+    const scope = await accessibleTeamScope(db, userId, role);
+
     // Verify the fixture belongs to this request and date
     const fixture = await db
       .selectFrom("availability_fixture")
       .where("id", "=", data.fixtureId)
       .where("availability_request_id", "=", requestId)
       .where("match_date", "=", date)
-      .select("id")
+      .select(["id", "play_cricket_team_id"])
       .executeTakeFirst();
 
     if (!fixture) {
       throwHttpError(404, "Fixture not found for this request and date");
+    }
+
+    if (scope && !scope.has(fixture.play_cricket_team_id)) {
+      throwHttpError(403, "You do not have access to this team");
     }
 
     // Check for duplicate member assignment to this fixture
@@ -703,14 +819,28 @@ export function assignPlayer(db: Kysely<DB>) {
 }
 
 export function removeAssignment(db: Kysely<DB>) {
-  return async (assignmentId: string) => {
+  return async (userId: string, role: string, assignmentId: string) => {
+    const scope = await accessibleTeamScope(db, userId, role);
+
     const assignment = await db
       .selectFrom("availability_assignment")
-      .where("id", "=", assignmentId)
-      .select(["id", "availability_fixture_id"])
+      .innerJoin(
+        "availability_fixture",
+        "availability_fixture.id",
+        "availability_assignment.availability_fixture_id",
+      )
+      .where("availability_assignment.id", "=", assignmentId)
+      .select([
+        "availability_assignment.id",
+        "availability_fixture.play_cricket_team_id",
+      ])
       .executeTakeFirst();
 
     if (!assignment) throwHttpError(404, "Assignment not found");
+
+    if (scope && !scope.has(assignment.play_cricket_team_id)) {
+      throwHttpError(403, "You do not have access to this team");
+    }
 
     await db
       .deleteFrom("availability_assignment")
@@ -724,17 +854,31 @@ export function removeAssignment(db: Kysely<DB>) {
 export function setAvailability(db: Kysely<DB>) {
   return async (
     userId: string,
+    role: string,
     requestId: string,
     date: string,
     memberId: string,
     data: SetAvailability,
   ) => {
-    const fixture = await db
+    const scope = await accessibleTeamScope(db, userId, role);
+    if (scope?.size === 0) {
+      throwHttpError(404, "No fixtures on this date for this request");
+    }
+
+    // A response is shared across every team playing on this date, so an
+    // official may override it only if they have a fixture of their own on
+    // that date (otherwise a 1st XI official could rewrite availability for
+    // a Midweek-only date).
+    let fixtureQuery = db
       .selectFrom("availability_fixture")
       .where("availability_request_id", "=", requestId)
-      .where("match_date", "=", date)
-      .select("id")
-      .executeTakeFirst();
+      .where("match_date", "=", date);
+    if (scope) {
+      fixtureQuery = fixtureQuery.where("play_cricket_team_id", "in", [
+        ...scope,
+      ]);
+    }
+    const fixture = await fixtureQuery.select("id").executeTakeFirst();
 
     if (!fixture)
       throwHttpError(404, "No fixtures on this date for this request");
@@ -861,7 +1005,17 @@ async function materialiseFixtureMatchday(
 }
 
 export function confirmDate(db: Kysely<DB>) {
-  return async (userId: string, requestId: string, date: string) => {
+  return async (
+    userId: string,
+    role: string,
+    requestId: string,
+    date: string,
+  ) => {
+    const scope = await accessibleTeamScope(db, userId, role);
+    if (scope?.size === 0) {
+      throwHttpError(404, "No fixtures found for this date");
+    }
+
     const request = await db
       .selectFrom("availability_request")
       .where("id", "=", requestId)
@@ -870,12 +1024,19 @@ export function confirmDate(db: Kysely<DB>) {
 
     if (!request) throwHttpError(404, "Availability request not found");
 
-    const fixtures = await db
+    // Scoped officials only materialise (confirm) their own teams' fixtures
+    // on this date; a 1st XI official confirming a date never locks in the
+    // Midweek team that shares it.
+    let fixturesQuery = db
       .selectFrom("availability_fixture")
       .where("availability_request_id", "=", requestId)
-      .where("match_date", "=", date)
-      .selectAll()
-      .execute();
+      .where("match_date", "=", date);
+    if (scope) {
+      fixturesQuery = fixturesQuery.where("play_cricket_team_id", "in", [
+        ...scope,
+      ]);
+    }
+    const fixtures = await fixturesQuery.selectAll().execute();
 
     if (fixtures.length === 0) {
       throwHttpError(404, "No fixtures found for this date");
@@ -916,10 +1077,13 @@ export function confirmDate(db: Kysely<DB>) {
 export function confirmFixture(db: Kysely<DB>) {
   return async (
     userId: string,
+    role: string,
     requestId: string,
     date: string,
     fixtureId: string,
   ) => {
+    const scope = await accessibleTeamScope(db, userId, role);
+
     const request = await db
       .selectFrom("availability_request")
       .where("id", "=", requestId)
@@ -940,6 +1104,10 @@ export function confirmFixture(db: Kysely<DB>) {
       throwHttpError(404, "Fixture not found for this request and date");
     }
 
+    if (scope && !scope.has(fixture.play_cricket_team_id)) {
+      throwHttpError(403, "You do not have access to this team");
+    }
+
     const result = await db
       .transaction()
       .execute((trx) =>
@@ -957,9 +1125,22 @@ export function confirmFixture(db: Kysely<DB>) {
 export function updateRequestStatus(db: Kysely<DB>) {
   return async (
     userId: string,
+    role: string,
     requestId: string,
     data: UpdateRequestStatus,
   ) => {
+    // Opening/closing a request is a whole-request lifecycle action that
+    // materialises matchdays across every team's fixtures. A scoped official
+    // can't safely own that (closing would skip the teams they can't access
+    // and silently strand those picks), so it's club-wide only. Officials
+    // lock in their own games via confirmFixture/confirmDate instead.
+    if (!hasClubWideAccess(role, "matchday", "view")) {
+      throwHttpError(
+        403,
+        "Only club-wide matchday admins can open or close availability requests",
+      );
+    }
+
     const request = await db
       .selectFrom("availability_request")
       .where("id", "=", requestId)

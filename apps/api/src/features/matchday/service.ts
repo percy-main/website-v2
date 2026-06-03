@@ -11,6 +11,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { SendPush } from "../../lib/push-sender.ts";
 import type { S3Uploader } from "../../lib/s3-upload.ts";
+import { getAccessibleTeamIds } from "../../lib/team-access.ts";
 import { applyReliefIfAny } from "../financial-relief/apply-relief.ts";
 import type { MatchdayChannel } from "../notification-preferences/schemas.ts";
 import {
@@ -38,32 +39,6 @@ import type {
 } from "./schemas.ts";
 
 // ── Helpers ──
-
-/**
- * Returns the play_cricket_team IDs the user is allowed to access.
- * Admins get all teams; officials get their assigned teams.
- */
-async function getAccessibleTeamIds(
-  db: Kysely<DB>,
-  userId: string,
-  role: string,
-): Promise<string[]> {
-  if (hasClubWideAccess(role, "matchday", "view")) {
-    const allTeams = await db
-      .selectFrom("play_cricket_team")
-      .select("id")
-      .execute();
-    return allTeams.map((t) => t.id).filter((id): id is string => id !== null);
-  }
-
-  const assignments = await db
-    .selectFrom("team_official")
-    .where("user_id", "=", userId)
-    .select("play_cricket_team_id")
-    .execute();
-
-  return assignments.map((a) => a.play_cricket_team_id);
-}
 
 function throwHttpError(statusCode: number, message: string): never {
   throw Object.assign(new Error(message), { statusCode });
