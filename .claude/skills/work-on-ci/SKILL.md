@@ -148,6 +148,8 @@ The code snippets elsewhere in this skill abbreviate refs to `@v6` etc. for read
 
 Exceptions, which stay as bare `./` refs (they are first-party and resolved from the repo's own tree, not downloaded): internal composite actions under `./.github/actions/*` and the reusable `./.github/workflows/_lint-test-build.yml`.
 
+One action carries a SHA with **no** `# vX.Y.Z` comment: `millionco/react-doctor` in `ci.yml`. It is deliberately pinned to an untagged commit on the maintainer's `main` (a recovery point from the PR #353 incident, sitting between releases), so there is no release tag to name. Dependabot can't auto-bump it while it's off a tag - the inline comment above the `uses:` line explains the situation. Re-pin it to a tagged release (with the `# vX.Y.Z` comment) once the upstream `--pr-comment` gap closes.
+
 GitHub also deprecates Node 20 actions on a rolling schedule (forced to Node 24 from June 2026, Node 20 removed September 2026). When a deprecation annotation appears, bump to the SHA of the latest major.
 
 ## Hooks and gotchas
