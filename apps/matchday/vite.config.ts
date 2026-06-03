@@ -64,6 +64,17 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Inline the workbox runtime into sw.js instead of emitting it as
+        // a separate module. Under Vite 8 (rolldown) an external runtime
+        // makes the bundler wrap the whole SW in an async AMD `define()`
+        // loader, so the worker body - including the importScripts() that
+        // registers the push/notificationclick listeners - runs inside a
+        // promise `.then()`. Service Worker functional-event listeners must
+        // be added synchronously during initial script evaluation; deferred
+        // registration means the browser never delivers push events to the
+        // handler (push service returns 201, but nothing is shown). Inlining
+        // removes the external dependency so the SW emits flat + synchronous.
+        inlineWorkboxRuntime: true,
         // Prompt-to-reload, NOT auto-takeover. The old SW keeps serving
         // the old precache (and therefore the old route chunks) until
         // the user taps Reload on the toast — at which point we send
