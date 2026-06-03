@@ -1,5 +1,38 @@
-import { api, callApi } from "@/lib/api-client.js";
+import { api, API_BASE, callApi } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
+
+// Shared with public/push-handler.js: the SW reads this Cache entry on
+// `pushsubscriptionchange` to re-subscribe + re-register after the push
+// service rotates an endpoint. Window and SW share Cache storage per
+// origin, so this is the durable handoff for config the SW can't read
+// from import.meta.env. Keep the names in sync with push-handler.js.
+const PUSH_CONFIG_CACHE = "push-config-v1";
+const PUSH_CONFIG_KEY = "/__push-config__";
+
+async function storePushConfig(vapidPublicKey: string): Promise<void> {
+  if (typeof caches === "undefined") return;
+  try {
+    const cache = await caches.open(PUSH_CONFIG_CACHE);
+    await cache.put(
+      PUSH_CONFIG_KEY,
+      new Response(JSON.stringify({ apiBase: API_BASE, vapidPublicKey }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  } catch {
+    // Best-effort: without it, a post-rotation re-subscribe just falls
+    // back to the user re-enabling manually (the pre-existing behaviour).
+  }
+}
+
+async function clearPushConfig(): Promise<void> {
+  if (typeof caches === "undefined") return;
+  try {
+    await caches.delete(PUSH_CONFIG_CACHE);
+  } catch {
+    // ignore
+  }
+}
 
 type Support =
   | { supported: true; permission: NotificationPermission }
@@ -148,6 +181,10 @@ export async function enablePushOnThisDevice(): Promise<{
     }),
   );
 
+  // Hand the SW what it needs to re-subscribe + re-register itself after
+  // the push service rotates this endpoint (pushsubscriptionchange).
+  await storePushConfig(publicKey);
+
   return { endpoint: json.endpoint };
 }
 
@@ -170,4 +207,7 @@ export async function disablePushOnThisDevice(): Promise<void> {
     // ignore - local unsubscribe still proceeds
   }
   await sub.unsubscribe();
+  // Drop the stashed config so a later pushsubscriptionchange doesn't
+  // silently resurrect a subscription the user just turned off.
+  await clearPushConfig();
 }
