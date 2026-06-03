@@ -74,7 +74,7 @@ export function BottomTabBar({ tabs }: { tabs: TabDef[] }) {
     activeIdx >= 0 ? `${((activeIdx + 0.5) * 100) / tabs.length}%` : "-100%";
   return (
     <nav
-      className="border-border bg-surface/95 fixed inset-x-0 bottom-0 z-30 grid auto-cols-fr grid-flow-col border-t pt-1 pb-[max(env(safe-area-inset-bottom),6px)] backdrop-blur md:hidden"
+      className="border-border bg-surface/95 relative z-30 grid auto-cols-fr grid-flow-col border-t pt-1 pb-[max(env(safe-area-inset-bottom),6px)] backdrop-blur md:hidden"
       aria-label="Matchday navigation"
     >
       {/* Single sliding accent bar shared across the row. CSS

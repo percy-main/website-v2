@@ -30,17 +30,25 @@ export function AppShell() {
     ? "official"
     : "player";
   const tabs = tabsForRole(role);
+  // Fixed-height app shell: the outer box is exactly one dynamic
+  // viewport tall (`h-dvh`) and clips overflow, so the page body never
+  // scrolls - only <main> does (`overflow-y-auto`). This keeps the
+  // browser's address/toolbar chrome from auto-hiding on scroll, which
+  // is what let iOS Chrome leave a gap under a `position: fixed` bottom
+  // nav (Safari re-anchored it to the visual viewport, Chrome didn't).
+  // With the bar now a normal flex child at the foot of the column, it
+  // is structurally pinned to the bottom on every browser.
   return (
-    <div className="bg-surface-raised text-text flex min-h-dvh">
+    <div className="bg-surface-raised text-text flex h-dvh overflow-hidden">
       <DesktopSideNav tabs={tabs} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
         <OfflineIndicator />
-        <main className="flex-1 pb-[calc(env(safe-area-inset-bottom)+72px)] md:pb-0">
+        <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
+        <BottomTabBar tabs={tabs} />
       </div>
-      <BottomTabBar tabs={tabs} />
       <ServiceWorkerUpdate />
     </div>
   );
