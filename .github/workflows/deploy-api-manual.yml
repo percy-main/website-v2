@@ -41,7 +41,7 @@ jobs:
       ECS_CLUSTER: percy-main-production-cluster
       ECS_SERVICE: production-api
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.ref }}
 
@@ -57,14 +57,14 @@ jobs:
           echo "Deployed SHA: ${DEPLOYED_SHA}"
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
           role-to-assume: ${{ vars.DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
         id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
 
       - name: Build and push Docker image
         id: build
@@ -95,7 +95,7 @@ jobs:
 
       - name: Generate SBOM (SPDX JSON)
         id: sbom
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ${{ steps.build.outputs.image }}
           format: spdx-json

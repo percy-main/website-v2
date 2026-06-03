@@ -128,21 +128,29 @@ Tasks that have `outputs` defined in `turbo.json` are cached. The CI `.turbo` ca
 
 ## Action version policy
 
-GitHub deprecates Node 20 actions on a rolling schedule (forced to Node 24 from June 2026, Node 20 removed September 2026). When adding a new action **or** seeing a deprecation annotation, pin to the latest major:
+**Every third-party action is pinned to a full 40-char commit SHA**, with a trailing `# vX.Y.Z` comment naming the release that SHA belongs to:
 
-- `actions/checkout@v6`
-- `actions/setup-node@v6`
-- `actions/cache@v5`
-- `actions/upload-artifact@v7` / `actions/download-artifact@v8`
-- `pnpm/action-setup@v6`
-- `aws-actions/configure-aws-credentials@v6`
-- `hashicorp/setup-terraform@v4`
-- `dorny/paths-filter@v4`
-- `docker/setup-buildx-action@v3`, `docker/build-push-action@v6`
-- `EnricoMi/publish-unit-test-result-action@v2`
-- `actions/dependency-review-action@v5`
+```yaml
+- uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+```
 
-Third-party security actions are SHA-pinned (see `aquasecurity/trivy-action` in `ci.yml`). Keep them SHA-pinned and bump deliberately.
+A version-tag ref (`@v6`, `@main`) is mutable: the maintainer can retarget the tag at any commit, including a malicious one (the [tj-actions/changed-files compromise, March 2025](https://github.com/marketplace/actions/tj-actions/changed-files) exfiltrated secrets from thousands of repos this way), and a moving `@main` can ship a breaking change mid-flight (which is what broke `react-doctor` in PR #353). A SHA is immutable, so neither can happen. Auth, payments, and infra-deploy secrets (`AWS_*`, `STRIPE_*`, `BETTER_AUTH_*`, `NEW_RELIC_*`) flow through these workflows, so this is the policy for **all** external actions, including first-party `actions/*` from GitHub.
+
+The trailing `# vX.Y.Z` comment is not decoration: Dependabot reads it to know which release the SHA maps to, and opens a PR (bumping both SHA and comment) when upstream tags move. The `github-actions` ecosystem is enabled in `.github/dependabot.yml`, so this stays maintained without manual effort.
+
+To pin (or bump) an action, resolve the tag to a commit SHA and find the matching release tag:
+
+```sh
+gh api repos/<owner>/<repo>/commits/<tag> --jq .sha   # -> the 40-char SHA
+```
+
+The code snippets elsewhere in this skill abbreviate refs to `@v6` etc. for readability - the real workflow files are SHA-pinned, and any new ref you add must be too.
+
+Exceptions, which stay as bare `./` refs (they are first-party and resolved from the repo's own tree, not downloaded): internal composite actions under `./.github/actions/*` and the reusable `./.github/workflows/_lint-test-build.yml`.
+
+One action carries a SHA with **no** `# vX.Y.Z` comment: `millionco/react-doctor` in `ci.yml`. It is deliberately pinned to an untagged commit on the maintainer's `main` (a recovery point from the PR #353 incident, sitting between releases), so there is no release tag to name. Dependabot can't auto-bump it while it's off a tag - the inline comment above the `uses:` line explains the situation. Re-pin it to a tagged release (with the `# vX.Y.Z` comment) once the upstream `--pr-comment` gap closes.
+
+GitHub also deprecates Node 20 actions on a rolling schedule (forced to Node 24 from June 2026, Node 20 removed September 2026). When a deprecation annotation appears, bump to the SHA of the latest major.
 
 ## Hooks and gotchas
 
