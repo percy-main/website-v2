@@ -12351,6 +12351,12 @@
                     },
                     "chargeCount": {
                       "type": "number"
+                    },
+                    "sentCount": {
+                      "type": "number"
+                    },
+                    "failedCount": {
+                      "type": "number"
                     }
                   },
                   "required": [

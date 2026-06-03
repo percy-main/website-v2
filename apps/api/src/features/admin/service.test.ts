@@ -1,6 +1,9 @@
 import type { DB } from "@percy-main/db";
+import type { Email } from "@percy-main/email";
 import type { Kysely } from "kysely";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+type SendMock = (email: Email) => Promise<void>;
 
 const {
   mockExecuteTakeFirst,
@@ -69,10 +72,13 @@ import {
   listMatchFeeRates,
   listUsers,
   mergeMembers,
+  sendChargeNotification,
   unlinkPlayCricketPlayer,
 } from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
+
+const chaseConfig = { BASE_URL: "http://localhost:5173" };
 
 describe("admin service", () => {
   beforeEach(() => {
@@ -355,38 +361,175 @@ describe("admin service", () => {
   });
 
   describe("chasePayment", () => {
-    it("returns success for unpaid charge", async () => {
+    it("sends a reminder email to the member and returns success", async () => {
       mockExecuteTakeFirst.mockResolvedValue({
         id: "ch1",
-        description: "Fee",
+        description: "Match donation",
         amount_pence: 5000,
         charge_date: "2026-01-15",
         memberName: "Alice",
         memberEmail: "alice@example.com",
       });
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
 
-      const result = await chasePayment(db)("ch1");
+      const result = await chasePayment(db, send, chaseConfig)("ch1");
+
       expect(result).toEqual({ success: true });
+      expect(send).toHaveBeenCalledTimes(1);
+      const sent = send.mock.calls[0][0];
+      expect(sent.to).toBe("alice@example.com");
+      expect(typeof sent.subject).toBe("string");
+      expect(sent.html).toContain("Alice");
     });
 
     it("throws 404 if charge not found", async () => {
       mockExecuteTakeFirst.mockResolvedValue(undefined);
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
 
-      await expect(chasePayment(db)("nonexistent")).rejects.toThrow(
-        "Charge not found or already paid/deleted",
-      );
+      await expect(
+        chasePayment(db, send, chaseConfig)("nonexistent"),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
+      expect(send).not.toHaveBeenCalled();
     });
 
     it("excludes pending charges (payment_confirmed_at set)", async () => {
       // When payment_confirmed_at is set, the charge is in-flight — chase should not find it
       mockExecuteTakeFirst.mockResolvedValue(undefined);
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
 
-      await expect(chasePayment(db)("pending-charge")).rejects.toThrow(
-        "Charge not found or already paid/deleted",
-      );
+      await expect(
+        chasePayment(db, send, chaseConfig)("pending-charge"),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
 
       // Verify the where clause was called (payment_confirmed_at filter applied)
       expect(mockQueryBuilder.where).toHaveBeenCalled();
+    });
+
+    it("throws 422 when the member has no email on file", async () => {
+      mockExecuteTakeFirst.mockResolvedValue({
+        id: "ch1",
+        description: "Match donation",
+        amount_pence: 5000,
+        charge_date: "2026-01-15",
+        memberName: "Alice",
+        memberEmail: null,
+      });
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
+
+      await expect(chasePayment(db, send, chaseConfig)("ch1")).rejects.toThrow(
+        "Member has no email address",
+      );
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it("surfaces a 502 when the email send fails", async () => {
+      mockExecuteTakeFirst.mockResolvedValue({
+        id: "ch1",
+        description: "Match donation",
+        amount_pence: 5000,
+        charge_date: "2026-01-15",
+        memberName: "Alice",
+        memberEmail: "alice@example.com",
+      });
+      const send = vi.fn<SendMock>().mockRejectedValue(new Error("SES down"));
+
+      await expect(chasePayment(db, send, chaseConfig)("ch1")).rejects.toThrow(
+        "Failed to send reminder email",
+      );
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("sendChargeNotification", () => {
+    it("sends a reminder per outstanding charge and counts successes", async () => {
+      // user lookup, then member lookup
+      mockExecuteTakeFirst
+        .mockResolvedValueOnce({ email: "bob@example.com", name: "Bob" })
+        .mockResolvedValueOnce({ id: "m1" });
+      mockExecute.mockResolvedValueOnce([
+        {
+          id: "c1",
+          description: "Match donation",
+          amount_pence: 5000,
+          charge_date: "2026-01-15",
+        },
+        {
+          id: "c2",
+          description: "Membership",
+          amount_pence: 2000,
+          charge_date: "2026-02-01",
+        },
+      ]);
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
+
+      const result = await sendChargeNotification(db, send, chaseConfig)("u1");
+
+      expect(result).toEqual({
+        sent: true,
+        chargeCount: 2,
+        sentCount: 2,
+        failedCount: 0,
+      });
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(send.mock.calls[0][0].to).toBe("bob@example.com");
+      expect(send.mock.calls[0][0].html).toContain("Bob");
+    });
+
+    it("counts a failed send without rejecting the whole batch", async () => {
+      mockExecuteTakeFirst
+        .mockResolvedValueOnce({ email: "bob@example.com", name: "Bob" })
+        .mockResolvedValueOnce({ id: "m1" });
+      mockExecute.mockResolvedValueOnce([
+        {
+          id: "c1",
+          description: "Match donation",
+          amount_pence: 5000,
+          charge_date: "2026-01-15",
+        },
+        {
+          id: "c2",
+          description: "Membership",
+          amount_pence: 2000,
+          charge_date: "2026-02-01",
+        },
+      ]);
+      const send = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("SES down"));
+
+      const result = await sendChargeNotification(db, send, chaseConfig)("u1");
+
+      expect(result).toEqual({
+        sent: true,
+        chargeCount: 2,
+        sentCount: 1,
+        failedCount: 1,
+      });
+      expect(send).toHaveBeenCalledTimes(2);
+    });
+
+    it("returns sent:false with a reason when there are no outstanding charges", async () => {
+      mockExecuteTakeFirst
+        .mockResolvedValueOnce({ email: "bob@example.com", name: "Bob" })
+        .mockResolvedValueOnce({ id: "m1" });
+      mockExecute.mockResolvedValueOnce([]);
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
+
+      const result = await sendChargeNotification(db, send, chaseConfig)("u1");
+
+      expect(result).toEqual({ sent: false, reason: "No outstanding charges" });
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it("throws 404 if the user is not found", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
+
+      await expect(
+        sendChargeNotification(db, send, chaseConfig)("missing"),
+      ).rejects.toThrow("User not found");
+      expect(send).not.toHaveBeenCalled();
     });
   });
 

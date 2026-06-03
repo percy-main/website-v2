@@ -155,7 +155,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const list = listUsers(app.db);
   const update = updateUser(app.db);
   const create = createMember(app.db);
-  const notify = sendChargeNotification(app.db);
+  const notify = sendChargeNotification(app.db, app.send, app.config);
   const recordLinking = getRecordLinking(app.db);
   const linkPC = linkPlayCricketPlayer(app.db);
   const unlinkPC = unlinkPlayCricketPlayer(app.db);
@@ -179,7 +179,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const listCharges = listAllCharges(app.db);
   const chargeAggregates = getChargeAggregates(app.db);
   const unpaidChargesForPdf = getUnpaidChargesGroupedByMember(app.db);
-  const chase = chasePayment(app.db);
+  const chase = chasePayment(app.db, app.send, app.config);
   const markPaid = markChargePaid(app.db);
   const edit = editCharge(app.db);
   const listContacts = listContactSubmissions(app.db);
@@ -468,7 +468,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await notify(request.body.userId);
+      return await notify(request.body.userId, request.log);
     },
   );
 
@@ -611,7 +611,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await chase(request.body.chargeId);
+      return await chase(request.body.chargeId, request.log);
     },
   );
 
