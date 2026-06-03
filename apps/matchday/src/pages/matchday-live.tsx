@@ -177,7 +177,7 @@ export default function MatchdayLive() {
   const notified = md.matchday.charges_notified_at != null;
 
   return (
-    <div className="bg-surface flex min-h-dvh flex-col">
+    <div className="bg-surface flex min-h-full flex-col">
       <header className="bg-navy px-4 py-3 text-white">
         <p className="text-[11px] font-semibold tracking-[0.06em] uppercase opacity-70">
           Match day · captain

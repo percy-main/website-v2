@@ -360,5 +360,5 @@ function EmptyDone({
 }
 
 function FlowFrame({ children }: { children: React.ReactNode }) {
-  return <div className="bg-surface flex min-h-dvh flex-col">{children}</div>;
+  return <div className="bg-surface flex min-h-full flex-col">{children}</div>;
 }

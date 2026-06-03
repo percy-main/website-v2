@@ -7,7 +7,8 @@ import { OfflineIndicator } from "@/components/shell/offline-indicator.js";
 import { ServiceWorkerUpdate } from "@/components/shell/sw-update.js";
 import { TopBar } from "@/components/shell/top-bar.js";
 import { canViewMatchdayAdmin, useSession } from "@/lib/auth-client.js";
-import { Outlet } from "react-router";
+import { useLayoutEffect, useRef } from "react";
+import { Outlet, useLocation } from "react-router";
 
 /**
  * Top-level shell wrapping every authenticated route. Renders the top
@@ -30,17 +31,38 @@ export function AppShell() {
     ? "official"
     : "player";
   const tabs = tabsForRole(role);
+
+  // <main> is now the scroll container instead of the window, and the
+  // shell stays mounted across route changes, so its scroll offset would
+  // otherwise carry over when you switch tabs (land partway down the next
+  // page). Reset it to the top on every navigation - the expected
+  // behaviour for tab nav. useLayoutEffect runs before paint so there's
+  // no visible jump from the previous page's scroll position.
+  const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [pathname]);
+
+  // Fixed-height app shell: the outer box is exactly one dynamic
+  // viewport tall (`h-dvh`) and clips overflow, so the page body never
+  // scrolls - only <main> does (`overflow-y-auto`). This keeps the
+  // browser's address/toolbar chrome from auto-hiding on scroll, which
+  // is what let iOS Chrome leave a gap under a `position: fixed` bottom
+  // nav (Safari re-anchored it to the visual viewport, Chrome didn't).
+  // With the bar now a normal flex child at the foot of the column, it
+  // is structurally pinned to the bottom on every browser.
   return (
-    <div className="bg-surface-raised text-text flex min-h-dvh">
+    <div className="bg-surface-raised text-text flex h-dvh overflow-hidden">
       <DesktopSideNav tabs={tabs} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
         <OfflineIndicator />
-        <main className="flex-1 pb-[calc(env(safe-area-inset-bottom)+72px)] md:pb-0">
+        <main ref={mainRef} className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
+        <BottomTabBar tabs={tabs} />
       </div>
-      <BottomTabBar tabs={tabs} />
       <ServiceWorkerUpdate />
     </div>
   );
