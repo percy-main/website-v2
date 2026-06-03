@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import {
   getAuthSession,
   requireAuth,
+  requireClubWidePermission,
   requirePermission,
 } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
@@ -55,6 +56,11 @@ import {
 export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   const matchdayView = requirePermission("matchday", "view");
   const matchdayManage = requirePermission("matchday", "manage");
+  // Whole-request / cross-team actions (create, preview, bulk notify) span
+  // every senior team, so they're restricted to club-wide matchday admins
+  // rather than team-scoped officials.
+  const clubWideView = requireClubWidePermission("matchday", "view");
+  const clubWideManage = requireClubWidePermission("matchday", "manage");
 
   // Build Play Cricket API client (if configured)
   const apiClient =
@@ -84,7 +90,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/availability/requests",
     {
-      preHandler: [matchdayManage],
+      preHandler: [clubWideManage],
       schema: {
         body: createRequestSchema,
         response: { 200: createRequestResponseSchema },
@@ -112,7 +118,9 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await list(request.query);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await list(user.id, role, request.query);
     },
   );
 
@@ -127,7 +135,9 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await get(request.params.requestId);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await get(user.id, role, request.params.requestId);
     },
   );
 
@@ -142,7 +152,14 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await getDate(request.params.requestId, request.params.date);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await getDate(
+        user.id,
+        role,
+        request.params.requestId,
+        request.params.date,
+      );
     },
   );
 
@@ -158,7 +175,11 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       return await assign(
+        user.id,
+        role,
         request.params.requestId,
         request.params.date,
         request.body,
@@ -177,7 +198,9 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await removeAssign(request.params.assignmentId);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await removeAssign(user.id, role, request.params.assignmentId);
     },
   );
 
@@ -194,8 +217,10 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       return await setAvail(
         user.id,
+        role,
         request.params.requestId,
         request.params.date,
         request.params.memberId,
@@ -216,8 +241,10 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       return await confirm(
         user.id,
+        role,
         request.params.requestId,
         request.params.date,
       );
@@ -236,8 +263,10 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       return await confirmOneFixture(
         user.id,
+        role,
         request.params.requestId,
         request.params.date,
         request.params.fixtureId,
@@ -258,8 +287,10 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
       return await updateStatus(
         user.id,
+        role,
         request.params.requestId,
         request.body,
       );
@@ -273,7 +304,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/availability/preview",
     {
-      preHandler: [matchdayView],
+      preHandler: [clubWideView],
       schema: {
         querystring: previewRangeSchema,
         response: { 200: previewFixturesResponseSchema },
@@ -303,7 +334,7 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/availability/requests/:requestId/notify/send",
     {
-      preHandler: [matchdayManage],
+      preHandler: [clubWideManage],
       schema: {
         params: requestIdParamSchema,
         body: notifySendSchema,

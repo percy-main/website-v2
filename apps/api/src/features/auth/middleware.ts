@@ -1,5 +1,6 @@
 import {
   checkPermission,
+  hasClubWideAccess,
   type Action,
   type Resource,
 } from "@percy-main/shared/auth/permissions";
@@ -77,6 +78,30 @@ export function requirePermission<R extends Resource>(
     const userRole =
       (request.authSession?.user as { role?: string | null }).role ?? "user";
     if (!checkPermission(userRole, resource, action)) {
+      return reply.status(403).send({ error: "Forbidden" });
+    }
+  };
+}
+
+/**
+ * Like {@link requirePermission}, but rejects team-scoped roles (the
+ * `official`/`junior_manager` roles enforced per-team via join tables).
+ * Use for whole-club actions that can't be expressed as a single team -
+ * e.g. creating an availability request that spans every senior team, or
+ * opening/closing one. A scoped official has the permission but not the
+ * club-wide reach, so checkPermission alone would let them through.
+ */
+export function requireClubWidePermission<R extends Resource>(
+  resource: R,
+  action: Action<R>,
+) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    await requireAuth(request, reply);
+    if (reply.sent) return;
+
+    const userRole =
+      (request.authSession?.user as { role?: string | null }).role ?? "user";
+    if (!hasClubWideAccess(userRole, resource, action)) {
       return reply.status(403).send({ error: "Forbidden" });
     }
   };

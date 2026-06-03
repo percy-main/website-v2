@@ -94,6 +94,14 @@ async function seedGroup(name: string, memberIds: readonly string[] = []) {
   return id;
 }
 
+/** Grant an official access to a team (team_official join row). */
+async function seedTeamOfficial(userId: string, teamId: string) {
+  await ctx.db
+    .insertInto("team_official")
+    .values({ user_id: userId, play_cricket_team_id: teamId })
+    .execute();
+}
+
 /** Seed a fixture for a request. */
 async function seedFixture(
   requestId: string,
@@ -120,7 +128,10 @@ async function seedFixture(
 describe("availability service (integration)", () => {
   describe("listRequests", () => {
     it("returns empty list initially", async () => {
-      const result = await listRequests(ctx.db)({ limit: 20, offset: 0 });
+      const result = await listRequests(ctx.db)("system", "admin", {
+        limit: 20,
+        offset: 0,
+      });
       expect(result.items).toEqual([]);
     });
 
@@ -134,7 +145,10 @@ describe("availability service (integration)", () => {
       await seedFixture(reqId, teamId, "2026-06-01");
       await seedFixture(reqId, teamId, "2026-06-07");
 
-      const result = await listRequests(ctx.db)({ limit: 20, offset: 0 });
+      const result = await listRequests(ctx.db)(userId, "admin", {
+        limit: 20,
+        offset: 0,
+      });
       const req = result.items.find((r) => r.id === reqId);
       expect(req).toBeDefined();
       expect(req?.fixtureCount).toBe(2);
@@ -153,7 +167,7 @@ describe("availability service (integration)", () => {
       await seedFixture(reqId, teamId, "2026-07-01", "Team A");
       await seedFixture(reqId, teamId, "2026-07-05", "Team B");
 
-      const result = await getRequest(ctx.db)(reqId);
+      const result = await getRequest(ctx.db)(userId, "admin", reqId);
       expect(result.request.id).toBe(reqId);
       expect(result.dates).toHaveLength(2);
       expect(result.dates[0].date).toBe("2026-07-01");
@@ -161,9 +175,9 @@ describe("availability service (integration)", () => {
     });
 
     it("throws 404 for non-existent request", async () => {
-      await expect(getRequest(ctx.db)("nonexistent")).rejects.toThrow(
-        "not found",
-      );
+      await expect(
+        getRequest(ctx.db)("system", "admin", "nonexistent"),
+      ).rejects.toThrow("not found");
     });
   });
 
@@ -234,7 +248,12 @@ describe("availability service (integration)", () => {
         })
         .execute();
 
-      const result = await getDateDetail(ctx.db)(reqId, "2026-08-01");
+      const result = await getDateDetail(ctx.db)(
+        userId,
+        "admin",
+        reqId,
+        "2026-08-01",
+      );
       expect(result.fixtures).toHaveLength(1);
       expect(result.fixtures[0].id).toBe(fixId);
       expect(result.pools.available).toHaveLength(1);
@@ -259,6 +278,8 @@ describe("availability service (integration)", () => {
 
       // Assign player
       const { id: assignId, position } = await assignPlayer(ctx.db)(
+        userId,
+        "admin",
         reqId,
         "2026-09-01",
         {
@@ -271,13 +292,18 @@ describe("availability service (integration)", () => {
       expect(position).toBe(1);
 
       // Verify shows in date detail
-      const detail = await getDateDetail(ctx.db)(reqId, "2026-09-01");
+      const detail = await getDateDetail(ctx.db)(
+        userId,
+        "admin",
+        reqId,
+        "2026-09-01",
+      );
       expect(detail.fixtures[0].assignments).toHaveLength(1);
       expect(detail.fixtures[0].assignments[0].player_name).toBe("Charlie");
 
       // Duplicate assignment should fail
       await expect(
-        assignPlayer(ctx.db)(reqId, "2026-09-01", {
+        assignPlayer(ctx.db)(userId, "admin", reqId, "2026-09-01", {
           fixtureId: fixId,
           memberId,
           playerName: "Charlie",
@@ -285,7 +311,11 @@ describe("availability service (integration)", () => {
       ).rejects.toThrow("already assigned");
 
       // Remove assignment
-      const removeResult = await removeAssignment(ctx.db)(assignId);
+      const removeResult = await removeAssignment(ctx.db)(
+        userId,
+        "admin",
+        assignId,
+      );
       expect(removeResult.success).toBe(true);
     });
 
@@ -298,13 +328,24 @@ describe("availability service (integration)", () => {
       const reqId = await seedRequest(userId, "2026-10-01", "2026-10-07");
       const fixId = await seedFixture(reqId, teamId, "2026-10-01");
 
-      const { id: assignId } = await assignPlayer(ctx.db)(reqId, "2026-10-01", {
-        fixtureId: fixId,
-        playerName: "Guest Player",
-      });
+      const { id: assignId } = await assignPlayer(ctx.db)(
+        userId,
+        "admin",
+        reqId,
+        "2026-10-01",
+        {
+          fixtureId: fixId,
+          playerName: "Guest Player",
+        },
+      );
       expect(assignId).toBeDefined();
 
-      const detail = await getDateDetail(ctx.db)(reqId, "2026-10-01");
+      const detail = await getDateDetail(ctx.db)(
+        userId,
+        "admin",
+        reqId,
+        "2026-10-01",
+      );
       const assignment = detail.fixtures[0].assignments[0];
       expect(assignment.player_name).toBe("Guest Player");
       expect(assignment.member_id).toBeNull();
@@ -342,6 +383,7 @@ describe("availability service (integration)", () => {
       // Official overrides to available
       const result = await setAvailability(ctx.db)(
         userId,
+        "admin",
         reqId,
         "2026-11-01",
         memberId,
@@ -376,6 +418,7 @@ describe("availability service (integration)", () => {
 
       const result = await setAvailability(ctx.db)(
         userId,
+        "admin",
         reqId,
         "2026-11-08",
         memberId,
@@ -409,9 +452,16 @@ describe("availability service (integration)", () => {
       );
 
       await expect(
-        setAvailability(ctx.db)(userId, reqId, "2026-11-20", memberId, {
-          status: "available",
-        }),
+        setAvailability(ctx.db)(
+          userId,
+          "admin",
+          reqId,
+          "2026-11-20",
+          memberId,
+          {
+            status: "available",
+          },
+        ),
       ).rejects.toThrow("No fixtures");
     });
   });
@@ -566,18 +616,23 @@ describe("availability service (integration)", () => {
       );
 
       // Assign two players
-      await assignPlayer(ctx.db)(reqId, "2027-03-01", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-03-01", {
         fixtureId: fixId,
         memberId,
         playerName: "Hank",
       });
-      await assignPlayer(ctx.db)(reqId, "2027-03-01", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-03-01", {
         fixtureId: fixId,
         playerName: "Guest Player",
       });
 
       // Confirm
-      const result = await confirmDate(ctx.db)(userId, reqId, "2027-03-01");
+      const result = await confirmDate(ctx.db)(
+        userId,
+        "admin",
+        reqId,
+        "2027-03-01",
+      );
       expect(result.matchdays).toHaveLength(1);
 
       const matchdayId = result.matchdays[0].matchdayId;
@@ -620,19 +675,19 @@ describe("availability service (integration)", () => {
         "2027-08-01",
         "Conflict Opp CC",
       );
-      await assignPlayer(ctx.db)(reqId, "2027-08-01", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-08-01", {
         fixtureId: fixId,
         playerName: "Guest",
       });
 
       // First confirmDate succeeds.
-      await confirmDate(ctx.db)(userId, reqId, "2027-08-01");
+      await confirmDate(ctx.db)(userId, "admin", reqId, "2027-08-01");
 
       // Calling again must conflict rather than silently returning - the
       // captain would otherwise be misled into thinking newly-added picks
       // had been carried into the existing matchday.
       await expect(
-        confirmDate(ctx.db)(userId, reqId, "2027-08-01"),
+        confirmDate(ctx.db)(userId, "admin", reqId, "2027-08-01"),
       ).rejects.toThrow("already exists");
     });
   });
@@ -659,13 +714,14 @@ describe("availability service (integration)", () => {
         "2027-05-08",
         "Late Opp CC",
       );
-      await assignPlayer(ctx.db)(reqId, "2027-05-01", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-05-01", {
         fixtureId: earlyFix,
         playerName: "Early Player",
       });
 
       const result = await confirmFixture(ctx.db)(
         userId,
+        "admin",
         reqId,
         "2027-05-01",
         earlyFix,
@@ -715,7 +771,7 @@ describe("availability service (integration)", () => {
       );
 
       await expect(
-        confirmFixture(ctx.db)(userId, reqId, "2027-06-01", fixId),
+        confirmFixture(ctx.db)(userId, "admin", reqId, "2027-06-01", fixId),
       ).rejects.toThrow("No players");
     });
 
@@ -732,14 +788,14 @@ describe("availability service (integration)", () => {
         "2027-07-01",
         "Reconfirm Opp CC",
       );
-      await assignPlayer(ctx.db)(reqId, "2027-07-01", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-07-01", {
         fixtureId: fixId,
         playerName: "Guest",
       });
 
-      await confirmFixture(ctx.db)(userId, reqId, "2027-07-01", fixId);
+      await confirmFixture(ctx.db)(userId, "admin", reqId, "2027-07-01", fixId);
       await expect(
-        confirmFixture(ctx.db)(userId, reqId, "2027-07-01", fixId),
+        confirmFixture(ctx.db)(userId, "admin", reqId, "2027-07-01", fixId),
       ).rejects.toThrow("already exists");
     });
 
@@ -756,25 +812,36 @@ describe("availability service (integration)", () => {
         "2027-09-01",
         "Detail Opp CC",
       );
-      await assignPlayer(ctx.db)(reqId, "2027-09-01", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-09-01", {
         fixtureId: fixId,
         playerName: "Guest",
       });
 
-      const before = await getDateDetail(ctx.db)(reqId, "2027-09-01");
+      const before = await getDateDetail(ctx.db)(
+        userId,
+        "admin",
+        reqId,
+        "2027-09-01",
+      );
       expect(before.fixtures[0].matchdayId).toBeNull();
 
       const { matchdayId } = await confirmFixture(ctx.db)(
         userId,
+        "admin",
         reqId,
         "2027-09-01",
         fixId,
       );
 
-      const after = await getDateDetail(ctx.db)(reqId, "2027-09-01");
+      const after = await getDateDetail(ctx.db)(
+        userId,
+        "admin",
+        reqId,
+        "2027-09-01",
+      );
       expect(after.fixtures[0].matchdayId).toBe(matchdayId);
 
-      const detail = await getRequest(ctx.db)(reqId);
+      const detail = await getRequest(ctx.db)(userId, "admin", reqId);
       const dateEntry = detail.dates.find((d) => d.date === "2027-09-01");
       expect(dateEntry?.confirmedCount).toBe(1);
     });
@@ -788,7 +855,9 @@ describe("availability service (integration)", () => {
       });
       const reqId = await seedRequest(userId, "2027-04-01", "2027-04-07");
 
-      await updateRequestStatus(ctx.db)(userId, reqId, { status: "closed" });
+      await updateRequestStatus(ctx.db)(userId, "admin", reqId, {
+        status: "closed",
+      });
       const closed = await ctx.db
         .selectFrom("availability_request")
         .where("id", "=", reqId)
@@ -796,7 +865,9 @@ describe("availability service (integration)", () => {
         .executeTakeFirst();
       expect(closed?.status).toBe("closed");
 
-      await updateRequestStatus(ctx.db)(userId, reqId, { status: "open" });
+      await updateRequestStatus(ctx.db)(userId, "admin", reqId, {
+        status: "open",
+      });
       const opened = await ctx.db
         .selectFrom("availability_request")
         .where("id", "=", reqId)
@@ -833,18 +904,18 @@ describe("availability service (integration)", () => {
         `anna-${crypto.randomUUID()}@t.com`,
       );
       const memB = await seedMember("Bob", `bob-${crypto.randomUUID()}@t.com`);
-      await assignPlayer(ctx.db)(reqId, "2027-05-01", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-05-01", {
         fixtureId: fixA,
         memberId: memA,
         playerName: "Anna",
       });
-      await assignPlayer(ctx.db)(reqId, "2027-05-08", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-05-08", {
         fixtureId: fixB,
         memberId: memB,
         playerName: "Bob",
       });
 
-      const result = await updateRequestStatus(ctx.db)(userId, reqId, {
+      const result = await updateRequestStatus(ctx.db)(userId, "admin", reqId, {
         status: "closed",
       });
       expect(result.success).toBe(true);
@@ -889,19 +960,21 @@ describe("availability service (integration)", () => {
         "Iggy",
         `iggy-${crypto.randomUUID()}@t.com`,
       );
-      await assignPlayer(ctx.db)(reqId, "2027-06-01", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-06-01", {
         fixtureId: fixId,
         memberId,
         playerName: "Iggy",
       });
 
-      const first = await updateRequestStatus(ctx.db)(userId, reqId, {
+      const first = await updateRequestStatus(ctx.db)(userId, "admin", reqId, {
         status: "closed",
       });
       expect(first.matchdaysCreated).toBe(1);
 
-      await updateRequestStatus(ctx.db)(userId, reqId, { status: "open" });
-      const second = await updateRequestStatus(ctx.db)(userId, reqId, {
+      await updateRequestStatus(ctx.db)(userId, "admin", reqId, {
+        status: "open",
+      });
+      const second = await updateRequestStatus(ctx.db)(userId, "admin", reqId, {
         status: "closed",
       });
       expect(second.matchdaysCreated).toBe(0);
@@ -935,12 +1008,12 @@ describe("availability service (integration)", () => {
         "2027-09-01",
         "Noop Opp CC",
       );
-      await assignPlayer(ctx.db)(reqId, "2027-09-01", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-09-01", {
         fixtureId: fixId,
         playerName: "Guest",
       });
 
-      const result = await updateRequestStatus(ctx.db)(userId, reqId, {
+      const result = await updateRequestStatus(ctx.db)(userId, "admin", reqId, {
         status: "closed",
       });
       expect(result.matchdaysCreated).toBe(0);
@@ -965,12 +1038,12 @@ describe("availability service (integration)", () => {
         "2027-07-01",
         "Reopen Opp CC",
       );
-      await assignPlayer(ctx.db)(reqId, "2027-07-01", {
+      await assignPlayer(ctx.db)(userId, "admin", reqId, "2027-07-01", {
         fixtureId: fixId,
         playerName: "Guest",
       });
 
-      const result = await updateRequestStatus(ctx.db)(userId, reqId, {
+      const result = await updateRequestStatus(ctx.db)(userId, "admin", reqId, {
         status: "open",
       });
       expect(result.matchdaysCreated).toBe(0);
@@ -1060,7 +1133,12 @@ describe("availability service (integration)", () => {
         responses: [{ matchDate: "2027-06-01", status: "available" }],
       });
 
-      const detail = await getDateDetail(ctx.db)(reqId, "2027-06-01");
+      const detail = await getDateDetail(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-06-01",
+      );
 
       // Amendments §2: both responses (group + non-group) surface to
       // officials.
@@ -1075,6 +1153,303 @@ describe("availability service (integration)", () => {
         (m: { id: string }) => m.id,
       );
       expect(noResponseIds).not.toContain(outsider.memberId);
+    });
+  });
+
+  // Regression coverage for the bug where a scoped `official` (assigned to
+  // specific teams via team_official) could see and manage fixtures for
+  // teams they had no grant on - e.g. a 1st/2nd XI official reaching the
+  // Midweek XI fixtures bundled into the same availability request.
+  describe("team-scoped access for scoped officials", () => {
+    /**
+     * Seed an `official` granted `grantTeam`, plus a request whose fixtures
+     * span `grantTeam` and a second team the official cannot access. Both
+     * fixtures share the same date so the leak can't hide behind date
+     * grouping.
+     */
+    async function seedMixedTeamRequest() {
+      const admin = await seedTestUser(ctx.db, {
+        email: `tso-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const official = await seedTestUser(ctx.db, {
+        email: `tso-official-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      const myTeam = await seedTeam("1st XI");
+      const otherTeam = await seedTeam("Midweek XI");
+      await seedTeamOfficial(official.userId, myTeam);
+
+      const reqId = await seedRequest(admin.userId, "2027-10-01", "2027-10-01");
+      const myFix = await seedFixture(reqId, myTeam, "2027-10-01", "My Opp CC");
+      const otherFix = await seedFixture(
+        reqId,
+        otherTeam,
+        "2027-10-01",
+        "Their Opp CC",
+      );
+
+      return { official, myTeam, otherTeam, reqId, myFix, otherFix };
+    }
+
+    it("getRequest hides fixtures for teams the official can't access", async () => {
+      const { official, reqId } = await seedMixedTeamRequest();
+
+      const result = await getRequest(ctx.db)(
+        official.userId,
+        "official",
+        reqId,
+      );
+
+      const teams = result.dates.flatMap((d) =>
+        d.fixtures.map((f) => f.team_name),
+      );
+      expect(teams).toContain("1st XI");
+      expect(teams).not.toContain("Midweek XI");
+    });
+
+    it("getDateDetail hides fixtures for teams the official can't access", async () => {
+      const { official, reqId, myFix } = await seedMixedTeamRequest();
+
+      const detail = await getDateDetail(ctx.db)(
+        official.userId,
+        "official",
+        reqId,
+        "2027-10-01",
+      );
+
+      expect(detail.fixtures).toHaveLength(1);
+      expect(detail.fixtures[0].id).toBe(myFix);
+      expect(detail.fixtures[0].team_name).toBe("1st XI");
+    });
+
+    it("listRequests only embeds the official's own teams' fixtures", async () => {
+      const { official, reqId } = await seedMixedTeamRequest();
+
+      const result = await listRequests(ctx.db)(official.userId, "official", {
+        limit: 50,
+        offset: 0,
+      });
+
+      const req = result.items.find((r) => r.id === reqId);
+      expect(req).toBeDefined();
+      const teams = req?.fixtures.map((f) => f.team_name) ?? [];
+      expect(teams).toEqual(["1st XI"]);
+      // fixtureCount reflects only the fixtures the official can see.
+      expect(req?.fixtureCount).toBe(1);
+    });
+
+    it("getRequest 404s when the official can access none of its teams", async () => {
+      const admin = await seedTestUser(ctx.db, {
+        email: `tso-none-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const official = await seedTestUser(ctx.db, {
+        email: `tso-none-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      // Official is granted a team, but the request has no fixture for it.
+      await seedTeamOfficial(official.userId, await seedTeam("3rd XI"));
+      const otherTeam = await seedTeam("Sunday XI");
+      const reqId = await seedRequest(admin.userId, "2027-10-08", "2027-10-08");
+      await seedFixture(reqId, otherTeam, "2027-10-08");
+
+      await expect(
+        getRequest(ctx.db)(official.userId, "official", reqId),
+      ).rejects.toThrow("not found");
+    });
+
+    it("assignPlayer 403s on a fixture the official can't access", async () => {
+      const { official, reqId, otherFix } = await seedMixedTeamRequest();
+
+      await expect(
+        assignPlayer(ctx.db)(official.userId, "official", reqId, "2027-10-01", {
+          fixtureId: otherFix,
+          playerName: "Sneaky Pick",
+        }),
+      ).rejects.toThrow("access");
+    });
+
+    it("assignPlayer allows a fixture the official does own", async () => {
+      const { official, reqId, myFix } = await seedMixedTeamRequest();
+
+      const { id } = await assignPlayer(ctx.db)(
+        official.userId,
+        "official",
+        reqId,
+        "2027-10-01",
+        { fixtureId: myFix, playerName: "Legit Pick" },
+      );
+      expect(id).toBeDefined();
+    });
+
+    it("confirmFixture 403s on a fixture the official can't access", async () => {
+      const { official, reqId, otherFix } = await seedMixedTeamRequest();
+
+      await expect(
+        confirmFixture(ctx.db)(
+          official.userId,
+          "official",
+          reqId,
+          "2027-10-01",
+          otherFix,
+        ),
+      ).rejects.toThrow("access");
+    });
+
+    it("confirmDate only materialises the official's own teams' fixtures", async () => {
+      const { official, reqId, myFix, otherFix } = await seedMixedTeamRequest();
+      // Assign a player to each fixture so both are materialisable.
+      await assignPlayer(ctx.db)(
+        official.userId,
+        "official",
+        reqId,
+        "2027-10-01",
+        {
+          fixtureId: myFix,
+          playerName: "Mine",
+        },
+      );
+      // Seed an assignment on the other team's fixture directly (the official
+      // can't via the API, which is the point).
+      await ctx.db
+        .insertInto("availability_assignment")
+        .values({
+          id: crypto.randomUUID(),
+          availability_fixture_id: otherFix,
+          player_name: "Theirs",
+          position: 1,
+        })
+        .execute();
+
+      const result = await confirmDate(ctx.db)(
+        official.userId,
+        "official",
+        reqId,
+        "2027-10-01",
+      );
+
+      // Only the official's own fixture is confirmed into a matchday.
+      expect(result.matchdays).toHaveLength(1);
+      expect(result.matchdays[0].fixtureId).toBe(myFix);
+    });
+
+    it("updateRequestStatus 403s for a scoped official", async () => {
+      const { official, reqId } = await seedMixedTeamRequest();
+
+      await expect(
+        updateRequestStatus(ctx.db)(official.userId, "official", reqId, {
+          status: "closed",
+        }),
+      ).rejects.toThrow("club-wide");
+    });
+
+    it("getRequest assignmentCount excludes hidden teams sharing a date", async () => {
+      const { official, reqId, myFix, otherFix } = await seedMixedTeamRequest();
+      // One pick on the official's fixture, one on the hidden fixture - both
+      // on the same date (2027-10-01).
+      await ctx.db
+        .insertInto("availability_assignment")
+        .values([
+          {
+            id: crypto.randomUUID(),
+            availability_fixture_id: myFix,
+            player_name: "Mine",
+            position: 1,
+          },
+          {
+            id: crypto.randomUUID(),
+            availability_fixture_id: otherFix,
+            player_name: "Theirs",
+            position: 1,
+          },
+        ])
+        .execute();
+
+      const result = await getRequest(ctx.db)(
+        official.userId,
+        "official",
+        reqId,
+      );
+      const dateEntry = result.dates.find((d) => d.date === "2027-10-01");
+      // Only the official's own pick is counted, not the hidden team's.
+      expect(dateEntry?.assignmentCount).toBe(1);
+    });
+
+    it("listRequests respondentCount ignores responses on inaccessible dates", async () => {
+      const admin = await seedTestUser(ctx.db, {
+        email: `rc-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const official = await seedTestUser(ctx.db, {
+        email: `rc-official-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      const myTeam = await seedTeam("1st XI");
+      const otherTeam = await seedTeam("Midweek XI");
+      await seedTeamOfficial(official.userId, myTeam);
+
+      // Two dates: the official can access 10-15 only; the response lands on
+      // the inaccessible team's date (10-22).
+      const reqId = await seedRequest(admin.userId, "2027-10-15", "2027-10-22");
+      await seedFixture(reqId, myTeam, "2027-10-15");
+      await seedFixture(reqId, otherTeam, "2027-10-22");
+      const memberId = await seedMember(
+        "Responder",
+        `resp-${crypto.randomUUID()}@test.com`,
+      );
+      await ctx.db
+        .insertInto("availability_response")
+        .values({
+          id: crypto.randomUUID(),
+          availability_request_id: reqId,
+          member_id: memberId,
+          match_date: "2027-10-22",
+          status: "available",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      const officialView = await listRequests(ctx.db)(
+        official.userId,
+        "official",
+        { limit: 50, offset: 0 },
+      );
+      const officialReq = officialView.items.find((r) => r.id === reqId);
+      expect(officialReq?.respondentCount).toBe(0);
+
+      const adminView = await listRequests(ctx.db)(admin.userId, "admin", {
+        limit: 50,
+        offset: 0,
+      });
+      const adminReq = adminView.items.find((r) => r.id === reqId);
+      expect(adminReq?.respondentCount).toBe(1);
+    });
+
+    it("getDateDetail 404s as not-found (not 'no fixtures') on an inaccessible date", async () => {
+      const admin = await seedTestUser(ctx.db, {
+        email: `dd-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const official = await seedTestUser(ctx.db, {
+        email: `dd-official-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      const myTeam = await seedTeam("1st XI");
+      const otherTeam = await seedTeam("Midweek XI");
+      await seedTeamOfficial(official.userId, myTeam);
+
+      const reqId = await seedRequest(admin.userId, "2027-11-01", "2027-11-08");
+      await seedFixture(reqId, myTeam, "2027-11-01");
+      await seedFixture(reqId, otherTeam, "2027-11-08");
+
+      // The official can see the request (has a fixture on 11-01) but not the
+      // 11-08 date - the 404 must read like a missing request, matching
+      // getRequest, so it can't be used to probe request existence.
+      await expect(
+        getDateDetail(ctx.db)(official.userId, "official", reqId, "2027-11-08"),
+      ).rejects.toThrow("Availability request not found");
     });
   });
 });
