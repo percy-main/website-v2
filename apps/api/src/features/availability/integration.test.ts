@@ -1426,5 +1426,30 @@ describe("availability service (integration)", () => {
       const adminReq = adminView.items.find((r) => r.id === reqId);
       expect(adminReq?.respondentCount).toBe(1);
     });
+
+    it("getDateDetail 404s as not-found (not 'no fixtures') on an inaccessible date", async () => {
+      const admin = await seedTestUser(ctx.db, {
+        email: `dd-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const official = await seedTestUser(ctx.db, {
+        email: `dd-official-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      const myTeam = await seedTeam("1st XI");
+      const otherTeam = await seedTeam("Midweek XI");
+      await seedTeamOfficial(official.userId, myTeam);
+
+      const reqId = await seedRequest(admin.userId, "2027-11-01", "2027-11-08");
+      await seedFixture(reqId, myTeam, "2027-11-01");
+      await seedFixture(reqId, otherTeam, "2027-11-08");
+
+      // The official can see the request (has a fixture on 11-01) but not the
+      // 11-08 date - the 404 must read like a missing request, matching
+      // getRequest, so it can't be used to probe request existence.
+      await expect(
+        getDateDetail(ctx.db)(official.userId, "official", reqId, "2027-11-08"),
+      ).rejects.toThrow("Availability request not found");
+    });
   });
 });

@@ -632,8 +632,16 @@ export function getDateDetail(db: Kysely<DB>) {
 
     if (!request) throwHttpError(404, "Availability request not found");
 
+    // For scoped officials, "no accessible fixtures" reads as a plain
+    // not-found (matching getRequest) so the 404 can't distinguish an
+    // inaccessible request from a nonexistent one. Admins get the more
+    // specific "no fixtures on this date" message.
+    const notFoundMessage = teamIds
+      ? "Availability request not found"
+      : "No fixtures found for this date";
+
     if (scope?.size === 0) {
-      throwHttpError(404, "No fixtures found for this date");
+      throwHttpError(404, notFoundMessage);
     }
 
     const requestGroupIds = (
@@ -677,7 +685,7 @@ export function getDateDetail(db: Kysely<DB>) {
       .execute();
 
     if (fixtures.length === 0) {
-      throwHttpError(404, "No fixtures found for this date");
+      throwHttpError(404, notFoundMessage);
     }
 
     // Get assignments per fixture
