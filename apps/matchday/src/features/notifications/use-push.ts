@@ -1,5 +1,38 @@
-import { api, callApi } from "@/lib/api-client.js";
+import { api, API_BASE, callApi } from "@/lib/api-client.js";
 import { useQuery } from "@tanstack/react-query";
+
+// Shared with public/push-handler.js: the SW reads this Cache entry on
+// `pushsubscriptionchange` to re-subscribe + re-register after the push
+// service rotates an endpoint. Window and SW share Cache storage per
+// origin, so this is the durable handoff for config the SW can't read
+// from import.meta.env. Keep the names in sync with push-handler.js.
+const PUSH_CONFIG_CACHE = "push-config-v1";
+const PUSH_CONFIG_KEY = "/__push-config__";
+
+async function storePushConfig(vapidPublicKey: string): Promise<void> {
+  if (typeof caches === "undefined") return;
+  try {
+    const cache = await caches.open(PUSH_CONFIG_CACHE);
+    await cache.put(
+      PUSH_CONFIG_KEY,
+      new Response(JSON.stringify({ apiBase: API_BASE, vapidPublicKey }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  } catch {
+    // Best-effort: without it, a post-rotation re-subscribe just falls
+    // back to the user re-enabling manually (the pre-existing behaviour).
+  }
+}
+
+async function clearPushConfig(): Promise<void> {
+  if (typeof caches === "undefined") return;
+  try {
+    await caches.delete(PUSH_CONFIG_CACHE);
+  } catch {
+    // ignore
+  }
+}
 
 type Support =
   | { supported: true; permission: NotificationPermission }
@@ -47,6 +80,40 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return output;
 }
 
+// base64url-encode raw key bytes - inverse of urlBase64ToUint8Array. Used
+// to recover the stored VAPID key from an existing subscription's
+// applicationServerKey when backfilling config for devices that
+// subscribed before the pushsubscriptionchange recovery path shipped.
+function urlBase64FromBytes(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return window
+    .btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+// Devices that enabled push before the SW recovery path shipped have a
+// live subscription but no stashed config, so a pushsubscriptionchange
+// would no-op for them. Backfill from the subscription's own
+// applicationServerKey (no network round-trip) the first time we see it.
+async function backfillPushConfig(sub: PushSubscription): Promise<void> {
+  if (typeof caches === "undefined") return;
+  const key = sub.options.applicationServerKey;
+  if (!key) return;
+  try {
+    const cache = await caches.open(PUSH_CONFIG_CACHE);
+    if (await cache.match(PUSH_CONFIG_KEY)) return; // already stored
+  } catch {
+    return;
+  }
+  await storePushConfig(urlBase64FromBytes(key));
+}
+
 export interface PushState {
   support: Support;
   // null while react-query is still resolving the SW registration check.
@@ -59,6 +126,7 @@ async function readPushState(): Promise<PushState> {
   try {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
+    if (sub) await backfillPushConfig(sub);
     return { support, subscribed: Boolean(sub) };
   } catch {
     return { support, subscribed: false };
@@ -148,11 +216,20 @@ export async function enablePushOnThisDevice(): Promise<{
     }),
   );
 
+  // Hand the SW what it needs to re-subscribe + re-register itself after
+  // the push service rotates this endpoint (pushsubscriptionchange).
+  await storePushConfig(publicKey);
+
   return { endpoint: json.endpoint };
 }
 
 export async function disablePushOnThisDevice(): Promise<void> {
   if (!("serviceWorker" in navigator)) return;
+  // Drop the stashed config first - unconditionally, even if the local
+  // subscription has already expired/disappeared - so a later
+  // pushsubscriptionchange can't resurrect a subscription the user just
+  // turned off.
+  await clearPushConfig();
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
   if (!sub) return;

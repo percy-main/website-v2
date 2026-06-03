@@ -1,4 +1,4 @@
-/* global self, clients */
+/* global self, clients, caches, fetch */
 // Web Push handler for matchday. Imported by the generateSW-produced
 // service worker via vite-plugin-pwa's workbox.importScripts. Lives as
 // a plain script (not bundled by Vite) because it's loaded with
@@ -6,6 +6,28 @@
 //
 // Payload contract: the API sends JSON.stringify({ title, body, url, tag }).
 // Anything else is treated as a bare title-only push.
+//
+// Config (the cross-origin API base + current VAPID key) is stashed into
+// the Cache below by the enable flow (use-push.ts) - the SW can't read
+// import.meta.env and a pushsubscriptionchange can fire with no client
+// open, so a window→SW shared Cache entry is the durable handoff.
+
+// Keep in sync with use-push.ts.
+const PUSH_CONFIG_CACHE = "push-config-v1";
+const PUSH_CONFIG_KEY = "/__push-config__";
+
+// base64url → Uint8Array for PushManager.subscribe()'s applicationServerKey.
+// Mirror of the helper in use-push.ts (can't import across the SW boundary).
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = self.atob(base64);
+  const output = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) {
+    output[i] = rawData.charCodeAt(i);
+  }
+  return output;
+}
 
 self.addEventListener("push", (event) => {
   let payload = { title: "Percy Main", body: "" };
@@ -69,6 +91,75 @@ self.addEventListener("notificationclick", (event) => {
       }
       if (clients.openWindow) {
         await clients.openWindow(targetUrl);
+      }
+    })(),
+  );
+});
+
+// The push service periodically rotates or expires a subscription's
+// endpoint and fires `pushsubscriptionchange` in the SW. Without this
+// handler the subscription silently dies: the next server send hits the
+// dead endpoint, gets a 410, and the row is pruned - leaving the user
+// "enabled" in the browser but with nothing registered server-side, and
+// no notifications. Re-subscribe with the stored VAPID key and re-register
+// the fresh endpoint so delivery survives a rotation transparently.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      let config;
+      try {
+        const cache = await caches.open(PUSH_CONFIG_CACHE);
+        const res = await cache.match(PUSH_CONFIG_KEY);
+        if (!res) return; // never enabled on this device - nothing to do
+        config = await res.json();
+      } catch {
+        return;
+      }
+      const { apiBase, vapidPublicKey } = config ?? {};
+      if (!apiBase || !vapidPublicKey) return;
+
+      let subscription;
+      try {
+        subscription = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        });
+      } catch {
+        // Permission revoked or push otherwise unavailable - the server
+        // prunes the dead endpoint on its next 410. Re-enable is manual.
+        return;
+      }
+
+      const json = subscription.toJSON();
+      const keys = json.keys || {};
+      if (!json.endpoint || !keys.p256dh || !keys.auth) return;
+
+      try {
+        // apiBase already includes the `/api` prefix (it's VITE_API_URL,
+        // e.g. https://api.v2.percymain.org/api), so this resolves to
+        // /api/me/push-subscriptions - the same route the typed client
+        // hits. Cross-origin to the API subdomain; credentials carry the
+        // cross-subdomain session cookie (CORS-allowlisted for matchday).
+        const res = await fetch(`${apiBase}/me/push-subscriptions`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            endpoint: json.endpoint,
+            keys: { p256dh: keys.p256dh, auth: keys.auth },
+            userAgent: (self.navigator && self.navigator.userAgent
+              ? self.navigator.userAgent
+              : ""
+            ).slice(0, 500),
+          }),
+        });
+        // A 401 (expired session) or other non-2xx is best-effort: the new
+        // endpoint stays unregistered until the user next opens the app,
+        // where the enable flow / backfill re-syncs it. Don't pretend a
+        // failed POST succeeded - just nothing more we can do from the SW.
+        if (!res.ok) return;
+      } catch {
+        // network error - same best-effort fallback as a non-2xx response
       }
     })(),
   );
