@@ -30,6 +30,11 @@ updates:
         update-types:
           - "minor"
           - "patch"
+        # Keep react-doctor out of the batch: its minor bumps add/tighten
+        # lint rules that need their own review (see #419, #415), so they
+        # should arrive as individual PRs rather than hidden in a group.
+        exclude-patterns:
+          - "eslint-plugin-react-doctor"
 
   # GitHub Actions used in workflows under .github/workflows/.
   - package-ecosystem: "github-actions"

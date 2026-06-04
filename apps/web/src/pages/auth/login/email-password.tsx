@@ -125,7 +125,6 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
             // during the session refetch — it's not a redundant
             // pre-await guard, so the rule's "move await past it" advice
             // would break the abort-on-unmount contract.
-            // eslint-disable-next-line react-doctor/async-defer-await
             await refetchSession();
             if (cancelled) return;
             navigateBack("/members");
