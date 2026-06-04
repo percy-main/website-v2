@@ -64,10 +64,11 @@ function SandwichBudgetRules() {
             season performance. Top performers cost more sandwiches.
           </p>
           <Table>
+            <caption className="sr-only">Sandwich cost tiers</caption>
             <TableHeader>
               <TableRow>
-                <TableHead>Cost</TableHead>
-                <TableHead>Player Tier</TableHead>
+                <TableHead scope="col">Cost</TableHead>
+                <TableHead scope="col">Player Tier</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -117,11 +118,16 @@ function WicketkeeperRules() {
             Scoring is based on the actual match role, not just the fantasy tag:
           </p>
           <Table>
+            <caption className="sr-only">Wicketkeeper scoring</caption>
             <TableHeader>
               <TableRow>
-                <TableHead>Scenario</TableHead>
-                <TableHead className="text-right">Catches</TableHead>
-                <TableHead className="text-right">Stumpings</TableHead>
+                <TableHead scope="col">Scenario</TableHead>
+                <TableHead scope="col" className="text-right">
+                  Catches
+                </TableHead>
+                <TableHead scope="col" className="text-right">
+                  Stumpings
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -176,10 +182,13 @@ function BattingRules() {
       </CardHeader>
       <CardContent>
         <Table>
+          <caption className="sr-only">Batting scoring</caption>
           <TableHeader>
             <TableRow>
-              <TableHead>Action</TableHead>
-              <TableHead className="w-24 text-right">Points</TableHead>
+              <TableHead scope="col">Action</TableHead>
+              <TableHead scope="col" className="w-24 text-right">
+                Points
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -232,10 +241,13 @@ function BowlingRules() {
       </CardHeader>
       <CardContent>
         <Table>
+          <caption className="sr-only">Bowling scoring</caption>
           <TableHeader>
             <TableRow>
-              <TableHead>Action</TableHead>
-              <TableHead className="w-24 text-right">Points</TableHead>
+              <TableHead scope="col">Action</TableHead>
+              <TableHead scope="col" className="w-24 text-right">
+                Points
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -298,10 +310,13 @@ function FieldingRules() {
       </CardHeader>
       <CardContent>
         <Table>
+          <caption className="sr-only">Fielding scoring</caption>
           <TableHeader>
             <TableRow>
-              <TableHead>Action</TableHead>
-              <TableHead className="w-24 text-right">Points</TableHead>
+              <TableHead scope="col">Action</TableHead>
+              <TableHead scope="col" className="w-24 text-right">
+                Points
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -346,10 +361,13 @@ function GeneralRules() {
       </CardHeader>
       <CardContent>
         <Table>
+          <caption className="sr-only">Team and general scoring</caption>
           <TableHeader>
             <TableRow>
-              <TableHead>Rule</TableHead>
-              <TableHead className="w-24 text-right">Points</TableHead>
+              <TableHead scope="col">Rule</TableHead>
+              <TableHead scope="col" className="w-24 text-right">
+                Points
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

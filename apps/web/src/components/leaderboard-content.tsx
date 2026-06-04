@@ -204,30 +204,41 @@ function BattingTable({
   return (
     <div>
       <Table>
+        <caption className="sr-only">Season batting leaderboard</caption>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-10">#</TableHead>
-            <TableHead>Player</TableHead>
-            <TableHead className="text-right">Inn</TableHead>
-            <TableHead className="hidden text-right sm:table-cell">
+            <TableHead scope="col" className="w-10">
+              #
+            </TableHead>
+            <TableHead scope="col">Player</TableHead>
+            <TableHead scope="col" className="text-right">
+              Inn
+            </TableHead>
+            <TableHead scope="col" className="hidden text-right sm:table-cell">
               NO
             </TableHead>
-            <TableHead className="text-right">Runs</TableHead>
-            <TableHead className="text-right">HS</TableHead>
-            <TableHead className="text-right">Avg</TableHead>
-            <TableHead className="hidden text-right md:table-cell">
+            <TableHead scope="col" className="text-right">
+              Runs
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              HS
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              Avg
+            </TableHead>
+            <TableHead scope="col" className="hidden text-right md:table-cell">
               SR
             </TableHead>
-            <TableHead className="hidden text-right md:table-cell">
+            <TableHead scope="col" className="hidden text-right md:table-cell">
               4s
             </TableHead>
-            <TableHead className="hidden text-right md:table-cell">
+            <TableHead scope="col" className="hidden text-right md:table-cell">
               6s
             </TableHead>
-            <TableHead className="hidden text-right lg:table-cell">
+            <TableHead scope="col" className="hidden text-right lg:table-cell">
               50s
             </TableHead>
-            <TableHead className="hidden text-right lg:table-cell">
+            <TableHead scope="col" className="hidden text-right lg:table-cell">
               100s
             </TableHead>
           </TableRow>
@@ -313,22 +324,35 @@ function BowlingTable({
   return (
     <div>
       <Table>
+        <caption className="sr-only">Season bowling leaderboard</caption>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-10">#</TableHead>
-            <TableHead>Player</TableHead>
-            <TableHead className="text-right">O</TableHead>
-            <TableHead className="hidden text-right sm:table-cell">M</TableHead>
-            <TableHead className="text-right">R</TableHead>
-            <TableHead className="text-right">W</TableHead>
-            <TableHead className="text-right">Avg</TableHead>
-            <TableHead className="hidden text-right md:table-cell">
+            <TableHead scope="col" className="w-10">
+              #
+            </TableHead>
+            <TableHead scope="col">Player</TableHead>
+            <TableHead scope="col" className="text-right">
+              O
+            </TableHead>
+            <TableHead scope="col" className="hidden text-right sm:table-cell">
+              M
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              R
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              W
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              Avg
+            </TableHead>
+            <TableHead scope="col" className="hidden text-right md:table-cell">
               Econ
             </TableHead>
-            <TableHead className="hidden text-right md:table-cell">
+            <TableHead scope="col" className="hidden text-right md:table-cell">
               SR
             </TableHead>
-            <TableHead className="hidden text-right lg:table-cell">
+            <TableHead scope="col" className="hidden text-right lg:table-cell">
               Best
             </TableHead>
           </TableRow>

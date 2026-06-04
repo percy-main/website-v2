@@ -54,10 +54,12 @@ function PlayerLink({
 
 function MiniTable({
   title,
+  caption,
   children,
   headers,
 }: {
   title: string;
+  caption: string;
   children: React.ReactNode;
   headers: React.ReactNode;
 }) {
@@ -67,6 +69,7 @@ function MiniTable({
         {title}
       </h4>
       <Table>
+        <caption className="sr-only">{caption}</caption>
         <TableHeader>
           <TableRow>{headers}</TableRow>
         </TableHeader>
@@ -147,15 +150,26 @@ export function SeasonLeaders() {
           {battingEntries.length > 0 && (
             <MiniTable
               title="Top Run Scorers"
+              caption="Top run scorers"
               headers={
                 <>
-                  <TableHead className="w-8">#</TableHead>
-                  <TableHead>Player</TableHead>
-                  <TableHead className="text-right">Runs</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
+                  <TableHead scope="col" className="w-8">
+                    #
+                  </TableHead>
+                  <TableHead scope="col">Player</TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Runs
+                  </TableHead>
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right sm:table-cell"
+                  >
                     HS
                   </TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right sm:table-cell"
+                  >
                     Avg
                   </TableHead>
                 </>
@@ -186,15 +200,26 @@ export function SeasonLeaders() {
           {bowlingEntries.length > 0 && (
             <MiniTable
               title="Top Wicket Takers"
+              caption="Top wicket takers"
               headers={
                 <>
-                  <TableHead className="w-8">#</TableHead>
-                  <TableHead>Player</TableHead>
-                  <TableHead className="text-right">Wkts</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
+                  <TableHead scope="col" className="w-8">
+                    #
+                  </TableHead>
+                  <TableHead scope="col">Player</TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Wkts
+                  </TableHead>
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right sm:table-cell"
+                  >
                     Overs
                   </TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right sm:table-cell"
+                  >
                     Avg
                   </TableHead>
                 </>

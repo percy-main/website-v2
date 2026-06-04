@@ -395,10 +395,13 @@ function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
               </CardHeader>
               <CardContent>
                 <Table>
+                  <caption className="sr-only">Most owned players</caption>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Player</TableHead>
-                      <TableHead className="w-20 text-right">Owned</TableHead>
+                      <TableHead scope="col">Player</TableHead>
+                      <TableHead scope="col" className="w-20 text-right">
+                        Owned
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -425,10 +428,13 @@ function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
               </CardHeader>
               <CardContent>
                 <Table>
+                  <caption className="sr-only">Most captained players</caption>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Player</TableHead>
-                      <TableHead className="w-20 text-right">Captain</TableHead>
+                      <TableHead scope="col">Player</TableHead>
+                      <TableHead scope="col" className="w-20 text-right">
+                        Captain
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -466,11 +472,16 @@ function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
             </CardHeader>
             <CardContent>
               <Table>
+                <caption className="sr-only">Differential picks</caption>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Player</TableHead>
-                    <TableHead className="text-right">Pts</TableHead>
-                    <TableHead className="text-right">Owned</TableHead>
+                    <TableHead scope="col">Player</TableHead>
+                    <TableHead scope="col" className="text-right">
+                      Pts
+                    </TableHead>
+                    <TableHead scope="col" className="text-right">
+                      Owned
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -508,12 +519,17 @@ function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
             </CardHeader>
             <CardContent>
               <Table>
+                <caption className="sr-only">Sandwich efficiency</caption>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>#</TableHead>
-                    <TableHead>Player</TableHead>
-                    <TableHead className="text-right">Pts</TableHead>
-                    <TableHead className="text-right">PPS</TableHead>
+                    <TableHead scope="col">#</TableHead>
+                    <TableHead scope="col">Player</TableHead>
+                    <TableHead scope="col" className="text-right">
+                      Pts
+                    </TableHead>
+                    <TableHead scope="col" className="text-right">
+                      PPS
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -549,12 +565,17 @@ function HomeTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
           </CardHeader>
           <CardContent>
             <Table>
+              <caption className="sr-only">Season standings</caption>
               <TableHeader>
                 <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>Team</TableHead>
-                  <TableHead className="text-right">Points</TableHead>
-                  <TableHead className="text-right">Gameweeks</TableHead>
+                  <TableHead scope="col">#</TableHead>
+                  <TableHead scope="col">Team</TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Points
+                  </TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Gameweeks
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -677,12 +698,17 @@ function SeasonLeaderboard({
 
   return (
     <Table>
+      <caption className="sr-only">Season leaderboard</caption>
       <TableHeader>
         <TableRow>
-          <TableHead>#</TableHead>
-          <TableHead>Team</TableHead>
-          <TableHead className="text-right">Points</TableHead>
-          <TableHead className="text-right">Gameweeks</TableHead>
+          <TableHead scope="col">#</TableHead>
+          <TableHead scope="col">Team</TableHead>
+          <TableHead scope="col" className="text-right">
+            Points
+          </TableHead>
+          <TableHead scope="col" className="text-right">
+            Gameweeks
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -743,11 +769,14 @@ function WeeklyLeaderboard({
         <p className="text-muted-foreground text-center">No scores yet.</p>
       ) : (
         <Table>
+          <caption className="sr-only">Weekly leaderboard</caption>
           <TableHeader>
             <TableRow>
-              <TableHead>#</TableHead>
-              <TableHead>Team</TableHead>
-              <TableHead className="text-right">Points</TableHead>
+              <TableHead scope="col">#</TableHead>
+              <TableHead scope="col">Team</TableHead>
+              <TableHead scope="col" className="text-right">
+                Points
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -791,15 +820,26 @@ function PlayerLeaderboard({
   return (
     <div className="overflow-x-auto">
       <Table>
+        <caption className="sr-only">Player leaderboard</caption>
         <TableHeader>
           <TableRow>
-            <TableHead>#</TableHead>
-            <TableHead>Player</TableHead>
-            <TableHead className="text-right">Bat</TableHead>
-            <TableHead className="text-right">Bowl</TableHead>
-            <TableHead className="text-right">Field</TableHead>
-            <TableHead className="text-right">Total</TableHead>
-            <TableHead className="text-right">Matches</TableHead>
+            <TableHead scope="col">#</TableHead>
+            <TableHead scope="col">Player</TableHead>
+            <TableHead scope="col" className="text-right">
+              Bat
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              Bowl
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              Field
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              Total
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              Matches
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -847,10 +887,13 @@ function AllTeamsTab({ onViewTeam }: { onViewTeam: (teamId: number) => void }) {
 
   return (
     <Table>
+      <caption className="sr-only">All fantasy teams</caption>
       <TableHeader>
         <TableRow>
-          <TableHead>Team</TableHead>
-          <TableHead className="text-right">Joined</TableHead>
+          <TableHead scope="col">Team</TableHead>
+          <TableHead scope="col" className="text-right">
+            Joined
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -936,15 +979,24 @@ function TeamView({
       </div>
 
       <Table>
+        <caption className="sr-only">Team squad</caption>
         <TableHeader>
           <TableRow>
-            <TableHead>Player</TableHead>
-            <TableHead>Slot</TableHead>
-            <TableHead className="text-center">Cost</TableHead>
-            <TableHead className="text-right">Owned</TableHead>
-            <TableHead className="text-right">Season</TableHead>
+            <TableHead scope="col">Player</TableHead>
+            <TableHead scope="col">Slot</TableHead>
+            <TableHead scope="col" className="text-center">
+              Cost
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              Owned
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              Season
+            </TableHead>
             {latestGameweek !== null && (
-              <TableHead className="text-right">GW{latestGameweek}</TableHead>
+              <TableHead scope="col" className="text-right">
+                GW{latestGameweek}
+              </TableHead>
             )}
           </TableRow>
         </TableHeader>
@@ -1035,15 +1087,28 @@ function PlayerView({
       ) : (
         <div className="overflow-x-auto">
           <Table>
+            <caption className="sr-only">Player points by gameweek</caption>
             <TableHeader>
               <TableRow>
-                <TableHead>Gameweek</TableHead>
-                <TableHead className="text-right">Bat</TableHead>
-                <TableHead className="text-right">Bowl</TableHead>
-                <TableHead className="text-right">Field</TableHead>
-                <TableHead className="text-right">Team</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Matches</TableHead>
+                <TableHead scope="col">Gameweek</TableHead>
+                <TableHead scope="col" className="text-right">
+                  Bat
+                </TableHead>
+                <TableHead scope="col" className="text-right">
+                  Bowl
+                </TableHead>
+                <TableHead scope="col" className="text-right">
+                  Field
+                </TableHead>
+                <TableHead scope="col" className="text-right">
+                  Team
+                </TableHead>
+                <TableHead scope="col" className="text-right">
+                  Total
+                </TableHead>
+                <TableHead scope="col" className="text-right">
+                  Matches
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

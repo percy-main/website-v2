@@ -68,27 +68,55 @@ function FormatSection({
           <p className="mb-1 text-xs font-medium text-stone-500">Batting</p>
           <div className="overflow-x-auto">
             <Table>
+              <caption className="sr-only">
+                Batting statistics by season
+              </caption>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Season</TableHead>
-                  <TableHead className="text-right">Inn</TableHead>
-                  <TableHead className="text-right">NO</TableHead>
-                  <TableHead className="text-right">Runs</TableHead>
-                  <TableHead className="text-right">HS</TableHead>
-                  <TableHead className="text-right">Avg</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
+                  <TableHead scope="col">Season</TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Inn
+                  </TableHead>
+                  <TableHead scope="col" className="text-right">
+                    NO
+                  </TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Runs
+                  </TableHead>
+                  <TableHead scope="col" className="text-right">
+                    HS
+                  </TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Avg
+                  </TableHead>
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right sm:table-cell"
+                  >
                     SR
                   </TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right sm:table-cell"
+                  >
                     4s
                   </TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right sm:table-cell"
+                  >
                     6s
                   </TableHead>
-                  <TableHead className="hidden text-right md:table-cell">
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right md:table-cell"
+                  >
                     50s
                   </TableHead>
-                  <TableHead className="hidden text-right md:table-cell">
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right md:table-cell"
+                  >
                     100s
                   </TableHead>
                 </TableRow>
@@ -134,23 +162,46 @@ function FormatSection({
           <p className="mb-1 text-xs font-medium text-stone-500">Bowling</p>
           <div className="overflow-x-auto">
             <Table>
+              <caption className="sr-only">
+                Bowling statistics by season
+              </caption>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Season</TableHead>
-                  <TableHead className="text-right">O</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
+                  <TableHead scope="col">Season</TableHead>
+                  <TableHead scope="col" className="text-right">
+                    O
+                  </TableHead>
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right sm:table-cell"
+                  >
                     M
                   </TableHead>
-                  <TableHead className="text-right">R</TableHead>
-                  <TableHead className="text-right">W</TableHead>
-                  <TableHead className="text-right">Avg</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
+                  <TableHead scope="col" className="text-right">
+                    R
+                  </TableHead>
+                  <TableHead scope="col" className="text-right">
+                    W
+                  </TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Avg
+                  </TableHead>
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right sm:table-cell"
+                  >
                     Econ
                   </TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right sm:table-cell"
+                  >
                     SR
                   </TableHead>
-                  <TableHead className="hidden text-right md:table-cell">
+                  <TableHead
+                    scope="col"
+                    className="hidden text-right md:table-cell"
+                  >
                     Best
                   </TableHead>
                 </TableRow>

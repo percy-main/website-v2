@@ -392,14 +392,25 @@ function BattingCard({
   return (
     <div>
       <Table>
+        <caption className="sr-only">Batting scorecard</caption>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-full">Batter</TableHead>
-            <TableHead className="text-right">R</TableHead>
-            <TableHead className="text-right">B</TableHead>
-            <TableHead className="text-right">4s</TableHead>
-            <TableHead className="text-right">6s</TableHead>
-            <TableHead className="text-right">
+            <TableHead scope="col" className="w-full">
+              Batter
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              R
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              B
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              4s
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              6s
+            </TableHead>
+            <TableHead scope="col" className="text-right">
               {isPairs ? "TO" : "SR"}
             </TableHead>
           </TableRow>
@@ -480,14 +491,27 @@ function BattingCard({
 function BowlingCard({ bowling }: { bowling: BowlingEntry[] }) {
   return (
     <Table>
+      <caption className="sr-only">Bowling scorecard</caption>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-full">Bowler</TableHead>
-          <TableHead className="text-right">O</TableHead>
-          <TableHead className="text-right">M</TableHead>
-          <TableHead className="text-right">R</TableHead>
-          <TableHead className="text-right">W</TableHead>
-          <TableHead className="text-right">Econ</TableHead>
+          <TableHead scope="col" className="w-full">
+            Bowler
+          </TableHead>
+          <TableHead scope="col" className="text-right">
+            O
+          </TableHead>
+          <TableHead scope="col" className="text-right">
+            M
+          </TableHead>
+          <TableHead scope="col" className="text-right">
+            R
+          </TableHead>
+          <TableHead scope="col" className="text-right">
+            W
+          </TableHead>
+          <TableHead scope="col" className="text-right">
+            Econ
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
