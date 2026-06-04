@@ -65,7 +65,7 @@ const AuthNav: FC<{ variant: "utility" | "nav" }> = ({ variant }) => {
     return (
       <Link
         to={url}
-        className="inline-flex min-h-6 items-center py-1 text-sm text-white/90 transition hover:text-white"
+        className="text-sm text-white/90 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
       >
         {label}
       </Link>

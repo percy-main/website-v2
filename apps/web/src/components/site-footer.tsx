@@ -41,7 +41,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/calendar"
-                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
+                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Calendar
                 </Link>
@@ -49,7 +49,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/news/1"
-                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
+                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   News
                 </Link>
@@ -57,7 +57,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/person"
-                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
+                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   People
                 </Link>
@@ -65,7 +65,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/cricket"
-                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
+                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Cricket
                 </Link>
@@ -73,7 +73,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/report-incident"
-                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
+                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Report an accident or incident
                 </Link>
@@ -81,7 +81,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/legal/privacy"
-                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
+                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Privacy Policy
                 </Link>
@@ -89,7 +89,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/cricket/safeguarding"
-                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
+                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Safeguarding
                 </Link>
@@ -98,7 +98,7 @@ export const SiteFooter: FC = () => {
                 <button
                   type="button"
                   onClick={openCookieSettings}
-                  className="inline-flex min-h-6 items-center py-1 text-left text-white/80 transition hover:text-white"
+                  className="text-left text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Cookie settings
                 </button>
