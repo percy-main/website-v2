@@ -1936,5 +1936,105 @@ describe("matchday service (integration)", () => {
       const upcoming = await getMyUpcomingMatches(ctx.db)(email);
       expect(upcoming.some((u) => u.matchdayPlayerId === playerId)).toBe(false);
     });
+
+    it("notifies every team official and the captain", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin8-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+
+      // Two officials assigned to the team.
+      const off1 = await seedTestUser(ctx.db, {
+        email: `wd-off1-${crypto.randomUUID()}@test.com`,
+        name: "Off One",
+      });
+      const off2 = await seedTestUser(ctx.db, {
+        email: `wd-off2-${crypto.randomUUID()}@test.com`,
+        name: "Off Two",
+      });
+      await seedTeamOfficial(off1.userId, teamId);
+      await seedTeamOfficial(off2.userId, teamId);
+
+      // A captain who is not an assigned official.
+      const captainEmail = `wd-cap-${crypto.randomUUID()}@test.com`;
+      const captainMemberId = await seedMember("Cap Tain", captainEmail);
+      const { id: captainPlayerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId: captainMemberId, playerName: "Cap Tain" },
+      );
+      await ctx.db
+        .updateTable("matchday_player")
+        .set({ is_captain: true })
+        .where("id", "=", captainPlayerId)
+        .execute();
+
+      const dropEmail = `wd-drop-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email: dropEmail });
+      if (!memberId) throw new Error("expected memberId");
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Dropper" },
+      );
+
+      const recipients: string[] = [];
+      await withdrawAsTest(dropEmail, playerId, {
+        sendEmail: (e) => {
+          recipients.push(e.to.toLowerCase());
+          return Promise.resolve();
+        },
+      });
+
+      expect(recipients).toContain(off1.email.toLowerCase());
+      expect(recipients).toContain(off2.email.toLowerCase());
+      expect(recipients).toContain(captainEmail.toLowerCase());
+      expect(recipients).not.toContain(dropEmail.toLowerCase());
+    });
+
+    it("does not notify the dropping player even when they are an official", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin9-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+
+      // The dropping player is also a team official.
+      const dropEmail = `wd-selfoff-${crypto.randomUUID()}@test.com`;
+      const dropper = await seedTestUser(ctx.db, { email: dropEmail });
+      if (!dropper.memberId) throw new Error("expected memberId");
+      await seedTeamOfficial(dropper.userId, teamId);
+
+      // A second official who should still be told.
+      const otherOff = await seedTestUser(ctx.db, {
+        email: `wd-otheroff-${crypto.randomUUID()}@test.com`,
+      });
+      await seedTeamOfficial(otherOff.userId, teamId);
+
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId: dropper.memberId, playerName: "Self Official" },
+      );
+
+      const recipients: string[] = [];
+      await withdrawAsTest(dropEmail, playerId, {
+        sendEmail: (e) => {
+          recipients.push(e.to.toLowerCase());
+          return Promise.resolve();
+        },
+      });
+
+      expect(recipients).toContain(otherOff.email.toLowerCase());
+      expect(recipients).not.toContain(dropEmail.toLowerCase());
+    });
   });
 });

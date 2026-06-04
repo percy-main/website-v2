@@ -2019,6 +2019,7 @@ export function withdrawFromMatch(
         "matchday.status as matchdayStatus",
         "matchday.match_date as matchDate",
         "matchday.opposition as opposition",
+        "matchday.play_cricket_team_id as teamId",
         "play_cricket_team.name as teamName",
       ])
       .executeTakeFirst();
@@ -2070,50 +2071,78 @@ export function withdrawFromMatch(
       throwHttpError(400, "You are not currently selected for this game");
     }
 
-    const notifyCaptain = async (): Promise<void> => {
-      // Exclude the dropping player's own row so a captain who drops
-      // themselves out isn't emailed about their own withdrawal.
+    const notifyManagers = async (): Promise<void> => {
+      // Everyone who manages this team should hear about a dropout so any
+      // of them can line up a replacement: all assigned team officials,
+      // plus the captain (added even if they aren't an assigned official).
+      const officials = await db
+        .selectFrom("team_official")
+        .innerJoin("user", "user.id", "team_official.user_id")
+        .where("team_official.play_cricket_team_id", "=", player.teamId)
+        .select(["user.email as email", "user.name as name"])
+        .execute();
+
       const captain = await db
         .selectFrom("matchday_player")
         .innerJoin("member", "member.id", "matchday_player.member_id")
         .where("matchday_player.matchday_id", "=", player.matchdayId)
         .where("matchday_player.is_captain", "=", true)
-        .where("matchday_player.id", "!=", matchdayPlayerId)
-        .select(["member.name as captainName", "member.email as captainEmail"])
+        .select(["member.name as name", "member.email as email"])
         .executeTakeFirst();
-      if (!captain?.captainEmail) return;
-      const captainName = captain.captainName ?? "Captain";
-      const captainEmail = captain.captainEmail;
 
-      const captainUser = await db
+      // Dedupe by lowercased email and drop the person who just dropped
+      // out (an official/captain shouldn't be told about their own
+      // action). Recipients without a user account still get email-only.
+      const actorEmail = email.toLowerCase();
+      const recipientByEmail = new Map<
+        string,
+        { email: string; name: string }
+      >();
+      for (const r of [...officials, captain]) {
+        if (!r?.email) continue;
+        const key = r.email.toLowerCase();
+        if (key === actorEmail || recipientByEmail.has(key)) continue;
+        recipientByEmail.set(key, { email: r.email, name: r.name ?? "there" });
+      }
+      const recipients = [...recipientByEmail.values()];
+      if (recipients.length === 0) return;
+
+      // Resolve user ids so each recipient's matchday_channel preference
+      // and push subscriptions apply. Officials always have a user row;
+      // a captain who never registered won't, and falls back to email.
+      const userRows = await db
         .selectFrom("user")
-        .where("email", "=", captainEmail.toLowerCase())
-        .select(["id"])
-        .executeTakeFirst();
-      const userId = captainUser?.id;
-
-      const channel: MatchdayChannel = userId
-        ? ((await fetchPrefs([userId])).get(userId) ?? DEFAULT_MATCHDAY_CHANNEL)
-        : "email";
-      const wantsEmail = channel === "email" || channel === "both";
-      const wantsPush = channel === "push" || channel === "both";
-      const subscriptions = userId
-        ? ((await fetchPushSubs([userId])).get(userId) ?? [])
-        : [];
-      const pushAvailable = wantsPush && subscriptions.length > 0;
+        .where(
+          "email",
+          "in",
+          recipients.map((r) => r.email.toLowerCase()),
+        )
+        .select(["id", "email"])
+        .execute();
+      const userIdByEmail = new Map(
+        userRows.map((u) => [u.email.toLowerCase(), u.id]),
+      );
+      const userIds = userRows.map((u) => u.id);
+      const [prefs, pushSubsByUser] = await Promise.all([
+        fetchPrefs(userIds),
+        fetchPushSubs(userIds),
+      ]);
 
       const teamName = player.teamName ?? "your team";
       const teamSheetUrl = config.MATCHDAY_URL
         ? `${config.MATCHDAY_URL}/matchday/${player.matchdayId}`
         : `${config.BASE_URL}/matchday/${player.matchdayId}`;
 
-      const sendCaptainEmail = async (): Promise<boolean> => {
+      const sendOneEmail = async (recipient: {
+        email: string;
+        name: string;
+      }): Promise<boolean> => {
         try {
           const { render } = await import("react-email");
           const { PlayerWithdrawal } = await import("@percy-main/email");
           const element = PlayerWithdrawal.component({
             imageBaseUrl: `${config.BASE_URL}/images`,
-            captainName,
+            recipientName: recipient.name,
             playerName: player.playerName,
             teamName,
             opposition: player.opposition,
@@ -2123,83 +2152,99 @@ export function withdrawFromMatch(
           // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
           const html = await render(element as any);
           await sendEmail({
-            to: captainEmail,
+            to: recipient.email,
             subject: PlayerWithdrawal.subject,
             html,
           });
           return true;
         } catch (err) {
           log.error(
-            { err, matchdayId: player.matchdayId, channel: "email" },
-            "withdrawal_captain_notification_failed",
+            {
+              err,
+              matchdayId: player.matchdayId,
+              recipientEmail: recipient.email,
+              channel: "email",
+            },
+            "withdrawal_notification_failed",
           );
           return false;
         }
       };
 
-      let deliveredAny = false;
+      for (const recipient of recipients) {
+        const userId = userIdByEmail.get(recipient.email.toLowerCase());
+        const channel: MatchdayChannel = userId
+          ? (prefs.get(userId) ?? DEFAULT_MATCHDAY_CHANNEL)
+          : "email";
+        const wantsEmail = channel === "email" || channel === "both";
+        const wantsPush = channel === "push" || channel === "both";
+        const subscriptions = userId ? (pushSubsByUser.get(userId) ?? []) : [];
+        const pushAvailable = wantsPush && subscriptions.length > 0;
 
-      // Push-only captains with no live subscriptions fall back to email
-      // so a dropout is never silently missed.
-      if (wantsEmail || (wantsPush && !pushAvailable)) {
-        if (await sendCaptainEmail()) deliveredAny = true;
-      }
+        let deliveredAny = false;
 
-      if (pushAvailable) {
-        const payload = {
-          title: "Player dropout",
-          body: `${player.playerName} dropped out of ${teamName} vs ${player.opposition}`,
-          url: teamSheetUrl,
-          tag: `withdrawal:${player.matchdayId}`,
-        };
-        let pushDelivered = false;
-        let allGone = true;
-        for (const sub of subscriptions) {
-          const result = await sendPush(sub, payload);
-          if (result.ok) {
-            deliveredAny = true;
-            pushDelivered = true;
-            allGone = false;
-          } else if (result.gone) {
-            await pruneSubscription(result.endpoint);
-            log.info(
-              { matchdayId: player.matchdayId, endpoint: result.endpoint },
-              "push_subscription_gone_pruned",
-            );
-          } else {
-            allGone = false;
-            log.warn(
-              {
-                matchdayId: player.matchdayId,
-                endpoint: result.endpoint,
-                reason: result.reason,
-                channel: "push",
-              },
-              "withdrawal_captain_notification_failed",
-            );
+        // Push-only recipients with no live subscription fall back to
+        // email so a dropout is never silently missed.
+        if (wantsEmail || (wantsPush && !pushAvailable)) {
+          if (await sendOneEmail(recipient)) deliveredAny = true;
+        }
+
+        if (pushAvailable) {
+          const payload = {
+            title: "Player dropout",
+            body: `${player.playerName} dropped out of ${teamName} vs ${player.opposition}`,
+            url: teamSheetUrl,
+            tag: `withdrawal:${player.matchdayId}`,
+          };
+          let pushDelivered = false;
+          let allGone = true;
+          for (const sub of subscriptions) {
+            const result = await sendPush(sub, payload);
+            if (result.ok) {
+              deliveredAny = true;
+              pushDelivered = true;
+              allGone = false;
+            } else if (result.gone) {
+              await pruneSubscription(result.endpoint);
+              log.info(
+                { matchdayId: player.matchdayId, endpoint: result.endpoint },
+                "push_subscription_gone_pruned",
+              );
+            } else {
+              allGone = false;
+              log.warn(
+                {
+                  matchdayId: player.matchdayId,
+                  endpoint: result.endpoint,
+                  reason: result.reason,
+                  channel: "push",
+                },
+                "withdrawal_notification_failed",
+              );
+            }
+          }
+          if (!wantsEmail && !pushDelivered && allGone) {
+            if (await sendOneEmail(recipient)) deliveredAny = true;
           }
         }
-        if (!wantsEmail && !pushDelivered && allGone) {
-          if (await sendCaptainEmail()) deliveredAny = true;
-        }
-      }
 
-      if (!deliveredAny) {
-        log.warn(
-          { matchdayId: player.matchdayId, captainEmail },
-          "withdrawal_captain_notification_undelivered",
-        );
+        if (!deliveredAny) {
+          log.warn(
+            { matchdayId: player.matchdayId, recipientEmail: recipient.email },
+            "withdrawal_notification_undelivered",
+          );
+        }
       }
     };
 
-    // Best-effort: the withdrawal stands even if notifying the captain
-    // throws (e.g. a transient DB or render error).
+    // Best-effort: the withdrawal stands even if notifying the team's
+    // managers throws (e.g. a transient DB or render error).
     try {
-      await notifyCaptain();
+      await notifyManagers();
     } catch (err) {
       log.error(
         { err, matchdayPlayerId, matchdayId: player.matchdayId },
-        "withdrawal_captain_notification_failed",
+        "withdrawal_notification_failed",
       );
     }
 

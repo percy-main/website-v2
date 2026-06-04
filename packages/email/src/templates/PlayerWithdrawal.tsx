@@ -17,8 +17,8 @@ import * as styles from "../styles.ts";
 
 interface Props {
   imageBaseUrl: string;
-  // Captain's name — the recipient.
-  captainName: string;
+  // The recipient's name (a team official or the captain).
+  recipientName: string;
   // The dropped-out player's display name (the dependent's name when a
   // parent withdraws on their behalf).
   playerName: string;
@@ -30,7 +30,7 @@ interface Props {
 
 const Component: FC<Props> = ({
   imageBaseUrl,
-  captainName,
+  recipientName,
   playerName,
   teamName,
   opposition,
@@ -52,7 +52,7 @@ const Component: FC<Props> = ({
           alt="Percy Main Club Logo"
           style={styles.logo}
         />
-        <Text style={styles.paragraph}>Hi {captainName},</Text>
+        <Text style={styles.paragraph}>Hi {recipientName},</Text>
         <Text style={styles.paragraph}>
           {playerName} has dropped out of the following game:
         </Text>
@@ -95,7 +95,7 @@ const Component: FC<Props> = ({
 export const PlayerWithdrawal = email<Props>("Player Dropout", {
   preview: {
     imageBaseUrl: "http://localhost:5173/images",
-    captainName: "Alex",
+    recipientName: "Alex",
     playerName: "Jordan Smith",
     teamName: "Senior XI",
     opposition: "Benwell Hill",
