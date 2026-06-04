@@ -245,7 +245,7 @@ function YourUpcomingGamesCard() {
       </CardHeader>
       <CardContent className="space-y-0">
         {games.map((g) => (
-          <MyMatchRow key={g.matchdayId} match={g} />
+          <MyMatchRow key={g.matchdayPlayerId} match={g} />
         ))}
       </CardContent>
     </Card>

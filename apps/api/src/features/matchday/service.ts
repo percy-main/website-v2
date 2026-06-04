@@ -2044,9 +2044,9 @@ export function withdrawFromMatch(
       throwHttpError(400, "This game has already taken place");
     }
 
-    // Only a live selection can be withdrawn. Idempotency: an already
-    // withdrawn/dropped row returns a clear error rather than firing a
-    // second notification to the captain.
+    // Only a live selection can be withdrawn. Cheap read-side fast-path
+    // so the common re-tap returns a clear error; the authoritative guard
+    // is the conditional claim below.
     if (
       player.playerStatus !== "selected" &&
       player.playerStatus !== "playing"
@@ -2054,11 +2054,21 @@ export function withdrawFromMatch(
       throwHttpError(400, "You are not currently selected for this game");
     }
 
-    await db
+    // Claim the withdrawal atomically: flip the status only while it's
+    // still live. Two concurrent requests both pass the read check above,
+    // so this conditional UPDATE is what serialises them - the loser
+    // updates zero rows and bails before notifying the captain a second
+    // time. Captain/keeper flags are cleared so a withdrawn player can't
+    // leave an orphaned role on the team sheet.
+    const claim = await db
       .updateTable("matchday_player")
-      .set({ status: "withdrawn" })
+      .set({ status: "withdrawn", is_captain: false, is_wicketkeeper: false })
       .where("id", "=", matchdayPlayerId)
-      .execute();
+      .where("status", "in", ["selected", "playing"])
+      .executeTakeFirst();
+    if (claim.numUpdatedRows === 0n) {
+      throwHttpError(400, "You are not currently selected for this game");
+    }
 
     const notifyCaptain = async (): Promise<void> => {
       // Exclude the dropping player's own row so a captain who drops
@@ -2472,10 +2482,13 @@ export function getTeamNewsData(db: Kysely<DB>, ctx: TeamNewsImageContext) {
       .executeTakeFirst();
 
     // Fetch players with their member slug for sponsor lookup
+    // Only active selections belong on the published team graphic.
+    // Excludes `replaced` as well as pre-match `withdrawn` dropouts and
+    // post-match `dropped_out` / `no_show`.
     const players = await db
       .selectFrom("matchday_player")
       .where("matchday_id", "=", matchId)
-      .where("matchday_player.status", "!=", "replaced")
+      .where("matchday_player.status", "in", ["selected", "playing"])
       .leftJoin("member", "member.id", "matchday_player.member_id")
       .select([
         "matchday_player.player_name",

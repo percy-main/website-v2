@@ -124,7 +124,13 @@ export default function MatchdayEdit() {
   if (!detail)
     return <p className="text-text-secondary p-6 text-sm">Not found.</p>;
   const md: MatchdayDetail = detail;
-  const players = md.players;
+  // Only active selections are "the squad". A player who dropped out
+  // (pre-match `withdrawn`, or `dropped_out` / `no_show` at wrap-up) must
+  // not count toward the total, hold a captain/keeper badge, or block
+  // the captain from re-selecting them via search.
+  const players = md.players.filter(
+    (p) => p.status === "selected" || p.status === "playing",
+  );
   const playerMemberIds = new Set(
     players.flatMap((p) => (p.member_id ? [p.member_id] : [])),
   );

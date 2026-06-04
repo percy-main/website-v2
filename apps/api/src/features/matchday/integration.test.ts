@@ -1893,5 +1893,48 @@ describe("matchday service (integration)", () => {
       // Push-preferring captain with a live subscription is not also emailed.
       expect(emails.length).toBe(0);
     });
+
+    it("clears the captain flag when a captain drops themselves out", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin7-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const email = `wd-skipper-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, {
+        email,
+        name: "Self Captain",
+      });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Self Captain" },
+      );
+      await ctx.db
+        .updateTable("matchday_player")
+        .set({ is_captain: true, is_wicketkeeper: true })
+        .where("id", "=", playerId)
+        .execute();
+
+      await withdrawAsTest(email, playerId);
+
+      const row = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .select(["status", "is_captain", "is_wicketkeeper"])
+        .executeTakeFirst();
+      expect(row?.status).toBe("withdrawn");
+      expect(row?.is_captain).toBe(false);
+      expect(row?.is_wicketkeeper).toBe(false);
+
+      // And the withdrawal drops it out of the upcoming-games card.
+      const upcoming = await getMyUpcomingMatches(ctx.db)(email);
+      expect(upcoming.some((u) => u.matchdayPlayerId === playerId)).toBe(false);
+    });
   });
 });
