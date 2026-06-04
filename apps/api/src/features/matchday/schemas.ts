@@ -405,6 +405,9 @@ export const notifyChargesResponseSchema = z.object({
 // ── "Mine" routes — per-user home cards ──
 
 const myUpcomingMatchSchema = z.object({
+  // The matchday_player row id — the handle the dropout action uses to
+  // withdraw this specific selection (the member's own, or a dependent's).
+  matchdayPlayerId: z.string(),
   matchdayId: z.string(),
   matchDate: z.string(),
   opposition: z.string(),
@@ -412,9 +415,20 @@ const myUpcomingMatchSchema = z.object({
   competitionType: z.string().nullable(),
   isCaptain: z.boolean(),
   isWicketkeeper: z.boolean(),
+  // The selected player's display name.
+  playerName: z.string(),
+  // True when this selection belongs to one of the signed-in member's
+  // dependents (a parent dropping a junior out on their behalf) rather
+  // than the member themselves. `dependentName` is the junior's name.
+  forDependent: z.boolean(),
+  dependentName: z.string().nullable(),
 });
 
 export const myUpcomingMatchesResponseSchema = z.array(myUpcomingMatchSchema);
+
+export const matchdayPlayerIdParamSchema = z.object({
+  matchdayPlayerId: z.string(),
+});
 
 export const myRecentPerformanceResponseSchema = z.object({
   windowDays: z.number().int().positive(),

@@ -23,6 +23,7 @@ import {
   listTeamsResponseSchema,
   markPaidSchema,
   matchIdParamSchema,
+  matchdayPlayerIdParamSchema,
   myRecentPerformanceResponseSchema,
   myUpcomingMatchesResponseSchema,
   notifyChargesResponseSchema,
@@ -71,6 +72,7 @@ import {
   setMatchRoles,
   submitExpenseClaim,
   updateExpense,
+  withdrawFromMatch,
 } from "./service.ts";
 import { generateTeamNewsImage } from "./team-news-image.ts";
 
@@ -104,6 +106,12 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const remove = deleteExpense(app.db);
   const myUpcoming = getMyUpcomingMatches(app.db);
   const myPerformance = getMyRecentPerformance(app.db);
+  const withdraw = withdrawFromMatch(
+    app.db,
+    app.send,
+    app.sendPush,
+    app.config,
+  );
 
   // Static "mine" routes — registered before /matchday/:matchId so the
   // radix router resolves them as exact matches, not as a matchId of
@@ -133,6 +141,29 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { user } = getAuthSession(request);
       return await myPerformance(user.email);
+    },
+  );
+
+  // Player-initiated dropout. Static "mine" prefix + an extra path
+  // segment keeps it clear of the parameterised /matchday/:matchId
+  // routes. Auth is signed-in only; the service authorises by ownership
+  // (the member's own selection, or one of their dependents').
+  app.post(
+    "/matchday/mine/:matchdayPlayerId/withdraw",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        params: matchdayPlayerIdParamSchema,
+        response: { 200: successResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      return await withdraw(
+        user.email,
+        request.params.matchdayPlayerId,
+        request.log,
+      );
     },
   );
 
