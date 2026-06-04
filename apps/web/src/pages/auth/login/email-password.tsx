@@ -216,6 +216,8 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
           <div className="h-px flex-1 bg-stone-300" />
         </div>
         <form className="space-y-4 md:space-y-6" onSubmit={handleSubmit}>
+          {/* Only credential (signin) failures mark these fields invalid -
+              a Google sign-in error is form-level, not about these inputs. */}
           <SimpleInput
             id="email"
             type="email"
@@ -224,7 +226,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
             onChange={(e) => setEmail(e.currentTarget.value)}
             required
             autoComplete="email webauthn"
-            invalid={Boolean(error)}
+            invalid={Boolean(signin.error)}
             errorId="login-error"
           />
           <SimpleInput
@@ -235,7 +237,7 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
             onChange={(e) => setPassword(e.currentTarget.value)}
             required
             autoComplete="current-password webauthn"
-            invalid={Boolean(error)}
+            invalid={Boolean(signin.error)}
             errorId="login-error"
           />
           <div className="flex items-center justify-end">
