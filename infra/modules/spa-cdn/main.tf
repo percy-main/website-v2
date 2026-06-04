@@ -252,10 +252,17 @@ resource "aws_cloudfront_function" "spa_rewrite" {
 # -----------------------------------------------------------------------------
 # CloudFront Response Headers Policy - Security Headers
 #
-# Attached to every cache behavior. Sets X-Content-Type-Options: nosniff
-# and clickjacking protection (CSP frame-ancestors 'self' + the legacy
-# X-Frame-Options: SAMEORIGIN fallback, which matches 'self'). A later
-# issue will extend this same policy with HSTS.
+# Attached to every cache behavior. Sets X-Content-Type-Options: nosniff,
+# clickjacking protection (CSP frame-ancestors 'self' + the legacy
+# X-Frame-Options: SAMEORIGIN fallback, which matches 'self'), and HSTS.
+#
+# HSTS is intentionally conservative: a 1-year max-age WITHOUT
+# include_subdomains and WITHOUT preload. Those two flags are the
+# effectively-irreversible part of HSTS (preload removal takes months,
+# and include_subdomains would break any subdomain that is ever served
+# over plain HTTP). Without them this is reversible: setting max-age to 0
+# clears it on a client's next visit. Ramp to include_subdomains/preload
+# only after confirming every subdomain is HTTPS-only.
 # -----------------------------------------------------------------------------
 
 resource "aws_cloudfront_response_headers_policy" "security" {
@@ -274,6 +281,13 @@ resource "aws_cloudfront_response_headers_policy" "security" {
     content_security_policy {
       content_security_policy = "frame-ancestors 'self'"
       override                = true
+    }
+
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = false
+      preload                    = false
+      override                   = true
     }
   }
 }
