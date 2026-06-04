@@ -502,3 +502,18 @@
 .mdx-content tr:last-child td {
   @apply border-b-0;
 }
+
+/* Respect the OS "reduce motion" preference: Tailwind v4 does not add this
+   automatically, so transitions/animations would otherwise run regardless.
+   Near-instant (not 0s) durations keep transitionend / animationend handlers
+   firing so JS that waits on them does not hang. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
