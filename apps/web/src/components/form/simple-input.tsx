@@ -7,16 +7,33 @@ type Props = React.DetailedHTMLProps<
   HTMLInputElement
 > & {
   label: string;
+  /**
+   * When true, marks the field as invalid (`aria-invalid`) and links it to
+   * the error element identified by `errorId` (`aria-describedby`). When
+   * false/omitted, no ARIA association is added and behaviour/appearance is
+   * unchanged.
+   */
+  invalid?: boolean;
+  /** id of the error element this field is described by, when `invalid`. */
+  errorId?: string;
 };
 
-export const SimpleInput: FC<Props> = ({ label, ...inputProps }) => {
+export const SimpleInput: FC<Props> = ({
+  label,
+  invalid,
+  errorId,
+  ...inputProps
+}) => {
+  const ariaProps = invalid
+    ? { "aria-invalid": true, "aria-describedby": errorId }
+    : {};
   if (inputProps.hidden) {
-    return <input {...inputProps} name={inputProps.id} />;
+    return <input {...inputProps} {...ariaProps} name={inputProps.id} />;
   }
   return (
     <div className="mb-4 w-full space-y-2">
       <Label htmlFor={inputProps.id}>{label}</Label>
-      <Input {...inputProps} name={inputProps.id} />
+      <Input {...inputProps} {...ariaProps} name={inputProps.id} />
     </div>
   );
 };

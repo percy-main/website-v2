@@ -75,7 +75,9 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
           Verify code
         </Button>
         {error && (
-          <p className="text-sm font-light text-red-800">{error.message}</p>
+          <p role="alert" className="text-sm font-light text-red-800">
+            {error.message}
+          </p>
         )}
         <Button
           type="button"
