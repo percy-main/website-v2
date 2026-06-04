@@ -311,15 +311,16 @@ function MyMatchRow({ match }: { match: MyUpcomingMatch }) {
         ) : (
           <StatusPill tone="neutral">Selected</StatusPill>
         )}
-        <button
-          type="button"
+        <Button
+          tone="outline"
+          size="sm"
+          className="text-danger"
           onClick={() => {
             setConfirmOpen(true);
           }}
-          className="text-danger text-xs font-medium hover:underline"
         >
           Drop out
-        </button>
+        </Button>
       </div>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -332,10 +333,8 @@ function MyMatchRow({ match }: { match: MyUpcomingMatch }) {
             </DialogTitle>
             <DialogDescription>
               {dependentLabel
-                ? `${dependentLabel} will be withdrawn from ${matchLabel} on ${fmtDate(match.matchDate, "EEEE d MMMM")}. `
-                : `You'll be withdrawn from ${matchLabel} on ${fmtDate(match.matchDate, "EEEE d MMMM")}. `}
-              This is final - the captain will be notified, and re-joining needs
-              them to re-select you.
+                ? `${dependentLabel} will be withdrawn from ${matchLabel} on ${fmtDate(match.matchDate, "EEEE d MMMM")}.`
+                : `You'll be withdrawn from ${matchLabel} on ${fmtDate(match.matchDate, "EEEE d MMMM")}.`}
             </DialogDescription>
           </DialogHeader>
           {withdraw.isError && (
