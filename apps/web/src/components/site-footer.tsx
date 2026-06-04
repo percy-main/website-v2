@@ -41,7 +41,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/calendar"
-                  className="text-white/80 transition hover:text-white"
+                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
                 >
                   Calendar
                 </Link>
@@ -49,7 +49,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/news/1"
-                  className="text-white/80 transition hover:text-white"
+                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
                 >
                   News
                 </Link>
@@ -57,7 +57,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/person"
-                  className="text-white/80 transition hover:text-white"
+                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
                 >
                   People
                 </Link>
@@ -65,7 +65,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/cricket"
-                  className="text-white/80 transition hover:text-white"
+                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
                 >
                   Cricket
                 </Link>
@@ -73,7 +73,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/report-incident"
-                  className="text-white/80 transition hover:text-white"
+                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
                 >
                   Report an accident or incident
                 </Link>
@@ -81,7 +81,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/legal/privacy"
-                  className="text-white/80 transition hover:text-white"
+                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
                 >
                   Privacy Policy
                 </Link>
@@ -89,7 +89,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/cricket/safeguarding"
-                  className="text-white/80 transition hover:text-white"
+                  className="inline-flex min-h-6 items-center py-1 text-white/80 transition hover:text-white"
                 >
                   Safeguarding
                 </Link>
@@ -98,7 +98,7 @@ export const SiteFooter: FC = () => {
                 <button
                   type="button"
                   onClick={openCookieSettings}
-                  className="text-left text-white/80 transition hover:text-white"
+                  className="inline-flex min-h-6 items-center py-1 text-left text-white/80 transition hover:text-white"
                 >
                   Cookie settings
                 </button>
