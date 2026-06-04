@@ -15,6 +15,7 @@ import {
   deleteExpense,
   finishMatch,
   getMatch,
+  getMyUpcomingMatches,
   getPastUnfinishedMatchdays,
   listMatches,
   listPendingExpenses,
@@ -27,6 +28,7 @@ import {
   removePlayer,
   searchMembers,
   submitExpenseClaim,
+  withdrawFromMatch,
 } from "./service.ts";
 
 const noopSendEmail = () => Promise.resolve();
@@ -74,6 +76,28 @@ async function notifyAsTest(
     deps.sendPush ?? noopSendPush,
     testConfig,
   )(userId, "admin", matchdayId, createNoopLogger());
+}
+
+// Drive a player-initiated dropout the way the route does.
+async function withdrawAsTest(
+  email: string,
+  matchdayPlayerId: string,
+  deps: {
+    sendEmail?: (e: {
+      to: string;
+      subject: string;
+      html: string;
+    }) => Promise<void>;
+    sendPush?: SendPush;
+  } = {},
+) {
+  const { createNoopLogger } = await import("../../lib/worker-logger.ts");
+  return withdrawFromMatch(
+    ctx.db,
+    deps.sendEmail ?? noopSendEmail,
+    deps.sendPush ?? noopSendPush,
+    testConfig,
+  )(email, matchdayPlayerId, createNoopLogger());
 }
 
 const s3 = noopS3Uploader;
@@ -1554,6 +1578,320 @@ describe("matchday service (integration)", () => {
       await expect(
         getPastUnfinishedMatchdays(ctx.db)(outsiderId, "official", teamId),
       ).rejects.toThrow("do not have access");
+    });
+  });
+
+  describe("getMyUpcomingMatches with dependents", () => {
+    it("includes a dependent's selection alongside the member's own", async () => {
+      const email = `parent-upcoming-${crypto.randomUUID()}@test.com`;
+      const { userId, memberId } = await seedTestUser(ctx.db, { email });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+
+      // Parent's own selection.
+      const { id: ownPlayerId } = await addPlayer(ctx.db)(
+        userId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Parent Player" },
+      );
+
+      // Dependent's selection on the same matchday.
+      const dependentId = `dep-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("dependent")
+        .values({
+          id: dependentId,
+          member_id: memberId,
+          name: "Junior Kid",
+          sex: "m",
+          dob: "2015-03-02",
+        })
+        .execute();
+      const { id: depPlayerId } = await addPlayer(ctx.db)(
+        userId,
+        "admin",
+        matchdayId,
+        { dependentId, playerName: "Junior Kid" },
+      );
+
+      const rows = await getMyUpcomingMatches(ctx.db)(email);
+      const own = rows.find((r) => r.matchdayPlayerId === ownPlayerId);
+      const dep = rows.find((r) => r.matchdayPlayerId === depPlayerId);
+
+      expect(own?.forDependent).toBe(false);
+      expect(own?.dependentName).toBeNull();
+      expect(dep?.forDependent).toBe(true);
+      expect(dep?.dependentName).toBe("Junior Kid");
+    });
+  });
+
+  describe("withdrawFromMatch", () => {
+    // Seed a captain on the matchday so the notification path has a
+    // recipient. Returns the captain's email and member id.
+    async function seedCaptain(matchdayId: string, adminId: string) {
+      const captainEmail = `captain-${crypto.randomUUID()}@test.com`;
+      const captainMemberId = await seedMember("Skip Captain", captainEmail);
+      const { id: captainPlayerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId: captainMemberId, playerName: "Skip Captain" },
+      );
+      await ctx.db
+        .updateTable("matchday_player")
+        .set({ is_captain: true })
+        .where("id", "=", captainPlayerId)
+        .execute();
+      return { captainEmail, captainMemberId, captainPlayerId };
+    }
+
+    it("withdraws the member's own selection and notifies the captain", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const email = `wd-player-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, {
+        email,
+        name: "Drop Player",
+      });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      await seedCaptain(matchdayId, adminId);
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Drop Player" },
+      );
+
+      const emails: Array<{ to: string; subject: string }> = [];
+      const result = await withdrawAsTest(email, playerId, {
+        sendEmail: (e) => {
+          emails.push({ to: e.to, subject: e.subject });
+          return Promise.resolve();
+        },
+      });
+
+      expect(result.success).toBe(true);
+      const row = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .select("status")
+        .executeTakeFirst();
+      expect(row?.status).toBe("withdrawn");
+      // Captain (the only push-less recipient) was emailed.
+      expect(emails.length).toBe(1);
+    });
+
+    it("lets a parent withdraw their dependent", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin2-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const parentEmail = `wd-parent-${crypto.randomUUID()}@test.com`;
+      const { memberId: parentMemberId } = await seedTestUser(ctx.db, {
+        email: parentEmail,
+        name: "Drop Parent",
+      });
+      if (!parentMemberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      await seedCaptain(matchdayId, adminId);
+
+      const dependentId = `dep-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("dependent")
+        .values({
+          id: dependentId,
+          member_id: parentMemberId,
+          name: "Drop Kid",
+          sex: "f",
+          dob: "2016-01-01",
+        })
+        .execute();
+      const { id: depPlayerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { dependentId, playerName: "Drop Kid" },
+      );
+
+      const result = await withdrawAsTest(parentEmail, depPlayerId);
+      expect(result.success).toBe(true);
+      const row = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", depPlayerId)
+        .select("status")
+        .executeTakeFirst();
+      expect(row?.status).toBe("withdrawn");
+    });
+
+    it("rejects withdrawing someone else's selection", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin3-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const ownerEmail = `wd-owner-${crypto.randomUUID()}@test.com`;
+      const { memberId: ownerMemberId } = await seedTestUser(ctx.db, {
+        email: ownerEmail,
+      });
+      if (!ownerMemberId) throw new Error("expected memberId");
+      const intruderEmail = `wd-intruder-${crypto.randomUUID()}@test.com`;
+      await seedTestUser(ctx.db, { email: intruderEmail });
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId: ownerMemberId, playerName: "Owner" },
+      );
+
+      await expect(withdrawAsTest(intruderEmail, playerId)).rejects.toThrow(
+        "your own games",
+      );
+      const row = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .select("status")
+        .executeTakeFirst();
+      expect(row?.status).toBe("selected");
+    });
+
+    it("rejects dropout once the match date has passed", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin4-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const email = `wd-late-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({
+        teamId,
+        createdBy: adminId,
+        matchDate: "2020-01-01",
+      });
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Late Player" },
+      );
+
+      await expect(withdrawAsTest(email, playerId)).rejects.toThrow(
+        "already taken place",
+      );
+    });
+
+    it("rejects a second dropout on an already-withdrawn selection", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin5-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const email = `wd-twice-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      await seedCaptain(matchdayId, adminId);
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Twice Player" },
+      );
+
+      await withdrawAsTest(email, playerId);
+      await expect(withdrawAsTest(email, playerId)).rejects.toThrow(
+        "not currently selected",
+      );
+    });
+
+    it("pushes to a captain who prefers push notifications", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin6-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const email = `wd-pusher-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+
+      // Captain has a user account, a push preference, and a subscription.
+      const captainEmail = `wd-captain-push-${crypto.randomUUID()}@test.com`;
+      const { userId: captainUserId } = await seedTestUser(ctx.db, {
+        email: captainEmail,
+        name: "Push Captain",
+      });
+      const { id: captainPlayerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId: `member-${captainUserId}`, playerName: "Push Captain" },
+      );
+      await ctx.db
+        .updateTable("matchday_player")
+        .set({ is_captain: true })
+        .where("id", "=", captainPlayerId)
+        .execute();
+      await ctx.db
+        .insertInto("notification_preferences")
+        .values({ user_id: captainUserId, matchday_channel: "push" })
+        .execute();
+      const endpoint = `https://push.test/${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("push_subscription")
+        .values({
+          id: crypto.randomUUID(),
+          user_id: captainUserId,
+          endpoint,
+          p256dh: "test-p256dh",
+          auth: "test-auth",
+        })
+        .execute();
+
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Dropper" },
+      );
+
+      const pushed: string[] = [];
+      const emails: string[] = [];
+      await withdrawAsTest(email, playerId, {
+        sendEmail: (e) => {
+          emails.push(e.to);
+          return Promise.resolve();
+        },
+        sendPush: (sub) => {
+          pushed.push(sub.endpoint);
+          return Promise.resolve({ ok: true, endpoint: sub.endpoint });
+        },
+      });
+
+      expect(pushed).toContain(endpoint);
+      // Push-preferring captain with a live subscription is not also emailed.
+      expect(emails.length).toBe(0);
     });
   });
 });

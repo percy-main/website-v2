@@ -9,6 +9,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog.js";
 import { isChargeOpen } from "@/features/charges/is-open.js";
 import { fmtDate, fmtMoneyPence } from "@/features/format.js";
 import {
@@ -19,7 +27,7 @@ import {
 } from "@/features/games.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { canViewMatchdayAdmin, useSession } from "@/lib/auth-client.js";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ArrowRightIcon,
@@ -31,6 +39,7 @@ import {
   UsersIcon,
   WalletIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router";
 
 type MyUpcomingMatch = ApiResponse<"/api/matchday/mine/upcoming">[number];
@@ -244,31 +253,119 @@ function YourUpcomingGamesCard() {
 }
 
 function MyMatchRow({ match }: { match: MyUpcomingMatch }) {
+  const queryClient = useQueryClient();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   const role = match.isCaptain
     ? "Captain"
     : match.isWicketkeeper
       ? "Keeper"
       : null;
+
+  // Whose selection this is. A parent acting for a junior sees the
+  // child's name; the player themselves sees their role / "Selected".
+  const dependentLabel = match.forDependent
+    ? (match.dependentName ?? match.playerName)
+    : null;
+
+  const withdraw = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/matchday/mine/{matchdayPlayerId}/withdraw", {
+          params: { path: { matchdayPlayerId: match.matchdayPlayerId } },
+        }),
+      ),
+    onSuccess: async () => {
+      setConfirmOpen(false);
+      await queryClient.invalidateQueries({
+        queryKey: ["matchday", "mine", "upcoming"],
+      });
+    },
+  });
+
+  const matchLabel = `${match.teamName ?? "Percy Main"} vs ${match.opposition}`;
+
   return (
-    <Link
-      to={`/matchday/${match.matchdayId}`}
-      className="border-border-light grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t py-2.5 first:border-t-0"
-    >
-      <DateSquare iso={match.matchDate} />
-      <div className="min-w-0">
-        <div className="truncate text-sm leading-tight font-medium">
-          {match.opposition}
+    <div className="border-border-light flex items-center gap-3 border-t py-2.5 first:border-t-0">
+      <Link
+        to={`/matchday/${match.matchdayId}`}
+        className="flex min-w-0 flex-1 items-center gap-3"
+      >
+        <DateSquare iso={match.matchDate} />
+        <div className="min-w-0">
+          <div className="truncate text-sm leading-tight font-medium">
+            {match.opposition}
+          </div>
+          <div className="text-text-secondary mt-0.5 text-xs">
+            {[match.teamName, match.competitionType]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
         </div>
-        <div className="text-text-secondary mt-0.5 text-xs">
-          {[match.teamName, match.competitionType].filter(Boolean).join(" · ")}
-        </div>
+      </Link>
+      <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+        {dependentLabel ? (
+          <StatusPill tone="navy">{dependentLabel}</StatusPill>
+        ) : role ? (
+          <StatusPill tone="navy">{role}</StatusPill>
+        ) : (
+          <StatusPill tone="neutral">Selected</StatusPill>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setConfirmOpen(true);
+          }}
+          className="text-danger text-xs font-medium hover:underline"
+        >
+          Drop out
+        </button>
       </div>
-      {role ? (
-        <StatusPill tone="navy">{role}</StatusPill>
-      ) : (
-        <StatusPill tone="neutral">Selected</StatusPill>
-      )}
-    </Link>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {dependentLabel
+                ? `Drop ${dependentLabel} out?`
+                : "Drop out of this game?"}
+            </DialogTitle>
+            <DialogDescription>
+              {dependentLabel
+                ? `${dependentLabel} will be withdrawn from ${matchLabel} on ${fmtDate(match.matchDate, "EEEE d MMMM")}. `
+                : `You'll be withdrawn from ${matchLabel} on ${fmtDate(match.matchDate, "EEEE d MMMM")}. `}
+              This is final - the captain will be notified, and re-joining needs
+              them to re-select you.
+            </DialogDescription>
+          </DialogHeader>
+          {withdraw.isError && (
+            <p className="text-danger text-sm">
+              Couldn't drop out. Please try again.
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              tone="outline"
+              onClick={() => {
+                setConfirmOpen(false);
+              }}
+              disabled={withdraw.isPending}
+            >
+              Keep my place
+            </Button>
+            <Button
+              tone="destructive"
+              onClick={() => {
+                withdraw.mutate();
+              }}
+              disabled={withdraw.isPending}
+            >
+              {withdraw.isPending ? "Dropping out…" : "Drop out"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

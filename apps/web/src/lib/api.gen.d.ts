@@ -4066,6 +4066,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
+                            matchdayPlayerId: string;
                             matchdayId: string;
                             matchDate: string;
                             opposition: string;
@@ -4073,6 +4074,9 @@ export interface paths {
                             competitionType: string | null;
                             isCaptain: boolean;
                             isWicketkeeper: boolean;
+                            playerName: string;
+                            forDependent: boolean;
+                            dependentName: string | null;
                         }[];
                     };
                 };
@@ -4121,6 +4125,45 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/matchday/mine/{matchdayPlayerId}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    matchdayPlayerId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;

@@ -399,6 +399,17 @@ export function getMyUpcomingMatches(db: Kysely<DB>) {
       .executeTakeFirst();
     if (!member) return [];
 
+    // A parent sees (and can drop out) their juniors' selections on the
+    // same card as their own, so pull the member's dependents and fold
+    // their matchday_player rows into the same query.
+    const dependents = await db
+      .selectFrom("dependent")
+      .where("member_id", "=", member.id)
+      .select(["id", "name"])
+      .execute();
+    const dependentNameById = new Map(dependents.map((d) => [d.id, d.name]));
+    const dependentIds = dependents.map((d) => d.id);
+
     const todayIso = formatDate(new Date(), "yyyy-MM-dd");
 
     const rows = await db
@@ -409,11 +420,19 @@ export function getMyUpcomingMatches(db: Kysely<DB>) {
         "play_cricket_team.id",
         "matchday.play_cricket_team_id",
       )
-      .where("matchday_player.member_id", "=", member.id)
+      .where((eb) =>
+        eb.or([
+          eb("matchday_player.member_id", "=", member.id),
+          ...(dependentIds.length > 0
+            ? [eb("matchday_player.dependent_id", "in", dependentIds)]
+            : []),
+        ]),
+      )
       .where("matchday_player.status", "in", ["selected", "playing"])
       .where("matchday.status", "in", ["pending", "confirmed"])
       .where("matchday.match_date", ">=", todayIso)
       .select([
+        "matchday_player.id as matchdayPlayerId",
         "matchday.id as matchdayId",
         "matchday.match_date as matchDate",
         "matchday.opposition",
@@ -421,11 +440,19 @@ export function getMyUpcomingMatches(db: Kysely<DB>) {
         "play_cricket_team.name as teamName",
         "matchday_player.is_captain as isCaptain",
         "matchday_player.is_wicketkeeper as isWicketkeeper",
+        "matchday_player.player_name as playerName",
+        "matchday_player.dependent_id as dependentId",
       ])
       .orderBy("matchday.match_date", "asc")
       .execute();
 
-    return rows;
+    return rows.map(({ dependentId, ...row }) => ({
+      ...row,
+      forDependent: dependentId !== null,
+      dependentName: dependentId
+        ? (dependentNameById.get(dependentId) ?? null)
+        : null,
+    }));
   };
 }
 
@@ -1920,6 +1947,253 @@ export function notifyMatchCharges(
     // captain via emailErrors; failed addresses are chased via the charges
     // admin rather than a re-send.
     return { success: true, emailsSent, emailErrors };
+  };
+}
+
+/**
+ * Player-initiated dropout from a matchday they were selected for.
+ *
+ * Self-service counterpart to the captain's finish flow: instead of an
+ * official marking someone `dropped_out` at wrap-up, the player (or a
+ * parent acting for their dependent) sets their own row to `withdrawn`
+ * before the game. Reuses the existing `withdrawn` status - no new
+ * status to distinguish player- vs admin-initiated (#393 decision §4).
+ *
+ * Authorisation is by ownership, not role: the matchday_player row must
+ * belong to the signed-in member, or to one of their dependents (a
+ * parent dropping a junior out). Cutoff is "before the game" - we don't
+ * store a precise start time, so the gate is that the match hasn't
+ * happened yet (match_date today or later) and the matchday is still
+ * live (pending/confirmed). Withdrawal is final: the row leaves the
+ * "selected/playing" set, so the upcoming-games card stops offering it
+ * and re-adding is a captain action.
+ *
+ * The captain is notified best-effort (email and/or push per their
+ * preference). A notification failure never rolls back the withdrawal -
+ * the player has already dropped out regardless of whether the captain's
+ * email bounced.
+ */
+export function withdrawFromMatch(
+  db: Kysely<DB>,
+  sendEmail: (email: {
+    to: string;
+    subject: string;
+    html: string;
+  }) => Promise<void>,
+  sendPush: SendPush,
+  config: { BASE_URL: string; MATCHDAY_URL?: string },
+) {
+  const fetchPrefs = getNotificationPreferencesByUserIds(db);
+  const fetchPushSubs = listPushSubscriptionsForUsers(db);
+  const pruneSubscription = deletePushSubscriptionByEndpoint(db);
+
+  return async (
+    email: string,
+    matchdayPlayerId: string,
+    log: FastifyBaseLogger,
+  ) => {
+    const member = await db
+      .selectFrom("member")
+      .where("email", "=", email)
+      .select(["id"])
+      .executeTakeFirst();
+    if (!member) throwHttpError(403, "You can only drop out of your own games");
+
+    const player = await db
+      .selectFrom("matchday_player")
+      .innerJoin("matchday", "matchday.id", "matchday_player.matchday_id")
+      .leftJoin("dependent", "dependent.id", "matchday_player.dependent_id")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
+      .where("matchday_player.id", "=", matchdayPlayerId)
+      .select([
+        "matchday_player.member_id as playerMemberId",
+        "matchday_player.dependent_id as dependentId",
+        "matchday_player.player_name as playerName",
+        "matchday_player.status as playerStatus",
+        "dependent.member_id as dependentParentId",
+        "matchday.id as matchdayId",
+        "matchday.status as matchdayStatus",
+        "matchday.match_date as matchDate",
+        "matchday.opposition as opposition",
+        "play_cricket_team.name as teamName",
+      ])
+      .executeTakeFirst();
+    if (!player) throwHttpError(404, "Selection not found");
+
+    // Ownership: the row is the member's own selection, or one of their
+    // dependents' (parent acting on a junior's behalf).
+    const ownsRow =
+      player.playerMemberId === member.id ||
+      (player.dependentId !== null && player.dependentParentId === member.id);
+    if (!ownsRow) {
+      throwHttpError(403, "You can only drop out of your own games");
+    }
+
+    if (
+      player.matchdayStatus !== "pending" &&
+      player.matchdayStatus !== "confirmed"
+    ) {
+      throwHttpError(400, "This game is no longer open for changes");
+    }
+    const todayIso = formatDate(new Date(), "yyyy-MM-dd");
+    if (player.matchDate < todayIso) {
+      throwHttpError(400, "This game has already taken place");
+    }
+
+    // Only a live selection can be withdrawn. Idempotency: an already
+    // withdrawn/dropped row returns a clear error rather than firing a
+    // second notification to the captain.
+    if (
+      player.playerStatus !== "selected" &&
+      player.playerStatus !== "playing"
+    ) {
+      throwHttpError(400, "You are not currently selected for this game");
+    }
+
+    await db
+      .updateTable("matchday_player")
+      .set({ status: "withdrawn" })
+      .where("id", "=", matchdayPlayerId)
+      .execute();
+
+    const notifyCaptain = async (): Promise<void> => {
+      // Exclude the dropping player's own row so a captain who drops
+      // themselves out isn't emailed about their own withdrawal.
+      const captain = await db
+        .selectFrom("matchday_player")
+        .innerJoin("member", "member.id", "matchday_player.member_id")
+        .where("matchday_player.matchday_id", "=", player.matchdayId)
+        .where("matchday_player.is_captain", "=", true)
+        .where("matchday_player.id", "!=", matchdayPlayerId)
+        .select(["member.name as captainName", "member.email as captainEmail"])
+        .executeTakeFirst();
+      if (!captain?.captainEmail) return;
+      const captainName = captain.captainName ?? "Captain";
+      const captainEmail = captain.captainEmail;
+
+      const captainUser = await db
+        .selectFrom("user")
+        .where("email", "=", captainEmail.toLowerCase())
+        .select(["id"])
+        .executeTakeFirst();
+      const userId = captainUser?.id;
+
+      const channel: MatchdayChannel = userId
+        ? ((await fetchPrefs([userId])).get(userId) ?? DEFAULT_MATCHDAY_CHANNEL)
+        : "email";
+      const wantsEmail = channel === "email" || channel === "both";
+      const wantsPush = channel === "push" || channel === "both";
+      const subscriptions = userId
+        ? ((await fetchPushSubs([userId])).get(userId) ?? [])
+        : [];
+      const pushAvailable = wantsPush && subscriptions.length > 0;
+
+      const teamName = player.teamName ?? "your team";
+      const teamSheetUrl = config.MATCHDAY_URL
+        ? `${config.MATCHDAY_URL}/matchday/${player.matchdayId}`
+        : `${config.BASE_URL}/matchday/${player.matchdayId}`;
+
+      const sendCaptainEmail = async (): Promise<boolean> => {
+        try {
+          const { render } = await import("react-email");
+          const { PlayerWithdrawal } = await import("@percy-main/email");
+          const element = PlayerWithdrawal.component({
+            imageBaseUrl: `${config.BASE_URL}/images`,
+            captainName,
+            playerName: player.playerName,
+            teamName,
+            opposition: player.opposition,
+            matchDate: formatDate(new Date(player.matchDate), "dd/MM/yyyy"),
+            teamSheetUrl,
+          });
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+          const html = await render(element as any);
+          await sendEmail({
+            to: captainEmail,
+            subject: PlayerWithdrawal.subject,
+            html,
+          });
+          return true;
+        } catch (err) {
+          log.error(
+            { err, matchdayId: player.matchdayId, channel: "email" },
+            "withdrawal_captain_notification_failed",
+          );
+          return false;
+        }
+      };
+
+      let deliveredAny = false;
+
+      // Push-only captains with no live subscriptions fall back to email
+      // so a dropout is never silently missed.
+      if (wantsEmail || (wantsPush && !pushAvailable)) {
+        if (await sendCaptainEmail()) deliveredAny = true;
+      }
+
+      if (pushAvailable) {
+        const payload = {
+          title: "Player dropout",
+          body: `${player.playerName} dropped out of ${teamName} vs ${player.opposition}`,
+          url: teamSheetUrl,
+          tag: `withdrawal:${player.matchdayId}`,
+        };
+        let pushDelivered = false;
+        let allGone = true;
+        for (const sub of subscriptions) {
+          const result = await sendPush(sub, payload);
+          if (result.ok) {
+            deliveredAny = true;
+            pushDelivered = true;
+            allGone = false;
+          } else if (result.gone) {
+            await pruneSubscription(result.endpoint);
+            log.info(
+              { matchdayId: player.matchdayId, endpoint: result.endpoint },
+              "push_subscription_gone_pruned",
+            );
+          } else {
+            allGone = false;
+            log.warn(
+              {
+                matchdayId: player.matchdayId,
+                endpoint: result.endpoint,
+                reason: result.reason,
+                channel: "push",
+              },
+              "withdrawal_captain_notification_failed",
+            );
+          }
+        }
+        if (!wantsEmail && !pushDelivered && allGone) {
+          if (await sendCaptainEmail()) deliveredAny = true;
+        }
+      }
+
+      if (!deliveredAny) {
+        log.warn(
+          { matchdayId: player.matchdayId, captainEmail },
+          "withdrawal_captain_notification_undelivered",
+        );
+      }
+    };
+
+    // Best-effort: the withdrawal stands even if notifying the captain
+    // throws (e.g. a transient DB or render error).
+    try {
+      await notifyCaptain();
+    } catch (err) {
+      log.error(
+        { err, matchdayPlayerId, matchdayId: player.matchdayId },
+        "withdrawal_captain_notification_failed",
+      );
+    }
+
+    return { success: true };
   };
 }
 

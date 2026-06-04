@@ -7067,6 +7067,9 @@
                   "items": {
                     "type": "object",
                     "properties": {
+                      "matchdayPlayerId": {
+                        "type": "string"
+                      },
                       "matchdayId": {
                         "type": "string"
                       },
@@ -7089,16 +7092,30 @@
                       },
                       "isWicketkeeper": {
                         "type": "boolean"
+                      },
+                      "playerName": {
+                        "type": "string"
+                      },
+                      "forDependent": {
+                        "type": "boolean"
+                      },
+                      "dependentName": {
+                        "nullable": true,
+                        "type": "string"
                       }
                     },
                     "required": [
+                      "matchdayPlayerId",
                       "matchdayId",
                       "matchDate",
                       "opposition",
                       "teamName",
                       "competitionType",
                       "isCaptain",
-                      "isWicketkeeper"
+                      "isWicketkeeper",
+                      "playerName",
+                      "forDependent",
+                      "dependentName"
                     ],
                     "additionalProperties": false
                   }
@@ -7152,6 +7169,41 @@
                     "runs",
                     "wickets",
                     "catches"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matchday/mine/{matchdayPlayerId}/withdraw": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "matchdayPlayerId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
                   ],
                   "additionalProperties": false
                 }
