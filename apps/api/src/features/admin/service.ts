@@ -1,4 +1,5 @@
 import type { DB } from "@percy-main/db";
+import { PaymentReminder, type Email } from "@percy-main/email";
 import {
   getAgeGroup,
   getTeamName,
@@ -9,8 +10,11 @@ import {
   parseRoles,
   serializeRoles,
 } from "@percy-main/shared/auth/permissions";
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
+import { createElement } from "react";
+import { render } from "react-email";
 import { closeReliefForArchivedMember } from "../financial-relief/service.ts";
 import type {
   AddMatchFeeRate,
@@ -172,8 +176,40 @@ export function createMember(db: Kysely<DB>) {
   };
 }
 
-export function sendChargeNotification(db: Kysely<DB>) {
-  return async (userId: string) => {
+// Treasurer chase actions deliver email via the same injected `send` and
+// `config` the rest of the app uses. Kept narrow on purpose so the curried
+// factories stay easy to construct in tests.
+type SendEmail = (email: Email) => Promise<void>;
+interface ChaseConfig {
+  BASE_URL: string;
+}
+
+const gbpFormatter = new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+});
+
+function formatPence(amountPence: number): string {
+  return gbpFormatter.format(amountPence / 100);
+}
+
+function formatChargeDate(chargeDate: string): string {
+  // charge_date is a yyyy-mm-dd (or ISO) string; render it as dd/MM/yyyy to
+  // match the other club emails. Fall back to the raw value if unparseable.
+  const parsed = new Date(chargeDate);
+  if (Number.isNaN(parsed.getTime())) return chargeDate;
+  const day = String(parsed.getUTCDate()).padStart(2, "0");
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+  const year = parsed.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+export function sendChargeNotification(
+  db: Kysely<DB>,
+  send: SendEmail,
+  config: ChaseConfig,
+) {
+  return async (userId: string, log?: FastifyBaseLogger) => {
     const user = await db
       .selectFrom("user")
       .where("id", "=", userId)
@@ -209,15 +245,68 @@ export function sendChargeNotification(db: Kysely<DB>) {
       .where("payment_confirmed_at", "is", null)
       .where("deleted_at", "is", null)
       .where("relieved_at", "is", null)
-      .selectAll()
+      .select(["id", "description", "amount_pence", "charge_date"])
       .execute();
 
     if (unpaidCharges.length === 0) {
       return { sent: false, reason: "No outstanding charges" };
     }
 
-    // Email send not wired up - see #367
-    return { sent: true, chargeCount: unpaidCharges.length };
+    // No email on file means we can't reach this member at all - report it
+    // back to the treasurer rather than silently claiming success.
+    if (!user.email) {
+      return { sent: false, reason: "Member has no email address" };
+    }
+
+    const imageBaseUrl = `${config.BASE_URL}/images`;
+    const loginUrl = `${config.BASE_URL}/auth/login`;
+    const recipientName = user.name ?? "Member";
+
+    let failedCount = 0;
+    for (const charge of unpaidCharges) {
+      try {
+        const html = await render(
+          createElement(PaymentReminder.component, {
+            imageBaseUrl,
+            name: recipientName,
+            description: charge.description,
+            amount: formatPence(charge.amount_pence),
+            chargeDate: formatChargeDate(charge.charge_date),
+            loginUrl,
+          }),
+        );
+        await send({
+          to: user.email,
+          subject: PaymentReminder.subject,
+          html,
+        });
+      } catch (err) {
+        failedCount += 1;
+        log?.error(
+          { err, userId, chargeId: charge.id },
+          "admin_charge_notification_email_failed",
+        );
+      }
+    }
+
+    const sentCount = unpaidCharges.length - failedCount;
+
+    // Every send failed (e.g. a mail outage). Surface it as an error rather
+    // than a 200 the treasurer UI reads as success - matches chasePayment.
+    if (sentCount === 0) {
+      const error = new Error("Failed to send any reminder emails") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 502;
+      throw error;
+    }
+
+    return {
+      sent: sentCount > 0,
+      chargeCount: unpaidCharges.length,
+      sentCount,
+      failedCount,
+    };
   };
 }
 
@@ -1472,8 +1561,12 @@ export function editCharge(db: Kysely<DB>) {
   };
 }
 
-export function chasePayment(db: Kysely<DB>) {
-  return async (chargeId: string) => {
+export function chasePayment(
+  db: Kysely<DB>,
+  send: SendEmail,
+  config: ChaseConfig,
+) {
+  return async (chargeId: string, log?: FastifyBaseLogger) => {
     const charge = await db
       .selectFrom("charge")
       .innerJoin("member", "member.id", "charge.member_id")
@@ -1500,7 +1593,41 @@ export function chasePayment(db: Kysely<DB>) {
       throw error;
     }
 
-    // Email send not wired up - see #367
+    // A member with no email on file can't be chased - surface that to the
+    // treasurer instead of pretending the reminder went out.
+    if (!charge.memberEmail) {
+      const error = new Error("Member has no email address") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 422;
+      throw error;
+    }
+
+    try {
+      const html = await render(
+        createElement(PaymentReminder.component, {
+          imageBaseUrl: `${config.BASE_URL}/images`,
+          name: charge.memberName ?? "Member",
+          description: charge.description,
+          amount: formatPence(charge.amount_pence),
+          chargeDate: formatChargeDate(charge.charge_date),
+          loginUrl: `${config.BASE_URL}/auth/login`,
+        }),
+      );
+      await send({
+        to: charge.memberEmail,
+        subject: PaymentReminder.subject,
+        html,
+      });
+    } catch (err) {
+      log?.error({ err, chargeId }, "admin_chase_payment_email_failed");
+      const error = new Error("Failed to send reminder email") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 502;
+      throw error;
+    }
+
     return { success: true };
   };
 }

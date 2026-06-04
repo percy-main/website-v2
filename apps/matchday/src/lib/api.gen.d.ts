@@ -7037,6 +7037,8 @@ export interface paths {
                             sent: boolean;
                             reason?: string;
                             chargeCount?: number;
+                            sentCount?: number;
+                            failedCount?: number;
                         };
                     };
                 };

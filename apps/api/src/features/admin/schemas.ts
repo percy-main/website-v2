@@ -452,6 +452,8 @@ export const chargeNotificationResponseSchema = z.object({
   sent: z.boolean(),
   reason: z.string().optional(),
   chargeCount: z.number().optional(),
+  sentCount: z.number().optional(),
+  failedCount: z.number().optional(),
 });
 
 export const recordLinkingResponseSchema = z.object({

@@ -1,6 +1,7 @@
 import type { DB } from "@percy-main/db";
+import type { Email } from "@percy-main/email";
 import type { Kysely } from "kysely";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   seedTestUser,
   startTestContainer,
@@ -31,6 +32,10 @@ import {
   unlinkMemberParent,
   unlinkPlayCricketPlayer,
 } from "./service.ts";
+
+type SendMock = (email: Email) => Promise<void>;
+
+const chaseConfig = { BASE_URL: "http://localhost:5173" };
 
 /** Seeds a dependent (junior) under a member. Returns the dependent id. */
 async function seedDependent(
@@ -933,8 +938,11 @@ describe("admin service (integration)", () => {
         })
         .execute();
 
-      const result = await chasePayment(ctx.db)(chargeId);
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
+      const result = await chasePayment(ctx.db, send, chaseConfig)(chargeId);
       expect(result).toEqual({ success: true });
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send.mock.calls[0][0].to).toBe(email);
     });
 
     it("throws 404 for paid charge", async () => {
@@ -958,15 +966,17 @@ describe("admin service (integration)", () => {
         })
         .execute();
 
-      await expect(chasePayment(ctx.db)(chargeId)).rejects.toThrow(
-        "Charge not found or already paid/deleted",
-      );
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
+      await expect(
+        chasePayment(ctx.db, send, chaseConfig)(chargeId),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
     });
 
     it("throws 404 for non-existent charge", async () => {
-      await expect(chasePayment(ctx.db)("non-existent")).rejects.toThrow(
-        "Charge not found or already paid/deleted",
-      );
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
+      await expect(
+        chasePayment(ctx.db, send, chaseConfig)("non-existent"),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
     });
 
     it("throws 404 for pending charge (payment in flight)", async () => {
@@ -990,9 +1000,10 @@ describe("admin service (integration)", () => {
         })
         .execute();
 
-      await expect(chasePayment(ctx.db)(chargeId)).rejects.toThrow(
-        "Charge not found or already paid/deleted",
-      );
+      const send = vi.fn<SendMock>().mockResolvedValue(undefined);
+      await expect(
+        chasePayment(ctx.db, send, chaseConfig)(chargeId),
+      ).rejects.toThrow("Charge not found or already paid/deleted");
     });
   });
 
