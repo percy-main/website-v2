@@ -124,6 +124,45 @@ export default tseslint.config(
       // gate instead of only surfacing it as a warn-level CLI finding in the
       // react-doctor PR comment.
       "react/no-danger": "error",
+
+      // -------------------------------------------------------------------
+      // Rules newly surfaced by the eslint-plugin-react-doctor 0.2.1 -> 0.2.16
+      // bump (#419). The bump tightened/added ~18 rules that flag ~111 spots
+      // in the long-established apps/web code. They are deliberately turned
+      // OFF here and scheduled to be re-enabled and fixed incrementally
+      // (each its own small, reviewable follow-up) rather than fixed in one
+      // large behaviour-changing sweep while the rules are unreviewed. See
+      // the #419 PR for the per-rule fix recommendations.
+      // -------------------------------------------------------------------
+
+      // Behavioural / React-state rules - fixing these changes runtime
+      // behaviour, so each needs per-site review before turning back on:
+      "react-doctor/react-compiler-no-manual-memoization": "off", // 14 sites; remove manual memo under React Compiler
+      "react-doctor/exhaustive-deps": "off", // overlaps react-hooks/exhaustive-deps (already on); dep edits are behavioural
+      "react-doctor/no-chain-state-updates": "off",
+      "react-doctor/no-adjust-state-on-prop-change": "off",
+      "react-doctor/no-derived-state": "off",
+      "react-doctor/no-initialize-state": "off",
+      "react-doctor/no-effect-with-fresh-deps": "off",
+      "react-doctor/rerender-lazy-ref-init": "off",
+      "react-doctor/jsx-no-constructed-context-values": "off",
+
+      // Structure / file-organisation rules - pure churn (would split many
+      // files), no runtime effect:
+      "react-doctor/only-export-components": "off", // 18 sites
+      "react-doctor/no-multi-comp": "off",
+      "react-doctor/prefer-module-scope-static-value": "off",
+      "react-doctor/prefer-module-scope-pure-function": "off",
+
+      // a11y / markup rules - genuinely worth re-enabling and fixing;
+      // deferred only to keep this bump reviewable. iframe-missing-sandbox is
+      // security-relevant and should be the first re-enabled (with a tested
+      // sandbox attribute):
+      "react-doctor/iframe-missing-sandbox": "off", // 2 sites - SECURITY, re-enable first
+      "react-doctor/control-has-associated-label": "off", // 16 sites
+      "react-doctor/button-has-type": "off", // 20 sites
+      "react-doctor/prefer-tag-over-role": "off",
+      "react-doctor/prefer-html-dialog": "off",
     },
   },
   // Matchday: subset of react-doctor — just the correctness rules.
