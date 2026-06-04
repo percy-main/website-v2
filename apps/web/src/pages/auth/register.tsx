@@ -152,6 +152,8 @@ export function Component() {
             value={email}
             onChange={(e) => update({ email: e.currentTarget.value })}
             required
+            invalid={isUserExists}
+            errorId="register-email-error"
           />
           <SimpleInput
             id="password"
@@ -163,7 +165,11 @@ export function Component() {
           />
 
           {isUserExists && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            <div
+              id="register-email-error"
+              role="alert"
+              className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+            >
               <p className="font-medium">
                 An account with this email already exists.
               </p>
@@ -185,7 +191,10 @@ export function Component() {
           )}
 
           {hasGenericError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <div
+              role="alert"
+              className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+            >
               <p>Something went wrong. Please try again.</p>
             </div>
           )}
@@ -203,6 +212,8 @@ export function Component() {
               }}
               className="mt-1 size-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500"
               required
+              aria-invalid={ageError}
+              aria-describedby={ageError ? "age-error" : undefined}
             />
             <label htmlFor="age-confirmed" className="text-sm text-stone-700">
               I confirm I am aged 13 or over
@@ -210,7 +221,11 @@ export function Component() {
           </div>
 
           {ageError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <div
+              id="age-error"
+              role="alert"
+              className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+            >
               <p>
                 You must confirm you are aged 13 or over to create an account.
               </p>

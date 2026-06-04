@@ -62,7 +62,9 @@ export const Recovery: FC<Props> = ({ setPhase }) => {
           Use recovery code
         </Button>
         {error && (
-          <p className="text-sm font-light text-red-800">{error.message}</p>
+          <p role="alert" className="text-sm font-light text-red-800">
+            {error.message}
+          </p>
         )}
         <Button type="button" variant="link" onClick={() => setPhase("2fa")}>
           Back to 2FA
