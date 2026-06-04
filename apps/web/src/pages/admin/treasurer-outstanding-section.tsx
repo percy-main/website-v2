@@ -25,7 +25,7 @@ const PAGE_SIZE = 20;
 
 /**
  * Outstanding Payments card — paginated list with per-row "Chase" action
- * (sends a charge-notification email after a confirm step).
+ * (sends a payment-reminder email for that charge after a confirm step).
  *
  * Owns its own query, page state, chasing-row state, and chase mutation
  * so TreasurerTab no longer hosts these concerns.
@@ -51,10 +51,10 @@ export function TreasurerOutstandingSection() {
   });
 
   const chaseMutation = useMutation({
-    mutationFn: (userId: string) =>
+    mutationFn: (chargeId: string) =>
       callApi(
-        api.POST("/api/admin/charge-notification", {
-          body: { userId },
+        api.POST("/api/admin/chase-payment", {
+          body: { chargeId },
         }),
       ),
     onSuccess: () => {
@@ -116,13 +116,9 @@ export function TreasurerOutstandingSection() {
                             variant="default"
                             size="sm"
                             disabled={
-                              chaseMutation.isPending || !("user_id" in item)
+                              chaseMutation.isPending || !item.member_email
                             }
-                            onClick={() => {
-                              const userId = (item as { user_id?: string })
-                                .user_id;
-                              if (userId) chaseMutation.mutate(userId);
-                            }}
+                            onClick={() => chaseMutation.mutate(item.id)}
                           >
                             Send
                           </Button>

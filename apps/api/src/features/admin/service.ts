@@ -291,6 +291,16 @@ export function sendChargeNotification(
 
     const sentCount = unpaidCharges.length - failedCount;
 
+    // Every send failed (e.g. a mail outage). Surface it as an error rather
+    // than a 200 the treasurer UI reads as success - matches chasePayment.
+    if (sentCount === 0) {
+      const error = new Error("Failed to send any reminder emails") as Error & {
+        statusCode: number;
+      };
+      error.statusCode = 502;
+      throw error;
+    }
+
     return {
       sent: sentCount > 0,
       chargeCount: unpaidCharges.length,

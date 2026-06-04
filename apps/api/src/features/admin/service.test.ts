@@ -509,6 +509,26 @@ describe("admin service", () => {
       expect(send).toHaveBeenCalledTimes(2);
     });
 
+    it("throws 502 when every send fails", async () => {
+      mockExecuteTakeFirst
+        .mockResolvedValueOnce({ email: "bob@example.com", name: "Bob" })
+        .mockResolvedValueOnce({ id: "m1" });
+      mockExecute.mockResolvedValueOnce([
+        {
+          id: "c1",
+          description: "Match donation",
+          amount_pence: 5000,
+          charge_date: "2026-01-15",
+        },
+      ]);
+      const send = vi.fn<SendMock>().mockRejectedValue(new Error("SES down"));
+
+      await expect(
+        sendChargeNotification(db, send, chaseConfig)("u1"),
+      ).rejects.toThrow("Failed to send any reminder emails");
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
     it("returns sent:false with a reason when there are no outstanding charges", async () => {
       mockExecuteTakeFirst
         .mockResolvedValueOnce({ email: "bob@example.com", name: "Bob" })
