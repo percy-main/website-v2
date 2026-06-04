@@ -284,9 +284,10 @@ resource "aws_cloudfront_function" "spa_rewrite" {
 # -----------------------------------------------------------------------------
 # CloudFront Response Headers Policy - Security Headers
 #
-# Attached to every cache behavior. For now it only sets
-# X-Content-Type-Options: nosniff. Later issues will extend this same
-# policy with frame-ancestors (CSP) and HSTS.
+# Attached to every cache behavior. Sets X-Content-Type-Options: nosniff
+# and clickjacking protection (CSP frame-ancestors 'self' + the legacy
+# X-Frame-Options: SAMEORIGIN fallback, which matches 'self'). A later
+# issue will extend this same policy with HSTS.
 # -----------------------------------------------------------------------------
 
 resource "aws_cloudfront_response_headers_policy" "security" {
@@ -295,6 +296,16 @@ resource "aws_cloudfront_response_headers_policy" "security" {
   security_headers_config {
     content_type_options {
       override = true
+    }
+
+    frame_options {
+      frame_option = "SAMEORIGIN"
+      override     = true
+    }
+
+    content_security_policy {
+      content_security_policy = "frame-ancestors 'self'"
+      override                = true
     }
   }
 }
