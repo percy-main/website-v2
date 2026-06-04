@@ -117,13 +117,18 @@ function HonoursTable({
 
   return (
     <Table>
+      <caption className="sr-only">
+        {type === "batting" ? "Centuries" : "Five-wicket hauls"}
+      </caption>
       <TableHeader>
         <TableRow>
-          <TableHead>Player</TableHead>
-          <TableHead className="text-right">
+          <TableHead scope="col">Player</TableHead>
+          <TableHead scope="col" className="text-right">
             {type === "batting" ? "Score" : "Figures"}
           </TableHead>
-          <TableHead className="text-right">Season</TableHead>
+          <TableHead scope="col" className="text-right">
+            Season
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

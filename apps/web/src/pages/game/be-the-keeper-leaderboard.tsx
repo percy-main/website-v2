@@ -60,18 +60,34 @@ export function Component() {
       {entries && entries.length > 0 && (
         <div className="overflow-x-auto rounded-lg border border-stone-200">
           <table className="w-full text-left text-sm">
+            <caption className="sr-only">Be the Keeper leaderboard</caption>
             <thead>
               <tr className="bg-[#1B3D2F] text-white">
-                <th className="px-4 py-3 font-semibold">#</th>
-                <th className="px-4 py-3 font-semibold">Name</th>
-                <th className="px-4 py-3 text-right font-semibold">Score</th>
-                <th className="hidden px-4 py-3 text-right font-semibold sm:table-cell">
+                <th scope="col" className="px-4 py-3 font-semibold">
+                  #
+                </th>
+                <th scope="col" className="px-4 py-3 font-semibold">
+                  Name
+                </th>
+                <th scope="col" className="px-4 py-3 text-right font-semibold">
+                  Score
+                </th>
+                <th
+                  scope="col"
+                  className="hidden px-4 py-3 text-right font-semibold sm:table-cell"
+                >
                   Level
                 </th>
-                <th className="hidden px-4 py-3 text-right font-semibold sm:table-cell">
+                <th
+                  scope="col"
+                  className="hidden px-4 py-3 text-right font-semibold sm:table-cell"
+                >
                   Catches
                 </th>
-                <th className="hidden px-4 py-3 text-right font-semibold md:table-cell">
+                <th
+                  scope="col"
+                  className="hidden px-4 py-3 text-right font-semibold md:table-cell"
+                >
                   Best Streak
                 </th>
               </tr>

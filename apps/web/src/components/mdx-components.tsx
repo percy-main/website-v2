@@ -121,13 +121,21 @@ function LeagueTable({
         <h2 className="mb-3 text-2xl leading-tight font-semibold">{name}</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-xs">
+            <caption className="sr-only">
+              {name ? `${name} league table` : "League table"}
+            </caption>
             <thead className="rounded-t-lg dark:bg-stone-300">
               <tr className="text-right">
-                <th title="Position" className="p-3 text-left">
+                <th scope="col" title="Position" className="p-3 text-left">
                   Position
                 </th>
                 {columns.map((column) => (
-                  <th key={column} title={column} className="p-3 text-left">
+                  <th
+                    key={column}
+                    scope="col"
+                    title={column}
+                    className="p-3 text-left"
+                  >
                     {column}
                   </th>
                 ))}
