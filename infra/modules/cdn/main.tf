@@ -282,6 +282,24 @@ resource "aws_cloudfront_function" "spa_rewrite" {
 }
 
 # -----------------------------------------------------------------------------
+# CloudFront Response Headers Policy - Security Headers
+#
+# Attached to every cache behavior. For now it only sets
+# X-Content-Type-Options: nosniff. Later issues will extend this same
+# policy with frame-ancestors (CSP) and HSTS.
+# -----------------------------------------------------------------------------
+
+resource "aws_cloudfront_response_headers_policy" "security" {
+  name = "${var.environment}-security-headers"
+
+  security_headers_config {
+    content_type_options {
+      override = true
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
 # CloudFront Distribution
 # -----------------------------------------------------------------------------
 
@@ -316,10 +334,11 @@ resource "aws_cloudfront_distribution" "main" {
 
   # /uploads/* -> Uploads S3 bucket (standard caching)
   ordered_cache_behavior {
-    path_pattern           = "/uploads/*"
-    target_origin_id       = local.uploads_origin_id
-    viewer_protocol_policy = "redirect-to-https"
-    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
+    path_pattern               = "/uploads/*"
+    target_origin_id           = local.uploads_origin_id
+    viewer_protocol_policy     = "redirect-to-https"
+    cache_policy_id            = data.aws_cloudfront_cache_policy.caching_optimized.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 
     allowed_methods = ["GET", "HEAD"]
     cached_methods  = ["GET", "HEAD"]
@@ -329,9 +348,10 @@ resource "aws_cloudfront_distribution" "main" {
   # --- Default Cache Behavior (frontend) ---
 
   default_cache_behavior {
-    target_origin_id       = local.frontend_origin_id
-    viewer_protocol_policy = "redirect-to-https"
-    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
+    target_origin_id           = local.frontend_origin_id
+    viewer_protocol_policy     = "redirect-to-https"
+    cache_policy_id            = data.aws_cloudfront_cache_policy.caching_optimized.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 
     allowed_methods = ["GET", "HEAD"]
     cached_methods  = ["GET", "HEAD"]
