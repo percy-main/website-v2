@@ -1,5 +1,8 @@
 import type { DB } from "@percy-main/db";
-import { hasClubWideAccess } from "@percy-main/shared/auth/permissions";
+import {
+  hasClubWideAccess,
+  parseRoles,
+} from "@percy-main/shared/auth/permissions";
 import {
   format as formatDate,
   isBefore,
@@ -2074,13 +2077,25 @@ export function withdrawFromMatch(
     const notifyManagers = async (): Promise<void> => {
       // Everyone who manages this team should hear about a dropout so any
       // of them can line up a replacement: all assigned team officials,
-      // plus the captain (added even if they aren't an assigned official).
+      // the club-wide matchday_admin role holders, plus the captain
+      // (added even if they aren't an assigned official).
       const officials = await db
         .selectFrom("team_official")
         .innerJoin("user", "user.id", "team_official.user_id")
         .where("team_official.play_cricket_team_id", "=", player.teamId)
         .select(["user.email as email", "user.name as name"])
         .execute();
+
+      // Club-wide gameday admins. Narrow in SQL, then confirm exactly with
+      // parseRoles so a substring match can't sneak in - and so the legacy
+      // kitchen-sink `admin` role is deliberately NOT included here.
+      const matchdayAdmins = (
+        await db
+          .selectFrom("user")
+          .where("role", "like", "%matchday_admin%")
+          .select(["email", "name", "role"])
+          .execute()
+      ).filter((u) => parseRoles(u.role).includes("matchday_admin"));
 
       const captain = await db
         .selectFrom("matchday_player")
@@ -2091,14 +2106,14 @@ export function withdrawFromMatch(
         .executeTakeFirst();
 
       // Dedupe by lowercased email and drop the person who just dropped
-      // out (an official/captain shouldn't be told about their own
+      // out (an official/admin/captain shouldn't be told about their own
       // action). Recipients without a user account still get email-only.
       const actorEmail = email.toLowerCase();
       const recipientByEmail = new Map<
         string,
         { email: string; name: string }
       >();
-      for (const r of [...officials, captain]) {
+      for (const r of [...officials, ...matchdayAdmins, captain]) {
         if (!r?.email) continue;
         const key = r.email.toLowerCase();
         if (key === actorEmail || recipientByEmail.has(key)) continue;

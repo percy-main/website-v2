@@ -2036,5 +2036,48 @@ describe("matchday service (integration)", () => {
       expect(recipients).toContain(otherOff.email.toLowerCase());
       expect(recipients).not.toContain(dropEmail.toLowerCase());
     });
+
+    it("notifies club-wide matchday_admins but not general admins", async () => {
+      const { userId: creatorId } = await seedTestUser(ctx.db, {
+        email: `wd-creator-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: creatorId });
+
+      // Club-wide gameday admin, with no team_official assignment.
+      const mdAdmin = await seedTestUser(ctx.db, {
+        email: `wd-mdadmin-${crypto.randomUUID()}@test.com`,
+        role: "matchday_admin",
+        name: "MD Admin",
+      });
+      // A general admin who should NOT be pulled in.
+      const genAdmin = await seedTestUser(ctx.db, {
+        email: `wd-genadmin-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+
+      const dropEmail = `wd-drop2-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email: dropEmail });
+      if (!memberId) throw new Error("expected memberId");
+      const { id: playerId } = await addPlayer(ctx.db)(
+        creatorId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Dropper" },
+      );
+
+      const recipients: string[] = [];
+      await withdrawAsTest(dropEmail, playerId, {
+        sendEmail: (e) => {
+          recipients.push(e.to.toLowerCase());
+          return Promise.resolve();
+        },
+      });
+
+      expect(recipients).toContain(mdAdmin.email.toLowerCase());
+      expect(recipients).not.toContain(genAdmin.email.toLowerCase());
+    });
   });
 });
