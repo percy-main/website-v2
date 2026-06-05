@@ -1484,6 +1484,26 @@ export function finishMatch(db: Kysely<DB>) {
     // forever on retry.
     let chargesCreated = 0;
     await db.transaction().execute(async (trx) => {
+      // Lock the matchday row before touching any matchday_player rows.
+      // Withdraw (and cancel) take the matchday lock first too, so finishing
+      // now uses the same order - they serialise instead of deadlocking
+      // AB-BA (finish used to lock player rows first, then the matchday).
+      // Re-read status under the lock so it's authoritative: a cancel that
+      // committed after the access check above is caught here, and the
+      // first-finish charge branch keys off the locked status so two
+      // concurrent finishes can't both create charges.
+      const locked = await trx
+        .selectFrom("matchday")
+        .where("id", "=", matchdayId)
+        .select("status")
+        .forUpdate()
+        .executeTakeFirst();
+      if (!locked) throwHttpError(404, "Matchday not found");
+      if (locked.status === "cancelled") {
+        throwHttpError(400, "Cannot finish a cancelled matchday");
+      }
+      const firstFinish = locked.status !== "finished";
+
       for (const { matchdayPlayerId, status } of playerStatuses) {
         await trx
           .updateTable("matchday_player")
@@ -1509,7 +1529,7 @@ export function finishMatch(db: Kysely<DB>) {
         .where("id", "=", matchdayId)
         .execute();
 
-      if (!isFirstFinish) return;
+      if (!firstFinish) return;
 
       // Any player still "selected" at finish time played - the captain
       // just didn't send an explicit per-player status. Normalise them
