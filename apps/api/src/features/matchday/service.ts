@@ -1484,6 +1484,26 @@ export function finishMatch(db: Kysely<DB>) {
     // forever on retry.
     let chargesCreated = 0;
     await db.transaction().execute(async (trx) => {
+      // Lock the matchday row before touching any matchday_player rows.
+      // Withdraw (and cancel) take the matchday lock first too, so finishing
+      // now uses the same order - they serialise instead of deadlocking
+      // AB-BA (finish used to lock player rows first, then the matchday).
+      // Re-read status under the lock so it's authoritative: a cancel that
+      // committed after the access check above is caught here, and the
+      // first-finish charge branch keys off the locked status so two
+      // concurrent finishes can't both create charges.
+      const locked = await trx
+        .selectFrom("matchday")
+        .where("id", "=", matchdayId)
+        .select("status")
+        .forUpdate()
+        .executeTakeFirst();
+      if (!locked) throwHttpError(404, "Matchday not found");
+      if (locked.status === "cancelled") {
+        throwHttpError(400, "Cannot finish a cancelled matchday");
+      }
+      const firstFinish = locked.status !== "finished";
+
       for (const { matchdayPlayerId, status } of playerStatuses) {
         await trx
           .updateTable("matchday_player")
@@ -1509,7 +1529,7 @@ export function finishMatch(db: Kysely<DB>) {
         .where("id", "=", matchdayId)
         .execute();
 
-      if (!isFirstFinish) return;
+      if (!firstFinish) return;
 
       // Any player still "selected" at finish time played - the captain
       // just didn't send an explicit per-player status. Normalise them
@@ -2058,19 +2078,53 @@ export function withdrawFromMatch(
       throwHttpError(400, "You are not currently selected for this game");
     }
 
-    // Claim the withdrawal atomically: flip the status only while it's
-    // still live. Two concurrent requests both pass the read check above,
-    // so this conditional UPDATE is what serialises them - the loser
-    // updates zero rows and bails before notifying the captain a second
-    // time. Captain/keeper flags are cleared so a withdrawn player can't
-    // leave an orphaned role on the team sheet.
-    const claim = await db
-      .updateTable("matchday_player")
-      .set({ status: "withdrawn", is_captain: false, is_wicketkeeper: false })
-      .where("id", "=", matchdayPlayerId)
-      .where("status", "in", ["selected", "playing"])
-      .executeTakeFirst();
-    if (claim.numUpdatedRows === 0n) {
+    // Claim the withdrawal under a matchday row lock so it serialises
+    // against a concurrent cancel/finish. The status/date checks above are
+    // a read-side fast-path, but they're TOCTOU: an official can close the
+    // matchday between that read and this write. Locking the matchday row
+    // (SELECT ... FOR UPDATE) and re-reading its status under the lock is
+    // what closes the race - cancel/finish also touch this row, so whoever
+    // takes the lock first wins and the loser sees the committed result. A
+    // plain WHERE subquery would NOT do this: under READ COMMITTED it reads
+    // the pre-close snapshot, so the withdraw and the cancel both commit
+    // and a player ends up withdrawn (with captain/keeper flags stripped)
+    // from a closed game.
+    const outcome = await db.transaction().execute(async (trx) => {
+      const current = await trx
+        .selectFrom("matchday")
+        .where("id", "=", player.matchdayId)
+        .select(["status", "match_date"])
+        .forUpdate()
+        .executeTakeFirst();
+      if (
+        !current ||
+        current.match_date < todayIso ||
+        (current.status !== "pending" && current.status !== "confirmed")
+      ) {
+        return "closed" as const;
+      }
+
+      // Flip the status only while the selection is still live. Two
+      // concurrent dropouts both queue on the matchday lock above, so the
+      // loser sees the row already withdrawn here, updates zero rows, and
+      // bails before notifying the captain a second time. Captain/keeper
+      // flags are cleared so a withdrawn player leaves no orphaned role on
+      // the team sheet.
+      const claim = await trx
+        .updateTable("matchday_player")
+        .set({ status: "withdrawn", is_captain: false, is_wicketkeeper: false })
+        .where("id", "=", matchdayPlayerId)
+        .where("status", "in", ["selected", "playing"])
+        .executeTakeFirst();
+      return claim.numUpdatedRows === 0n
+        ? ("not_selected" as const)
+        : ("withdrawn" as const);
+    });
+
+    if (outcome === "closed") {
+      throwHttpError(400, "This game is no longer open for changes");
+    }
+    if (outcome === "not_selected") {
       throwHttpError(400, "You are not currently selected for this game");
     }
 

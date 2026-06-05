@@ -1,3 +1,4 @@
+import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SendPush } from "../../lib/push-sender.ts";
 import { noopS3Uploader } from "../../lib/s3-upload.ts";
@@ -53,6 +54,55 @@ async function finishAsTest(
     playerStatuses: data.playerStatuses ?? [],
     feeOverrides: data.feeOverrides ?? [],
   });
+}
+
+// Open a transaction that locks the matchday row and cancels it, then
+// holds the lock (uncommitted) until release() runs. `locked` resolves
+// once the row is locked and mutated, so a test can line up a second
+// operation whose initial read still sees the open matchday but whose
+// claim blocks on the lock. Used to drive the cancel-vs-{withdraw,finish}
+// races deterministically instead of with fixed sleeps.
+function holdCancelLock(matchdayId: string) {
+  let release!: () => void;
+  let signalLocked!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const locked = new Promise<void>((resolve) => {
+    signalLocked = resolve;
+  });
+  const txn = ctx.db.transaction().execute(async (trx) => {
+    await trx
+      .selectFrom("matchday")
+      .where("id", "=", matchdayId)
+      .select("id")
+      .forUpdate()
+      .executeTakeFirst();
+    await trx
+      .updateTable("matchday")
+      .set({ status: "cancelled" })
+      .where("id", "=", matchdayId)
+      .execute();
+    signalLocked();
+    await held;
+  });
+  return { locked, release, txn };
+}
+
+// Poll until a backend is parked waiting on a lock - i.e. an operation's
+// FOR UPDATE has blocked behind a held row lock. The per-file
+// testcontainer means the only such waiter is the operation under test,
+// so this replaces a flaky fixed sleep with a deterministic signal.
+async function waitForLockWaiter() {
+  for (let i = 0; i < 400; i++) {
+    const res = await sql<{ n: number }>`
+      select count(*)::int as n from pg_stat_activity
+      where wait_event_type = 'Lock' and state = 'active'
+    `.execute(ctx.db);
+    if ((res.rows[0]?.n ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("expected a backend to block on a row lock");
 }
 
 // Fire the donation-request batch the way the route does, after the
@@ -1795,6 +1845,155 @@ describe("matchday service (integration)", () => {
       await expect(withdrawAsTest(email, playerId)).rejects.toThrow(
         "already taken place",
       );
+    });
+
+    it("rejects dropout once the matchday is cancelled, leaving the selection intact", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin-cxl-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const email = `wd-cxl-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Cancelled Player" },
+      );
+      // Make the player a captain so we can assert the role flag survives a
+      // rejected dropout (the atomic claim clears flags, so a leak here would
+      // strip the captaincy off a still-selected player).
+      await ctx.db
+        .updateTable("matchday_player")
+        .set({ is_captain: true })
+        .where("id", "=", playerId)
+        .execute();
+
+      // An official cancels the matchday. The dropout must now be rejected -
+      // and must not flip the selection to withdrawn or clear its flags -
+      // even though the player row itself is still "selected". This is the
+      // guard the conditional claim enforces against a concurrent cancel.
+      await ctx.db
+        .updateTable("matchday")
+        .set({ status: "cancelled" })
+        .where("id", "=", matchdayId)
+        .execute();
+
+      await expect(withdrawAsTest(email, playerId)).rejects.toThrow(
+        "no longer open for changes",
+      );
+      const row = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .select(["status", "is_captain"])
+        .executeTakeFirst();
+      expect(row?.status).toBe("selected");
+      expect(row?.is_captain).toBe(true);
+    });
+
+    it("rejects a dropout that races a cancel it could not see at read time", async () => {
+      // The hard case the row lock exists for: the dropout's initial read
+      // runs while the matchday still looks open, so its read-side check
+      // passes, but a cancel commits before the dropout claims the slot.
+      // Only re-reading under FOR UPDATE catches this - a plain subquery
+      // would read the pre-cancel snapshot and let the withdrawal commit.
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin-race-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const email = `wd-race-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Race Player" },
+      );
+
+      const cancel = holdCancelLock(matchdayId);
+      try {
+        // Cancel now holds the matchday lock (uncommitted), so the dropout's
+        // initial read still sees an open matchday. It clears the read-side
+        // check, then parks on FOR UPDATE at the claim.
+        await cancel.locked;
+        const withdrawPromise = withdrawAsTest(email, playerId);
+        await waitForLockWaiter();
+        // Commit the cancel, freeing the lock so the dropout re-reads the
+        // now-cancelled status under it.
+        cancel.release();
+        await cancel.txn;
+        await expect(withdrawPromise).rejects.toThrow(
+          "no longer open for changes",
+        );
+      } finally {
+        cancel.release();
+        await cancel.txn.catch(() => undefined);
+      }
+
+      // The losing dropout left the selection untouched.
+      const row = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .select("status")
+        .executeTakeFirst();
+      expect(row?.status).toBe("selected");
+    });
+
+    it("rejects a finish that races a cancel it could not see at read time", async () => {
+      // Finish takes the same matchday lock as withdraw/cancel (one order,
+      // no AB-BA deadlock) and re-reads status under it. Like the dropout
+      // case: finish's pre-lock reads see an open matchday, but a cancel
+      // commits before it claims, so only the locked re-read can reject it.
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `fin-admin-race-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const email = `fin-race-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      await addPlayer(ctx.db)(adminId, "admin", matchdayId, {
+        memberId,
+        playerName: "Finish Race Player",
+      });
+
+      const cancel = holdCancelLock(matchdayId);
+      try {
+        await cancel.locked;
+        const finishPromise = finishAsTest(matchdayId, adminId, {
+          resultType: "W",
+        });
+        await waitForLockWaiter();
+        cancel.release();
+        await cancel.txn;
+        await expect(finishPromise).rejects.toThrow(
+          "Cannot finish a cancelled matchday",
+        );
+      } finally {
+        cancel.release();
+        await cancel.txn.catch(() => undefined);
+      }
+
+      // The losing finish left the matchday cancelled, not finished.
+      const md = await ctx.db
+        .selectFrom("matchday")
+        .where("id", "=", matchdayId)
+        .select("status")
+        .executeTakeFirst();
+      expect(md?.status).toBe("cancelled");
     });
 
     it("rejects a second dropout on an already-withdrawn selection", async () => {

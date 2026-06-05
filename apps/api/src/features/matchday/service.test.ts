@@ -17,6 +17,7 @@ const { mockExecute, mockExecuteTakeFirst, mockQueryBuilder } = vi.hoisted(
       where: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
       selectAll: vi.fn().mockReturnThis(),
+      forUpdate: vi.fn().mockReturnThis(),
       set: vi.fn().mockReturnThis(),
       values: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
@@ -461,6 +462,8 @@ describe("expense approval workflow", () => {
         finished_at: null,
         finished_by: null,
       });
+      // status re-read under the FOR UPDATE lock inside the transaction
+      mockExecuteTakeFirst.mockResolvedValueOnce({ status: "confirmed" });
       // getAccessibleTeamIds - admin gets all teams
       mockExecute.mockResolvedValueOnce([{ id: "team-1" }]);
       // upfront fee-validation: players + fee rates
@@ -503,6 +506,8 @@ describe("expense approval workflow", () => {
         finished_at: "2026-03-20T18:00:00.000Z",
         finished_by: "user-1",
       });
+      // status re-read under the FOR UPDATE lock inside the transaction
+      mockExecuteTakeFirst.mockResolvedValueOnce({ status: "finished" });
       // getAccessibleTeamIds
       mockExecute.mockResolvedValueOnce([{ id: "team-1" }]);
       // update matchday
