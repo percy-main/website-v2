@@ -2059,18 +2059,45 @@ export function withdrawFromMatch(
     }
 
     // Claim the withdrawal atomically: flip the status only while it's
-    // still live. Two concurrent requests both pass the read check above,
-    // so this conditional UPDATE is what serialises them - the loser
-    // updates zero rows and bails before notifying the captain a second
-    // time. Captain/keeper flags are cleared so a withdrawn player can't
-    // leave an orphaned role on the team sheet.
+    // still live AND the matchday is still open. The status/date checks
+    // above are a read-side fast-path, but they're TOCTOU - an official
+    // can cancel or finish the matchday between that read and this write.
+    // Guarding on the matchday here (not just the player status) is what
+    // closes the race: a concurrent cancel/finish makes the subquery match
+    // no rows, so the claim updates nothing rather than withdrawing a
+    // player and stripping captain/keeper flags from a closed game. Two
+    // concurrent dropouts serialise the same way - the loser updates zero
+    // rows and bails before notifying the captain a second time.
     const claim = await db
       .updateTable("matchday_player")
       .set({ status: "withdrawn", is_captain: false, is_wicketkeeper: false })
       .where("id", "=", matchdayPlayerId)
       .where("status", "in", ["selected", "playing"])
+      .where("matchday_id", "in", (eb) =>
+        eb
+          .selectFrom("matchday")
+          .select("matchday.id")
+          .where("matchday.id", "=", player.matchdayId)
+          .where("matchday.status", "in", ["pending", "confirmed"])
+          .where("matchday.match_date", ">=", todayIso),
+      )
       .executeTakeFirst();
     if (claim.numUpdatedRows === 0n) {
+      // Zero rows means the selection was withdrawn under us, or the
+      // matchday closed under us. Re-read the matchday so the message
+      // matches the actual cause rather than always blaming the selection.
+      const current = await db
+        .selectFrom("matchday")
+        .where("id", "=", player.matchdayId)
+        .select(["status", "match_date"])
+        .executeTakeFirst();
+      if (
+        current &&
+        (current.match_date < todayIso ||
+          (current.status !== "pending" && current.status !== "confirmed"))
+      ) {
+        throwHttpError(400, "This game is no longer open for changes");
+      }
       throwHttpError(400, "You are not currently selected for this game");
     }
 

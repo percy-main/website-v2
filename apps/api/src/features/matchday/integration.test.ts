@@ -1797,6 +1797,55 @@ describe("matchday service (integration)", () => {
       );
     });
 
+    it("rejects dropout once the matchday is cancelled, leaving the selection intact", async () => {
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin-cxl-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const email = `wd-cxl-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Cancelled Player" },
+      );
+      // Make the player a captain so we can assert the role flag survives a
+      // rejected dropout (the atomic claim clears flags, so a leak here would
+      // strip the captaincy off a still-selected player).
+      await ctx.db
+        .updateTable("matchday_player")
+        .set({ is_captain: true })
+        .where("id", "=", playerId)
+        .execute();
+
+      // An official cancels the matchday. The dropout must now be rejected -
+      // and must not flip the selection to withdrawn or clear its flags -
+      // even though the player row itself is still "selected". This is the
+      // guard the conditional claim enforces against a concurrent cancel.
+      await ctx.db
+        .updateTable("matchday")
+        .set({ status: "cancelled" })
+        .where("id", "=", matchdayId)
+        .execute();
+
+      await expect(withdrawAsTest(email, playerId)).rejects.toThrow(
+        "no longer open for changes",
+      );
+      const row = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .select(["status", "is_captain"])
+        .executeTakeFirst();
+      expect(row?.status).toBe("selected");
+      expect(row?.is_captain).toBe(true);
+    });
+
     it("rejects a second dropout on an already-withdrawn selection", async () => {
       const { userId: adminId } = await seedTestUser(ctx.db, {
         email: `wd-admin5-${crypto.randomUUID()}@test.com`,
