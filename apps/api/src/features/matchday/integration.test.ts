@@ -1846,6 +1846,79 @@ describe("matchday service (integration)", () => {
       expect(row?.is_captain).toBe(true);
     });
 
+    it("rejects a dropout that races a cancel it could not see at read time", async () => {
+      // The hard case the row lock exists for: the dropout's initial read
+      // runs while the matchday still looks open, so its read-side check
+      // passes, but a cancel commits before the dropout claims the slot.
+      // Only re-reading under FOR UPDATE catches this - a plain subquery
+      // would read the pre-cancel snapshot and let the withdrawal commit.
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `wd-admin-race-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+        withMember: false,
+      });
+      const email = `wd-race-${crypto.randomUUID()}@test.com`;
+      const { memberId } = await seedTestUser(ctx.db, { email });
+      if (!memberId) throw new Error("expected memberId");
+
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: adminId });
+      const { id: playerId } = await addPlayer(ctx.db)(
+        adminId,
+        "admin",
+        matchdayId,
+        { memberId, playerName: "Race Player" },
+      );
+
+      // An in-flight cancel: a transaction that has locked + cancelled the
+      // matchday row but has not committed yet. While it's held, the
+      // dropout's initial read still sees the pre-cancel snapshot (open),
+      // then blocks on the row lock when it reaches the claim. Releasing the
+      // gate commits the cancel so the dropout re-reads it under the lock.
+      let releaseCancel: (() => void) | undefined;
+      const cancelHeld = new Promise<void>((resolve) => {
+        releaseCancel = resolve;
+      });
+      const cancelTxn = ctx.db.transaction().execute(async (trx) => {
+        await trx
+          .selectFrom("matchday")
+          .where("id", "=", matchdayId)
+          .select("id")
+          .forUpdate()
+          .executeTakeFirst();
+        await trx
+          .updateTable("matchday")
+          .set({ status: "cancelled" })
+          .where("id", "=", matchdayId)
+          .execute();
+        await cancelHeld;
+      });
+
+      try {
+        // Let the cancel txn take the lock, start the dropout (it reads
+        // "open" then blocks on the lock), then commit the cancel.
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const withdrawPromise = withdrawAsTest(email, playerId);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        releaseCancel?.();
+        await cancelTxn;
+        await expect(withdrawPromise).rejects.toThrow(
+          "no longer open for changes",
+        );
+      } finally {
+        releaseCancel?.();
+        await cancelTxn.catch(() => undefined);
+      }
+
+      // The losing dropout left the selection untouched.
+      const row = await ctx.db
+        .selectFrom("matchday_player")
+        .where("id", "=", playerId)
+        .select("status")
+        .executeTakeFirst();
+      expect(row?.status).toBe("selected");
+    });
+
     it("rejects a second dropout on an already-withdrawn selection", async () => {
       const { userId: adminId } = await seedTestUser(ctx.db, {
         email: `wd-admin5-${crypto.randomUUID()}@test.com`,
