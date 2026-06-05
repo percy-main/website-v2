@@ -1,10 +1,12 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { StickyActionBar } from "@/components/shell/sticky-action-bar.js";
 import { Button } from "@/components/ui/button.js";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog.js";
 import { fmtDate } from "@/features/format.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
+import { useState } from "react";
 import { Link, useParams } from "react-router";
 
 /**
@@ -18,6 +20,7 @@ import { Link, useParams } from "react-router";
 export default function OfficialAvailabilityDetail() {
   const { requestId } = useParams();
   const qc = useQueryClient();
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["availability", "request", requestId],
     queryFn: () =>
@@ -144,19 +147,30 @@ export default function OfficialAvailabilityDetail() {
             className="flex-1"
             disabled={close.isPending}
             onClick={() => {
-              if (
-                confirm(
-                  "Close this request? Players won't be able to respond after this, and any picked-but-unconfirmed teams will be turned into matchdays.",
-                )
-              ) {
-                close.mutate();
-              }
+              setConfirmCloseOpen(true);
             }}
           >
             Close request
           </Button>
         </StickyActionBar>
       )}
+
+      <ConfirmDialog
+        open={confirmCloseOpen}
+        onOpenChange={setConfirmCloseOpen}
+        title="Close this request?"
+        description="Players won't be able to respond after this, and any picked-but-unconfirmed teams will be turned into matchdays."
+        confirmLabel="Close request"
+        confirmTone="destructive"
+        pending={close.isPending}
+        onConfirm={() => {
+          close.mutate(undefined, {
+            onSuccess: () => {
+              setConfirmCloseOpen(false);
+            },
+          });
+        }}
+      />
     </div>
   );
 }

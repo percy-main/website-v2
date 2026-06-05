@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button.js";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog.js";
 import { fmtDate } from "@/features/format.js";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
@@ -836,6 +837,7 @@ function ConfirmTeamControl({
   onConfirm: (fixtureId: string) => void;
   confirming: boolean;
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   if (fixture.matchdayId) {
     return (
       <div className="border-border-light mt-3 flex items-center justify-between border-t pt-3">
@@ -854,23 +856,31 @@ function ConfirmTeamControl({
   }
   if (fixture.assignments.length === 0) return null;
   return (
-    <Button
-      tone="primary"
-      size="sm"
-      className="mt-3 w-full"
-      disabled={confirming}
-      onClick={() => {
-        if (
-          confirm(
-            `Confirm this team and create the matchday for ${fixture.team_name ?? "this team"} vs ${fixture.opposition}? Players can still update availability for other games in this request.`,
-          )
-        ) {
+    <>
+      <Button
+        tone="primary"
+        size="sm"
+        className="mt-3 w-full"
+        disabled={confirming}
+        onClick={() => {
+          setConfirmOpen(true);
+        }}
+      >
+        {confirming ? "Confirming…" : "Confirm team →"}
+      </Button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Confirm this team?"
+        description={`This creates the matchday for ${fixture.team_name ?? "this team"} vs ${fixture.opposition}. Players can still update availability for other games in this request.`}
+        confirmLabel="Confirm team"
+        pending={confirming}
+        onConfirm={() => {
           onConfirm(fixture.id);
-        }
-      }}
-    >
-      {confirming ? "Confirming…" : "Confirm team →"}
-    </Button>
+          setConfirmOpen(false);
+        }}
+      />
+    </>
   );
 }
 
