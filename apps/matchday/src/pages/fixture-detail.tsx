@@ -80,7 +80,11 @@ export default function FixtureDetail() {
   // set after cancellation (the games query has no status filter), so a
   // cancelled match keeps showing here rather than reverting to Pick team.
   const matchdayId = game?.lineup?.matchdayId ?? null;
-  const { data: matchdayDetail } = useQuery({
+  const {
+    data: matchdayDetail,
+    isLoading: matchdayLoading,
+    isError: matchdayError,
+  } = useQuery({
     queryKey: ["matchday", matchdayId],
     enabled: !!matchdayId && showOfficialActions,
     queryFn: () =>
@@ -183,7 +187,20 @@ export default function FixtureDetail() {
               Manage this match
             </p>
             {matchdayId ? (
-              matchdayCancelled ? (
+              matchdayLoading ? (
+                // Status drives whether we show manage links or a cancelled
+                // banner, so hold the section until it resolves - otherwise a
+                // cancelled match flashes "Manage squad/game" on first paint.
+                <div className="bg-surface-raised h-10 animate-pulse rounded-md" />
+              ) : matchdayError ? (
+                // Unknown status: never assume "not cancelled" and expose
+                // stale management links. The mutations are API-protected, but
+                // surfacing them here would be misleading.
+                <p className="text-text-secondary text-xs">
+                  Couldn&apos;t load this match&apos;s status. Reload to manage
+                  it.
+                </p>
+              ) : matchdayCancelled ? (
                 <div className="border-border bg-danger-bg rounded-xl border p-3">
                   <p className="text-danger text-sm font-medium">
                     Match cancelled
