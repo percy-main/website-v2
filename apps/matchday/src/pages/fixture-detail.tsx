@@ -1,15 +1,24 @@
 import { StatusPill } from "@/components/primitives/status-pill.js";
 import { Button } from "@/components/ui/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog.js";
 import { fmtDate, toIsoDate } from "@/features/format.js";
 import { oppositionName, played, type GameDetail } from "@/features/games.js";
 import { api, callApi } from "@/lib/api-client.js";
 import {
-  canViewMatchdayAdmin,
+  canManageMatchday,
   useSession,
   type SessionUser,
 } from "@/lib/auth-client.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, BanIcon } from "lucide-react";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 export default function FixtureDetail() {
@@ -32,7 +41,11 @@ export default function FixtureDetail() {
   const qc = useQueryClient();
   const { data: session } = useSession();
   const user = session?.user as SessionUser | undefined;
-  const showOfficialActions = canViewMatchdayAdmin(user);
+  // Every affordance in the "Manage this match" section mutates the
+  // matchday (Pick team / Manage squad / Manage game / Cancel), so gate
+  // on `matchday:manage` — the same permission the API's `adminRole`
+  // preHandler enforces — not the broader `matchday:view`.
+  const showOfficialActions = canManageMatchday(user);
   const create = useMutation({
     mutationFn: (vars: {
       teamId: string;
@@ -59,10 +72,51 @@ export default function FixtureDetail() {
       void navigate(`/matchday/${data.id}/edit`);
     },
   });
+
+  // A matchday only exists once selection has started (see Pick team /
+  // Go to selection below). Fetch its detail so the official actions can
+  // offer "Cancel match" and reflect an already-cancelled match - the
+  // game payload itself carries no matchday status. `matchdayId` stays
+  // set after cancellation (the games query has no status filter), so a
+  // cancelled match keeps showing here rather than reverting to Pick team.
+  const matchdayId = game?.lineup?.matchdayId ?? null;
+  const { data: matchdayDetail } = useQuery({
+    queryKey: ["matchday", matchdayId],
+    enabled: !!matchdayId && showOfficialActions,
+    queryFn: () =>
+      callApi(
+        api.GET("/api/matchday/{matchId}", {
+          params: { path: { matchId: matchdayId ?? "" } },
+        }),
+      ),
+  });
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const cancelMatch = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/matchday/{matchId}/cancel", {
+          params: { path: { matchId: matchdayId ?? "" } },
+          body: cancelReason.trim() ? { reason: cancelReason.trim() } : {},
+        }),
+      ),
+    onSuccess: () => {
+      setCancelOpen(false);
+      setCancelReason("");
+      void qc.invalidateQueries({ queryKey: ["games"] });
+      void qc.invalidateQueries({ queryKey: ["matchday", matchdayId] });
+    },
+  });
+
   if (isLoading) return <Skel />;
   if (isError || !game) return <ErrState />;
   const directionsQuery = directionsTarget(game);
-  const matchdayId = game.lineup?.matchdayId ?? null;
+  const matchdayStatus = matchdayDetail?.matchday.status ?? null;
+  const matchdayCancelled = matchdayStatus === "cancelled";
+  // Cancel is a close-off-without-charging action: the API only allows it
+  // on a live (pending/confirmed) matchday, not a finished one.
+  const canCancelMatchday =
+    matchdayStatus === "pending" || matchdayStatus === "confirmed";
   // Surfacing only the open case: once this fixture's team is confirmed
   // (on the selection screen, or when the request closes) a matchday
   // exists and matchdayId is set above, so the squad-management buttons
@@ -129,21 +183,54 @@ export default function FixtureDetail() {
               Manage this match
             </p>
             {matchdayId ? (
-              <>
-                <Button asChild tone="outline" className="w-full">
-                  <Link to={`/matchday/${matchdayId}/edit`}>
-                    Manage squad →
-                  </Link>
-                </Button>
-                {/* Same screen pre- and post-match: pre-match it's the
-                    captain's live view (squad statuses, expenses), post-
-                    match it's the wrap-up (result picker, mark-paid).
-                    No gate on match date - captains wrap up the same
-                    evening, before the date-based isPast check flips. */}
-                <Button asChild tone="primary" className="w-full">
-                  <Link to={`/matchday/${matchdayId}/wrap`}>Manage game →</Link>
-                </Button>
-              </>
+              matchdayCancelled ? (
+                <div className="border-border bg-danger-bg rounded-xl border p-3">
+                  <p className="text-danger text-sm font-medium">
+                    Match cancelled
+                  </p>
+                  {matchdayDetail?.matchday.cancelled_reason && (
+                    <p className="text-text-secondary mt-1 text-xs">
+                      {matchdayDetail.matchday.cancelled_reason}
+                    </p>
+                  )}
+                  {matchdayDetail?.matchday.cancelled_at && (
+                    <p className="text-text-secondary mt-1 text-[11px]">
+                      Cancelled{" "}
+                      {fmtDate(
+                        matchdayDetail.matchday.cancelled_at,
+                        "EEE d MMM",
+                      )}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <Button asChild tone="outline" className="w-full">
+                    <Link to={`/matchday/${matchdayId}/edit`}>
+                      Manage squad →
+                    </Link>
+                  </Button>
+                  {/* Same screen pre- and post-match: pre-match it's the
+                      captain's live view (squad statuses, expenses), post-
+                      match it's the wrap-up (result picker, mark-paid).
+                      No gate on match date - captains wrap up the same
+                      evening, before the date-based isPast check flips. */}
+                  <Button asChild tone="primary" className="w-full">
+                    <Link to={`/matchday/${matchdayId}/wrap`}>
+                      Manage game →
+                    </Link>
+                  </Button>
+                  {canCancelMatchday && (
+                    <button
+                      type="button"
+                      onClick={() => setCancelOpen(true)}
+                      className="text-danger hover:bg-danger-bg flex w-full items-center justify-center gap-1.5 rounded-md py-2 text-sm font-medium"
+                    >
+                      <BanIcon className="size-4" /> Cancel match
+                    </button>
+                  )}
+                </>
+              )
             ) : openAvailabilityRequest ? (
               <>
                 <p className="text-text-secondary text-xs leading-snug">
@@ -221,6 +308,64 @@ export default function FixtureDetail() {
           </section>
         )}
       </div>
+
+      {showOfficialActions && (
+        <Dialog
+          open={cancelOpen}
+          onOpenChange={(open) => {
+            if (!cancelMatch.isPending) setCancelOpen(open);
+          }}
+        >
+          <DialogContent className="w-[calc(100%-1.5rem)] max-w-md sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Cancel this match?</DialogTitle>
+              <DialogDescription>
+                Marks {game.team.name} vs {oppositionName(game)} as cancelled.
+                Players won&apos;t be charged a match donation. This can&apos;t
+                be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-2">
+              <label
+                htmlFor="cancel-reason"
+                className="text-text-secondary text-xs font-medium"
+              >
+                Reason (optional)
+              </label>
+              <textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.currentTarget.value)}
+                maxLength={500}
+                rows={3}
+                placeholder="e.g. Rained off, opposition withdrew"
+                className="border-border bg-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+              />
+            </div>
+            {cancelMatch.isError && (
+              <p className="text-danger mt-2 text-xs">
+                {cancelMatch.error.message}
+              </p>
+            )}
+            <DialogFooter>
+              <Button
+                tone="outline"
+                onClick={() => setCancelOpen(false)}
+                disabled={cancelMatch.isPending}
+              >
+                Keep match
+              </Button>
+              <Button
+                tone="destructive"
+                onClick={() => cancelMatch.mutate()}
+                disabled={cancelMatch.isPending}
+              >
+                {cancelMatch.isPending ? "Cancelling…" : "Cancel match"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

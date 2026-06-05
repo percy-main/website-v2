@@ -53,6 +53,21 @@ export function canViewMatchdayAdmin(
 }
 
 /**
+ * True iff the user has the `matchday:manage` permission — i.e. can
+ * mutate matchdays (create one via Pick team, manage the squad, wrap up
+ * the result, cancel). Mirrors the server-side
+ * `requirePermission("matchday", "manage")` preHandler (`adminRole` in
+ * the matchday routes), so action affordances are gated on exactly the
+ * permission the API enforces — never the broader `view` permission,
+ * which a `matchday_viewer` holds without `manage` and would 403 on.
+ */
+export function canManageMatchday(
+  user: { role?: string | null } | null | undefined,
+): boolean {
+  return checkPermission(user?.role ?? null, "matchday", "manage");
+}
+
+/**
  * Names of every runtime cache populated by vite-plugin-pwa for
  * /api/* responses. Kept in lockstep with vite.config.ts. Used to
  * wipe per-user data on sign-out / sign-in-as-someone-else so a
