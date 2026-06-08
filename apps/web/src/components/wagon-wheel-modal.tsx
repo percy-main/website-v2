@@ -158,9 +158,18 @@ function playerOptions(
   for (const b of balls) {
     const id = pick === "bat" ? b.batterRvId : b.bowlerRvId;
     if (id == null) continue;
-    if (!byId.has(id)) {
+    // batterName / bowlerName can be null when the RV player has no PC
+    // external_id (placeholder ids like -101 / -102 aren't in
+    // rv_player_mapping), which would surface as "#-101" in the dropdown.
+    // Fall back to parsing the canonical "<bowler> to <batter>: ..." prefix
+    // in lDesc, as dismissalText does. Re-resolve a stored "#id" placeholder
+    // if a later ball yields a real name.
+    const existing = byId.get(id);
+    if (existing === undefined || existing.startsWith("#")) {
       const name = pick === "bat" ? b.batterName : b.bowlerName;
-      byId.set(id, name ?? `#${id}`);
+      const parsed = /^\s*(.+?)\s+to\s+(.+?):/.exec(b.lDesc);
+      const fromDesc = pick === "bat" ? parsed?.[2] : parsed?.[1];
+      byId.set(id, name ?? fromDesc ?? `#${id}`);
     }
   }
   return [...byId.entries()]
@@ -1094,7 +1103,10 @@ function DirectionLabels() {
 
 function Tooltip({ style, ball }: { style: React.CSSProperties; ball: Ball }) {
   const runLbl = ball.runsBat === 1 ? "1 run" : `${ball.runsBat} runs`;
-  const batter = ball.batterName ?? `#${ball.batterRvId ?? "?"}`;
+  // Fall back to the batter parsed from lDesc when batterName is null (no PC
+  // mapping), rather than showing "#-101". See dismissalText / playerOptions.
+  const parsed = /^\s*(.+?)\s+to\s+(.+?):/.exec(ball.lDesc);
+  const batter = ball.batterName ?? parsed?.[2] ?? `#${ball.batterRvId ?? "?"}`;
   return (
     <div
       className="pointer-events-none absolute z-10 max-w-[240px] rounded-md border border-stone-800 bg-stone-950/95 px-2 py-1.5 text-xs text-stone-100 shadow-lg"
