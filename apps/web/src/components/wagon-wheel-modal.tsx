@@ -25,7 +25,7 @@ export function WagonWheelModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-screen max-h-screen w-screen max-w-none rounded-none border-0 bg-stone-950 p-0 text-stone-100">
+      <DialogContent className="wagon-wheel-surface h-screen max-h-screen w-screen max-w-none rounded-none border-0 bg-stone-950 p-0 text-stone-100">
         <div className="flex h-full flex-col">
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {isLoading && <LoadingState />}
@@ -104,6 +104,8 @@ function WagonWheelViewer({ data, inningsTeamNames }: ViewerProps) {
   const active = inningsWithBalls[inningsIndex];
   if (!active) return <EmptyState />;
 
+  const otherInnings = inningsWithBalls.find((_, i) => i !== inningsIndex);
+
   return (
     <div className="flex flex-col gap-4">
       {inningsWithBalls.length > 1 && (
@@ -138,11 +140,32 @@ function WagonWheelViewer({ data, inningsTeamNames }: ViewerProps) {
       <InningsView
         key={inningsIndex}
         balls={active.balls}
-        otherBalls={inningsWithBalls.find((_, i) => i !== inningsIndex)?.balls}
+        otherBalls={otherInnings?.balls}
         dismissalPenalty={data.dismissalPenalty}
       />
     </div>
   );
+}
+
+// Distinct players (by RV id) appearing in an innings, for the filter
+// dropdowns. Balls with a null RV id (placeholder players with no PC mapping)
+// can't be filtered individually, so they're omitted from the options.
+function playerOptions(
+  balls: Ball[],
+  pick: "bat" | "bowl",
+): Array<{ id: number; name: string }> {
+  const byId = new Map<number, string>();
+  for (const b of balls) {
+    const id = pick === "bat" ? b.batterRvId : b.bowlerRvId;
+    if (id == null) continue;
+    if (!byId.has(id)) {
+      const name = pick === "bat" ? b.batterName : b.bowlerName;
+      byId.set(id, name ?? `#${id}`);
+    }
+  }
+  return [...byId.entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function InningsView({
@@ -155,24 +178,46 @@ function InningsView({
   dismissalPenalty: number;
 }) {
   const [selectedOver, setSelectedOver] = useState<number | null>(null);
+  const [selectedBatter, setSelectedBatter] = useState<number | null>(null);
+  const [selectedBowler, setSelectedBowler] = useState<number | null>(null);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
-  const filtered =
-    selectedOver === null
-      ? balls
-      : balls.filter((b) => b.over === selectedOver);
+  const batters = useMemo(() => playerOptions(balls, "bat"), [balls]);
+  const bowlers = useMemo(() => playerOptions(balls, "bowl"), [balls]);
+
+  const filtered = useMemo(
+    () =>
+      balls.filter(
+        (b) =>
+          (selectedOver === null || b.over === selectedOver) &&
+          (selectedBatter === null || b.batterRvId === selectedBatter) &&
+          (selectedBowler === null || b.bowlerRvId === selectedBowler),
+      ),
+    [balls, selectedOver, selectedBatter, selectedBowler],
+  );
 
   const stats = computeStats(filtered, dismissalPenalty);
 
   return (
     <>
-      <Timeline
+      <CumulativeChart
         balls={balls}
         otherBalls={otherBalls}
         dismissalPenalty={dismissalPenalty}
+      />
+      <OverFilter
+        balls={balls}
         selectedOver={selectedOver}
         onSelect={(o) => setSelectedOver((prev) => (prev === o ? null : o))}
         onClear={() => setSelectedOver(null)}
+      />
+      <PlayerFilter
+        batters={batters}
+        bowlers={bowlers}
+        selectedBatter={selectedBatter}
+        selectedBowler={selectedBowler}
+        onBatter={setSelectedBatter}
+        onBowler={setSelectedBowler}
       />
       <div className="grid gap-4 lg:grid-cols-[1fr_minmax(280px,_320px)]">
         <Wheel
@@ -192,6 +237,89 @@ function InningsView({
         </div>
       </div>
     </>
+  );
+}
+
+// --- Player filter (batter / bowler) ---
+
+function PlayerFilter({
+  batters,
+  bowlers,
+  selectedBatter,
+  selectedBowler,
+  onBatter,
+  onBowler,
+}: {
+  batters: Array<{ id: number; name: string }>;
+  bowlers: Array<{ id: number; name: string }>;
+  selectedBatter: number | null;
+  selectedBowler: number | null;
+  onBatter: (id: number | null) => void;
+  onBowler: (id: number | null) => void;
+}) {
+  if (batters.length === 0 && bowlers.length === 0) return null;
+  const hasFilter = selectedBatter !== null || selectedBowler !== null;
+  return (
+    <div className="flex flex-wrap items-end gap-3 rounded-md border border-stone-800 bg-stone-900 p-3">
+      <PlayerSelect
+        label="Batter"
+        options={batters}
+        value={selectedBatter}
+        onChange={onBatter}
+      />
+      <PlayerSelect
+        label="Bowler"
+        options={bowlers}
+        value={selectedBowler}
+        onChange={onBowler}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          onBatter(null);
+          onBowler(null);
+        }}
+        disabled={!hasFilter}
+        className="rounded border border-stone-800 px-2 py-1.5 text-xs text-stone-300 transition-colors hover:border-stone-700 disabled:cursor-default disabled:opacity-40 disabled:hover:border-stone-800"
+      >
+        Clear players
+      </button>
+    </div>
+  );
+}
+
+function PlayerSelect({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: Array<{ id: number; name: string }>;
+  value: number | null;
+  onChange: (id: number | null) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10px] font-semibold tracking-wider text-stone-500 uppercase">
+        {label}
+      </span>
+      <select
+        value={value ?? ""}
+        onChange={(e) =>
+          onChange(e.target.value === "" ? null : Number(e.target.value))
+        }
+        disabled={options.length === 0}
+        className="min-w-[10rem] rounded-md border border-stone-700 bg-stone-800 px-2 py-1.5 text-sm text-stone-100 transition-colors hover:border-stone-600 focus:border-stone-500 focus:outline-none disabled:opacity-40"
+      >
+        <option value="">All {label.toLowerCase()}s</option>
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -286,7 +414,7 @@ function LegendItem({ color, label }: { color: string; label: string }) {
   );
 }
 
-// --- Timeline ---
+// --- Over-by-over filter (collapsible) ---
 
 interface OverAgg {
   over: number;
@@ -310,21 +438,18 @@ function aggregateOvers(balls: Ball[]): OverAgg[] {
   return Array.from(byOver.values()).sort((a, b) => a.over - b.over);
 }
 
-function Timeline({
+function OverFilter({
   balls,
-  otherBalls,
-  dismissalPenalty,
   selectedOver,
   onSelect,
   onClear,
 }: {
   balls: Ball[];
-  otherBalls?: Ball[];
-  dismissalPenalty: number;
   selectedOver: number | null;
   onSelect: (over: number) => void;
   onClear: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const overs = useMemo(() => aggregateOvers(balls), [balls]);
   const maxBallRuns = useMemo(() => {
     let m = 1;
@@ -337,12 +462,40 @@ function Timeline({
     return m;
   }, [overs]);
 
+  if (overs.length === 0) return null;
+
   return (
-    <div className="rounded-md border border-stone-800 bg-stone-900 p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-[10px] font-semibold tracking-wider text-stone-500 uppercase">
+    <div className="rounded-md border border-stone-800 bg-stone-900">
+      <div className="flex items-center justify-between gap-2 p-3">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex items-center gap-2 text-[10px] font-semibold tracking-wider text-stone-400 uppercase transition-colors hover:text-stone-200"
+        >
+          <svg
+            viewBox="0 0 12 12"
+            className={
+              "size-3 transition-transform " + (open ? "rotate-90" : "")
+            }
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 2l4 4-4 4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
           Over by over
-        </h3>
+          {selectedOver !== null && (
+            <span className="rounded bg-stone-800 px-1.5 py-0.5 text-stone-200 normal-case">
+              Over {selectedOver + 1}
+            </span>
+          )}
+        </button>
         <button
           type="button"
           onClick={onClear}
@@ -352,68 +505,71 @@ function Timeline({
           Clear filter
         </button>
       </div>
-      <p className="mb-2 text-xs text-stone-500">
-        Tap an over to filter the wheel.
-      </p>
-      <div className="flex items-stretch gap-1 overflow-x-auto pb-1">
-        {overs.map((o) => {
-          const isSelected = selectedOver === o.over;
-          return (
-            <button
-              key={o.over}
-              type="button"
-              onClick={() => onSelect(o.over)}
-              className={
-                "flex flex-1 shrink-0 grow basis-[60px] flex-col items-center rounded-md px-2 py-1 transition-colors " +
-                (isSelected
-                  ? "bg-stone-800 outline outline-stone-600"
-                  : "hover:bg-stone-800/60")
-              }
-              aria-pressed={isSelected}
-              aria-label={`Over ${o.over + 1}, ${o.runs} runs${o.wickets ? `, ${o.wickets} wicket${o.wickets === 1 ? "" : "s"}` : ""}`}
-            >
-              <div className="flex h-12 items-end gap-px">
-                {o.balls.map((b) => {
-                  const r = b.runsBat + b.runsExtra;
-                  const h = 4 + (r / Math.max(1, maxBallRuns)) * 44;
-                  return (
-                    <span
-                      key={`${b.over}-${b.ball}`}
-                      style={{
-                        height: `${h}px`,
-                        backgroundColor: runColor(b),
-                        outline: b.dismissed
-                          ? `1.5px solid ${COLORS.wkt}`
-                          : undefined,
-                      }}
-                      className="w-1.5 rounded-sm"
-                      title={b.lDesc || b.sDesc}
-                    />
-                  );
-                })}
-              </div>
-              <div className="mt-1 font-mono text-xs font-semibold tabular-nums">
-                {o.runs}
-                {o.wickets > 0 && (
-                  <span
-                    className="ml-0.5"
-                    style={{ color: COLORS.wkt }}
-                  >{`·${o.wickets}`}</span>
-                )}
-              </div>
-              <div className="font-mono text-[10px] text-stone-500 tabular-nums">
-                {o.over + 1}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <CumulativeChart
-        balls={balls}
-        otherBalls={otherBalls}
-        dismissalPenalty={dismissalPenalty}
-      />
+      {open && (
+        <div className="px-3 pb-3">
+          <p className="mb-2 text-xs text-stone-500">
+            Tap an over to filter the wheel.
+          </p>
+          {/* Wrap into a responsive grid rather than a single horizontally
+              scrolling row. A long innings (40+ overs) overflowed an invisible
+              horizontal scrollbar inside the vertically scrolling modal, leaving
+              later overs unreachable on a laptop. auto-fill keeps cells uniform
+              and every over visible/tappable at any width. */}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(60px,1fr))] gap-1">
+            {overs.map((o) => {
+              const isSelected = selectedOver === o.over;
+              return (
+                <button
+                  key={o.over}
+                  type="button"
+                  onClick={() => onSelect(o.over)}
+                  className={
+                    "flex flex-col items-center rounded-md px-2 py-1 transition-colors " +
+                    (isSelected
+                      ? "bg-stone-800 outline outline-stone-600"
+                      : "hover:bg-stone-800/60")
+                  }
+                  aria-pressed={isSelected}
+                  aria-label={`Over ${o.over + 1}, ${o.runs} runs${o.wickets ? `, ${o.wickets} wicket${o.wickets === 1 ? "" : "s"}` : ""}`}
+                >
+                  <div className="flex h-12 items-end gap-px">
+                    {o.balls.map((b) => {
+                      const r = b.runsBat + b.runsExtra;
+                      const h = 4 + (r / Math.max(1, maxBallRuns)) * 44;
+                      return (
+                        <span
+                          key={`${b.over}-${b.ball}`}
+                          style={{
+                            height: `${h}px`,
+                            backgroundColor: runColor(b),
+                            outline: b.dismissed
+                              ? `1.5px solid ${COLORS.wkt}`
+                              : undefined,
+                          }}
+                          className="w-1.5 rounded-sm"
+                          title={b.lDesc || b.sDesc}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="mt-1 font-mono text-xs font-semibold tabular-nums">
+                    {o.runs}
+                    {o.wickets > 0 && (
+                      <span
+                        className="ml-0.5"
+                        style={{ color: COLORS.wkt }}
+                      >{`·${o.wickets}`}</span>
+                    )}
+                  </div>
+                  <div className="font-mono text-[10px] text-stone-500 tabular-nums">
+                    {o.over + 1}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -500,6 +656,25 @@ function CumulativeChart({
   const sx = (x: number) => (x / xMax) * W;
   const sy = (y: number) => H - padY - ((y - yMin) / yRange) * (H - padY * 2);
 
+  // Axis markers: every 5 overs on x, every 50 runs on y. The x-axis is
+  // ball-indexed, so map each over boundary to the index of its first ball in
+  // the current (primary) innings.
+  const firstIdxByOver = new Map<number, number>();
+  let maxOver = 0;
+  points.forEach((p, i) => {
+    if (!firstIdxByOver.has(p.ball.over)) firstIdxByOver.set(p.ball.over, i);
+    if (p.ball.over > maxOver) maxOver = p.ball.over;
+  });
+  const overMarks: Array<{ over: number; x: number }> = [];
+  for (let t = 5; t <= maxOver; t += 5) {
+    const idx = firstIdxByOver.get(t);
+    if (idx !== undefined) overMarks.push({ over: t, x: idx });
+  }
+  const runMarks: number[] = [];
+  for (let v = Math.ceil(yMin / 50) * 50; v <= yMax; v += 50) {
+    if (v !== 0) runMarks.push(v); // 0 already drawn as the baseline
+  }
+
   const toPath = (pts: ChartPoint[]): string =>
     pts.map((p, i) => `${i === 0 ? "M" : "L"} ${sx(p.x)} ${sy(p.y)}`).join(" ");
 
@@ -523,27 +698,9 @@ function CumulativeChart({
   }
 
   return (
-    <div className="relative mt-3 border-t border-stone-800 pt-3">
+    <div className="relative rounded-md border border-stone-800 bg-stone-900 p-3">
       <div className="mb-1 flex items-center justify-between gap-3 text-[10px] font-semibold tracking-wider text-stone-500 uppercase">
-        <div className="flex items-center gap-3">
-          <span>Cumulative runs</span>
-          <span className="flex items-center gap-1 normal-case">
-            <span
-              className="inline-block h-0.5 w-3 rounded"
-              style={{ backgroundColor: COLORS.r1 }}
-            />
-            this innings
-          </span>
-          {other && (
-            <span className="flex items-center gap-1 normal-case">
-              <span
-                className="inline-block h-0.5 w-3 rounded"
-                style={{ backgroundColor: "#5eb3ff", opacity: 0.35 }}
-              />
-              other innings
-            </span>
-          )}
-        </div>
+        <span>Cumulative runs</span>
         <span className="font-mono text-stone-400 normal-case tabular-nums">
           {totalRuns} • {wickets.length} wkt
           {wickets.length === 1 ? "" : "s"}
@@ -558,6 +715,33 @@ function CumulativeChart({
           role="img"
           aria-label={`Cumulative runs: ${totalRuns} runs, ${wickets.length} wickets`}
         >
+          {/* Run gridlines every 50 (y) */}
+          {runMarks.map((v) => (
+            <line
+              key={`run-${v}`}
+              x1={0}
+              x2={W}
+              y1={sy(v)}
+              y2={sy(v)}
+              stroke="#2a2f3d"
+              strokeWidth={1}
+              strokeDasharray="2 5"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          {/* Over gridlines every 5 (x) */}
+          {overMarks.map((m) => (
+            <line
+              key={`over-${m.over}`}
+              x1={sx(m.x)}
+              x2={sx(m.x)}
+              y1={padY}
+              y2={H - padY}
+              stroke="#2a2f3d"
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
           {/* Baseline at y=0 (or yMin if negative) */}
           <line
             x1={0}
@@ -601,6 +785,26 @@ function CumulativeChart({
             />
           ))}
         </svg>
+        {/* Axis labels as HTML overlays — SVG text would distort under
+          preserveAspectRatio="none". Runs up the left, overs along the bottom. */}
+        {runMarks.map((v) => (
+          <span
+            key={`run-lbl-${v}`}
+            className="pointer-events-none absolute left-0 -translate-y-1/2 bg-stone-900/80 pr-1 font-mono text-[9px] text-stone-500 tabular-nums"
+            style={{ top: `${(sy(v) / H) * 100}%` }}
+          >
+            {v}
+          </span>
+        ))}
+        {overMarks.map((m) => (
+          <span
+            key={`over-lbl-${m.over}`}
+            className="pointer-events-none absolute bottom-0 -translate-x-1/2 font-mono text-[9px] text-stone-500 tabular-nums"
+            style={{ left: `${(sx(m.x) / W) * 100}%` }}
+          >
+            {m.over}
+          </span>
+        ))}
         {/* W markers as HTML overlays. The SVG uses preserveAspectRatio="none",
           so shapes drawn in viewBox units stretch non-uniformly (tall/skinny
           ovals on mobile). HTML divs anchored by % stay circular. */}

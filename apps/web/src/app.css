@@ -319,6 +319,46 @@
   border-color: #334155;
 }
 
+/* The ball-by-ball / wagon-wheel viewer is a deliberately dark slate UI in
+   BOTH app themes. The stone remap above (and the bg pins) would invert its
+   palette in dark mode — dark text on dark surfaces, bleached panels — so
+   re-pin the stone scale to its canonical Tailwind values within the viewer.
+   Custom-property cascade does the heavy lifting (closest ancestor wins), so
+   every text-/border-/bg-stone-* utility resolves to the intended dark look;
+   the handful of bg-stone-* pinned directly above are then neutralised back
+   to the same vars. color-scheme keeps native controls (the player <select>)
+   dark to match. */
+.wagon-wheel-surface {
+  color-scheme: dark;
+  --color-stone-50: #fafaf9;
+  --color-stone-100: #f5f5f4;
+  --color-stone-200: #e7e5e4;
+  --color-stone-300: #d6d3d1;
+  --color-stone-400: #a8a29e;
+  --color-stone-500: #78716c;
+  --color-stone-600: #57534e;
+  --color-stone-700: #44403c;
+  --color-stone-800: #292524;
+  --color-stone-900: #1c1917;
+  --color-stone-950: #0c0a09;
+}
+.dark .wagon-wheel-surface.bg-stone-950,
+.dark .wagon-wheel-surface .bg-stone-950 {
+  background-color: var(--color-stone-950);
+}
+.dark .wagon-wheel-surface .bg-stone-900 {
+  background-color: var(--color-stone-900);
+}
+.dark .wagon-wheel-surface .bg-stone-800 {
+  background-color: var(--color-stone-800);
+}
+.dark .wagon-wheel-surface .hover\:bg-stone-800:hover {
+  background-color: var(--color-stone-800);
+}
+.dark .wagon-wheel-surface .border-stone-700 {
+  border-color: var(--color-stone-700);
+}
+
 /* Primary is kept as dark green for bg-primary (header/footer with white text).
    Override text/border/outline uses to a brighter green so they're visible on dark surfaces. */
 .dark .text-primary {
