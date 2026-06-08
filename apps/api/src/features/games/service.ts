@@ -609,15 +609,17 @@ export function getWagonWheel(db: Kysely<DB>) {
     // tabs because the consumer aligns them positionally with the Play Cricket
     // batting-order team names. ball_time_utc is reliably populated for
     // live-scored matches (the only ones with wagon-wheel shot data), so order
-    // by earliest ball time, falling back to rv_result_id when a group has no
-    // timestamps at all.
-    const innings: WagonWheelInnings[] = Array.from(byResult.entries())
+    // by earliest ball time. Only trust timestamps when EVERY innings has one:
+    // a mix (one timed, one not) gives no reliable cross-innings order, so we
+    // fall back to deterministic rv_result_id ordering for the whole set rather
+    // than arbitrarily floating the timed innings to the front.
+    const groups = Array.from(byResult.entries());
+    const allTimed = groups.every(([, g]) => g.firstBallTime !== null);
+    const innings: WagonWheelInnings[] = groups
       .sort(([idA, a], [idB, b]) => {
-        if (a.firstBallTime !== null && b.firstBallTime !== null) {
+        if (allTimed && a.firstBallTime !== null && b.firstBallTime !== null) {
           return a.firstBallTime - b.firstBallTime;
         }
-        if (a.firstBallTime !== null) return -1;
-        if (b.firstBallTime !== null) return 1;
         return idA < idB ? -1 : idA > idB ? 1 : 0;
       })
       .map(([, group], idx) => ({

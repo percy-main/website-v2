@@ -45,7 +45,7 @@ async function seedBall(args: {
     .insertInto("match_ball")
     .values({
       match_id: args.matchId,
-      rv_match_id: "rv-match",
+      rv_match_id: `rv-${args.matchId}`,
       rv_result_id: args.rvResultId,
       innings_number: 1, // RV serves both batting innings as innings_number=1
       over_no: args.over,
@@ -118,5 +118,35 @@ describe("getWagonWheel innings ordering", () => {
     expect(result.innings).toHaveLength(2);
     expect(result.innings[0]?.balls[0]?.lDesc).toBe("RESULT-A");
     expect(result.innings[1]?.balls[0]?.lDesc).toBe("RESULT-B");
+  });
+
+  it("falls back to rv_result_id order when only some innings are timed", async () => {
+    // Mixed timestamps give no reliable cross-innings order, so the timed
+    // innings must NOT float to the front — order by rv_result_id instead.
+    const matchId = "match-ww-mixed";
+    await seedMatchResult(matchId);
+    await seedBall({
+      matchId,
+      rvResultId: "200",
+      over: 0,
+      ball: 1,
+      lDesc: "UNTIMED-200",
+      ballTimeUtc: null,
+    });
+    await seedBall({
+      matchId,
+      rvResultId: "100",
+      over: 0,
+      ball: 1,
+      lDesc: "TIMED-100",
+      ballTimeUtc: "2026-06-06T14:00:00Z",
+    });
+
+    const result = await getWagonWheel(ctx.db)(matchId);
+
+    expect(result.innings).toHaveLength(2);
+    // rv_result_id "100" sorts before "200" despite "200" being untimed.
+    expect(result.innings[0]?.balls[0]?.lDesc).toBe("TIMED-100");
+    expect(result.innings[1]?.balls[0]?.lDesc).toBe("UNTIMED-200");
   });
 });
