@@ -279,7 +279,11 @@ function EmptyState({ role }: { role: string | null }) {
 }
 
 function ActiveThread({ threadId }: { threadId: string }) {
-  const threadQuery = useQuery({
+  const {
+    data: loaded,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["scout", "thread", threadId],
     queryFn: () =>
       callApi(
@@ -289,25 +293,23 @@ function ActiveThread({ threadId }: { threadId: string }) {
       ),
   });
 
-  if (threadQuery.isLoading) {
+  if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-stone-500">
         Loading thread…
       </div>
     );
   }
-  if (threadQuery.error) {
+  if (error) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-red-600">
-        {threadQuery.error instanceof Error
-          ? threadQuery.error.message
-          : "Failed to load thread"}
+        {error instanceof Error ? error.message : "Failed to load thread"}
       </div>
     );
   }
-  if (!threadQuery.data) return null;
+  if (!loaded) return null;
 
-  return <ChatView threadId={threadId} loaded={threadQuery.data} />;
+  return <ChatView threadId={threadId} loaded={loaded} />;
 }
 
 interface ChatViewProps {

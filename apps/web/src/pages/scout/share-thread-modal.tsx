@@ -43,7 +43,7 @@ export function ShareThreadModal({
   // Officials picker. Only enabled while the modal is open so we don't
   // hit the API every page render. Stale-time short — list rarely changes
   // mid-session but a new official COULD appear via the admin UI.
-  const officialsQuery = useQuery({
+  const { data: officials, isLoading: officialsLoading } = useQuery({
     queryKey: ["scout", "officials"],
     queryFn: () => callApi(api.GET("/api/scout/officials")),
     enabled: open,
@@ -53,7 +53,7 @@ export function ShareThreadModal({
   // Current sharees for this thread. Owner-only endpoint; we surface a
   // friendly empty state (rather than a generic error) when it 403s,
   // since the modal is owner-only by construction anyway.
-  const shareesQuery = useQuery({
+  const { data: sharees } = useQuery({
     queryKey: ["scout", "thread-shares", threadId],
     queryFn: () =>
       callApi(
@@ -64,10 +64,10 @@ export function ShareThreadModal({
     enabled: open,
   });
 
-  const sharedIds = new Set(shareesQuery.data?.sharees.map((s) => s.id) ?? []);
+  const sharedIds = new Set(sharees?.sharees.map((s) => s.id) ?? []);
 
   const candidates = (() => {
-    const all = officialsQuery.data?.officials ?? [];
+    const all = officials?.officials ?? [];
     const q = filter.trim().toLowerCase();
     return all.filter(
       (o) =>
@@ -141,7 +141,7 @@ export function ShareThreadModal({
     }
   };
 
-  const hasShares = (shareesQuery.data?.sharees.length ?? 0) > 0;
+  const hasShares = (sharees?.sharees.length ?? 0) > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,13 +157,13 @@ export function ShareThreadModal({
         </DialogHeader>
 
         {/* ── Already shared with ───────────────────────────────── */}
-        {shareesQuery.data && hasShares ? (
+        {sharees && hasShares ? (
           <div className="space-y-1">
             <div className="text-xs font-medium text-stone-500">
               Shared with
             </div>
             <ul className="divide-y divide-stone-100 rounded border border-stone-200">
-              {shareesQuery.data.sharees.map((s) => (
+              {sharees.sharees.map((s) => (
                 <li
                   key={s.id}
                   className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
@@ -196,13 +196,13 @@ export function ShareThreadModal({
             placeholder="Search ImbuzAI users by name or email…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            disabled={officialsQuery.isLoading}
+            disabled={officialsLoading}
           />
           <div className="max-h-48 overflow-y-auto rounded border border-stone-200">
-            {officialsQuery.isLoading && (
+            {officialsLoading && (
               <div className="p-3 text-sm text-stone-500">Loading…</div>
             )}
-            {!officialsQuery.isLoading && candidates.length === 0 && (
+            {!officialsLoading && candidates.length === 0 && (
               <div className="p-3 text-sm text-stone-500">
                 {filter
                   ? "No matching users."

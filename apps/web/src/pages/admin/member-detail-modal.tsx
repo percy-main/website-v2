@@ -856,7 +856,11 @@ function ParentLinkDialog({
     };
   }, [search]);
 
-  const candidatesQuery = useQuery({
+  const {
+    data: candidatesData,
+    isLoading: candidatesLoading,
+    error: candidatesError,
+  } = useQuery({
     queryKey: ["admin", "parentSearch", memberId, debounced],
     queryFn: () =>
       callApi(
@@ -886,7 +890,7 @@ function ParentLinkDialog({
     },
   });
 
-  const members = candidatesQuery.data?.members ?? [];
+  const members = candidatesData?.members ?? [];
 
   return (
     <Dialog
@@ -912,15 +916,15 @@ function ParentLinkDialog({
           className="mt-2"
         />
 
-        {candidatesQuery.isLoading && (
+        {candidatesLoading && (
           <p className="text-sm text-stone-500">Searching…</p>
         )}
-        {candidatesQuery.error && (
+        {candidatesError && (
           <p className="text-sm text-red-600">Failed to search members.</p>
         )}
 
         <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
-          {members.length === 0 && !candidatesQuery.isLoading && (
+          {members.length === 0 && !candidatesLoading && (
             <p className="py-2 text-center text-sm text-stone-500">
               No matching members.
             </p>

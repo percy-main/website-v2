@@ -59,7 +59,11 @@ export function KnowledgeAdminView() {
   const [pendingDelete, setPendingDelete] = useState<KbDocument | null>(null);
   const qc = useQueryClient();
 
-  const docsQuery = useQuery({
+  const {
+    data: docsData,
+    isLoading: docsLoading,
+    error: docsError,
+  } = useQuery({
     queryKey: ["scout", "knowledge", { search }],
     queryFn: () =>
       callApi(
@@ -136,20 +140,18 @@ export function KnowledgeAdminView() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-2">
-        {docsQuery.isLoading && (
+        {docsLoading && (
           <div className="py-6 text-center text-sm text-stone-500">
             Loading…
           </div>
         )}
-        {docsQuery.error && (
+        {docsError && (
           <div className="py-6 text-center text-sm text-red-600">
-            {docsQuery.error instanceof Error
-              ? docsQuery.error.message
-              : "Failed to load"}
+            {docsError instanceof Error ? docsError.message : "Failed to load"}
           </div>
         )}
-        {docsQuery.data &&
-          (docsQuery.data.documents.length === 0 ? (
+        {docsData &&
+          (docsData.documents.length === 0 ? (
             <div className="py-6 text-center text-sm text-stone-500">
               No documents yet.
             </div>
@@ -166,7 +168,7 @@ export function KnowledgeAdminView() {
                 </tr>
               </thead>
               <tbody>
-                {docsQuery.data.documents.map((doc) => (
+                {docsData.documents.map((doc) => (
                   <DocumentRow
                     key={doc.id}
                     doc={doc}

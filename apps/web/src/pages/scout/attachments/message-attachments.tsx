@@ -37,7 +37,7 @@ function AttachmentChip({
   threadId: string;
   attachmentId: string;
 }) {
-  const query = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["scout", "attachment", threadId, attachmentId],
     queryFn: () =>
       callApi(
@@ -50,12 +50,12 @@ function AttachmentChip({
     staleTime: 25 * 60 * 1000,
   });
 
-  if (query.isLoading) {
+  if (isLoading) {
     return (
       <div className="h-12 w-32 animate-pulse rounded border border-stone-200 bg-stone-100" />
     );
   }
-  if (query.error || !query.data) {
+  if (error || !data) {
     return (
       <div className="h-12 w-32 rounded border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-700">
         attachment unavailable
@@ -63,7 +63,7 @@ function AttachmentChip({
     );
   }
 
-  const { kind, filename, signedUrl, sizeBytes } = query.data;
+  const { kind, filename, signedUrl, sizeBytes } = data;
   const isImage = kind === "image" && signedUrl;
 
   return (

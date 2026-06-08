@@ -53,12 +53,12 @@ export function GameReportsTab() {
     null,
   );
 
-  const teamsQuery = useQuery({
+  const { data: teamsData } = useQuery({
     queryKey: ["admin", "playCricketTeams"],
     queryFn: () => callApi(api.GET("/api/admin/play-cricket-teams")),
   });
 
-  const matchdaysQuery = useQuery({
+  const { data: matchdaysData, isLoading: matchdaysLoading } = useQuery({
     queryKey: ["admin", "gameReports", teamFilter],
     queryFn: () =>
       callApi(
@@ -73,8 +73,8 @@ export function GameReportsTab() {
       ),
   });
 
-  const teams = teamsQuery.data ?? [];
-  const matchdays = matchdaysQuery.data?.matchdays ?? [];
+  const teams = teamsData ?? [];
+  const matchdays = matchdaysData?.matchdays ?? [];
 
   if (selectedMatchdayId) {
     return (
@@ -114,7 +114,7 @@ export function GameReportsTab() {
             </Select>
           </div>
 
-          {matchdaysQuery.isLoading ? (
+          {matchdaysLoading ? (
             <p className="text-sm text-stone-500">Loading…</p>
           ) : matchdays.length === 0 ? (
             <p className="text-sm text-stone-500">No matchdays found.</p>
@@ -221,7 +221,11 @@ function MatchdayReport({
   matchdayId: string;
   onBack: () => void;
 }) {
-  const reportQuery = useQuery({
+  const {
+    data,
+    isLoading: reportLoading,
+    isError: reportError,
+  } = useQuery({
     queryKey: ["admin", "matchdayReport", matchdayId],
     queryFn: () =>
       callApi(
@@ -231,15 +235,13 @@ function MatchdayReport({
       ),
   });
 
-  const data = reportQuery.data;
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
         <Button variant="outline" size="sm" onClick={onBack}>
           Back
         </Button>
-        {reportQuery.isLoading ? (
+        {reportLoading ? (
           <p className="text-stone-500">Loading report…</p>
         ) : data ? (
           <div>
@@ -258,9 +260,7 @@ function MatchdayReport({
         ) : null}
       </div>
 
-      {reportQuery.isError && (
-        <p className="text-red-600">Failed to load report.</p>
-      )}
+      {reportError && <p className="text-red-600">Failed to load report.</p>}
 
       {data && (
         <>

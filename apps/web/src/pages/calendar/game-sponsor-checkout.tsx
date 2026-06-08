@@ -51,7 +51,7 @@ const initialSponsorFormState: SponsorFormState = {
 export function Component() {
   const { id } = useParams<{ id: string }>();
 
-  const gameQuery = useQuery({
+  const { data: game, isLoading: gameLoading } = useQuery({
     queryKey: ["game", id],
     queryFn: () =>
       callApi(
@@ -63,7 +63,6 @@ export function Component() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const game = gameQuery.data;
   const gameTitle = game
     ? `${game.team.name} vs ${game.opposition.club.name} ${game.opposition.team.name}`
     : "Game";
@@ -85,7 +84,7 @@ export function Component() {
     logoError,
   } = form;
 
-  const priceQuery = useQuery({
+  const { data: priceData } = useQuery({
     queryKey: ["game-sponsorship-price"],
     queryFn: () => callApi(api.GET("/api/sponsorship/game/price")),
     staleTime: 5 * 60 * 1000,
@@ -138,7 +137,7 @@ export function Component() {
     }
   };
 
-  if (gameQuery.isLoading) {
+  if (gameLoading) {
     return (
       <div className="container mx-auto max-w-md px-4 py-12">
         <div className="h-6 w-48 animate-pulse rounded bg-stone-200" />
@@ -230,11 +229,11 @@ export function Component() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {priceQuery.data && (
+          {priceData && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
               Game sponsorship:{" "}
               <strong>
-                {currencyFormatter.format(priceQuery.data.amountPence / 100)}
+                {currencyFormatter.format(priceData.amountPence / 100)}
               </strong>
             </div>
           )}

@@ -84,7 +84,11 @@ export function SeasonLeaders() {
 
   // Decide the display season once, then fetch both tables for that same season.
   // Try current season first; if batting has no data, fall back to previous for both.
-  const seasonQuery = useQuery({
+  const {
+    data: seasonData,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["season-leaders", season],
     queryFn: async () => {
       const [batting, bowling] = await Promise.all([
@@ -112,12 +116,11 @@ export function SeasonLeaders() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const isLoading = seasonQuery.isLoading;
-  if (seasonQuery.error) return null;
+  if (error) return null;
 
-  const battingEntries = seasonQuery.data?.batting?.entries ?? [];
-  const bowlingEntries = seasonQuery.data?.bowling?.entries ?? [];
-  const effectiveSeason = seasonQuery.data?.effectiveSeason ?? season;
+  const battingEntries = seasonData?.batting?.entries ?? [];
+  const bowlingEntries = seasonData?.bowling?.entries ?? [];
+  const effectiveSeason = seasonData?.effectiveSeason ?? season;
 
   if (!isLoading && battingEntries.length === 0 && bowlingEntries.length === 0)
     return null;

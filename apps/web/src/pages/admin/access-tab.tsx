@@ -202,7 +202,7 @@ function EditRolesDialog({
   user: Item;
   onClose: () => void;
 }) {
-  const detailQuery = useQuery({
+  const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ["admin", "userDetail", user.id],
     queryFn: () =>
       callApi(
@@ -211,19 +211,16 @@ function EditRolesDialog({
         }),
       ),
   });
-  const juniorTeamsQuery = useQuery({
+  const { data: juniorTeamsData, isLoading: juniorTeamsLoading } = useQuery({
     queryKey: ["admin", "juniorTeams"],
     queryFn: () => callApi(api.GET("/api/admin/junior-teams")),
   });
-  const pcTeamsQuery = useQuery({
+  const { data: pcTeamsData, isLoading: pcTeamsLoading } = useQuery({
     queryKey: ["admin", "playCricketTeams"],
     queryFn: () => callApi(api.GET("/api/admin/play-cricket-teams")),
   });
 
-  const loading =
-    detailQuery.isLoading ||
-    juniorTeamsQuery.isLoading ||
-    pcTeamsQuery.isLoading;
+  const loading = detailLoading || juniorTeamsLoading || pcTeamsLoading;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -233,19 +230,15 @@ function EditRolesDialog({
         </DialogHeader>
         <p className="text-sm text-stone-500">{user.email}</p>
 
-        {loading || !detailQuery.data ? (
+        {loading || !detail ? (
           <p className="py-8 text-center text-sm text-stone-500">Loading…</p>
         ) : (
           <EditRolesBody
             user={user}
-            initialJuniorTeamIds={detailQuery.data.juniorManagerTeams.map(
-              (t) => t.id,
-            )}
-            initialOfficialTeamIds={detailQuery.data.officialTeams.map(
-              (t) => t.id,
-            )}
-            juniorTeams={juniorTeamsQuery.data ?? []}
-            pcTeams={pcTeamsQuery.data ?? []}
+            initialJuniorTeamIds={detail.juniorManagerTeams.map((t) => t.id)}
+            initialOfficialTeamIds={detail.officialTeams.map((t) => t.id)}
+            juniorTeams={juniorTeamsData ?? []}
+            pcTeams={pcTeamsData ?? []}
             onClose={onClose}
           />
         )}
@@ -644,7 +637,7 @@ function AddUserDialog({
     };
   }, [search]);
 
-  const query = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["admin", "access", "search", debounced],
     queryFn: () =>
       callApi(
@@ -655,7 +648,7 @@ function AddUserDialog({
     enabled: debounced.length > 0,
   });
 
-  const results = query.data?.items ?? [];
+  const results = data?.items ?? [];
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -677,12 +670,12 @@ function AddUserDialog({
               Type to search.
             </p>
           )}
-          {query.isLoading && debounced.length > 0 && (
+          {isLoading && debounced.length > 0 && (
             <p className="py-2 text-center text-sm text-stone-500">
               Searching…
             </p>
           )}
-          {results.length === 0 && !query.isLoading && debounced.length > 0 && (
+          {results.length === 0 && !isLoading && debounced.length > 0 && (
             <p className="py-2 text-center text-sm text-stone-500">
               No matches.
             </p>

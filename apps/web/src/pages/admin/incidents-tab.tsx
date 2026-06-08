@@ -130,7 +130,11 @@ export function IncidentsTab() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const query = useQuery({
+  const {
+    data: reportsData,
+    isLoading: reportsLoading,
+    isError: reportsError,
+  } = useQuery({
     queryKey: ["admin", "incidentReports", page, PAGE_SIZE, statusFilter],
     queryFn: () =>
       callApi(
@@ -146,8 +150,8 @@ export function IncidentsTab() {
       ),
   });
 
-  const totalPages = query.data
-    ? Math.max(1, Math.ceil(query.data.total / PAGE_SIZE))
+  const totalPages = reportsData
+    ? Math.max(1, Math.ceil(reportsData.total / PAGE_SIZE))
     : 1;
 
   return (
@@ -175,12 +179,12 @@ export function IncidentsTab() {
         </Select>
       </div>
 
-      {query.isLoading && <p className="text-stone-500">Loading…</p>}
-      {query.isError && (
+      {reportsLoading && <p className="text-stone-500">Loading…</p>}
+      {reportsError && (
         <p className="text-red-600">Failed to load incident reports.</p>
       )}
 
-      {query.data && (
+      {reportsData && (
         <>
           <Table>
             <TableHeader>
@@ -196,7 +200,7 @@ export function IncidentsTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {query.data.reports.length === 0 && (
+              {reportsData.reports.length === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={8}
@@ -206,7 +210,7 @@ export function IncidentsTab() {
                   </TableCell>
                 </TableRow>
               )}
-              {query.data.reports.map((r) => (
+              {reportsData.reports.map((r) => (
                 <TableRow
                   key={r.id}
                   className="cursor-pointer"
@@ -246,7 +250,8 @@ export function IncidentsTab() {
 
           <div className="flex items-center justify-between text-sm">
             <span className="text-stone-500">
-              {query.data.total} report{query.data.total !== 1 ? "s" : ""} total
+              {reportsData.total} report{reportsData.total !== 1 ? "s" : ""}{" "}
+              total
             </span>
             <div className="flex items-center gap-2">
               <Button
@@ -320,22 +325,21 @@ function IncidentDetailBody({
   id: string;
   onClose: () => void;
 }) {
-  const detail = useQuery({
+  const {
+    data: detailData,
+    isLoading: detailLoading,
+    isError: detailError,
+  } = useQuery({
     queryKey: ["admin", "incidentReport", id],
     queryFn: () => loadIncidentDetail(id),
   });
 
-  if (detail.isLoading) return <p className="text-stone-500">Loading…</p>;
-  if (detail.isError || !detail.data)
+  if (detailLoading) return <p className="text-stone-500">Loading…</p>;
+  if (detailError || !detailData)
     return <p className="text-red-600">Failed to load report.</p>;
 
   return (
-    <IncidentEditForm
-      key={id}
-      id={id}
-      initial={detail.data}
-      onClose={onClose}
-    />
+    <IncidentEditForm key={id} id={id} initial={detailData} onClose={onClose} />
   );
 }
 

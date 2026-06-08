@@ -58,7 +58,7 @@ export function TreasurerTab() {
 
   // --- Queries ---
 
-  const incomeQuery = useQuery({
+  const { data: income } = useQuery({
     queryKey: ["treasurer", "income-by-month", dateFrom, dateTo],
     queryFn: () =>
       callApi(
@@ -68,7 +68,7 @@ export function TreasurerTab() {
       ),
   });
 
-  const membershipQuery = useQuery({
+  const { data: membership, isLoading: isMembershipLoading } = useQuery({
     queryKey: ["treasurer", "membership-summary"],
     queryFn: () => callApi(api.GET("/api/treasurer/membership-summary")),
   });
@@ -76,7 +76,7 @@ export function TreasurerTab() {
   // Page 1 fetched here purely so the summary card can show the count;
   // TreasurerOutstandingSection runs the same query with its own page
   // state (TanStack dedupes the page-1 hit).
-  const outstandingQuery = useQuery({
+  const { data: outstanding } = useQuery({
     queryKey: ["treasurer", "outstanding-payments", 1],
     queryFn: () =>
       callApi(
@@ -91,7 +91,7 @@ export function TreasurerTab() {
       ),
   });
 
-  const sponsorshipQuery = useQuery({
+  const { data: sponsorship, isLoading: isSponsorshipLoading } = useQuery({
     queryKey: ["treasurer", "sponsorship-summary", dateFrom, dateTo],
     queryFn: () =>
       callApi(
@@ -101,7 +101,7 @@ export function TreasurerTab() {
       ),
   });
 
-  const expensesSummaryQuery = useQuery({
+  const { data: expensesSummary } = useQuery({
     queryKey: ["treasurer", "matchday-expenses-summary", dateFrom, dateTo],
     queryFn: () =>
       callApi(
@@ -113,37 +113,31 @@ export function TreasurerTab() {
 
   // --- Derived data ---
 
-  const totalChargesIncome = incomeQuery.data
-    ? incomeQuery.data.charges.reduce((sum, c) => sum + c.total_pence, 0)
+  const totalChargesIncome = income
+    ? income.charges.reduce((sum, c) => sum + c.total_pence, 0)
     : 0;
 
-  const totalSponsorIncome = incomeQuery.data
-    ? incomeQuery.data.gameSponsorIncome.reduce(
-        (sum, s) => sum + s.total_pence,
-        0,
-      ) +
-      incomeQuery.data.playerSponsorIncome.reduce(
-        (sum, s) => sum + s.total_pence,
-        0,
-      )
+  const totalSponsorIncome = income
+    ? income.gameSponsorIncome.reduce((sum, s) => sum + s.total_pence, 0) +
+      income.playerSponsorIncome.reduce((sum, s) => sum + s.total_pence, 0)
     : 0;
 
   const totalIncome = totalChargesIncome + totalSponsorIncome;
 
-  const membershipIncome = incomeQuery.data
-    ? incomeQuery.data.charges
+  const membershipIncome = income
+    ? income.charges
         .filter((c) => c.type === "membership")
         .reduce((sum, c) => sum + c.total_pence, 0)
     : 0;
 
-  const outstandingTotal = outstandingQuery.data?.total ?? 0;
+  const outstandingTotal = outstanding?.total ?? 0;
 
-  const expensesGrandTotal = expensesSummaryQuery.data?.grandTotal ?? 0;
+  const expensesGrandTotal = expensesSummary?.grandTotal ?? 0;
 
   // --- Chart data ---
 
   const chartData = (() => {
-    if (!incomeQuery.data) return [];
+    if (!income) return [];
 
     const monthMap = new Map<
       string,
@@ -172,7 +166,7 @@ export function TreasurerTab() {
       return entry;
     };
 
-    for (const charge of incomeQuery.data.charges) {
+    for (const charge of income.charges) {
       const entry = getEntry(charge.month);
       switch (charge.type) {
         case "membership":
@@ -193,12 +187,12 @@ export function TreasurerTab() {
       }
     }
 
-    for (const s of incomeQuery.data.gameSponsorIncome) {
+    for (const s of income.gameSponsorIncome) {
       const entry = getEntry(s.month);
       entry.Sponsorship += s.total_pence / 100;
     }
 
-    for (const s of incomeQuery.data.playerSponsorIncome) {
+    for (const s of income.playerSponsorIncome) {
       const entry = getEntry(s.month);
       entry.Sponsorship += s.total_pence / 100;
     }
@@ -349,7 +343,7 @@ export function TreasurerTab() {
             <CardTitle className="text-lg">Membership Status</CardTitle>
           </CardHeader>
           <CardContent>
-            {membershipQuery.isLoading ? (
+            {isMembershipLoading ? (
               <p className="py-8 text-center text-stone-500">Loading…</p>
             ) : (
               <Table>
@@ -361,7 +355,7 @@ export function TreasurerTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {membershipQuery.data?.memberships.map((m) => (
+                  {membership?.memberships.map((m) => (
                     <TableRow key={m.type ?? "unknown"}>
                       <TableCell>
                         {MEMBERSHIP_TYPE_LABELS[m.type ?? "unknown"] ?? m.type}
@@ -376,12 +370,12 @@ export function TreasurerTab() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {membershipQuery.data && (
+                  {membership && (
                     <TableRow className="font-bold">
                       <TableCell>Total</TableCell>
                       <TableCell className="text-right">
                         <Badge variant="success">
-                          {membershipQuery.data.memberships.reduce(
+                          {membership.memberships.reduce(
                             (sum, m) => sum + m.active,
                             0,
                           )}
@@ -390,7 +384,7 @@ export function TreasurerTab() {
                       <TableCell className="text-right">
                         <Badge
                           variant={
-                            membershipQuery.data.memberships.reduce(
+                            membership.memberships.reduce(
                               (sum, m) => sum + m.lapsed,
                               0,
                             ) > 0
@@ -398,7 +392,7 @@ export function TreasurerTab() {
                               : "secondary"
                           }
                         >
-                          {membershipQuery.data.memberships.reduce(
+                          {membership.memberships.reduce(
                             (sum, m) => sum + m.lapsed,
                             0,
                           )}
@@ -418,10 +412,10 @@ export function TreasurerTab() {
             <CardTitle className="text-lg">Sponsorship Summary</CardTitle>
           </CardHeader>
           <CardContent>
-            {sponsorshipQuery.isLoading ? (
+            {isSponsorshipLoading ? (
               <p className="py-8 text-center text-stone-500">Loading…</p>
-            ) : sponsorshipQuery.data ? (
-              <SponsorshipTable data={sponsorshipQuery.data} />
+            ) : sponsorship ? (
+              <SponsorshipTable data={sponsorship} />
             ) : null}
           </CardContent>
         </Card>

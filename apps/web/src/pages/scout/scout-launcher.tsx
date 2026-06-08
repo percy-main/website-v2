@@ -23,7 +23,11 @@ interface ScoutLauncherProps {
  * for matches not yet in the local availability mirror.
  */
 export function ScoutLauncher({ onLaunch }: ScoutLauncherProps) {
-  const upcomingQuery = useQuery({
+  const {
+    data: upcoming,
+    isLoading: upcomingLoading,
+    error: upcomingError,
+  } = useQuery({
     queryKey: ["scout", "scout", "upcoming-matches"],
     queryFn: () => callApi(api.GET("/api/scout/upcoming-matches")),
   });
@@ -53,24 +57,24 @@ export function ScoutLauncher({ onLaunch }: ScoutLauncherProps) {
       </div>
 
       <div className="mt-3">
-        {upcomingQuery.isLoading && (
+        {upcomingLoading && (
           <div className="text-xs text-emerald-900/60">Loading fixtures…</div>
         )}
-        {upcomingQuery.error && (
+        {upcomingError && (
           <div className="text-xs text-red-700">
-            {upcomingQuery.error instanceof Error
-              ? upcomingQuery.error.message
+            {upcomingError instanceof Error
+              ? upcomingError.message
               : "Failed to load upcoming fixtures"}
           </div>
         )}
-        {upcomingQuery.data?.matches.length === 0 && (
+        {upcoming?.matches.length === 0 && (
           <div className="text-xs text-emerald-900/60">
             No Percy Main fixtures in the next 14 days. Use the box below to
             describe the match.
           </div>
         )}
         <ul className="space-y-1.5">
-          {upcomingQuery.data?.matches.map((m) => (
+          {upcoming?.matches.map((m) => (
             <li key={`${m.id}-${m.matchDate}`}>
               <button
                 type="button"

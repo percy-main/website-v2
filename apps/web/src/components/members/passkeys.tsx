@@ -10,7 +10,7 @@ export function Passkeys() {
   const [newPasskeyName, setNewPasskeyName] = useState("");
   const queryClient = useQueryClient();
 
-  const query = useQuery({
+  const { data: passkeys } = useQuery({
     queryKey: ["passkeys"],
     queryFn: async () => {
       const result = await authClient.passkey.listUserPasskeys();
@@ -49,7 +49,7 @@ export function Passkeys() {
     <section>
       <h2 className="text-h4">Your Passkeys</h2>
       <div className="flex flex-col gap-4">
-        {query.data?.map((passkey) => (
+        {passkeys?.map((passkey) => (
           <div
             key={passkey.id}
             className="flex max-w-max flex-row items-center justify-start rounded-2xl border border-stone-500 bg-blue-100 p-4"

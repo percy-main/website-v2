@@ -182,12 +182,12 @@ function TextInput({
 }
 
 function SocialMembershipUpsell() {
-  const membershipQuery = useQuery({
+  const { data: membershipData } = useQuery({
     queryKey: ["membership"],
     queryFn: () => callApi(api.GET("/api/members/me/membership")),
   });
 
-  const membership = membershipQuery.data?.membership;
+  const membership = membershipData?.membership;
   if (membership) return null;
 
   return (
@@ -216,11 +216,11 @@ function JuniorRegistrationInner() {
   const setStep = (next: Step) => dispatch({ type: "goToStep", step: next });
   const queryClient = useQueryClient();
 
-  const existingDepsQuery = useQuery({
+  const { data: existingDepsData } = useQuery({
     queryKey: ["dependents"],
     queryFn: () => callApi(api.GET("/api/junior/dependents")),
   });
-  const existingCount = existingDepsQuery.data?.currentYearCount ?? 0;
+  const existingCount = existingDepsData?.currentYearCount ?? 0;
 
   const addDependentsMutation = useMutation({
     mutationFn: async (deps: Dependent[]) =>

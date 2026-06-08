@@ -21,7 +21,11 @@ interface ReportRow {
 const IN_FLIGHT_POLL_MS = 10_000;
 
 export function ReportsView() {
-  const reportsQuery = useQuery({
+  const {
+    data: reportsData,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: REPORTS_QUERY_KEY,
     queryFn: () => callApi(api.GET("/api/scout/reports")),
     // Listing-level poll catches new reports queued from other tabs and
@@ -36,7 +40,7 @@ export function ReportsView() {
         : false,
   });
 
-  if (reportsQuery.isLoading) {
+  if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-stone-500">
         Loading reports…
@@ -44,17 +48,15 @@ export function ReportsView() {
     );
   }
 
-  if (reportsQuery.error) {
+  if (error) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-red-600">
-        {reportsQuery.error instanceof Error
-          ? reportsQuery.error.message
-          : "Failed to load reports"}
+        {error instanceof Error ? error.message : "Failed to load reports"}
       </div>
     );
   }
 
-  const reports = reportsQuery.data?.reports ?? [];
+  const reports = reportsData?.reports ?? [];
 
   return (
     <div className="flex-1 overflow-y-auto p-4">

@@ -74,7 +74,7 @@ export function Component() {
     logoError,
   } = form;
 
-  const priceQuery = useQuery({
+  const { data: priceData } = useQuery({
     queryKey: ["player-sponsorship-price"],
     queryFn: () => callApi(api.GET("/api/sponsorship/player/price")),
     staleTime: 5 * 60 * 1000,
@@ -227,11 +227,11 @@ export function Component() {
 
         <CardContent className="space-y-4">
           {/* Price info */}
-          {priceQuery.data && (
+          {priceData && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
               Player sponsorship:{" "}
               <strong>
-                {currencyFormatter.format(priceQuery.data.amountPence / 100)}
+                {currencyFormatter.format(priceData.amountPence / 100)}
               </strong>{" "}
               for the season
             </div>

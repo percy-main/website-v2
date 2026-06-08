@@ -62,7 +62,7 @@ export function ChangePassword() {
     success,
   } = form;
 
-  const accounts = useQuery({
+  const { data: accounts, isLoading: accountsLoading } = useQuery({
     queryKey: ["accounts"],
     queryFn: async () => {
       const result = await authClient.listAccounts();
@@ -72,7 +72,7 @@ export function ChangePassword() {
     },
   });
 
-  const hasPassword = accounts.data?.some((a) => a.providerId === "credential");
+  const hasPassword = accounts?.some((a) => a.providerId === "credential");
 
   const changePassword = useMutation({
     mutationFn: async (params: {
@@ -117,7 +117,7 @@ export function ChangePassword() {
     changePassword.mutate({ currentPassword, newPassword });
   };
 
-  if (accounts.isLoading) return null;
+  if (accountsLoading) return null;
 
   if (!hasPassword) {
     return (

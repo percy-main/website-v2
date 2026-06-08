@@ -225,15 +225,15 @@ function IncompleteDetailsBanner({ hidden }: { hidden: boolean }) {
 }
 
 function AvailabilityBanner() {
-  const query = useQuery({
+  const { data } = useQuery({
     queryKey: ["availability", "active"],
     queryFn: () => callApi(api.GET("/api/availability/active")),
   });
 
-  if (!query.data?.memberId) return null;
+  if (!data?.memberId) return null;
 
   let unansweredCount = 0;
-  for (const req of query.data.items) {
+  for (const req of data.items) {
     const answeredDates = new Set(req.myResponses.map((r) => r.match_date));
     const fixtureDates = new Set(req.fixtures.map((f) => f.match_date));
     for (const d of fixtureDates) {
@@ -265,13 +265,13 @@ function AvailabilityBanner() {
  * API's requireScoutAccess preHandler).
  */
 function ScoutLink() {
-  const access = useQuery({
+  const { data: access } = useQuery({
     queryKey: ["scout", "access"],
     queryFn: () => callApi(api.GET("/api/scout/access")),
     staleTime: 5 * 60 * 1000,
   });
 
-  if (!access.data?.allowed) return null;
+  if (!access?.allowed) return null;
 
   return (
     <Link

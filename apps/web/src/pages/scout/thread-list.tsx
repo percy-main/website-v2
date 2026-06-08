@@ -98,7 +98,11 @@ export function ThreadList({
     null,
   );
 
-  const threadsQuery = useQuery({
+  const {
+    data: threadsData,
+    isLoading: threadsLoading,
+    error: threadsError,
+  } = useQuery({
     queryKey: ["scout", "threads"],
     queryFn: () => callApi(api.GET("/api/scout/threads")),
   });
@@ -146,23 +150,23 @@ export function ThreadList({
         </button>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {threadsQuery.isLoading && (
+        {threadsLoading && (
           <div className="p-3 text-sm text-stone-500">Loading…</div>
         )}
-        {threadsQuery.error && (
+        {threadsError && (
           <div className="p-3 text-sm text-red-600">
-            {threadsQuery.error instanceof Error
-              ? threadsQuery.error.message
+            {threadsError instanceof Error
+              ? threadsError.message
               : "Failed to load threads"}
           </div>
         )}
-        {threadsQuery.data?.threads.length === 0 && (
+        {threadsData?.threads.length === 0 && (
           <div className="p-3 text-sm text-stone-500">
             No threads yet. Pick a mode and click &ldquo;New&rdquo; to start.
           </div>
         )}
         <ul>
-          {threadsQuery.data?.threads.map((t) => {
+          {threadsData?.threads.map((t) => {
             const isActive = t.id === activeThreadId;
             return (
               <li key={t.id} className="group relative">

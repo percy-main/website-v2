@@ -654,14 +654,14 @@ function CreatePlayerSponsorshipDialog({
     initialPlayerSponsorshipFormState,
   );
 
-  const takenSlugsQuery = useQuery({
+  const { data: takenSlugsData, isLoading: isTakenSlugsLoading } = useQuery({
     queryKey: ["admin", "playerSponsorships", "takenSlugs"],
     queryFn: () =>
       callApi(api.GET("/api/sponsorship/admin/player/taken-slugs", {})),
     enabled: open,
   });
 
-  const takenSlugs = new Set(takenSlugsQuery.data?.slugs ?? []);
+  const takenSlugs = new Set(takenSlugsData?.slugs ?? []);
 
   const createMutation = useMutation({
     mutationFn: (body: PlayerSponsorshipPayload) =>
@@ -714,7 +714,7 @@ function CreatePlayerSponsorshipDialog({
                 })
               }
             />
-            {takenSlugsQuery.isLoading && (
+            {isTakenSlugsLoading && (
               <div className="mt-1 text-xs text-stone-500">
                 Loading available players…
               </div>
