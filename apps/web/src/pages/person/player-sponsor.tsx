@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
 export function PlayerSponsor({ slug }: { slug: string }) {
-  const sponsorQuery = useQuery({
+  const { data: sponsorData, isPending: sponsorPending } = useQuery({
     queryKey: ["player-sponsor", slug],
     queryFn: () =>
       callApi(
@@ -14,7 +14,7 @@ export function PlayerSponsor({ slug }: { slug: string }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const pendingQuery = useQuery({
+  const { data: pendingData } = useQuery({
     queryKey: ["player-sponsor-pending", slug],
     queryFn: () =>
       callApi(
@@ -25,11 +25,11 @@ export function PlayerSponsor({ slug }: { slug: string }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  if (sponsorQuery.isPending) {
+  if (sponsorPending) {
     return <div className="h-24 animate-pulse rounded-lg bg-stone-100" />;
   }
 
-  const sponsor = sponsorQuery.data?.sponsor;
+  const sponsor = sponsorData?.sponsor;
 
   // Show approved sponsor
   if (sponsor) {
@@ -80,7 +80,7 @@ export function PlayerSponsor({ slug }: { slug: string }) {
   }
 
   // Hide CTA if there's a pending sponsorship
-  if (pendingQuery.data?.hasPending) {
+  if (pendingData?.hasPending) {
     return null;
   }
 

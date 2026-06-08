@@ -40,7 +40,7 @@ function useStripOgParam() {
 function SponsorThisGame({ gameId, when }: { gameId: string; when: string }) {
   const isFuture = isAfter(new Date(when), new Date());
 
-  const pendingQuery = useQuery({
+  const { data: pendingData } = useQuery({
     queryKey: ["game-sponsor-pending", gameId],
     queryFn: () =>
       callApi(
@@ -52,7 +52,7 @@ function SponsorThisGame({ gameId, when }: { gameId: string; when: string }) {
     staleTime: 30 * 1000,
   });
 
-  if (!isFuture || pendingQuery.data?.hasPending) return null;
+  if (!isFuture || pendingData?.hasPending) return null;
 
   return (
     <div className="flex w-full flex-col items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">

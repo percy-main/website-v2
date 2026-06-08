@@ -35,7 +35,7 @@ export function TreasurerOutstandingSection() {
   const [page, setPage] = useState(1);
   const [chasingId, setChasingId] = useState<string | null>(null);
 
-  const outstandingQuery = useQuery({
+  const { data: outstanding, isLoading: isOutstandingLoading } = useQuery({
     queryKey: ["treasurer", "outstanding-payments", page],
     queryFn: () =>
       callApi(
@@ -65,9 +65,7 @@ export function TreasurerOutstandingSection() {
     },
   });
 
-  const totalPages = outstandingQuery.data
-    ? Math.ceil(outstandingQuery.data.total / PAGE_SIZE)
-    : 0;
+  const totalPages = outstanding ? Math.ceil(outstanding.total / PAGE_SIZE) : 0;
 
   return (
     <Card>
@@ -75,7 +73,7 @@ export function TreasurerOutstandingSection() {
         <CardTitle className="text-lg">Outstanding Payments</CardTitle>
       </CardHeader>
       <CardContent>
-        {outstandingQuery.isLoading ? (
+        {isOutstandingLoading ? (
           <p className="py-8 text-center text-stone-500">Loading…</p>
         ) : (
           <Table>
@@ -89,7 +87,7 @@ export function TreasurerOutstandingSection() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {outstandingQuery.data?.items.map((item) => {
+              {outstanding?.items.map((item) => {
                 const days = daysOverdue(item.charge_date);
                 const overdueBadgeVariant =
                   days > 30 ? "destructive" : days > 7 ? "warning" : "default";
@@ -143,7 +141,7 @@ export function TreasurerOutstandingSection() {
                   </TableRow>
                 );
               })}
-              {outstandingQuery.data?.items.length === 0 && (
+              {outstanding?.items.length === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={5}
@@ -157,10 +155,10 @@ export function TreasurerOutstandingSection() {
           </Table>
         )}
       </CardContent>
-      {outstandingQuery.data && outstandingQuery.data.total > 0 && (
+      {outstanding && outstanding.total > 0 && (
         <CardFooter className="flex items-center justify-between">
           <span className="text-sm text-stone-600">
-            {outstandingQuery.data.total} payment(s) total
+            {outstanding.total} payment(s) total
           </span>
           <div className="flex gap-2">
             <Button

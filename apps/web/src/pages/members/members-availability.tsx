@@ -13,7 +13,7 @@ import { Link } from "react-router";
 
 export function Component() {
   useDocumentMeta("Availability");
-  const query = useQuery({
+  const { isPending, isError, data } = useQuery({
     queryKey: ["availability", "active"],
     queryFn: () => callApi(api.GET("/api/availability/active")),
   });
@@ -30,12 +30,12 @@ export function Component() {
         </Link>
       </div>
 
-      {query.isPending && <p className="mt-4 text-stone-500">Loading…</p>}
-      {query.isError && (
+      {isPending && <p className="mt-4 text-stone-500">Loading…</p>}
+      {isError && (
         <p className="mt-4 text-red-600">Failed to load availability.</p>
       )}
 
-      {query.data && !query.data.memberId && (
+      {data && !data.memberId && (
         <Card className="mt-4">
           <CardContent className="py-6 text-center text-stone-500">
             You need to complete your membership registration before you can
@@ -44,7 +44,7 @@ export function Component() {
         </Card>
       )}
 
-      {query.data?.items.length === 0 && query.data?.memberId && (
+      {data?.items.length === 0 && data?.memberId && (
         <Card className="mt-4">
           <CardContent className="py-6 text-center text-stone-500">
             No active availability requests right now. Check back later.
@@ -52,10 +52,8 @@ export function Component() {
         </Card>
       )}
 
-      {query.data?.memberId &&
-        query.data.items.map((req) => (
-          <RequestCard key={req.id} request={req} />
-        ))}
+      {data?.memberId &&
+        data.items.map((req) => <RequestCard key={req.id} request={req} />)}
     </div>
   );
 }

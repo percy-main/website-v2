@@ -23,7 +23,7 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
   const qc = useQueryClient();
   const selectAllId = useId();
 
-  const availableQuery = useQuery({
+  const { data: availableData, isLoading: availableLoading } = useQuery({
     queryKey: ["admin", "user-groups", "available", groupId],
     queryFn: () =>
       callApi(
@@ -35,7 +35,7 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
   });
 
   const filteredMembers = useMemo(() => {
-    const all = availableQuery.data?.members ?? [];
+    const all = availableData?.members ?? [];
     const term = filter.trim().toLowerCase();
     if (!term) return all;
     return all.filter(
@@ -43,7 +43,7 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
         (m.name?.toLowerCase().includes(term) ?? false) ||
         (m.email?.toLowerCase().includes(term) ?? false),
     );
-  }, [availableQuery.data, filter]);
+  }, [availableData, filter]);
 
   const toggle = (memberId: string) => {
     setSelected((prev) => {
@@ -96,9 +96,9 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
-          {availableQuery.isLoading ? (
+          {availableLoading ? (
             <p className="py-6 text-center text-sm text-stone-500">Loading…</p>
-          ) : availableQuery.data?.members.length === 0 ? (
+          ) : availableData?.members.length === 0 ? (
             <p className="py-6 text-center text-sm text-stone-500">
               Every member is already in this group.
             </p>
@@ -117,8 +117,8 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
                   />
                   <span className="text-stone-600">
                     {filteredMembers.length} shown
-                    {filter && availableQuery.data
-                      ? ` of ${availableQuery.data.members.length}`
+                    {filter && availableData
+                      ? ` of ${availableData.members.length}`
                       : ""}
                   </span>
                 </label>

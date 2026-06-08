@@ -69,7 +69,7 @@ export function FinancialReliefTab() {
     );
   };
 
-  const listQuery = useQuery({
+  const { data: listData, isLoading: listLoading } = useQuery({
     queryKey: [
       "admin-relief",
       "list",
@@ -151,20 +151,20 @@ export function FinancialReliefTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {listQuery.isLoading ? (
+          {listLoading ? (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-stone-600">
                 Loading…
               </TableCell>
             </TableRow>
-          ) : listQuery.data?.items.length === 0 ? (
+          ) : listData?.items.length === 0 ? (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-stone-600">
                 No requests match these filters.
               </TableCell>
             </TableRow>
           ) : (
-            listQuery.data?.items.map((row) => (
+            listData?.items.map((row) => (
               <TableRow key={row.id}>
                 <TableCell className="text-sm">
                   {new Date(row.createdAt).toLocaleDateString("en-GB")}
@@ -236,7 +236,7 @@ export function FinancialReliefTab() {
         </TableBody>
       </Table>
 
-      {listQuery.data && listQuery.data.total > filters.pageSize ? (
+      {listData && listData.total > filters.pageSize ? (
         <div className="flex items-center justify-end gap-2">
           <Button
             variant="outline"
@@ -248,12 +248,12 @@ export function FinancialReliefTab() {
           </Button>
           <span className="text-sm text-stone-600">
             Page {filters.page} of{" "}
-            {Math.ceil(listQuery.data.total / filters.pageSize)}
+            {Math.ceil(listData.total / filters.pageSize)}
           </span>
           <Button
             variant="outline"
             size="sm"
-            disabled={filters.page * filters.pageSize >= listQuery.data.total}
+            disabled={filters.page * filters.pageSize >= listData.total}
             onClick={() => updateFilters({ page: filters.page + 1 })}
           >
             Next
@@ -295,7 +295,7 @@ function RequestDetailDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const detailQuery = useQuery({
+  const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ["admin-relief", "detail", requestId],
     queryFn: () =>
       callApi(
@@ -327,70 +327,66 @@ function RequestDetailDialog({
 
   const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
   const [decideDialogOpen, setDecideDialogOpen] = useState(false);
-  const isOpen = detailQuery.data
+  const isOpen = detail
     ? ["submitted", "in_review", "more_info_needed"].includes(
-        detailQuery.data.request.status,
+        detail.request.status,
       )
     : false;
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-        {detailQuery.isLoading ? (
+        {detailLoading ? (
           <p className="text-sm text-stone-600">Loading…</p>
-        ) : !detailQuery.data ? (
+        ) : !detail ? (
           <p className="text-sm text-stone-600">Request not found.</p>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>
-                {detailQuery.data.request.memberName ?? "—"}
-              </DialogTitle>
+              <DialogTitle>{detail.request.memberName ?? "—"}</DialogTitle>
               <DialogDescription>
-                Submitted by {detailQuery.data.request.submittedByName ?? "—"} (
-                {detailQuery.data.request.submittedByEmail}) on{" "}
-                {new Date(
-                  detailQuery.data.request.createdAt,
-                ).toLocaleDateString("en-GB")}
+                Submitted by {detail.request.submittedByName ?? "—"} (
+                {detail.request.submittedByEmail}) on{" "}
+                {new Date(detail.request.createdAt).toLocaleDateString("en-GB")}
               </DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col gap-4 text-sm">
               <div>
-                <StatusPill status={detailQuery.data.request.status} />
+                <StatusPill status={detail.request.status} />
               </div>
 
               <DetailSection title="Requested support">
                 <ul className="ml-4 list-disc">
-                  {detailQuery.data.request.requestedMembershipFull ? (
+                  {detail.request.requestedMembershipFull ? (
                     <li>Full membership donation relief</li>
                   ) : null}
-                  {detailQuery.data.request.requestedMembershipPartial ? (
+                  {detail.request.requestedMembershipPartial ? (
                     <li>
                       Partial membership donation relief
-                      {detailQuery.data.request.partialAmountPence != null
-                        ? ` (manageable: £${(detailQuery.data.request.partialAmountPence / 100).toFixed(2)})`
+                      {detail.request.partialAmountPence != null
+                        ? ` (manageable: £${(detail.request.partialAmountPence / 100).toFixed(2)})`
                         : ""}
                     </li>
                   ) : null}
-                  {detailQuery.data.request.requestedMatchFees ? (
+                  {detail.request.requestedMatchFees ? (
                     <li>Match donation relief</li>
                   ) : null}
                 </ul>
               </DetailSection>
 
               <DetailSection title="Reason">
-                {detailQuery.data.request.reasonCategory ? (
+                {detail.request.reasonCategory ? (
                   <p className="font-medium">
                     {REASON_CATEGORY_LABELS[
-                      detailQuery.data.request
+                      detail.request
                         .reasonCategory as keyof typeof REASON_CATEGORY_LABELS
-                    ] ?? detailQuery.data.request.reasonCategory}
+                    ] ?? detail.request.reasonCategory}
                   </p>
                 ) : null}
-                {detailQuery.data.request.reasonText ? (
+                {detail.request.reasonText ? (
                   <p className="whitespace-pre-wrap text-stone-700">
-                    {detailQuery.data.request.reasonText}
+                    {detail.request.reasonText}
                   </p>
                 ) : (
                   <p className="text-stone-500">No explanation provided.</p>
@@ -399,45 +395,42 @@ function RequestDetailDialog({
 
               <DetailSection title="Duration">
                 <p>
-                  {detailQuery.data.request.duration
+                  {detail.request.duration
                     ? (DURATION_LABELS[
-                        detailQuery.data.request
-                          .duration as keyof typeof DURATION_LABELS
-                      ] ?? detailQuery.data.request.duration)
+                        detail.request.duration as keyof typeof DURATION_LABELS
+                      ] ?? detail.request.duration)
                     : "—"}
                 </p>
-                {detailQuery.data.request.durationOtherText ? (
+                {detail.request.durationOtherText ? (
                   <p className="text-stone-700">
-                    {detailQuery.data.request.durationOtherText}
+                    {detail.request.durationOtherText}
                   </p>
                 ) : null}
               </DetailSection>
 
               <DetailSection title="Contribution offered">
                 <p>
-                  {detailQuery.data.request.contributionAbility
+                  {detail.request.contributionAbility
                     ? (CONTRIBUTION_ABILITY_LABELS[
-                        detailQuery.data.request
+                        detail.request
                           .contributionAbility as keyof typeof CONTRIBUTION_ABILITY_LABELS
-                      ] ?? detailQuery.data.request.contributionAbility)
+                      ] ?? detail.request.contributionAbility)
                     : "—"}
                 </p>
-                {detailQuery.data.request.contributionAmountPence != null ? (
+                {detail.request.contributionAmountPence != null ? (
                   <p>
                     Amount: £
-                    {(
-                      detailQuery.data.request.contributionAmountPence / 100
-                    ).toFixed(2)}
+                    {(detail.request.contributionAmountPence / 100).toFixed(2)}
                   </p>
                 ) : null}
               </DetailSection>
 
               <DetailSection title="Non-financial contribution">
-                {detailQuery.data.request.volunteerOptions.length === 0 ? (
+                {detail.request.volunteerOptions.length === 0 ? (
                   <p className="text-stone-500">None selected.</p>
                 ) : (
                   <ul className="ml-4 list-disc">
-                    {detailQuery.data.request.volunteerOptions.map((o) => (
+                    {detail.request.volunteerOptions.map((o) => (
                       <li key={o}>
                         {VOLUNTEER_OPTION_LABELS[
                           o as keyof typeof VOLUNTEER_OPTION_LABELS
@@ -446,9 +439,9 @@ function RequestDetailDialog({
                     ))}
                   </ul>
                 )}
-                {detailQuery.data.request.volunteerNotes ? (
+                {detail.request.volunteerNotes ? (
                   <p className="whitespace-pre-wrap text-stone-700">
-                    {detailQuery.data.request.volunteerNotes}
+                    {detail.request.volunteerNotes}
                   </p>
                 ) : null}
               </DetailSection>
@@ -456,38 +449,36 @@ function RequestDetailDialog({
               <DetailSection title="Contact preference">
                 <p>
                   {CONTACT_PREFERENCE_LABELS[
-                    detailQuery.data.request
+                    detail.request
                       .contactPreference as keyof typeof CONTACT_PREFERENCE_LABELS
-                  ] ?? detailQuery.data.request.contactPreference}
+                  ] ?? detail.request.contactPreference}
                 </p>
               </DetailSection>
 
-              {detailQuery.data.grant ? (
+              {detail.grant ? (
                 <DetailSection title="Active grant">
                   <p>
                     Covers{" "}
                     {[
-                      detailQuery.data.grant.coversMembership
+                      detail.grant.coversMembership
                         ? "membership donations"
                         : null,
-                      detailQuery.data.grant.coversMatchFees
-                        ? "match donations"
-                        : null,
+                      detail.grant.coversMatchFees ? "match donations" : null,
                     ]
                       .filter(Boolean)
                       .join(" + ") || "—"}
                     , from{" "}
-                    {new Date(
-                      detailQuery.data.grant.effectiveFrom,
-                    ).toLocaleDateString("en-GB")}
-                    {detailQuery.data.grant.effectiveToExclusive
-                      ? ` until ${new Date(detailQuery.data.grant.effectiveToExclusive).toLocaleDateString("en-GB")}`
+                    {new Date(detail.grant.effectiveFrom).toLocaleDateString(
+                      "en-GB",
+                    )}
+                    {detail.grant.effectiveToExclusive
+                      ? ` until ${new Date(detail.grant.effectiveToExclusive).toLocaleDateString("en-GB")}`
                       : " (open-ended)"}
                     .
                   </p>
-                  {detailQuery.data.grant.memberFacingNote ? (
+                  {detail.grant.memberFacingNote ? (
                     <p className="text-stone-700">
-                      Note to member: {detailQuery.data.grant.memberFacingNote}
+                      Note to member: {detail.grant.memberFacingNote}
                     </p>
                   ) : null}
                 </DetailSection>
@@ -495,7 +486,7 @@ function RequestDetailDialog({
 
               <DetailSection title="History">
                 <ul className="ml-4 list-disc">
-                  {detailQuery.data.events.map((e) => (
+                  {detail.events.map((e) => (
                     <li key={e.id}>
                       <span className="font-medium">{e.eventType}</span>{" "}
                       &middot; {new Date(e.createdAt).toLocaleString("en-GB")}{" "}
@@ -510,7 +501,7 @@ function RequestDetailDialog({
             <DialogFooter className="flex-wrap gap-2">
               {isOpen ? (
                 <>
-                  {detailQuery.data.request.status !== "in_review" ? (
+                  {detail.request.status !== "in_review" ? (
                     <Button
                       variant="outline"
                       onClick={() =>
@@ -547,16 +538,16 @@ function RequestDetailDialog({
                   </Button>
                 </>
               ) : null}
-              {detailQuery.data.grant && !detailQuery.data.grant.closedAt ? (
+              {detail.grant && !detail.grant.closedAt ? (
                 <>
-                  {detailQuery.data.grant.coversMembership ? (
+                  {detail.grant.coversMembership ? (
                     <ApplyMembershipReliefButton
-                      grantId={detailQuery.data.grant.id}
+                      grantId={detail.grant.id}
                       requestId={requestId}
                     />
                   ) : null}
                   <CloseGrantButton
-                    grantId={detailQuery.data.grant.id}
+                    grantId={detail.grant.id}
                     requestId={requestId}
                   />
                 </>
@@ -574,10 +565,10 @@ function RequestDetailDialog({
             onClose={() => setDeclineDialogOpen(false)}
           />
         ) : null}
-        {decideDialogOpen && detailQuery.data ? (
+        {decideDialogOpen && detail ? (
           <DecideDialog
             requestId={requestId}
-            request={detailQuery.data.request}
+            request={detail.request}
             onClose={() => setDecideDialogOpen(false)}
           />
         ) : null}
@@ -771,15 +762,12 @@ function MembershipReliefFields({
   value: MembershipFieldsValue;
   onChange: (patch: Partial<MembershipFieldsValue>) => void;
 }) {
-  const pricesQuery = useQuery({
+  const { data: prices, isLoading: pricesLoading } = useQuery({
     queryKey: ["membership-prices"],
     queryFn: () => callApi(api.GET("/api/membership/prices")),
     staleTime: 5 * 60 * 1000,
   });
-  const presets = useMemo(
-    () => buildMembershipPresets(pricesQuery.data),
-    [pricesQuery.data],
-  );
+  const presets = useMemo(() => buildMembershipPresets(prices), [prices]);
 
   const applyPreset = (presetKey: string) => {
     if (presetKey === FREEFORM_PRESET_KEY) {
@@ -808,14 +796,12 @@ function MembershipReliefFields({
         <Select
           value={value.presetKey}
           onValueChange={applyPreset}
-          disabled={pricesQuery.isLoading}
+          disabled={pricesLoading}
         >
           <SelectTrigger id="membershipPresetKey">
             <SelectValue
               placeholder={
-                pricesQuery.isLoading
-                  ? "Loading categories..."
-                  : "Choose category"
+                pricesLoading ? "Loading categories..." : "Choose category"
               }
             />
           </SelectTrigger>
@@ -1425,7 +1411,7 @@ function ReliefReportPanel() {
     }),
   );
 
-  const query = useQuery({
+  const { data: reportData, isLoading: reportLoading } = useQuery({
     queryKey: ["admin-relief", "report", report.dateFrom, report.dateTo],
     queryFn: () =>
       callApi(
@@ -1471,29 +1457,29 @@ function ReliefReportPanel() {
         <Button onClick={() => update({ submitted: true })}>Summarise</Button>
       </div>
 
-      {query.isLoading ? (
+      {reportLoading ? (
         <p className="mt-3 text-sm text-stone-600">Loading…</p>
-      ) : query.data ? (
+      ) : reportData ? (
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <SummaryCard
             label="Total relief"
-            value={formatPounds(query.data.totalForgivenPence)}
-            sub={`${query.data.forgivenChargeCount} charges`}
+            value={formatPounds(reportData.totalForgivenPence)}
+            sub={`${reportData.forgivenChargeCount} charges`}
           />
           <SummaryCard
             label="Match donations"
-            value={formatPounds(query.data.byReliefType.matchFeePence)}
+            value={formatPounds(reportData.byReliefType.matchFeePence)}
           />
           <SummaryCard
             label="Membership donations"
-            value={formatPounds(query.data.byReliefType.membershipPence)}
+            value={formatPounds(reportData.byReliefType.membershipPence)}
           />
           <SummaryCard
             label="Members supported"
-            value={String(query.data.membersSupported)}
+            value={String(reportData.membersSupported)}
           />
           {SEASON_BUCKETS.map(({ key, label }) => {
-            const b = query.data.bySection[key];
+            const b = reportData.bySection[key];
             return (
               <SummaryCard
                 key={key}

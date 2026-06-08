@@ -58,7 +58,11 @@ export function FactsAdminView() {
   );
   const { scope, q, tag, editing, pendingDelete } = state;
 
-  const factsQuery = useQuery({
+  const {
+    data: factsData,
+    isLoading: factsLoading,
+    error: factsError,
+  } = useQuery({
     queryKey: ["scout", "facts", { scope, q, tag }],
     queryFn: () =>
       callApi(
@@ -124,24 +128,24 @@ export function FactsAdminView() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-2">
-        {factsQuery.isLoading && (
+        {factsLoading && (
           <div className="p-3 text-sm text-stone-500">Loading…</div>
         )}
-        {factsQuery.error && (
+        {factsError && (
           <div className="p-3 text-sm text-red-600">
-            {factsQuery.error instanceof Error
-              ? factsQuery.error.message
+            {factsError instanceof Error
+              ? factsError.message
               : "Failed to load facts"}
           </div>
         )}
-        {factsQuery.data && (
+        {factsData && (
           <>
             <div className="px-1 pt-1 pb-1 text-xs text-stone-500">
-              {factsQuery.data.total} fact
-              {factsQuery.data.total === 1 ? "" : "s"} total
+              {factsData.total} fact
+              {factsData.total === 1 ? "" : "s"} total
             </div>
             <ul className="divide-y divide-stone-100">
-              {factsQuery.data.facts.map((f) => (
+              {factsData.facts.map((f) => (
                 <FactRow
                   key={f.id}
                   fact={f}
@@ -150,7 +154,7 @@ export function FactsAdminView() {
                 />
               ))}
             </ul>
-            {factsQuery.data.facts.length === 0 && (
+            {factsData.facts.length === 0 && (
               <div className="p-3 text-sm text-stone-500">
                 No facts match the current filters.
               </div>

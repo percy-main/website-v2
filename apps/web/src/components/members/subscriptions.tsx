@@ -3,12 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "date-fns";
 
 export function Subscriptions() {
-  const query = useQuery({
+  const { data } = useQuery({
     queryKey: ["subscriptions"],
     queryFn: () => callApi(api.GET("/api/members/me/subscriptions")),
   });
 
-  if (!query.data) {
+  if (!data) {
     return null;
   }
 
@@ -16,10 +16,8 @@ export function Subscriptions() {
     <>
       <h2 className="text-h4 mb-0">Your Subscriptions</h2>
       <div className="w-full">
-        {query.data.subscriptions.length === 0 && (
-          <p>You have no subscriptions.</p>
-        )}
-        {query.data.subscriptions.map((subscription) => (
+        {data.subscriptions.length === 0 && <p>You have no subscriptions.</p>}
+        {data.subscriptions.map((subscription) => (
           <div
             key={`${subscription.product.name}-${subscription.created}`}
             className="flex flex-wrap items-center gap-y-4"

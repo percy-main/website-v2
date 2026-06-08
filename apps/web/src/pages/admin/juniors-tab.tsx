@@ -414,7 +414,11 @@ function LinkingDialog({
     };
   }, [userSearch]);
 
-  const suggestedUsersQuery = useQuery({
+  const {
+    data: suggestedUsersData,
+    isLoading: suggestedUsersLoading,
+    error: suggestedUsersError,
+  } = useQuery({
     queryKey: ["admin", "searchUsersForLinking", junior.id, debouncedSearch],
     queryFn: () =>
       callApi(
@@ -461,7 +465,7 @@ function LinkingDialog({
     },
   });
 
-  const users = suggestedUsersQuery.data?.users ?? [];
+  const users = suggestedUsersData?.users ?? [];
 
   return (
     <Dialog
@@ -512,17 +516,17 @@ function LinkingDialog({
             className="mb-2"
           />
 
-          {suggestedUsersQuery.isLoading && (
+          {suggestedUsersLoading && (
             <p className="text-sm text-stone-500">
               Searching for matching users…
             </p>
           )}
-          {suggestedUsersQuery.error && (
+          {suggestedUsersError && (
             <p className="text-sm text-red-600">Failed to search users.</p>
           )}
 
           <div className="flex max-h-60 flex-col gap-1 overflow-y-auto">
-            {users.length === 0 && !suggestedUsersQuery.isLoading && (
+            {users.length === 0 && !suggestedUsersLoading && (
               <p className="py-2 text-center text-sm text-stone-500">
                 No matching users found.
               </p>

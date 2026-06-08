@@ -117,7 +117,7 @@ export function ExpenseHistoryTab() {
     pageSize: PAGE_SIZE,
   };
 
-  const expensesQuery = useQuery({
+  const { data: expensesData, isLoading: expensesLoading } = useQuery({
     queryKey: ["treasurer", "expense-history", queryParams],
     queryFn: () =>
       callApi(
@@ -127,7 +127,7 @@ export function ExpenseHistoryTab() {
       ),
   });
 
-  const totalPages = Math.ceil((expensesQuery.data?.total ?? 0) / PAGE_SIZE);
+  const totalPages = Math.ceil((expensesData?.total ?? 0) / PAGE_SIZE);
 
   const hasFilters = isFiltered(filters, defaults);
 
@@ -298,9 +298,9 @@ export function ExpenseHistoryTab() {
 
       {/* Results count */}
       <div className="text-sm text-stone-500">
-        {expensesQuery.data
-          ? `${expensesQuery.data.total} expense${expensesQuery.data.total === 1 ? "" : "s"} found`
-          : expensesQuery.isLoading
+        {expensesData
+          ? `${expensesData.total} expense${expensesData.total === 1 ? "" : "s"} found`
+          : expensesLoading
             ? "Loading…"
             : ""}
       </div>
@@ -321,7 +321,7 @@ export function ExpenseHistoryTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {expensesQuery.data?.items.map((expense) => (
+            {expensesData?.items.map((expense) => (
               <TableRow key={expense.id}>
                 <TableCell>{formatDate(expense.match_date)}</TableCell>
                 <TableCell>{expense.opposition}</TableCell>
@@ -354,7 +354,7 @@ export function ExpenseHistoryTab() {
                 </TableCell>
               </TableRow>
             ))}
-            {expensesQuery.data?.items.length === 0 && (
+            {expensesData?.items.length === 0 && (
               <TableRow>
                 <TableCell
                   colSpan={8}

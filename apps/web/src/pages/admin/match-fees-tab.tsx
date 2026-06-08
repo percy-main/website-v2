@@ -37,12 +37,12 @@ export function MatchFeesTab() {
     initialNewRateFormState,
   );
 
-  const ratesQuery = useQuery({
+  const { data: ratesData, isLoading: ratesLoading } = useQuery({
     queryKey: ["admin", "matchFeeRates"],
     queryFn: () => callApi(api.GET("/api/admin/match-fee-rates")),
   });
 
-  const teamsQuery = useQuery({
+  const { data: teamsData } = useQuery({
     queryKey: ["admin", "playCricketTeams"],
     queryFn: () => callApi(api.GET("/api/admin/play-cricket-teams")),
   });
@@ -87,8 +87,8 @@ export function MatchFeesTab() {
     },
   });
 
-  const rates = ratesQuery.data?.rates ?? [];
-  const teams = teamsQuery.data ?? [];
+  const rates = ratesData?.rates ?? [];
+  const teams = teamsData ?? [];
 
   const handleAdd = () => {
     const payload = buildAddRatePayload(newRate);
@@ -223,7 +223,7 @@ export function MatchFeesTab() {
           <CardTitle>Current Rates</CardTitle>
         </CardHeader>
         <CardContent>
-          {ratesQuery.isLoading ? (
+          {ratesLoading ? (
             <p className="text-sm text-stone-500">Loading…</p>
           ) : rates.length === 0 ? (
             <p className="text-sm text-stone-500">

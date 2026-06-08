@@ -34,7 +34,7 @@ export function GroupsTab() {
     setSearchParams(next, { replace: true });
   };
 
-  const groupsQuery = useQuery({
+  const { data: groupsData, isLoading: groupsLoading } = useQuery({
     queryKey: ["admin", "user-groups"],
     queryFn: () => callApi(api.GET("/api/admin/user-groups")),
   });
@@ -50,9 +50,9 @@ export function GroupsTab() {
         <Button onClick={() => setNewGroupOpen(true)}>New group</Button>
       </div>
 
-      {groupsQuery.isLoading ? (
+      {groupsLoading ? (
         <div className="py-12 text-center text-stone-500">Loading…</div>
-      ) : groupsQuery.data?.groups.length === 0 ? (
+      ) : groupsData?.groups.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-stone-500">
             No groups yet. Create one to get started.
@@ -60,7 +60,7 @@ export function GroupsTab() {
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
-          {groupsQuery.data?.groups.map((group) => (
+          {groupsData?.groups.map((group) => (
             <GroupCard
               key={group.id}
               group={group}
@@ -138,7 +138,7 @@ function GroupMembers({
   onAddMember: () => void;
 }) {
   const qc = useQueryClient();
-  const detailQuery = useQuery({
+  const { data: detailData, isLoading: detailLoading } = useQuery({
     queryKey: ["admin", "user-groups", "detail", groupId],
     queryFn: () =>
       callApi(
@@ -167,9 +167,9 @@ function GroupMembers({
           Add member
         </Button>
       </div>
-      {detailQuery.isLoading ? (
+      {detailLoading ? (
         <div className="py-6 text-center text-sm text-stone-500">Loading…</div>
-      ) : detailQuery.data?.members.length === 0 ? (
+      ) : detailData?.members.length === 0 ? (
         <div className="py-6 text-center text-sm text-stone-500">
           No members yet.
         </div>
@@ -183,7 +183,7 @@ function GroupMembers({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {detailQuery.data?.members.map((m) => (
+            {detailData?.members.map((m) => (
               <TableRow key={m.memberId}>
                 <TableCell>{m.name ?? "—"}</TableCell>
                 <TableCell>{m.email}</TableCell>

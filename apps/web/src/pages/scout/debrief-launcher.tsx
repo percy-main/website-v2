@@ -24,7 +24,11 @@ interface DebriefLauncherProps {
  * system prompt takes it from there.
  */
 export function DebriefLauncher({ onLaunch }: DebriefLauncherProps) {
-  const recentQuery = useQuery({
+  const {
+    data: recent,
+    isLoading: recentLoading,
+    error: recentError,
+  } = useQuery({
     queryKey: ["scout", "debrief", "recent-matches"],
     queryFn: () => callApi(api.GET("/api/scout/debrief/recent-matches")),
   });
@@ -53,23 +57,23 @@ export function DebriefLauncher({ onLaunch }: DebriefLauncherProps) {
       </div>
 
       <div className="mt-3">
-        {recentQuery.isLoading && (
+        {recentLoading && (
           <div className="text-xs text-amber-900/60">Loading matches…</div>
         )}
-        {recentQuery.error && (
+        {recentError && (
           <div className="text-xs text-red-700">
-            {recentQuery.error instanceof Error
-              ? recentQuery.error.message
+            {recentError instanceof Error
+              ? recentError.message
               : "Failed to load recent matches"}
           </div>
         )}
-        {recentQuery.data?.matches.length === 0 && (
+        {recent?.matches.length === 0 && (
           <div className="text-xs text-amber-900/60">
             No Percy Main matches in the last 14 days.
           </div>
         )}
         <ul className="space-y-1.5">
-          {recentQuery.data?.matches.map((m) => (
+          {recent?.matches.map((m) => (
             <li key={m.id}>
               <button
                 type="button"

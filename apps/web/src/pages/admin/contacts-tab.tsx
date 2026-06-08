@@ -27,7 +27,6 @@ export function ContactsTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // eslint-disable-next-line react-doctor/no-cascading-set-state -- both setters fire on debounce settle: committing the search and resetting pagination together. Combining them in a reducer would obscure the intent.
   useEffect(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);

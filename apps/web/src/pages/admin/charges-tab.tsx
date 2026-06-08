@@ -143,7 +143,11 @@ export function ChargesTab() {
     };
   }, [search]);
 
-  const chargesQuery = useQuery({
+  const {
+    data: result,
+    isLoading: chargesLoading,
+    isError: chargesError,
+  } = useQuery({
     queryKey: [
       "admin",
       "charges",
@@ -173,7 +177,7 @@ export function ChargesTab() {
       ),
   });
 
-  const aggregatesQuery = useQuery({
+  const { data: aggregates } = useQuery({
     queryKey: ["admin", "chargeAggregates", dateFrom, dateTo],
     queryFn: () =>
       callApi(
@@ -259,8 +263,6 @@ export function ChargesTab() {
     },
   });
 
-  const result = chargesQuery.data;
-  const aggregates = aggregatesQuery.data;
   const totalPages = result
     ? Math.max(1, Math.ceil(result.total / PAGE_SIZE))
     : 1;
@@ -402,10 +404,8 @@ export function ChargesTab() {
       )}
 
       {/* Loading / Error */}
-      {chargesQuery.isLoading && <p className="text-stone-500">Loading…</p>}
-      {chargesQuery.isError && (
-        <p className="text-red-600">Failed to load charges.</p>
-      )}
+      {chargesLoading && <p className="text-stone-500">Loading…</p>}
+      {chargesError && <p className="text-red-600">Failed to load charges.</p>}
 
       {/* Table */}
       {result && (

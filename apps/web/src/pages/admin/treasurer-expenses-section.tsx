@@ -75,7 +75,7 @@ export function TreasurerExpensesSection({
   const [rejectReason, setRejectReason] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
-  const expensesSummaryQuery = useQuery({
+  const { data: expensesSummary } = useQuery({
     queryKey: ["treasurer", "matchday-expenses-summary", dateFrom, dateTo],
     queryFn: () =>
       callApi(
@@ -85,15 +85,17 @@ export function TreasurerExpensesSection({
       ),
   });
 
-  const expensesDetailQuery = useQuery({
-    queryKey: ["treasurer", "expenses-with-receipts", dateFrom, dateTo],
-    queryFn: () =>
-      callApi(
-        api.GET("/api/treasurer/expenses-with-receipts", {
-          params: { query: { dateFrom, dateTo } },
-        }),
-      ),
-  });
+  const { data: expensesDetail, isLoading: isExpensesDetailLoading } = useQuery(
+    {
+      queryKey: ["treasurer", "expenses-with-receipts", dateFrom, dateTo],
+      queryFn: () =>
+        callApi(
+          api.GET("/api/treasurer/expenses-with-receipts", {
+            params: { query: { dateFrom, dateTo } },
+          }),
+        ),
+    },
+  );
 
   const invalidateExpenses = () => {
     void queryClient.invalidateQueries({
@@ -166,16 +168,15 @@ export function TreasurerExpensesSection({
         <CardHeader>
           <CardTitle className="text-lg">
             Matchday Expenses
-            {expensesSummaryQuery.data
-              ? ` (${formatPence(expensesSummaryQuery.data.grandTotal)} total)`
+            {expensesSummary
+              ? ` (${formatPence(expensesSummary.grandTotal)} total)`
               : ""}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {expensesDetailQuery.isLoading ? (
+          {isExpensesDetailLoading ? (
             <p className="py-8 text-center text-stone-500">Loading…</p>
-          ) : !expensesDetailQuery.data ||
-            expensesDetailQuery.data.expenses.length === 0 ? (
+          ) : !expensesDetail || expensesDetail.expenses.length === 0 ? (
             <p className="py-8 text-center text-stone-500">
               No expenses for this period.
             </p>
@@ -192,7 +193,7 @@ export function TreasurerExpensesSection({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expensesDetailQuery.data.expenses.map((expense) => {
+                {expensesDetail.expenses.map((expense) => {
                   const sc = STATUS_CONFIG[expense.status] ?? {
                     label: expense.status,
                     variant: "secondary" as const,

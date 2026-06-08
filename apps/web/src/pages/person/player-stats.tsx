@@ -242,7 +242,7 @@ function FormatSection({
 }
 
 export function PlayerStats({ slug }: { slug: string }) {
-  const careerQuery = useQuery({
+  const { data: careerData, isPending: careerPending } = useQuery({
     queryKey: ["player-career-stats", slug],
     queryFn: () =>
       callApi(
@@ -253,7 +253,7 @@ export function PlayerStats({ slug }: { slug: string }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  if (careerQuery.isPending) {
+  if (careerPending) {
     return (
       <div className="mt-6 space-y-3">
         <div className="h-6 w-32 animate-pulse rounded bg-stone-200" />
@@ -269,11 +269,11 @@ export function PlayerStats({ slug }: { slug: string }) {
     );
   }
 
-  if (!careerQuery.data || careerQuery.data.formats.length === 0) {
+  if (!careerData || careerData.formats.length === 0) {
     return null;
   }
 
-  const { formats } = careerQuery.data;
+  const { formats } = careerData;
   // Only label sections when there is more than one — players with a single
   // format see the same headline-stats-and-tables view they always have.
   const showHeadings = formats.length > 1;

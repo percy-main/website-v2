@@ -98,12 +98,12 @@ export function Component() {
 
   const queryClient = useQueryClient();
 
-  const eligibleQuery = useQuery({
+  const { data: eligibleData, isLoading: eligibleLoading } = useQuery({
     queryKey: ["financial-relief", "eligible-members"],
     queryFn: () => callApi(api.GET("/api/financial-relief/eligible-members")),
   });
 
-  const myStatusQuery = useQuery({
+  const { data: myStatusData } = useQuery({
     queryKey: ["financial-relief", "me"],
     queryFn: () => callApi(api.GET("/api/financial-relief/me")),
   });
@@ -113,7 +113,7 @@ export function Component() {
     initialState,
   );
 
-  const eligibleMembers = eligibleQuery.data?.members ?? [];
+  const eligibleMembers = eligibleData?.members ?? [];
 
   // Auto-select the only option if there's just one (the account holder).
   const effectiveMemberId =
@@ -169,12 +169,12 @@ export function Component() {
 
   const openRequest = useMemo(
     () =>
-      myStatusQuery.data?.requests.find((r) =>
+      myStatusData?.requests.find((r) =>
         ["submitted", "in_review", "more_info_needed", "approved"].includes(
           r.status,
         ),
       ) ?? null,
-    [myStatusQuery.data?.requests],
+    [myStatusData?.requests],
   );
 
   function toggleVolunteer(option: VolunteerOption, checked: boolean) {
@@ -216,13 +216,13 @@ export function Component() {
         to share detailed financial information. A short explanation is enough.
       </p>
 
-      {myStatusQuery.data?.requests.length ? (
+      {myStatusData?.requests.length ? (
         <Card className="mt-6">
           <CardHeader>
             <CardTitle className="text-base">Your current requests</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            {myStatusQuery.data.requests.map((r) => (
+            {myStatusData.requests.map((r) => (
               <div key={r.id} className="flex flex-col gap-1 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{r.memberName ?? "—"}</span>
@@ -274,7 +274,7 @@ export function Component() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              {eligibleQuery.isLoading ? (
+              {eligibleLoading ? (
                 <p className="text-sm text-stone-600">
                   Loading members&hellip;
                 </p>

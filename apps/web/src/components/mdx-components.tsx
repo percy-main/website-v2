@@ -99,7 +99,7 @@ function LeagueTable({
   divisionId: string;
   name?: string;
 }) {
-  const query = useQuery({
+  const { data } = useQuery({
     queryKey: ["getLeagueTable", divisionId],
     queryFn: () =>
       callApi(
@@ -109,11 +109,11 @@ function LeagueTable({
       ),
   });
 
-  if (!query.data) {
+  if (!data) {
     return null;
   }
 
-  const { columns, rows } = query.data;
+  const { columns, rows } = data;
 
   return (
     <div className="container mx-auto rounded-md p-2 sm:p-4 dark:bg-stone-50 dark:text-stone-800">

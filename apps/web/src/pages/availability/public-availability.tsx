@@ -48,7 +48,11 @@ export function Component() {
   const { requestId } = useParams<{ requestId: string }>();
   const { data: session, isPending: sessionPending } = useSession();
 
-  const query = useQuery({
+  const {
+    data: requestData,
+    isPending: requestPending,
+    isError: requestError,
+  } = useQuery({
     queryKey: ["availability", "public", requestId],
     queryFn: () =>
       callApi(
@@ -60,13 +64,13 @@ export function Component() {
   });
 
   // Check for existing member record (only if signed in)
-  const memberQuery = useQuery({
+  const { data: memberData, isPending: memberPending } = useQuery({
     queryKey: ["availability", "active"],
     queryFn: () => callApi(api.GET("/api/availability/active")),
     enabled: !!session,
   });
 
-  const hasMemberRecord = memberQuery.data?.memberId != null;
+  const hasMemberRecord = memberData?.memberId != null;
   const isSignedIn = !!session;
 
   // Load draft from localStorage (once, on mount — for users returning after sign-up)
@@ -87,11 +91,9 @@ export function Component() {
 
   // Populate from server responses if signed in and no draft exists
   const serverResponses = (() => {
-    if (!memberQuery.data || !requestId) return null;
+    if (!memberData || !requestId) return null;
     if (initialResponses.size > 0) return null;
-    const activeRequest = memberQuery.data.items.find(
-      (r) => r.id === requestId,
-    );
+    const activeRequest = memberData.items.find((r) => r.id === requestId);
     if (!activeRequest?.myResponses.length) return null;
     const map = new Map<string, DraftResponse>();
     for (const r of activeRequest.myResponses) {
@@ -168,7 +170,7 @@ export function Component() {
     submitMutation.mutate();
   };
 
-  if (query.isPending || sessionPending) {
+  if (requestPending || sessionPending) {
     return (
       <div className="container mx-auto px-4 py-8">
         <p className="text-stone-500">Loading…</p>
@@ -176,7 +178,7 @@ export function Component() {
     );
   }
 
-  if (query.isError) {
+  if (requestError) {
     return (
       <div className="container mx-auto px-4 py-8">
         <h1>Availability</h1>
@@ -187,7 +189,7 @@ export function Component() {
     );
   }
 
-  const data = query.data;
+  const data = requestData;
   if (!data) return null;
 
   // Group fixtures by date
@@ -218,7 +220,7 @@ export function Component() {
         </Alert>
       )}
 
-      {isSignedIn && !hasMemberRecord && !memberQuery.isPending && (
+      {isSignedIn && !hasMemberRecord && !memberPending && (
         <Alert className="mt-4" variant="destructive">
           <AlertDescription>
             You need to complete your membership registration before you can

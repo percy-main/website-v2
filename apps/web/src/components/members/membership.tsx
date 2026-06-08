@@ -5,19 +5,23 @@ import { Link } from "react-router";
 import { match } from "ts-pattern";
 
 export function Membership() {
-  const query = useQuery({
+  const {
+    data: membershipData,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["membership"],
     queryFn: () => callApi(api.GET("/api/members/me/membership")),
   });
 
-  const dependentsQuery = useQuery({
+  const { data: dependentsData } = useQuery({
     queryKey: ["dependents"],
     queryFn: () => callApi(api.GET("/api/junior/dependents")),
   });
 
-  if (query.isLoading) return null;
+  if (isLoading) return null;
 
-  if (query.isError) {
+  if (isError) {
     return (
       <p className="text-sm text-red-600">
         Failed to load membership details. Please try again later.
@@ -25,12 +29,12 @@ export function Membership() {
     );
   }
 
-  if (!query.data) {
+  if (!membershipData) {
     return null;
   }
 
-  const { membership } = query.data;
-  const deps = dependentsQuery.data?.dependents ?? [];
+  const { membership } = membershipData;
+  const deps = dependentsData?.dependents ?? [];
 
   return (
     <section>
