@@ -536,6 +536,7 @@ export function getWagonWheel(db: Kysely<DB>) {
         .select([
           "match_ball.rv_result_id",
           "match_ball.innings_number",
+          "match_ball.ball_time_utc",
           "match_ball.over_no",
           "match_ball.ball_no",
           "match_ball.ball_no_disp",
@@ -563,11 +564,13 @@ export function getWagonWheel(db: Kysely<DB>) {
     // Group by rv_result_id. RV serves both teams' batting innings as
     // innings_number=1 in their respective team feeds, so innings_number
     // alone collapses both innings into one. rv_result_id is the canonical
-    // per-innings discriminator. ball_time_utc is nullable and frequently
-    // null for non-live-scored matches, so we order by (rv_result_id,
-    // over_no, ball_no) for deterministic ordering without the risk of
-    // null timestamps shuffling balls around.
-    const byResult = new Map<string, WagonWheelBall[]>();
+    // per-innings discriminator. Within an innings we keep balls in
+    // (rv_result_id, over_no, ball_no) order from the query above, since
+    // ball_time_utc can be null mid-innings and would shuffle balls around.
+    const byResult = new Map<
+      string,
+      { balls: WagonWheelBall[]; firstBallTime: number | null }
+    >();
     for (const r of rows) {
       const ball: WagonWheelBall = {
         over: r.over_no,
@@ -586,14 +589,43 @@ export function getWagonWheel(db: Kysely<DB>) {
         shotAngle: r.shot_angle,
         shotLength: r.shot_length,
       };
-      const list = byResult.get(r.rv_result_id);
-      if (list) list.push(ball);
-      else byResult.set(r.rv_result_id, [ball]);
+      let group = byResult.get(r.rv_result_id);
+      if (!group) {
+        group = { balls: [], firstBallTime: null };
+        byResult.set(r.rv_result_id, group);
+      }
+      group.balls.push(ball);
+      if (r.ball_time_utc !== null) {
+        const t = new Date(r.ball_time_utc).getTime();
+        if (group.firstBallTime === null || t < group.firstBallTime) {
+          group.firstBallTime = t;
+        }
+      }
     }
 
-    const innings: WagonWheelInnings[] = Array.from(byResult.entries()).map(
-      ([, balls], idx) => ({ inningsNumber: idx + 1, balls }),
-    );
+    // Order innings by actual batting chronology, not rv_result_id.
+    // RapidViz assigns result ids arbitrarily, so the team batting second can
+    // have the lower id — sorting by rv_result_id then mislabels the innings
+    // tabs because the consumer aligns them positionally with the Play Cricket
+    // batting-order team names. ball_time_utc is reliably populated for
+    // live-scored matches (the only ones with wagon-wheel shot data), so order
+    // by earliest ball time. Only trust timestamps when EVERY innings has one:
+    // a mix (one timed, one not) gives no reliable cross-innings order, so we
+    // fall back to deterministic rv_result_id ordering for the whole set rather
+    // than arbitrarily floating the timed innings to the front.
+    const groups = Array.from(byResult.entries());
+    const allTimed = groups.every(([, g]) => g.firstBallTime !== null);
+    const innings: WagonWheelInnings[] = groups
+      .sort(([idA, a], [idB, b]) => {
+        if (allTimed && a.firstBallTime !== null && b.firstBallTime !== null) {
+          return a.firstBallTime - b.firstBallTime;
+        }
+        return idA < idB ? -1 : idA > idB ? 1 : 0;
+      })
+      .map(([, group], idx) => ({
+        inningsNumber: idx + 1,
+        balls: group.balls,
+      }));
 
     return { matchId, dismissalPenalty, innings };
   };
