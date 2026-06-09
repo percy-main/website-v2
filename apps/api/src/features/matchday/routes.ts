@@ -24,6 +24,7 @@ import {
   markPaidSchema,
   matchIdParamSchema,
   matchdayPlayerIdParamSchema,
+  myRecentMilestonesResponseSchema,
   myRecentPerformanceResponseSchema,
   myUpcomingMatchesResponseSchema,
   notifyChargesResponseSchema,
@@ -54,6 +55,7 @@ import {
   getAllPastUnfinishedMatchdays,
   getMatch,
   getMatchPublic,
+  getMyRecentMilestones,
   getMyRecentPerformance,
   getMyUpcomingMatches,
   getPastUnfinishedMatchdays,
@@ -106,6 +108,7 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const remove = deleteExpense(app.db);
   const myUpcoming = getMyUpcomingMatches(app.db);
   const myPerformance = getMyRecentPerformance(app.db);
+  const myMilestones = getMyRecentMilestones(app.db);
   const withdraw = withdrawFromMatch(
     app.db,
     app.send,
@@ -141,6 +144,20 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { user } = getAuthSession(request);
       return await myPerformance(user.email);
+    },
+  );
+
+  app.get(
+    "/matchday/mine/recent-milestones",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        response: { 200: myRecentMilestonesResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      return await myMilestones(user.email);
     },
   );
 

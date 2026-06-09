@@ -1,3 +1,4 @@
+import { format, subDays } from "date-fns";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SendPush } from "../../lib/push-sender.ts";
@@ -16,6 +17,7 @@ import {
   deleteExpense,
   finishMatch,
   getMatch,
+  getMyRecentMilestones,
   getMyUpcomingMatches,
   getPastUnfinishedMatchdays,
   listMatches,
@@ -2277,6 +2279,253 @@ describe("matchday service (integration)", () => {
 
       expect(recipients).toContain(mdAdmin.email.toLowerCase());
       expect(recipients).not.toContain(genAdmin.email.toLowerCase());
+    });
+  });
+
+  describe("getMyRecentMilestones", () => {
+    function daysAgoIso(days: number) {
+      return format(subDays(new Date(), days), "yyyy-MM-dd");
+    }
+
+    /** Seed a member linked to a Play-Cricket player id; returns the email. */
+    async function seedLinkedMember(playCricketId: string) {
+      const email = `ms-${crypto.randomUUID()}@test.com`;
+      const memberId = await seedMember("Milestone Player", email);
+      await ctx.db
+        .updateTable("member")
+        .set({ play_cricket_id: playCricketId })
+        .where("id", "=", memberId)
+        .execute();
+      return email;
+    }
+
+    async function seedBatting(values: {
+      playerId: string;
+      matchId: string;
+      matchDate: string;
+      runs: number;
+      notOut?: boolean;
+      teamId?: string;
+    }) {
+      await ctx.db
+        .insertInto("match_performance_batting")
+        .values({
+          id: crypto.randomUUID(),
+          match_id: values.matchId,
+          match_date: values.matchDate,
+          player_id: values.playerId,
+          player_name: "Milestone Player",
+          season: new Date().getFullYear(),
+          team_id: values.teamId ?? "pm-team",
+          runs: values.runs,
+          not_out: values.notOut ?? false,
+        })
+        .execute();
+    }
+
+    async function seedBowling(values: {
+      playerId: string;
+      matchId: string;
+      matchDate: string;
+      wickets: number;
+      runsConceded: number;
+      teamId?: string;
+    }) {
+      await ctx.db
+        .insertInto("match_performance_bowling")
+        .values({
+          id: crypto.randomUUID(),
+          match_id: values.matchId,
+          match_date: values.matchDate,
+          player_id: values.playerId,
+          player_name: "Milestone Player",
+          season: new Date().getFullYear(),
+          team_id: values.teamId ?? "pm-team",
+          wickets: values.wickets,
+          runs: values.runsConceded,
+        })
+        .execute();
+    }
+
+    async function seedResult(values: {
+      matchId: string;
+      matchDate: string;
+      homeTeamId: string;
+      homeTeamName: string;
+      homeClubName?: string;
+      awayTeamId: string;
+      awayTeamName: string;
+      awayClubName?: string;
+    }) {
+      await ctx.db
+        .insertInto("match_result")
+        .values({
+          id: crypto.randomUUID(),
+          match_id: values.matchId,
+          match_date: values.matchDate,
+          season: new Date().getFullYear(),
+          home_team_id: values.homeTeamId,
+          home_team_name: values.homeTeamName,
+          home_club_name: values.homeClubName ?? null,
+          away_team_id: values.awayTeamId,
+          away_team_name: values.awayTeamName,
+          away_club_name: values.awayClubName ?? null,
+        })
+        .execute();
+    }
+
+    it("returns empty for members without a linked play_cricket_id", async () => {
+      const email = `ms-nolink-${crypto.randomUUID()}@test.com`;
+      await seedMember("Unlinked Player", email);
+
+      const result = await getMyRecentMilestones(ctx.db)(email);
+
+      expect(result).toEqual({ windowDays: 7, milestones: [] });
+    });
+
+    it("returns a fifty with opposition derived from a home result", async () => {
+      const playerId = `pc-${crypto.randomUUID()}`;
+      const email = await seedLinkedMember(playerId);
+      const matchId = `m-${crypto.randomUUID()}`;
+      const matchDate = daysAgoIso(2);
+
+      await seedBatting({
+        playerId,
+        matchId,
+        matchDate,
+        runs: 57,
+        notOut: true,
+        teamId: "pm-1",
+      });
+      await seedResult({
+        matchId,
+        matchDate,
+        homeTeamId: "pm-1",
+        homeTeamName: "1st XI",
+        homeClubName: "Percy Main CC",
+        awayTeamId: "opp-1",
+        awayTeamName: "2nd XI",
+        awayClubName: "Tynemouth CC",
+      });
+
+      const { milestones } = await getMyRecentMilestones(ctx.db)(email);
+
+      expect(milestones).toEqual([
+        {
+          type: "batting",
+          matchId,
+          matchDate,
+          opposition: "Tynemouth CC 2nd XI",
+          runs: 57,
+          notOut: true,
+        },
+      ]);
+    });
+
+    it("returns a five-for with opposition from an away result", async () => {
+      const playerId = `pc-${crypto.randomUUID()}`;
+      const email = await seedLinkedMember(playerId);
+      const matchId = `m-${crypto.randomUUID()}`;
+      const matchDate = daysAgoIso(4);
+
+      await seedBowling({
+        playerId,
+        matchId,
+        matchDate,
+        wickets: 5,
+        runsConceded: 23,
+        teamId: "pm-1",
+      });
+      // Club and team name identical — opposition collapses to the club.
+      await seedResult({
+        matchId,
+        matchDate,
+        homeTeamId: "opp-2",
+        homeTeamName: "Benwell Hill CC",
+        homeClubName: "Benwell Hill CC",
+        awayTeamId: "pm-1",
+        awayTeamName: "1st XI",
+        awayClubName: "Percy Main CC",
+      });
+
+      const { milestones } = await getMyRecentMilestones(ctx.db)(email);
+
+      expect(milestones).toEqual([
+        {
+          type: "bowling",
+          matchId,
+          matchDate,
+          opposition: "Benwell Hill CC",
+          wickets: 5,
+          runsConceded: 23,
+        },
+      ]);
+    });
+
+    it("excludes sub-threshold and out-of-window performances", async () => {
+      const playerId = `pc-${crypto.randomUUID()}`;
+      const email = await seedLinkedMember(playerId);
+
+      await seedBatting({
+        playerId,
+        matchId: `m-${crypto.randomUUID()}`,
+        matchDate: daysAgoIso(0),
+        runs: 49,
+      });
+      await seedBatting({
+        playerId,
+        matchId: `m-${crypto.randomUUID()}`,
+        matchDate: daysAgoIso(10),
+        runs: 80,
+      });
+      await seedBowling({
+        playerId,
+        matchId: `m-${crypto.randomUUID()}`,
+        matchDate: daysAgoIso(0),
+        wickets: 4,
+        runsConceded: 12,
+      });
+
+      const { milestones } = await getMyRecentMilestones(ctx.db)(email);
+
+      expect(milestones).toEqual([]);
+    });
+
+    it("sorts newest first; opposition is null without a result row", async () => {
+      const playerId = `pc-${crypto.randomUUID()}`;
+      const email = await seedLinkedMember(playerId);
+      const centuryMatchId = `m-${crypto.randomUUID()}`;
+      const fiveForMatchId = `m-${crypto.randomUUID()}`;
+
+      await seedBatting({
+        playerId,
+        matchId: centuryMatchId,
+        matchDate: daysAgoIso(6),
+        runs: 102,
+      });
+      await seedBowling({
+        playerId,
+        matchId: fiveForMatchId,
+        matchDate: daysAgoIso(1),
+        wickets: 6,
+        runsConceded: 40,
+      });
+
+      const { milestones } = await getMyRecentMilestones(ctx.db)(email);
+
+      expect(milestones).toHaveLength(2);
+      expect(milestones[0]).toMatchObject({
+        type: "bowling",
+        matchId: fiveForMatchId,
+        opposition: null,
+      });
+      expect(milestones[1]).toMatchObject({
+        type: "batting",
+        matchId: centuryMatchId,
+        runs: 102,
+        notOut: false,
+        opposition: null,
+      });
     });
   });
 });

@@ -4131,6 +4131,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/matchday/mine/recent-milestones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            windowDays: number;
+                            milestones: ({
+                                /** @enum {string} */
+                                type: "batting";
+                                matchId: string;
+                                matchDate: string;
+                                opposition: string | null;
+                                runs: number;
+                                notOut: boolean;
+                            } | {
+                                /** @enum {string} */
+                                type: "bowling";
+                                matchId: string;
+                                matchDate: string;
+                                opposition: string | null;
+                                wickets: number;
+                                runsConceded: number;
+                            })[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/matchday/mine/{matchdayPlayerId}/withdraw": {
         parameters: {
             query?: never;

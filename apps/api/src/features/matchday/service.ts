@@ -553,6 +553,130 @@ export function getMyRecentPerformance(db: Kysely<DB>) {
   };
 }
 
+export const BATTING_MILESTONE_RUNS = 50;
+export const BOWLING_MILESTONE_WICKETS = 5;
+
+/**
+ * Single-game milestone performances (50+ runs batting, 5+ wickets
+ * bowling) for the signed-in user in the trailing `windowDays` window
+ * (default 7). Powers the home-screen celebration card.
+ *
+ * Same email → member.play_cricket_id resolution as
+ * getMyRecentPerformance: members without a linked Play-Cricket ID get
+ * an empty list. A genuine all-round day (fifty AND a five-for in one
+ * match) produces two milestones, deliberately — both deserve a shout.
+ */
+export function getMyRecentMilestones(db: Kysely<DB>) {
+  return async (email: string, windowDays = 7) => {
+    const member = await db
+      .selectFrom("member")
+      .where("email", "=", email)
+      .select(["play_cricket_id"])
+      .executeTakeFirst();
+    if (!member?.play_cricket_id) return { windowDays, milestones: [] };
+
+    const sinceIso = formatDate(subDays(new Date(), windowDays), "yyyy-MM-dd");
+    const playerId = member.play_cricket_id;
+
+    const batting = await db
+      .selectFrom("match_performance_batting")
+      .leftJoin(
+        "match_result",
+        "match_result.match_id",
+        "match_performance_batting.match_id",
+      )
+      .where("match_performance_batting.player_id", "=", playerId)
+      .where("match_performance_batting.match_date", ">=", sinceIso)
+      .where("match_performance_batting.runs", ">=", BATTING_MILESTONE_RUNS)
+      .select([
+        "match_performance_batting.match_id as matchId",
+        "match_performance_batting.match_date as matchDate",
+        "match_performance_batting.team_id as teamId",
+        "match_performance_batting.runs",
+        "match_performance_batting.not_out as notOut",
+        "match_result.home_team_id as homeTeamId",
+        "match_result.home_team_name as homeTeamName",
+        "match_result.home_club_name as homeClubName",
+        "match_result.away_team_name as awayTeamName",
+        "match_result.away_club_name as awayClubName",
+      ])
+      .execute();
+
+    const bowling = await db
+      .selectFrom("match_performance_bowling")
+      .leftJoin(
+        "match_result",
+        "match_result.match_id",
+        "match_performance_bowling.match_id",
+      )
+      .where("match_performance_bowling.player_id", "=", playerId)
+      .where("match_performance_bowling.match_date", ">=", sinceIso)
+      .where(
+        "match_performance_bowling.wickets",
+        ">=",
+        BOWLING_MILESTONE_WICKETS,
+      )
+      .select([
+        "match_performance_bowling.match_id as matchId",
+        "match_performance_bowling.match_date as matchDate",
+        "match_performance_bowling.team_id as teamId",
+        "match_performance_bowling.wickets",
+        "match_performance_bowling.runs as runsConceded",
+        "match_result.home_team_id as homeTeamId",
+        "match_result.home_team_name as homeTeamName",
+        "match_result.home_club_name as homeClubName",
+        "match_result.away_team_name as awayTeamName",
+        "match_result.away_club_name as awayClubName",
+      ])
+      .execute();
+
+    const milestones = [
+      ...batting.map((row) => ({
+        type: "batting" as const,
+        matchId: row.matchId,
+        matchDate: row.matchDate,
+        opposition: oppositionFromResult(row),
+        runs: row.runs,
+        notOut: row.notOut,
+      })),
+      ...bowling.map((row) => ({
+        type: "bowling" as const,
+        matchId: row.matchId,
+        matchDate: row.matchDate,
+        opposition: oppositionFromResult(row),
+        wickets: row.wickets,
+        runsConceded: row.runsConceded,
+      })),
+    ].sort((a, b) => b.matchDate.localeCompare(a.matchDate));
+
+    return { windowDays, milestones };
+  };
+}
+
+/**
+ * Opponent display name ("Club 2nd XI") from a joined match_result row,
+ * mirroring oppositionName() in the matchday app. The perf row's
+ * team_id is always the Percy Main side, so the opponent is whichever
+ * of home/away it isn't. Null when the result row hasn't synced yet
+ * (left join missed).
+ */
+function oppositionFromResult(row: {
+  teamId: string;
+  homeTeamId: string | null;
+  homeTeamName: string | null;
+  homeClubName: string | null;
+  awayTeamName: string | null;
+  awayClubName: string | null;
+}): string | null {
+  if (row.homeTeamId === null) return null;
+  const home = row.homeTeamId === row.teamId;
+  const club = home ? row.awayClubName : row.homeClubName;
+  const team = home ? row.awayTeamName : row.homeTeamName;
+  if (!club) return team;
+  if (!team || team === club) return club;
+  return `${club} ${team}`;
+}
+
 export function recordExpense(db: Kysely<DB>, s3: S3Uploader) {
   return async (
     userId: string,

@@ -35,6 +35,7 @@ import {
   CircleAlertIcon,
   CircleCheckIcon,
   HistoryIcon,
+  PartyPopperIcon,
   TrophyIcon,
   UsersIcon,
   WalletIcon,
@@ -79,6 +80,7 @@ export default function Home() {
         </span>
       </div>
       <div className="space-y-3">
+        <CelebrationCard />
         <NeedsAttentionCard />
         <AvailabilityAwaitingCard />
         <YourUpcomingGamesCard />
@@ -89,6 +91,81 @@ export default function Home() {
         <InstallPrompt />
       </div>
     </div>
+  );
+}
+
+type Milestone =
+  ApiResponse<"/api/matchday/mine/recent-milestones">["milestones"][number];
+
+/**
+ * Congratulations card for milestone performances (50+ runs or 5+
+ * wickets in a single game) in the last 7 days. Sits at the very top
+ * of the feed — a player who's just had a big day should see it before
+ * any admin chores. Quiet by default: no skeleton or error state, since
+ * most weeks there's nothing to celebrate and the feed shouldn't flash
+ * a placeholder for an absent card.
+ */
+function CelebrationCard() {
+  const { data } = useQuery({
+    queryKey: ["matchday", "mine", "recent-milestones"],
+    queryFn: () => callApi(api.GET("/api/matchday/mine/recent-milestones")),
+  });
+  const milestones = data?.milestones ?? [];
+  if (milestones.length === 0) return null;
+  const first = milestones[0];
+  const title =
+    milestones.length > 1
+      ? "What a week you're having!"
+      : first.type === "bowling"
+        ? "You took a five-for!"
+        : first.runs >= 100
+          ? "You scored a century!"
+          : "You hit a fifty!";
+  return (
+    <Card className="border-warning/40 from-warning-bg/70 to-surface dark:to-surface-raised bg-gradient-to-br">
+      <CardHeader>
+        <CardEyebrow icon={PartyPopperIcon}>Congratulations</CardEyebrow>
+        <CardTitle>{title} 🎉</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-0">
+        {milestones.map((m) => (
+          <MilestoneRow key={`${m.type}-${m.matchId}`} milestone={m} />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MilestoneRow({ milestone: m }: { milestone: Milestone }) {
+  // Cricket scorebook shorthand: 57* (not out) for batting,
+  // wickets-runs (5-23) for bowling.
+  const stat =
+    m.type === "batting"
+      ? `${m.runs}${m.notOut ? "*" : ""}`
+      : `${m.wickets}-${m.runsConceded}`;
+  const label =
+    m.type === "batting"
+      ? m.runs >= 100
+        ? "Century"
+        : "Fifty"
+      : `${m.wickets} wickets`;
+  return (
+    <Link
+      to={`/fixture/${m.matchId}`}
+      className="border-border-light flex items-center gap-3 border-t py-2.5 first:border-t-0"
+    >
+      <div className="bg-surface text-navy grid h-11 min-w-11 place-items-center rounded-md px-1.5 text-lg font-bold tracking-[-0.02em] dark:bg-white/10 dark:text-white">
+        {stat}
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-sm leading-tight font-medium">
+          {m.opposition ? `${label} vs ${m.opposition}` : label}
+        </div>
+        <div className="text-text-secondary mt-0.5 text-xs">
+          {fmtDate(m.matchDate, "EEEE d MMM")}
+        </div>
+      </div>
+    </Link>
   );
 }
 
