@@ -438,6 +438,33 @@ export const myRecentPerformanceResponseSchema = z.object({
   catches: z.number().int().nonnegative(),
 });
 
+// Celebration-worthy single-game performances. `opposition` is derived
+// from the synced match_result row and is null until that row lands.
+const battingMilestoneSchema = z.object({
+  type: z.literal("batting"),
+  matchId: z.string(),
+  matchDate: z.string(),
+  opposition: z.string().nullable(),
+  runs: z.number().int().nonnegative(),
+  notOut: z.boolean(),
+});
+
+const bowlingMilestoneSchema = z.object({
+  type: z.literal("bowling"),
+  matchId: z.string(),
+  matchDate: z.string(),
+  opposition: z.string().nullable(),
+  wickets: z.number().int().nonnegative(),
+  runsConceded: z.number().int().nonnegative(),
+});
+
+export const myRecentMilestonesResponseSchema = z.object({
+  windowDays: z.number().int().positive(),
+  milestones: z.array(
+    z.union([battingMilestoneSchema, bowlingMilestoneSchema]),
+  ),
+});
+
 // ── Types ──
 
 export type ListMatches = z.infer<typeof listMatchesSchema>;
