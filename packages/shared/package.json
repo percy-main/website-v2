@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./marketing": "./src/marketing/index.ts",
-    "./auth/permissions": "./src/auth/permissions.ts"
+    "./auth/permissions": "./src/auth/permissions.ts",
+    "./content": "./src/content/index.ts"
   },
   "scripts": {
     "build": "tsc",
