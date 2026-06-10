@@ -34,7 +34,9 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("title", "text", (col) => col.notNull())
     .addColumn("description", "text")
     .addColumn("body", "jsonb", (col) => col.notNull())
-    .addColumn("metadata", "jsonb", (col) => col.notNull().defaultTo("{}"))
+    .addColumn("metadata", "jsonb", (col) =>
+      col.notNull().defaultTo(sql`'{}'::jsonb`),
+    )
     .addColumn("status", "text", (col) => col.notNull().defaultTo("draft"))
     .addColumn("published_at", "timestamptz")
     .addColumn("created_by", "text", (col) =>
@@ -57,6 +59,13 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       "content_item_status_check",
       sql`status IN ('draft','published','archived')`,
     )
+    // The publish action always stamps published_at (possibly future =
+    // scheduled); a published row with NULL published_at would never satisfy
+    // the public predicate, so forbid the state outright.
+    .addCheckConstraint(
+      "content_item_published_at_check",
+      sql`status <> 'published' OR published_at IS NOT NULL`,
+    )
     .execute();
 
   // Public listing queries filter on kind + status and order/filter by
@@ -68,13 +77,22 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute();
 
   // Slug uniqueness is per-kind for flat kinds (everything without a parent).
-  // Hierarchical pages get uniqueness from the materialised path instead.
   await db.schema
     .createIndex("content_item_kind_slug_key")
     .on("content_item")
     .columns(["kind", "slug"])
     .unique()
     .where("parent_id", "is", null)
+    .execute();
+
+  // Children must be unique among their siblings (the materialised path
+  // can't enforce this alone: it is NULL until first publish).
+  await db.schema
+    .createIndex("content_item_parent_slug_key")
+    .on("content_item")
+    .columns(["parent_id", "slug"])
+    .unique()
+    .where("parent_id", "is not", null)
     .execute();
 
   await db.schema
@@ -88,10 +106,13 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("id", "uuid", (col) =>
       col.primaryKey().defaultTo(sql`gen_random_uuid()`),
     )
+    // No ON DELETE CASCADE: revisions are the recovery mechanism, so a
+    // content_item with history cannot be hard-deleted (archive it instead).
     .addColumn("content_id", "uuid", (col) =>
-      col.notNull().references("content_item.id").onDelete("cascade"),
+      col.notNull().references("content_item.id"),
     )
     .addColumn("title", "text", (col) => col.notNull())
+    .addColumn("description", "text")
     .addColumn("body", "jsonb", (col) => col.notNull())
     .addColumn("metadata", "jsonb", (col) => col.notNull())
     .addColumn("saved_by", "text", (col) => col.notNull().references("user.id"))

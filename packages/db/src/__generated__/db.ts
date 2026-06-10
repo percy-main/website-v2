@@ -193,6 +193,7 @@ export interface ContentItem {
 export interface ContentRevision {
   body: Json;
   content_id: string;
+  description: string | null;
   id: Generated<string>;
   metadata: Json;
   saved_at: Generated<Timestamp>;
