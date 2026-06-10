@@ -50,10 +50,9 @@ describe("processImage", () => {
     const original = await makeJpeg(2400, 1600);
     const result = await processImage(original, "img-1", "uploads/content");
 
-    const avifWidths = result.variants
-      .filter((v) => v.format === "avif")
-      .map((v) => v.width);
-    expect(avifWidths).toEqual([320, 640, 960, 1280, 1920]);
+    // WebP-only ladder: AVIF is deliberately absent (too slow to encode
+    // synchronously on the 0.25 vCPU API task - ADR 048).
+    expect(result.variants.some((v) => v.format === "avif")).toBe(false);
     const webpWidths = result.variants
       .filter((v) => v.format === "webp")
       .map((v) => v.width);
@@ -65,8 +64,9 @@ describe("processImage", () => {
     expect(fallback?.key).toBe("uploads/content/img-1/1920.jpg");
 
     expect(result.picture.img.src).toBe("/uploads/content/img-1/1920.jpg");
-    expect(result.picture.sources.avif).toContain(
-      "/uploads/content/img-1/320.avif 320w",
+    expect(result.picture.sources.avif).toBeUndefined();
+    expect(result.picture.sources.webp).toContain(
+      "/uploads/content/img-1/320.webp 320w",
     );
     expect(result.width).toBe(2400);
     expect(result.height).toBe(1600);
@@ -79,7 +79,7 @@ describe("processImage", () => {
     const widths = result.variants.map((v) => v.width);
     expect(Math.max(...widths)).toBeLessThanOrEqual(500);
     expect(
-      result.variants.filter((v) => v.format === "avif").map((v) => v.width),
+      result.variants.filter((v) => v.format === "webp").map((v) => v.width),
     ).toEqual([320]);
   });
 
@@ -116,8 +116,21 @@ describe("createUploadUrl", () => {
 });
 
 describe("confirmUpload", () => {
-  const db = {} as Kysely<DB>;
   const imageId = "5a0f9c4e-3b6f-4af3-9f30-3d6a52e3b111";
+
+  /** Mock DB whose content_image lookup resolves to `existingRow`. */
+  function makeDb(existingRow?: Record<string, unknown>) {
+    const executeTakeFirst = vi.fn().mockResolvedValue(existingRow);
+    const builder = {
+      selectFrom: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      executeTakeFirst,
+    };
+    return builder as unknown as Kysely<DB>;
+  }
+
+  const db = makeDb();
 
   it("rejects a pendingKey that does not match the imageId", async () => {
     const store = makeStore();
@@ -187,5 +200,43 @@ describe("confirmUpload", () => {
       }),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(deletePending).toHaveBeenCalled();
+  });
+
+  it("returns the registered image when the row already exists", async () => {
+    // The retry-after-504 case: the first confirm finished (row written,
+    // pending object deleted) but the client never saw the response.
+    const picture = {
+      sources: { webp: `/uploads/content/${imageId}/320.webp 320w` },
+      img: { src: `/uploads/content/${imageId}/320.webp`, w: 320, h: 200 },
+    };
+    const headPending = vi.fn().mockResolvedValue(null);
+    const store = makeStore({ headPending });
+
+    const result = await confirmUpload(
+      makeDb({
+        id: imageId,
+        picture,
+        alt: "Crowd shot",
+        width: 320,
+        height: 200,
+      }),
+      store,
+      config,
+    )({
+      imageId,
+      pendingKey: `content-images/pending/${imageId}.jpg`,
+      alt: "Crowd shot",
+      userId: "user-1",
+    });
+
+    expect(result).toEqual({
+      id: imageId,
+      picture,
+      alt: "Crowd shot",
+      width: 320,
+      height: 200,
+    });
+    // Short-circuited before ever touching S3
+    expect(headPending).not.toHaveBeenCalled();
   });
 });

@@ -816,6 +816,11 @@ resource "aws_lb" "main" {
   security_groups    = [var.alb_security_group_id]
   subnets            = var.public_subnet_ids
 
+  # Headroom over the 60s default for the content-image confirm endpoint,
+  # which decodes and re-encodes a worst-case 10MB original synchronously
+  # on a 0.25 vCPU task (ADR 048).
+  idle_timeout = 120
+
   access_logs {
     bucket  = aws_s3_bucket.alb_logs.id
     prefix  = "alb"
