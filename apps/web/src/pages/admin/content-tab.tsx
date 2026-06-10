@@ -26,6 +26,7 @@ import {
 } from "@percy-main/shared/content";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
+import { IoOpenOutline } from "react-icons/io5";
 import { useSearchParams } from "react-router";
 
 // The editor pulls in BlockNote (the single heaviest dependency in the
@@ -42,6 +43,32 @@ const PAGE_SIZE = 20;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Public URL a published item is live at. Per-kind: game reports render
+ * inside their game page. Later kinds add their mappings here.
+ */
+function liveUrl(
+  kind: ContentKind,
+  item: { metadata: Record<string, unknown>; slug: string },
+): string | null {
+  if (kind === "game_report") {
+    const playCricketId = item.metadata.playCricketId;
+    return typeof playCricketId === "string" && playCricketId !== ""
+      ? `/calendar/game/${playCricketId}`
+      : null;
+  }
+  return null;
+}
+
+/** Live now = published and past its (possibly scheduled) publish time. */
+function isLive(item: { status: string; publishedAt: string | null }): boolean {
+  return (
+    item.status === "published" &&
+    item.publishedAt !== null &&
+    Date.parse(item.publishedAt) <= Date.now()
+  );
+}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
@@ -192,6 +219,9 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
               <TableHead>Title</TableHead>
               <TableHead className="w-28">Status</TableHead>
               <TableHead className="w-56">Last updated</TableHead>
+              <TableHead className="w-16">
+                <span className="sr-only">Live page</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -212,6 +242,23 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
                 <TableCell className="text-sm text-stone-600">
                   {formatDateTime(item.updatedAt)}
                   {item.updatedByName ? ` · ${item.updatedByName}` : ""}
+                </TableCell>
+                <TableCell>
+                  {isLive(item) && liveUrl(kind, item) && (
+                    <a
+                      href={liveUrl(kind, item) ?? ""}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Open live page for ${item.title}`}
+                      title="Open live page"
+                      className="inline-flex text-stone-500 hover:text-stone-900"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
+                      <IoOpenOutline className="size-4" />
+                    </a>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
