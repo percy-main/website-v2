@@ -11,12 +11,15 @@ Both apps demo the same scenario so they can be compared side by side:
   read-only person card (stand-in for the real `<Person />` MDX component)
 - Image insert via file picker / drag-drop with a local object-URL placeholder
   (stand-in for the future S3 upload pipeline)
-- Markdown round-trip: live serialised markdown panel, import from markdown,
-  and a one-click round-trip fidelity check
 
-The BlockNote app additionally demos the chosen architecture (ADR 047):
-editor JSON as the canonical format with markdown derived one-way - see the
-"JSON (canonical)" / "Markdown (derived)" tabs.
+The TipTap app demos the markdown-canonical architecture that was evaluated
+and rejected: a live serialised markdown panel, import from markdown, and a
+one-click round-trip fidelity check.
+
+The BlockNote app demos the chosen architecture (ADR 047): editor JSON as
+the canonical format, shown in a live panel. Markdown appears only as the
+one-time inbound migration path (the sample report loads from markdown with
+`::person` directives mapped to person blocks); nothing serialises back out.
 
 ## Run them
 

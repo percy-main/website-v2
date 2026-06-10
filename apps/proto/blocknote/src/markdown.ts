@@ -1,41 +1,10 @@
-import type { Block, Editor, PartialBlock } from "./schema";
+import type { Editor, PartialBlock } from "./schema";
 
 const DIRECTIVE_RE = /^::person\{slug="([^"]+)"\}$/;
 
-// BlockNote's markdown exporter has no hook for custom blocks (custom blocks
-// fall back to their HTML rendering, not a markdown form), so the directive
-// mapping lives out here: person blocks are swapped for their shortcode text
-// and the surrounding runs of standard blocks go through blocksToMarkdownLossy.
-// Runs are kept together so ordered-list numbering survives.
-export async function toMarkdown(
-  editor: Editor,
-  blocks: Block[],
-): Promise<string> {
-  const chunks: (Block[] | string)[] = [];
-  for (const block of blocks) {
-    if (block.type === "person") {
-      chunks.push(`::person{slug="${block.props.slug}"}`);
-    } else {
-      const last = chunks[chunks.length - 1];
-      if (Array.isArray(last)) {
-        last.push(block);
-      } else {
-        chunks.push([block]);
-      }
-    }
-  }
-  const parts = await Promise.all(
-    chunks.map(async (chunk) =>
-      typeof chunk === "string"
-        ? chunk
-        : (await editor.blocksToMarkdownLossy(chunk)).trim(),
-    ),
-  );
-  return parts.join("\n\n") + "\n";
-}
-
-// Inverse mapping: markdown parses with the directive line as a plain text
-// paragraph, which is then swapped for a person block.
+// One-time inbound migration only (ADR 047): the legacy MDX corpus arrives
+// as markdown once, with directive lines mapped to person blocks. Editor
+// JSON is canonical from then on - nothing derives markdown back out.
 export async function markdownToBlocks(
   editor: Editor,
   markdown: string,
