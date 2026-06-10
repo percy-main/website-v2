@@ -40,6 +40,7 @@ import { authRoutes } from "./features/auth/routes.ts";
 import { availabilityRoutes } from "./features/availability/routes.ts";
 import { chargeRoutes } from "./features/charges/routes.ts";
 import { contactRoutes } from "./features/contact/routes.ts";
+import { contentRoutes } from "./features/content/routes.ts";
 import { cricketLeaderboardRoutes } from "./features/cricket-leaderboard/routes.ts";
 import { documentRoutes } from "./features/documents/routes.ts";
 import { fantasyRoutes } from "./features/fantasy/routes.ts";
@@ -324,6 +325,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(pushSubscriptionRoutes, { prefix: "/api" });
   await app.register(webhookRoutes, { prefix: "/api" });
   await app.register(ogImageRoutes, { prefix: "/api" });
+  await app.register(contentRoutes, { prefix: "/api" });
 
   // Marketing forwarder: periodic drain of marketing_outbox -> Google Ads.
   // No-op when GOOGLE_ADS_* env vars are absent.

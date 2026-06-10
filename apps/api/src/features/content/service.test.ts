@@ -1,0 +1,233 @@
+import type { DB } from "@percy-main/db";
+import type { Kysely } from "kysely";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockExecuteTakeFirst, mockExecuteTakeFirstOrThrow, mockQueryBuilder } =
+  vi.hoisted(() => {
+    const mockExecuteTakeFirst = vi.fn();
+    const mockExecuteTakeFirstOrThrow = vi.fn();
+    const mockExecute = vi.fn();
+
+    const mockQueryBuilder: Record<string, unknown> = {
+      selectFrom: vi.fn().mockReturnThis(),
+      updateTable: vi.fn().mockReturnThis(),
+      insertInto: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      values: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      offset: vi.fn().mockReturnThis(),
+      executeTakeFirst: mockExecuteTakeFirst,
+      executeTakeFirstOrThrow: mockExecuteTakeFirstOrThrow,
+      execute: mockExecute,
+    };
+
+    return {
+      mockExecuteTakeFirst,
+      mockExecuteTakeFirstOrThrow,
+      mockExecute,
+      mockQueryBuilder,
+    };
+  });
+
+import {
+  createContent,
+  getPublishedGameReport,
+  publishContent,
+  updateContent,
+} from "./service.ts";
+
+const db = mockQueryBuilder as unknown as Kysely<DB>;
+
+const validBody = [
+  {
+    id: "block-1",
+    type: "paragraph",
+    props: {},
+    content: [{ type: "text", text: "A fine win.", styles: {} }],
+    children: [],
+  },
+];
+
+function validCreate(overrides: Record<string, unknown> = {}) {
+  return {
+    kind: "game_report" as const,
+    slug: "firsts-vs-tynemouth",
+    title: "Firsts vs Tynemouth",
+    description: null,
+    body: validBody,
+    metadata: { playCricketId: "6819685" },
+    userId: "user-1",
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  for (const key of Object.keys(mockQueryBuilder)) {
+    const val = mockQueryBuilder[key];
+    if (typeof val === "function" && "mockReturnValue" in (val as object)) {
+      (val as ReturnType<typeof vi.fn>).mockReturnValue(mockQueryBuilder);
+    }
+  }
+  // Transactions run the callback against the same mock builder.
+  (mockQueryBuilder as { transaction?: unknown }).transaction = vi
+    .fn()
+    .mockReturnValue({
+      execute: (cb: (tx: unknown) => unknown) => cb(mockQueryBuilder),
+    });
+  mockExecuteTakeFirst.mockResolvedValue(undefined);
+  mockExecuteTakeFirstOrThrow.mockResolvedValue({ id: "content-1" });
+});
+
+describe("createContent", () => {
+  it("rejects kinds that are not editable yet", async () => {
+    await expect(
+      createContent(db)(validCreate({ kind: "person", metadata: {} })),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("rejects metadata that fails the kind schema", async () => {
+    await expect(
+      createContent(db)(validCreate({ metadata: {} })),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      createContent(db)(validCreate({ metadata: {} })),
+    ).rejects.toThrow(/playCricketId/);
+  });
+
+  it("rejects a structurally invalid body", async () => {
+    await expect(
+      createContent(db)(validCreate({ body: [{ type: "paragraph" }] })),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("rejects a duplicate slug for the kind", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({ id: "existing" });
+    await expect(createContent(db)(validCreate())).rejects.toMatchObject({
+      statusCode: 409,
+    });
+  });
+
+  it("creates the item and returns its id", async () => {
+    const result = await createContent(db)(validCreate());
+    expect(result).toEqual({ id: "content-1" });
+  });
+});
+
+describe("updateContent", () => {
+  const currentRow = {
+    id: "content-1",
+    kind: "game_report",
+    slug: "firsts-vs-tynemouth",
+    title: "Firsts vs Tynemouth",
+    description: null,
+    body: validBody,
+    metadata: { playCricketId: "6819685" },
+    published_at: null,
+  };
+
+  it("404s when the item does not exist", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+    await expect(
+      updateContent(db)({
+        contentId: "missing",
+        userId: "user-1",
+        title: "New",
+      }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("locks the slug once the item has ever been published", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      ...currentRow,
+      published_at: new Date("2026-06-01T10:00:00Z"),
+    });
+    await expect(
+      updateContent(db)({
+        contentId: "content-1",
+        userId: "user-1",
+        slug: "different-slug",
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("allows a slug change while never published", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(currentRow) // fetch current
+      .mockResolvedValueOnce(undefined); // slug clash check
+    const result = await updateContent(db)({
+      contentId: "content-1",
+      userId: "user-1",
+      slug: "different-slug",
+    });
+    expect(result).toEqual({ id: "content-1" });
+  });
+});
+
+describe("publishContent", () => {
+  it("404s when the item does not exist", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // update returning nothing
+      .mockResolvedValueOnce(undefined); // existence check
+    await expect(
+      publishContent(db)({ contentId: "missing", userId: "user-1" }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("409s when the item is archived", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // update skipped archived row
+      .mockResolvedValueOnce({ id: "content-1" }); // but it exists
+    await expect(
+      publishContent(db)({ contentId: "content-1", userId: "user-1" }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("returns the effective publishedAt", async () => {
+    const at = new Date("2026-07-01T10:00:00Z");
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "content-1",
+      published_at: at,
+    });
+    const result = await publishContent(db)({
+      contentId: "content-1",
+      publishedAt: at.toISOString(),
+      userId: "user-1",
+    });
+    expect(result).toEqual({
+      id: "content-1",
+      publishedAt: at.toISOString(),
+    });
+  });
+});
+
+describe("getPublishedGameReport", () => {
+  it("404s when no published report matches", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+    await expect(getPublishedGameReport(db)("6819685")).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it("maps a published row to the public shape", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "content-1",
+      kind: "game_report",
+      slug: "firsts-vs-tynemouth",
+      title: "Firsts vs Tynemouth",
+      description: null,
+      body: validBody,
+      metadata: { playCricketId: "6819685" },
+      published_at: new Date("2026-06-01T10:00:00Z"),
+      updated_at: new Date("2026-06-02T10:00:00Z"),
+    });
+    const result = await getPublishedGameReport(db)("6819685");
+    expect(result.publishedAt).toBe("2026-06-01T10:00:00.000Z");
+    expect(result.body).toEqual(validBody);
+  });
+});
