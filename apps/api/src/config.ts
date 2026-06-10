@@ -76,6 +76,22 @@ const configSchema = z.object({
   S3_RECEIPT_PREFIX: z.string().default("receipts"),
   S3_ENDPOINT: z.url().optional(),
 
+  // S3 (editor-uploaded content images). Reuses the CloudFront-served
+  // uploads bucket (S3_BUCKET). Key prefixes are deliberately NOT
+  // configurable - they are structural, coupled to the CloudFront
+  // /uploads/* routing and the Terraform lifecycle rule (see
+  // lib/s3-content-images.ts).
+  CONTENT_IMAGE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10 * 1024 * 1024),
+  CONTENT_IMAGE_UPLOAD_URL_EXPIRY_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(900),
+
   // S3 (policy documents)
   S3_DOCUMENTS_BUCKET: z.string().min(1),
   S3_DOCUMENTS_PREFIX: z.string().default("documents"),

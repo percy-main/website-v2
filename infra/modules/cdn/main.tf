@@ -195,6 +195,27 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
       noncurrent_days = 30
     }
   }
+
+  # Browser-direct content-image uploads land here before the API
+  # processes them into uploads/content/*; anything the confirm step
+  # didn't consume (abandoned uploads) is junk after a day. Mirrors the
+  # 24h expiry the dedicated *-uploads buckets use.
+  rule {
+    id     = "expire-pending-content-images"
+    status = "Enabled"
+
+    filter {
+      prefix = "content-images/pending/"
+    }
+
+    expiration {
+      days = 1
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
 }
 
 resource "aws_s3_bucket_cors_configuration" "uploads" {
