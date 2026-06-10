@@ -1,6 +1,9 @@
 #!/bin/bash
 # Creates the local S3 buckets for receipt uploads and policy documents
 awslocal s3 mb s3://percy-main-receipts-local
+# CORS for browser-direct PUT of content images (LocalStack) - in prod
+# the uploads bucket has the equivalent rule via Terraform (cdn module)
+awslocal s3api put-bucket-cors --bucket percy-main-receipts-local --cors-configuration '{"CORSRules":[{"AllowedHeaders":["*"],"AllowedMethods":["PUT"],"AllowedOrigins":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}'
 echo "LocalStack S3 bucket created: percy-main-receipts-local"
 
 awslocal s3 mb s3://percy-main-documents-local
