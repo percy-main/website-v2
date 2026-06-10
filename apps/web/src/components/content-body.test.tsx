@@ -206,4 +206,50 @@ describe("ContentBody", () => {
     ]);
     expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
   });
+
+  it("renders contentImage blocks responsively from the picture descriptor", () => {
+    const picture = {
+      sources: {
+        avif: "/uploads/content/img-1/320.avif 320w, /uploads/content/img-1/640.avif 640w",
+        webp: "/uploads/content/img-1/320.webp 320w, /uploads/content/img-1/640.webp 640w",
+      },
+      img: { src: "/uploads/content/img-1/640.jpg", w: 640, h: 480 },
+    };
+    const html = renderBody([
+      block("contentImage", {
+        props: {
+          src: "/uploads/content/img-1/640.jpg",
+          alt: "The winning six",
+          caption: "Scenes",
+          picture: JSON.stringify(picture),
+        },
+      }),
+    ]);
+    expect(html).toContain("<picture>");
+    expect(html).toContain('type="image/avif"');
+    expect(html).toContain('src="/uploads/content/img-1/640.jpg"');
+    expect(html).toContain("Scenes");
+  });
+
+  it("rejects contentImage descriptors with unsafe urls", () => {
+    const picture = {
+      sources: {
+        avif: "javascript:alert(1) 320w",
+      },
+      img: { src: "/uploads/content/img-1/640.jpg", w: 640, h: 480 },
+    };
+    const html = renderBody([
+      block("contentImage", {
+        props: {
+          src: "/uploads/content/img-1/640.jpg",
+          alt: "x",
+          caption: "",
+          picture: JSON.stringify(picture),
+        },
+      }),
+    ]);
+    expect(html).not.toContain("javascript:");
+    // Falls back to the plain (safe) src
+    expect(html).toContain('src="/uploads/content/img-1/640.jpg"');
+  });
 });

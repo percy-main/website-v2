@@ -1,4 +1,8 @@
 import { mdxComponents } from "@/components/mdx-components.js";
+import {
+  OptimisedImage,
+  type PictureSource,
+} from "@/components/optimised-image.js";
 import { cn } from "@/lib/utils.js";
 import {
   contentBodySchema,
@@ -135,6 +139,53 @@ function alignClass(block: ContentBlock): string | undefined {
 function stringProp(block: ContentBlock, name: string): string | undefined {
   const value = block.props[name];
   return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+/**
+ * Parse a JSON-stringified PictureSource, rejecting anything whose URLs
+ * fail the image-source check (the descriptor is stored content too).
+ */
+function parsePicture(raw: string | undefined): PictureSource | undefined {
+  if (!raw) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== "object" || parsed === null) return undefined;
+  const candidate = parsed as {
+    sources?: unknown;
+    img?: { src?: unknown; w?: unknown; h?: unknown };
+  };
+  if (
+    typeof candidate.img?.src !== "string" ||
+    !isSafeImageSrc(candidate.img.src) ||
+    typeof candidate.img.w !== "number" ||
+    typeof candidate.img.h !== "number" ||
+    typeof candidate.sources !== "object" ||
+    candidate.sources === null
+  ) {
+    return undefined;
+  }
+  const sources: Record<string, string> = {};
+  for (const [format, srcset] of Object.entries(candidate.sources)) {
+    if (typeof srcset !== "string") return undefined;
+    // Every URL in the srcset must individually be a safe image source.
+    const urls = srcset.split(",").map((part) => part.trim().split(/\s+/)[0]);
+    if (!urls.every((u) => u !== undefined && isSafeImageSrc(u))) {
+      return undefined;
+    }
+    sources[format] = srcset;
+  }
+  return {
+    sources,
+    img: {
+      src: candidate.img.src,
+      w: candidate.img.w,
+      h: candidate.img.h,
+    },
+  };
 }
 
 /** Nested children of a non-list block render indented beneath it. */
@@ -294,6 +345,35 @@ function BlockView({ block }: { block: ContentBlock }) {
       const when = stringProp(block, "when");
       if (!id || !name || !when) return null;
       return <mdxComponents.EventPreview id={id} name={name} when={when} />;
+    }
+
+    case CUSTOM_BLOCK_TYPES.contentImage: {
+      const src = stringProp(block, "src");
+      const alt = stringProp(block, "alt") ?? "";
+      const caption = stringProp(block, "caption");
+      // props.picture is the JSON-stringified PictureSource descriptor
+      // produced by the upload pipeline; with it we render the full
+      // responsive ladder, without it we fall back to the plain src.
+      const picture = parsePicture(stringProp(block, "picture"));
+      if (picture) {
+        return (
+          <figure className="my-4 max-w-lg self-center">
+            <OptimisedImage
+              picture={picture}
+              alt={alt}
+              className="h-auto max-w-full rounded-lg"
+              sizes="(max-width: 512px) 100vw, 512px"
+            />
+            {caption && (
+              <figcaption className="mt-2 text-sm text-stone-600">
+                {caption}
+              </figcaption>
+            )}
+          </figure>
+        );
+      }
+      if (!src || !isSafeImageSrc(src)) return null;
+      return <mdxComponents.Image src={src} alt={alt} caption={caption} />;
     }
 
     default:

@@ -109,6 +109,12 @@ export const CUSTOM_BLOCK_TYPES = {
   personGrid: "personGrid",
   gamePreview: "gamePreview",
   eventPreview: "eventPreview",
+  // Editor-uploaded image. Replaces BlockNote's built-in image block in
+  // the editor schema (whose URL-embed tab would bypass the consent +
+  // processing pipeline). props.picture carries the JSON-stringified
+  // PictureSource descriptor from the upload API so public pages render
+  // the responsive ladder without any lookup.
+  contentImage: "contentImage",
 } as const;
 
 // ── Slugs ───────────────────────────────────────────────────────────────
