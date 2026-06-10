@@ -7,6 +7,7 @@ import {
   CONTENT_IMAGES_PREFIX,
   type ContentImageStore,
 } from "../../lib/s3-content-images.ts";
+import { pictureSourceSchema } from "./schemas.ts";
 
 function throwHttpError(statusCode: number, message: string): never {
   throw Object.assign(new Error(message), { statusCode });
@@ -19,8 +20,13 @@ function throwHttpError(statusCode: number, message: string): never {
  */
 const LADDER_WIDTHS = [320, 640, 960, 1280, 1920] as const;
 
-/** Modern formats every image gets, in <picture> source order. */
-const MODERN_FORMATS = ["avif", "webp"] as const;
+/**
+ * Editor uploads get a WebP-only ladder, unlike the static corpus which
+ * also gets AVIF. AVIF encoding is too slow for a synchronous confirm on
+ * the 0.25 vCPU API task: it pushed processing past the ALB timeout, so
+ * the browser saw a 504 while the upload actually completed (ADR 048).
+ */
+const LADDER_FORMATS = ["webp"] as const;
 
 /**
  * Input formats sharp can decode here. HEIC is accepted at presign time
@@ -65,9 +71,9 @@ export interface ProcessedImage {
 }
 
 /**
- * Decode + validate the original, then build the full responsive ladder:
- * AVIF + WebP at each ladder width plus an original-format fallback at
- * the largest width. EXIF/GPS and all other metadata are stripped by
+ * Decode + validate the original, then build the responsive ladder:
+ * WebP at each ladder width plus an original-format fallback at the
+ * largest width. EXIF/GPS and all other metadata are stripped by
  * construction - sharp only carries metadata through when withMetadata()
  * is called, which it never is here. Orientation is applied to pixels
  * (rotate()) before the EXIF that described it is dropped.
@@ -110,34 +116,43 @@ export async function processImage(
   if (widths.length === 0) widths.push(Math.min(sourceWidth, 320));
   const largest = widths[widths.length - 1] ?? sourceWidth;
 
+  // Decode the original exactly once: every variant is derived from a
+  // raw master at the largest ladder width. Cloning `base` instead would
+  // re-decode a potentially 20-megapixel original per variant, which the
+  // 0.25 vCPU task cannot afford inside a synchronous request.
+  const master = await base
+    .resize({ width: largest, withoutEnlargement: true })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const fromMaster = () =>
+    sharp(master.data, {
+      raw: {
+        width: master.info.width,
+        height: master.info.height,
+        channels: master.info.channels,
+      },
+    });
+
   const variants: ProcessedVariant[] = [];
 
-  for (const targetFormat of MODERN_FORMATS) {
-    for (const width of widths) {
-      const pipeline = base.clone().resize({ width, withoutEnlargement: true });
-      const encoded =
-        targetFormat === "avif"
-          ? pipeline.avif({ quality: 60 })
-          : pipeline.webp({ quality: 80 });
-      const { data, info } = await encoded.toBuffer({
-        resolveWithObject: true,
-      });
-      variants.push({
-        key: `${publicPrefix}/${imageId}/${String(width)}.${targetFormat}`,
-        format: targetFormat,
-        width: info.width,
-        height: info.height,
-        body: data,
-        contentType: `image/${targetFormat}`,
-      });
-    }
+  for (const width of widths) {
+    const { data, info } = await fromMaster()
+      .resize({ width, withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer({ resolveWithObject: true });
+    variants.push({
+      key: `${publicPrefix}/${imageId}/${String(width)}.webp`,
+      format: "webp",
+      width: info.width,
+      height: info.height,
+      body: data,
+      contentType: "image/webp",
+    });
   }
 
   // Original-format fallback at the largest ladder width, for browsers
   // that take the <img> src directly.
-  const fallback = await base
-    .clone()
-    .resize({ width: largest, withoutEnlargement: true })
+  const fallback = await fromMaster()
     .toFormat(format)
     .toBuffer({ resolveWithObject: true });
   const fallbackKey = `${publicPrefix}/${imageId}/${String(largest)}.${format === "jpeg" ? "jpg" : format}`;
@@ -151,7 +166,7 @@ export async function processImage(
   });
 
   const sources: Record<string, string> = {};
-  for (const targetFormat of MODERN_FORMATS) {
+  for (const targetFormat of LADDER_FORMATS) {
     sources[targetFormat] = variants
       .filter((v) => v.format === targetFormat)
       .map((v) => `/${v.key} ${String(v.width)}w`)
@@ -227,6 +242,25 @@ export function confirmUpload(
       throwHttpError(400, "pendingKey does not match imageId");
     }
 
+    // A retried confirm (gateway timeout, double-click) lands after the
+    // first attempt already registered the image and deleted the pending
+    // object - the row is the source of truth, so return it instead of
+    // 404ing on the missing pending object.
+    const existing = await db
+      .selectFrom("content_image")
+      .select(["id", "picture", "alt", "width", "height"])
+      .where("id", "=", params.imageId)
+      .executeTakeFirst();
+    if (existing) {
+      return {
+        id: existing.id,
+        picture: pictureSourceSchema.parse(existing.picture),
+        alt: existing.alt,
+        width: existing.width,
+        height: existing.height,
+      };
+    }
+
     const tooLarge = async () => {
       await store.deletePending(params.pendingKey);
       throwHttpError(
@@ -274,9 +308,10 @@ export function confirmUpload(
     const alt = params.alt ?? null;
     const keyPrefix = `${CONTENT_IMAGES_PREFIX}/${params.imageId}`;
 
-    // Idempotent: a duplicate confirm (double-click, retry) re-processed
-    // and overwrote the same deterministic variant keys, so the existing
-    // row is already accurate - don't turn the race into a PK violation.
+    // Two truly concurrent confirms can both pass the existing-row check
+    // and re-process; variant keys are deterministic and get overwritten,
+    // so the existing row is accurate - don't turn the race into a PK
+    // violation.
     await db
       .insertInto("content_image")
       .values({

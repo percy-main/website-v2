@@ -126,8 +126,8 @@ describe("content image pipeline (integration)", () => {
     expect(keys.every((k) => k.startsWith(`uploads/content/${imageId}/`))).toBe(
       true,
     );
-    // 1400px source -> 320/640/960/1280 in avif + webp, + jpeg fallback
-    expect(keys).toHaveLength(9);
+    // 1400px source -> 320/640/960/1280 in webp, + jpeg fallback
+    expect(keys).toHaveLength(5);
 
     // Zero EXIF/GPS metadata in every variant
     for (const [, obj] of store.objects) {
@@ -137,7 +137,6 @@ describe("content image pipeline (integration)", () => {
 
     // PictureSource descriptor is consumable by OptimisedImage
     expect(result.picture.img.src).toBe(`/uploads/content/${imageId}/1280.jpg`);
-    expect(result.picture.sources.avif?.split(", ")).toHaveLength(4);
     expect(result.picture.sources.webp?.split(", ")).toHaveLength(4);
 
     // Registered in the DB with consent + audit fields
@@ -151,5 +150,19 @@ describe("content image pipeline (integration)", () => {
     expect(row.alt).toBe("The winning six");
     expect(row.width).toBe(1400);
     expect(row.height).toBe(900);
+
+    // Retry after a gateway timeout: the pending object is gone but the
+    // row exists - the confirm must return the registered image, not 404.
+    const retried = await confirmUpload(
+      ctx.db,
+      store,
+      config,
+    )({
+      imageId,
+      pendingKey,
+      alt: "The winning six",
+      userId,
+    });
+    expect(retried).toEqual(result);
   });
 });

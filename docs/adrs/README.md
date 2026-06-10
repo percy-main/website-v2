@@ -26,3 +26,4 @@ To add a new ADR, use the [`add-adr` skill](../../.claude/skills/add-adr/SKILL.m
 | [045](045-matchday-service-worker-push-integration.md)   | Matchday service worker push integration via importScripts  | 2026-05-21 | Accepted |
 | [046](046-vapid-public-key-via-api.md)                   | VAPID public key delivered via API, not bundled             | 2026-05-21 | Accepted |
 | [047](047-content-editor-blocknote.md)                   | Content Editor - BlockNote with JSON canonical format       | 2026-06-10 | Accepted |
+| [048](048-editor-image-webp-only-sync-processing.md)     | Editor images - WebP-only ladder, synchronous processing    | 2026-06-10 | Accepted |
