@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* The BlockNote shadcn package ships its UI as JS using Tailwind utility
+   classes (bg-popover, ring-ring, ...) with no precompiled CSS for them,
+   so its dist must be scanned or the editor menus render unstyled. */
+@source "../node_modules/@blocknote/shadcn/dist";
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
@@ -19,6 +24,26 @@
   --color-border: #e5e7eb;
   --color-border-light: #f3f4f6;
   --color-muted: #4b5563;
+
+  /* shadcn semantic tokens used by @blocknote/shadcn's bundled UI
+     (stone palette). Our own ui/* components use literal colours, so
+     these exist primarily for the editor; values chosen to look native
+     anywhere else they may get used. */
+  --color-background: #ffffff;
+  --color-foreground: #1c1917;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1c1917;
+  --color-card: #ffffff;
+  --color-card-foreground: #1c1917;
+  --color-accent: #f5f5f4;
+  --color-accent-foreground: #1c1917;
+  --color-muted-foreground: #78716c;
+  --color-primary-foreground: #ffffff;
+  --color-secondary-foreground: #1c1917;
+  --color-input: #e7e5e4;
+  --color-ring: #a8a29e;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
   --color-win: #16a34a;
   --color-win-bg: #dcfce7;
   --color-loss: #dc2626;
@@ -488,6 +513,15 @@
   textarea:focus-visible {
     @apply outline-primary outline-2 outline-offset-2;
   }
+}
+
+/* BlockNote editor scope: re-point the tokens whose site-wide values
+   mean something else (muted is a text gray, secondary is the brand
+   yellow) at the neutral surfaces shadcn semantics expect. Utilities
+   resolve CSS variables at use-site, so this only affects the editor. */
+.bn-shadcn {
+  --color-muted: #f5f5f4;
+  --color-secondary: #f5f5f4;
 }
 
 /* MDX content prose styles */
