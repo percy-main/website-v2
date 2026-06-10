@@ -274,6 +274,9 @@ export function confirmUpload(
     const alt = params.alt ?? null;
     const keyPrefix = `${CONTENT_IMAGES_PREFIX}/${params.imageId}`;
 
+    // Idempotent: a duplicate confirm (double-click, retry) re-processed
+    // and overwrote the same deterministic variant keys, so the existing
+    // row is already accurate - don't turn the race into a PK violation.
     await db
       .insertInto("content_image")
       .values({
@@ -288,6 +291,7 @@ export function confirmUpload(
         consent_confirmed: true,
         uploaded_by: params.userId,
       })
+      .onConflict((oc) => oc.column("id").doNothing())
       .execute();
 
     // Deleted last: if the row insert fails the original survives, so a

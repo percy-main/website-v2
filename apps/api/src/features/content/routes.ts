@@ -27,7 +27,7 @@ import {
   archiveContent,
   createContent,
   getContent,
-  getContentKind,
+  getContentMeta,
   getPublishedContent,
   getPublishedGameReport,
   listContent,
@@ -65,7 +65,7 @@ const publishResponseSchema = z.object({
 export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const list = listContent(app.db);
   const get = getContent(app.db);
-  const kindOf = getContentKind(app.db);
+  const metaOf = getContentMeta(app.db);
   const create = createContent(app.db);
   const update = updateContent(app.db);
   const publish = publishContent(app.db);
@@ -135,8 +135,15 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      const kind = await kindOf(request.params.contentId);
+      const { kind, status } = await metaOf(request.params.contentId);
       assertContentPermission(request, kind, "manage");
+      // Editing a published item changes the live page instantly (single
+      // body, no staged drafts), so it needs the publish action too. Today
+      // every content role has both; this keeps the manage/publish split
+      // meaningful if a review tier is added later.
+      if (status === "published") {
+        assertContentPermission(request, kind, "publish");
+      }
       const { user } = getAuthSession(request);
       return await update({
         ...request.body,
@@ -157,7 +164,7 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      const kind = await kindOf(request.params.contentId);
+      const { kind } = await metaOf(request.params.contentId);
       assertContentPermission(request, kind, "publish");
       const { user } = getAuthSession(request);
       return await publish({
@@ -178,7 +185,7 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      const kind = await kindOf(request.params.contentId);
+      const { kind } = await metaOf(request.params.contentId);
       assertContentPermission(request, kind, "publish");
       const { user } = getAuthSession(request);
       return await unpublish({
@@ -198,7 +205,7 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      const kind = await kindOf(request.params.contentId);
+      const { kind } = await metaOf(request.params.contentId);
       assertContentPermission(request, kind, "manage");
       const { user } = getAuthSession(request);
       return await archive({
@@ -218,7 +225,7 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      const kind = await kindOf(request.params.contentId);
+      const { kind } = await metaOf(request.params.contentId);
       assertContentPermission(request, kind, "view");
       return await revisions(request.params.contentId);
     },

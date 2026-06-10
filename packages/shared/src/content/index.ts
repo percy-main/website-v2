@@ -92,11 +92,6 @@ export const CONTENT_METADATA_SCHEMAS: Partial<
   game_report: gameReportMetadataSchema,
 };
 
-/** Kinds currently editable through the content API (grows per phase). */
-export const ENABLED_CONTENT_KINDS = Object.keys(
-  CONTENT_METADATA_SCHEMAS,
-) as ContentKind[];
-
 // ── Custom block types ──────────────────────────────────────────────────
 //
 // The directive vocabulary from the original epic plan, as BlockNote

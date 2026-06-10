@@ -363,6 +363,56 @@ const slugify = (title: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+/** Club-content entries for the slash menu (module-level: no state). */
+function buildSlashItems(editor: Editor, startImageUpload: () => void) {
+  return [
+    {
+      title: "Person card",
+      subtext: "Embed a club member profile card",
+      group: "Club content",
+      aliases: ["person", "player", "profile"],
+      icon: <span aria-hidden>👤</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.person,
+        });
+      },
+    },
+    {
+      title: "Game preview",
+      subtext: "Link a Play-Cricket fixture or result",
+      group: "Club content",
+      aliases: ["game", "match", "fixture"],
+      icon: <span aria-hidden>🏏</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.gamePreview,
+        });
+      },
+    },
+    {
+      title: "Event preview",
+      subtext: "Link a calendar event",
+      group: "Club content",
+      aliases: ["event", "calendar"],
+      icon: <span aria-hidden>📅</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.eventPreview,
+        });
+      },
+    },
+    {
+      title: "Upload photo",
+      subtext: "Add an image (consent required)",
+      group: "Club content",
+      aliases: ["image", "photo", "picture"],
+      icon: <span aria-hidden>📷</span>,
+      onItemClick: startImageUpload,
+    },
+  ];
+}
+
 interface EditorProps {
   kind: ContentKind;
   contentId: string | null;
@@ -502,10 +552,13 @@ function PublishingCard({
   item,
   canPublish,
   canManage,
+  beforePublish,
 }: {
   item: ContentItemDetail;
   canPublish: boolean;
   canManage: boolean;
+  /** Persists the editor's current state; publish aborts if it fails. */
+  beforePublish: () => Promise<unknown>;
 }) {
   const queryClient = useQueryClient();
   const [publishAt, setPublishAt] = useState("");
@@ -513,6 +566,9 @@ function PublishingCard({
   const statusMutation = useMutation({
     mutationFn: async (action: "publish" | "unpublish" | "archive") => {
       if (action === "publish") {
+        // What goes live must be what's in the editor (and what the
+        // preview tab shows), not the last-saved state.
+        await beforePublish();
         await callApi(
           api.POST("/api/admin/content/{contentId}/publish", {
             params: { path: { contentId: item.id } },
@@ -651,10 +707,12 @@ function EditorPane({
   editor,
   slashItems,
   currentBody,
+  onDirty,
 }: {
   editor: Editor;
   slashItems: () => ReturnType<typeof getDefaultReactSlashMenuItems>;
   currentBody: () => unknown;
+  onDirty: () => void;
 }) {
   const [activeTab, setActiveTab] = useState("edit");
   const [previewBlocks, setPreviewBlocks] = useState<unknown>([]);
@@ -673,7 +731,12 @@ function EditorPane({
       </TabsList>
       <TabsContent value="edit">
         <div className="rounded-lg border border-stone-200 bg-white py-4">
-          <BlockNoteView editor={editor} theme="light" slashMenu={false}>
+          <BlockNoteView
+            editor={editor}
+            theme="light"
+            slashMenu={false}
+            onChange={onDirty}
+          >
             <SuggestionMenuController
               triggerCharacter="/"
               getItems={(query) =>
@@ -736,10 +799,14 @@ function LoadedEditor({
   // Whether the author has manually edited the slug (handler-only flag:
   // it never affects what's on screen, only how title edits behave).
   const slugTouchedRef = useRef(item !== null);
+  // Unsaved-changes flag (handler-only: read on Back, set by edits,
+  // cleared by save).
+  const dirtyRef = useRef(false);
 
   const slugLocked = item?.publishedAt != null;
 
   const onFormChange = (updates: Partial<FormState>) => {
+    dirtyRef.current = true;
     if (updates.slug !== undefined) slugTouchedRef.current = true;
     setForm((prev) => {
       const next = { ...prev, ...updates };
@@ -793,11 +860,25 @@ function LoadedEditor({
       );
     },
     onSuccess: (result) => {
+      dirtyRef.current = false;
       setLastSavedAt(new Date().toISOString());
       void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
       if (item === null) onCreated(result.id);
     },
   });
+
+  const requestClose = () => {
+    if (
+      dirtyRef.current &&
+      !window.confirm("Discard unsaved changes to this report?")
+    ) {
+      return;
+    }
+    onClose();
+  };
+
+  const canSave = canManage && (item?.status !== "published" || canPublish);
+  const missingMetadata = kind === "game_report" && !form.playCricketId;
 
   const startImageUpload = () => {
     setUploadError(null);
@@ -836,52 +917,7 @@ function LoadedEditor({
     }
   };
 
-  const slashItems = () => [
-    {
-      title: "Person card",
-      subtext: "Embed a club member profile card",
-      group: "Club content",
-      aliases: ["person", "player", "profile"],
-      icon: <span aria-hidden>👤</span>,
-      onItemClick: () => {
-        insertOrUpdateBlockForSlashMenu(editor, {
-          type: CUSTOM_BLOCK_TYPES.person,
-        });
-      },
-    },
-    {
-      title: "Game preview",
-      subtext: "Link a Play-Cricket fixture or result",
-      group: "Club content",
-      aliases: ["game", "match", "fixture"],
-      icon: <span aria-hidden>🏏</span>,
-      onItemClick: () => {
-        insertOrUpdateBlockForSlashMenu(editor, {
-          type: CUSTOM_BLOCK_TYPES.gamePreview,
-        });
-      },
-    },
-    {
-      title: "Event preview",
-      subtext: "Link a calendar event",
-      group: "Club content",
-      aliases: ["event", "calendar"],
-      icon: <span aria-hidden>📅</span>,
-      onItemClick: () => {
-        insertOrUpdateBlockForSlashMenu(editor, {
-          type: CUSTOM_BLOCK_TYPES.eventPreview,
-        });
-      },
-    },
-    {
-      title: "Upload photo",
-      subtext: "Add an image (consent required)",
-      group: "Club content",
-      aliases: ["image", "photo", "picture"],
-      icon: <span aria-hidden>📷</span>,
-      onItemClick: startImageUpload,
-    },
-  ];
+  const slashItems = () => buildSlashItems(editor, startImageUpload);
 
   return (
     <div className="flex flex-col gap-4">
@@ -898,7 +934,7 @@ function LoadedEditor({
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button variant="ghost" size="sm" onClick={onClose}>
+        <Button variant="ghost" size="sm" onClick={requestClose}>
           ← Back to list
         </Button>
         <div className="flex items-center gap-3">
@@ -911,18 +947,28 @@ function LoadedEditor({
               })}
             </span>
           )}
-          {canManage && (
+          {canSave && (
             <Button
               onClick={() => {
                 saveMutation.mutate();
               }}
-              disabled={saveMutation.isPending || !form.title || !form.slug}
+              disabled={
+                saveMutation.isPending ||
+                !form.title ||
+                !form.slug ||
+                missingMetadata
+              }
+              title={
+                missingMetadata ? "Choose a Play-Cricket game first" : undefined
+              }
             >
               {saveMutation.isPending
                 ? "Saving…"
                 : item === null
                   ? "Create draft"
-                  : "Save"}
+                  : item.status === "published"
+                    ? "Save & update live page"
+                    : "Save"}
             </Button>
           )}
         </div>
@@ -949,6 +995,7 @@ function LoadedEditor({
               item={item}
               canPublish={canPublish}
               canManage={canManage}
+              beforePublish={() => saveMutation.mutateAsync()}
             />
           )}
           <ConsentBox
@@ -963,6 +1010,9 @@ function LoadedEditor({
             editor={editor}
             slashItems={slashItems}
             currentBody={editorBody}
+            onDirty={() => {
+              dirtyRef.current = true;
+            }}
           />
         </div>
       </div>

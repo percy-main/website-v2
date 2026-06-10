@@ -68,8 +68,24 @@ function assertPlainMarkdown(body: string, file: string) {
   }
 }
 
-async function fetchTitle(playCricketId: string): Promise<string> {
-  const fallback = `Match report ${playCricketId}`;
+/** Play-Cricket dates are dd/MM/yyyy. */
+function parseMatchDate(raw: string | undefined): Date | null {
+  if (!raw) return null;
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw);
+  if (!m) {
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return new Date(`${m[3]}-${m[2]}-${m[1]}T12:00:00Z`);
+}
+
+async function fetchGameDetails(
+  playCricketId: string,
+): Promise<{ title: string; matchDate: Date | null }> {
+  const fallback = {
+    title: `Match report ${playCricketId}`,
+    matchDate: null,
+  };
   const base = process.env.GAMES_API_BASE;
   if (!base) return fallback;
   try {
@@ -80,11 +96,15 @@ async function fetchTitle(playCricketId: string): Promise<string> {
       opposition?: { club?: { name?: string } };
       matchDate?: string;
     };
+    const matchDate = parseMatchDate(game.matchDate);
     if (game.team?.name && game.opposition?.club?.name) {
       const date = game.matchDate ? ` - ${game.matchDate}` : "";
-      return `${game.team.name} vs ${game.opposition.club.name}${date}`;
+      return {
+        title: `${game.team.name} vs ${game.opposition.club.name}${date}`,
+        matchDate,
+      };
     }
-    return fallback;
+    return { ...fallback, matchDate };
   } catch {
     return fallback;
   }
@@ -133,7 +153,7 @@ async function main() {
 
     const blocks: MigrationBlock[] = markdownToBlocks(body);
     const metadata = { playCricketId };
-    const title = await fetchTitle(playCricketId);
+    const { title, matchDate } = await fetchGameDetails(playCricketId);
     const slug = `match-report-${playCricketId}`;
 
     const existing = await db
@@ -224,7 +244,9 @@ async function main() {
           body: JSON.stringify(blocks),
           metadata: JSON.stringify(metadata),
           status: "published",
-          published_at: new Date(),
+          // The public "live from" date: the match date when the games
+          // API can supply it, otherwise the import time.
+          published_at: matchDate ?? new Date(),
           created_by: userId,
           updated_by: userId,
         })

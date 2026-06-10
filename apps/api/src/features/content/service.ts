@@ -169,7 +169,9 @@ export function listContent(db: Kysely<DB>) {
       base = base.where("status", "=", params.status);
     }
     if (params.search !== undefined) {
-      base = base.where("title", "ilike", `%${params.search}%`);
+      // Escape ILIKE wildcards: search box input is a literal, not a pattern.
+      const literal = params.search.replace(/[\\%_]/g, "\\$&");
+      base = base.where("title", "ilike", `%${literal}%`);
     }
 
     const [items, totalRow] = await Promise.all([
@@ -201,20 +203,33 @@ export function getContent(db: Kysely<DB>) {
 
     if (!row) throwHttpError(404, "Content not found");
 
-    return { ...toSummary(row), body: parseBody(row.body) };
+    // A stored body failing the schema is a server-side data problem, not
+    // a bad request - parseBody's 400 is for write paths.
+    const body = contentBodySchema.safeParse(row.body);
+    if (!body.success) {
+      throwHttpError(500, "Stored body does not match the block schema");
+    }
+    return { ...toSummary(row), body: body.data };
   };
 }
 
-/** Kind lookup used by routes to resolve the permission resource. */
-export function getContentKind(db: Kysely<DB>) {
+/**
+ * Kind + status lookup used by routes: kind resolves the permission
+ * resource, status decides whether editing needs the publish action
+ * (changing a published item changes the live page).
+ */
+export function getContentMeta(db: Kysely<DB>) {
   return async (contentId: string) => {
     const row = await db
       .selectFrom("content_item")
-      .select("kind")
+      .select(["kind", "status"])
       .where("id", "=", contentId)
       .executeTakeFirst();
     if (!row) throwHttpError(404, "Content not found");
-    return row.kind as ContentKind;
+    return {
+      kind: row.kind as ContentKind,
+      status: row.status as ContentStatus,
+    };
   };
 }
 
@@ -391,9 +406,12 @@ export function publishContent(db: Kysely<DB>) {
       .updateTable("content_item")
       .set({
         status: "published",
+        // No explicit date: keep the original first-publish time on a
+        // re-publish (it is the public "live from" date and the
+        // ever-published marker); only stamp now() on first publish.
         published_at: params.publishedAt
           ? new Date(params.publishedAt)
-          : sql`CURRENT_TIMESTAMP`,
+          : sql`COALESCE(published_at, CURRENT_TIMESTAMP)`,
         updated_by: params.userId,
         updated_at: sql`CURRENT_TIMESTAMP`,
       })

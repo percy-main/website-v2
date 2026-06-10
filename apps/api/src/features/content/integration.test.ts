@@ -138,6 +138,10 @@ describe("content service (integration)", () => {
     await publishContent(ctx.db)({ contentId: id, publishedAt: past, userId });
     const pub = await getPublishedGameReport(ctx.db)("222222");
     expect(pub.id).toBe(id);
+
+    // Publishing again without a date keeps the original live-from time
+    const again = await publishContent(ctx.db)({ contentId: id, userId });
+    expect(again.publishedAt).toBe(past);
   });
 
   it("enforces per-kind slug uniqueness on create", async () => {
