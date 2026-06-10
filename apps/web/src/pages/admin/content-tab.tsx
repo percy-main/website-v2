@@ -157,7 +157,9 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
           kind={kind}
           contentId={openItem === "new" ? null : openItem}
           onClose={() => {
-            setParams({ item: null });
+            // Closing the create form replaces: Back from the list must
+            // not reopen a stale ?item=new entry.
+            setParams({ item: null }, { replace: openItem === "new" });
           }}
           onCreated={(id) => {
             // Swap "new" for the created id: back must not return to the
