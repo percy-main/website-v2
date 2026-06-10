@@ -13,7 +13,7 @@ import { allNews, type NewsArticle } from "@/lib/news.js";
 import { getPersonBySlug, type PersonData } from "@/lib/people.js";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Link } from "react-router";
+import { Link, Navigate } from "react-router";
 
 // Shared rendering for /news/:page and /news/tag/:tag/:page. The list is
 // API-backed (live content editing, #489); the bundled MDX corpus stays as
@@ -553,6 +553,14 @@ export function NewsListView({
       : buildStaticViewModel(tag, page);
 
   const basePath = tag ? `/news/tag/${encodeURIComponent(tag)}` : "/news";
+
+  // An out-of-range page (e.g. /news/999) clamps to the last real page.
+  // The view model already clamped currentPage, but the API was asked for
+  // the requested page, so its items would be empty - redirect instead of
+  // rendering a hollow page.
+  if (page !== vm.currentPage) {
+    return <Navigate to={`${basePath}/${String(vm.currentPage)}`} replace />;
+  }
 
   const showFeatured = vm.currentPage === 1 && tag === null;
   const featuredArticle = showFeatured ? (vm.items[0] ?? null) : null;

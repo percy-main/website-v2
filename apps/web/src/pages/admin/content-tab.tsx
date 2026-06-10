@@ -28,7 +28,7 @@ import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
 import { IoOpenOutline } from "react-icons/io5";
 import { useSearchParams } from "react-router";
-import { CONTENT_KIND_NOUNS } from "./content-kind-labels";
+import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
 
 // The editor pulls in BlockNote (the single heaviest dependency in the
 // admin panel), so it loads as its own chunk only when an item is open.

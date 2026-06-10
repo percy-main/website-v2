@@ -1039,6 +1039,10 @@ function PublishingCard({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
+      // Public pages cache content under ["content", ...] with a 5 minute
+      // staleTime; drop those too so a publish/unpublish shows up on the
+      // live site without waiting out the cache.
+      void queryClient.invalidateQueries({ queryKey: ["content"] });
     },
   });
 
@@ -1301,6 +1305,9 @@ function LoadedEditor({
       dirtyRef.current = false;
       setLastSavedAt(new Date().toISOString());
       void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
+      // Saving a published item changes the live page immediately; drop
+      // the public ["content", ...] cache so the SPA reflects it.
+      void queryClient.invalidateQueries({ queryKey: ["content"] });
       if (item === null) onCreated(result.id);
     },
   });
