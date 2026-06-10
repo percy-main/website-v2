@@ -172,6 +172,34 @@ export interface ContactSubmission {
   page: string;
 }
 
+export interface ContentItem {
+  body: Json;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  description: string | null;
+  id: Generated<string>;
+  kind: string;
+  metadata: Generated<Json>;
+  parent_id: string | null;
+  path: string | null;
+  published_at: Timestamp | null;
+  slug: string;
+  status: Generated<string>;
+  title: string;
+  updated_at: Generated<Timestamp>;
+  updated_by: string;
+}
+
+export interface ContentRevision {
+  body: Json;
+  content_id: string;
+  id: Generated<string>;
+  metadata: Json;
+  saved_at: Generated<Timestamp>;
+  saved_by: string;
+  title: string;
+}
+
 export interface Dependent {
   alt_contact_name: string | null;
   alt_contact_phone: string | null;
@@ -993,6 +1021,8 @@ export interface DB {
   charge: Charge;
   charge_dependent: ChargeDependent;
   contact_submission: ContactSubmission;
+  content_item: ContentItem;
+  content_revision: ContentRevision;
   dependent: Dependent;
   document: Document;
   document_assignment: DocumentAssignment;
