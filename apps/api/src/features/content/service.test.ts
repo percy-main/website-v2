@@ -120,6 +120,107 @@ describe("createContent", () => {
   });
 });
 
+describe("news and event metadata", () => {
+  const newsCreate = (metadata: Record<string, unknown>) =>
+    validCreate({
+      kind: "news" as const,
+      slug: "summer-fair-roundup",
+      title: "Summer fair roundup",
+      metadata,
+    });
+  const eventCreate = (metadata: Record<string, unknown>) =>
+    validCreate({
+      kind: "event" as const,
+      slug: "quiz-night",
+      title: "Quiz night",
+      metadata,
+    });
+
+  it("creates news with tags and an author", async () => {
+    const result = await createContent(db)(
+      newsCreate({ tags: ["seniors"], authorSlug: "alice-smith" }),
+    );
+    expect(result).toEqual({ id: "content-1" });
+  });
+
+  it("rejects an authorSlug that is not slug-shaped", async () => {
+    await expect(
+      createContent(db)(newsCreate({ tags: [], authorSlug: "Alice Smith" })),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("creates an event with a finish and a full location", async () => {
+    const result = await createContent(db)(
+      eventCreate({
+        when: "2026-07-04T18:30:00+01:00",
+        finish: "2026-07-04T22:00:00+01:00",
+        location: {
+          name: "The Clubhouse",
+          street: "St John's Terrace",
+          city: "North Shields",
+          postcode: "NE29 6HS",
+          lat: 55.004,
+          lon: -1.453,
+        },
+      }),
+    );
+    expect(result).toEqual({ id: "content-1" });
+  });
+
+  it("rejects an event without a when", async () => {
+    await expect(
+      createContent(db)(eventCreate({ finish: "2026-07-04T22:00:00+01:00" })),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      createContent(db)(eventCreate({ finish: "2026-07-04T22:00:00+01:00" })),
+    ).rejects.toThrow(/when/);
+  });
+
+  it("rejects a location missing its postcode", async () => {
+    await expect(
+      createContent(db)(
+        eventCreate({
+          when: "2026-07-04T18:30:00+01:00",
+          location: {
+            name: "The Clubhouse",
+            street: "St John's Terrace",
+            city: "North Shields",
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("strips unknown metadata keys, like every other kind", async () => {
+    await createContent(db)(
+      newsCreate({ tags: ["seniors"], county: "Tyne and Wear" }),
+    );
+    const inserted = (mockQueryBuilder.values as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as { metadata: string };
+    expect(JSON.parse(inserted.metadata)).toEqual({ tags: ["seniors"] });
+  });
+
+  it("validates news metadata on the update path too", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "content-1",
+      kind: "news",
+      slug: "summer-fair-roundup",
+      title: "Summer fair roundup",
+      description: null,
+      body: validBody,
+      metadata: { tags: ["seniors"] },
+      published_at: null,
+    });
+    await expect(
+      updateContent(db)({
+        contentId: "content-1",
+        userId: "user-1",
+        metadata: { tags: "seniors" },
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
 describe("updateContent", () => {
   const currentRow = {
     id: "content-1",

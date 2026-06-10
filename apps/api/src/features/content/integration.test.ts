@@ -12,6 +12,8 @@ import {
   getPublishedContent,
   getPublishedGameReport,
   listContent,
+  listPublishedEvents,
+  listPublishedNews,
   listRevisions,
   publishContent,
   unpublishContent,
@@ -271,5 +273,155 @@ describe("content service (integration)", () => {
     await expect(
       listRevisions(ctx.db)(crypto.randomUUID()),
     ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  describe("public news and events lists", () => {
+    const seedNews = async (
+      item: { slug: string; tags: string[]; authorSlug?: string },
+      publishedAt?: string,
+    ) => {
+      const { id } = await createContent(ctx.db)({
+        kind: "news",
+        slug: item.slug,
+        title: `News ${item.slug}`,
+        description: null,
+        body: body(item.slug),
+        metadata: {
+          tags: item.tags,
+          ...(item.authorSlug !== undefined
+            ? { authorSlug: item.authorSlug }
+            : {}),
+        },
+        userId,
+      });
+      if (publishedAt !== undefined) {
+        await publishContent(ctx.db)({ contentId: id, publishedAt, userId });
+      }
+    };
+
+    beforeAll(async () => {
+      // Four published items across three London months, plus a draft and
+      // a scheduled item that must never surface in the public list.
+      await seedNews(
+        {
+          slug: "news-jan",
+          tags: ["seniors", "social"],
+          authorSlug: "alice-smith",
+        },
+        "2026-01-15T12:00:00Z",
+      );
+      await seedNews(
+        {
+          slug: "news-feb-early",
+          tags: ["seniors"],
+          authorSlug: "alice-smith",
+        },
+        "2026-02-10T12:00:00Z",
+      );
+      await seedNews(
+        { slug: "news-feb-late", tags: ["juniors"], authorSlug: "bob-jones" },
+        "2026-02-20T12:00:00Z",
+      );
+      await seedNews(
+        { slug: "news-mar", tags: ["social"] },
+        "2026-03-05T12:00:00Z",
+      );
+      await seedNews({
+        slug: "news-draft",
+        tags: ["seniors"],
+        authorSlug: "carol-day",
+      });
+      await seedNews(
+        { slug: "news-future", tags: ["seniors"], authorSlug: "carol-day" },
+        new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      );
+    });
+
+    it("paginates published news newest first, excluding drafts and scheduled items", async () => {
+      const page1 = await listPublishedNews(ctx.db)({ page: 1, pageSize: 3 });
+      expect(page1.total).toBe(4);
+      expect(page1.items.map((i) => i.slug)).toEqual([
+        "news-mar",
+        "news-feb-late",
+        "news-feb-early",
+      ]);
+      expect(page1.items[0]).not.toHaveProperty("body");
+
+      const page2 = await listPublishedNews(ctx.db)({ page: 2, pageSize: 3 });
+      expect(page2.total).toBe(4);
+      expect(page2.items.map((i) => i.slug)).toEqual(["news-jan"]);
+    });
+
+    it("filters items by tag without narrowing the sidebar aggregates", async () => {
+      const result = await listPublishedNews(ctx.db)({
+        tag: "seniors",
+        page: 1,
+        pageSize: 5,
+      });
+      expect(result.total).toBe(2);
+      expect(result.items.map((i) => i.slug)).toEqual([
+        "news-feb-early",
+        "news-jan",
+      ]);
+      // Counts span every published item even while ?tag narrows the
+      // items - and the draft + scheduled 'seniors' items stay invisible.
+      expect(result.tags).toEqual([
+        { tag: "seniors", count: 2 },
+        { tag: "social", count: 2 },
+        { tag: "juniors", count: 1 },
+      ]);
+    });
+
+    it("builds the archive and author count from published news only", async () => {
+      const result = await listPublishedNews(ctx.db)({ page: 1, pageSize: 5 });
+      expect(result.archive).toEqual([
+        { month: "2026-03", count: 1 },
+        { month: "2026-02", count: 2 },
+        { month: "2026-01", count: 1 },
+      ]);
+      // alice-smith + bob-jones; the authorless item adds nothing and
+      // carol-day only authors unpublished items.
+      expect(result.authorCount).toBe(2);
+    });
+
+    it("lists published events in start order", async () => {
+      const seedEvent = async (
+        slug: string,
+        when: string,
+        publish: boolean,
+      ) => {
+        const { id } = await createContent(ctx.db)({
+          kind: "event",
+          slug,
+          title: `Event ${slug}`,
+          description: null,
+          body: body(slug),
+          metadata: {
+            when,
+            location: {
+              name: "The Clubhouse",
+              street: "St John's Terrace",
+              city: "North Shields",
+              postcode: "NE29 6HS",
+            },
+          },
+          userId,
+        });
+        if (publish) await publishContent(ctx.db)({ contentId: id, userId });
+      };
+      // Mixed offsets: 18:00+01:00 is 17:00Z, so the bbq starts before the
+      // quiz even though its 'when' string sorts after it lexically.
+      await seedEvent("event-bbq", "2026-08-01T18:00:00+01:00", true);
+      await seedEvent("event-quiz", "2026-08-01T17:30:00Z", true);
+      await seedEvent("event-draft", "2026-07-01T10:00:00Z", false);
+
+      const { items } = await listPublishedEvents(ctx.db)();
+      expect(items.map((i) => i.slug)).toEqual(["event-bbq", "event-quiz"]);
+      expect(items[0]?.metadata).toMatchObject({
+        when: "2026-08-01T18:00:00+01:00",
+        location: { postcode: "NE29 6HS" },
+      });
+      expect(items[0]).not.toHaveProperty("body");
+    });
   });
 });

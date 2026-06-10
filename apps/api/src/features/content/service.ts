@@ -2,6 +2,8 @@ import type { DB } from "@percy-main/db";
 import {
   CONTENT_METADATA_SCHEMAS,
   contentBodySchema,
+  eventMetadataSchema,
+  newsMetadataSchema,
   type ContentKind,
   type ContentStatus,
 } from "@percy-main/shared/content";
@@ -10,6 +12,7 @@ import type { z } from "zod";
 import type {
   createContentSchema,
   listContentQuerySchema,
+  listNewsQuerySchema,
   updateContentSchema,
 } from "./schemas.ts";
 
@@ -593,7 +596,6 @@ const publicColumns = [
 function publishedOnly(db: Kysely<DB>) {
   return db
     .selectFrom("content_item")
-    .select(publicColumns)
     .where("status", "=", "published")
     .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`);
 }
@@ -601,6 +603,7 @@ function publishedOnly(db: Kysely<DB>) {
 export function getPublishedContent(db: Kysely<DB>) {
   return async (params: { kind: ContentKind; slug: string }) => {
     const row = await publishedOnly(db)
+      .select(publicColumns)
       .where("kind", "=", params.kind)
       .where("slug", "=", params.slug)
       .executeTakeFirst();
@@ -613,11 +616,148 @@ export function getPublishedContent(db: Kysely<DB>) {
 export function getPublishedGameReport(db: Kysely<DB>) {
   return async (playCricketId: string) => {
     const row = await publishedOnly(db)
+      .select(publicColumns)
       .where("kind", "=", "game_report")
       .where(sql<string>`metadata->>'playCricketId'`, "=", playCricketId)
       .executeTakeFirst();
 
     if (!row) throwHttpError(404, "Content not found");
     return toPublic(row);
+  };
+}
+
+// ── Public: lists ───────────────────────────────────────────────────────
+
+const publicListColumns = [
+  "id",
+  "slug",
+  "title",
+  "description",
+  "metadata",
+  "published_at",
+  "updated_at",
+] as const;
+
+/** toPublic for list items: same projection, minus the body. */
+function toPublicListItem(
+  schema: z.ZodType<Record<string, unknown>>,
+  row: {
+    id: string;
+    slug: string;
+    title: string;
+    description: string | null;
+    metadata: unknown;
+    published_at: Date | null;
+    updated_at: Date;
+  },
+) {
+  if (!row.published_at) {
+    throwHttpError(500, "Published content missing published_at");
+  }
+  const metadata = schema.safeParse(row.metadata);
+  if (!metadata.success) {
+    throwHttpError(500, "Stored metadata does not match its kind schema");
+  }
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    description: row.description,
+    metadata: metadata.data,
+    publishedAt: row.published_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+export function listPublishedNews(db: Kysely<DB>) {
+  return async (params: z.infer<typeof listNewsQuerySchema>) => {
+    const publishedNews = () => publishedOnly(db).where("kind", "=", "news");
+
+    let filtered = publishedNews();
+    if (params.tag !== undefined) {
+      // jsonb_exists() rather than the ? operator, whose literal question
+      // mark is too easily confused with a parameter placeholder.
+      filtered = filtered.where(
+        sql<boolean>`jsonb_exists(metadata->'tags', ${params.tag})`,
+      );
+    }
+
+    // The sidebar aggregates (tags / archive / authorCount) always span
+    // every published news item, so they build on publishedNews(), not on
+    // the ?tag-filtered query.
+    const [items, totalRow, tagRows, archiveRows, authorRow] =
+      await Promise.all([
+        filtered
+          .select(publicListColumns)
+          .orderBy("published_at", "desc")
+          // Tiebreaker so identical publish times paginate stably.
+          .orderBy("id")
+          .limit(params.pageSize)
+          .offset((params.page - 1) * params.pageSize)
+          .execute(),
+        filtered
+          .select(sql<string>`COUNT(*)`.as("total"))
+          .executeTakeFirstOrThrow(),
+        publishedNews()
+          // jsonb_array_elements_text's output column is named "value";
+          // the alias here only names the lateral relation.
+          .crossJoinLateral(
+            sql`jsonb_array_elements_text(metadata->'tags')`.as("tag"),
+          )
+          .select([
+            sql<string>`tag.value`.as("tag"),
+            sql<string>`COUNT(*)`.as("count"),
+          ])
+          .groupBy(sql`tag.value`)
+          .orderBy(sql`COUNT(*)`, "desc")
+          .orderBy(sql`tag.value`, "asc")
+          .execute(),
+        publishedNews()
+          .select([
+            sql<string>`to_char(published_at AT TIME ZONE 'Europe/London', 'YYYY-MM')`.as(
+              "month",
+            ),
+            sql<string>`COUNT(*)`.as("count"),
+          ])
+          .groupBy(
+            sql`to_char(published_at AT TIME ZONE 'Europe/London', 'YYYY-MM')`,
+          )
+          .orderBy("month", "desc")
+          .execute(),
+        publishedNews()
+          // COUNT(DISTINCT ...) skips NULLs, so authorless items don't count.
+          .select(
+            sql<string>`COUNT(DISTINCT metadata->>'authorSlug')`.as("authors"),
+          )
+          .executeTakeFirstOrThrow(),
+      ]);
+
+    return {
+      items: items.map((row) => toPublicListItem(newsMetadataSchema, row)),
+      total: Number(totalRow.total),
+      tags: tagRows.map((r) => ({ tag: r.tag, count: Number(r.count) })),
+      archive: archiveRows.map((r) => ({
+        month: r.month,
+        count: Number(r.count),
+      })),
+      authorCount: Number(authorRow.authors),
+    };
+  };
+}
+
+export function listPublishedEvents(db: Kysely<DB>) {
+  return async () => {
+    // No pagination: the corpus is tiny and the calendar wants every event.
+    // The cast makes ordering chronological even across mixed UTC offsets
+    // (the metadata schema guarantees 'when' parses as a timestamptz).
+    const rows = await publishedOnly(db)
+      .select(publicListColumns)
+      .where("kind", "=", "event")
+      .orderBy(sql`(metadata->>'when')::timestamptz`, "asc")
+      .execute();
+
+    return {
+      items: rows.map((row) => toPublicListItem(eventMetadataSchema, row)),
+    };
   };
 }

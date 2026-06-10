@@ -28,6 +28,7 @@ import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
 import { IoOpenOutline } from "react-icons/io5";
 import { useSearchParams } from "react-router";
+import { CONTENT_KIND_NOUNS } from "./content-kind-labels";
 
 // The editor pulls in BlockNote (the single heaviest dependency in the
 // admin panel), so it loads as its own chunk only when an item is open.
@@ -46,7 +47,8 @@ const UUID_RE =
 
 /**
  * Public URL a published item is live at. Per-kind: game reports render
- * inside their game page. Later kinds add their mappings here.
+ * inside their game page; news and events have slug-routed pages. Later
+ * kinds add their mappings here.
  */
 function liveUrl(
   kind: ContentKind,
@@ -58,6 +60,8 @@ function liveUrl(
       ? `/calendar/game/${playCricketId}`
       : null;
   }
+  if (kind === "news") return `/news/article/${item.slug}`;
+  if (kind === "event") return `/calendar/event/${item.slug}`;
   return null;
 }
 
@@ -210,7 +214,7 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
               setParams({ item: "new" });
             }}
           >
-            New report
+            New {CONTENT_KIND_NOUNS[kind]}
           </Button>
         )}
       </div>

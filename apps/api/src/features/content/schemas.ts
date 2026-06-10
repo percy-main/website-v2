@@ -138,3 +138,46 @@ export const publicContentResponseSchema = z.object({
   publishedAt: z.string(),
   updatedAt: z.string(),
 });
+
+// ── Public: lists ───────────────────────────────────────────────────────
+
+/** List item: summary fields only - bodies stay on the single-item routes. */
+const publicListItemSchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  metadata: contentMetadataSchema,
+  publishedAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const listNewsQuerySchema = z.object({
+  tag: z.string().min(1).max(100).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(5),
+});
+
+export const listNewsResponseSchema = z.object({
+  items: z.array(publicListItemSchema),
+  total: z.number().int().nonnegative(),
+  /** Tag counts across all published news (never narrowed by ?tag). */
+  tags: z.array(
+    z.object({
+      tag: z.string(),
+      count: z.number().int().nonnegative(),
+    }),
+  ),
+  /** "YYYY-MM" months (Europe/London) across all published news. */
+  archive: z.array(
+    z.object({
+      month: z.string(),
+      count: z.number().int().nonnegative(),
+    }),
+  ),
+  authorCount: z.number().int().nonnegative(),
+});
+
+export const listEventsResponseSchema = z.object({
+  items: z.array(publicListItemSchema),
+});
