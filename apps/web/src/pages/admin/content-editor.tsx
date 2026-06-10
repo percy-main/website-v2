@@ -20,6 +20,7 @@ import {
   OptimisedImage,
   type PictureSource,
 } from "@/components/optimised-image.js";
+import { RadioButtons } from "@/components/radio-buttons.js";
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -29,6 +30,14 @@ import {
   CardTitle,
 } from "@/components/ui/card.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
 import {
@@ -63,7 +72,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
 
 // ── Custom blocks ───────────────────────────────────────────────────────
@@ -531,6 +540,15 @@ function ukLocalToIso(value: string): string {
   return fromZonedTime(value, EVENT_TZ).toISOString();
 }
 
+/** Human-readable UK-time rendering of a stored instant. */
+function formatUkTime(iso: string): string {
+  return formatInTimeZone(
+    new Date(iso),
+    EVENT_TZ,
+    "d MMM yyyy, HH:mm 'UK time'",
+  );
+}
+
 /**
  * Hydrate per-kind fields from stored metadata. Defensive on purpose:
  * stored JSON may predate the current schema, so anything malformed
@@ -994,6 +1012,46 @@ function MetadataFields({
   );
 }
 
+type PublishAction =
+  | { action: "publish"; publishedAt?: string }
+  | { action: "unpublish" }
+  | { action: "archive" };
+
+/** setTimeout clamps delays beyond a signed 32-bit int (~24.8 days). */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
+/**
+ * Scheduled = published with a still-future publish time. Client-side
+ * now() comparison is fine here: it only picks the admin copy and
+ * actions; the public visibility decision stays server-side.
+ */
+function isScheduled(item: {
+  status: string;
+  publishedAt: string | null;
+}): boolean {
+  return (
+    item.status === "published" &&
+    item.publishedAt !== null &&
+    Date.parse(item.publishedAt) > Date.now()
+  );
+}
+
+/**
+ * Why the schedule can't be confirmed yet, or null when it can. A
+ * schedule must be in the future at confirm time. (The server accepts
+ * any instant - re-publishing with a past date is a valid backdate.)
+ */
+function scheduleProblemFor(
+  mode: "now" | "schedule",
+  scheduleAt: string,
+): string | null {
+  if (mode !== "schedule") return null;
+  if (scheduleAt === "") return "Pick a date and time first";
+  return fromZonedTime(scheduleAt, EVENT_TZ).getTime() <= Date.now()
+    ? "The scheduled time must be in the future"
+    : null;
+}
+
 function PublishingCard({
   item,
   canPublish,
@@ -1007,23 +1065,53 @@ function PublishingCard({
   beforePublish: () => Promise<unknown>;
 }) {
   const queryClient = useQueryClient();
-  const [publishAt, setPublishAt] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [mode, setMode] = useState<"now" | "schedule">("now");
+  // UK wall-clock datetime-local value (same convention as event times).
+  const [scheduleAt, setScheduleAt] = useState("");
+
+  const scheduled = isScheduled(item);
+
+  // Flip Scheduled -> Live on our own when the publish time passes with
+  // the editor open: isScheduled() reads Date.now() at render time only,
+  // and a stale "Scheduled" card promises a slug unlock the server
+  // (correctly, on the DB clock) would no longer grant. The mutation
+  // flow is already server-authoritative; this only keeps the card's
+  // state and copy honest.
+  const [, setBoundaryTick] = useState(0);
+  const publishedAtMs =
+    item.publishedAt !== null ? Date.parse(item.publishedAt) : null;
+  useEffect(() => {
+    if (publishedAtMs === null) return;
+    // Small slack so the re-render lands safely on the live side of the
+    // boundary. Delays past the setTimeout clamp are skipped - a
+    // schedule that far out doesn't need an in-session flip.
+    const delay = publishedAtMs - Date.now() + 250;
+    if (delay <= 0 || delay > MAX_TIMEOUT_MS) return;
+    const timer = setTimeout(() => {
+      setBoundaryTick((tick) => tick + 1);
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [publishedAtMs]);
 
   const statusMutation = useMutation({
-    mutationFn: async (action: "publish" | "unpublish" | "archive") => {
-      if (action === "publish") {
+    mutationFn: async (input: PublishAction) => {
+      if (input.action === "publish") {
         // What goes live must be what's in the editor (and what the
         // preview tab shows), not the last-saved state.
         await beforePublish();
+        // "Publish now" sends no publishedAt: the server keeps a past
+        // live-from date and replaces NULL or a future schedule with
+        // now() on its own clock.
         await callApi(
           api.POST("/api/admin/content/{contentId}/publish", {
             params: { path: { contentId: item.id } },
-            body: publishAt
-              ? { publishedAt: new Date(publishAt).toISOString() }
-              : {},
+            body: input.publishedAt ? { publishedAt: input.publishedAt } : {},
           }),
         );
-      } else if (action === "unpublish") {
+      } else if (input.action === "unpublish") {
         await callApi(
           api.POST("/api/admin/content/{contentId}/unpublish", {
             params: { path: { contentId: item.id } },
@@ -1037,7 +1125,8 @@ function PublishingCard({
         );
       }
     },
-    onSuccess: () => {
+    onSuccess: (_result, input) => {
+      if (input.action === "publish") setDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
       // Public pages cache content under ["content", ...] with a 5 minute
       // staleTime; drop those too so a publish/unpublish shows up on the
@@ -1046,81 +1135,171 @@ function PublishingCard({
     },
   });
 
+  const openPublishDialog = () => {
+    statusMutation.reset();
+    if (scheduled && item.publishedAt) {
+      // "Change schedule" starts from the current scheduled time.
+      setMode("schedule");
+      setScheduleAt(isoToUkLocal(item.publishedAt));
+    } else {
+      setMode("now");
+      setScheduleAt("");
+    }
+    setDialogOpen(true);
+  };
+
+  const scheduleProblem = scheduleProblemFor(mode, scheduleAt);
+
+  const confirmPublish = () => {
+    statusMutation.mutate(
+      mode === "schedule"
+        ? { action: "publish", publishedAt: ukLocalToIso(scheduleAt) }
+        : { action: "publish" },
+    );
+  };
+
+  const mutationError = statusMutation.error && (
+    <p className="text-sm text-red-600">
+      {statusMutation.error instanceof Error
+        ? statusMutation.error.message
+        : "Action failed"}
+    </p>
+  );
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Publishing</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        <p className="text-sm text-stone-600">
-          Status: <strong>{item.status}</strong>
-          {item.publishedAt &&
-            ` · live from ${new Date(item.publishedAt).toLocaleString("en-GB")}`}
-        </p>
-        {item.status !== "archived" && (canPublish || canManage) && (
-          <>
-            {canPublish && (
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="publish-at">
-                  Schedule (leave empty to publish now)
-                </Label>
-                <Input
-                  id="publish-at"
-                  type="datetime-local"
-                  value={publishAt}
-                  onChange={(e) => {
-                    setPublishAt(e.target.value);
-                  }}
-                />
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {canPublish && (
-                <Button
-                  size="sm"
-                  disabled={statusMutation.isPending}
-                  onClick={() => {
-                    statusMutation.mutate("publish");
-                  }}
-                >
-                  {publishAt ? "Schedule" : "Publish"}
-                </Button>
-              )}
-              {canPublish && item.status === "published" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={statusMutation.isPending}
-                  onClick={() => {
-                    statusMutation.mutate("unpublish");
-                  }}
-                >
-                  Unpublish
-                </Button>
-              )}
-              {canManage && (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={statusMutation.isPending}
-                  onClick={() => {
-                    statusMutation.mutate("archive");
-                  }}
-                >
-                  Archive
-                </Button>
-              )}
-            </div>
-          </>
-        )}
-        {statusMutation.error && (
-          <p className="text-sm text-red-600">
-            {statusMutation.error instanceof Error
-              ? statusMutation.error.message
-              : "Action failed"}
+        {scheduled && item.publishedAt ? (
+          <p className="text-sm text-stone-600">
+            Status: <strong>scheduled</strong> · goes live{" "}
+            {formatUkTime(item.publishedAt)}
+          </p>
+        ) : (
+          <p className="text-sm text-stone-600">
+            Status: <strong>{item.status}</strong>
+            {item.publishedAt &&
+              ` · live from ${formatUkTime(item.publishedAt)}`}
           </p>
         )}
+        {item.status !== "archived" && (canPublish || canManage) && (
+          <div className="flex flex-wrap gap-2">
+            {canPublish && (
+              <Button
+                size="sm"
+                disabled={statusMutation.isPending}
+                onClick={openPublishDialog}
+              >
+                {scheduled ? "Change schedule" : "Publish…"}
+              </Button>
+            )}
+            {canPublish && item.status === "published" && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={statusMutation.isPending}
+                onClick={() => {
+                  statusMutation.mutate({ action: "unpublish" });
+                }}
+              >
+                {scheduled ? "Cancel schedule" : "Unpublish"}
+              </Button>
+            )}
+            {canManage && (
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={statusMutation.isPending}
+                onClick={() => {
+                  statusMutation.mutate({ action: "archive" });
+                }}
+              >
+                Archive
+              </Button>
+            )}
+          </div>
+        )}
+        {scheduled && canPublish && (
+          <p className="text-xs text-stone-500">
+            Cancelling the schedule returns this item to draft, and the slug
+            unlocks because it never went live.
+          </p>
+        )}
+        {!dialogOpen && mutationError}
       </CardContent>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {scheduled ? "Change schedule" : "Publish"}
+            </DialogTitle>
+            <DialogDescription>
+              Go live straight away, or pick a future time.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 flex flex-col gap-2">
+            <RadioButtons
+              id="publish-mode"
+              options={[
+                {
+                  title: "Publish now",
+                  value: "now",
+                  description: "Visible on the public site immediately",
+                },
+                {
+                  title: "Schedule for later",
+                  value: "schedule",
+                  description:
+                    "Hidden from the public site until the scheduled time",
+                },
+              ]}
+              value={mode}
+              onChange={setMode}
+            />
+            {mode === "schedule" && (
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="publish-schedule-at">Goes live (UK time)</Label>
+                <Input
+                  id="publish-schedule-at"
+                  type="datetime-local"
+                  value={scheduleAt}
+                  onChange={(e) => {
+                    setScheduleAt(e.target.value);
+                  }}
+                />
+                {scheduleProblem !== null && scheduleAt !== "" && (
+                  <p className="text-sm text-red-600">{scheduleProblem}</p>
+                )}
+              </div>
+            )}
+            {mutationError}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDialogOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={statusMutation.isPending || scheduleProblem !== null}
+              title={scheduleProblem ?? undefined}
+              onClick={confirmPublish}
+            >
+              {statusMutation.isPending
+                ? "Publishing…"
+                : mode === "schedule"
+                  ? "Schedule"
+                  : "Publish now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

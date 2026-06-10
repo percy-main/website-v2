@@ -1,5 +1,12 @@
 import type { DB } from "@percy-main/db";
-import type { Kysely } from "kysely";
+import {
+  DummyDriver,
+  Kysely,
+  PostgresAdapter,
+  PostgresIntrospector,
+  PostgresQueryCompiler,
+  type RawBuilder,
+} from "kysely";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockExecuteTakeFirst, mockExecuteTakeFirstOrThrow, mockQueryBuilder } =
@@ -43,6 +50,26 @@ import {
 } from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
+
+// Compile-only Kysely (DummyDriver never connects): turns the raw SQL
+// expressions the service hands to .set() into inspectable SQL text.
+const compilerDb = new Kysely<DB>({
+  dialect: {
+    createAdapter: () => new PostgresAdapter(),
+    createDriver: () => new DummyDriver(),
+    createIntrospector: (inner) => new PostgresIntrospector(inner),
+    createQueryCompiler: () => new PostgresQueryCompiler(),
+  },
+});
+
+/** SQL text (whitespace-normalised) of a column's value in the first .set() call. */
+function setSqlFor(column: string): string {
+  const setArg = (mockQueryBuilder.set as ReturnType<typeof vi.fn>).mock
+    .calls[0]?.[0] as Record<string, RawBuilder<unknown>>;
+  const builder = setArg[column];
+  if (!builder) throw new Error(`.set() did not include ${column}`);
+  return builder.compile(compilerDb).sql.replace(/\s+/g, " ").trim();
+}
 
 const validBody = [
   {
@@ -306,6 +333,35 @@ describe("publishContent", () => {
       publishedAt: at.toISOString(),
     });
   });
+
+  it("passes an explicit publishedAt through as a concrete date", async () => {
+    const at = new Date("2026-07-01T10:00:00Z");
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "content-1",
+      published_at: at,
+    });
+    await publishContent(db)({
+      contentId: "content-1",
+      publishedAt: at.toISOString(),
+      userId: "user-1",
+    });
+    const setArg = (mockQueryBuilder.set as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as { published_at: unknown };
+    expect(setArg.published_at).toEqual(at);
+  });
+
+  it("publish-now keeps published_at only when already past (DB-clock CASE)", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "content-1",
+      published_at: new Date("2026-06-01T10:00:00Z"),
+    });
+    await publishContent(db)({ contentId: "content-1", userId: "user-1" });
+    // NULL or a still-future schedule must fall through to now(); only a
+    // past live-from date survives a dateless publish.
+    expect(setSqlFor("published_at")).toBe(
+      "CASE WHEN published_at <= CURRENT_TIMESTAMP THEN published_at ELSE CURRENT_TIMESTAMP END",
+    );
+  });
 });
 
 describe("unpublishContent", () => {
@@ -325,6 +381,17 @@ describe("unpublishContent", () => {
     await expect(
       unpublishContent(db)({ contentId: "missing", userId: "user-1" }),
     ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("clears published_at only while it is still in the future (DB-clock CASE)", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({ id: "content-1" });
+    await unpublishContent(db)({ contentId: "content-1", userId: "user-1" });
+    // Cancelling a schedule that never went live clears the
+    // ever-published marker (unlocking the slug); a past published_at -
+    // the item was publicly visible - is retained.
+    expect(setSqlFor("published_at")).toBe(
+      "CASE WHEN published_at > CURRENT_TIMESTAMP THEN NULL ELSE published_at END",
+    );
   });
 });
 

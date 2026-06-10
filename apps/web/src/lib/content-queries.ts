@@ -14,6 +14,18 @@ import { api, callApi } from "./api-client.js";
 
 const STALE_TIME = 5 * 60 * 1000;
 
+// Scheduled publishing boundary: a null detail result means "not
+// published yet", and a scheduled item flips to published the instant
+// its published_at passes (server-side DB clock - no deploy, no manual
+// action). A 404-as-null cached for the full 5 minutes would keep an SPA
+// visitor on the missing/fallback state past that moment, so misses go
+// stale fast; real content keeps the full window. Lists keep their flat
+// 5 minutes - bounded staleness there is accepted.
+const NOT_FOUND_STALE_TIME = 30 * 1000;
+
+const detailStaleTime = (query: { state: { data: unknown } }) =>
+  query.state.data === null ? NOT_FOUND_STALE_TIME : STALE_TIME;
+
 export const NEWS_PAGE_SIZE = 5;
 
 export function newsArticleQueryOptions(slug: string) {
@@ -32,7 +44,7 @@ export function newsArticleQueryOptions(slug: string) {
         throw err;
       }
     },
-    staleTime: STALE_TIME,
+    staleTime: detailStaleTime,
     retry: false,
   });
 }
@@ -53,7 +65,7 @@ export function eventQueryOptions(slug: string) {
         throw err;
       }
     },
-    staleTime: STALE_TIME,
+    staleTime: detailStaleTime,
     retry: false,
   });
 }

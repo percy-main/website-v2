@@ -325,9 +325,11 @@ export function updateContent(db: Kysely<DB>) {
 
       const kind = current.kind as ContentKind;
 
-      // Slug locks once the item has ever been published (published_at is
-      // never cleared on unpublish, precisely so it can serve as the
-      // ever-published marker). No redirect handling exists anywhere.
+      // Slug locks once the item has ever been publicly visible.
+      // published_at is the ever-published marker: unpublish keeps it for
+      // items that went live, and clears it when cancelling a schedule
+      // that never did - which re-unlocks the slug, deliberately. No
+      // redirect handling exists anywhere.
       if (
         params.slug !== undefined &&
         params.slug !== current.slug &&
@@ -409,12 +411,19 @@ export function publishContent(db: Kysely<DB>) {
       .updateTable("content_item")
       .set({
         status: "published",
-        // No explicit date: keep the original first-publish time on a
-        // re-publish (it is the public "live from" date and the
-        // ever-published marker); only stamp now() on first publish.
+        // No explicit date: keep the original "live from" time only when
+        // it is already in the past (re-publish after unpublish must not
+        // rewrite history). NULL (first publish) or a still-future
+        // schedule (the editor pressed "Publish now" on a scheduled
+        // item) becomes now(). NULL <= now() is NULL, so both fall to
+        // the ELSE branch. Expressed in SQL so the comparison uses the
+        // DB clock, consistent with publishedOnly().
         published_at: params.publishedAt
           ? new Date(params.publishedAt)
-          : sql`COALESCE(published_at, CURRENT_TIMESTAMP)`,
+          : sql`CASE
+              WHEN published_at <= CURRENT_TIMESTAMP THEN published_at
+              ELSE CURRENT_TIMESTAMP
+            END`,
         updated_by: params.userId,
         updated_at: sql`CURRENT_TIMESTAMP`,
       })
@@ -445,8 +454,11 @@ export function publishContent(db: Kysely<DB>) {
 
 export function unpublishContent(db: Kysely<DB>) {
   return async (params: { contentId: string; userId: string }) => {
-    // published_at is deliberately retained: it marks "ever published",
-    // which locks the slug. Visibility is governed by status alone.
+    // A past published_at is deliberately retained: it marks "ever
+    // published", which locks the slug. A still-future published_at means
+    // a schedule being cancelled before the public ever saw the item, so
+    // the ever-published marker is cleared and the slug unlocks.
+    // Visibility is otherwise governed by status alone.
     // Only a published item can be unpublished - in particular this must
     // not offer a back door out of 'archived' (archive -> unpublish ->
     // publish would resurrect archived content past the manage-only
@@ -455,6 +467,10 @@ export function unpublishContent(db: Kysely<DB>) {
       .updateTable("content_item")
       .set({
         status: "draft",
+        published_at: sql`CASE
+          WHEN published_at > CURRENT_TIMESTAMP THEN NULL
+          ELSE published_at
+        END`,
         updated_by: params.userId,
         updated_at: sql`CURRENT_TIMESTAMP`,
       })
