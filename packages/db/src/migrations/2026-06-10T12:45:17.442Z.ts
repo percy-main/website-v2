@@ -82,7 +82,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .on("content_item")
     .columns(["kind", "slug"])
     .unique()
-    .where("parent_id", "is", null)
+    .where(sql.ref("parent_id"), "is", null)
     .execute();
 
   // Children must be unique among their siblings (the materialised path
@@ -92,7 +92,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .on("content_item")
     .columns(["parent_id", "slug"])
     .unique()
-    .where("parent_id", "is not", null)
+    .where(sql.ref("parent_id"), "is not", null)
     .execute();
 
   await db.schema
