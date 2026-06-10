@@ -16,8 +16,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useHasPermission } from "@/hooks/use-has-permission";
 import { api, callApi } from "@/lib/api-client";
-import type { ContentKind } from "@percy-main/shared/content";
+import {
+  CONTENT_KIND_RESOURCES,
+  CONTENT_STATUSES,
+  type ContentKind,
+  type ContentStatus,
+} from "@percy-main/shared/content";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
 import { useSearchParams } from "react-router";
@@ -33,6 +39,9 @@ const STATUS_BADGES: Record<string, "default" | "secondary" | "outline"> = {
 };
 
 const PAGE_SIZE = 20;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
@@ -52,8 +61,24 @@ function formatDateTime(iso: string): string {
 export function ContentTab({ kind }: { kind: ContentKind }) {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const openItem = searchParams.get("item");
-  const status = searchParams.get("status") ?? "all";
+  const { allowed: canManage } = useHasPermission(
+    CONTENT_KIND_RESOURCES[kind],
+    "manage",
+  );
+
+  // URL state is user input: anything unexpected degrades to the default
+  // rather than reaching the typed API call.
+  const itemParam = searchParams.get("item");
+  const openItem =
+    itemParam === "new" || (itemParam !== null && UUID_RE.test(itemParam))
+      ? itemParam
+      : null;
+  const statusParam = searchParams.get("status");
+  const status: ContentStatus | "all" = (
+    CONTENT_STATUSES as readonly string[]
+  ).includes(statusParam ?? "")
+    ? (statusParam as ContentStatus)
+    : "all";
   const search = searchParams.get("q") ?? "";
   const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
 
@@ -66,7 +91,7 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
     setSearchParams(params, { replace: true });
   };
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "content", kind, status, search, page],
     queryFn: () =>
       callApi(
@@ -74,9 +99,7 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
           params: {
             query: {
               kind,
-              ...(status !== "all"
-                ? { status: status as "draft" | "published" | "archived" }
-                : {}),
+              ...(status !== "all" ? { status } : {}),
               ...(search ? { search } : {}),
               page,
               pageSize: PAGE_SIZE,
@@ -141,16 +164,22 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
             </SelectContent>
           </Select>
         </div>
-        <Button
-          onClick={() => {
-            setParams({ item: "new" });
-          }}
-        >
-          New report
-        </Button>
+        {canManage && (
+          <Button
+            onClick={() => {
+              setParams({ item: "new" });
+            }}
+          >
+            New report
+          </Button>
+        )}
       </div>
 
-      {isLoading ? (
+      {error ? (
+        <p className="py-8 text-sm text-red-600">
+          Couldn't load content - {error.message}
+        </p>
+      ) : isLoading ? (
         <p className="py-8 text-sm text-stone-500">Loading…</p>
       ) : items.length === 0 ? (
         <p className="py-8 text-sm text-stone-500">

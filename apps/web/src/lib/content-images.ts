@@ -1,5 +1,5 @@
-import type { PictureSource } from "@/components/optimised-image.js";
 import { api, callApi } from "@/lib/api-client.js";
+import type { paths } from "@/lib/api.gen.js";
 
 const UPLOADABLE_TYPES = [
   "image/jpeg",
@@ -14,13 +14,10 @@ function isUploadableType(type: string): type is UploadableType {
   return (UPLOADABLE_TYPES as readonly string[]).includes(type);
 }
 
-export interface UploadedContentImage {
-  id: string;
-  picture: PictureSource;
-  alt: string | null;
-  width: number;
-  height: number;
-}
+// Derived from the generated OpenAPI types per house rule; structurally
+// identical to the OptimisedImage PictureSource shape.
+export type UploadedContentImage =
+  paths["/api/admin/content-images"]["post"]["responses"][200]["content"]["application/json"];
 
 /**
  * Full presigned upload flow for an editor image: presign -> browser PUT

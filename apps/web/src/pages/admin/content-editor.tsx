@@ -44,10 +44,13 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs.js";
 import { Textarea } from "@/components/ui/textarea.js";
+import { useHasPermission } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client.js";
+import type { paths } from "@/lib/api.gen.js";
 import { uploadContentImage } from "@/lib/content-images.js";
 import { getAllPeople } from "@/lib/people.js";
 import {
+  CONTENT_KIND_RESOURCES,
   contentBodySchema,
   CUSTOM_BLOCK_TYPES,
   type ContentKind,
@@ -210,11 +213,30 @@ const eventPreviewBlock = createReactBlockSpec(
 
 function parsePictureProp(raw: string): PictureSource | null {
   if (!raw) return null;
+  let parsed: unknown;
   try {
-    return JSON.parse(raw) as PictureSource;
+    parsed = JSON.parse(raw);
   } catch {
     return null;
   }
+  // Same structural floor as the public renderer: enough shape that
+  // OptimisedImage cannot crash on a malformed stored descriptor.
+  const candidate = parsed as {
+    sources?: unknown;
+    img?: { src?: unknown; w?: unknown; h?: unknown };
+  };
+  if (
+    typeof candidate !== "object" ||
+    candidate === null ||
+    typeof candidate.img?.src !== "string" ||
+    typeof candidate.img.w !== "number" ||
+    typeof candidate.img.h !== "number" ||
+    typeof candidate.sources !== "object" ||
+    candidate.sources === null
+  ) {
+    return null;
+  }
+  return candidate as PictureSource;
 }
 
 const contentImageBlock = createReactBlockSpec(
@@ -354,7 +376,11 @@ export default function ContentEditor({
   onClose,
   onCreated,
 }: EditorProps) {
-  const { data: item, isLoading } = useQuery({
+  const {
+    data: item,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["admin", "content", "detail", contentId],
     queryFn: () =>
       callApi(
@@ -364,6 +390,19 @@ export default function ContentEditor({
       ),
     enabled: contentId !== null,
   });
+
+  if (contentId !== null && error) {
+    return (
+      <div className="flex flex-col items-start gap-2 py-8">
+        <p className="text-sm text-red-600">
+          Couldn't load this item - {error.message}
+        </p>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          ← Back to list
+        </Button>
+      </div>
+    );
+  }
 
   if (contentId !== null && (isLoading || !item)) {
     return <p className="py-8 text-sm text-stone-500">Loading…</p>;
@@ -380,17 +419,10 @@ export default function ContentEditor({
   );
 }
 
-interface ContentItemDetail {
-  id: string;
-  slug: string;
-  title: string;
-  description: string | null;
-  status: string;
-  metadata: Record<string, unknown>;
-  publishedAt: string | null;
-  updatedAt: string;
-  body: unknown;
-}
+// Derived from the generated OpenAPI types per house rule - never a
+// hand-written response interface.
+type ContentItemDetail =
+  paths["/api/admin/content/{contentId}"]["get"]["responses"][200]["content"]["application/json"];
 
 interface FormState {
   title: string;
@@ -466,7 +498,15 @@ function MetadataFields({
   );
 }
 
-function PublishingCard({ item }: { item: ContentItemDetail }) {
+function PublishingCard({
+  item,
+  canPublish,
+  canManage,
+}: {
+  item: ContentItemDetail;
+  canPublish: boolean;
+  canManage: boolean;
+}) {
   const queryClient = useQueryClient();
   const [publishAt, setPublishAt] = useState("");
 
@@ -511,32 +551,36 @@ function PublishingCard({ item }: { item: ContentItemDetail }) {
           {item.publishedAt &&
             ` · live from ${new Date(item.publishedAt).toLocaleString("en-GB")}`}
         </p>
-        {item.status !== "archived" && (
+        {item.status !== "archived" && (canPublish || canManage) && (
           <>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="publish-at">
-                Schedule (leave empty to publish now)
-              </Label>
-              <Input
-                id="publish-at"
-                type="datetime-local"
-                value={publishAt}
-                onChange={(e) => {
-                  setPublishAt(e.target.value);
-                }}
-              />
-            </div>
+            {canPublish && (
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="publish-at">
+                  Schedule (leave empty to publish now)
+                </Label>
+                <Input
+                  id="publish-at"
+                  type="datetime-local"
+                  value={publishAt}
+                  onChange={(e) => {
+                    setPublishAt(e.target.value);
+                  }}
+                />
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                disabled={statusMutation.isPending}
-                onClick={() => {
-                  statusMutation.mutate("publish");
-                }}
-              >
-                {publishAt ? "Schedule" : "Publish"}
-              </Button>
-              {item.status === "published" && (
+              {canPublish && (
+                <Button
+                  size="sm"
+                  disabled={statusMutation.isPending}
+                  onClick={() => {
+                    statusMutation.mutate("publish");
+                  }}
+                >
+                  {publishAt ? "Schedule" : "Publish"}
+                </Button>
+              )}
+              {canPublish && item.status === "published" && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -548,16 +592,18 @@ function PublishingCard({ item }: { item: ContentItemDetail }) {
                   Unpublish
                 </Button>
               )}
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={statusMutation.isPending}
-                onClick={() => {
-                  statusMutation.mutate("archive");
-                }}
-              >
-                Archive
-              </Button>
+              {canManage && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={statusMutation.isPending}
+                  onClick={() => {
+                    statusMutation.mutate("archive");
+                  }}
+                >
+                  Archive
+                </Button>
+              )}
             </div>
           </>
         )}
@@ -663,6 +709,14 @@ function LoadedEditor({
   onCreated: (id: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const { allowed: canManage } = useHasPermission(
+    CONTENT_KIND_RESOURCES[kind],
+    "manage",
+  );
+  const { allowed: canPublish } = useHasPermission(
+    CONTENT_KIND_RESOURCES[kind],
+    "publish",
+  );
 
   const [form, setForm] = useState<FormState>({
     title: item?.title ?? "",
@@ -857,18 +911,20 @@ function LoadedEditor({
               })}
             </span>
           )}
-          <Button
-            onClick={() => {
-              saveMutation.mutate();
-            }}
-            disabled={saveMutation.isPending || !form.title || !form.slug}
-          >
-            {saveMutation.isPending
-              ? "Saving…"
-              : item === null
-                ? "Create draft"
-                : "Save"}
-          </Button>
+          {canManage && (
+            <Button
+              onClick={() => {
+                saveMutation.mutate();
+              }}
+              disabled={saveMutation.isPending || !form.title || !form.slug}
+            >
+              {saveMutation.isPending
+                ? "Saving…"
+                : item === null
+                  ? "Create draft"
+                  : "Save"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -888,7 +944,13 @@ function LoadedEditor({
             slugLocked={slugLocked}
             onChange={onFormChange}
           />
-          {item !== null && <PublishingCard item={item} />}
+          {item !== null && (
+            <PublishingCard
+              item={item}
+              canPublish={canPublish}
+              canManage={canManage}
+            />
+          )}
           <ConsentBox
             checked={consentConfirmed}
             onChange={setConsentConfirmed}
