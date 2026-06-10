@@ -97,6 +97,20 @@ export const ENABLED_CONTENT_KINDS = Object.keys(
   CONTENT_METADATA_SCHEMAS,
 ) as ContentKind[];
 
+// ── Custom block types ──────────────────────────────────────────────────
+//
+// The directive vocabulary from the original epic plan, as BlockNote
+// custom block type names. Single source of truth shared by the editor
+// (which registers blocks under these names) and the public renderer
+// (which maps them to the existing component map).
+
+export const CUSTOM_BLOCK_TYPES = {
+  person: "person",
+  personGrid: "personGrid",
+  gamePreview: "gamePreview",
+  eventPreview: "eventPreview",
+} as const;
+
 // ── Slugs ───────────────────────────────────────────────────────────────
 //
 // Locked after first publish (no redirect handling exists anywhere), so
