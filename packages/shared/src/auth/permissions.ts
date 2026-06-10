@@ -19,6 +19,15 @@ export const statements = {
   ai_facts: ["view", "manage"],
   ai_knowledge: ["view", "manage"],
   users: ["view", "manage", "manage_roles"],
+  // Live content editing (#479). manage and publish are separate actions
+  // deliberately - every role created today gets both (direct publish, no
+  // review workflow), but keeping them distinct means a review tier can be
+  // added later without a data migration. content_people is its own
+  // resource because person profiles carry safeguarding-adjacent flags.
+  content: ["view", "manage", "publish"],
+  content_news: ["view", "manage", "publish"],
+  content_reports: ["view", "manage", "publish"],
+  content_people: ["view", "manage", "publish"],
 } as const;
 
 export const ac = createAccessControl(statements);
@@ -37,6 +46,10 @@ const ALL_PERMS = {
   ai_facts: ["view", "manage"],
   ai_knowledge: ["view", "manage"],
   users: ["view", "manage", "manage_roles"],
+  content: ["view", "manage", "publish"],
+  content_news: ["view", "manage", "publish"],
+  content_reports: ["view", "manage", "publish"],
+  content_people: ["view", "manage", "publish"],
 } as const;
 
 export const roles = {
@@ -84,6 +97,27 @@ export const roles = {
   ai_facts_admin: ac.newRole({ ai_facts: ["view", "manage"] }),
   ai_knowledge_viewer: ac.newRole({ ai_knowledge: ["view"] }),
   ai_knowledge_admin: ac.newRole({ ai_knowledge: ["view", "manage"] }),
+
+  // Content editing (#479). All roles get manage + publish (direct publish,
+  // no review workflow - the editor pool is <5 trusted people). news_editor
+  // also covers game reports: in practice the news volunteers write up
+  // match coverage too.
+  content_admin: ac.newRole({
+    content: ["view", "manage", "publish"],
+    content_news: ["view", "manage", "publish"],
+    content_reports: ["view", "manage", "publish"],
+    content_people: ["view", "manage", "publish"],
+  }),
+  news_editor: ac.newRole({
+    content_news: ["view", "manage", "publish"],
+    content_reports: ["view", "manage", "publish"],
+  }),
+  reports_editor: ac.newRole({
+    content_reports: ["view", "manage", "publish"],
+  }),
+  people_editor: ac.newRole({
+    content_people: ["view", "manage", "publish"],
+  }),
 
   // Member management — same as admin's user CRUD minus the set-role power,
   // so a user_manager can archive/restore/link members but can't promote
@@ -141,6 +175,10 @@ export const ASSIGNABLE_ROLES: readonly RoleName[] = [
   "ai_facts_viewer",
   "ai_knowledge_admin",
   "ai_knowledge_viewer",
+  "content_admin",
+  "news_editor",
+  "reports_editor",
+  "people_editor",
   "junior_manager",
   "official",
   "admin",
@@ -169,6 +207,10 @@ export const ROLE_LABELS: Record<RoleName, string> = {
   ai_facts_admin: "AI facts admin",
   ai_knowledge_viewer: "AI knowledge viewer",
   ai_knowledge_admin: "AI knowledge admin",
+  content_admin: "Content admin",
+  news_editor: "News editor",
+  reports_editor: "Reports editor",
+  people_editor: "People editor",
   junior_manager: "Junior Manager",
   official: "Official",
 };
@@ -211,7 +253,11 @@ export function hasAdminPanelAccess(
     checkPermission(rawRole, "matchday", "view") ||
     checkPermission(rawRole, "fantasy", "manage") ||
     checkPermission(rawRole, "incidents", "view") ||
-    checkPermission(rawRole, "documents", "manage")
+    checkPermission(rawRole, "documents", "manage") ||
+    checkPermission(rawRole, "content", "view") ||
+    checkPermission(rawRole, "content_news", "view") ||
+    checkPermission(rawRole, "content_reports", "view") ||
+    checkPermission(rawRole, "content_people", "view")
   );
 }
 
