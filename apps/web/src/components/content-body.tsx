@@ -20,7 +20,7 @@ import { createElement, Fragment, type ReactNode } from "react";
 interface StyledText {
   type: "text";
   text: string;
-  styles: Record<string, unknown>;
+  styles?: Record<string, unknown> | null;
 }
 
 interface InlineLink {
@@ -55,9 +55,19 @@ function isSafeHref(href: string): boolean {
   return /^(https?:|mailto:|tel:)/i.test(href) || /^\/(?!\/)/.test(href);
 }
 
+/**
+ * Stricter than isSafeHref: images render only from https or
+ * site-relative paths (uploads live under /uploads/*). Keeps plain-http
+ * mixed content and protocol oddities out of public pages.
+ */
+function isSafeImageSrc(src: string): boolean {
+  return /^https:/i.test(src) || /^\/(?!\/)/.test(src);
+}
+
 function StyledTextView({ node }: { node: StyledText }) {
   let element: ReactNode = node.text;
-  const styles = node.styles;
+  // A text node with absent/null styles is still renderable text.
+  const styles = node.styles ?? {};
   // textColor / backgroundColor are deliberately not honoured: editor
   // content stays within the site palette.
   if (styles.code === true) element = <code>{element}</code>;
@@ -244,7 +254,7 @@ function BlockView({ block }: { block: ContentBlock }) {
 
     case "image": {
       const url = stringProp(block, "url");
-      if (!url || !isSafeHref(url)) return null;
+      if (!url || !isSafeImageSrc(url)) return null;
       return (
         <mdxComponents.Image
           src={url}
@@ -349,7 +359,13 @@ function BlocksView({ blocks }: { blocks: ContentBlock[] }) {
     out.push(
       createElement(
         listTag,
-        { key: block.id },
+        {
+          key: block.id,
+          // Checklists show their checkboxes, not the .mdx-content disc
+          // markers a plain ul would get.
+          className:
+            block.type === "checkListItem" ? "ml-0 list-none" : undefined,
+        },
         items.map((item) => <ListItemView key={item.id} item={item} />),
       ),
     );

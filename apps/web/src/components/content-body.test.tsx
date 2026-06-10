@@ -175,6 +175,31 @@ describe("ContentBody", () => {
     expect(html).not.toContain("javascript:");
   });
 
+  it("tolerates text nodes with missing styles", () => {
+    const html = renderBody([
+      block("paragraph", { content: [{ type: "text", text: "bare node" }] }),
+    ]);
+    expect(html).toContain("bare node");
+  });
+
+  it("refuses plain-http image sources", () => {
+    const html = renderBody([
+      block("image", { props: { url: "http://example.com/pixel.gif" } }),
+    ]);
+    expect(html).not.toContain("pixel.gif");
+  });
+
+  it("renders checklists without disc markers", () => {
+    const html = renderBody([
+      block("checkListItem", {
+        props: { checked: true },
+        content: [text("Covers on")],
+      }),
+    ]);
+    expect(html).toContain("list-none");
+    expect(html).toContain("checked");
+  });
+
   it("hides the eventPreview block when props are incomplete", () => {
     const html = renderBody([
       block("eventPreview", { props: { name: "Quiz night" } }),
