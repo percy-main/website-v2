@@ -13791,6 +13791,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/content/news": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    tag?: string;
+                    page?: number;
+                    pageSize?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                slug: string;
+                                title: string;
+                                description: string | null;
+                                metadata: {
+                                    [key: string]: unknown;
+                                };
+                                publishedAt: string;
+                                updatedAt: string;
+                            }[];
+                            total: number;
+                            tags: {
+                                tag: string;
+                                count: number;
+                            }[];
+                            archive: {
+                                month: string;
+                                count: number;
+                            }[];
+                            authorCount: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/content/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                slug: string;
+                                title: string;
+                                description: string | null;
+                                metadata: {
+                                    [key: string]: unknown;
+                                };
+                                publishedAt: string;
+                                updatedAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/content-images/upload-url": {
         parameters: {
             query?: never;

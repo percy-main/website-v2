@@ -16,6 +16,9 @@ import {
   createContentSchema,
   listContentQuerySchema,
   listContentResponseSchema,
+  listEventsResponseSchema,
+  listNewsQuerySchema,
+  listNewsResponseSchema,
   listRevisionsResponseSchema,
   playCricketIdParamSchema,
   publicContentParamsSchema,
@@ -31,6 +34,8 @@ import {
   getPublishedContent,
   getPublishedGameReport,
   listContent,
+  listPublishedEvents,
+  listPublishedNews,
   listRevisions,
   publishContent,
   unpublishContent,
@@ -74,6 +79,8 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const revisions = listRevisions(app.db);
   const publicGet = getPublishedContent(app.db);
   const publicGameReport = getPublishedGameReport(app.db);
+  const publicNews = listPublishedNews(app.db);
+  const publicEvents = listPublishedEvents(app.db);
 
   // ── Admin ──
 
@@ -277,6 +284,35 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
         return await reply.code(304).send(null);
       }
       return item;
+    },
+  );
+
+  // List endpoints. One static segment, so no clash with the two-segment
+  // /content/:kind/:slug above. No ETag here: any item edit, publish or
+  // scheduled publish crossing now() would have to invalidate it.
+
+  app.get(
+    "/content/news",
+    {
+      schema: {
+        querystring: listNewsQuerySchema,
+        response: { 200: listNewsResponseSchema },
+      },
+    },
+    async (request) => {
+      return await publicNews(request.query);
+    },
+  );
+
+  app.get(
+    "/content/events",
+    {
+      schema: {
+        response: { 200: listEventsResponseSchema },
+      },
+    },
+    async () => {
+      return await publicEvents();
     },
   );
 };

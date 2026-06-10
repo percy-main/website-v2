@@ -76,6 +76,20 @@ export const contentBlockSchema: z.ZodType<ContentBlock> = z.lazy(() =>
 export const contentBodySchema = z.array(contentBlockSchema);
 export type ContentBody = z.infer<typeof contentBodySchema>;
 
+// ── Slugs ───────────────────────────────────────────────────────────────
+//
+// Locked after first publish (no redirect handling exists anywhere), so
+// they are validated strictly from the start.
+
+export const contentSlugSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .regex(
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+    "Slug must be lowercase letters, numbers and hyphens",
+  );
+
 // ── Kind-specific metadata (replaces MDX frontmatter) ───────────────────
 //
 // Validated on every write by the content API. Only kinds with a schema
@@ -86,9 +100,37 @@ export const gameReportMetadataSchema = z.object({
 });
 export type GameReportMetadata = z.infer<typeof gameReportMetadataSchema>;
 
+export const newsMetadataSchema = z.object({
+  tags: z.array(z.string().min(1)),
+  // References the static people corpus, which stays as MDX in the web
+  // app until Phase 4 - so only the format is validated here. The admin
+  // UI's people picker is what ties the slug to a real person.
+  authorSlug: contentSlugSchema.optional(),
+});
+export type NewsMetadata = z.infer<typeof newsMetadataSchema>;
+
+export const eventMetadataSchema = z.object({
+  when: z.iso.datetime({ offset: true }),
+  finish: z.iso.datetime({ offset: true }).optional(),
+  // Inline venue embed, deliberately minimal: no county/country fields.
+  location: z
+    .object({
+      name: z.string().min(1),
+      street: z.string().min(1),
+      city: z.string().min(1),
+      postcode: z.string().min(1),
+      lat: z.number().optional(),
+      lon: z.number().optional(),
+    })
+    .optional(),
+});
+export type EventMetadata = z.infer<typeof eventMetadataSchema>;
+
 export const CONTENT_METADATA_SCHEMAS: Partial<
   Record<ContentKind, z.ZodType<Record<string, unknown>>>
 > = {
+  news: newsMetadataSchema,
+  event: eventMetadataSchema,
   game_report: gameReportMetadataSchema,
 };
 
@@ -111,17 +153,3 @@ export const CUSTOM_BLOCK_TYPES = {
   // the responsive ladder without any lookup.
   contentImage: "contentImage",
 } as const;
-
-// ── Slugs ───────────────────────────────────────────────────────────────
-//
-// Locked after first publish (no redirect handling exists anywhere), so
-// they are validated strictly from the start.
-
-export const contentSlugSchema = z
-  .string()
-  .min(1)
-  .max(200)
-  .regex(
-    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-    "Slug must be lowercase letters, numbers and hyphens",
-  );
