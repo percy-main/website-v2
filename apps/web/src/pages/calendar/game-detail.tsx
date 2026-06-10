@@ -1,3 +1,4 @@
+import { ContentBody } from "@/components/content-body.js";
 import { Map } from "@/components/map.js";
 import { mdxComponents } from "@/components/mdx-components.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
@@ -254,6 +255,30 @@ function BallByBallTrigger({ game }: { game: GameData }) {
 }
 
 function GameDetailContent({ game }: { game: GameData }) {
+  // DB-backed report first (live content editing, #479); the bundled MDX
+  // corpus stays as fallback until the migration is verified in prod,
+  // then gets deleted in a follow-up.
+  const { data: apiReport } = useQuery({
+    queryKey: ["content", "game-report", game.id],
+    queryFn: async () => {
+      try {
+        return await callApi(
+          api.GET(
+            "/api/content/game-report/by-play-cricket-id/{playCricketId}",
+            {
+              params: { path: { playCricketId: game.id } },
+            },
+          ),
+        );
+      } catch (err) {
+        // No published report for this game - fall back to bundled MDX.
+        if ((err as { status?: number }).status === 404) return null;
+        throw err;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
   const report = getGameReport(game.id);
 
   const title = `${game.team.name} vs. ${game.opposition.club.name} ${game.opposition.team.name} ${game.home ? "(H)" : "(A)"}`;
@@ -439,15 +464,22 @@ function GameDetailContent({ game }: { game: GameData }) {
             links show a fallback. */}
         <BallByBallTrigger game={game} />
 
-        {/* MDX game report */}
-        {report && (
+        {/* Game report: API-published content wins, bundled MDX is the
+            transition fallback */}
+        {apiReport ? (
           <div className="w-full">
-            <MDXProvider components={mdxComponents}>
-              <div className="mdx-content flex flex-col *:mb-4">
-                <report.Component />
-              </div>
-            </MDXProvider>
+            <ContentBody body={apiReport.body} />
           </div>
+        ) : (
+          report && (
+            <div className="w-full">
+              <MDXProvider components={mdxComponents}>
+                <div className="mdx-content flex flex-col *:mb-4">
+                  <report.Component />
+                </div>
+              </MDXProvider>
+            </div>
+          )
         )}
 
         {/* Scorecard (fetches from Play Cricket API) */}
