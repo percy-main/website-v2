@@ -162,7 +162,7 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
       const { user } = getAuthSession(request);
       return await publish({
         contentId: request.params.contentId,
-        publishedAt: request.body.publishedAt,
+        publishedAt: request.body?.publishedAt,
         userId: user.id,
       });
     },

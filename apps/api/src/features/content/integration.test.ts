@@ -100,10 +100,13 @@ describe("content service (integration)", () => {
       updateContent(ctx.db)({ contentId: id, slug: "new-slug", userId }),
     ).rejects.toMatchObject({ statusCode: 409 });
 
-    // Archive blocks re-publish
+    // Archive blocks re-publish, and unpublish offers no back door out
     await archiveContent(ctx.db)({ contentId: id, userId });
     await expect(
       publishContent(ctx.db)({ contentId: id, userId }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await expect(
+      unpublishContent(ctx.db)({ contentId: id, userId }),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -156,6 +159,49 @@ describe("content service (integration)", () => {
         description: null,
         body: body("Two."),
         metadata: { playCricketId: "444444" },
+        userId,
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("rejects a second game report for the same Play-Cricket match", async () => {
+    await createContent(ctx.db)({
+      kind: "game_report",
+      slug: "pc-dupe-one",
+      title: "First",
+      description: null,
+      body: body("One."),
+      metadata: { playCricketId: "777777" },
+      userId,
+    });
+
+    // Duplicate on create (even as a draft)
+    await expect(
+      createContent(ctx.db)({
+        kind: "game_report",
+        slug: "pc-dupe-two",
+        title: "Second",
+        description: null,
+        body: body("Two."),
+        metadata: { playCricketId: "777777" },
+        userId,
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+
+    // Duplicate via metadata update
+    const other = await createContent(ctx.db)({
+      kind: "game_report",
+      slug: "pc-dupe-three",
+      title: "Third",
+      description: null,
+      body: body("Three."),
+      metadata: { playCricketId: "888888" },
+      userId,
+    });
+    await expect(
+      updateContent(ctx.db)({
+        contentId: other.id,
+        metadata: { playCricketId: "777777" },
         userId,
       }),
     ).rejects.toMatchObject({ statusCode: 409 });

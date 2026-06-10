@@ -38,6 +38,7 @@ import {
   createContent,
   getPublishedGameReport,
   publishContent,
+  unpublishContent,
   updateContent,
 } from "./service.ts";
 
@@ -203,6 +204,26 @@ describe("publishContent", () => {
       id: "content-1",
       publishedAt: at.toISOString(),
     });
+  });
+});
+
+describe("unpublishContent", () => {
+  it("409s when the item is not currently published", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // update matched nothing
+      .mockResolvedValueOnce({ id: "content-1" }); // but it exists
+    await expect(
+      unpublishContent(db)({ contentId: "content-1", userId: "user-1" }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("404s when the item does not exist", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined);
+    await expect(
+      unpublishContent(db)({ contentId: "missing", userId: "user-1" }),
+    ).rejects.toMatchObject({ statusCode: 404 });
   });
 });
 

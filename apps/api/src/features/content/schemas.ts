@@ -94,10 +94,13 @@ export const contentDetailResponseSchema = contentDetailSchema;
 
 // ── Admin: publish / unpublish / archive ────────────────────────────────
 
-export const publishContentSchema = z.object({
-  /** Omit to publish immediately; a future datetime schedules the publish. */
-  publishedAt: z.iso.datetime({ offset: true }).optional(),
-});
+export const publishContentSchema = z
+  .object({
+    /** Omit to publish immediately; a future datetime schedules it. */
+    publishedAt: z.iso.datetime({ offset: true }).optional(),
+  })
+  // Optional so "publish now" needs no request body at all.
+  .optional();
 
 // ── Admin: revisions ────────────────────────────────────────────────────
 

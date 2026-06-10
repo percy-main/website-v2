@@ -48,6 +48,40 @@ function parseBody(body: unknown) {
   return result.data;
 }
 
+/**
+ * The public game-report lookup is by playCricketId, so it must be unique
+ * across game reports regardless of status (a draft duplicate would make
+ * the lookup nondeterministic the moment it published). A unique
+ * expression index backs this; the explicit check exists for a friendly
+ * 409 instead of a raw constraint violation.
+ */
+async function assertPlayCricketIdAvailable(
+  tx: Transaction<DB>,
+  kind: ContentKind,
+  metadata: Record<string, unknown>,
+  excludeId?: string,
+) {
+  if (kind !== "game_report") return;
+  const playCricketId = metadata.playCricketId;
+  if (typeof playCricketId !== "string") return;
+
+  let query = tx
+    .selectFrom("content_item")
+    .select("id")
+    .where("kind", "=", "game_report")
+    .where(sql<string>`metadata->>'playCricketId'`, "=", playCricketId);
+  if (excludeId !== undefined) {
+    query = query.where("id", "!=", excludeId);
+  }
+  const clash = await query.executeTakeFirst();
+  if (clash) {
+    throwHttpError(
+      409,
+      `A game report for Play-Cricket match ${playCricketId} already exists`,
+    );
+  }
+}
+
 interface ContentItemRow {
   id: string;
   kind: string;
@@ -209,6 +243,8 @@ export function createContent(db: Kysely<DB>) {
         );
       }
 
+      await assertPlayCricketIdAvailable(tx, params.kind, metadata);
+
       const item = await tx
         .insertInto("content_item")
         .values({
@@ -314,6 +350,10 @@ export function updateContent(db: Kysely<DB>) {
         }
       }
 
+      if (params.metadata !== undefined) {
+        await assertPlayCricketIdAvailable(tx, kind, metadata, current.id);
+      }
+
       await tx
         .updateTable("content_item")
         .set({
@@ -386,6 +426,10 @@ export function unpublishContent(db: Kysely<DB>) {
   return async (params: { contentId: string; userId: string }) => {
     // published_at is deliberately retained: it marks "ever published",
     // which locks the slug. Visibility is governed by status alone.
+    // Only a published item can be unpublished - in particular this must
+    // not offer a back door out of 'archived' (archive -> unpublish ->
+    // publish would resurrect archived content past the manage-only
+    // archive control).
     const result = await db
       .updateTable("content_item")
       .set({
@@ -394,10 +438,23 @@ export function unpublishContent(db: Kysely<DB>) {
         updated_at: sql`CURRENT_TIMESTAMP`,
       })
       .where("id", "=", params.contentId)
+      .where("status", "=", "published")
       .returning("id")
       .executeTakeFirst();
 
-    if (!result) throwHttpError(404, "Content not found");
+    if (!result) {
+      const exists = await db
+        .selectFrom("content_item")
+        .select("id")
+        .where("id", "=", params.contentId)
+        .executeTakeFirst();
+      throwHttpError(
+        exists ? 409 : 404,
+        exists
+          ? "Only published content can be unpublished"
+          : "Content not found",
+      );
+    }
     return { id: result.id };
   };
 }
@@ -477,14 +534,27 @@ function toPublic(row: {
   if (!row.published_at) {
     throwHttpError(500, "Published content missing published_at");
   }
+  const kind = row.kind as ContentKind;
+  // The metadata schema map doubles as the allowlist of kinds the public
+  // API serves at all, and projecting through it strips undeclared keys.
+  // NOTE for later phases: a kind whose declared metadata is itself not
+  // fully public (person carries safeguarding-adjacent flags) must add a
+  // dedicated public projection schema here rather than reusing its write
+  // schema.
+  const schema = CONTENT_METADATA_SCHEMAS[kind];
+  if (!schema) throwHttpError(404, "Content not found");
+  const metadata = schema.safeParse(row.metadata);
+  if (!metadata.success) {
+    throwHttpError(500, "Stored metadata does not match its kind schema");
+  }
   return {
     id: row.id,
-    kind: row.kind as ContentKind,
+    kind,
     slug: row.slug,
     title: row.title,
     description: row.description,
     body: row.body as z.infer<typeof contentBodySchema>,
-    metadata: row.metadata as Record<string, unknown>,
+    metadata: metadata.data,
     publishedAt: row.published_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
