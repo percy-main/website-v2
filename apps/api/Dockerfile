@@ -21,8 +21,12 @@ RUN pnpm --filter '!@percy-main/web' --filter '!email-viewer' run build
 FROM node:24-alpine AS runner
 RUN corepack enable && corepack prepare pnpm@11.1.2 --activate
 
-# Install fonts for Sharp SVG rendering (OG images) and AWS RDS CA bundle
-RUN apk add --no-cache fontconfig font-noto ca-certificates wget && \
+# Install fonts for Sharp SVG rendering (OG images) and AWS RDS CA bundle.
+# The leading upgrade picks up Alpine security fixes published ahead of
+# node:24-alpine rebuilds (e.g. CVE-2026-45447 in libcrypto3/libssl3),
+# which otherwise fail the Trivy gate in deploy-api.
+RUN apk upgrade --no-cache && \
+    apk add --no-cache fontconfig font-noto ca-certificates wget && \
     fc-cache -f && \
     wget -q https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
       -O /usr/local/share/ca-certificates/rds-global-bundle.crt && \
