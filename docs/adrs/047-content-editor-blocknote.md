@@ -8,9 +8,11 @@
 The live content editing project (#479) will build its editor on **BlockNote**
 (`@blocknote/core` / `@blocknote/react`), and the canonical body format
 becomes the **BlockNote editor JSON document** stored as JSONB, not GFM
-markdown + directives as planned in the epic. Markdown becomes a derived,
-one-way export (human-readable revision diffs, any future export needs), and
-an inbound one-time import format for migrating the existing MDX corpus.
+markdown + directives as planned in the epic. Markdown's only remaining role
+is as the inbound format for the one-time migration of the existing MDX
+corpus; after that, nothing in the system stores, derives, or serves markdown.
+Revisions are compared by rendering the content before/after through the same
+component mapping, not by diffing text.
 
 This exercises the fallback the epic had already agreed ("if WYSIWYG
 round-trip proves lossy, store editor JSON canonically and derive markdown") -
@@ -50,10 +52,6 @@ Notion-style block editor on ProseMirror/TipTap. The spike prototype
   (`{ "type": "person", "props": { "slug": "alex-slaven" } }`); storing and
   reloading the document is lossless by construction, with no serialisation
   mapping at all.
-- **Markdown as derived output works.** `blocksToMarkdownLossy` plus a small
-  person-block-to-directive mapping produces readable markdown for revision
-  diffs; lossiness (list-marker normalisation, dropped alignment props) is
-  acceptable in a derived artifact.
 - **One-time inbound migration works.** `tryParseMarkdownToBlocks` plus a
   directive-paragraph-to-person-block mapping imported the sample report
   cleanly; the 10 legacy game reports migrate this way once.
@@ -96,12 +94,14 @@ as the fallback architecture, so the storage format bent rather than the UX:
   components). The BlockNote runtime is **not** loaded on public pages - the
   JSON is plain data. With no raw-HTML node type in the mapping, output stays
   sanitised by construction, preserving the epic's security property.
-- **Revisions**: `content_revision` stores the JSON; derived markdown can be
-  rendered alongside for human-readable diffs where normalisation noise is
-  irrelevant.
+- **Revisions**: `content_revision` stores the JSON. Revision comparison is
+  render-before/after through the renderer - textual diffs were considered
+  and dropped as not a real requirement, which removes the only reason to
+  derive markdown from the editor document. (The spike did prove derived
+  markdown is feasible via `blocksToMarkdownLossy` plus a person-block
+  mapping, should an export need ever appear.)
 - **Migration**: legacy MDX reports go through the spike's
-  markdown-to-blocks import once; markdown then ceases to be a storage
-  format.
+  markdown-to-blocks import once; markdown then ceases to be used at all.
 
 Costs accepted, explicitly:
 
