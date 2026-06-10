@@ -224,7 +224,9 @@ resource "aws_s3_bucket_cors_configuration" "uploads" {
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["PUT"]
-    allowed_origins = var.domain_name != "" ? ["https://${var.domain_name}"] : ["*"]
+    # Apex + www, matching the dedicated *-uploads buckets: the SPA runs
+    # on www and PUTs content images here directly with presigned URLs.
+    allowed_origins = var.domain_name != "" ? ["https://${var.domain_name}", "https://www.${var.domain_name}"] : ["*"]
     max_age_seconds = 3600
   }
 }
