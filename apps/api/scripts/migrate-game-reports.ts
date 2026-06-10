@@ -100,6 +100,22 @@ async function main() {
   }
   const { client: db } = createClient(databaseUrl);
 
+  // Resolve and show who the imports will be attributed to - created_by /
+  // updated_by / revision saved_by all land in the admin UI.
+  const attributedTo = await db
+    .selectFrom("user")
+    .select(["name", "email"])
+    .where("id", "=", userId)
+    .executeTakeFirst();
+  if (!attributedTo) {
+    console.error(`No user with id '${userId}'`);
+    await db.destroy();
+    process.exit(1);
+  }
+  console.log(
+    `Attributing imports to: ${attributedTo.name} <${attributedTo.email}>`,
+  );
+
   const files = (await fs.readdir(GAMES_DIR))
     .filter((f) => f.endsWith(".mdx"))
     .sort();
