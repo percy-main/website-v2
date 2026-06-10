@@ -25,6 +25,7 @@ import {
   type ContentStatus,
 } from "@percy-main/shared/content";
 import { useQuery } from "@tanstack/react-query";
+import { formatInTimeZone } from "date-fns-tz";
 import { lazy, Suspense } from "react";
 import { IoOpenOutline } from "react-icons/io5";
 import { useSearchParams } from "react-router";
@@ -34,10 +35,33 @@ import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
 // admin panel), so it loads as its own chunk only when an item is open.
 const ContentEditor = lazy(() => import("./content-editor.js"));
 
-const STATUS_BADGES: Record<string, "default" | "secondary" | "outline"> = {
-  published: "default",
-  draft: "secondary",
-  archived: "outline",
+/**
+ * What the row means editorially, not the raw status: a published item
+ * with a future published_at is Scheduled, not Live. The Live/Scheduled
+ * split is a client-side now() comparison - fine for the admin list; the
+ * public visibility decision stays server-side (publishedOnly()).
+ */
+type DisplayState = "draft" | "scheduled" | "live" | "archived";
+
+function displayState(item: {
+  status: string;
+  publishedAt: string | null;
+}): DisplayState {
+  if (item.status === "archived") return "archived";
+  if (item.status !== "published") return "draft";
+  return item.publishedAt !== null && Date.parse(item.publishedAt) > Date.now()
+    ? "scheduled"
+    : "live";
+}
+
+const STATE_BADGES: Record<
+  DisplayState,
+  { label: string; variant: "default" | "secondary" | "outline" | "info" }
+> = {
+  live: { label: "Live", variant: "default" },
+  scheduled: { label: "Scheduled", variant: "info" },
+  draft: { label: "Draft", variant: "secondary" },
+  archived: { label: "Archived", variant: "outline" },
 };
 
 const PAGE_SIZE = 20;
@@ -63,15 +87,6 @@ function liveUrl(
   if (kind === "news") return `/news/article/${item.slug}`;
   if (kind === "event") return `/calendar/event/${item.slug}`;
   return null;
-}
-
-/** Live now = published and past its (possibly scheduled) publish time. */
-function isLive(item: { status: string; publishedAt: string | null }): boolean {
-  return (
-    item.status === "published" &&
-    item.publishedAt !== null &&
-    Date.parse(item.publishedAt) <= Date.now()
-  );
 }
 
 function formatDateTime(iso: string): string {
@@ -234,7 +249,7 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
           <TableHeader>
             <TableRow>
               <TableHead>Title</TableHead>
-              <TableHead className="w-28">Status</TableHead>
+              <TableHead className="w-36">Status</TableHead>
               <TableHead className="w-56">Last updated</TableHead>
               <TableHead className="w-16">
                 <span className="sr-only">Live page</span>
@@ -242,43 +257,56 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.map((item) => (
-              <TableRow
-                key={item.id}
-                className="cursor-pointer"
-                onClick={() => {
-                  setParams({ item: item.id });
-                }}
-              >
-                <TableCell className="font-medium">{item.title}</TableCell>
-                <TableCell>
-                  <Badge variant={STATUS_BADGES[item.status] ?? "secondary"}>
-                    {item.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-sm text-stone-600">
-                  {formatDateTime(item.updatedAt)}
-                  {item.updatedByName ? ` · ${item.updatedByName}` : ""}
-                </TableCell>
-                <TableCell>
-                  {isLive(item) && liveUrl(kind, item) && (
-                    <a
-                      href={liveUrl(kind, item) ?? ""}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`Open live page for ${item.title}`}
-                      title="Open live page"
-                      className="inline-flex text-stone-500 hover:text-stone-900"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                    >
-                      <IoOpenOutline className="size-4" />
-                    </a>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+            {items.map((item) => {
+              const state = displayState(item);
+              return (
+                <TableRow
+                  key={item.id}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setParams({ item: item.id });
+                  }}
+                >
+                  <TableCell className="font-medium">{item.title}</TableCell>
+                  <TableCell>
+                    <Badge variant={STATE_BADGES[state].variant}>
+                      {STATE_BADGES[state].label}
+                    </Badge>
+                    {state === "scheduled" && item.publishedAt !== null && (
+                      <div className="mt-1 text-xs text-stone-500">
+                        {formatInTimeZone(
+                          new Date(item.publishedAt),
+                          "Europe/London",
+                          "d MMM yyyy, HH:mm",
+                        )}{" "}
+                        UK time
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-stone-600">
+                    {formatDateTime(item.updatedAt)}
+                    {item.updatedByName ? ` · ${item.updatedByName}` : ""}
+                  </TableCell>
+                  <TableCell>
+                    {state === "live" && liveUrl(kind, item) && (
+                      <a
+                        href={liveUrl(kind, item) ?? ""}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open live page for ${item.title}`}
+                        title="Open live page"
+                        className="inline-flex text-stone-500 hover:text-stone-900"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        <IoOpenOutline className="size-4" />
+                      </a>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}

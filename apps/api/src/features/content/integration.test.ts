@@ -1,3 +1,8 @@
+import Fastify from "fastify";
+import {
+  serializerCompiler,
+  validatorCompiler,
+} from "fastify-type-provider-zod";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   seedTestUser,
@@ -5,6 +10,8 @@ import {
   stopTestContainer,
   type TestContext,
 } from "../../test/containers.ts";
+import { createTestLogger } from "../../test/logger.ts";
+import { contentRoutes } from "./routes.ts";
 import {
   archiveContent,
   createContent,
@@ -422,6 +429,187 @@ describe("content service (integration)", () => {
         location: { postcode: "NE29 6HS" },
       });
       expect(items[0]).not.toHaveProperty("body");
+    });
+  });
+
+  describe("scheduled publishing semantics", () => {
+    const seedReport = async (slug: string, playCricketId: string) => {
+      const { id } = await createContent(ctx.db)({
+        kind: "game_report",
+        slug,
+        title: `Report ${slug}`,
+        description: null,
+        body: body(slug),
+        metadata: { playCricketId },
+        userId,
+      });
+      return id;
+    };
+
+    it("publish-now on a scheduled item goes live immediately", async () => {
+      const id = await seedReport("sched-then-now", "990001");
+      const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      await publishContent(ctx.db)({
+        contentId: id,
+        publishedAt: future,
+        userId,
+      });
+      await expect(
+        getPublishedGameReport(ctx.db)("990001"),
+      ).rejects.toMatchObject({ statusCode: 404 });
+
+      // "Publish now" sends no date; the future schedule must not survive
+      // the COALESCE-style trap and keep the item invisible.
+      const result = await publishContent(ctx.db)({ contentId: id, userId });
+      expect(result.publishedAt).not.toBe(future);
+      expect(Date.parse(result.publishedAt ?? "")).toBeLessThanOrEqual(
+        Date.now() + 5_000,
+      );
+      const pub = await getPublishedGameReport(ctx.db)("990001");
+      expect(pub.id).toBe(id);
+    });
+
+    it("re-publish after unpublish keeps the original live-from date", async () => {
+      const id = await seedReport("relive-original-date", "990002");
+      const original = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      await publishContent(ctx.db)({
+        contentId: id,
+        publishedAt: original,
+        userId,
+      });
+      await unpublishContent(ctx.db)({ contentId: id, userId });
+
+      const again = await publishContent(ctx.db)({ contentId: id, userId });
+      expect(again.publishedAt).toBe(original);
+    });
+
+    it("cancelling a schedule clears published_at and unlocks the slug", async () => {
+      const id = await seedReport("cancel-schedule", "990003");
+      const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      await publishContent(ctx.db)({
+        contentId: id,
+        publishedAt: future,
+        userId,
+      });
+      await unpublishContent(ctx.db)({ contentId: id, userId });
+
+      // Never publicly visible, so the ever-published marker is unset...
+      const item = await getContent(ctx.db)(id);
+      expect(item.status).toBe("draft");
+      expect(item.publishedAt).toBeNull();
+
+      // ...and the slug is editable again.
+      await updateContent(ctx.db)({
+        contentId: id,
+        slug: "cancel-schedule-renamed",
+        userId,
+      });
+      const renamed = await getContent(ctx.db)(id);
+      expect(renamed.slug).toBe("cancel-schedule-renamed");
+    });
+
+    it("unpublishing a live item keeps published_at and the slug lock", async () => {
+      const id = await seedReport("unpublish-live", "990004");
+      const past = new Date(Date.now() - 1000).toISOString();
+      await publishContent(ctx.db)({
+        contentId: id,
+        publishedAt: past,
+        userId,
+      });
+      await unpublishContent(ctx.db)({ contentId: id, userId });
+
+      const item = await getContent(ctx.db)(id);
+      expect(item.status).toBe("draft");
+      expect(item.publishedAt).toBe(past);
+
+      await expect(
+        updateContent(ctx.db)({ contentId: id, slug: "new-slug", userId }),
+      ).rejects.toMatchObject({ statusCode: 409 });
+    });
+  });
+
+  describe("public visibility boundary (HTTP)", () => {
+    // Minimal app: real routes over the container DB. Only the public
+    // (no-auth) routes are exercised, so neither app.auth nor app.config
+    // is needed.
+    async function buildApp() {
+      const logger = createTestLogger();
+      const app = Fastify({ logger: { level: "info", stream: logger.stream } });
+      app.setValidatorCompiler(validatorCompiler);
+      app.setSerializerCompiler(serializerCompiler);
+      app.decorate("db", ctx.db);
+      await app.register(contentRoutes);
+      return app;
+    }
+
+    it("serves a scheduled news item the moment published_at passes - 404 (no ETag) before, 200 after", async () => {
+      const { id } = await createContent(ctx.db)({
+        kind: "news",
+        slug: "boundary-news",
+        title: "Boundary news",
+        description: null,
+        body: body("Crossing the line."),
+        metadata: { tags: ["seniors"] },
+        userId,
+      });
+      const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      await publishContent(ctx.db)({
+        contentId: id,
+        publishedAt: future,
+        userId,
+      });
+
+      const app = await buildApp();
+      try {
+        const before = await app.inject({
+          method: "GET",
+          url: "/content/news/boundary-news",
+        });
+        expect(before.statusCode).toBe(404);
+        // The 404 path must never emit an ETag - a cached validator here
+        // could pin "missing" past the publish time.
+        expect(before.headers.etag).toBeUndefined();
+
+        const listBefore = await app.inject({
+          method: "GET",
+          url: "/content/news",
+        });
+        expect(listBefore.statusCode).toBe(200);
+        expect(
+          listBefore
+            .json<{ items: Array<{ slug: string }> }>()
+            .items.map((i) => i.slug),
+        ).not.toContain("boundary-news");
+
+        // Move the schedule into the past by flipping the row directly:
+        // visibility must follow from the DB clock comparison alone - no
+        // deploy, no scheduler, no manual action.
+        await ctx.db
+          .updateTable("content_item")
+          .set({ published_at: new Date(Date.now() - 1000) })
+          .where("id", "=", id)
+          .execute();
+
+        const after = await app.inject({
+          method: "GET",
+          url: "/content/news/boundary-news",
+        });
+        expect(after.statusCode).toBe(200);
+        expect(after.headers.etag).toBeDefined();
+        expect(after.json<{ slug: string }>().slug).toBe("boundary-news");
+
+        const listAfter = await app.inject({
+          method: "GET",
+          url: "/content/news",
+        });
+        expect(
+          listAfter
+            .json<{ items: Array<{ slug: string }> }>()
+            .items.map((i) => i.slug),
+        ).toContain("boundary-news");
+      } finally {
+        await app.close();
+      }
     });
   });
 });
