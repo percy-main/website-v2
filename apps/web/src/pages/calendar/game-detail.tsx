@@ -276,7 +276,11 @@ function GameDetailContent({ game }: { game: GameData }) {
         throw err;
       }
     },
-    staleTime: 5 * 60 * 1000,
+    // Scheduled publishing boundary: a null result can flip to published
+    // the instant its published_at passes, so misses go stale fast while
+    // a real report keeps the full 5 minutes.
+    staleTime: (query) =>
+      query.state.data === null ? 30 * 1000 : 5 * 60 * 1000,
     retry: false,
   });
   const report = getGameReport(game.id);

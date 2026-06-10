@@ -72,7 +72,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
 
 // ── Custom blocks ───────────────────────────────────────────────────────
@@ -1017,6 +1017,9 @@ type PublishAction =
   | { action: "unpublish" }
   | { action: "archive" };
 
+/** setTimeout clamps delays beyond a signed 32-bit int (~24.8 days). */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
 /**
  * Scheduled = published with a still-future publish time. Client-side
  * now() comparison is fine here: it only picks the admin copy and
@@ -1068,6 +1071,30 @@ function PublishingCard({
   const [scheduleAt, setScheduleAt] = useState("");
 
   const scheduled = isScheduled(item);
+
+  // Flip Scheduled -> Live on our own when the publish time passes with
+  // the editor open: isScheduled() reads Date.now() at render time only,
+  // and a stale "Scheduled" card promises a slug unlock the server
+  // (correctly, on the DB clock) would no longer grant. The mutation
+  // flow is already server-authoritative; this only keeps the card's
+  // state and copy honest.
+  const [, setBoundaryTick] = useState(0);
+  const publishedAtMs =
+    item.publishedAt !== null ? Date.parse(item.publishedAt) : null;
+  useEffect(() => {
+    if (publishedAtMs === null) return;
+    // Small slack so the re-render lands safely on the live side of the
+    // boundary. Delays past the setTimeout clamp are skipped - a
+    // schedule that far out doesn't need an in-session flip.
+    const delay = publishedAtMs - Date.now() + 250;
+    if (delay <= 0 || delay > MAX_TIMEOUT_MS) return;
+    const timer = setTimeout(() => {
+      setBoundaryTick((tick) => tick + 1);
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [publishedAtMs]);
 
   const statusMutation = useMutation({
     mutationFn: async (input: PublishAction) => {
