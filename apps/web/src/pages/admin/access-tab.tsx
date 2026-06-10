@@ -195,6 +195,15 @@ const AI_USE_ROWS = [
   { label: "AI scout", role: "ai_scout_user" },
 ] as const satisfies ReadonlyArray<{ label: string; role: RoleName }>;
 
+// Content editor roles are single roles per scope (every editor gets
+// manage + publish), so they don't fit the viewer/admin grid above.
+const CONTENT_EDITOR_ROWS = [
+  { label: "Content admin (all content)", role: "content_admin" },
+  { label: "News editor (news, events + game reports)", role: "news_editor" },
+  { label: "Reports editor (game reports only)", role: "reports_editor" },
+  { label: "People editor (people profiles)", role: "people_editor" },
+] as const satisfies ReadonlyArray<{ label: string; role: RoleName }>;
+
 function EditRolesDialog({
   user,
   onClose,
@@ -340,6 +349,7 @@ function EditRolesBody({
     <>
       <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
         <ViewManageGrid selected={selectedRoles} onToggle={toggleRole} />
+        <ContentEditingGrid selected={selectedRoles} onToggle={toggleRole} />
         <AiUseGrid selected={selectedRoles} onToggle={toggleRole} />
         <PerTeamGrid
           title="Junior Manager (per junior team)"
@@ -466,6 +476,43 @@ function AiUseGrid({
         </TableHeader>
         <TableBody>
           {AI_USE_ROWS.map((row) => (
+            <TableRow key={row.role}>
+              <TableCell>{row.label}</TableCell>
+              <TableCell className="text-center">
+                <Checkbox
+                  checked={selected.has(row.role)}
+                  onCheckedChange={() => onToggle(row.role)}
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </section>
+  );
+}
+
+function ContentEditingGrid({
+  selected,
+  onToggle,
+}: {
+  selected: Set<RoleName>;
+  onToggle: (role: RoleName) => void;
+}) {
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-stone-900">
+        Content editing
+      </h3>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Scope</TableHead>
+            <TableHead className="w-24 text-center">Editor</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {CONTENT_EDITOR_ROWS.map((row) => (
             <TableRow key={row.role}>
               <TableCell>{row.label}</TableCell>
               <TableCell className="text-center">

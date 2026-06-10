@@ -5,12 +5,15 @@
   "exports": {
     ".": "./src/index.ts",
     "./marketing": "./src/marketing/index.ts",
-    "./auth/permissions": "./src/auth/permissions.ts"
+    "./auth/permissions": "./src/auth/permissions.ts",
+    "./content": "./src/content/index.ts"
   },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "better-auth": "^1.6.14",
@@ -19,6 +22,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   }
 }

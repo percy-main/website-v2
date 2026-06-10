@@ -98,6 +98,14 @@ export default defineConfig(({ mode }) => ({
         target: "http://localhost:3000",
         changeOrigin: true,
       },
+      // In prod CloudFront serves /uploads/* from the uploads bucket;
+      // locally that bucket lives in LocalStack, so editor-uploaded
+      // content images (/uploads/content/...) resolve in dev too.
+      "/uploads": {
+        target: "http://localhost:4566",
+        changeOrigin: true,
+        rewrite: (p) => `/percy-main-receipts-local${p}`,
+      },
     },
   },
 }));

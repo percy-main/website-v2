@@ -6,6 +6,7 @@ import { Link, useSearchParams } from "react-router";
 import { AccessTab } from "./access-tab";
 import { ChargesTab } from "./charges-tab";
 import { ContactsTab } from "./contacts-tab";
+import { ContentTab } from "./content-tab";
 import { DocumentsTab } from "./documents-tab";
 import { DuplicatesTab } from "./duplicates-tab";
 import { ExpenseHistoryTab } from "./expense-history-tab";
@@ -159,6 +160,18 @@ const SECTIONS: readonly SectionDef[] = [
         label: "Fantasy",
         visible: (role) => checkPermission(role, "fantasy", "manage"),
         render: () => <FantasyTab />,
+      },
+    ],
+  },
+  {
+    value: "content",
+    label: "Content",
+    subTabs: [
+      {
+        value: "game-reports",
+        label: "Match Reports",
+        visible: (role) => checkPermission(role, "content_reports", "view"),
+        render: () => <ContentTab kind="game_report" />,
       },
     ],
   },

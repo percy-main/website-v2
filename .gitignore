@@ -29,3 +29,6 @@ test-results/
 
 # Database dumps
 dumps/
+
+# Live content editing planning notes (tickets are source of truth)
+NON_STATIC_CONTENT.md
