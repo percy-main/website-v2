@@ -258,7 +258,7 @@ function GameDetailContent({ game }: { game: GameData }) {
   // DB-backed report first (live content editing, #479); the bundled MDX
   // corpus stays as fallback until the migration is verified in prod,
   // then gets deleted in a follow-up.
-  const { data: apiReport } = useQuery({
+  const { data: apiReport, isPending: apiReportPending } = useQuery({
     queryKey: ["content", "game-report", game.id],
     queryFn: async () => {
       try {
@@ -464,13 +464,16 @@ function GameDetailContent({ game }: { game: GameData }) {
             links show a fallback. */}
         <BallByBallTrigger game={game} />
 
-        {/* Game report: API-published content wins, bundled MDX is the
-            transition fallback */}
+        {/* Game report: API-published content wins. The bundled MDX
+            renders only once the query settles (confirmed 404, or an API
+            failure - deliberate graceful degradation) so a DB-edited
+            report never flashes its stale MDX ancestor first. */}
         {apiReport ? (
           <div className="w-full">
             <ContentBody body={apiReport.body} />
           </div>
         ) : (
+          !apiReportPending &&
           report && (
             <div className="w-full">
               <MDXProvider components={mdxComponents}>

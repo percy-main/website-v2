@@ -34,13 +34,14 @@ function parseArgs() {
   const userFlag = args.indexOf("--user");
   const userId = userFlag >= 0 ? args[userFlag + 1] : undefined;
   const dryRun = args.includes("--dry-run");
+  const force = args.includes("--force");
   if (!userId) {
     console.error(
-      "Usage: tsx scripts/migrate-game-reports.ts --user <user-id> [--dry-run]",
+      "Usage: tsx scripts/migrate-game-reports.ts --user <user-id> [--dry-run] [--force]",
     );
     process.exit(1);
   }
-  return { userId, dryRun };
+  return { userId, dryRun, force };
 }
 
 function parseFrontmatter(source: string): {
@@ -90,7 +91,7 @@ async function fetchTitle(playCricketId: string): Promise<string> {
 }
 
 async function main() {
-  const { userId, dryRun } = parseArgs();
+  const { userId, dryRun, force } = parseArgs();
 
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -107,6 +108,7 @@ async function main() {
   let inserted = 0;
   let updated = 0;
   let skipped = 0;
+  let warnings = 0;
 
   for (const file of files) {
     const source = await fs.readFile(path.join(GAMES_DIR, file), "utf8");
@@ -120,7 +122,7 @@ async function main() {
 
     const existing = await db
       .selectFrom("content_item")
-      .select(["id", "body", "title"])
+      .select(["id", "body", "title", "description", "metadata", "status"])
       .where("kind", "=", "game_report")
       .where((eb) =>
         eb(
@@ -134,10 +136,30 @@ async function main() {
       )
       .executeTakeFirst();
 
-    if (existing && blocksEqualIgnoringIds(existing.body, blocks)) {
-      skipped += 1;
-      console.log(`  = ${file} unchanged (${existing.title})`);
-      continue;
+    if (existing) {
+      // A row that exists but is not published would still 404 publicly -
+      // never silently treat that as migrated. Equally, never overwrite a
+      // row an editor may have touched unless explicitly forced: after
+      // cutover the DB is canonical and the MDX is the stale ancestor.
+      if (existing.status !== "published") {
+        warnings += 1;
+        console.warn(
+          `  ! ${file}: a ${existing.status} item already exists for playCricketId ${playCricketId} - the public endpoint will 404. Publish or remove it, then re-run.`,
+        );
+        continue;
+      }
+      if (blocksEqualIgnoringIds(existing.body, blocks)) {
+        skipped += 1;
+        console.log(`  = ${file} unchanged (${existing.title})`);
+        continue;
+      }
+      if (!force) {
+        warnings += 1;
+        console.warn(
+          `  ! ${file}: published item '${existing.title}' differs from the MDX conversion (likely edited in the DB). Skipping - re-run with --force to overwrite.`,
+        );
+        continue;
+      }
     }
 
     if (dryRun) {
@@ -158,14 +180,16 @@ async function main() {
           })
           .where("id", "=", existing.id)
           .execute();
+        // Revision snapshots the row's post-update state: only the body
+        // changed, so title/description/metadata come from the row.
         await tx
           .insertInto("content_revision")
           .values({
             content_id: existing.id,
             title: existing.title,
-            description: null,
+            description: existing.description,
             body: JSON.stringify(blocks),
-            metadata: JSON.stringify(metadata),
+            metadata: JSON.stringify(existing.metadata),
             saved_by: userId,
           })
           .execute();
@@ -207,8 +231,9 @@ async function main() {
   }
 
   console.log(
-    `Done: ${String(inserted)} inserted, ${String(updated)} updated, ${String(skipped)} unchanged${dryRun ? " (dry run)" : ""}`,
+    `Done: ${String(inserted)} inserted, ${String(updated)} updated, ${String(skipped)} unchanged, ${String(warnings)} warnings${dryRun ? " (dry run)" : ""}`,
   );
+  if (warnings > 0) process.exitCode = 2;
   await db.destroy();
 }
 
