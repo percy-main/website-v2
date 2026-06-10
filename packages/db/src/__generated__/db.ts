@@ -172,6 +172,20 @@ export interface ContactSubmission {
   page: string;
 }
 
+export interface ContentImage {
+  alt: string | null;
+  bytes: number;
+  consent_confirmed: boolean;
+  created_at: Generated<Timestamp>;
+  height: number;
+  id: Generated<string>;
+  key_prefix: string;
+  original_format: string;
+  picture: Json;
+  uploaded_by: string;
+  width: number;
+}
+
 export interface ContentItem {
   body: Json;
   created_at: Generated<Timestamp>;
@@ -1022,6 +1036,7 @@ export interface DB {
   charge: Charge;
   charge_dependent: ChargeDependent;
   contact_submission: ContactSubmission;
+  content_image: ContentImage;
   content_item: ContentItem;
   content_revision: ContentRevision;
   dependent: Dependent;

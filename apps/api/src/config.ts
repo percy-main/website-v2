@@ -76,6 +76,23 @@ const configSchema = z.object({
   S3_RECEIPT_PREFIX: z.string().default("receipts"),
   S3_ENDPOINT: z.url().optional(),
 
+  // S3 (editor-uploaded content images). Reuses the CloudFront-served
+  // uploads bucket (S3_BUCKET): only keys under uploads/* are publicly
+  // routable, so pending browser PUTs land under a non-served prefix and
+  // the processed variant ladder is written under uploads/content/.
+  CONTENT_IMAGE_PENDING_PREFIX: z.string().default("content-images/pending"),
+  CONTENT_IMAGES_PREFIX: z.string().default("uploads/content"),
+  CONTENT_IMAGE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10 * 1024 * 1024),
+  CONTENT_IMAGE_UPLOAD_URL_EXPIRY_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(900),
+
   // S3 (policy documents)
   S3_DOCUMENTS_BUCKET: z.string().min(1),
   S3_DOCUMENTS_PREFIX: z.string().default("documents"),

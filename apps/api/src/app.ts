@@ -17,6 +17,10 @@ import { createAuth, type Auth } from "./features/auth/auth.ts";
 import { createPhoenixTracer } from "./lib/phoenix-tracer.ts";
 import { createPushSender, type SendPush } from "./lib/push-sender.ts";
 import {
+  createContentImageStore,
+  type ContentImageStore,
+} from "./lib/s3-content-images.ts";
+import {
   createS3DocumentStore,
   type S3DocumentStore,
 } from "./lib/s3-documents.ts";
@@ -40,6 +44,7 @@ import { authRoutes } from "./features/auth/routes.ts";
 import { availabilityRoutes } from "./features/availability/routes.ts";
 import { chargeRoutes } from "./features/charges/routes.ts";
 import { contactRoutes } from "./features/contact/routes.ts";
+import { contentImageRoutes } from "./features/content-images/routes.ts";
 import { contentRoutes } from "./features/content/routes.ts";
 import { cricketLeaderboardRoutes } from "./features/cricket-leaderboard/routes.ts";
 import { documentRoutes } from "./features/documents/routes.ts";
@@ -82,6 +87,7 @@ declare module "fastify" {
     scoutReports: ScoutReportStore;
     scoutAttachments: ScoutAttachmentStore;
     scoutKnowledgeBase: S3KnowledgeBaseStore;
+    contentImages: ContentImageStore;
     phoenixTracer: Tracer;
   }
 }
@@ -215,6 +221,10 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   const scoutKnowledgeBase = createS3KnowledgeBaseStore(config);
   app.decorate("scoutKnowledgeBase", scoutKnowledgeBase);
 
+  // Create and decorate the content image store (editor-uploaded images)
+  const contentImages = createContentImageStore(config);
+  app.decorate("contentImages", contentImages);
+
   // Isolated tracer provider for LLM spans. New Relic owns the global OTel
   // pipeline; this provider sits alongside it and receives only AI SDK
   // spans via the experimental_telemetry.tracer plumbed through Scout.
@@ -326,6 +336,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(webhookRoutes, { prefix: "/api" });
   await app.register(ogImageRoutes, { prefix: "/api" });
   await app.register(contentRoutes, { prefix: "/api" });
+  await app.register(contentImageRoutes, { prefix: "/api" });
 
   // Marketing forwarder: periodic drain of marketing_outbox -> Google Ads.
   // No-op when GOOGLE_ADS_* env vars are absent.
