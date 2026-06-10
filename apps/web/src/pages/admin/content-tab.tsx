@@ -109,13 +109,22 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
   const search = searchParams.get("q") ?? "";
   const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
 
-  const setParams = (updates: Record<string, string | null>) => {
+  /**
+   * Navigation-like changes (open/close item, filters, paging) push a
+   * history entry so the back button retraces steps; continuous
+   * refinements (search keystrokes) and the new->id swap replace, so
+   * history isn't spammed with intermediate states.
+   */
+  const setParams = (
+    updates: Record<string, string | null>,
+    options: { replace?: boolean } = {},
+  ) => {
     const params = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(updates)) {
       if (value === null || value === "") params.delete(key);
       else params.set(key, value);
     }
-    setSearchParams(params, { replace: true });
+    setSearchParams(params, { replace: options.replace ?? false });
   };
 
   const { data, isLoading, error } = useQuery({
@@ -151,7 +160,9 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
             setParams({ item: null });
           }}
           onCreated={(id) => {
-            setParams({ item: id });
+            // Swap "new" for the created id: back must not return to the
+            // create form and spawn a duplicate.
+            setParams({ item: id }, { replace: true });
           }}
         />
       </Suspense>
@@ -170,7 +181,7 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
             placeholder="Search titles…"
             value={search}
             onChange={(e) => {
-              setParams({ q: e.target.value, page: null });
+              setParams({ q: e.target.value, page: null }, { replace: true });
             }}
             className="w-56"
           />

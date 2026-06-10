@@ -267,7 +267,9 @@ export function Component() {
     const params = new URLSearchParams();
     if (next.section.value !== DEFAULT_SECTION)
       params.set("section", next.section.value);
-    setSearchParams(params, { replace: true });
+    // Push, don't replace: tab navigation should be retraceable with the
+    // browser back button.
+    setSearchParams(params);
   };
 
   const onSubChange = (value: string) => {
@@ -276,7 +278,7 @@ export function Component() {
     if (current.section.value !== DEFAULT_SECTION)
       params.set("section", current.section.value);
     if (value !== current.subTabs[0].value) params.set("sub", value);
-    setSearchParams(params, { replace: true });
+    setSearchParams(params);
   };
 
   if (!session) return null;
