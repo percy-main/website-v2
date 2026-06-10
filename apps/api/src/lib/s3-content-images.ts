@@ -8,6 +8,16 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Config } from "../config.ts";
 
+/**
+ * Key prefixes are structural, not configuration: pending must stay
+ * outside CloudFront's /uploads/* routing (so unprocessed originals are
+ * never publicly served) and must match the Terraform lifecycle rule
+ * that expires it (infra/modules/cdn/main.tf, expire-pending-content-images);
+ * public must stay inside /uploads/* to be served at all.
+ */
+export const CONTENT_IMAGE_PENDING_PREFIX = "content-images/pending";
+export const CONTENT_IMAGES_PREFIX = "uploads/content";
+
 export interface PendingImageHead {
   contentLength: number;
   contentType: string | null;
@@ -50,7 +60,7 @@ export function createContentImageStore(config: Config): ContentImageStore {
 
   const client = new S3Client(clientOptions);
   const bucket = config.S3_BUCKET;
-  const pendingPrefix = config.CONTENT_IMAGE_PENDING_PREFIX;
+  const pendingPrefix = CONTENT_IMAGE_PENDING_PREFIX;
   const expirySeconds = config.CONTENT_IMAGE_UPLOAD_URL_EXPIRY_SECONDS;
 
   return {

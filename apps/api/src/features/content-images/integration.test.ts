@@ -11,8 +11,6 @@ import {
 import { confirmUpload } from "./service.ts";
 
 const config = {
-  CONTENT_IMAGE_PENDING_PREFIX: "content-images/pending",
-  CONTENT_IMAGES_PREFIX: "uploads/content",
   CONTENT_IMAGE_MAX_BYTES: 10 * 1024 * 1024,
   CONTENT_IMAGE_UPLOAD_URL_EXPIRY_SECONDS: 900,
 } as Config;

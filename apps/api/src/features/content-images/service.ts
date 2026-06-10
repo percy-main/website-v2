@@ -2,7 +2,11 @@ import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import sharp from "sharp";
 import type { Config } from "../../config.ts";
-import type { ContentImageStore } from "../../lib/s3-content-images.ts";
+import {
+  CONTENT_IMAGE_PENDING_PREFIX,
+  CONTENT_IMAGES_PREFIX,
+  type ContentImageStore,
+} from "../../lib/s3-content-images.ts";
 
 function throwHttpError(statusCode: number, message: string): never {
   throw Object.assign(new Error(message), { statusCode });
@@ -218,37 +222,57 @@ export function confirmUpload(
     // The pending key must be one this feature issued: under our pending
     // prefix and named by the caller's imageId. Prevents pointing the
     // processor at arbitrary bucket objects.
-    const expectedPrefix = `${config.CONTENT_IMAGE_PENDING_PREFIX}/${params.imageId}.`;
+    const expectedPrefix = `${CONTENT_IMAGE_PENDING_PREFIX}/${params.imageId}.`;
     if (!params.pendingKey.startsWith(expectedPrefix)) {
       throwHttpError(400, "pendingKey does not match imageId");
     }
+
+    const tooLarge = async () => {
+      await store.deletePending(params.pendingKey);
+      throwHttpError(
+        400,
+        `Image is too large - maximum size is ${String(Math.floor(config.CONTENT_IMAGE_MAX_BYTES / (1024 * 1024)))}MB`,
+      );
+    };
 
     const head = await store.headPending(params.pendingKey);
     if (!head) {
       throwHttpError(404, "Uploaded file not found - upload may have expired");
     }
     if (head.contentLength > config.CONTENT_IMAGE_MAX_BYTES) {
-      await store.deletePending(params.pendingKey);
-      throwHttpError(
-        400,
-        `Image is too large - maximum size is ${String(Math.floor(config.CONTENT_IMAGE_MAX_BYTES / (1024 * 1024)))}MB`,
-      );
+      await tooLarge();
     }
 
     const original = await store.getPending(params.pendingKey);
-    const processed = await processImage(
-      original,
-      params.imageId,
-      config.CONTENT_IMAGES_PREFIX,
-    );
+    // Re-check actual bytes: a presigned URL can be reused between the
+    // HEAD and the GET, so the HEAD's content-length is advisory only.
+    if (original.byteLength > config.CONTENT_IMAGE_MAX_BYTES) {
+      await tooLarge();
+    }
+
+    let processed;
+    try {
+      processed = await processImage(
+        original,
+        params.imageId,
+        CONTENT_IMAGES_PREFIX,
+      );
+    } catch (err) {
+      // A 400 here is a verdict on the uploaded bytes (corrupt, GIF,
+      // HEIC...): the pending object is permanently useless, so clean it
+      // up now instead of waiting for lifecycle expiry.
+      if ((err as { statusCode?: number }).statusCode === 400) {
+        await store.deletePending(params.pendingKey);
+      }
+      throw err;
+    }
 
     for (const variant of processed.variants) {
       await store.putVariant(variant.key, variant.body, variant.contentType);
     }
-    await store.deletePending(params.pendingKey);
 
     const alt = params.alt ?? null;
-    const keyPrefix = `${config.CONTENT_IMAGES_PREFIX}/${params.imageId}`;
+    const keyPrefix = `${CONTENT_IMAGES_PREFIX}/${params.imageId}`;
 
     await db
       .insertInto("content_image")
@@ -265,6 +289,11 @@ export function confirmUpload(
         uploaded_by: params.userId,
       })
       .execute();
+
+    // Deleted last: if the row insert fails the original survives, so a
+    // retry of the confirm call can succeed (variant keys are
+    // deterministic and simply get overwritten).
+    await store.deletePending(params.pendingKey);
 
     return {
       id: params.imageId,
