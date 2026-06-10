@@ -1,5 +1,6 @@
 packages:
   - "apps/*"
+  - "apps/proto/*"
   - "packages/*"
   - "infra"
 # Postinstall script policy. pnpm 11 requires an explicit decision per
