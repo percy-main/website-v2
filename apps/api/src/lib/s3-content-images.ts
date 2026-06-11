@@ -49,7 +49,23 @@ export interface ContentImageStore {
   deletePending: (pendingKey: string) => Promise<void>;
 }
 
-export function createContentImageStore(config: Config): ContentImageStore {
+/**
+ * The slice of Config the store actually reads. Narrowed (rather than
+ * taking the whole Config) so the news/events MDX migration script -
+ * which has no full app config, only its own env - can construct the
+ * same store the API uses.
+ */
+export type ContentImageStoreConfig = Pick<
+  Config,
+  | "S3_BUCKET"
+  | "S3_REGION"
+  | "S3_ENDPOINT"
+  | "CONTENT_IMAGE_UPLOAD_URL_EXPIRY_SECONDS"
+>;
+
+export function createContentImageStore(
+  config: ContentImageStoreConfig,
+): ContentImageStore {
   const clientOptions: ConstructorParameters<typeof S3Client>[0] = {
     region: config.S3_REGION,
   };
