@@ -12,9 +12,11 @@ export interface PersonGridEntry {
 
 /**
  * Parse a JSON-stringified personGrid entries prop. Returns null for
- * anything that is not a wholly valid array of { slug, role? } - the
- * caller then falls back to the legacy slugs CSV (malformed stored
- * content degrades, never crashes, per the renderer's conventions).
+ * anything that is not a wholly valid, non-empty array of
+ * { slug, role? } - the caller then falls back to the legacy slugs CSV
+ * (malformed stored content degrades, never crashes, per the renderer's
+ * conventions). Empty arrays are null so the renderer and editor agree
+ * on when the fallback applies.
  * Slugs are trimmed; empty roles are dropped (NULL-for-unset). Roles
  * are otherwise kept verbatim: the editor round-trips entries through
  * this parser on every keystroke, so trimming here would eat the
@@ -43,5 +45,5 @@ export function parsePersonGridEntries(
       ...(role ? { role } : {}),
     });
   }
-  return entries;
+  return entries.length > 0 ? entries : null;
 }

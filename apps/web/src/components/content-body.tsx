@@ -336,7 +336,7 @@ function BlockView({ block }: { block: ContentBlock }) {
       // PersonGrid with Person children exactly as the MDX corpus does.
       // Absent or malformed entries degrade to the legacy slugs CSV.
       const entries = parsePersonGridEntries(stringProp(block, "entries"));
-      if (entries !== null && entries.length > 0) {
+      if (entries !== null) {
         return (
           <mdxComponents.PersonGrid>
             {entries.map((entry, i) => (
