@@ -1,8 +1,10 @@
+import { useSiteNav } from "@/hooks/use-site-nav.js";
 import { useSession } from "@/lib/auth-client.js";
-import { getMainMenuItems } from "@/lib/content.js";
+import { getMainMenuItems } from "@/lib/nav.js";
 import { getPriceId } from "@/lib/stripe-env.js";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FC,
@@ -28,18 +30,29 @@ const fixedMenuEnd: MenuItem[] = [
   { name: "Fantasy", url: "/fantasy", match: { start: "/fantasy" } },
 ];
 
-/** Content pages with isMainMenu: true, sorted by menuOrder */
-const contentMenuItems: MenuItem[] = getMainMenuItems().map((page) => ({
-  name: page.title,
-  url: page.path,
-  match: { start: page.path },
-}));
-
-const menu: MenuItem[] = [
-  ...fixedMenuStart,
-  ...contentMenuItems,
-  ...fixedMenuEnd,
-];
+/**
+ * Fixed items wrapped around the merged nav's main-menu pages (#493):
+ * isMainMenu pages sorted by menuOrder, DB pages overriding static ones
+ * at the same path. useSiteNav's static placeholder means the first
+ * render already shows the full static menu - no flash or jump while the
+ * nav query is in flight, and pre-migration (empty API list) the menu is
+ * identical to the old module-level static assembly.
+ */
+function useMenu(): MenuItem[] {
+  const navPages = useSiteNav();
+  return useMemo<MenuItem[]>(
+    () => [
+      ...fixedMenuStart,
+      ...getMainMenuItems(navPages).map((page) => ({
+        name: page.title,
+        url: page.path,
+        match: { start: page.path },
+      })),
+      ...fixedMenuEnd,
+    ],
+    [navPages],
+  );
+}
 
 function isActive(pathname: string, item: MenuItem): boolean {
   if (item.match === "exact") return pathname === item.url;
@@ -128,6 +141,7 @@ const NavItem: FC<{
 
 export const SiteHeader: FC = () => {
   const location = useLocation();
+  const menu = useMenu();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [stickyVisible, setStickyVisible] = useState(false);
   const mastheadRef = useRef<HTMLDivElement>(null);

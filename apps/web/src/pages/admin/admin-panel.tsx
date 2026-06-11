@@ -20,6 +20,7 @@ import { LeadsTab } from "./leads-tab";
 import { MarketingOutboxTab } from "./marketing-outbox-tab";
 import { MatchFeesTab } from "./match-fees-tab";
 import { MembersTab } from "./members-tab";
+import { PagesTab } from "./pages-tab";
 import { RecordLinkingTab } from "./record-linking-tab";
 import { SponsorshipsTab } from "./sponsorships-tab";
 import { TreasurerTab } from "./treasurer-tab";
@@ -186,6 +187,15 @@ const SECTIONS: readonly SectionDef[] = [
         label: "Events",
         visible: (role) => checkPermission(role, "content_news", "view"),
         render: () => <ContentTab kind="event" />,
+      },
+      // Appended after the existing sub-tabs so the section's default
+      // (first visible) sub-tab - what a bare ?section=content deep link
+      // opens - doesn't change underneath existing links.
+      {
+        value: "pages",
+        label: "Pages",
+        visible: (role) => checkPermission(role, "content", "view"),
+        render: () => <PagesTab />,
       },
     ],
   },

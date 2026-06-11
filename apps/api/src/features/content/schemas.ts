@@ -1,6 +1,7 @@
 import {
   blockPropValueSchema,
   contentKindSchema,
+  contentPathSchema,
   contentSlugSchema,
   contentStatusSchema,
   newsTagSchema,
@@ -42,6 +43,12 @@ export const contentSummarySchema = z.object({
   description: z.string().nullable(),
   status: contentStatusSchema,
   metadata: contentMetadataSchema,
+  // Hierarchy fields: populated for pages, null for every other kind.
+  // menuOrder is hoisted out of metadata so the admin tree view can sort
+  // without re-parsing the metadata jsonb.
+  parentId: z.string().nullable(),
+  path: z.string().nullable(),
+  menuOrder: z.number().int().nullable(),
   publishedAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -68,6 +75,32 @@ export const listContentResponseSchema = z.object({
   total: z.number().int().nonnegative(),
 });
 
+// ── Admin: page tree ────────────────────────────────────────────────────
+
+/**
+ * Every page regardless of status, ordered by path - the single source
+ * for the admin tree view. pathLocked is the server-derived
+ * ever-published lock (published_at non-null, the same marker
+ * updateContent enforces) so the UI never re-derives lock semantics.
+ */
+export const pageTreeResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      slug: z.string(),
+      path: z.string(),
+      parentId: z.string().nullable(),
+      menuOrder: z.number().int(),
+      isMainMenu: z.boolean(),
+      status: contentStatusSchema,
+      publishedAt: z.string().nullable(),
+      updatedAt: z.string(),
+      pathLocked: z.boolean(),
+    }),
+  ),
+});
+
 // ── Admin: get / create / update ────────────────────────────────────────
 
 export const contentIdParamSchema = z.object({
@@ -81,6 +114,8 @@ export const createContentSchema = z.object({
   description: z.string().min(1).max(1000).nullish(),
   body: contentBodyTransportSchema,
   metadata: contentMetadataSchema,
+  /** Pages only: parent page id (omit/null for a root page). */
+  parentId: z.uuid().nullish(),
 });
 
 export const updateContentSchema = z.object({
@@ -89,6 +124,11 @@ export const updateContentSchema = z.object({
   description: z.string().min(1).max(1000).nullish(),
   body: contentBodyTransportSchema.optional(),
   metadata: contentMetadataSchema.optional(),
+  /**
+   * Pages only: omit to leave the parent unchanged, null to move to the
+   * root, an id to move under that page. Locked once ever published.
+   */
+  parentId: z.uuid().nullish(),
 });
 
 export const contentDetailResponseSchema = contentDetailSchema;
@@ -183,4 +223,43 @@ export const listNewsResponseSchema = z.object({
 
 export const listEventsResponseSchema = z.object({
   items: z.array(publicListItemSchema),
+});
+
+// ── Public: pages (nav + by-path) ───────────────────────────────────────
+
+/**
+ * Every published page's nav fields, ordered by path. A few KB for the
+ * whole site, so no pagination; tree assembly stays client-side
+ * (replaces the build-time getNavigationTree/getBreadcrumbs/
+ * getMainMenuItems over static frontmatter).
+ */
+export const navResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      path: z.string(),
+      title: z.string(),
+      menuOrder: z.number().int(),
+      isMainMenu: z.boolean(),
+    }),
+  ),
+  /**
+   * Tombstoned paths: pages that were publicly live but are no longer
+   * visible (unpublished/archived after going live). The SPA drops
+   * matching entries from its bundled static nav so a takedown does not
+   * resurrect the stale static page in menus.
+   */
+  removed: z.array(z.string()),
+});
+
+export const pageByPathQuerySchema = z.object({
+  path: contentPathSchema,
+});
+
+/**
+ * Tombstone body for by-path lookups of ever-live pages that are no
+ * longer visible (410 Gone). Shape matches the global error handler's
+ * `{ error }` reply.
+ */
+export const goneResponseSchema = z.object({
+  error: z.string(),
 });

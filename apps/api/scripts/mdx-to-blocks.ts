@@ -5,36 +5,65 @@ import YAML from "yaml";
 import { z } from "zod";
 import { markdownToBlocks, type MigrationBlock } from "./markdown-to-blocks.ts";
 
-// One-time inbound migration converter (#491): the legacy MDX news +
-// events corpus -> the BlockNote-shaped block document the content API
-// stores (ADR 047). Unlike the game reports, this corpus embeds a small
-// fixed vocabulary of JSX components (<Image>, <GamePreview>) between
-// plain-markdown prose, so the body is segmented first: component
-// invocations are found with a regex over the raw source and everything
-// between them goes through markdownToBlocks() unchanged.
+// One-time inbound migration converter (#491, extended for pages in
+// #496): the legacy MDX news + events + pages corpus -> the
+// BlockNote-shaped block document the content API stores (ADR 047).
+// Unlike the game reports, these corpora embed a small fixed vocabulary
+// of JSX components between plain-markdown prose, so the body is
+// segmented first: component invocations are found with a regex over
+// the raw source and everything between them goes through
+// markdownToBlocks() unchanged.
 //
-// This is deliberately NOT a general MDX parser. The corpus is 17 files
-// written by a handful of people; a regex over the exact constructs they
-// used is simpler, auditable, and fails loudly on anything outside the
-// vocabulary - which is the correct behaviour for a one-time migration
-// (refusing beats silently dropping content).
+// This is deliberately NOT a general MDX parser. The corpus is a few
+// dozen files written by a handful of people; a regex over the exact
+// constructs they used is simpler, auditable, and fails loudly on
+// anything outside the vocabulary - which is the correct behaviour for
+// a one-time migration (refusing beats silently dropping content).
 
 // ── Segmentation ────────────────────────────────────────────────────────
 
 export type MdxSegment =
   | { kind: "markdown"; text: string }
-  | { kind: "component"; name: string; attrs: Record<string, string> };
-
-/** The only components the news/events corpus actually uses. */
-const KNOWN_COMPONENTS = new Set(["Image", "GamePreview"]);
+  | { kind: "component"; name: string; attrs: Record<string, string> }
+  // <PersonGrid> is the one container the corpus uses: paired tags
+  // wrapping self-closing <Person> children. Child roles are carried
+  // through so the converter can report when it has to drop them (the
+  // personGrid block type stores slugs only).
+  | { kind: "personGrid"; people: { slug: string; role?: string }[] };
 
 /**
- * A self-closing capitalised JSX invocation, possibly spanning lines
- * (the corpus writes <Image> with one attribute per line). The attr
- * chunk alternation permits ">" only inside quoted strings, so the
- * match cannot run past the closing "/>".
+ * Components the corpora write as self-closing invocations. Everything
+ * here maps 1:1 onto a custom block type from CUSTOM_BLOCK_TYPES (Image
+ * becomes contentImage via the upload pipeline).
  */
-const COMPONENT_RE = /<([A-Z][A-Za-z]*)((?:[^>"]|"[^"]*")*?)\/>/g;
+const SELF_CLOSING_COMPONENTS = new Set([
+  "Image",
+  "GamePreview",
+  "Person",
+  "EventPreview",
+  "LeagueTable",
+  "Leaderboard",
+  "RecordsWall",
+  "ContactForm",
+  "ConsentVersion",
+  "CookieSettingsLink",
+]);
+
+/**
+ * Components the corpora write as paired tags. PersonGrid wraps Person
+ * children (the slugs-attribute form is never used in the corpus, so it
+ * is deliberately unsupported); CookieSettingsLink's children are its
+ * link text.
+ */
+const CONTAINER_COMPONENTS = new Set(["PersonGrid", "CookieSettingsLink"]);
+
+/**
+ * A capitalised JSX tag - self-closing (capture 3 = "/") or opening -
+ * possibly spanning lines (the corpus writes <Image> with one attribute
+ * per line). The attr chunk alternation permits ">" only inside quoted
+ * strings, so the match cannot run past the tag's closing ">".
+ */
+const COMPONENT_RE = /<([A-Z][A-Za-z]*)((?:[^>"]|"[^"]*")*?)(\/)?>/g;
 
 /**
  * Attributes are exclusively string literals in this corpus
@@ -88,6 +117,95 @@ function assertNoLeftoverJsx(text: string): void {
 }
 
 /**
+ * A line that is exactly one markdown image. Only treated as a block
+ * when the surrounding lines are blank (i.e. it forms a paragraph of
+ * its own): the pages corpus writes one logo this way, and it maps to
+ * the same contentImage pipeline as <Image>. An image WITHIN a
+ * paragraph (or wrapped in a link) still fails the file - converting it
+ * would mean splitting a paragraph or dropping the link.
+ */
+const BARE_IMAGE_RE = /^!\[([^\]\n]*)\]\(([^)\s]+)\)$/;
+
+type ImageOrMarkdown =
+  | { kind: "markdown"; text: string }
+  | { kind: "component"; name: "Image"; attrs: Record<string, string> };
+
+/** Split a markdown chunk on bare-image paragraphs (see BARE_IMAGE_RE). */
+function splitBareImages(text: string): ImageOrMarkdown[] {
+  const lines = text.split("\n");
+  const parts: ImageOrMarkdown[] = [];
+  let pending: string[] = [];
+  const flush = () => {
+    const chunk = pending.join("\n").trim();
+    pending = [];
+    if (chunk !== "") parts.push({ kind: "markdown", text: chunk });
+  };
+  for (const [i, line] of lines.entries()) {
+    const match = BARE_IMAGE_RE.exec(line.trim());
+    const prevBlank = i === 0 || (lines[i - 1] ?? "").trim() === "";
+    const nextBlank =
+      i === lines.length - 1 || (lines[i + 1] ?? "").trim() === "";
+    if (match && prevBlank && nextBlank) {
+      flush();
+      const [, alt, src] = match;
+      parts.push({
+        kind: "component",
+        name: "Image",
+        attrs: {
+          src: src ?? "",
+          ...(alt !== undefined && alt !== "" && { alt }),
+        },
+      });
+      continue;
+    }
+    pending.push(line);
+  }
+  flush();
+  return parts;
+}
+
+/**
+ * Parse the children of a <PersonGrid> container: exclusively
+ * self-closing <Person> elements separated by whitespace, as the whole
+ * corpus writes them. Anything else fails the file.
+ */
+function parsePersonGridChildren(
+  inner: string,
+): { slug: string; role?: string }[] {
+  const people: { slug: string; role?: string }[] = [];
+  for (const match of inner.matchAll(COMPONENT_RE)) {
+    const [, name, rawAttrs, selfClosing] = match;
+    if (name !== "Person" || selfClosing !== "/") {
+      throw new Error(
+        `<PersonGrid> may only contain <Person /> children (found <${name ?? "?"}>) - migrate this file by hand`,
+      );
+    }
+    const attrs = parseComponentAttributes(rawAttrs ?? "");
+    if (!attrs.slug) {
+      throw new Error(
+        "<Person> inside <PersonGrid> without slug - migrate this file by hand",
+      );
+    }
+    people.push({
+      slug: attrs.slug,
+      ...(attrs.role !== undefined && { role: attrs.role }),
+    });
+  }
+  const leftover = inner.replace(COMPONENT_RE, "").trim();
+  if (leftover !== "") {
+    throw new Error(
+      `<PersonGrid> contains non-component content '${leftover.slice(0, 60)}' - migrate this file by hand`,
+    );
+  }
+  if (people.length === 0) {
+    throw new Error(
+      "<PersonGrid> with no <Person> children - migrate this file by hand",
+    );
+  }
+  return people;
+}
+
+/**
  * Split an MDX body into markdown segments and component invocations.
  * Components must be block-level (alone on their lines, as the whole
  * corpus writes them) - an inline invocation would force this code to
@@ -99,34 +217,83 @@ export function segmentMdx(body: string): MdxSegment[] {
   const pushMarkdown = (raw: string) => {
     const text = flattenSupTags(raw).trim();
     if (text === "") return;
-    assertNoLeftoverJsx(text);
-    segments.push({ kind: "markdown", text });
+    for (const part of splitBareImages(text)) {
+      if (part.kind === "markdown") assertNoLeftoverJsx(part.text);
+      segments.push(part);
+    }
   };
 
   let cursor = 0;
-  for (const match of body.matchAll(COMPONENT_RE)) {
-    const [full, name, rawAttrs] = match;
+  const re = new RegExp(COMPONENT_RE.source, "g");
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(body)) !== null) {
+    const [full, name, rawAttrs, selfClosing] = match;
     if (name === undefined || rawAttrs === undefined) continue;
-    if (!KNOWN_COMPONENTS.has(name)) {
-      throw new Error(
-        `Unknown component <${name}> - migrate this file by hand`,
-      );
-    }
     const start = match.index;
+    let end = start + full.length;
+
+    let segment: MdxSegment;
+    if (selfClosing === "/") {
+      if (!SELF_CLOSING_COMPONENTS.has(name)) {
+        throw new Error(
+          name === "PersonGrid"
+            ? "<PersonGrid /> without <Person> children (the slugs-attribute form is not used by the corpus) - migrate this file by hand"
+            : `Unknown component <${name}> - migrate this file by hand`,
+        );
+      }
+      segment = {
+        kind: "component",
+        name,
+        attrs: parseComponentAttributes(rawAttrs),
+      };
+    } else {
+      // Opening tag: only the two paired-tag containers are understood.
+      if (!CONTAINER_COMPONENTS.has(name)) {
+        throw new Error(
+          SELF_CLOSING_COMPONENTS.has(name)
+            ? `<${name}> must be self-closing - migrate this file by hand`
+            : `Unknown component <${name}> - migrate this file by hand`,
+        );
+      }
+      const closeTag = `</${name}>`;
+      const closeStart = body.indexOf(closeTag, end);
+      if (closeStart === -1) {
+        throw new Error(`Unclosed <${name}> - migrate this file by hand`);
+      }
+      const inner = body.slice(end, closeStart);
+      end = closeStart + closeTag.length;
+
+      if (name === "PersonGrid") {
+        segment = {
+          kind: "personGrid",
+          people: parsePersonGridChildren(inner),
+        };
+      } else {
+        // CookieSettingsLink: the children are the link text. Tag-shaped
+        // children mean vocabulary this converter does not understand.
+        if (/<[A-Za-z/]/.test(inner)) {
+          throw new Error(
+            "<CookieSettingsLink> with non-text children - migrate this file by hand",
+          );
+        }
+        const attrs = parseComponentAttributes(rawAttrs);
+        const text = inner.trim();
+        if (text !== "") attrs.text = text;
+        segment = { kind: "component", name, attrs };
+      }
+    }
+
     const before = body.slice(0, start);
-    const after = body.slice(start + full.length);
+    const after = body.slice(end);
     if (!/(^|\n)[ \t]*$/.test(before) || !/^[ \t]*(\n|$)/.test(after)) {
       throw new Error(
         `<${name}> used inline within other content - migrate this file by hand`,
       );
     }
     pushMarkdown(body.slice(cursor, start));
-    segments.push({
-      kind: "component",
-      name,
-      attrs: parseComponentAttributes(rawAttrs),
-    });
-    cursor = start + full.length;
+    segments.push(segment);
+    cursor = end;
+    re.lastIndex = end;
   }
   pushMarkdown(body.slice(cursor));
 
@@ -160,11 +327,23 @@ function customBlock(
   return { id: crypto.randomUUID(), type, props, children: [] };
 }
 
+/** A required string attribute, or a loud failure naming the component. */
+function requireAttr(
+  name: string,
+  attrs: Record<string, string>,
+  attr: string,
+): string {
+  const value = attrs[attr];
+  if (!value) throw new Error(`<${name}> without ${attr}`);
+  return value;
+}
+
 /**
- * Convert an MDX news/event body into the block array the content API
- * stores. Markdown segments reuse markdownToBlocks() (and inherit its
- * fail-loudly assertions); component segments map to the custom block
- * types the editor and public renderer share.
+ * Convert an MDX news/event/page body into the block array the content
+ * API stores. Markdown segments reuse markdownToBlocks() (and inherit
+ * its fail-loudly assertions); component segments map to the custom
+ * block types the editor and public renderer share, emitting exactly
+ * the prop set the editor's propSchema would (defaults filled in).
  */
 export async function mdxToBlocks(
   body: string,
@@ -176,22 +355,93 @@ export async function mdxToBlocks(
       blocks.push(...markdownToBlocks(segment.text));
       continue;
     }
-    if (segment.name === "GamePreview") {
-      const playCricketId = segment.attrs.playCricketId;
-      if (!playCricketId) {
-        throw new Error("<GamePreview> without playCricketId");
-      }
+    if (segment.kind === "personGrid") {
+      // entries (JSON-stringified [{slug, role?}]) is the canonical
+      // role-preserving prop the renderer and editor share; the slugs
+      // CSV is written alongside as the legacy fallback the renderer
+      // reads when entries is absent.
       blocks.push(
-        customBlock(CUSTOM_BLOCK_TYPES.gamePreview, { playCricketId }),
+        customBlock(CUSTOM_BLOCK_TYPES.personGrid, {
+          slugs: segment.people.map((p) => p.slug).join(","),
+          entries: JSON.stringify(segment.people),
+        }),
       );
       continue;
     }
-    // Image - the resolver returns the full prop set so the picture
-    // descriptor comes from the same pipeline as editor uploads.
-    const { src, alt, caption } = segment.attrs;
-    if (!src) throw new Error("<Image> without src");
-    const props = await resolveImage({ src, alt, caption });
-    blocks.push(customBlock(CUSTOM_BLOCK_TYPES.contentImage, props));
+    const { name, attrs } = segment;
+    switch (name) {
+      case "GamePreview":
+        blocks.push(
+          customBlock(CUSTOM_BLOCK_TYPES.gamePreview, {
+            playCricketId: requireAttr(name, attrs, "playCricketId"),
+          }),
+        );
+        break;
+      case "Image": {
+        // The resolver returns the full prop set so the picture
+        // descriptor comes from the same pipeline as editor uploads.
+        const { src, alt, caption } = attrs;
+        if (!src) throw new Error("<Image> without src");
+        const props = await resolveImage({ src, alt, caption });
+        blocks.push(customBlock(CUSTOM_BLOCK_TYPES.contentImage, props));
+        break;
+      }
+      case "Person":
+        blocks.push(
+          customBlock(CUSTOM_BLOCK_TYPES.person, {
+            slug: requireAttr(name, attrs, "slug"),
+            role: attrs.role ?? "",
+          }),
+        );
+        break;
+      case "EventPreview":
+        // The MDX prop is `id`; the block (and its editor propSchema)
+        // call it `eventId`.
+        blocks.push(
+          customBlock(CUSTOM_BLOCK_TYPES.eventPreview, {
+            eventId: requireAttr(name, attrs, "id"),
+            name: requireAttr(name, attrs, "name"),
+            when: requireAttr(name, attrs, "when"),
+          }),
+        );
+        break;
+      case "LeagueTable":
+        blocks.push(
+          customBlock(CUSTOM_BLOCK_TYPES.leagueTable, {
+            divisionId: requireAttr(name, attrs, "divisionId"),
+            name: attrs.name ?? "",
+          }),
+        );
+        break;
+      case "Leaderboard":
+        blocks.push(customBlock(CUSTOM_BLOCK_TYPES.leaderboard, {}));
+        break;
+      case "RecordsWall":
+        blocks.push(customBlock(CUSTOM_BLOCK_TYPES.recordsWall, {}));
+        break;
+      case "ContactForm":
+        blocks.push(
+          customBlock(CUSTOM_BLOCK_TYPES.contactForm, {
+            title: attrs.title ?? "",
+            description: attrs.description ?? "",
+          }),
+        );
+        break;
+      case "ConsentVersion":
+        blocks.push(customBlock(CUSTOM_BLOCK_TYPES.consentVersion, {}));
+        break;
+      case "CookieSettingsLink":
+        blocks.push(
+          customBlock(CUSTOM_BLOCK_TYPES.cookieSettingsLink, {
+            text: attrs.text ?? "Cookie settings",
+          }),
+        );
+        break;
+      default:
+        // segmentMdx only emits known names; this guards drift between
+        // the two vocabularies.
+        throw new Error(`No block mapping for <${name}>`);
+    }
   }
   return blocks;
 }
@@ -283,6 +533,43 @@ export function parseEventSource(source: string): EventSource {
     when: fm.when,
     ...(fm.finish !== undefined && { finish: fm.finish }),
     ...(fm.location !== undefined && { location: fm.location }),
+    body,
+  };
+}
+
+// Mirrors the static page loader's frontmatter handling (apps/web
+// lib/content.ts) and the defaults pageMetadataSchema applies: a
+// DB-backed page must come out indistinguishable from its static
+// version. ldjson is kept as-is (pasted structured data).
+const pageFrontmatterSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1).optional(),
+  menuOrder: z.number().int().default(99),
+  isMainMenu: z.boolean().default(false),
+  hideTitle: z.boolean().default(false),
+  ldjson: z.record(z.string(), z.unknown()).optional(),
+});
+
+export interface PageSource {
+  title: string;
+  description?: string;
+  menuOrder: number;
+  isMainMenu: boolean;
+  hideTitle: boolean;
+  ldjson?: Record<string, unknown>;
+  body: string;
+}
+
+export function parsePageSource(source: string): PageSource {
+  const { raw, body } = splitFrontmatter(source);
+  const fm = pageFrontmatterSchema.parse(raw);
+  return {
+    title: fm.title,
+    ...(fm.description !== undefined && { description: fm.description }),
+    menuOrder: fm.menuOrder,
+    isMainMenu: fm.isMainMenu,
+    hideTitle: fm.hideTitle,
+    ...(fm.ldjson !== undefined && { ldjson: fm.ldjson }),
     body,
   };
 }

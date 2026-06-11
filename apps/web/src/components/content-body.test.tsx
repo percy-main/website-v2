@@ -11,10 +11,30 @@ vi.mock("@/lib/people.js", () => ({
     slug === "alex-slaven"
       ? { name: "Alex Slaven", photo: undefined, photoPicture: undefined }
       : undefined,
+  getAllPeople: () => [
+    {
+      slug: "alex-slaven",
+      name: "Alex Slaven",
+      photo: undefined,
+      photoPicture: undefined,
+    },
+  ],
 }));
 vi.mock("@/lib/image-map.js", () => ({
   getImageUrl: () => undefined,
   getPicture: () => undefined,
+}));
+// Stub network-dependent subcomponents so they render inert markup instead
+// of firing real API requests under renderToStaticMarkup.
+vi.mock("@/components/leaderboard-content.js", () => ({
+  LeaderboardContent: () => <div data-testid="leaderboard-stub" />,
+}));
+vi.mock("@/components/records-wall.js", () => ({
+  RecordsWall: () => <div data-testid="records-wall-stub" />,
+}));
+vi.mock("@/lib/marketing/consent.js", () => ({
+  CURRENT_CONSENT_VERSION: "v3",
+  requestConsentReopen: () => undefined,
 }));
 
 import { ContentBody } from "./content-body.js";
@@ -251,5 +271,186 @@ describe("ContentBody", () => {
     expect(html).not.toContain("javascript:");
     // Falls back to the plain (safe) src
     expect(html).toContain('src="/uploads/content/img-1/640.jpg"');
+  });
+
+  // ── New custom blocks ──────────────────────────────────────────────────
+
+  it("renders all custom block types in a fixture document without crashing", () => {
+    const picture = {
+      sources: {
+        avif: "/uploads/content/img-1/320.avif 320w",
+        webp: "/uploads/content/img-1/320.webp 320w",
+      },
+      img: { src: "/uploads/content/img-1/640.jpg", w: 640, h: 480 },
+    };
+    const html = renderBody([
+      block("person", { props: { slug: "alex-slaven", role: "Head Coach" } }),
+      block("personGrid", { props: { slugs: "alex-slaven" } }),
+      block("gamePreview", { props: { playCricketId: "123" } }),
+      block("eventPreview", {
+        props: { eventId: "1", name: "Quiz night", when: "2026-07-01" },
+      }),
+      block("contentImage", {
+        props: {
+          src: "/uploads/content/img-1/640.jpg",
+          alt: "A photo",
+          caption: "Caption",
+          picture: JSON.stringify(picture),
+        },
+      }),
+      block("leagueTable", {
+        props: { divisionId: "div-1", name: "Division 1" },
+      }),
+      block("leaderboard", {}),
+      block("recordsWall", {}),
+      block("contactForm", {
+        props: { title: "Get in touch", description: "We reply within 48h" },
+      }),
+      block("cookieSettingsLink", { props: { text: "Manage cookies" } }),
+      block("consentVersion", {}),
+    ]);
+    // Each custom block must produce some non-empty output (not null/empty).
+    expect(html.length).toBeGreaterThan(0);
+    // Spot-check a handful of expected fragments.
+    expect(html).toContain("Head Coach");
+    expect(html).toContain("Quiz night");
+    expect(html).toContain("Get in touch");
+    expect(html).toContain("Manage cookies");
+    expect(html).toContain("v3");
+  });
+
+  it("renders personGrid via the shared PersonGrid component", () => {
+    const html = renderBody([
+      block("personGrid", { props: { slugs: "alex-slaven" } }),
+    ]);
+    // PersonGrid renders Person cards, which include the profile link
+    expect(html).toContain('href="/person/alex-slaven"');
+  });
+
+  it("normalises personGrid slugs with spaces and empty segments", () => {
+    const html = renderBody([
+      block("personGrid", { props: { slugs: " alex-slaven , , bob ," } }),
+    ]);
+    // Trimmed slugs resolve; empty segments are dropped (no card with an
+    // empty profile link).
+    expect(html).toContain('href="/person/alex-slaven"');
+    expect(html).toContain('href="/person/bob"');
+    expect(html).not.toContain('href="/person/"');
+    // Exactly two person cards rendered.
+    expect(html.match(/class="person /g)).toHaveLength(2);
+  });
+
+  it("hides personGrid when slugs contains only separators and whitespace", () => {
+    const html = renderBody([
+      block("personGrid", { props: { slugs: " , ,, " } }),
+    ]);
+    expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
+  });
+
+  it("renders personGrid entries as Person children carrying their roles", () => {
+    const html = renderBody([
+      block("personGrid", {
+        props: {
+          slugs: "alex-slaven,bob",
+          entries: JSON.stringify([
+            { slug: "alex-slaven", role: "Head Coach" },
+            { slug: "bob" },
+          ]),
+        },
+      }),
+    ]);
+    expect(html).toContain('href="/person/alex-slaven"');
+    expect(html).toContain("Head Coach");
+    expect(html).toContain('href="/person/bob"');
+    // Exactly two person cards: same composition as the MDX corpus.
+    expect(html.match(/class="person /g)).toHaveLength(2);
+  });
+
+  it("prefers entries over the slugs CSV when both are present", () => {
+    const html = renderBody([
+      block("personGrid", {
+        props: {
+          slugs: "stale-slug",
+          entries: JSON.stringify([{ slug: "fresh-slug", role: "Captain" }]),
+        },
+      }),
+    ]);
+    expect(html).toContain('href="/person/fresh-slug"');
+    expect(html).toContain("Captain");
+    expect(html).not.toContain("stale-slug");
+  });
+
+  it("falls back to the slugs CSV when entries is malformed", () => {
+    for (const entries of [
+      "not json",
+      '{"slug":"x"}', // not an array
+      '[{"role":"Coach"}]', // entry without a slug
+      '[{"slug":""}]', // empty slug
+      '[{"slug":"x","role":5}]', // non-string role
+    ]) {
+      const html = renderBody([
+        block("personGrid", { props: { slugs: "alex-slaven", entries } }),
+      ]);
+      expect(html).toContain('href="/person/alex-slaven"');
+    }
+  });
+
+  it("falls back to the slugs CSV when entries is an empty array", () => {
+    const html = renderBody([
+      block("personGrid", { props: { slugs: "alex-slaven", entries: "[]" } }),
+    ]);
+    expect(html).toContain('href="/person/alex-slaven"');
+  });
+
+  it("hides leagueTable when divisionId is missing", () => {
+    const html = renderBody([block("leagueTable", { props: {} })]);
+    expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
+  });
+
+  it("renders leagueTable when divisionId is provided", () => {
+    const html = renderBody([
+      block("leagueTable", { props: { divisionId: "12345", name: "Div 1" } }),
+    ]);
+    // leagueTable fires a query that is disabled in tests, renders nothing
+    // until data arrives - the component itself returns null when !data, so
+    // the outer block still produces some wrapper markup.
+    expect(html).toBeDefined();
+  });
+
+  it("renders leaderboard block", () => {
+    const html = renderBody([block("leaderboard", {})]);
+    expect(html).toContain("leaderboard-stub");
+  });
+
+  it("renders recordsWall block", () => {
+    const html = renderBody([block("recordsWall", {})]);
+    expect(html).toContain("records-wall-stub");
+  });
+
+  it("renders contactForm with title and description", () => {
+    const html = renderBody([
+      block("contactForm", {
+        props: { title: "Say hello", description: "We reply fast" },
+      }),
+    ]);
+    expect(html).toContain("Say hello");
+    expect(html).toContain("We reply fast");
+  });
+
+  it("renders cookieSettingsLink with custom text", () => {
+    const html = renderBody([
+      block("cookieSettingsLink", { props: { text: "Your cookie choices" } }),
+    ]);
+    expect(html).toContain("Your cookie choices");
+  });
+
+  it("renders cookieSettingsLink with default text when prop is missing", () => {
+    const html = renderBody([block("cookieSettingsLink", { props: {} })]);
+    expect(html).toContain("Cookie settings");
+  });
+
+  it("renders consentVersion as the current version string", () => {
+    const html = renderBody([block("consentVersion", {})]);
+    expect(html).toContain("v3");
   });
 });

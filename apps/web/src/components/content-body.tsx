@@ -3,6 +3,7 @@ import {
   OptimisedImage,
   type PictureSource,
 } from "@/components/optimised-image.js";
+import { parsePersonGridEntries } from "@/lib/person-grid.js";
 import { cn } from "@/lib/utils.js";
 import {
   contentBodySchema,
@@ -330,11 +331,34 @@ function BlockView({ block }: { block: ContentBlock }) {
     }
 
     case CUSTOM_BLOCK_TYPES.personGrid: {
+      // Role-preserving entries prop (JSON-stringified [{slug, role?}],
+      // same precedent as contentImage's picture prop): compose
+      // PersonGrid with Person children exactly as the MDX corpus does.
+      // Absent or malformed entries degrade to the legacy slugs CSV.
+      const entries = parsePersonGridEntries(stringProp(block, "entries"));
+      if (entries !== null) {
+        return (
+          <mdxComponents.PersonGrid>
+            {entries.map((entry, i) => (
+              <mdxComponents.Person
+                key={`${entry.slug}-${String(i)}`}
+                slug={entry.slug}
+                role={entry.role}
+              />
+            ))}
+          </mdxComponents.PersonGrid>
+        );
+      }
       const slugs = stringProp(block, "slugs");
       if (!slugs) return null;
-      return (
-        <mdxComponents.PersonGrid slugs={slugs.split(",").filter(Boolean)} />
-      );
+      // Normalise the stored CSV: trim each segment, drop empties - so
+      // "alice, bob" and stray commas render correctly.
+      const parsed = slugs.split(",").flatMap((s) => {
+        const trimmed = s.trim();
+        return trimmed ? [trimmed] : [];
+      });
+      if (parsed.length === 0) return null;
+      return <mdxComponents.PersonGrid slugs={parsed} />;
     }
 
     case CUSTOM_BLOCK_TYPES.gamePreview: {
@@ -379,6 +403,44 @@ function BlockView({ block }: { block: ContentBlock }) {
       if (!src || !isSafeImageSrc(src)) return null;
       return <mdxComponents.Image src={src} alt={alt} caption={caption} />;
     }
+
+    case CUSTOM_BLOCK_TYPES.leagueTable: {
+      const divisionId = stringProp(block, "divisionId");
+      // Required prop: degrade silently when missing.
+      if (!divisionId) return null;
+      return (
+        <mdxComponents.LeagueTable
+          divisionId={divisionId}
+          name={stringProp(block, "name")}
+        />
+      );
+    }
+
+    case CUSTOM_BLOCK_TYPES.leaderboard:
+      return <mdxComponents.Leaderboard />;
+
+    case CUSTOM_BLOCK_TYPES.recordsWall:
+      return <mdxComponents.RecordsWall />;
+
+    case CUSTOM_BLOCK_TYPES.contactForm:
+      return (
+        <mdxComponents.ContactForm
+          title={stringProp(block, "title")}
+          description={stringProp(block, "description")}
+        />
+      );
+
+    case CUSTOM_BLOCK_TYPES.cookieSettingsLink: {
+      const text = stringProp(block, "text") ?? "Cookie settings";
+      return (
+        <mdxComponents.CookieSettingsLink>
+          {text}
+        </mdxComponents.CookieSettingsLink>
+      );
+    }
+
+    case CUSTOM_BLOCK_TYPES.consentVersion:
+      return <mdxComponents.ConsentVersion />;
 
     default:
       // Unknown / not-yet-supported block types degrade silently.

@@ -42,24 +42,22 @@ import path from "path";
 import { fileURLToPath } from "url";
 import YAML from "yaml";
 import {
-  processImage,
-  type ProcessedImage,
-} from "../src/features/content-images/service.ts";
-import {
   CONTENT_IMAGES_PREFIX,
   createContentImageStore,
   type ContentImageStore,
 } from "../src/lib/s3-content-images.ts";
 import {
-  blocksEqualIgnoringIds,
-  type MigrationBlock,
-} from "./markdown-to-blocks.ts";
+  convertBody,
+  ensureImages as ensureImagesShared,
+  planImageUploads,
+  type Converted,
+  type PendingImage,
+} from "./image-pipeline.ts";
+import { blocksEqualIgnoringIds } from "./markdown-to-blocks.ts";
 import {
   eventPublishedAt,
   findDuplicateLocationNames,
-  imageIdForAsset,
   jsonEqual,
-  mdxToBlocks,
   newsPublishedAt,
   parseEventSource,
   parseNewsSource,
@@ -74,9 +72,6 @@ const LOCATIONS_FILE = path.resolve(
   __dirname,
   "../../web/content/data/locations.yaml",
 );
-// Mirrors the web app's image-map: public "/images/..." paths resolve to
-// files under src/assets/images/.
-const ASSETS_DIR = path.resolve(__dirname, "../../web/src/assets/images");
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -91,84 +86,6 @@ function parseArgs() {
     process.exit(1);
   }
   return { userId, dryRun, force };
-}
-
-class MissingImageError extends Error {
-  constructor(publicPath: string) {
-    super(`image file not found on disk for '${publicPath}'`);
-  }
-}
-
-interface PendingImage {
-  imageId: string;
-  publicPath: string;
-  alt: string | null;
-  processed: ProcessedImage;
-  bytes: number;
-}
-
-interface Converted {
-  blocks: MigrationBlock[];
-  images: PendingImage[];
-}
-
-/**
- * Convert one MDX body, resolving each <Image> through the editor-upload
- * processing pipeline (locally - nothing is written here, so --dry-run
- * conversion is complete and writes can be deferred until after the
- * skip/insert decision). The processed-image cache spans articles so a
- * re-used asset is only decoded once.
- */
-async function convertBody(
-  body: string,
-  cache: Map<string, PendingImage>,
-): Promise<Converted> {
-  const images: PendingImage[] = [];
-  const blocks = await mdxToBlocks(body, async ({ src, alt, caption }) => {
-    const imageId = imageIdForAsset(src);
-    let pending = cache.get(imageId);
-    if (!pending) {
-      if (!src.startsWith("/images/")) {
-        throw new Error(`unexpected image src '${src}'`);
-      }
-      const assetPath = path.resolve(ASSETS_DIR, src.slice("/images/".length));
-      // A '..' segment in the src could otherwise resolve outside the
-      // bundled assets tree and upload an arbitrary readable file.
-      if (!assetPath.startsWith(ASSETS_DIR + path.sep)) {
-        throw new Error(`image src '${src}' escapes the assets directory`);
-      }
-      let original: Buffer;
-      try {
-        original = await fs.readFile(assetPath);
-      } catch {
-        throw new MissingImageError(src);
-      }
-      const processed = await processImage(
-        original,
-        imageId,
-        CONTENT_IMAGES_PREFIX,
-      );
-      pending = {
-        imageId,
-        publicPath: src,
-        alt: alt ?? null,
-        processed,
-        bytes: original.byteLength,
-      };
-      cache.set(imageId, pending);
-    }
-    images.push(pending);
-    // Exactly the prop set the editor inserts (content-editor.tsx): the
-    // plain src falls back to the ladder's largest original-format
-    // variant, picture carries the JSON-stringified PictureSource.
-    return {
-      src: pending.processed.picture.img.src,
-      alt: alt ?? "",
-      caption: caption ?? "",
-      picture: JSON.stringify(pending.processed.picture),
-    };
-  });
-  return { blocks, images };
 }
 
 interface MigrationItem {
@@ -351,40 +268,14 @@ async function main() {
   /** Upload variants + register rows for an article's images (idempotent). */
   const ensureImages = async (images: PendingImage[]) => {
     if (!store) throw new Error("store unavailable outside a real run");
-    for (const image of images) {
-      const existing = await db
-        .selectFrom("content_image")
-        .select("id")
-        .where("id", "=", image.imageId)
-        .executeTakeFirst();
-      if (existing) {
-        imagesReused += 1;
-        continue;
-      }
-      for (const variant of image.processed.variants) {
-        await store.putVariant(variant.key, variant.body, variant.contentType);
-      }
-      await db
-        .insertInto("content_image")
-        .values({
-          id: image.imageId,
-          key_prefix: `${CONTENT_IMAGES_PREFIX}/${image.imageId}`,
-          original_format: image.processed.sourceFormat,
-          width: image.processed.width,
-          height: image.processed.height,
-          bytes: image.bytes,
-          picture: JSON.stringify(image.processed.picture),
-          alt: image.alt,
-          consent_confirmed: true,
-          uploaded_by: userId,
-        })
-        .onConflict((oc) => oc.column("id").doNothing())
-        .execute();
-      imagesUploaded += 1;
-      console.log(
-        `    ^ uploaded ${image.publicPath} -> ${CONTENT_IMAGES_PREFIX}/${image.imageId}/ (${String(image.processed.variants.length)} variants)`,
-      );
-    }
+    const { uploaded, reused } = await ensureImagesShared(
+      db,
+      store,
+      userId,
+      images,
+    );
+    imagesUploaded += uploaded;
+    imagesReused += reused;
   };
 
   for (const item of items) {
@@ -440,21 +331,12 @@ async function main() {
     }
 
     if (dryRun) {
-      const newImages = [];
-      for (const image of images) {
-        if (plannedUploads.has(image.imageId)) continue;
-        const row = await db
-          .selectFrom("content_image")
-          .select("id")
-          .where("id", "=", image.imageId)
-          .executeTakeFirst();
-        if (row) {
-          imagesReused += 1;
-        } else {
-          newImages.push(image);
-          plannedUploads.add(image.imageId);
-        }
-      }
+      const { newImages, reused } = await planImageUploads(
+        db,
+        images,
+        plannedUploads,
+      );
+      imagesReused += reused;
       console.log(
         `  ~ ${item.file} would ${existing ? "update" : "insert"} '${item.title}' (${String(blocks.length)} blocks, ${String(images.length)} images, published_at ${item.publishedAt.toISOString()})`,
       );

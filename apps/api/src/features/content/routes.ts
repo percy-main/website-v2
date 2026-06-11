@@ -14,12 +14,16 @@ import {
   contentDetailResponseSchema,
   contentIdParamSchema,
   createContentSchema,
+  goneResponseSchema,
   listContentQuerySchema,
   listContentResponseSchema,
   listEventsResponseSchema,
   listNewsQuerySchema,
   listNewsResponseSchema,
   listRevisionsResponseSchema,
+  navResponseSchema,
+  pageByPathQuerySchema,
+  pageTreeResponseSchema,
   playCricketIdParamSchema,
   publicContentParamsSchema,
   publicContentResponseSchema,
@@ -33,7 +37,10 @@ import {
   getContentMeta,
   getPublishedContent,
   getPublishedGameReport,
+  getPublishedNav,
+  getPublishedPageByPath,
   listContent,
+  listPageTree,
   listPublishedEvents,
   listPublishedNews,
   listRevisions,
@@ -69,6 +76,7 @@ const publishResponseSchema = z.object({
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const list = listContent(app.db);
+  const pageTree = listPageTree(app.db);
   const get = getContent(app.db);
   const metaOf = getContentMeta(app.db);
   const create = createContent(app.db);
@@ -81,6 +89,8 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const publicGameReport = getPublishedGameReport(app.db);
   const publicNews = listPublishedNews(app.db);
   const publicEvents = listPublishedEvents(app.db);
+  const publicNav = getPublishedNav(app.db);
+  const publicPageByPath = getPublishedPageByPath(app.db);
 
   // ── Admin ──
 
@@ -96,6 +106,23 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       assertContentPermission(request, request.query.kind, "view");
       return await list(request.query);
+    },
+  );
+
+  // Static segment, so find-my-way prefers it over /admin/content/:contentId.
+  // Same permission treatment as the admin list for kind=page (resource
+  // "content", action "view").
+  app.get(
+    "/admin/content/page-tree",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        response: { 200: pageTreeResponseSchema },
+      },
+    },
+    async (request) => {
+      assertContentPermission(request, "page", "view");
+      return await pageTree();
     },
   );
 
@@ -287,6 +314,35 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
+  // Page lookup by full materialised path - the canonical public page
+  // route (nested page slugs are only unique among siblings). Static
+  // segments, so find-my-way prefers it over /content/:kind/:slug.
+  // 410 = tombstone: the page WAS live here but has been taken down;
+  // the SPA must not fall back to its bundled static version (404 keeps
+  // that fallback for never-live paths).
+  app.get(
+    "/content/page/by-path",
+    {
+      schema: {
+        querystring: pageByPathQuerySchema,
+        response: {
+          200: publicContentResponseSchema,
+          304: z.null(),
+          410: goneResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const item = await publicPageByPath(request.query.path);
+      const etag = etagFor(item);
+      void reply.header("etag", etag);
+      if (request.headers["if-none-match"] === etag) {
+        return await reply.code(304).send(null);
+      }
+      return item;
+    },
+  );
+
   // List endpoints. One static segment, so no clash with the two-segment
   // /content/:kind/:slug above. No ETag here: any item edit, publish or
   // scheduled publish crossing now() would have to invalidate it.
@@ -313,6 +369,18 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async () => {
       return await publicEvents();
+    },
+  );
+
+  app.get(
+    "/content/nav",
+    {
+      schema: {
+        response: { 200: navResponseSchema },
+      },
+    },
+    async () => {
+      return await publicNav();
     },
   );
 };

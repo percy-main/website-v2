@@ -13317,6 +13317,9 @@ export interface paths {
                                 metadata: {
                                     [key: string]: unknown;
                                 };
+                                parentId: string | null;
+                                path: string | null;
+                                menuOrder: number | null;
                                 publishedAt: string | null;
                                 createdAt: string;
                                 updatedAt: string;
@@ -13357,6 +13360,8 @@ export interface paths {
                         metadata: {
                             [key: string]: unknown;
                         };
+                        /** Format: uuid */
+                        parentId?: string | null;
                     };
                 };
             };
@@ -13374,6 +13379,56 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/content/page-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                title: string;
+                                slug: string;
+                                path: string;
+                                parentId: string | null;
+                                menuOrder: number;
+                                isMainMenu: boolean;
+                                /** @enum {string} */
+                                status: "draft" | "published" | "archived";
+                                publishedAt: string | null;
+                                updatedAt: string;
+                                pathLocked: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -13416,6 +13471,9 @@ export interface paths {
                             metadata: {
                                 [key: string]: unknown;
                             };
+                            parentId: string | null;
+                            path: string | null;
+                            menuOrder: number | null;
                             publishedAt: string | null;
                             createdAt: string;
                             updatedAt: string;
@@ -13462,6 +13520,8 @@ export interface paths {
                         metadata?: {
                             [key: string]: unknown;
                         };
+                        /** Format: uuid */
+                        parentId?: string | null;
                     };
                 };
             };
@@ -13791,6 +13851,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/content/page/by-path": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    path: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            /** @enum {string} */
+                            kind: "page" | "news" | "event" | "game_report" | "person";
+                            slug: string;
+                            title: string;
+                            description: string | null;
+                            body: {
+                                id: string;
+                                type: string;
+                                props: {
+                                    [key: string]: string | number | boolean;
+                                };
+                                content?: unknown;
+                                children: unknown[];
+                            }[];
+                            metadata: {
+                                [key: string]: unknown;
+                            };
+                            publishedAt: string;
+                            updatedAt: string;
+                        };
+                    };
+                };
+                /** @description Default Response */
+                304: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": null;
+                    };
+                };
+                /** @description Default Response */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/content/news": {
         parameters: {
             query?: never;
@@ -13886,6 +14024,49 @@ export interface paths {
                                 publishedAt: string;
                                 updatedAt: string;
                             }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/content/nav": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                path: string;
+                                title: string;
+                                menuOrder: number;
+                                isMainMenu: boolean;
+                            }[];
+                            removed: string[];
                         };
                     };
                 };

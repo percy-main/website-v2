@@ -90,6 +90,61 @@ export const contentSlugSchema = z
     "Slug must be lowercase letters, numbers and hyphens",
   );
 
+// ── Paths (pages only) ──────────────────────────────────────────────────
+//
+// A page's materialised URL path: one or more "/" + slug segments, each
+// segment shaped exactly like contentSlugSchema. Locked (with the slug
+// and parent) once the page has ever been published.
+
+export const contentPathSchema = z
+  .string()
+  .min(2)
+  .max(1000)
+  .regex(
+    /^(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)+$/,
+    "Path must be one or more /slug segments (lowercase letters, numbers and hyphens)",
+  );
+
+/**
+ * Top-level URL space a ROOT page may not occupy. Only the first path
+ * segment routes, so child pages are unaffected.
+ *
+ * Two sources:
+ *  - the SPA router's top-level literals (apps/web/src/router.tsx) -
+ *    they are matched ahead of the content catch-all, so a root page at
+ *    one of these could never be reached;
+ *  - infra prefixes (API mount, upload/asset serving, the content API
+ *    itself).
+ *
+ * Keep in lockstep with router.tsx when adding top-level routes.
+ */
+export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
+  // SPA router top-level literals
+  "news",
+  "calendar",
+  "person",
+  "fantasy",
+  "leaderboard",
+  "game",
+  "report-incident",
+  "purchase",
+  "payment",
+  "nets",
+  "availability",
+  "tell-me-about",
+  "auth",
+  "members",
+  "membership",
+  "scout",
+  "admin",
+  "junior-manager",
+  // Infra prefixes
+  "api",
+  "uploads",
+  "assets",
+  "content",
+]);
+
 // ── Kind-specific metadata (replaces MDX frontmatter) ───────────────────
 //
 // Validated on every write by the content API. Only kinds with a schema
@@ -99,6 +154,21 @@ export const gameReportMetadataSchema = z.object({
   playCricketId: z.string().min(1),
 });
 export type GameReportMetadata = z.infer<typeof gameReportMetadataSchema>;
+
+/**
+ * Page metadata mirrors the static MDX frontmatter (apps/web
+ * lib/content.ts) so a DB-backed page renders indistinguishably from its
+ * static version: menuOrder/isMainMenu drive nav placement, hideTitle
+ * suppresses the H1, ldjson is pasted structured data (omitted when
+ * unset - never an empty string).
+ */
+export const pageMetadataSchema = z.object({
+  menuOrder: z.number().int().min(0).max(999).default(99),
+  isMainMenu: z.boolean().default(false),
+  hideTitle: z.boolean().default(false),
+  ldjson: z.record(z.string(), z.unknown()).optional(),
+});
+export type PageMetadata = z.infer<typeof pageMetadataSchema>;
 
 /**
  * One news tag. Shared between stored metadata (newsMetadataSchema) and
@@ -137,6 +207,7 @@ export type EventMetadata = z.infer<typeof eventMetadataSchema>;
 export const CONTENT_METADATA_SCHEMAS: Partial<
   Record<ContentKind, z.ZodType<Record<string, unknown>>>
 > = {
+  page: pageMetadataSchema,
   news: newsMetadataSchema,
   event: eventMetadataSchema,
   game_report: gameReportMetadataSchema,
@@ -160,4 +231,10 @@ export const CUSTOM_BLOCK_TYPES = {
   // PictureSource descriptor from the upload API so public pages render
   // the responsive ladder without any lookup.
   contentImage: "contentImage",
+  leagueTable: "leagueTable",
+  leaderboard: "leaderboard",
+  recordsWall: "recordsWall",
+  contactForm: "contactForm",
+  cookieSettingsLink: "cookieSettingsLink",
+  consentVersion: "consentVersion",
 } as const;

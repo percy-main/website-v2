@@ -60,6 +60,10 @@ import type { paths } from "@/lib/api.gen.js";
 import { uploadContentImage } from "@/lib/content-images.js";
 import { getAllPeople } from "@/lib/people.js";
 import {
+  parsePersonGridEntries,
+  type PersonGridEntry,
+} from "@/lib/person-grid.js";
+import {
   CONTENT_KIND_RESOURCES,
   contentBodySchema,
   CUSTOM_BLOCK_TYPES,
@@ -74,6 +78,12 @@ import {
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
+import { EditorBlockPreview } from "./editor-block-preview.js";
+import {
+  buildPageTree,
+  eligibleParents,
+  visibleNodes,
+} from "./pages-tab.lib.js";
 
 // ── Custom blocks ───────────────────────────────────────────────────────
 //
@@ -94,10 +104,12 @@ const personBlock = createReactBlockSpec(
     render: ({ block, editor }) => (
       <div className="my-2 flex w-full max-w-xs flex-col gap-2">
         {block.props.slug ? (
-          <mdxComponents.Person
-            slug={block.props.slug}
-            role={block.props.role || undefined}
-          />
+          <EditorBlockPreview>
+            <mdxComponents.Person
+              slug={block.props.slug}
+              role={block.props.role || undefined}
+            />
+          </EditorBlockPreview>
         ) : (
           <p className="text-sm text-stone-500">Choose a person…</p>
         )}
@@ -146,9 +158,11 @@ const gamePreviewBlock = createReactBlockSpec(
     render: ({ block, editor }) => (
       <div className="my-2 w-full">
         {block.props.playCricketId ? (
-          <mdxComponents.GamePreview
-            playCricketId={block.props.playCricketId}
-          />
+          <EditorBlockPreview>
+            <mdxComponents.GamePreview
+              playCricketId={block.props.playCricketId}
+            />
+          </EditorBlockPreview>
         ) : (
           <p className="text-sm text-stone-500">Choose a game…</p>
         )}
@@ -187,11 +201,13 @@ const eventPreviewBlock = createReactBlockSpec(
       return (
         <div className="my-2 flex w-full max-w-sm flex-col gap-2">
           {complete ? (
-            <mdxComponents.EventPreview
-              id={block.props.eventId}
-              name={block.props.name}
-              when={block.props.when}
-            />
+            <EditorBlockPreview>
+              <mdxComponents.EventPreview
+                id={block.props.eventId}
+                name={block.props.name}
+                when={block.props.when}
+              />
+            </EditorBlockPreview>
           ) : (
             <p className="text-sm text-stone-500">Fill in the event details…</p>
           )}
@@ -272,22 +288,24 @@ const contentImageBlock = createReactBlockSpec(
       const picture = parsePictureProp(block.props.picture);
       return (
         <figure className="my-2 flex w-full max-w-lg flex-col gap-2">
-          {picture ? (
-            <OptimisedImage
-              picture={picture}
-              alt={block.props.alt}
-              className="h-auto max-w-full rounded-lg"
-              sizes="(max-width: 512px) 100vw, 512px"
-            />
-          ) : block.props.src ? (
-            <img
-              src={block.props.src}
-              alt={block.props.alt}
-              className="h-auto max-w-full rounded-lg"
-            />
-          ) : (
-            <p className="text-sm text-stone-500">Image uploading…</p>
-          )}
+          <EditorBlockPreview>
+            {picture ? (
+              <OptimisedImage
+                picture={picture}
+                alt={block.props.alt}
+                className="h-auto max-w-full rounded-lg"
+                sizes="(max-width: 512px) 100vw, 512px"
+              />
+            ) : block.props.src ? (
+              <img
+                src={block.props.src}
+                alt={block.props.alt}
+                className="h-auto max-w-full rounded-lg"
+              />
+            ) : (
+              <p className="text-sm text-stone-500">Image uploading…</p>
+            )}
+          </EditorBlockPreview>
           <input
             aria-label="Caption"
             placeholder="Caption (optional)"
@@ -316,6 +334,293 @@ const contentImageBlock = createReactBlockSpec(
   },
 );
 
+const personGridBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.personGrid,
+    propSchema: {
+      // Legacy fallback the public renderer still reads when entries is
+      // absent - kept in sync as the CSV of the selected slugs.
+      slugs: { default: "" },
+      // Canonical role-preserving prop: JSON-stringified [{slug, role?}]
+      // (same precedent as contentImage's picture prop).
+      entries: { default: "" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => {
+      // entries is canonical; a block predating it (or with malformed
+      // JSON) degrades to the slugs CSV, role-less - exactly like the
+      // public renderer.
+      const entries: PersonGridEntry[] =
+        parsePersonGridEntries(block.props.entries) ??
+        block.props.slugs.split(",").flatMap((s) => {
+          const trimmed = s.trim();
+          return trimmed ? [{ slug: trimmed }] : [];
+        });
+      const allPeople = getAllPeople();
+      const nameOf = (slug: string) =>
+        allPeople.find((p) => p.slug === slug)?.name ?? slug;
+      const write = (next: PersonGridEntry[]) => {
+        editor.updateBlock(block, {
+          props: {
+            ...block.props,
+            entries: JSON.stringify(next),
+            slugs: next.map((e) => e.slug).join(","),
+          },
+        });
+      };
+      return (
+        <div className="my-2 flex w-full flex-col gap-2">
+          {entries.length > 0 ? (
+            <EditorBlockPreview>
+              {/* Same children composition as the public renderer. */}
+              <mdxComponents.PersonGrid>
+                {entries.map((entry, i) => (
+                  <mdxComponents.Person
+                    key={`${entry.slug}-${String(i)}`}
+                    slug={entry.slug}
+                    role={entry.role}
+                  />
+                ))}
+              </mdxComponents.PersonGrid>
+            </EditorBlockPreview>
+          ) : (
+            <p className="text-sm text-stone-500">Choose people to display…</p>
+          )}
+          <div className="flex flex-col gap-1">
+            <p className="text-xs text-stone-500">
+              Select people (hold Ctrl/Cmd to pick multiple):
+            </p>
+            <select
+              aria-label="People"
+              multiple
+              size={Math.min(allPeople.length, 6)}
+              value={entries.map((e) => e.slug)}
+              onChange={(e) => {
+                const chosen = Array.from(e.target.selectedOptions).map(
+                  (o) => o.value,
+                );
+                // People who stay selected keep their role; newly
+                // selected people start role-less.
+                write(
+                  chosen.map(
+                    (slug) =>
+                      entries.find((entry) => entry.slug === slug) ?? { slug },
+                  ),
+                );
+              }}
+              className="rounded border border-stone-300 bg-white p-1 text-sm"
+            >
+              {allPeople.map((p) => (
+                <option key={p.slug} value={p.slug}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {entries.map((entry, i) => (
+            <input
+              key={`${entry.slug}-${String(i)}`}
+              aria-label={`Role shown for ${nameOf(entry.slug)}`}
+              placeholder={`Role for ${nameOf(entry.slug)} (optional)`}
+              value={entry.role ?? ""}
+              onChange={(e) => {
+                const role = e.target.value;
+                write(
+                  entries.map((current, j) =>
+                    j === i
+                      ? { slug: current.slug, ...(role !== "" && { role }) }
+                      : current,
+                  ),
+                );
+              }}
+              className="rounded border border-stone-300 bg-white p-1 text-sm"
+            />
+          ))}
+        </div>
+      );
+    },
+  },
+);
+
+const leagueTableBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.leagueTable,
+    propSchema: {
+      divisionId: { default: "" },
+      name: { default: "" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => {
+      const set = (key: "divisionId" | "name", value: string) => {
+        editor.updateBlock(block, { props: { ...block.props, [key]: value } });
+      };
+      return (
+        <div className="my-2 flex w-full flex-col gap-2">
+          {block.props.divisionId ? (
+            <EditorBlockPreview>
+              <mdxComponents.LeagueTable
+                divisionId={block.props.divisionId}
+                name={block.props.name || undefined}
+              />
+            </EditorBlockPreview>
+          ) : (
+            <p className="text-sm text-stone-500">
+              Enter a division ID to preview…
+            </p>
+          )}
+          <input
+            aria-label="Division ID"
+            placeholder="Division ID (required)"
+            value={block.props.divisionId}
+            onChange={(e) => {
+              set("divisionId", e.target.value);
+            }}
+            className="rounded border border-stone-300 bg-white p-1 text-sm"
+          />
+          <input
+            aria-label="Table heading"
+            placeholder="Table heading (optional)"
+            value={block.props.name}
+            onChange={(e) => {
+              set("name", e.target.value);
+            }}
+            className="rounded border border-stone-300 bg-white p-1 text-sm"
+          />
+        </div>
+      );
+    },
+  },
+);
+
+const leaderboardBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.leaderboard,
+    propSchema: {},
+    content: "none",
+  },
+  {
+    render: () => (
+      <EditorBlockPreview className="my-2 w-full">
+        <mdxComponents.Leaderboard />
+      </EditorBlockPreview>
+    ),
+  },
+);
+
+const recordsWallBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.recordsWall,
+    propSchema: {},
+    content: "none",
+  },
+  {
+    render: () => (
+      <EditorBlockPreview className="my-2 w-full">
+        <mdxComponents.RecordsWall />
+      </EditorBlockPreview>
+    ),
+  },
+);
+
+const contactFormBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.contactForm,
+    propSchema: {
+      title: { default: "" },
+      description: { default: "" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => {
+      const set = (key: "title" | "description", value: string) => {
+        editor.updateBlock(block, { props: { ...block.props, [key]: value } });
+      };
+      return (
+        <div className="my-2 flex w-full flex-col gap-2">
+          {/* Inert preview: the form must not be focusable or submittable
+              (mouse OR keyboard) inside the editor canvas */}
+          <EditorBlockPreview>
+            <mdxComponents.ContactForm
+              title={block.props.title || undefined}
+              description={block.props.description || undefined}
+            />
+          </EditorBlockPreview>
+          <input
+            aria-label="Form title"
+            placeholder="Form title (optional)"
+            value={block.props.title}
+            onChange={(e) => {
+              set("title", e.target.value);
+            }}
+            className="rounded border border-stone-300 bg-white p-1 text-sm"
+          />
+          <input
+            aria-label="Form description"
+            placeholder="Description shown above the fields (optional)"
+            value={block.props.description}
+            onChange={(e) => {
+              set("description", e.target.value);
+            }}
+            className="rounded border border-stone-300 bg-white p-1 text-sm"
+          />
+        </div>
+      );
+    },
+  },
+);
+
+const cookieSettingsLinkBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.cookieSettingsLink,
+    propSchema: {
+      text: { default: "Cookie settings" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => (
+      <div className="my-2 flex w-full flex-col gap-2">
+        <EditorBlockPreview>
+          <mdxComponents.CookieSettingsLink>
+            {block.props.text || "Cookie settings"}
+          </mdxComponents.CookieSettingsLink>
+        </EditorBlockPreview>
+        <input
+          aria-label="Link text"
+          placeholder="Link text"
+          value={block.props.text}
+          onChange={(e) => {
+            editor.updateBlock(block, {
+              props: { ...block.props, text: e.target.value },
+            });
+          }}
+          className="rounded border border-stone-300 bg-white p-1 text-sm"
+        />
+      </div>
+    ),
+  },
+);
+
+const consentVersionBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.consentVersion,
+    propSchema: {},
+    content: "none",
+  },
+  {
+    render: () => (
+      <EditorBlockPreview className="my-2">
+        <mdxComponents.ConsentVersion />
+      </EditorBlockPreview>
+    ),
+  },
+);
+
 // BlockNote's built-in media blocks are removed: their URL-embed tab
 // would bypass the consent + EXIF-strip + responsive pipeline that the
 // contentImage block (slash menu "Upload photo") goes through.
@@ -327,13 +632,20 @@ const {
   ...allowedDefaultBlocks
 } = defaultBlockSpecs;
 
-const schema = BlockNoteSchema.create({
+export const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...allowedDefaultBlocks,
     [CUSTOM_BLOCK_TYPES.person]: personBlock(),
+    [CUSTOM_BLOCK_TYPES.personGrid]: personGridBlock(),
     [CUSTOM_BLOCK_TYPES.gamePreview]: gamePreviewBlock(),
     [CUSTOM_BLOCK_TYPES.eventPreview]: eventPreviewBlock(),
     [CUSTOM_BLOCK_TYPES.contentImage]: contentImageBlock(),
+    [CUSTOM_BLOCK_TYPES.leagueTable]: leagueTableBlock(),
+    [CUSTOM_BLOCK_TYPES.leaderboard]: leaderboardBlock(),
+    [CUSTOM_BLOCK_TYPES.recordsWall]: recordsWallBlock(),
+    [CUSTOM_BLOCK_TYPES.contactForm]: contactFormBlock(),
+    [CUSTOM_BLOCK_TYPES.cookieSettingsLink]: cookieSettingsLinkBlock(),
+    [CUSTOM_BLOCK_TYPES.consentVersion]: consentVersionBlock(),
   },
 });
 
@@ -396,6 +708,18 @@ function buildSlashItems(editor: Editor, startImageUpload: () => void) {
       },
     },
     {
+      title: "Person grid",
+      subtext: "Show a grid of club member cards",
+      group: "Club content",
+      aliases: ["people", "grid", "team"],
+      icon: <span aria-hidden>👥</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.personGrid,
+        });
+      },
+    },
+    {
       title: "Game preview",
       subtext: "Link a Play-Cricket fixture or result",
       group: "Club content",
@@ -427,12 +751,86 @@ function buildSlashItems(editor: Editor, startImageUpload: () => void) {
       icon: <span aria-hidden>📷</span>,
       onItemClick: startImageUpload,
     },
+    {
+      title: "League table",
+      subtext: "Show a live Play-Cricket league standings table",
+      group: "Page widgets",
+      aliases: ["league", "table", "standings", "division"],
+      icon: <span aria-hidden>📊</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.leagueTable,
+        });
+      },
+    },
+    {
+      title: "Leaderboard",
+      subtext: "Show the club batting and bowling leaderboard",
+      group: "Page widgets",
+      aliases: ["leaderboard", "stats", "averages"],
+      icon: <span aria-hidden>🏆</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.leaderboard,
+        });
+      },
+    },
+    {
+      title: "Records wall",
+      subtext: "Show the club batting and bowling records",
+      group: "Page widgets",
+      aliases: ["records", "records wall"],
+      icon: <span aria-hidden>🎖️</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.recordsWall,
+        });
+      },
+    },
+    {
+      title: "Contact form",
+      subtext: "Embed a contact message form",
+      group: "Page widgets",
+      aliases: ["contact", "form", "message"],
+      icon: <span aria-hidden>✉️</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.contactForm,
+        });
+      },
+    },
+    {
+      title: "Cookie settings link",
+      subtext: "Inline link that reopens the cookie consent banner",
+      group: "Page widgets",
+      aliases: ["cookie", "consent", "gdpr", "privacy"],
+      icon: <span aria-hidden>🍪</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.cookieSettingsLink,
+        });
+      },
+    },
+    {
+      title: "Consent version",
+      subtext: "Display the current cookie consent policy version string",
+      group: "Page widgets",
+      aliases: ["consent version", "policy version"],
+      icon: <span aria-hidden>📋</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.consentVersion,
+        });
+      },
+    },
   ];
 }
 
 interface EditorProps {
   kind: ContentKind;
   contentId: string | null;
+  /** Pages only: preset parent for a new child (?parent= URL param). */
+  newParentId?: string | null;
   onClose: () => void;
   onCreated: (id: string) => void;
 }
@@ -440,6 +838,7 @@ interface EditorProps {
 export default function ContentEditor({
   kind,
   contentId,
+  newParentId = null,
   onClose,
   onCreated,
 }: EditorProps) {
@@ -480,6 +879,7 @@ export default function ContentEditor({
       key={contentId ?? "new"}
       kind={kind}
       item={item ?? null}
+      newParentId={newParentId}
       onClose={onClose}
       onCreated={onCreated}
     />
@@ -497,6 +897,13 @@ interface FormState {
   description: string;
   // game_report
   playCricketId: string;
+  // page - menuOrder stays a string while typing; ldjson is the raw
+  // textarea value (validated/parsed only when building the payload)
+  menuOrder: string;
+  isMainMenu: boolean;
+  hideTitle: boolean;
+  ldjson: string;
+  parentId: string | null;
   // news
   tags: string[];
   authorSlug: string;
@@ -554,7 +961,10 @@ function formatUkTime(iso: string): string {
  * stored JSON may predate the current schema, so anything malformed
  * degrades to the field default rather than crashing the editor.
  */
-function initialForm(item: ContentItemDetail | null): FormState {
+function initialForm(
+  item: ContentItemDetail | null,
+  newParentId: string | null,
+): FormState {
   const metadata = item?.metadata ?? {};
   const location =
     typeof metadata.location === "object" && metadata.location !== null
@@ -565,6 +975,14 @@ function initialForm(item: ContentItemDetail | null): FormState {
     slug: item?.slug ?? "",
     description: item?.description ?? "",
     playCricketId: asString(metadata.playCricketId),
+    menuOrder: asNumberString(metadata.menuOrder) || "99",
+    isMainMenu: metadata.isMainMenu === true,
+    hideTitle: metadata.hideTitle === true,
+    ldjson:
+      typeof metadata.ldjson === "object" && metadata.ldjson !== null
+        ? JSON.stringify(metadata.ldjson, null, 2)
+        : "",
+    parentId: item !== null ? item.parentId : newParentId,
     tags: Array.isArray(metadata.tags)
       ? metadata.tags.filter(
           (tag): tag is string => typeof tag === "string" && tag !== "",
@@ -586,6 +1004,19 @@ function initialForm(item: ContentItemDetail | null): FormState {
 const isBlankOrNumeric = (value: string) =>
   value.trim() === "" || !Number.isNaN(Number(value.trim()));
 
+/** Parsed ldjson object, or null when the textarea isn't a JSON object. */
+function parseLdjson(raw: string): Record<string, unknown> | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : null;
+}
+
 /**
  * Client-side floor for per-kind metadata the API would 400 without
  * (the server revalidates everything). Returns the message shown on the
@@ -594,6 +1025,20 @@ const isBlankOrNumeric = (value: string) =>
 function metadataProblem(kind: ContentKind, form: FormState): string | null {
   if (kind === "game_report" && !form.playCricketId) {
     return "Choose a Play-Cricket game first";
+  }
+  if (kind === "page") {
+    const menuOrder = Number(form.menuOrder.trim());
+    if (
+      form.menuOrder.trim() === "" ||
+      !Number.isInteger(menuOrder) ||
+      menuOrder < 0 ||
+      menuOrder > 999
+    ) {
+      return "Menu order must be a whole number from 0 to 999";
+    }
+    if (form.ldjson.trim() !== "" && parseLdjson(form.ldjson.trim()) === null) {
+      return "Structured data must be a valid JSON object (or left empty)";
+    }
   }
   if (kind === "event") {
     if (!form.when) return "Set the event start time first";
@@ -625,6 +1070,16 @@ function buildMetadata(
   kind: ContentKind,
   form: FormState,
 ): Record<string, unknown> {
+  if (kind === "page") {
+    const ldjson = form.ldjson.trim();
+    return {
+      menuOrder: Number(form.menuOrder.trim()),
+      isMainMenu: form.isMainMenu,
+      hideTitle: form.hideTitle,
+      // Omitted entirely when empty - never an empty string for "no value".
+      ...(ldjson !== "" ? { ldjson: parseLdjson(ldjson) } : {}),
+    };
+  }
   if (kind === "news") {
     return {
       tags: form.tags,
@@ -803,15 +1258,146 @@ function AuthorSelect({
   );
 }
 
+// Radix Select items can't have an empty value, so "top level" rides on
+// a sentinel the slug grammar can never produce (no leading hyphens).
+const ROOT_PARENT = "--root--";
+
+// menuOrder is deliberately NOT covered by this lock: it is presentation
+// only, so ordering stays editable after publish.
+const PATH_LOCKED_HINT = "Locked after publish - the page's address is fixed";
+
+function PageMetadataFields({
+  form,
+  itemId,
+  slugLocked,
+  onChange,
+}: {
+  form: FormState;
+  /** Editing target, or null when creating - excluded from the picker. */
+  itemId: string | null;
+  slugLocked: boolean;
+  onChange: (updates: Partial<FormState>) => void;
+}) {
+  // Same key as the Pages tab's tree query, so opening the editor from
+  // the tree hits the cache and the picker renders instantly.
+  const { data } = useQuery({
+    queryKey: ["admin", "content", "page-tree"],
+    queryFn: () => callApi(api.GET("/api/admin/content/page-tree")),
+  });
+  const items = useMemo(() => data?.items ?? [], [data]);
+
+  // Parent options: see eligibleParents (excludes self, descendants and
+  // archived pages, keeping the currently-selected parent even when
+  // archived so the Select isn't blank).
+  const options = useMemo(() => {
+    const eligible = eligibleParents(items, itemId, form.parentId);
+    const allExpanded = new Set(eligible.map((item) => item.id));
+    return visibleNodes(buildPageTree(eligible), allExpanded);
+  }, [items, itemId, form.parentId]);
+
+  // While the tree query is still loading, the parent's path is unknown -
+  // show an ellipsis rather than implying the page sits at the root.
+  const parentPath =
+    form.parentId !== null
+      ? (items.find((item) => item.id === form.parentId)?.path ?? "/…")
+      : "";
+  const pathPreview = `${parentPath}/${form.slug || "…"}`;
+
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        <Label>Parent page{slugLocked ? " (locked after publish)" : ""}</Label>
+        <Select
+          value={form.parentId ?? ROOT_PARENT}
+          disabled={slugLocked}
+          onValueChange={(next) => {
+            onChange({ parentId: next === ROOT_PARENT ? null : next });
+          }}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Top level" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ROOT_PARENT}>Top level (no parent)</SelectItem>
+            {options.map((node) => (
+              <SelectItem key={node.item.id} value={node.item.id}>
+                {"\u00A0".repeat(node.depth * 3)}
+                {node.item.title}
+                {node.item.status === "archived" ? " (archived)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {slugLocked ? (
+          <span className="text-xs text-stone-500">{PATH_LOCKED_HINT}</span>
+        ) : (
+          <span className="text-xs text-stone-500">
+            Page address: <span className="font-mono">{pathPreview}</span>
+          </span>
+        )}
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="page-menu-order">Menu order (0-999)</Label>
+        <Input
+          id="page-menu-order"
+          inputMode="numeric"
+          value={form.menuOrder}
+          onChange={(e) => {
+            onChange({ menuOrder: e.target.value });
+          }}
+        />
+        <span className="text-xs text-stone-500">
+          Lower numbers appear first among sibling pages.
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="page-is-main-menu"
+          checked={form.isMainMenu}
+          onCheckedChange={(value) => {
+            onChange({ isMainMenu: value === true });
+          }}
+        />
+        <Label htmlFor="page-is-main-menu">Show in the main menu</Label>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="page-hide-title"
+          checked={form.hideTitle}
+          onCheckedChange={(value) => {
+            onChange({ hideTitle: value === true });
+          }}
+        />
+        <Label htmlFor="page-hide-title">Hide the title heading</Label>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="page-ldjson">Structured data (JSON-LD, optional)</Label>
+        <Textarea
+          id="page-ldjson"
+          rows={4}
+          className="font-mono text-xs"
+          placeholder='{"@context": "https://schema.org", …}'
+          value={form.ldjson}
+          onChange={(e) => {
+            onChange({ ldjson: e.target.value });
+          }}
+        />
+      </div>
+    </>
+  );
+}
+
 function MetadataFields({
   kind,
   form,
+  itemId,
   slugLocked,
   tagSuggestions,
   onChange,
 }: {
   kind: ContentKind;
   form: FormState;
+  itemId: string | null;
   slugLocked: boolean;
   tagSuggestions: string[];
   onChange: (updates: Partial<FormState>) => void;
@@ -852,6 +1438,14 @@ function MetadataFields({
           }}
         />
       </div>
+      {kind === "page" && (
+        <PageMetadataFields
+          form={form}
+          itemId={itemId}
+          slugLocked={slugLocked}
+          onChange={onChange}
+        />
+      )}
       {kind === "game_report" && (
         <div className="flex flex-col gap-1">
           <Label>Play-Cricket game</Label>
@@ -1417,11 +2011,13 @@ function EditorPane({
 function LoadedEditor({
   kind,
   item,
+  newParentId,
   onClose,
   onCreated,
 }: {
   kind: ContentKind;
   item: ContentItemDetail | null;
+  newParentId: string | null;
   onClose: () => void;
   onCreated: (id: string) => void;
 }) {
@@ -1435,7 +2031,9 @@ function LoadedEditor({
     "publish",
   );
 
-  const [form, setForm] = useState<FormState>(() => initialForm(item));
+  const [form, setForm] = useState<FormState>(() =>
+    initialForm(item, newParentId),
+  );
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(
@@ -1488,6 +2086,9 @@ function LoadedEditor({
               description: form.description || null,
               body,
               metadata,
+              // Pages nest; every other kind is flat (the API rejects a
+              // parent on non-page kinds).
+              ...(kind === "page" ? { parentId: form.parentId } : {}),
             },
           }),
         );
@@ -1496,7 +2097,14 @@ function LoadedEditor({
         api.PUT("/api/admin/content/{contentId}", {
           params: { path: { contentId: item.id } },
           body: {
-            ...(slugLocked ? {} : { slug: form.slug }),
+            // Slug and (for pages) parent share the ever-published lock:
+            // path = parent path + slug, so neither is sent once locked.
+            ...(slugLocked
+              ? {}
+              : {
+                  slug: form.slug,
+                  ...(kind === "page" ? { parentId: form.parentId } : {}),
+                }),
             title: form.title,
             description: form.description || null,
             body,
@@ -1643,6 +2251,7 @@ function LoadedEditor({
           <MetadataFields
             kind={kind}
             form={form}
+            itemId={item?.id ?? null}
             slugLocked={slugLocked}
             tagSuggestions={tagSuggestions}
             onChange={onFormChange}

@@ -1,11 +1,12 @@
 import type { FC } from "react";
+import type { NavPage } from "./nav.js";
 
 interface MdxModule {
   default: FC;
   frontmatter: Record<string, unknown>;
 }
 
-interface ContentPage {
+export interface ContentPage {
   /** URL path, e.g. "/club/history/honours" */
   path: string;
   /** MDX frontmatter */
@@ -17,11 +18,6 @@ interface ContentPage {
   ldjson?: unknown;
   /** The React component that renders the MDX content */
   Component: FC;
-}
-
-export interface ContentNode {
-  page: ContentPage;
-  children: ContentNode[];
 }
 
 /**
@@ -72,71 +68,14 @@ const contentPages: ContentPage[] = loadPages().sort((a, b) =>
 export const contentPageMap = new Map(contentPages.map((p) => [p.path, p]));
 
 /**
- * Get the parent path of a given path.
- * "/club/history/honours" → "/club/history"
- * "/club" → null (top-level)
+ * Static pages projected to the lightweight NavPage shape, ready to merge
+ * with the API nav list (lib/nav.ts, #493). Path-sorted because
+ * contentPages is - mergeNavPages relies on that ordering for the
+ * static-only case to match the old behaviour exactly.
  */
-function parentPath(path: string): string | null {
-  const lastSlash = path.lastIndexOf("/");
-  if (lastSlash <= 0) return null;
-  return path.substring(0, lastSlash);
-}
-
-/**
- * Build a tree of ContentNodes for sidebar navigation.
- * Given a page path, finds the top-level ancestor and returns
- * the full subtree under that ancestor.
- */
-export function getNavigationTree(currentPath: string): ContentNode | null {
-  // Find the top-level section (e.g. "/club" from "/club/history/honours")
-  const segments = currentPath.split("/").filter(Boolean);
-  if (segments.length === 0) return null;
-
-  const sectionPath = "/" + segments[0];
-  const sectionPage = contentPageMap.get(sectionPath);
-  if (!sectionPage) return null;
-
-  // Build the subtree
-  function buildNode(page: ContentPage): ContentNode {
-    const children = contentPages
-      .filter((p) => parentPath(p.path) === page.path)
-      .sort((a, b) => a.menuOrder - b.menuOrder);
-
-    return {
-      page,
-      children: children.map(buildNode),
-    };
-  }
-
-  return buildNode(sectionPage);
-}
-
-/**
- * Build breadcrumb trail from root to current page.
- * Returns array of { title, path } from ancestor to current.
- */
-export function getBreadcrumbs(
-  currentPath: string,
-): Array<{ title: string; path: string }> {
-  const crumbs: Array<{ title: string; path: string }> = [];
-  let path: string | null = currentPath;
-
-  while (path) {
-    const page = contentPageMap.get(path);
-    if (page) {
-      crumbs.unshift({ title: page.title, path: page.path });
-    }
-    path = parentPath(path);
-  }
-
-  return crumbs;
-}
-
-/**
- * Get the top-level content sections that should appear in the main menu.
- */
-export function getMainMenuItems(): ContentPage[] {
-  return contentPages
-    .filter((p) => p.isMainMenu)
-    .sort((a, b) => a.menuOrder - b.menuOrder);
-}
+export const staticNavPages: NavPage[] = contentPages.map((p) => ({
+  path: p.path,
+  title: p.title,
+  menuOrder: p.menuOrder,
+  isMainMenu: p.isMainMenu,
+}));
