@@ -30,44 +30,13 @@ import { lazy, Suspense } from "react";
 import { IoOpenOutline } from "react-icons/io5";
 import { useSearchParams } from "react-router";
 import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
+import { displayState, STATE_BADGES, UUID_RE } from "./content-state.js";
 
 // The editor pulls in BlockNote (the single heaviest dependency in the
 // admin panel), so it loads as its own chunk only when an item is open.
 const ContentEditor = lazy(() => import("./content-editor.js"));
 
-/**
- * What the row means editorially, not the raw status: a published item
- * with a future published_at is Scheduled, not Live. The Live/Scheduled
- * split is a client-side now() comparison - fine for the admin list; the
- * public visibility decision stays server-side (publishedOnly()).
- */
-type DisplayState = "draft" | "scheduled" | "live" | "archived";
-
-function displayState(item: {
-  status: string;
-  publishedAt: string | null;
-}): DisplayState {
-  if (item.status === "archived") return "archived";
-  if (item.status !== "published") return "draft";
-  return item.publishedAt !== null && Date.parse(item.publishedAt) > Date.now()
-    ? "scheduled"
-    : "live";
-}
-
-const STATE_BADGES: Record<
-  DisplayState,
-  { label: string; variant: "default" | "secondary" | "outline" | "info" }
-> = {
-  live: { label: "Live", variant: "default" },
-  scheduled: { label: "Scheduled", variant: "info" },
-  draft: { label: "Draft", variant: "secondary" },
-  archived: { label: "Archived", variant: "outline" },
-};
-
 const PAGE_SIZE = 20;
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Public URL a published item is live at. Per-kind: game reports render

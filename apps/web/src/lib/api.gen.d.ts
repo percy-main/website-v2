@@ -13385,6 +13385,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/content/page-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                title: string;
+                                slug: string;
+                                path: string;
+                                parentId: string | null;
+                                menuOrder: number;
+                                isMainMenu: boolean;
+                                /** @enum {string} */
+                                status: "draft" | "published" | "archived";
+                                publishedAt: string | null;
+                                updatedAt: string;
+                                pathLocked: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/content/{contentId}": {
         parameters: {
             query?: never;
