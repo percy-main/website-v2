@@ -332,9 +332,14 @@ function BlockView({ block }: { block: ContentBlock }) {
     case CUSTOM_BLOCK_TYPES.personGrid: {
       const slugs = stringProp(block, "slugs");
       if (!slugs) return null;
-      return (
-        <mdxComponents.PersonGrid slugs={slugs.split(",").filter(Boolean)} />
-      );
+      // Normalise the stored CSV: trim each segment, drop empties - so
+      // "alice, bob" and stray commas render correctly.
+      const parsed = slugs.split(",").flatMap((s) => {
+        const trimmed = s.trim();
+        return trimmed ? [trimmed] : [];
+      });
+      if (parsed.length === 0) return null;
+      return <mdxComponents.PersonGrid slugs={parsed} />;
     }
 
     case CUSTOM_BLOCK_TYPES.gamePreview: {

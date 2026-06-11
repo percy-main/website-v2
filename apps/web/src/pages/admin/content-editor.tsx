@@ -74,6 +74,7 @@ import {
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
+import { EditorBlockPreview } from "./editor-block-preview.js";
 import { buildPageTree, visibleNodes } from "./pages-tab.lib.js";
 
 // ── Custom blocks ───────────────────────────────────────────────────────
@@ -95,10 +96,12 @@ const personBlock = createReactBlockSpec(
     render: ({ block, editor }) => (
       <div className="my-2 flex w-full max-w-xs flex-col gap-2">
         {block.props.slug ? (
-          <mdxComponents.Person
-            slug={block.props.slug}
-            role={block.props.role || undefined}
-          />
+          <EditorBlockPreview>
+            <mdxComponents.Person
+              slug={block.props.slug}
+              role={block.props.role || undefined}
+            />
+          </EditorBlockPreview>
         ) : (
           <p className="text-sm text-stone-500">Choose a person…</p>
         )}
@@ -147,9 +150,11 @@ const gamePreviewBlock = createReactBlockSpec(
     render: ({ block, editor }) => (
       <div className="my-2 w-full">
         {block.props.playCricketId ? (
-          <mdxComponents.GamePreview
-            playCricketId={block.props.playCricketId}
-          />
+          <EditorBlockPreview>
+            <mdxComponents.GamePreview
+              playCricketId={block.props.playCricketId}
+            />
+          </EditorBlockPreview>
         ) : (
           <p className="text-sm text-stone-500">Choose a game…</p>
         )}
@@ -188,11 +193,13 @@ const eventPreviewBlock = createReactBlockSpec(
       return (
         <div className="my-2 flex w-full max-w-sm flex-col gap-2">
           {complete ? (
-            <mdxComponents.EventPreview
-              id={block.props.eventId}
-              name={block.props.name}
-              when={block.props.when}
-            />
+            <EditorBlockPreview>
+              <mdxComponents.EventPreview
+                id={block.props.eventId}
+                name={block.props.name}
+                when={block.props.when}
+              />
+            </EditorBlockPreview>
           ) : (
             <p className="text-sm text-stone-500">Fill in the event details…</p>
           )}
@@ -273,22 +280,24 @@ const contentImageBlock = createReactBlockSpec(
       const picture = parsePictureProp(block.props.picture);
       return (
         <figure className="my-2 flex w-full max-w-lg flex-col gap-2">
-          {picture ? (
-            <OptimisedImage
-              picture={picture}
-              alt={block.props.alt}
-              className="h-auto max-w-full rounded-lg"
-              sizes="(max-width: 512px) 100vw, 512px"
-            />
-          ) : block.props.src ? (
-            <img
-              src={block.props.src}
-              alt={block.props.alt}
-              className="h-auto max-w-full rounded-lg"
-            />
-          ) : (
-            <p className="text-sm text-stone-500">Image uploading…</p>
-          )}
+          <EditorBlockPreview>
+            {picture ? (
+              <OptimisedImage
+                picture={picture}
+                alt={block.props.alt}
+                className="h-auto max-w-full rounded-lg"
+                sizes="(max-width: 512px) 100vw, 512px"
+              />
+            ) : block.props.src ? (
+              <img
+                src={block.props.src}
+                alt={block.props.alt}
+                className="h-auto max-w-full rounded-lg"
+              />
+            ) : (
+              <p className="text-sm text-stone-500">Image uploading…</p>
+            )}
+          </EditorBlockPreview>
           <input
             aria-label="Caption"
             placeholder="Caption (optional)"
@@ -328,16 +337,19 @@ const personGridBlock = createReactBlockSpec(
   },
   {
     render: ({ block, editor }) => {
-      const selected = block.props.slugs
-        ? block.props.slugs.split(",").filter(Boolean)
-        : [];
+      // Same CSV normalisation as the public renderer: trim each
+      // segment, drop empties - "alice, bob" works either side.
+      const selected = block.props.slugs.split(",").flatMap((s) => {
+        const trimmed = s.trim();
+        return trimmed ? [trimmed] : [];
+      });
       const allPeople = getAllPeople();
       return (
         <div className="my-2 flex w-full flex-col gap-2">
           {selected.length > 0 ? (
-            <div className="pointer-events-none" aria-hidden>
+            <EditorBlockPreview>
               <mdxComponents.PersonGrid slugs={selected} />
-            </div>
+            </EditorBlockPreview>
           ) : (
             <p className="text-sm text-stone-500">Choose people to display…</p>
           )}
@@ -390,12 +402,12 @@ const leagueTableBlock = createReactBlockSpec(
       return (
         <div className="my-2 flex w-full flex-col gap-2">
           {block.props.divisionId ? (
-            <div className="pointer-events-none" aria-hidden>
+            <EditorBlockPreview>
               <mdxComponents.LeagueTable
                 divisionId={block.props.divisionId}
                 name={block.props.name || undefined}
               />
-            </div>
+            </EditorBlockPreview>
           ) : (
             <p className="text-sm text-stone-500">
               Enter a division ID to preview…
@@ -433,9 +445,9 @@ const leaderboardBlock = createReactBlockSpec(
   },
   {
     render: () => (
-      <div className="pointer-events-none my-2 w-full" aria-hidden>
+      <EditorBlockPreview className="my-2 w-full">
         <mdxComponents.Leaderboard />
-      </div>
+      </EditorBlockPreview>
     ),
   },
 );
@@ -448,9 +460,9 @@ const recordsWallBlock = createReactBlockSpec(
   },
   {
     render: () => (
-      <div className="pointer-events-none my-2 w-full" aria-hidden>
+      <EditorBlockPreview className="my-2 w-full">
         <mdxComponents.RecordsWall />
-      </div>
+      </EditorBlockPreview>
     ),
   },
 );
@@ -471,13 +483,14 @@ const contactFormBlock = createReactBlockSpec(
       };
       return (
         <div className="my-2 flex w-full flex-col gap-2">
-          {/* Wrap preview in pointer-events-none so the form can't be submitted inside the editor */}
-          <div className="pointer-events-none" aria-hidden>
+          {/* Inert preview: the form must not be focusable or submittable
+              (mouse OR keyboard) inside the editor canvas */}
+          <EditorBlockPreview>
             <mdxComponents.ContactForm
               title={block.props.title || undefined}
               description={block.props.description || undefined}
             />
-          </div>
+          </EditorBlockPreview>
           <input
             aria-label="Form title"
             placeholder="Form title (optional)"
@@ -513,11 +526,11 @@ const cookieSettingsLinkBlock = createReactBlockSpec(
   {
     render: ({ block, editor }) => (
       <div className="my-2 flex w-full flex-col gap-2">
-        <div className="pointer-events-none" aria-hidden>
+        <EditorBlockPreview>
           <mdxComponents.CookieSettingsLink>
             {block.props.text || "Cookie settings"}
           </mdxComponents.CookieSettingsLink>
-        </div>
+        </EditorBlockPreview>
         <input
           aria-label="Link text"
           placeholder="Link text"
@@ -542,9 +555,9 @@ const consentVersionBlock = createReactBlockSpec(
   },
   {
     render: () => (
-      <div className="pointer-events-none my-2" aria-hidden>
+      <EditorBlockPreview className="my-2">
         <mdxComponents.ConsentVersion />
-      </div>
+      </EditorBlockPreview>
     ),
   },
 );

@@ -327,6 +327,26 @@ describe("ContentBody", () => {
     expect(html).toContain('href="/person/alex-slaven"');
   });
 
+  it("normalises personGrid slugs with spaces and empty segments", () => {
+    const html = renderBody([
+      block("personGrid", { props: { slugs: " alex-slaven , , bob ," } }),
+    ]);
+    // Trimmed slugs resolve; empty segments are dropped (no card with an
+    // empty profile link).
+    expect(html).toContain('href="/person/alex-slaven"');
+    expect(html).toContain('href="/person/bob"');
+    expect(html).not.toContain('href="/person/"');
+    // Exactly two person cards rendered.
+    expect(html.match(/class="person /g)).toHaveLength(2);
+  });
+
+  it("hides personGrid when slugs contains only separators and whitespace", () => {
+    const html = renderBody([
+      block("personGrid", { props: { slugs: " , ,, " } }),
+    ]);
+    expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
+  });
+
   it("hides leagueTable when divisionId is missing", () => {
     const html = renderBody([block("leagueTable", { props: {} })]);
     expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
