@@ -55,6 +55,7 @@ function liveUrl(
   }
   if (kind === "news") return `/news/article/${item.slug}`;
   if (kind === "event") return `/calendar/event/${item.slug}`;
+  if (kind === "person") return `/person/${item.slug}`;
   return null;
 }
 

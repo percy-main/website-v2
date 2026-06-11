@@ -204,6 +204,62 @@ export const eventMetadataSchema = z.object({
 });
 export type EventMetadata = z.infer<typeof eventMetadataSchema>;
 
+/**
+ * Image sources the public site will render: https or site-relative
+ * (uploads live under /uploads/*). Mirrors the public renderer's
+ * isSafeImageSrc so a stored descriptor can never smuggle a protocol the
+ * renderer would have to reject.
+ */
+const SAFE_IMAGE_SRC = /^(?:https:|\/(?!\/))/i;
+
+const safeSrcset = z
+  .string()
+  .min(1)
+  .refine(
+    (srcset) =>
+      srcset
+        .split(",")
+        .map((part) => part.trim().split(/\s+/)[0])
+        .every((url) => url !== undefined && SAFE_IMAGE_SRC.test(url)),
+    "Every srcset URL must be https or site-relative",
+  );
+
+/**
+ * A person's profile photo: the PictureSource descriptor returned by the
+ * content-images upload API (responsive srcsets per format + the largest
+ * fallback image), stored inline so the public profile renders without
+ * any lookup - the same precedent as the contentImage block's picture
+ * prop. Alt text is not stored: the photo is always rendered with the
+ * person's name as its alt.
+ */
+export const personPhotoSchema = z.object({
+  sources: z.record(z.string(), safeSrcset),
+  img: z.object({
+    src: z.string().regex(SAFE_IMAGE_SRC, "Must be https or site-relative"),
+    w: z.number().int().positive(),
+    h: z.number().int().positive(),
+  }),
+});
+export type PersonPhoto = z.infer<typeof personPhotoSchema>;
+
+/**
+ * Person metadata (Phase 4, #498). The person's name lives in the item's
+ * `title` column like every other kind's display name - duplicating it
+ * here would create two sources of truth. The flags are
+ * safeguarding-adjacent, which is why the person kind is gated by
+ * content_people (people_editor / content_admin) rather than the general
+ * content roles. Both flags are deliberately public: the static site has
+ * always rendered the DBS badge on profiles and filtered rosters on
+ * hasLeftClub, and parents being able to see who is DBS checked is the
+ * point of the badge. The gate protects who can WRITE them.
+ */
+export const personMetadataSchema = z.object({
+  isDBSChecked: z.boolean().default(false),
+  hasLeftClub: z.boolean().default(false),
+  photo: personPhotoSchema.optional(),
+});
+export type PersonMetadata = z.infer<typeof personMetadataSchema>;
+
 export const CONTENT_METADATA_SCHEMAS: Partial<
   Record<ContentKind, z.ZodType<Record<string, unknown>>>
 > = {
@@ -211,6 +267,7 @@ export const CONTENT_METADATA_SCHEMAS: Partial<
   news: newsMetadataSchema,
   event: eventMetadataSchema,
   game_report: gameReportMetadataSchema,
+  person: personMetadataSchema,
 };
 
 // ── Custom block types ──────────────────────────────────────────────────

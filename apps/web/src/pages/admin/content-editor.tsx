@@ -252,6 +252,12 @@ function parsePictureProp(raw: string): PictureSource | null {
   } catch {
     return null;
   }
+  return parsePictureValue(parsed);
+}
+
+/** Same structural floor over an already-parsed value (person metadata
+ * stores the descriptor as an object, not a JSON string). */
+function parsePictureValue(parsed: unknown): PictureSource | null {
   // Same structural floor as the public renderer: enough shape that
   // OptimisedImage cannot crash on a malformed stored descriptor.
   const candidate = parsed as {
@@ -917,6 +923,11 @@ interface FormState {
   locationPostcode: string;
   locationLat: string;
   locationLon: string;
+  // person - title doubles as the person's name; photo holds the upload
+  // API's PictureSource descriptor (null until a photo is uploaded)
+  isDBSChecked: boolean;
+  hasLeftClub: boolean;
+  photo: PictureSource | null;
 }
 
 // ── Per-kind metadata: hydrate / validate / build ───────────────────────
@@ -998,6 +1009,9 @@ function initialForm(
     locationPostcode: asString(location?.postcode),
     locationLat: asNumberString(location?.lat),
     locationLon: asNumberString(location?.lon),
+    isDBSChecked: metadata.isDBSChecked === true,
+    hasLeftClub: metadata.hasLeftClub === true,
+    photo: parsePictureValue(metadata.photo),
   };
 }
 
@@ -1106,6 +1120,14 @@ function buildMetadata(
             },
           }
         : {}),
+    };
+  }
+  if (kind === "person") {
+    return {
+      isDBSChecked: form.isDBSChecked,
+      hasLeftClub: form.hasLeftClub,
+      // Omitted entirely when there is no photo - never null/"".
+      ...(form.photo !== null ? { photo: form.photo } : {}),
     };
   }
   return { playCricketId: form.playCricketId };
@@ -1387,12 +1409,166 @@ function PageMetadataFields({
   );
 }
 
+function PersonPhotoField({
+  photo,
+  personName,
+  consentConfirmed,
+  onChange,
+}: {
+  photo: PictureSource | null;
+  personName: string;
+  consentConfirmed: boolean;
+  onChange: (photo: PictureSource | null) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onFileChosen = async (file: File) => {
+    setUploading(true);
+    setError(null);
+    try {
+      // Same pipeline as editor images: presign -> S3 PUT -> confirm
+      // (EXIF strip + responsive ladder). The descriptor lands in
+      // metadata.photo instead of a contentImage block.
+      const uploaded = await uploadContentImage(file, {});
+      onChange(uploaded.picture);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Upload failed - try again",
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Profile photo (optional)</Label>
+      {photo !== null ? (
+        <OptimisedImage
+          picture={photo}
+          alt={personName || "Profile photo"}
+          className="size-32 rounded-full object-cover"
+          sizes="128px"
+          width={128}
+          height={128}
+        />
+      ) : (
+        <p className="text-xs text-stone-500">
+          No photo yet - the public profile shows a placeholder.
+        </p>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void onFileChosen(file);
+        }}
+      />
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={uploading}
+          onClick={() => {
+            setError(null);
+            if (!consentConfirmed) {
+              setError("Tick the photo consent box below before uploading.");
+              return;
+            }
+            fileInputRef.current?.click();
+          }}
+        >
+          {uploading
+            ? "Uploading…"
+            : photo !== null
+              ? "Replace photo"
+              : "Upload photo"}
+        </Button>
+        {photo !== null && (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={uploading}
+            onClick={() => {
+              onChange(null);
+            }}
+          >
+            Remove photo
+          </Button>
+        )}
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function PersonMetadataFields({
+  form,
+  consentConfirmed,
+  onChange,
+}: {
+  form: FormState;
+  consentConfirmed: boolean;
+  onChange: (updates: Partial<FormState>) => void;
+}) {
+  return (
+    <>
+      <PersonPhotoField
+        photo={form.photo}
+        personName={form.title}
+        consentConfirmed={consentConfirmed}
+        onChange={(photo) => {
+          onChange({ photo });
+        }}
+      />
+      <div className="flex flex-col gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+        <p className="text-xs leading-snug text-stone-700">
+          Safeguarding: both flags below appear on the public website, so keep
+          them accurate. Only tick DBS checked once the club has verified a
+          current certificate, and untick it if the check lapses.
+        </p>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="person-dbs-checked"
+            checked={form.isDBSChecked}
+            onCheckedChange={(value) => {
+              onChange({ isDBSChecked: value === true });
+            }}
+          />
+          <Label htmlFor="person-dbs-checked">
+            DBS checked (shows the DBS badge on the profile)
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="person-has-left-club"
+            checked={form.hasLeftClub}
+            onCheckedChange={(value) => {
+              onChange({ hasLeftClub: value === true });
+            }}
+          />
+          <Label htmlFor="person-has-left-club">
+            Has left the club (kept out of player and sponsorship pickers)
+          </Label>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function MetadataFields({
   kind,
   form,
   itemId,
   slugLocked,
   tagSuggestions,
+  consentConfirmed,
   onChange,
 }: {
   kind: ContentKind;
@@ -1400,12 +1576,15 @@ function MetadataFields({
   itemId: string | null;
   slugLocked: boolean;
   tagSuggestions: string[];
+  consentConfirmed: boolean;
   onChange: (updates: Partial<FormState>) => void;
 }) {
   return (
     <>
       <div className="flex flex-col gap-1">
-        <Label htmlFor="content-title">Title</Label>
+        <Label htmlFor="content-title">
+          {kind === "person" ? "Name" : "Title"}
+        </Label>
         <Input
           id="content-title"
           value={form.title}
@@ -1601,6 +1780,13 @@ function MetadataFields({
             </div>
           )}
         </>
+      )}
+      {kind === "person" && (
+        <PersonMetadataFields
+          form={form}
+          consentConfirmed={consentConfirmed}
+          onChange={onChange}
+        />
       )}
     </>
   );
@@ -2254,6 +2440,7 @@ function LoadedEditor({
             itemId={item?.id ?? null}
             slugLocked={slugLocked}
             tagSuggestions={tagSuggestions}
+            consentConfirmed={consentConfirmed}
             onChange={onFormChange}
           />
           {item !== null && (

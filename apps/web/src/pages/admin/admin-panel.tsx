@@ -197,6 +197,16 @@ const SECTIONS: readonly SectionDef[] = [
         visible: (role) => checkPermission(role, "content", "view"),
         render: () => <PagesTab />,
       },
+      // "Profiles", not "People": the admin panel's default section is
+      // already called People (members/groups/juniors), and these are
+      // the public profile pages. Gated separately (content_people) -
+      // profiles carry safeguarding-adjacent flags.
+      {
+        value: "profiles",
+        label: "Profiles",
+        visible: (role) => checkPermission(role, "content_people", "view"),
+        render: () => <ContentTab kind="person" />,
+      },
     ],
   },
   {
