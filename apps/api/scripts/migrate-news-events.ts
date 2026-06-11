@@ -131,7 +131,12 @@ async function convertBody(
       if (!src.startsWith("/images/")) {
         throw new Error(`unexpected image src '${src}'`);
       }
-      const assetPath = path.join(ASSETS_DIR, src.slice("/images/".length));
+      const assetPath = path.resolve(ASSETS_DIR, src.slice("/images/".length));
+      // A '..' segment in the src could otherwise resolve outside the
+      // bundled assets tree and upload an arbitrary readable file.
+      if (!assetPath.startsWith(ASSETS_DIR + path.sep)) {
+        throw new Error(`image src '${src}' escapes the assets directory`);
+      }
       let original: Buffer;
       try {
         original = await fs.readFile(assetPath);

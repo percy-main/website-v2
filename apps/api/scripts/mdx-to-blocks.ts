@@ -227,7 +227,10 @@ const newsFrontmatterSchema = z.object({
   date: yamlDateString.pipe(
     z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}/)
+      // A bare date, or a date with an ISO time suffix (the Date
+      // coercion above produces the latter). Anything else - e.g. a
+      // typo like '2025-05-13oops' - must fail loudly, not truncate.
+      .regex(/^\d{4}-\d{2}-\d{2}(?:T\S+)?$/)
       .transform((v) => v.slice(0, 10)),
   ),
   author: z.string().min(1).optional(),
