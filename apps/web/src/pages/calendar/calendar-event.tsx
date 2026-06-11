@@ -188,7 +188,7 @@ export function Component() {
         finish={meta.finish}
         venue={meta.location}
       >
-        <ContentBody body={apiEvent.body} />
+        <ContentBody body={apiEvent.body} className="w-full" />
       </EventLayout>
     );
   }
@@ -218,7 +218,7 @@ export function Component() {
         }
       >
         <MDXProvider components={mdxComponents}>
-          <div className="mdx-content flex flex-col *:mb-4">
+          <div className="mdx-content flex w-full flex-col *:mb-4">
             <EventContent />
           </div>
         </MDXProvider>
