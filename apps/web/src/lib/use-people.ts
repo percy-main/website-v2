@@ -48,6 +48,11 @@ export function usePeople(): Map<string, PersonSummary> {
         hasLeftClub: person.hasLeftClub,
       });
     }
+    // Tombstones: profiles that WERE live but have been taken down must
+    // not resurrect from the static bundle (same rule as nav.removed).
+    for (const slug of data?.removed ?? []) {
+      map.delete(slug);
+    }
     for (const item of data?.items ?? []) {
       const meta = parsePersonMetadata(item.metadata);
       // A roster row whose metadata fails its schema is unrenderable -

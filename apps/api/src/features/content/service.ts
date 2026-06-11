@@ -1206,7 +1206,26 @@ export function getPublishedContent(db: Kysely<DB>) {
 
     const row = await query.executeTakeFirst();
 
-    if (!row) throwHttpError(404, "Content not found");
+    if (!row) {
+      // Person tombstone, mirroring the by-path page rule: the SPA falls
+      // back to its bundled static profile on 404, so taking down a
+      // migrated profile (unpublish/archive - safeguarding-relevant for
+      // people) must not read as "missing" and resurrect the stale
+      // static version. Ever-live (past published_at) but not visible
+      // now is 410 Gone; never-live rows stay 404 and leak nothing.
+      if (params.kind === "person") {
+        const tombstone = await db
+          .selectFrom("content_item")
+          .select("id")
+          .where("kind", "=", "person")
+          .where("slug", "=", params.slug)
+          .where("published_at", "is not", null)
+          .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`)
+          .executeTakeFirst();
+        if (tombstone) throwHttpError(410, "This profile has been removed");
+      }
+      throwHttpError(404, "Content not found");
+    }
     return toPublic(row);
   };
 }
@@ -1468,8 +1487,26 @@ export function listPublishedPeople(db: Kysely<DB>) {
       .orderBy("title", "asc")
       .execute();
 
+    // Tombstoned slugs (same ever-live test as the by-slug 410): people
+    // who WERE publicly live but are not visible now. The SPA drops
+    // matching entries from its bundled static corpus so a takedown does
+    // not resurrect the stale static profile in cards and pickers. The
+    // status partition makes the two queries consistent without a
+    // transaction: a row is either published (items candidate) or not
+    // (removed candidate), never both.
+    const removedRows = await db
+      .selectFrom("content_item")
+      .select("slug")
+      .where("kind", "=", "person")
+      .where("status", "!=", "published")
+      .where("published_at", "is not", null)
+      .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`)
+      .orderBy("slug", "asc")
+      .execute();
+
     return {
       items: rows.map((row) => toPublicListItem(personMetadataSchema, row)),
+      removed: removedRows.map((row) => row.slug),
     };
   };
 }

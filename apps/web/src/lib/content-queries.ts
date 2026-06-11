@@ -103,8 +103,15 @@ export function personQueryOptions(slug: string) {
           }),
         );
       } catch (err) {
-        // Not published in the DB - callers fall back to the bundled MDX.
-        if ((err as { status?: number }).status === 404) return null;
+        const status = (err as { status?: number }).status;
+        // Never published in the DB - callers fall back to the bundled
+        // MDX.
+        if (status === 404) return null;
+        // Ever-live profile taken down (unpublished/archived). A
+        // terminal data state, not an error: callers render "not found"
+        // without the static fallback - a takedown must not resurrect
+        // the bundled MDX profile (same sentinel as pages).
+        if (status === 410) return PAGE_GONE;
         throw err;
       }
     },

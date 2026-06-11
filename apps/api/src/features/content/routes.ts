@@ -298,12 +298,20 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
+  // 410 = person tombstone: the profile WAS live at this slug but has
+  // been taken down; the SPA must not fall back to its bundled static
+  // version (404 keeps that fallback for never-live slugs). Other kinds
+  // never produce a 410 here.
   app.get(
     "/content/:kind/:slug",
     {
       schema: {
         params: publicContentParamsSchema,
-        response: { 200: publicContentResponseSchema, 304: z.null() },
+        response: {
+          200: publicContentResponseSchema,
+          304: z.null(),
+          410: goneResponseSchema,
+        },
       },
     },
     async (request, reply) => {

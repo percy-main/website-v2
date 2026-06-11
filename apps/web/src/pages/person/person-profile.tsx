@@ -7,6 +7,7 @@ import {
 import { PageLoading } from "@/components/page-loading.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import {
+  isPageGone,
   parsePersonMetadata,
   personQueryOptions,
 } from "@/lib/content-queries.js";
@@ -113,8 +114,12 @@ export function Component() {
   // deleted in a follow-up. The MDX renders only once the query settles
   // (confirmed 404, or an API failure - deliberate graceful degradation)
   // so an edited DB profile never flashes its stale MDX ancestor first.
-  const { data: apiPerson, isPending } = useQuery(personQueryOptions(slug));
-  const staticPerson = getPersonBySlug(slug);
+  // A 410 tombstone (ever-live profile taken down) suppresses the static
+  // fallback entirely: a takedown must not resurrect the bundled MDX.
+  const { data, isPending } = useQuery(personQueryOptions(slug));
+  const gone = isPageGone(data);
+  const apiPerson = data == null || isPageGone(data) ? undefined : data;
+  const staticPerson = gone ? undefined : getPersonBySlug(slug);
 
   useDocumentMeta(apiPerson?.title ?? staticPerson?.name ?? "Player Profile");
 

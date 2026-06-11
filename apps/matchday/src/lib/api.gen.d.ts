@@ -13841,6 +13841,17 @@ export interface paths {
                         "application/json": null;
                     };
                 };
+                /** @description Default Response */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
             };
         };
         put?: never;
@@ -14071,6 +14082,7 @@ export interface paths {
                                 publishedAt: string;
                                 updatedAt: string;
                             }[];
+                            removed: string[];
                         };
                     };
                 };

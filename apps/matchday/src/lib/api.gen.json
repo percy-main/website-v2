@@ -24971,6 +24971,25 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -25396,10 +25415,17 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "removed": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": [
-                    "items"
+                    "items",
+                    "removed"
                   ],
                   "additionalProperties": false
                 }

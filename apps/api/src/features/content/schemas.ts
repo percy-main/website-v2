@@ -232,6 +232,13 @@ export const listEventsResponseSchema = z.object({
  */
 export const listPeopleResponseSchema = z.object({
   items: z.array(publicListItemSchema),
+  /**
+   * Tombstoned slugs: people who were publicly live but are no longer
+   * visible (unpublished/archived after going live). The SPA drops
+   * matching entries from its bundled static corpus so a takedown does
+   * not resurrect the stale static profile (same pattern as nav.removed).
+   */
+  removed: z.array(z.string()),
 });
 
 // ── Public: pages (nav + by-path) ───────────────────────────────────────
