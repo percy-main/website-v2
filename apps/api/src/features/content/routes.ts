@@ -29,6 +29,8 @@ import {
   publicContentParamsSchema,
   publicContentResponseSchema,
   publishContentSchema,
+  revisionDetailResponseSchema,
+  revisionIdParamSchema,
   updateContentSchema,
 } from "./schemas.ts";
 import {
@@ -40,6 +42,7 @@ import {
   getPublishedGameReport,
   getPublishedNav,
   getPublishedPageByPath,
+  getRevision,
   listContent,
   listPageTree,
   listPublishedEvents,
@@ -87,6 +90,7 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const unpublish = unpublishContent(app.db);
   const archive = archiveContent(app.db);
   const revisions = listRevisions(app.db);
+  const revision = getRevision(app.db);
   const publicGet = getPublishedContent(app.db);
   const publicGameReport = getPublishedGameReport(app.db);
   const publicNews = listPublishedNews(app.db);
@@ -265,6 +269,25 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
       const { kind } = await metaOf(request.params.contentId);
       assertContentPermission(request, kind, "view");
       return await revisions(request.params.contentId);
+    },
+  );
+
+  app.get(
+    "/admin/content/:contentId/revisions/:revisionId",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        params: revisionIdParamSchema,
+        response: { 200: revisionDetailResponseSchema },
+      },
+    },
+    async (request) => {
+      // Same gate as the list: the revision's own permission model is
+      // the item's kind (the service scopes the lookup to contentId, so
+      // a revision is never reachable under a different item's id).
+      const { kind } = await metaOf(request.params.contentId);
+      assertContentPermission(request, kind, "view");
+      return await revision(request.params);
     },
   );
 

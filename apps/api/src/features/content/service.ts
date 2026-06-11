@@ -1124,6 +1124,50 @@ export function listRevisions(db: Kysely<DB>) {
   };
 }
 
+export function getRevision(db: Kysely<DB>) {
+  return async (params: { contentId: string; revisionId: string }) => {
+    // The content_id filter makes the lookup tenant-safe within the
+    // route's permission model: the route gates on the CONTENT item's
+    // kind, so a revision must never be reachable under a different
+    // (more permissive) item's id.
+    const row = await db
+      .selectFrom("content_revision")
+      .leftJoin("user as saver", "saver.id", "content_revision.saved_by")
+      .select([
+        "content_revision.id",
+        "content_revision.title",
+        "content_revision.description",
+        "content_revision.body",
+        "content_revision.metadata",
+        "content_revision.saved_at",
+        "content_revision.saved_by",
+        "saver.name as saved_by_name",
+      ])
+      .where("content_revision.id", "=", params.revisionId)
+      .where("content_revision.content_id", "=", params.contentId)
+      .executeTakeFirst();
+    if (!row) throwHttpError(404, "Revision not found");
+
+    // A stored body failing the schema is a server-side data problem,
+    // not a bad request - same stance as getContent.
+    const parsedBody = contentBodySchema.safeParse(row.body);
+    if (!parsedBody.success) {
+      throwHttpError(500, "Stored body does not match the block schema");
+    }
+
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      body: parsedBody.data,
+      metadata: row.metadata as Record<string, unknown>,
+      savedAt: row.saved_at.toISOString(),
+      savedBy: row.saved_by,
+      savedByName: row.saved_by_name,
+    };
+  };
+}
+
 // ── Public reads ────────────────────────────────────────────────────────
 
 function toPublic(row: {
