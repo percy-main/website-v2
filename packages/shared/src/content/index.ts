@@ -191,4 +191,10 @@ export const CUSTOM_BLOCK_TYPES = {
   // PictureSource descriptor from the upload API so public pages render
   // the responsive ladder without any lookup.
   contentImage: "contentImage",
+  leagueTable: "leagueTable",
+  leaderboard: "leaderboard",
+  recordsWall: "recordsWall",
+  contactForm: "contactForm",
+  cookieSettingsLink: "cookieSettingsLink",
+  consentVersion: "consentVersion",
 } as const;
