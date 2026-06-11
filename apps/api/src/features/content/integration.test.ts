@@ -815,31 +815,112 @@ describe("content service (integration)", () => {
     });
 
     it("pins a draft ancestor's slug via an ever-published descendant", async () => {
-      // The only route to this state: schedule the parent (status
-      // 'published', never live), publish the child immediately, then
-      // unwind bottom-up. The child keeps its ever-published marker; the
-      // parent's cancelled schedule clears its own.
+      // Under the publish-ordering rules a descendant can only have gone
+      // live if its ancestors did too, so a never-published ancestor
+      // with an ever-published child needs the ancestor's own marker
+      // cleared by hand (ops-level intervention; same direct-flip
+      // technique as the visibility-boundary test). The descendant lock
+      // is defense in depth for exactly such states.
       const parent = await mkPage("sections");
       const child = await mkPage("alpha", { parentId: parent });
 
-      const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      await publishContent(ctx.db)({
-        contentId: parent,
-        publishedAt: future,
-        userId,
-      });
+      await publishContent(ctx.db)({ contentId: parent, userId });
       await publishContent(ctx.db)({ contentId: child, userId });
       await unpublishContent(ctx.db)({ contentId: child, userId });
       await unpublishContent(ctx.db)({ contentId: parent, userId });
+      await ctx.db
+        .updateTable("content_item")
+        .set({ published_at: null })
+        .where("id", "=", parent)
+        .execute();
 
-      // The parent itself was never live, so its own lock is off...
+      // The parent's own ever-published marker is gone...
       expect((await getContent(ctx.db)(parent)).publishedAt).toBeNull();
-      // ...but the ever-published child pins its slug and parent.
+      // ...but the ever-published child still pins its slug and parent.
       await expect(
         updateContent(ctx.db)({ contentId: parent, slug: "chapters", userId }),
       ).rejects.toMatchObject({
         statusCode: 409,
         message: /descendant page '\/sections\/alpha' has been published/,
+      });
+    });
+
+    it("keeps a child's go-live at or after its parent's", async () => {
+      const parent = await mkPage("season");
+      const child = await mkPage("fixtures", { parentId: parent });
+      const parentAt = new Date(Date.now() + 60 * 60 * 1000);
+      await publishContent(ctx.db)({
+        contentId: parent,
+        publishedAt: parentAt.toISOString(),
+        userId,
+      });
+
+      const tooEarly = `Parent page goes live at ${parentAt.toISOString()}; schedule this page for that time or later`;
+
+      // Publish-now while the parent is still scheduled: the child would
+      // be live on a URL prefix the public cannot see yet
+      await expect(
+        publishContent(ctx.db)({ contentId: child, userId }),
+      ).rejects.toMatchObject({ statusCode: 400, message: tooEarly });
+
+      // Scheduling before the parent's go-live is equally rejected...
+      await expect(
+        publishContent(ctx.db)({
+          contentId: child,
+          publishedAt: new Date(
+            parentAt.getTime() - 30 * 60 * 1000,
+          ).toISOString(),
+          userId,
+        }),
+      ).rejects.toMatchObject({ statusCode: 400, message: tooEarly });
+
+      // ...as is backdating the child into the past
+      await expect(
+        publishContent(ctx.db)({
+          contentId: child,
+          publishedAt: new Date(Date.now() - 1000).toISOString(),
+          userId,
+        }),
+      ).rejects.toMatchObject({ statusCode: 400, message: tooEarly });
+
+      // The parent's exact go-live instant works: a whole section can be
+      // scheduled together, top-down
+      const scheduled = await publishContent(ctx.db)({
+        contentId: child,
+        publishedAt: parentAt.toISOString(),
+        userId,
+      });
+      expect(scheduled.publishedAt).toBe(parentAt.toISOString());
+
+      // Unwind bottom-up (never live, so the markers clear and the nav
+      // test below keeps its exact payload)
+      await unpublishContent(ctx.db)({ contentId: child, userId });
+      await unpublishContent(ctx.db)({ contentId: parent, userId });
+    });
+
+    it("archives a page only after its children are unpublished", async () => {
+      const parent = await mkPage("vault");
+      const child = await mkPage("records", { parentId: parent });
+      await publishContent(ctx.db)({ contentId: parent, userId });
+      await publishContent(ctx.db)({ contentId: child, userId });
+
+      await expect(
+        archiveContent(ctx.db)({ contentId: parent, userId }),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        message: /published child pages/,
+      });
+
+      await unpublishContent(ctx.db)({ contentId: child, userId });
+      // A draft child under an archived parent is acceptable...
+      await archiveContent(ctx.db)({ contentId: parent, userId });
+      expect((await getContent(ctx.db)(parent)).status).toBe("archived");
+      // ...it just cannot be published (parent-not-published gate)
+      await expect(
+        publishContent(ctx.db)({ contentId: child, userId }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: "Cannot publish this page until its parent page is published",
       });
     });
 

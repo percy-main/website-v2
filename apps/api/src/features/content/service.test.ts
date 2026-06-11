@@ -29,6 +29,7 @@ const {
     set: vi.fn().mockReturnThis(),
     values: vi.fn().mockReturnThis(),
     returning: vi.fn().mockReturnThis(),
+    forUpdate: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     offset: vi.fn().mockReturnThis(),
@@ -578,21 +579,28 @@ describe("page hierarchy: updateContent", () => {
 });
 
 describe("publishContent", () => {
-  // The prefetch (kind/status/parent_id) is the first executeTakeFirst.
-  const prefetched = { kind: "game_report", status: "draft", parent_id: null };
+  // Call order inside the transaction: 1. unlocked peek (kind/parent_id)
+  // 2. [pages with a parent] parent row FOR UPDATE 3. item row FOR
+  // UPDATE 4. the UPDATE itself.
+  const peeked = { kind: "game_report", status: "draft", parent_id: null };
+  const pagePeek = { kind: "page", status: "draft", parent_id: "p1" };
+  const liveParent = {
+    status: "published",
+    published_at: new Date("2026-06-01T10:00:00Z"),
+    live_now: true,
+  };
 
   it("404s when the item does not exist", async () => {
-    mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // prefetch
+    mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // peek
     await expect(
       publishContent(db)({ contentId: "missing", userId: "user-1" }),
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
   it("409s when the item is archived", async () => {
-    mockExecuteTakeFirst.mockResolvedValueOnce({
-      ...prefetched,
-      status: "archived",
-    });
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(peeked)
+      .mockResolvedValueOnce({ ...peeked, status: "archived" }); // locked item
     await expect(
       publishContent(db)({ contentId: "content-1", userId: "user-1" }),
     ).rejects.toMatchObject({
@@ -604,7 +612,8 @@ describe("publishContent", () => {
   it("returns the effective publishedAt", async () => {
     const at = new Date("2026-07-01T10:00:00Z");
     mockExecuteTakeFirst
-      .mockResolvedValueOnce(prefetched)
+      .mockResolvedValueOnce(peeked)
+      .mockResolvedValueOnce(peeked) // locked item
       .mockResolvedValueOnce({ id: "content-1", published_at: at });
     const result = await publishContent(db)({
       contentId: "content-1",
@@ -620,7 +629,8 @@ describe("publishContent", () => {
   it("passes an explicit publishedAt through as a concrete date", async () => {
     const at = new Date("2026-07-01T10:00:00Z");
     mockExecuteTakeFirst
-      .mockResolvedValueOnce(prefetched)
+      .mockResolvedValueOnce(peeked)
+      .mockResolvedValueOnce(peeked) // locked item
       .mockResolvedValueOnce({ id: "content-1", published_at: at });
     await publishContent(db)({
       contentId: "content-1",
@@ -632,7 +642,8 @@ describe("publishContent", () => {
 
   it("publish-now keeps published_at only when already past (DB-clock CASE)", async () => {
     mockExecuteTakeFirst
-      .mockResolvedValueOnce(prefetched)
+      .mockResolvedValueOnce(peeked)
+      .mockResolvedValueOnce(peeked) // locked item
       .mockResolvedValueOnce({
         id: "content-1",
         published_at: new Date("2026-06-01T10:00:00Z"),
@@ -650,7 +661,8 @@ describe("publishContent", () => {
 
   it("guards the ever-live invariant in the UPDATE's WHERE (DB clock)", async () => {
     mockExecuteTakeFirst
-      .mockResolvedValueOnce(prefetched)
+      .mockResolvedValueOnce(peeked)
+      .mockResolvedValueOnce(peeked) // locked item
       .mockResolvedValueOnce({
         id: "content-1",
         published_at: new Date("2027-01-01T10:00:00Z"),
@@ -669,9 +681,9 @@ describe("publishContent", () => {
 
   it("409s when scheduling an item that has already been live", async () => {
     mockExecuteTakeFirst
-      .mockResolvedValueOnce({ ...prefetched, status: "published" }) // prefetch
-      .mockResolvedValueOnce(undefined) // ever-live guard excluded the row
-      .mockResolvedValueOnce({ status: "published" }); // re-check: not archived
+      .mockResolvedValueOnce({ ...peeked, status: "published" }) // peek
+      .mockResolvedValueOnce({ ...peeked, status: "published" }) // locked item
+      .mockResolvedValueOnce(undefined); // ever-live guard excluded the row
     await expect(
       publishContent(db)({
         contentId: "content-1",
@@ -687,8 +699,13 @@ describe("publishContent", () => {
 
   it("400s when publishing a page whose parent is not published", async () => {
     mockExecuteTakeFirst
-      .mockResolvedValueOnce({ kind: "page", status: "draft", parent_id: "p1" })
-      .mockResolvedValueOnce({ status: "draft" }); // parent status
+      .mockResolvedValueOnce(pagePeek)
+      .mockResolvedValueOnce({
+        status: "draft",
+        published_at: null,
+        live_now: null,
+      }) // locked parent
+      .mockResolvedValueOnce(pagePeek); // locked item
     await expect(
       publishContent(db)({ contentId: "content-1", userId: "user-1" }),
     ).rejects.toMatchObject({
@@ -697,11 +714,12 @@ describe("publishContent", () => {
     });
   });
 
-  it("publishes a page whose parent is published", async () => {
-    const at = new Date("2026-06-01T10:00:00Z");
+  it("publishes a page under a live parent", async () => {
+    const at = new Date("2026-06-02T10:00:00Z");
     mockExecuteTakeFirst
-      .mockResolvedValueOnce({ kind: "page", status: "draft", parent_id: "p1" })
-      .mockResolvedValueOnce({ status: "published" }) // parent status
+      .mockResolvedValueOnce(pagePeek)
+      .mockResolvedValueOnce(liveParent) // locked parent
+      .mockResolvedValueOnce(pagePeek) // locked item
       .mockResolvedValueOnce({ id: "content-1", published_at: at }); // update
     const result = await publishContent(db)({
       contentId: "content-1",
@@ -714,6 +732,7 @@ describe("publishContent", () => {
     const at = new Date("2026-06-01T10:00:00Z");
     mockExecuteTakeFirst
       .mockResolvedValueOnce({ kind: "page", status: "draft", parent_id: null })
+      .mockResolvedValueOnce({ kind: "page", status: "draft", parent_id: null })
       .mockResolvedValueOnce({ id: "content-1", published_at: at }); // update
     const result = await publishContent(db)({
       contentId: "content-1",
@@ -721,13 +740,73 @@ describe("publishContent", () => {
     });
     expect(result).toEqual({ id: "content-1", publishedAt: at.toISOString() });
   });
+
+  it("rejects publish-now while the parent is still scheduled", async () => {
+    const parentAt = new Date("2027-01-01T10:00:00Z");
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(pagePeek)
+      .mockResolvedValueOnce({
+        status: "published",
+        published_at: parentAt,
+        live_now: false, // scheduled: not yet live on the DB clock
+      })
+      .mockResolvedValueOnce(pagePeek); // locked item
+    await expect(
+      publishContent(db)({ contentId: "content-1", userId: "user-1" }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: `Parent page goes live at ${parentAt.toISOString()}; schedule this page for that time or later`,
+    });
+  });
+
+  it("rejects scheduling (or backdating) a child before the parent's go-live", async () => {
+    const parentAt = new Date("2027-01-01T10:00:00Z");
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(pagePeek)
+      .mockResolvedValueOnce({
+        status: "published",
+        published_at: parentAt,
+        live_now: false,
+      })
+      .mockResolvedValueOnce(pagePeek); // locked item
+    await expect(
+      publishContent(db)({
+        contentId: "content-1",
+        publishedAt: "2026-12-31T10:00:00Z",
+        userId: "user-1",
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: `Parent page goes live at ${parentAt.toISOString()}; schedule this page for that time or later`,
+    });
+  });
+
+  it("allows scheduling a child at the parent's exact go-live time", async () => {
+    const parentAt = new Date("2027-01-01T10:00:00Z");
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(pagePeek)
+      .mockResolvedValueOnce({
+        status: "published",
+        published_at: parentAt,
+        live_now: false,
+      })
+      .mockResolvedValueOnce(pagePeek) // locked item
+      .mockResolvedValueOnce({ id: "content-1", published_at: parentAt });
+    const result = await publishContent(db)({
+      contentId: "content-1",
+      publishedAt: parentAt.toISOString(),
+      userId: "user-1",
+    });
+    expect(result).toEqual({
+      id: "content-1",
+      publishedAt: parentAt.toISOString(),
+    });
+  });
 });
 
 describe("archiveContent", () => {
   it("404s when the item does not exist", async () => {
-    mockExecuteTakeFirst
-      .mockResolvedValueOnce(undefined) // update matched nothing
-      .mockResolvedValueOnce(undefined); // and it does not exist
+    mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // locked item
     await expect(
       archiveContent(db)({ contentId: "missing", userId: "user-1" }),
     ).rejects.toMatchObject({ statusCode: 404 });
@@ -735,9 +814,10 @@ describe("archiveContent", () => {
 
   it("409s when the item is already archived", async () => {
     // Re-archiving must not silently bump updated_at/updated_by.
-    mockExecuteTakeFirst
-      .mockResolvedValueOnce(undefined) // update skipped the archived row
-      .mockResolvedValueOnce({ id: "content-1" }); // but it exists
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      kind: "game_report",
+      status: "archived",
+    });
     await expect(
       archiveContent(db)({ contentId: "content-1", userId: "user-1" }),
     ).rejects.toMatchObject({
@@ -747,7 +827,34 @@ describe("archiveContent", () => {
   });
 
   it("archives a non-archived item", async () => {
-    mockExecuteTakeFirst.mockResolvedValueOnce({ id: "content-1" });
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "game_report", status: "draft" })
+      .mockResolvedValueOnce({ id: "content-1" }); // update
+    const result = await archiveContent(db)({
+      contentId: "content-1",
+      userId: "user-1",
+    });
+    expect(result).toEqual({ id: "content-1" });
+  });
+
+  it("409s when archiving a page that has published children", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "page", status: "published" }) // locked item
+      .mockResolvedValueOnce({ id: "child-1" }); // published-child probe
+    await expect(
+      archiveContent(db)({ contentId: "content-1", userId: "user-1" }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message:
+        "Cannot archive a page that has published child pages - unpublish or archive the children first",
+    });
+  });
+
+  it("archives a page whose children are all drafts", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "page", status: "published" }) // locked item
+      .mockResolvedValueOnce(undefined) // no published child
+      .mockResolvedValueOnce({ id: "content-1" }); // update
     const result = await archiveContent(db)({
       contentId: "content-1",
       userId: "user-1",

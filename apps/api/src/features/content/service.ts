@@ -582,200 +582,277 @@ export function publishContent(db: Kysely<DB>) {
     publishedAt?: string;
     userId: string;
   }) => {
-    const item = await db
-      .selectFrom("content_item")
-      .select(["kind", "status", "parent_id"])
-      .where("id", "=", params.contentId)
-      .executeTakeFirst();
-    if (!item) throwHttpError(404, "Content not found");
-    if (item.status === "archived") {
-      throwHttpError(409, "Archived content cannot be published");
-    }
-
-    // A page goes live at parent path + slug, so publishing it under an
-    // unpublished parent would put a live page on a dead URL prefix
-    // (broken breadcrumbs/nav). Publish top-down. Status-based on
-    // purpose: a scheduled parent counts, so a whole section can be
-    // scheduled together.
-    if (item.kind === "page" && item.parent_id !== null) {
-      const parent = await db
+    // The hierarchy gates are check-then-update, so they run in a
+    // transaction over FOR UPDATE row locks. Lock order is parent ->
+    // child everywhere (unpublish/archive lock the item, then its
+    // children), so the parent row must be locked before the item; the
+    // unlocked peek only discovers which parent that is.
+    return await db.transaction().execute(async (tx) => {
+      const peek = await tx
         .selectFrom("content_item")
-        .select("status")
-        .where("id", "=", item.parent_id)
+        .select(["kind", "parent_id"])
+        .where("id", "=", params.contentId)
         .executeTakeFirst();
-      if (parent?.status !== "published") {
-        throwHttpError(
-          400,
-          "Cannot publish this page until its parent page is published",
-        );
-      }
-    }
+      if (!peek) throwHttpError(404, "Content not found");
 
-    let query = db
-      .updateTable("content_item")
-      .set({
-        status: "published",
-        // No explicit date: keep the original "live from" time only when
-        // it is already in the past (re-publish after unpublish must not
-        // rewrite history). NULL (first publish) or a still-future
-        // schedule (the editor pressed "Publish now" on a scheduled
-        // item) becomes now(). NULL <= now() is NULL, so both fall to
-        // the ELSE branch. Expressed in SQL so the comparison uses the
-        // DB clock, consistent with publishedOnly().
-        published_at: params.publishedAt
-          ? new Date(params.publishedAt)
-          : sql`CASE
+      const lockParent = (parentId: string) =>
+        tx
+          .selectFrom("content_item")
+          .select([
+            "status",
+            "published_at",
+            // DB-clock liveness, consistent with publishedOnly().
+            // NULL published_at propagates: live_now is then NULL too.
+            sql<boolean | null>`published_at <= CURRENT_TIMESTAMP`.as(
+              "live_now",
+            ),
+          ])
+          .where("id", "=", parentId)
+          .forUpdate()
+          .executeTakeFirst();
+
+      let parent =
+        peek.kind === "page" && peek.parent_id !== null
+          ? await lockParent(peek.parent_id)
+          : undefined;
+
+      const item = await tx
+        .selectFrom("content_item")
+        .select(["kind", "status", "parent_id"])
+        .where("id", "=", params.contentId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!item) throwHttpError(404, "Content not found");
+      if (item.status === "archived") {
+        throwHttpError(409, "Archived content cannot be published");
+      }
+
+      // A page goes live at parent path + slug, so a child must never be
+      // publicly visible while its parent is not (dead URL prefix,
+      // broken breadcrumbs/nav). Publish top-down...
+      if (item.kind === "page" && item.parent_id !== null) {
+        if (item.parent_id !== peek.parent_id) {
+          // Reparented between the peek and the item lock: lock the
+          // actual parent. Out of lock order, but the race is
+          // vanishingly rare and PostgreSQL resolves any deadlock by
+          // aborting one transaction.
+          parent = await lockParent(item.parent_id);
+        }
+        if (parent?.status !== "published" || parent.published_at === null) {
+          throwHttpError(
+            400,
+            "Cannot publish this page until its parent page is published",
+          );
+        }
+        // ...and never ahead of the parent: the child's effective
+        // go-live (the explicit date, or now) may not precede the
+        // parent's published_at. Scheduling a whole section for one
+        // instant stays allowed; backdating a child before its parent
+        // is not.
+        const beforeParent =
+          params.publishedAt !== undefined
+            ? new Date(params.publishedAt) < parent.published_at
+            : parent.live_now !== true;
+        if (beforeParent) {
+          throwHttpError(
+            400,
+            `Parent page goes live at ${parent.published_at.toISOString()}; schedule this page for that time or later`,
+          );
+        }
+      }
+
+      let query = tx
+        .updateTable("content_item")
+        .set({
+          status: "published",
+          // No explicit date: keep the original "live from" time only when
+          // it is already in the past (re-publish after unpublish must not
+          // rewrite history). NULL (first publish) or a still-future
+          // schedule (the editor pressed "Publish now" on a scheduled
+          // item) becomes now(). NULL <= now() is NULL, so both fall to
+          // the ELSE branch. Expressed in SQL so the comparison uses the
+          // DB clock, consistent with publishedOnly().
+          published_at: params.publishedAt
+            ? new Date(params.publishedAt)
+            : sql`CASE
               WHEN published_at <= CURRENT_TIMESTAMP THEN published_at
               ELSE CURRENT_TIMESTAMP
             END`,
-        updated_by: params.userId,
-        updated_at: sql`CURRENT_TIMESTAMP`,
-      })
-      .where("id", "=", params.contentId)
-      .where("status", "!=", "archived");
+          updated_by: params.userId,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", params.contentId)
+        .where("status", "!=", "archived");
 
-    if (params.publishedAt !== undefined) {
-      // Invariant: published_at in the past <=> the item has been
-      // publicly visible. An explicit FUTURE date on an item whose
-      // published_at is already past would silently pull a page that WAS
-      // public - and a later cancel-schedule would see a future
-      // published_at, clear it, and unlock the slug of a page whose URL
-      // was live. Guarded inside the UPDATE's WHERE on the DB clock so
-      // it cannot race the publish boundary; the IS NOT NULL keeps a
-      // first publish (NULL published_at) out of the NULL-propagating
-      // comparison. Explicit past/current dates stay allowed (idempotent
-      // re-publish, migration-style backdating).
-      query = query.where(
-        sql<boolean>`NOT (
+      if (params.publishedAt !== undefined) {
+        // Invariant: published_at in the past <=> the item has been
+        // publicly visible. An explicit FUTURE date on an item whose
+        // published_at is already past would silently pull a page that WAS
+        // public - and a later cancel-schedule would see a future
+        // published_at, clear it, and unlock the slug of a page whose URL
+        // was live. Guarded inside the UPDATE's WHERE on the DB clock so
+        // it cannot race the publish boundary; the IS NOT NULL keeps a
+        // first publish (NULL published_at) out of the NULL-propagating
+        // comparison. Explicit past/current dates stay allowed (idempotent
+        // re-publish, migration-style backdating).
+        query = query.where(
+          sql<boolean>`NOT (
           published_at IS NOT NULL
           AND published_at <= CURRENT_TIMESTAMP
           AND ${new Date(params.publishedAt)}::timestamptz > CURRENT_TIMESTAMP
         )`,
-      );
-    }
-
-    const result = await query
-      .returning(["id", "published_at"])
-      .executeTakeFirst();
-
-    if (!result) {
-      // The prefetch passed, so this is the ever-live scheduling guard
-      // (or a concurrent archive, which the same re-check catches).
-      const existing = await db
-        .selectFrom("content_item")
-        .select("status")
-        .where("id", "=", params.contentId)
-        .executeTakeFirst();
-      if (!existing) throwHttpError(404, "Content not found");
-      if (existing.status === "archived") {
-        throwHttpError(409, "Archived content cannot be published");
+        );
       }
-      throwHttpError(
-        409,
-        "This item has already been live - it can only be published immediately",
-      );
-    }
 
-    return {
-      id: result.id,
-      publishedAt: result.published_at?.toISOString() ?? null,
-    };
+      const result = await query
+        .returning(["id", "published_at"])
+        .executeTakeFirst();
+
+      if (!result) {
+        // The item row is locked and passed the archived check, so the
+        // only remaining exclusion is the ever-live scheduling guard.
+        throwHttpError(
+          409,
+          "This item has already been live - it can only be published immediately",
+        );
+      }
+
+      return {
+        id: result.id,
+        publishedAt: result.published_at?.toISOString() ?? null,
+      };
+    });
   };
 }
 
 export function unpublishContent(db: Kysely<DB>) {
   return async (params: { contentId: string; userId: string }) => {
-    const item = await db
-      .selectFrom("content_item")
-      .select(["kind", "status"])
-      .where("id", "=", params.contentId)
-      .executeTakeFirst();
-    if (!item) throwHttpError(404, "Content not found");
-    if (item.status !== "published") {
-      // Only a published item can be unpublished - in particular this
-      // must not offer a back door out of 'archived' (archive ->
-      // unpublish -> publish would resurrect archived content past the
-      // manage-only archive control).
-      throwHttpError(409, "Only published content can be unpublished");
-    }
-
-    // Mirror of the publish rule: pulling a page out from under a
-    // published (or scheduled) child would leave live URLs on a dead
-    // prefix. Unpublish bottom-up.
-    if (item.kind === "page") {
-      const publishedChild = await db
+    // Transaction + FOR UPDATE: the published-children gate must not
+    // race a concurrent child publish. Lock order parent -> child (the
+    // item IS the parent here), consistent with publishContent.
+    return await db.transaction().execute(async (tx) => {
+      const item = await tx
         .selectFrom("content_item")
-        .select("id")
-        .where("parent_id", "=", params.contentId)
-        .where("status", "=", "published")
+        .select(["kind", "status"])
+        .where("id", "=", params.contentId)
+        .forUpdate()
         .executeTakeFirst();
-      if (publishedChild) {
-        throwHttpError(
-          400,
-          "Cannot unpublish a page that has published child pages - unpublish the children first",
-        );
+      if (!item) throwHttpError(404, "Content not found");
+      if (item.status !== "published") {
+        // Only a published item can be unpublished - in particular this
+        // must not offer a back door out of 'archived' (archive ->
+        // unpublish -> publish would resurrect archived content past the
+        // manage-only archive control).
+        throwHttpError(409, "Only published content can be unpublished");
       }
-    }
 
-    // A past published_at is deliberately retained: it marks "ever
-    // published", which locks the slug. A still-future published_at means
-    // a schedule being cancelled before the public ever saw the item, so
-    // the ever-published marker is cleared and the slug unlocks.
-    // Visibility is otherwise governed by status alone.
-    const result = await db
-      .updateTable("content_item")
-      .set({
-        status: "draft",
-        published_at: sql`CASE
-          WHEN published_at > CURRENT_TIMESTAMP THEN NULL
-          ELSE published_at
-        END`,
-        updated_by: params.userId,
-        updated_at: sql`CURRENT_TIMESTAMP`,
-      })
-      .where("id", "=", params.contentId)
-      // Race backstop for the prefetched status check.
-      .where("status", "=", "published")
-      .returning("id")
-      .executeTakeFirst();
+      // Mirror of the publish rule: pulling a page out from under a
+      // published (or scheduled) child would leave live URLs on a dead
+      // prefix. Unpublish bottom-up. (A child publish locks this row
+      // before its own, so holding it already serialises the gate; the
+      // child lock makes the pattern uniform.)
+      if (item.kind === "page") {
+        const publishedChild = await tx
+          .selectFrom("content_item")
+          .select("id")
+          .where("parent_id", "=", params.contentId)
+          .where("status", "=", "published")
+          .forUpdate()
+          .executeTakeFirst();
+        if (publishedChild) {
+          throwHttpError(
+            400,
+            "Cannot unpublish a page that has published child pages - unpublish the children first",
+          );
+        }
+      }
 
-    if (!result) {
-      throwHttpError(409, "Only published content can be unpublished");
-    }
-    return { id: result.id };
+      // A past published_at is deliberately retained: it marks "ever
+      // published", which locks the slug. A still-future published_at
+      // means a schedule being cancelled before the public ever saw the
+      // item, so the ever-published marker is cleared and the slug
+      // unlocks. Visibility is otherwise governed by status alone.
+      const result = await tx
+        .updateTable("content_item")
+        .set({
+          status: "draft",
+          published_at: sql`CASE
+            WHEN published_at > CURRENT_TIMESTAMP THEN NULL
+            ELSE published_at
+          END`,
+          updated_by: params.userId,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", params.contentId)
+        .where("status", "=", "published")
+        .returning("id")
+        .executeTakeFirst();
+
+      if (!result) {
+        throwHttpError(409, "Only published content can be unpublished");
+      }
+      return { id: result.id };
+    });
   };
 }
 
 export function archiveContent(db: Kysely<DB>) {
   return async (params: { contentId: string; userId: string }) => {
-    // Re-archiving must not silently succeed: it would bump
-    // updated_at/updated_by for a no-op, misattributing the archive.
-    const result = await db
-      .updateTable("content_item")
-      .set({
-        status: "archived",
-        updated_by: params.userId,
-        updated_at: sql`CURRENT_TIMESTAMP`,
-      })
-      .where("id", "=", params.contentId)
-      .where("status", "!=", "archived")
-      .returning("id")
-      .executeTakeFirst();
-
-    if (!result) {
-      // Either missing or already archived; disambiguate for a useful
-      // error (same pattern as publishContent).
-      const exists = await db
+    // Same transaction + lock pattern as unpublishContent: the
+    // published-children gate must not race a concurrent child publish.
+    return await db.transaction().execute(async (tx) => {
+      const item = await tx
         .selectFrom("content_item")
-        .select("id")
+        .select(["kind", "status"])
         .where("id", "=", params.contentId)
+        .forUpdate()
         .executeTakeFirst();
-      throwHttpError(
-        exists ? 409 : 404,
-        exists ? "Content is already archived" : "Content not found",
-      );
-    }
-    return { id: result.id };
+      if (!item) throwHttpError(404, "Content not found");
+      if (item.status === "archived") {
+        // Re-archiving must not silently succeed: it would bump
+        // updated_at/updated_by for a no-op, misattributing the archive.
+        throwHttpError(409, "Content is already archived");
+      }
+
+      // Archiving a page over a live child is the unpublish hole in a
+      // different coat: the child's URL would sit on a dead prefix.
+      // Direct children suffice - the publish gate guarantees a
+      // published grandchild implies a published middle page. A DRAFT
+      // child under an archived parent is fine; it just cannot publish
+      // (parent-not-published gate).
+      if (item.kind === "page") {
+        const publishedChild = await tx
+          .selectFrom("content_item")
+          .select("id")
+          .where("parent_id", "=", params.contentId)
+          .where("status", "=", "published")
+          .forUpdate()
+          .executeTakeFirst();
+        if (publishedChild) {
+          throwHttpError(
+            409,
+            "Cannot archive a page that has published child pages - unpublish or archive the children first",
+          );
+        }
+      }
+
+      const result = await tx
+        .updateTable("content_item")
+        .set({
+          status: "archived",
+          updated_by: params.userId,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", params.contentId)
+        .where("status", "!=", "archived")
+        .returning("id")
+        .executeTakeFirst();
+
+      if (!result) {
+        throwHttpError(409, "Content is already archived");
+      }
+      return { id: result.id };
+    });
   };
 }
 
