@@ -20,6 +20,7 @@ import {
   listEventsResponseSchema,
   listNewsQuerySchema,
   listNewsResponseSchema,
+  listPeopleResponseSchema,
   listRevisionsResponseSchema,
   navResponseSchema,
   pageByPathQuerySchema,
@@ -43,6 +44,7 @@ import {
   listPageTree,
   listPublishedEvents,
   listPublishedNews,
+  listPublishedPeople,
   listRevisions,
   publishContent,
   unpublishContent,
@@ -89,6 +91,7 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const publicGameReport = getPublishedGameReport(app.db);
   const publicNews = listPublishedNews(app.db);
   const publicEvents = listPublishedEvents(app.db);
+  const publicPeople = listPublishedPeople(app.db);
   const publicNav = getPublishedNav(app.db);
   const publicPageByPath = getPublishedPageByPath(app.db);
 
@@ -295,12 +298,20 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
+  // 410 = person tombstone: the profile WAS live at this slug but has
+  // been taken down; the SPA must not fall back to its bundled static
+  // version (404 keeps that fallback for never-live slugs). Other kinds
+  // never produce a 410 here.
   app.get(
     "/content/:kind/:slug",
     {
       schema: {
         params: publicContentParamsSchema,
-        response: { 200: publicContentResponseSchema, 304: z.null() },
+        response: {
+          200: publicContentResponseSchema,
+          304: z.null(),
+          410: goneResponseSchema,
+        },
       },
     },
     async (request, reply) => {
@@ -369,6 +380,18 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async () => {
       return await publicEvents();
+    },
+  );
+
+  app.get(
+    "/content/people",
+    {
+      schema: {
+        response: { 200: listPeopleResponseSchema },
+      },
+    },
+    async () => {
+      return await publicPeople();
     },
   );
 

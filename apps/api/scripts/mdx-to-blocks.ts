@@ -574,6 +574,39 @@ export function parsePageSource(source: string): PageSource {
   };
 }
 
+// Mirrors the static people loader's frontmatter handling (apps/web
+// lib/people.ts): name/slug always present, photo is a public
+// "/images/..." path, the safeguarding flags default to false.
+const personFrontmatterSchema = z.object({
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  photo: z.string().min(1).optional(),
+  isDBSChecked: z.boolean().default(false),
+  hasLeftClub: z.boolean().default(false),
+});
+
+export interface PersonSource {
+  name: string;
+  slug: string;
+  photo?: string;
+  isDBSChecked: boolean;
+  hasLeftClub: boolean;
+  body: string;
+}
+
+export function parsePersonSource(source: string): PersonSource {
+  const { raw, body } = splitFrontmatter(source);
+  const fm = personFrontmatterSchema.parse(raw);
+  return {
+    name: fm.name,
+    slug: fm.slug,
+    ...(fm.photo !== undefined && { photo: fm.photo }),
+    isDBSChecked: fm.isDBSChecked,
+    hasLeftClub: fm.hasLeftClub,
+    body,
+  };
+}
+
 // ── Event locations ─────────────────────────────────────────────────────
 
 export interface RawLocation {

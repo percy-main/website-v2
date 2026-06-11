@@ -2,9 +2,11 @@ import {
   eventMetadataSchema,
   newsMetadataSchema,
   pageMetadataSchema,
+  personMetadataSchema,
   type EventMetadata,
   type NewsMetadata,
   type PageMetadata,
+  type PersonMetadata,
 } from "@percy-main/shared/content";
 import { queryOptions } from "@tanstack/react-query";
 import { api, callApi } from "./api-client.js";
@@ -90,6 +92,34 @@ export function eventQueryOptions(slug: string) {
   });
 }
 
+export function personQueryOptions(slug: string) {
+  return queryOptions({
+    queryKey: ["content", "person", slug],
+    queryFn: async () => {
+      try {
+        return await callApi(
+          api.GET("/api/content/{kind}/{slug}", {
+            params: { path: { kind: "person", slug } },
+          }),
+        );
+      } catch (err) {
+        const status = (err as { status?: number }).status;
+        // Never published in the DB - callers fall back to the bundled
+        // MDX.
+        if (status === 404) return null;
+        // Ever-live profile taken down (unpublished/archived). A
+        // terminal data state, not an error: callers render "not found"
+        // without the static fallback - a takedown must not resurrect
+        // the bundled MDX profile (same sentinel as pages).
+        if (status === 410) return PAGE_GONE;
+        throw err;
+      }
+    },
+    staleTime: detailStaleTime,
+    retry: false,
+  });
+}
+
 export function pageByPathQueryOptions(path: string) {
   return queryOptions({
     queryKey: ["content", "page", path],
@@ -164,6 +194,16 @@ export function eventsListQueryOptions() {
   });
 }
 
+// One cached roster backs every person card, grid and picker - resolving
+// cards per-slug would be an N+1 each time a page renders a person grid.
+export function peopleListQueryOptions() {
+  return queryOptions({
+    queryKey: ["content", "people-list"],
+    queryFn: () => callApi(api.GET("/api/content/people")),
+    staleTime: STALE_TIME,
+  });
+}
+
 // The generated OpenAPI types carry metadata as a loose record; the shared
 // Zod schemas are the source of truth for each kind's shape, so narrow
 // through them rather than asserting.
@@ -182,5 +222,12 @@ export function parseEventMetadata(
 
 export function parsePageMetadata(metadata: unknown): PageMetadata | undefined {
   const parsed = pageMetadataSchema.safeParse(metadata);
+  return parsed.success ? parsed.data : undefined;
+}
+
+export function parsePersonMetadata(
+  metadata: unknown,
+): PersonMetadata | undefined {
+  const parsed = personMetadataSchema.safeParse(metadata);
   return parsed.success ? parsed.data : undefined;
 }

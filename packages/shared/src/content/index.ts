@@ -180,9 +180,10 @@ export const newsTagSchema = z.string().min(1).max(100);
 
 export const newsMetadataSchema = z.object({
   tags: z.array(newsTagSchema),
-  // References the static people corpus, which stays as MDX in the web
-  // app until Phase 4 - so only the format is validated here. The admin
-  // UI's people picker is what ties the slug to a real person.
+  // References a person by slug (the DB-backed person kind as of Phase 4,
+  // with the static corpus as transition fallback) - only the format is
+  // validated here. The admin UI's people picker is what ties the slug
+  // to a real person.
   authorSlug: contentSlugSchema.optional(),
 });
 export type NewsMetadata = z.infer<typeof newsMetadataSchema>;

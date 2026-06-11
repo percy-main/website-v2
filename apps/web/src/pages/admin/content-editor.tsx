@@ -58,11 +58,11 @@ import { useHasPermission } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
 import { uploadContentImage } from "@/lib/content-images.js";
-import { getAllPeople } from "@/lib/people.js";
 import {
   parsePersonGridEntries,
   type PersonGridEntry,
 } from "@/lib/person-grid.js";
+import { usePeopleList } from "@/lib/use-people.js";
 import {
   CONTENT_KIND_RESOURCES,
   contentBodySchema,
@@ -91,6 +91,39 @@ import {
 // maps them 1:1. Each block renders the real public component read-only
 // in-editor, with minimal prop controls underneath.
 
+/**
+ * Single-person picker over the merged roster (DB-backed people first,
+ * static corpus filling the gaps during the migration transition). A
+ * component of its own so the roster hook lives outside the block-spec
+ * render functions.
+ */
+function PersonSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (slug: string) => void;
+}) {
+  const people = usePeopleList();
+  return (
+    <select
+      aria-label="Person"
+      value={value}
+      onChange={(e) => {
+        onChange(e.target.value);
+      }}
+      className="rounded border border-stone-300 bg-white p-1 text-sm"
+    >
+      <option value="">Choose a person…</option>
+      {people.map((p) => (
+        <option key={p.slug} value={p.slug}>
+          {p.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 const personBlock = createReactBlockSpec(
   {
     type: CUSTOM_BLOCK_TYPES.person,
@@ -113,23 +146,14 @@ const personBlock = createReactBlockSpec(
         ) : (
           <p className="text-sm text-stone-500">Choose a person…</p>
         )}
-        <select
-          aria-label="Person"
+        <PersonSelect
           value={block.props.slug}
-          onChange={(e) => {
+          onChange={(slug) => {
             editor.updateBlock(block, {
-              props: { ...block.props, slug: e.target.value },
+              props: { ...block.props, slug },
             });
           }}
-          className="rounded border border-stone-300 bg-white p-1 text-sm"
-        >
-          <option value="">Choose a person…</option>
-          {getAllPeople().map((p) => (
-            <option key={p.slug} value={p.slug}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+        />
         <input
           aria-label="Role shown on the card"
           placeholder="Role (optional)"
@@ -364,9 +388,6 @@ const personGridBlock = createReactBlockSpec(
           const trimmed = s.trim();
           return trimmed ? [{ slug: trimmed }] : [];
         });
-      const allPeople = getAllPeople();
-      const nameOf = (slug: string) =>
-        allPeople.find((p) => p.slug === slug)?.name ?? slug;
       const write = (next: PersonGridEntry[]) => {
         editor.updateBlock(block, {
           props: {
@@ -394,61 +415,82 @@ const personGridBlock = createReactBlockSpec(
           ) : (
             <p className="text-sm text-stone-500">Choose people to display…</p>
           )}
-          <div className="flex flex-col gap-1">
-            <p className="text-xs text-stone-500">
-              Select people (hold Ctrl/Cmd to pick multiple):
-            </p>
-            <select
-              aria-label="People"
-              multiple
-              size={Math.min(allPeople.length, 6)}
-              value={entries.map((e) => e.slug)}
-              onChange={(e) => {
-                const chosen = Array.from(e.target.selectedOptions).map(
-                  (o) => o.value,
-                );
-                // People who stay selected keep their role; newly
-                // selected people start role-less.
-                write(
-                  chosen.map(
-                    (slug) =>
-                      entries.find((entry) => entry.slug === slug) ?? { slug },
-                  ),
-                );
-              }}
-              className="rounded border border-stone-300 bg-white p-1 text-sm"
-            >
-              {allPeople.map((p) => (
-                <option key={p.slug} value={p.slug}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {entries.map((entry, i) => (
-            <input
-              key={`${entry.slug}-${String(i)}`}
-              aria-label={`Role shown for ${nameOf(entry.slug)}`}
-              placeholder={`Role for ${nameOf(entry.slug)} (optional)`}
-              value={entry.role ?? ""}
-              onChange={(e) => {
-                const role = e.target.value;
-                write(
-                  entries.map((current, j) =>
-                    j === i
-                      ? { slug: current.slug, ...(role !== "" && { role }) }
-                      : current,
-                  ),
-                );
-              }}
-              className="rounded border border-stone-300 bg-white p-1 text-sm"
-            />
-          ))}
+          <PersonGridControls entries={entries} onWrite={write} />
         </div>
       );
     },
   },
 );
+
+/**
+ * The grid block's people controls, a component of its own so the merged
+ * roster hook lives outside the block-spec render function.
+ */
+function PersonGridControls({
+  entries,
+  onWrite,
+}: {
+  entries: PersonGridEntry[];
+  onWrite: (next: PersonGridEntry[]) => void;
+}) {
+  const allPeople = usePeopleList();
+  const nameOf = (slug: string) =>
+    allPeople.find((p) => p.slug === slug)?.name ?? slug;
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        <p className="text-xs text-stone-500">
+          Select people (hold Ctrl/Cmd to pick multiple):
+        </p>
+        <select
+          aria-label="People"
+          multiple
+          size={Math.min(allPeople.length, 6)}
+          value={entries.map((e) => e.slug)}
+          onChange={(e) => {
+            const chosen = Array.from(e.target.selectedOptions).map(
+              (o) => o.value,
+            );
+            // People who stay selected keep their role; newly
+            // selected people start role-less.
+            onWrite(
+              chosen.map(
+                (slug) =>
+                  entries.find((entry) => entry.slug === slug) ?? { slug },
+              ),
+            );
+          }}
+          className="rounded border border-stone-300 bg-white p-1 text-sm"
+        >
+          {allPeople.map((p) => (
+            <option key={p.slug} value={p.slug}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      {entries.map((entry, i) => (
+        <input
+          key={`${entry.slug}-${String(i)}`}
+          aria-label={`Role shown for ${nameOf(entry.slug)}`}
+          placeholder={`Role for ${nameOf(entry.slug)} (optional)`}
+          value={entry.role ?? ""}
+          onChange={(e) => {
+            const role = e.target.value;
+            onWrite(
+              entries.map((current, j) =>
+                j === i
+                  ? { slug: current.slug, ...(role !== "" && { role }) }
+                  : current,
+              ),
+            );
+          }}
+          className="rounded border border-stone-300 bg-white p-1 text-sm"
+        />
+      ))}
+    </>
+  );
+}
 
 const leagueTableBlock = createReactBlockSpec(
   {
@@ -1257,7 +1299,7 @@ function AuthorSelect({
   value: string;
   onChange: (slug: string) => void;
 }) {
-  const people = getAllPeople().sort((a, b) => a.name.localeCompare(b.name));
+  const people = usePeopleList();
   return (
     <Select
       value={value === "" ? NO_AUTHOR : value}

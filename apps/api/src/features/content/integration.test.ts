@@ -956,6 +956,95 @@ describe("content service (integration)", () => {
       });
       expect(res.statusCode).toBe(401);
     });
+
+    it("the public roster lists published people only, title-ordered", async () => {
+      // One published (from the lifecycle test) + the draft fixture. Add
+      // a second published person to assert ordering.
+      const { id } = await createContent(ctx.db)({
+        kind: "person",
+        slug: "aaron-aardvark",
+        title: "Aaron Aardvark",
+        description: null,
+        body: body("First alphabetically."),
+        metadata: { isDBSChecked: false, hasLeftClub: true },
+        userId,
+      });
+      await publishContent(ctx.db)({ contentId: id, userId });
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/content/people",
+      });
+      expect(res.statusCode).toBe(200);
+      const { items } = res.json<{
+        items: Array<{
+          slug: string;
+          title: string;
+          metadata: Record<string, unknown>;
+        }>;
+      }>();
+      const slugs = items.map((i) => i.slug);
+      expect(slugs).toContain("aaron-aardvark");
+      expect(slugs).toContain("edith-example");
+      // The draft fixture stays out of the public roster
+      expect(slugs).not.toContain("boundary-fixture");
+      // Title-ordered
+      expect(slugs.indexOf("aaron-aardvark")).toBeLessThan(
+        slugs.indexOf("edith-example"),
+      );
+      // Metadata is projected through the person schema
+      const aaron = items.find((i) => i.slug === "aaron-aardvark");
+      expect(aaron?.metadata).toEqual({
+        isDBSChecked: false,
+        hasLeftClub: true,
+      });
+    });
+
+    it("tombstones a taken-down profile: 410 by slug, listed in removed", async () => {
+      // The SPA falls back to its bundled static profile on 404, so a
+      // takedown (safeguarding-relevant for people) must not read as
+      // "missing" - same rule as the page by-path tombstone.
+      const { id } = await createContent(ctx.db)({
+        kind: "person",
+        slug: "tomb-person",
+        title: "Tomb Person",
+        description: null,
+        body: body("Was live."),
+        metadata: {},
+        userId,
+      });
+      await publishContent(ctx.db)({ contentId: id, userId });
+      await unpublishContent(ctx.db)({ contentId: id, userId });
+
+      const bySlug = await app.inject({
+        method: "GET",
+        url: "/api/content/person/tomb-person",
+      });
+      expect(bySlug.statusCode).toBe(410);
+      expect(bySlug.json()).toEqual({
+        error: "This profile has been removed",
+      });
+      expect(bySlug.headers.etag).toBeUndefined();
+
+      const roster = await app.inject({
+        method: "GET",
+        url: "/api/content/people",
+      });
+      const { items, removed } = roster.json<{
+        items: Array<{ slug: string }>;
+        removed: string[];
+      }>();
+      expect(removed).toContain("tomb-person");
+      expect(items.map((i) => i.slug)).not.toContain("tomb-person");
+
+      // Never-live drafts stay 404 and out of removed - they leak nothing
+      const draft = await app.inject({
+        method: "GET",
+        url: "/api/content/person/boundary-fixture",
+      });
+      expect(draft.statusCode).toBe(404);
+      expect(removed).not.toContain("boundary-fixture");
+    });
   });
 
   describe("page hierarchy", () => {

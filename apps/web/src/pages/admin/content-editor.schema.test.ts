@@ -55,6 +55,10 @@ vi.mock("@/lib/people.js", () => ({
   getAllPeople: () => [],
   getPersonBySlug: () => undefined,
 }));
+vi.mock("@/lib/use-people.js", () => ({
+  usePeople: () => new Map<string, never>(),
+  usePeopleList: () => [],
+}));
 vi.mock("@/lib/image-map.js", () => ({
   getImageUrl: () => undefined,
   getPicture: () => undefined,

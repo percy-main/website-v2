@@ -225,6 +225,22 @@ export const listEventsResponseSchema = z.object({
   items: z.array(publicListItemSchema),
 });
 
+/**
+ * All published people, title-ordered. Backs person cards/grids, the
+ * public profile index and the editor's people pickers from a single
+ * cached request (~55 rows sitewide, so no pagination).
+ */
+export const listPeopleResponseSchema = z.object({
+  items: z.array(publicListItemSchema),
+  /**
+   * Tombstoned slugs: people who were publicly live but are no longer
+   * visible (unpublished/archived after going live). The SPA drops
+   * matching entries from its bundled static corpus so a takedown does
+   * not resurrect the stale static profile (same pattern as nav.removed).
+   */
+  removed: z.array(z.string()),
+});
+
 // ── Public: pages (nav + by-path) ───────────────────────────────────────
 
 /**

@@ -14,6 +14,7 @@ import {
   parseEventSource,
   parseNewsSource,
   parsePageSource,
+  parsePersonSource,
   resolveLocation,
   segmentMdx,
   type ResolveContentImage,
@@ -740,6 +741,64 @@ describe("parseEventSource", () => {
     );
     expect(parsed.finish).toBeUndefined();
     expect(parsed.location).toBeUndefined();
+  });
+});
+
+describe("parsePersonSource", () => {
+  it("parses full frontmatter", () => {
+    const parsed = parsePersonSource(
+      [
+        "---",
+        "name: Alex Young",
+        "slug: alex-young",
+        "photo: /images/contentful/abc/photo.jpeg",
+        "isDBSChecked: true",
+        "hasLeftClub: false",
+        "---",
+        "",
+        "Bio text.",
+      ].join("\n"),
+    );
+    expect(parsed).toEqual({
+      name: "Alex Young",
+      slug: "alex-young",
+      photo: "/images/contentful/abc/photo.jpeg",
+      isDBSChecked: true,
+      hasLeftClub: false,
+      body: "Bio text.",
+    });
+  });
+
+  it("defaults the flags and treats the photo as optional, like the static loader", () => {
+    const parsed = parsePersonSource(
+      ["---", "name: Aaditya Kapil", "slug: aaditya-kapil", "---"].join("\n"),
+    );
+    expect(parsed).toEqual({
+      name: "Aaditya Kapil",
+      slug: "aaditya-kapil",
+      isDBSChecked: false,
+      hasLeftClub: false,
+      body: "",
+    });
+  });
+
+  it("rejects missing required fields", () => {
+    expect(() =>
+      parsePersonSource(["---", "slug: x", "---", "Bio."].join("\n")),
+    ).toThrow();
+    expect(() =>
+      parsePersonSource(["---", "name: X", "---", "Bio."].join("\n")),
+    ).toThrow();
+  });
+
+  it("rejects non-boolean flags rather than coercing", () => {
+    expect(() =>
+      parsePersonSource(
+        ["---", "name: X", "slug: x", "isDBSChecked: yes please", "---"].join(
+          "\n",
+        ),
+      ),
+    ).toThrow();
   });
 });
 

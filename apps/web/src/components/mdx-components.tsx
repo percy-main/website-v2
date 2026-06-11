@@ -12,7 +12,7 @@ import {
   CURRENT_CONSENT_VERSION,
   requestConsentReopen,
 } from "@/lib/marketing/consent.js";
-import { getPersonBySlug } from "@/lib/people.js";
+import { usePeople } from "@/lib/use-people.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
@@ -32,9 +32,12 @@ function RecordsWall() {
 }
 
 function Person({ slug, role }: { slug: string; role?: string }) {
-  const person = getPersonBySlug(slug);
+  // Merged roster: DB-backed people first, bundled MDX corpus as the
+  // per-slug fallback during the migration transition (#499). One cached
+  // list query serves every card on the page.
+  const person = usePeople().get(slug);
   const name = person?.name ?? slug;
-  const picture = person?.photoPicture ?? ANON_PICTURE;
+  const picture = person?.picture ?? ANON_PICTURE;
 
   return (
     <div className="person h-full rounded-lg bg-white pb-4 text-stone-900 shadow-md">
@@ -50,7 +53,7 @@ function Person({ slug, role }: { slug: string; role?: string }) {
         ) : (
           <img
             className="size-24 object-cover object-center"
-            src={person?.photo ?? ANON_IMAGE}
+            src={person?.photoUrl ?? ANON_IMAGE}
             alt={name}
           />
         )}

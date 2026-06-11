@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import { resizeLogo } from "@/lib/logo-resize";
-import { getAllPeople } from "@/lib/people";
+import { usePeopleList } from "@/lib/use-people";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useReducer, useRef, useState } from "react";
 import {
@@ -62,9 +62,11 @@ function PlayerSelect({
   const [query, setQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const available = getAllPeople()
-    .filter((p) => !p.hasLeftClub && !takenSlugs.has(p.slug))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  // Merged roster (DB-backed first, static fallback). Same semantics as
+  // the static loader: people who have left the club are not sponsorable.
+  const available = usePeopleList().filter(
+    (p) => !p.hasLeftClub && !takenSlugs.has(p.slug),
+  );
 
   const filtered = query.trim()
     ? available.filter((p) =>
