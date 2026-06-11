@@ -84,6 +84,12 @@ import {
   eligibleParents,
   visibleNodes,
 } from "./pages-tab.lib.js";
+import {
+  blocksToLines,
+  detailLines,
+  diffLines,
+  type DiffLine,
+} from "./revision-diff.js";
 
 // ── Custom blocks ───────────────────────────────────────────────────────
 //
@@ -1010,23 +1016,19 @@ function formatUkTime(iso: string): string {
 }
 
 /**
- * Hydrate per-kind fields from stored metadata. Defensive on purpose:
- * stored JSON may predate the current schema, so anything malformed
- * degrades to the field default rather than crashing the editor.
+ * Hydrate per-kind form fields from stored metadata. Defensive on
+ * purpose: stored JSON may predate the current schema, so anything
+ * malformed degrades to the field default rather than crashing the
+ * editor. Shared by the initial load and revision restore (#500).
  */
-function initialForm(
-  item: ContentItemDetail | null,
-  newParentId: string | null,
-): FormState {
-  const metadata = item?.metadata ?? {};
+function metadataFormFields(
+  metadata: Record<string, unknown>,
+): Omit<FormState, "title" | "slug" | "description" | "parentId"> {
   const location =
     typeof metadata.location === "object" && metadata.location !== null
       ? (metadata.location as Record<string, unknown>)
       : null;
   return {
-    title: item?.title ?? "",
-    slug: item?.slug ?? "",
-    description: item?.description ?? "",
     playCricketId: asString(metadata.playCricketId),
     menuOrder: asNumberString(metadata.menuOrder) || "99",
     isMainMenu: metadata.isMainMenu === true,
@@ -1035,7 +1037,6 @@ function initialForm(
       typeof metadata.ldjson === "object" && metadata.ldjson !== null
         ? JSON.stringify(metadata.ldjson, null, 2)
         : "",
-    parentId: item !== null ? item.parentId : newParentId,
     tags: Array.isArray(metadata.tags)
       ? metadata.tags.filter(
           (tag): tag is string => typeof tag === "string" && tag !== "",
@@ -1054,6 +1055,19 @@ function initialForm(
     isDBSChecked: metadata.isDBSChecked === true,
     hasLeftClub: metadata.hasLeftClub === true,
     photo: parsePictureValue(metadata.photo),
+  };
+}
+
+function initialForm(
+  item: ContentItemDetail | null,
+  newParentId: string | null,
+): FormState {
+  return {
+    title: item?.title ?? "",
+    slug: item?.slug ?? "",
+    description: item?.description ?? "",
+    parentId: item !== null ? item.parentId : newParentId,
+    ...metadataFormFields(item?.metadata ?? {}),
   };
 }
 
@@ -2179,6 +2193,278 @@ function ConsentBox({
   );
 }
 
+// ── Revision history (#500) ─────────────────────────────────────────────
+
+type RevisionDetail =
+  paths["/api/admin/content/{contentId}/revisions/{revisionId}"]["get"]["responses"][200]["content"]["application/json"];
+
+function DiffView({ lines }: { lines: DiffLine[] }) {
+  if (lines.length === 0 || lines.every((line) => line.type === "same")) {
+    return <p className="text-sm text-stone-500">No differences.</p>;
+  }
+  return (
+    <div className="max-h-72 overflow-auto rounded border border-stone-200 bg-white p-2 font-mono text-xs whitespace-pre-wrap">
+      {/* Index keys are safe here: the diff is a pure projection of
+          immutable data, rebuilt whole whenever either side changes. */}
+      {lines.map((line, i) => (
+        <div
+          key={`diff-${String(i)}`}
+          className={
+            line.type === "removed"
+              ? "bg-red-50 text-red-700"
+              : line.type === "added"
+                ? "bg-green-50 text-green-700"
+                : "text-stone-600"
+          }
+        >
+          {line.type === "removed" ? "- " : line.type === "added" ? "+ " : "  "}
+          {line.text || " "}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RevisionDialog({
+  item,
+  revisionId,
+  canRestore,
+  onRestore,
+  onClose,
+}: {
+  item: ContentItemDetail;
+  revisionId: string;
+  canRestore: boolean;
+  onRestore: (revision: RevisionDetail) => void;
+  onClose: () => void;
+}) {
+  const {
+    data: revision,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["admin", "content", "revision", item.id, revisionId],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/content/{contentId}/revisions/{revisionId}", {
+          params: { path: { contentId: item.id, revisionId } },
+        }),
+      ),
+  });
+
+  // Both diffs read "this version -> latest saved version": red lines
+  // exist only in this version (restore brings them back), green lines
+  // were added since. Unsaved editor changes are not part of either side.
+  const bodyDiff = useMemo(
+    () =>
+      revision
+        ? diffLines(blocksToLines(revision.body), blocksToLines(item.body))
+        : [],
+    [revision, item.body],
+  );
+  const detailsDiff = useMemo(
+    () =>
+      revision
+        ? diffLines(
+            detailLines(revision),
+            detailLines({
+              title: item.title,
+              description: item.description,
+              metadata: item.metadata,
+            }),
+          )
+        : [],
+    [revision, item],
+  );
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            {revision
+              ? `Version from ${formatUkTime(revision.savedAt)}`
+              : "Version"}
+          </DialogTitle>
+          <DialogDescription>
+            Compared with the latest saved version:{" "}
+            <span className="text-red-700">- only in this version</span>,{" "}
+            <span className="text-green-700">+ added since</span>. Restoring
+            copies this version into the editor - nothing changes until you
+            save.
+          </DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <p className="text-sm text-red-600">
+            Couldn&apos;t load this version - {error.message}
+          </p>
+        ) : isLoading || !revision ? (
+          <p className="text-sm text-stone-500">Loading…</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {revision.savedByName && (
+              <p className="text-sm text-stone-600">
+                Saved by {revision.savedByName}
+              </p>
+            )}
+            <div>
+              <h4 className="mb-1 text-sm font-medium">Content</h4>
+              <DiffView lines={bodyDiff} />
+            </div>
+            <div>
+              <h4 className="mb-1 text-sm font-medium">Details</h4>
+              <DiffView lines={detailsDiff} />
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+          {canRestore && revision && (
+            <Button
+              onClick={() => {
+                onRestore(revision);
+                onClose();
+              }}
+            >
+              Restore this version
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function HistoryCard({
+  item,
+  canRestore,
+  onRestore,
+}: {
+  item: ContentItemDetail;
+  canRestore: boolean;
+  onRestore: (revision: RevisionDetail) => void;
+}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["admin", "content", "revisions", item.id],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/content/{contentId}/revisions", {
+          params: { path: { contentId: item.id } },
+        }),
+      ),
+  });
+  const [openRevisionId, setOpenRevisionId] = useState<string | null>(null);
+  const revisions = data?.revisions ?? [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">History</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        {error ? (
+          <p className="text-sm text-red-600">
+            Couldn&apos;t load history - {error.message}
+          </p>
+        ) : isLoading ? (
+          <p className="text-sm text-stone-500">Loading…</p>
+        ) : (
+          <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto">
+            {revisions.map((rev, i) => (
+              <li key={rev.id}>
+                <button
+                  type="button"
+                  className="w-full rounded px-1 py-1 text-left hover:bg-stone-100"
+                  onClick={() => {
+                    setOpenRevisionId(rev.id);
+                  }}
+                >
+                  <span className="block text-sm">
+                    {formatUkTime(rev.savedAt)}
+                    {i === 0 ? " (latest)" : ""}
+                  </span>
+                  <span className="block text-xs text-stone-500">
+                    {rev.savedByName ?? "Unknown"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-stone-500">
+          Every save keeps the previous version here, so nothing is ever lost.
+          Open one to compare or restore it.
+        </p>
+      </CardContent>
+      {openRevisionId !== null && (
+        <RevisionDialog
+          item={item}
+          revisionId={openRevisionId}
+          canRestore={canRestore}
+          onRestore={onRestore}
+          onClose={() => {
+            setOpenRevisionId(null);
+          }}
+        />
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Copy a revision into the working draft (#500): the editor and form
+ * take the revision's body/metadata, and nothing persists until the
+ * author saves - which writes a NEW revision, so the timeline stays
+ * append-only and history is never rewritten. Slug and (for pages)
+ * parent are not part of a revision and stay as they are. Restoring
+ * never changes publish status.
+ */
+function useRevisionRestore({
+  editor,
+  setForm,
+  dirtyRef,
+}: {
+  editor: Editor;
+  setForm: React.Dispatch<React.SetStateAction<FormState>>;
+  dirtyRef: React.RefObject<boolean>;
+}) {
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
+
+  const restoreRevision = (revision: RevisionDetail) => {
+    editor.replaceBlocks(
+      editor.document,
+      revision.body.length > 0
+        ? (revision.body as PartialBlock[])
+        : [{ type: "paragraph" }],
+    );
+    setForm((prev) => ({
+      ...prev,
+      title: revision.title,
+      description: revision.description ?? "",
+      ...metadataFormFields(revision.metadata),
+    }));
+    dirtyRef.current = true;
+    setRestoreNotice(
+      `Restored the version from ${formatUkTime(revision.savedAt)} - review it, then save to keep it.`,
+    );
+  };
+
+  return {
+    restoreNotice,
+    clearRestoreNotice: () => {
+      setRestoreNotice(null);
+    },
+    restoreRevision,
+  };
+}
+
 function EditorPane({
   editor,
   slashItems,
@@ -2300,6 +2586,9 @@ function LoadedEditor({
   const editorBody = () =>
     contentBodySchema.parse(JSON.parse(JSON.stringify(editor.document)));
 
+  const { restoreNotice, clearRestoreNotice, restoreRevision } =
+    useRevisionRestore({ editor, setForm, dirtyRef });
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const body = editorBody();
@@ -2343,6 +2632,7 @@ function LoadedEditor({
     },
     onSuccess: (result) => {
       dirtyRef.current = false;
+      clearRestoreNotice();
       setLastSavedAt(new Date().toISOString());
       void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
       // Saving a published item changes the live page immediately; drop
@@ -2474,6 +2764,10 @@ function LoadedEditor({
         </p>
       )}
 
+      {restoreNotice && (
+        <p className="text-sm text-amber-700">{restoreNotice}</p>
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="flex flex-col gap-3 lg:col-span-1">
           <MetadataFields
@@ -2491,6 +2785,13 @@ function LoadedEditor({
               canPublish={canPublish}
               canManage={canManage}
               beforePublish={() => saveMutation.mutateAsync()}
+            />
+          )}
+          {item !== null && (
+            <HistoryCard
+              item={item}
+              canRestore={canSave}
+              onRestore={restoreRevision}
             />
           )}
           <ConsentBox

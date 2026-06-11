@@ -157,6 +157,28 @@ export const listRevisionsResponseSchema = z.object({
   ),
 });
 
+export const revisionIdParamSchema = z.object({
+  contentId: z.uuid(),
+  revisionId: z.uuid(),
+});
+
+/**
+ * One revision in full - body and metadata included - for the history
+ * UI's diff and restore (#500). Slug/parent are not part of a revision:
+ * they identify the item rather than its content, and restoring must
+ * never bypass the slug/path locks.
+ */
+export const revisionDetailResponseSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  body: contentBodyTransportSchema,
+  metadata: contentMetadataSchema,
+  savedAt: z.string(),
+  savedBy: z.string(),
+  savedByName: z.string().nullable(),
+});
+
 // ── Public ──────────────────────────────────────────────────────────────
 
 export const publicContentParamsSchema = z.object({

@@ -20,6 +20,7 @@ import {
   getContent,
   getPublishedContent,
   getPublishedGameReport,
+  getRevision,
   listContent,
   listPageTree,
   listPublishedEvents,
@@ -162,6 +163,60 @@ describe("content service (integration)", () => {
     // Publishing again without a date keeps the original live-from time
     const again = await publishContent(ctx.db)({ contentId: id, userId });
     expect(again.publishedAt).toBe(past);
+  });
+
+  it("serves a single revision in full for diff/restore (#500)", async () => {
+    const { id } = await createContent(ctx.db)({
+      kind: "game_report",
+      slug: "rev-detail",
+      title: "Rev detail",
+      description: null,
+      body: body("Original paragraph."),
+      metadata: { playCricketId: "999111" },
+      userId,
+    });
+    await updateContent(ctx.db)({
+      contentId: id,
+      title: "Rev detail v2",
+      body: body("Edited paragraph."),
+      userId,
+    });
+
+    const { revisions } = await listRevisions(ctx.db)(id);
+    expect(revisions).toHaveLength(2);
+    const creation = revisions[1];
+    if (!creation) throw new Error("expected the creation revision");
+
+    // The creation revision carries the full pre-edit state - exactly
+    // what restore copies back into the editor.
+    const detail = await getRevision(ctx.db)({
+      contentId: id,
+      revisionId: creation.id,
+    });
+    expect(detail.title).toBe("Rev detail");
+    expect(detail.metadata).toEqual({ playCricketId: "999111" });
+    expect(detail.body).toMatchObject([
+      { content: [{ text: "Original paragraph." }] },
+    ]);
+
+    // A revision is only reachable under its own item's id - the route
+    // gates permissions on the item's kind, so cross-item reads would
+    // bypass the per-kind model.
+    const other = await createContent(ctx.db)({
+      kind: "game_report",
+      slug: "rev-detail-other",
+      title: "Other",
+      description: null,
+      body: body("Other."),
+      metadata: { playCricketId: "999112" },
+      userId,
+    });
+    await expect(
+      getRevision(ctx.db)({ contentId: other.id, revisionId: creation.id }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(
+      getRevision(ctx.db)({ contentId: id, revisionId: crypto.randomUUID() }),
+    ).rejects.toMatchObject({ statusCode: 404 });
   });
 
   it("enforces per-kind slug uniqueness on create", async () => {
@@ -838,7 +893,25 @@ describe("content service (integration)", () => {
         headers: { cookie: peopleEditor },
       });
       expect(revs.statusCode).toBe(200);
-      expect(revs.json<{ revisions: unknown[] }>().revisions).toHaveLength(2);
+      const { revisions } = revs.json<{
+        revisions: Array<{ id: string }>;
+      }>();
+      expect(revisions).toHaveLength(2);
+
+      // The single-revision endpoint (#500) returns the full pre-edit
+      // state for diff/restore - the creation revision still has the
+      // DBS flag unticked.
+      const creation = revisions[1];
+      if (!creation) throw new Error("expected the creation revision");
+      const detail = await app.inject({
+        method: "GET",
+        url: `/api/admin/content/${id}/revisions/${creation.id}`,
+        headers: { cookie: peopleEditor },
+      });
+      expect(detail.statusCode).toBe(200);
+      expect(
+        detail.json<{ metadata: Record<string, unknown> }>().metadata,
+      ).toEqual({ isDBSChecked: false, hasLeftClub: false });
     });
 
     it.each([
@@ -885,6 +958,13 @@ describe("content service (integration)", () => {
           app.inject({
             method: "GET",
             url: `/api/admin/content/${fixtureId}/revisions`,
+            headers: { cookie },
+          }),
+          // Permission check precedes the revision lookup, so a random
+          // revision id still proves the 403 boundary.
+          app.inject({
+            method: "GET",
+            url: `/api/admin/content/${fixtureId}/revisions/${crypto.randomUUID()}`,
             headers: { cookie },
           }),
         ];

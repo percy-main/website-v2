@@ -13716,6 +13716,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/content/{contentId}/revisions/{revisionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contentId: string;
+                    revisionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            title: string;
+                            description: string | null;
+                            body: {
+                                id: string;
+                                type: string;
+                                props: {
+                                    [key: string]: string | number | boolean;
+                                };
+                                content?: unknown;
+                                children: unknown[];
+                            }[];
+                            metadata: {
+                                [key: string]: unknown;
+                            };
+                            savedAt: string;
+                            savedBy: string;
+                            savedByName: string | null;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/content/game-report/by-play-cricket-id/{playCricketId}": {
         parameters: {
             query?: never;
