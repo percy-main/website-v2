@@ -1,8 +1,10 @@
 import {
   eventMetadataSchema,
   newsMetadataSchema,
+  pageMetadataSchema,
   type EventMetadata,
   type NewsMetadata,
+  type PageMetadata,
 } from "@percy-main/shared/content";
 import { queryOptions } from "@tanstack/react-query";
 import { api, callApi } from "./api-client.js";
@@ -70,6 +72,45 @@ export function eventQueryOptions(slug: string) {
   });
 }
 
+export function pageByPathQueryOptions(path: string) {
+  return queryOptions({
+    queryKey: ["content", "page", path],
+    queryFn: async () => {
+      try {
+        return await callApi(
+          api.GET("/api/content/page/by-path", {
+            params: { query: { path } },
+          }),
+        );
+      } catch (err) {
+        // Not published in the DB - callers fall back to the bundled MDX.
+        if ((err as { status?: number }).status === 404) return null;
+        throw err;
+      }
+    },
+    staleTime: detailStaleTime,
+    retry: false,
+  });
+}
+
+// The nav list backs the site header and every content-page sidebar, so
+// it is cached aggressively: the shared STALE_TIME bounds visible
+// staleness, while a generous gcTime keeps the last good list around for
+// instant SPA navigations long after the query unmounts. Retries stay at
+// the react-query default (like the list queries above) - consumers
+// degrade to the static-only nav while the query is pending or failed,
+// so nav never breaks on API trouble.
+const NAV_GC_TIME = 24 * 60 * 60 * 1000;
+
+export function navQueryOptions() {
+  return queryOptions({
+    queryKey: ["content", "nav"],
+    queryFn: () => callApi(api.GET("/api/content/nav")),
+    staleTime: STALE_TIME,
+    gcTime: NAV_GC_TIME,
+  });
+}
+
 export function newsListQueryOptions(params: { tag?: string; page: number }) {
   return queryOptions({
     queryKey: ["content", "news-list", params.tag ?? null, params.page],
@@ -110,5 +151,10 @@ export function parseEventMetadata(
   metadata: unknown,
 ): EventMetadata | undefined {
   const parsed = eventMetadataSchema.safeParse(metadata);
+  return parsed.success ? parsed.data : undefined;
+}
+
+export function parsePageMetadata(metadata: unknown): PageMetadata | undefined {
+  const parsed = pageMetadataSchema.safeParse(metadata);
   return parsed.success ? parsed.data : undefined;
 }

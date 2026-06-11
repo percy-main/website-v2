@@ -680,4 +680,342 @@ describe("content service (integration)", () => {
       }
     });
   });
+
+  describe("page hierarchy", () => {
+    const mkPage = async (
+      slug: string,
+      opts: {
+        parentId?: string | null;
+        metadata?: Record<string, unknown>;
+      } = {},
+    ) => {
+      const { id } = await createContent(ctx.db)({
+        kind: "page",
+        slug,
+        title: `Page ${slug}`,
+        description: null,
+        body: body(slug),
+        metadata: opts.metadata ?? {},
+        parentId: opts.parentId ?? null,
+        userId,
+      });
+      return id;
+    };
+
+    const pathOf = async (id: string) => (await getContent(ctx.db)(id)).path;
+
+    it("computes materialised paths and cascades pre-publish renames and moves", async () => {
+      const parent = await mkPage("cricket");
+      const child = await mkPage("juniors", { parentId: parent });
+      const grandchild = await mkPage("coaches", { parentId: child });
+
+      expect(await pathOf(parent)).toBe("/cricket");
+      expect(await pathOf(child)).toBe("/cricket/juniors");
+      expect(await pathOf(grandchild)).toBe("/cricket/juniors/coaches");
+
+      // Hierarchy fields surface in the admin detail/summary shape
+      const detail = await getContent(ctx.db)(child);
+      expect(detail.parentId).toBe(parent);
+      expect(detail.menuOrder).toBe(99);
+
+      // A pre-publish rename cascades through every descendant
+      await updateContent(ctx.db)({
+        contentId: parent,
+        slug: "playing",
+        userId,
+      });
+      expect(await pathOf(parent)).toBe("/playing");
+      expect(await pathOf(child)).toBe("/playing/juniors");
+      expect(await pathOf(grandchild)).toBe("/playing/juniors/coaches");
+
+      // Reparent: move the grandchild up a level, then to the site root
+      await updateContent(ctx.db)({
+        contentId: grandchild,
+        parentId: parent,
+        userId,
+      });
+      expect(await pathOf(grandchild)).toBe("/playing/coaches");
+      await updateContent(ctx.db)({
+        contentId: grandchild,
+        parentId: null,
+        userId,
+      });
+      expect(await pathOf(grandchild)).toBe("/coaches");
+
+      // Cycle prevention: self and descendant parents are rejected
+      await expect(
+        updateContent(ctx.db)({ contentId: parent, parentId: parent, userId }),
+      ).rejects.toMatchObject({ statusCode: 400, message: /own parent/ });
+      await expect(
+        updateContent(ctx.db)({ contentId: parent, parentId: child, userId }),
+      ).rejects.toMatchObject({ statusCode: 400, message: /descendant/ });
+
+      // Sibling slug uniqueness: among one parent's children...
+      await expect(
+        mkPage("juniors", { parentId: parent }),
+      ).rejects.toMatchObject({ statusCode: 409 });
+      // ...and among root pages (the grandchild now owns /coaches)
+      await expect(mkPage("coaches")).rejects.toMatchObject({
+        statusCode: 409,
+      });
+    });
+
+    it("rejects a parent on non-page kinds", async () => {
+      await expect(
+        createContent(ctx.db)({
+          kind: "news",
+          slug: "hierarchy-news",
+          title: "Hierarchy news",
+          description: null,
+          body: body("No parents for news."),
+          metadata: { tags: [] },
+          parentId: crypto.randomUUID(),
+          userId,
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: "Only pages can have a parent page",
+      });
+    });
+
+    it("publishes top-down, unpublishes bottom-up, and locks live paths", async () => {
+      const parent = await mkPage("rules");
+      const child = await mkPage("code-of-conduct", { parentId: parent });
+
+      // Child first → blocked until the parent is published
+      await expect(
+        publishContent(ctx.db)({ contentId: child, userId }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: "Cannot publish this page until its parent page is published",
+      });
+      await publishContent(ctx.db)({ contentId: parent, userId });
+      await publishContent(ctx.db)({ contentId: child, userId });
+
+      // Both ever-published: slug AND parent are locked
+      await expect(
+        updateContent(ctx.db)({ contentId: parent, slug: "renamed", userId }),
+      ).rejects.toMatchObject({ statusCode: 409, message: /locked/ });
+      await expect(
+        updateContent(ctx.db)({ contentId: child, parentId: null, userId }),
+      ).rejects.toMatchObject({ statusCode: 409, message: /locked/ });
+
+      // The parent cannot be unpublished over a live child
+      await expect(
+        unpublishContent(ctx.db)({ contentId: parent, userId }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: /published child pages/,
+      });
+
+      // Bottom-up works (also returns this test's pages to draft so the
+      // nav test below can assert an exact payload)
+      await unpublishContent(ctx.db)({ contentId: child, userId });
+      await unpublishContent(ctx.db)({ contentId: parent, userId });
+    });
+
+    it("pins a draft ancestor's slug via an ever-published descendant", async () => {
+      // Under the publish-ordering rules a descendant can only have gone
+      // live if its ancestors did too, so a never-published ancestor
+      // with an ever-published child needs the ancestor's own marker
+      // cleared by hand (ops-level intervention; same direct-flip
+      // technique as the visibility-boundary test). The descendant lock
+      // is defense in depth for exactly such states.
+      const parent = await mkPage("sections");
+      const child = await mkPage("alpha", { parentId: parent });
+
+      await publishContent(ctx.db)({ contentId: parent, userId });
+      await publishContent(ctx.db)({ contentId: child, userId });
+      await unpublishContent(ctx.db)({ contentId: child, userId });
+      await unpublishContent(ctx.db)({ contentId: parent, userId });
+      await ctx.db
+        .updateTable("content_item")
+        .set({ published_at: null })
+        .where("id", "=", parent)
+        .execute();
+
+      // The parent's own ever-published marker is gone...
+      expect((await getContent(ctx.db)(parent)).publishedAt).toBeNull();
+      // ...but the ever-published child still pins its slug and parent.
+      await expect(
+        updateContent(ctx.db)({ contentId: parent, slug: "chapters", userId }),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        message: /descendant page '\/sections\/alpha' has been published/,
+      });
+    });
+
+    it("keeps a child's go-live at or after its parent's", async () => {
+      const parent = await mkPage("season");
+      const child = await mkPage("fixtures", { parentId: parent });
+      const parentAt = new Date(Date.now() + 60 * 60 * 1000);
+      await publishContent(ctx.db)({
+        contentId: parent,
+        publishedAt: parentAt.toISOString(),
+        userId,
+      });
+
+      const tooEarly = `Parent page goes live at ${parentAt.toISOString()}; schedule this page for that time or later`;
+
+      // Publish-now while the parent is still scheduled: the child would
+      // be live on a URL prefix the public cannot see yet
+      await expect(
+        publishContent(ctx.db)({ contentId: child, userId }),
+      ).rejects.toMatchObject({ statusCode: 400, message: tooEarly });
+
+      // Scheduling before the parent's go-live is equally rejected...
+      await expect(
+        publishContent(ctx.db)({
+          contentId: child,
+          publishedAt: new Date(
+            parentAt.getTime() - 30 * 60 * 1000,
+          ).toISOString(),
+          userId,
+        }),
+      ).rejects.toMatchObject({ statusCode: 400, message: tooEarly });
+
+      // ...as is backdating the child into the past
+      await expect(
+        publishContent(ctx.db)({
+          contentId: child,
+          publishedAt: new Date(Date.now() - 1000).toISOString(),
+          userId,
+        }),
+      ).rejects.toMatchObject({ statusCode: 400, message: tooEarly });
+
+      // The parent's exact go-live instant works: a whole section can be
+      // scheduled together, top-down
+      const scheduled = await publishContent(ctx.db)({
+        contentId: child,
+        publishedAt: parentAt.toISOString(),
+        userId,
+      });
+      expect(scheduled.publishedAt).toBe(parentAt.toISOString());
+
+      // Unwind bottom-up (never live, so the markers clear and the nav
+      // test below keeps its exact payload)
+      await unpublishContent(ctx.db)({ contentId: child, userId });
+      await unpublishContent(ctx.db)({ contentId: parent, userId });
+    });
+
+    it("archives a page only after its children are unpublished", async () => {
+      const parent = await mkPage("vault");
+      const child = await mkPage("records", { parentId: parent });
+      await publishContent(ctx.db)({ contentId: parent, userId });
+      await publishContent(ctx.db)({ contentId: child, userId });
+
+      await expect(
+        archiveContent(ctx.db)({ contentId: parent, userId }),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        message: /published child pages/,
+      });
+
+      await unpublishContent(ctx.db)({ contentId: child, userId });
+      // A draft child under an archived parent is acceptable...
+      await archiveContent(ctx.db)({ contentId: parent, userId });
+      expect((await getContent(ctx.db)(parent)).status).toBe("archived");
+      // ...it just cannot be published (parent-not-published gate)
+      await expect(
+        publishContent(ctx.db)({ contentId: child, userId }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: "Cannot publish this page until its parent page is published",
+      });
+    });
+
+    it("serves nav and page-by-path for exactly the published pages (HTTP)", async () => {
+      const navA = await mkPage("nav-a", {
+        metadata: { menuOrder: 1, isMainMenu: true },
+      });
+      const navB = await mkPage("nav-b", { parentId: navA });
+      await mkPage("nav-draft");
+      const navSched = await mkPage("nav-sched");
+
+      await publishContent(ctx.db)({ contentId: navA, userId });
+      await publishContent(ctx.db)({ contentId: navB, userId });
+      await publishContent(ctx.db)({
+        contentId: navSched,
+        publishedAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        userId,
+      });
+
+      // Root pages stay resolvable through the generic kind+slug route
+      const rootBySlug = await getPublishedContent(ctx.db)({
+        kind: "page",
+        slug: "nav-a",
+      });
+      expect(rootBySlug.id).toBe(navA);
+
+      const logger = createTestLogger();
+      const app = Fastify({ logger: { level: "info", stream: logger.stream } });
+      app.setValidatorCompiler(validatorCompiler);
+      app.setSerializerCompiler(serializerCompiler);
+      app.decorate("db", ctx.db);
+      await app.register(contentRoutes);
+      try {
+        // Nav: exactly the live pages (no draft, no still-future
+        // schedule), ordered by path, defaults applied from the schema.
+        const nav = await app.inject({ method: "GET", url: "/content/nav" });
+        expect(nav.statusCode).toBe(200);
+        expect(nav.json()).toEqual({
+          items: [
+            {
+              path: "/nav-a",
+              title: "Page nav-a",
+              menuOrder: 1,
+              isMainMenu: true,
+            },
+            {
+              path: "/nav-a/nav-b",
+              title: "Page nav-b",
+              menuOrder: 99,
+              isMainMenu: false,
+            },
+          ],
+        });
+
+        // by-path serves the nested page with an ETag + 304 revalidation
+        const byPath = await app.inject({
+          method: "GET",
+          url: "/content/page/by-path?path=/nav-a/nav-b",
+        });
+        expect(byPath.statusCode).toBe(200);
+        expect(byPath.json<{ kind: string; slug: string }>()).toMatchObject({
+          kind: "page",
+          slug: "nav-b",
+        });
+        const etag = byPath.headers.etag;
+        expect(etag).toBeDefined();
+        const revalidated = await app.inject({
+          method: "GET",
+          url: "/content/page/by-path?path=/nav-a/nav-b",
+          headers: { "if-none-match": etag ?? "" },
+        });
+        expect(revalidated.statusCode).toBe(304);
+
+        // Drafts and scheduled pages 404 (and never leak an ETag)
+        const draft = await app.inject({
+          method: "GET",
+          url: "/content/page/by-path?path=/nav-draft",
+        });
+        expect(draft.statusCode).toBe(404);
+        expect(draft.headers.etag).toBeUndefined();
+        const sched = await app.inject({
+          method: "GET",
+          url: "/content/page/by-path?path=/nav-sched",
+        });
+        expect(sched.statusCode).toBe(404);
+
+        // Path shape is validated at the route: no leading slash → 400
+        const bad = await app.inject({
+          method: "GET",
+          url: "/content/page/by-path?path=nav-a",
+        });
+        expect(bad.statusCode).toBe(400);
+      } finally {
+        await app.close();
+      }
+    });
+  });
 });

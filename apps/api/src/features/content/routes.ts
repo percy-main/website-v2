@@ -20,6 +20,8 @@ import {
   listNewsQuerySchema,
   listNewsResponseSchema,
   listRevisionsResponseSchema,
+  navResponseSchema,
+  pageByPathQuerySchema,
   playCricketIdParamSchema,
   publicContentParamsSchema,
   publicContentResponseSchema,
@@ -33,6 +35,8 @@ import {
   getContentMeta,
   getPublishedContent,
   getPublishedGameReport,
+  getPublishedNav,
+  getPublishedPageByPath,
   listContent,
   listPublishedEvents,
   listPublishedNews,
@@ -81,6 +85,8 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const publicGameReport = getPublishedGameReport(app.db);
   const publicNews = listPublishedNews(app.db);
   const publicEvents = listPublishedEvents(app.db);
+  const publicNav = getPublishedNav(app.db);
+  const publicPageByPath = getPublishedPageByPath(app.db);
 
   // ── Admin ──
 
@@ -287,6 +293,28 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
+  // Page lookup by full materialised path - the canonical public page
+  // route (nested page slugs are only unique among siblings). Static
+  // segments, so find-my-way prefers it over /content/:kind/:slug.
+  app.get(
+    "/content/page/by-path",
+    {
+      schema: {
+        querystring: pageByPathQuerySchema,
+        response: { 200: publicContentResponseSchema, 304: z.null() },
+      },
+    },
+    async (request, reply) => {
+      const item = await publicPageByPath(request.query.path);
+      const etag = etagFor(item);
+      void reply.header("etag", etag);
+      if (request.headers["if-none-match"] === etag) {
+        return await reply.code(304).send(null);
+      }
+      return item;
+    },
+  );
+
   // List endpoints. One static segment, so no clash with the two-segment
   // /content/:kind/:slug above. No ETag here: any item edit, publish or
   // scheduled publish crossing now() would have to invalidate it.
@@ -313,6 +341,18 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async () => {
       return await publicEvents();
+    },
+  );
+
+  app.get(
+    "/content/nav",
+    {
+      schema: {
+        response: { 200: navResponseSchema },
+      },
+    },
+    async () => {
+      return await publicNav();
     },
   );
 };
