@@ -60,6 +60,10 @@ import type { paths } from "@/lib/api.gen.js";
 import { uploadContentImage } from "@/lib/content-images.js";
 import { getAllPeople } from "@/lib/people.js";
 import {
+  parsePersonGridEntries,
+  type PersonGridEntry,
+} from "@/lib/person-grid.js";
+import {
   CONTENT_KIND_RESOURCES,
   contentBodySchema,
   CUSTOM_BLOCK_TYPES,
@@ -330,25 +334,52 @@ const personGridBlock = createReactBlockSpec(
   {
     type: CUSTOM_BLOCK_TYPES.personGrid,
     propSchema: {
-      // Comma-separated person slugs - same storage format as content-body
+      // Legacy fallback the public renderer still reads when entries is
+      // absent - kept in sync as the CSV of the selected slugs.
       slugs: { default: "" },
+      // Canonical role-preserving prop: JSON-stringified [{slug, role?}]
+      // (same precedent as contentImage's picture prop).
+      entries: { default: "" },
     },
     content: "none",
   },
   {
     render: ({ block, editor }) => {
-      // Same CSV normalisation as the public renderer: trim each
-      // segment, drop empties - "alice, bob" works either side.
-      const selected = block.props.slugs.split(",").flatMap((s) => {
-        const trimmed = s.trim();
-        return trimmed ? [trimmed] : [];
-      });
+      // entries is canonical; a block predating it (or with malformed
+      // JSON) degrades to the slugs CSV, role-less - exactly like the
+      // public renderer.
+      const entries: PersonGridEntry[] =
+        parsePersonGridEntries(block.props.entries) ??
+        block.props.slugs.split(",").flatMap((s) => {
+          const trimmed = s.trim();
+          return trimmed ? [{ slug: trimmed }] : [];
+        });
       const allPeople = getAllPeople();
+      const nameOf = (slug: string) =>
+        allPeople.find((p) => p.slug === slug)?.name ?? slug;
+      const write = (next: PersonGridEntry[]) => {
+        editor.updateBlock(block, {
+          props: {
+            ...block.props,
+            entries: JSON.stringify(next),
+            slugs: next.map((e) => e.slug).join(","),
+          },
+        });
+      };
       return (
         <div className="my-2 flex w-full flex-col gap-2">
-          {selected.length > 0 ? (
+          {entries.length > 0 ? (
             <EditorBlockPreview>
-              <mdxComponents.PersonGrid slugs={selected} />
+              {/* Same children composition as the public renderer. */}
+              <mdxComponents.PersonGrid>
+                {entries.map((entry, i) => (
+                  <mdxComponents.Person
+                    key={`${entry.slug}-${String(i)}`}
+                    slug={entry.slug}
+                    role={entry.role}
+                  />
+                ))}
+              </mdxComponents.PersonGrid>
             </EditorBlockPreview>
           ) : (
             <p className="text-sm text-stone-500">Choose people to display…</p>
@@ -361,14 +392,19 @@ const personGridBlock = createReactBlockSpec(
               aria-label="People"
               multiple
               size={Math.min(allPeople.length, 6)}
-              value={selected}
+              value={entries.map((e) => e.slug)}
               onChange={(e) => {
                 const chosen = Array.from(e.target.selectedOptions).map(
                   (o) => o.value,
                 );
-                editor.updateBlock(block, {
-                  props: { ...block.props, slugs: chosen.join(",") },
-                });
+                // People who stay selected keep their role; newly
+                // selected people start role-less.
+                write(
+                  chosen.map(
+                    (slug) =>
+                      entries.find((entry) => entry.slug === slug) ?? { slug },
+                  ),
+                );
               }}
               className="rounded border border-stone-300 bg-white p-1 text-sm"
             >
@@ -379,6 +415,25 @@ const personGridBlock = createReactBlockSpec(
               ))}
             </select>
           </div>
+          {entries.map((entry, i) => (
+            <input
+              key={`${entry.slug}-${String(i)}`}
+              aria-label={`Role shown for ${nameOf(entry.slug)}`}
+              placeholder={`Role for ${nameOf(entry.slug)} (optional)`}
+              value={entry.role ?? ""}
+              onChange={(e) => {
+                const role = e.target.value;
+                write(
+                  entries.map((current, j) =>
+                    j === i
+                      ? { slug: current.slug, ...(role !== "" && { role }) }
+                      : current,
+                  ),
+                );
+              }}
+              className="rounded border border-stone-300 bg-white p-1 text-sm"
+            />
+          ))}
         </div>
       );
     },

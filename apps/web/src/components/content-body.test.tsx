@@ -347,6 +347,61 @@ describe("ContentBody", () => {
     expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
   });
 
+  it("renders personGrid entries as Person children carrying their roles", () => {
+    const html = renderBody([
+      block("personGrid", {
+        props: {
+          slugs: "alex-slaven,bob",
+          entries: JSON.stringify([
+            { slug: "alex-slaven", role: "Head Coach" },
+            { slug: "bob" },
+          ]),
+        },
+      }),
+    ]);
+    expect(html).toContain('href="/person/alex-slaven"');
+    expect(html).toContain("Head Coach");
+    expect(html).toContain('href="/person/bob"');
+    // Exactly two person cards: same composition as the MDX corpus.
+    expect(html.match(/class="person /g)).toHaveLength(2);
+  });
+
+  it("prefers entries over the slugs CSV when both are present", () => {
+    const html = renderBody([
+      block("personGrid", {
+        props: {
+          slugs: "stale-slug",
+          entries: JSON.stringify([{ slug: "fresh-slug", role: "Captain" }]),
+        },
+      }),
+    ]);
+    expect(html).toContain('href="/person/fresh-slug"');
+    expect(html).toContain("Captain");
+    expect(html).not.toContain("stale-slug");
+  });
+
+  it("falls back to the slugs CSV when entries is malformed", () => {
+    for (const entries of [
+      "not json",
+      '{"slug":"x"}', // not an array
+      '[{"role":"Coach"}]', // entry without a slug
+      '[{"slug":""}]', // empty slug
+      '[{"slug":"x","role":5}]', // non-string role
+    ]) {
+      const html = renderBody([
+        block("personGrid", { props: { slugs: "alex-slaven", entries } }),
+      ]);
+      expect(html).toContain('href="/person/alex-slaven"');
+    }
+  });
+
+  it("falls back to the slugs CSV when entries is an empty array", () => {
+    const html = renderBody([
+      block("personGrid", { props: { slugs: "alex-slaven", entries: "[]" } }),
+    ]);
+    expect(html).toContain('href="/person/alex-slaven"');
+  });
+
   it("hides leagueTable when divisionId is missing", () => {
     const html = renderBody([block("leagueTable", { props: {} })]);
     expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
