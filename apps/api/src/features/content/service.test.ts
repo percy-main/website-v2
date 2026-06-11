@@ -42,6 +42,7 @@ const { mockExecuteTakeFirst, mockExecuteTakeFirstOrThrow, mockQueryBuilder } =
   });
 
 import {
+  archiveContent,
   createContent,
   getPublishedGameReport,
   publishContent,
@@ -69,6 +70,22 @@ function setSqlFor(column: string): string {
   const builder = setArg[column];
   if (!builder) throw new Error(`.set() did not include ${column}`);
   return builder.compile(compilerDb).sql.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * SQL text (whitespace-normalised) of every raw single-argument .where()
+ * guard - the form publishContent's ever-live invariant uses, as opposed
+ * to the three-argument column comparisons.
+ */
+function whereGuardSql(): string[] {
+  return (mockQueryBuilder.where as ReturnType<typeof vi.fn>).mock.calls
+    .filter((call) => call.length === 1)
+    .map((call) =>
+      (call[0] as RawBuilder<unknown>)
+        .compile(compilerDb)
+        .sql.replace(/\s+/g, " ")
+        .trim(),
+    );
 }
 
 const validBody = [
@@ -311,10 +328,13 @@ describe("publishContent", () => {
   it("409s when the item is archived", async () => {
     mockExecuteTakeFirst
       .mockResolvedValueOnce(undefined) // update skipped archived row
-      .mockResolvedValueOnce({ id: "content-1" }); // but it exists
+      .mockResolvedValueOnce({ status: "archived" }); // but it exists
     await expect(
       publishContent(db)({ contentId: "content-1", userId: "user-1" }),
-    ).rejects.toMatchObject({ statusCode: 409 });
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: "Archived content cannot be published",
+    });
   });
 
   it("returns the effective publishedAt", async () => {
@@ -361,6 +381,76 @@ describe("publishContent", () => {
     expect(setSqlFor("published_at")).toBe(
       "CASE WHEN published_at <= CURRENT_TIMESTAMP THEN published_at ELSE CURRENT_TIMESTAMP END",
     );
+    // A dateless publish can never violate the ever-live invariant, so
+    // no raw WHERE guard is attached.
+    expect(whereGuardSql()).toEqual([]);
+  });
+
+  it("guards the ever-live invariant in the UPDATE's WHERE (DB clock)", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "content-1",
+      published_at: new Date("2027-01-01T10:00:00Z"),
+    });
+    await publishContent(db)({
+      contentId: "content-1",
+      publishedAt: "2027-01-01T10:00:00Z",
+      userId: "user-1",
+    });
+    // The IS NOT NULL keeps a first publish (NULL published_at) from
+    // NULL-ing the whole predicate and blocking the row.
+    expect(whereGuardSql()).toEqual([
+      "NOT ( published_at IS NOT NULL AND published_at <= CURRENT_TIMESTAMP AND $1::timestamptz > CURRENT_TIMESTAMP )",
+    ]);
+  });
+
+  it("409s when scheduling an item that has already been live", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // ever-live guard excluded the row
+      .mockResolvedValueOnce({ status: "published" }); // exists, not archived
+    await expect(
+      publishContent(db)({
+        contentId: "content-1",
+        publishedAt: "2027-01-01T10:00:00Z",
+        userId: "user-1",
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message:
+        "This item has already been live - it can only be published immediately",
+    });
+  });
+});
+
+describe("archiveContent", () => {
+  it("404s when the item does not exist", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // update matched nothing
+      .mockResolvedValueOnce(undefined); // and it does not exist
+    await expect(
+      archiveContent(db)({ contentId: "missing", userId: "user-1" }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("409s when the item is already archived", async () => {
+    // Re-archiving must not silently bump updated_at/updated_by.
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // update skipped the archived row
+      .mockResolvedValueOnce({ id: "content-1" }); // but it exists
+    await expect(
+      archiveContent(db)({ contentId: "content-1", userId: "user-1" }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: "Content is already archived",
+    });
+  });
+
+  it("archives a non-archived item", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({ id: "content-1" });
+    const result = await archiveContent(db)({
+      contentId: "content-1",
+      userId: "user-1",
+    });
+    expect(result).toEqual({ id: "content-1" });
   });
 });
 

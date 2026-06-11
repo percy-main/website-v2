@@ -100,8 +100,16 @@ export const gameReportMetadataSchema = z.object({
 });
 export type GameReportMetadata = z.infer<typeof gameReportMetadataSchema>;
 
+/**
+ * One news tag. Shared between stored metadata (newsMetadataSchema) and
+ * the public list's ?tag filter (listNewsQuerySchema in the API's
+ * content schemas): a stored tag must never exceed what the filter
+ * accepts, or its filter link would 400.
+ */
+export const newsTagSchema = z.string().min(1).max(100);
+
 export const newsMetadataSchema = z.object({
-  tags: z.array(z.string().min(1)),
+  tags: z.array(newsTagSchema),
   // References the static people corpus, which stays as MDX in the web
   // app until Phase 4 - so only the format is validated here. The admin
   // UI's people picker is what ties the slug to a real person.

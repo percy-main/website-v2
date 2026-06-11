@@ -3,9 +3,16 @@ import { SeasonLeaders } from "@/components/season-leaders.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
+import {
+  eventsListQueryOptions,
+  newsListQueryOptions,
+  parseEventMetadata,
+  parseNewsMetadata,
+} from "@/lib/content-queries.js";
 import { getAllEvents } from "@/lib/events.js";
 import { getPicture } from "@/lib/image-map.js";
 import { allNews } from "@/lib/news.js";
+import { getPersonBySlug, type PersonData } from "@/lib/people.js";
 import { getPriceId } from "@/lib/stripe-env.js";
 import { useQuery } from "@tanstack/react-query";
 import { format, isAfter } from "date-fns";
@@ -45,9 +52,16 @@ const sports = [
   },
 ] as const;
 
-const top5 = allNews.slice(0, 5);
+/** One news card on the homepage, whichever corpus it came from. */
+interface HomeNewsItem {
+  slug: string;
+  title: string;
+  date: Date;
+  tags: string[];
+  author: PersonData | undefined;
+}
 
-function HomeArticleCard({ article }: { article: (typeof allNews)[number] }) {
+function HomeArticleCard({ article }: { article: HomeNewsItem }) {
   const firstTag = article.tags[0];
   const accentColor = firstTag
     ? getCategoryColor(firstTag)
@@ -154,6 +168,9 @@ function UpcomingStrip() {
     staleTime: 5 * 60_000,
   });
 
+  // DB-backed events (live content editing, #489).
+  const { data: eventsData } = useQuery(eventsListQueryOptions());
+
   const items: UpcomingItem[] = (() => {
     const now = new Date();
     const upcoming: UpcomingItem[] = [];
@@ -175,7 +192,18 @@ function UpcomingStrip() {
       }
     }
 
-    for (const event of getAllEvents()) {
+    // TRANSITION FALLBACK (#489): until the content migration has run in
+    // prod the DB holds no published events, so an empty API list falls
+    // back to the bundled MDX corpus. Remove in the cleanup PR once the
+    // migration is verified in prod.
+    const apiEvents = (eventsData?.items ?? []).flatMap((item) => {
+      const meta = parseEventMetadata(item.metadata);
+      return meta
+        ? [{ slug: item.slug, name: item.title, when: meta.when }]
+        : [];
+    });
+    const events = apiEvents.length > 0 ? apiEvents : getAllEvents();
+    for (const event of events) {
       if (!isAfter(new Date(event.when), now)) continue;
       upcoming.push({
         id: event.slug,
@@ -297,6 +325,75 @@ function UpcomingStrip() {
   );
 }
 
+function LatestNewsSection() {
+  // Same query (and cache entry) as /news page 1; its page size is 5,
+  // which is exactly the homepage's "latest five".
+  const { data, isPending, isError } = useQuery(
+    newsListQueryOptions({ page: 1 }),
+  );
+
+  // TRANSITION FALLBACK (#489): until the content migration has run in
+  // prod the DB holds no published news. The archive counts span ALL
+  // published news, so a zero sum means the DB corpus is empty and the
+  // bundled MDX stays canonical. An API error degrades the same way so
+  // the page keeps working. While the first request is in flight the
+  // section renders nothing yet - the same "no data, no section"
+  // behaviour UpcomingStrip has. Remove in the cleanup PR once the
+  // migration is verified in prod.
+  const apiHasNews = (data?.archive ?? []).some((m) => m.count > 0);
+  const top5: HomeNewsItem[] = isPending
+    ? []
+    : !isError && data && apiHasNews
+      ? data.items.map((item) => {
+          const meta = parseNewsMetadata(item.metadata);
+          return {
+            slug: item.slug,
+            title: item.title,
+            date: new Date(item.publishedAt),
+            tags: meta?.tags ?? [],
+            author: meta?.authorSlug
+              ? getPersonBySlug(meta.authorSlug)
+              : undefined,
+          };
+        })
+      : allNews.slice(0, 5);
+
+  if (top5.length === 0) return null;
+
+  return (
+    <section className="py-10">
+      <div className="container mx-auto px-8">
+        <h3 className="text-h4 mb-6 text-center">Latest News</h3>
+
+        {/* Top row: 2 articles */}
+        <div className="grid gap-6 md:grid-cols-2">
+          {top5.slice(0, 2).map((article) => (
+            <HomeArticleCard key={article.slug} article={article} />
+          ))}
+        </div>
+
+        {/* Bottom row: up to 3 articles */}
+        {top5.length > 2 && (
+          <div className="mt-6 grid gap-6 md:grid-cols-3">
+            {top5.slice(2, 5).map((article) => (
+              <HomeArticleCard key={article.slug} article={article} />
+            ))}
+          </div>
+        )}
+
+        <div className="mt-8 text-center">
+          <Link
+            to="/news/1"
+            className="text-primary hover:text-primary-light text-sm font-medium transition"
+          >
+            View all news &rarr;
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function Component() {
   useDocumentMeta(null);
   return (
@@ -368,38 +465,7 @@ export function Component() {
       </section>
 
       {/* Latest News */}
-      {top5.length > 0 && (
-        <section className="py-10">
-          <div className="container mx-auto px-8">
-            <h3 className="text-h4 mb-6 text-center">Latest News</h3>
-
-            {/* Top row: 2 articles */}
-            <div className="grid gap-6 md:grid-cols-2">
-              {top5.slice(0, 2).map((article) => (
-                <HomeArticleCard key={article.slug} article={article} />
-              ))}
-            </div>
-
-            {/* Bottom row: up to 3 articles */}
-            {top5.length > 2 && (
-              <div className="mt-6 grid gap-6 md:grid-cols-3">
-                {top5.slice(2, 5).map((article) => (
-                  <HomeArticleCard key={article.slug} article={article} />
-                ))}
-              </div>
-            )}
-
-            <div className="mt-8 text-center">
-              <Link
-                to="/news/1"
-                className="text-primary hover:text-primary-light text-sm font-medium transition"
-              >
-                View all news &rarr;
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
+      <LatestNewsSection />
 
       {/* Our Sports */}
       <section className="bg-primary/5 py-12">

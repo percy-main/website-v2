@@ -117,6 +117,14 @@ describe("content service (integration)", () => {
     await expect(
       unpublishContent(ctx.db)({ contentId: id, userId }),
     ).rejects.toMatchObject({ statusCode: 409 });
+
+    // Re-archiving is rejected, not a silent updated_at/updated_by bump
+    await expect(
+      archiveContent(ctx.db)({ contentId: id, userId }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: "Content is already archived",
+    });
   });
 
   it("hides scheduled content until its publish time", async () => {
@@ -525,6 +533,66 @@ describe("content service (integration)", () => {
       await expect(
         updateContent(ctx.db)({ contentId: id, slug: "new-slug", userId }),
       ).rejects.toMatchObject({ statusCode: 409 });
+    });
+
+    it("409s when scheduling an item that has already been live", async () => {
+      const id = await seedReport("schedule-after-live", "990005");
+      const past = new Date(Date.now() - 1000).toISOString();
+      await publishContent(ctx.db)({
+        contentId: id,
+        publishedAt: past,
+        userId,
+      });
+
+      // A future date on a live item would silently pull a page that WAS
+      // public (and cancel-schedule would then unlock its slug).
+      const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      await expect(
+        publishContent(ctx.db)({ contentId: id, publishedAt: future, userId }),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        message:
+          "This item has already been live - it can only be published immediately",
+      });
+      // The failed schedule must not have touched the row: still live.
+      const pub = await getPublishedGameReport(ctx.db)("990005");
+      expect(pub.publishedAt).toBe(past);
+
+      // The unpublish-then-schedule chain is equally blocked: the
+      // ever-live marker survives unpublish.
+      await unpublishContent(ctx.db)({ contentId: id, userId });
+      await expect(
+        publishContent(ctx.db)({ contentId: id, publishedAt: future, userId }),
+      ).rejects.toMatchObject({ statusCode: 409 });
+
+      // ...while an explicit past date (idempotent re-publish /
+      // migration-style backdating) still works.
+      await publishContent(ctx.db)({
+        contentId: id,
+        publishedAt: past,
+        userId,
+      });
+      expect((await getPublishedGameReport(ctx.db)("990005")).id).toBe(id);
+    });
+
+    it("change-schedule on a scheduled item still works (never live)", async () => {
+      const id = await seedReport("change-schedule", "990006");
+      const first = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      await publishContent(ctx.db)({
+        contentId: id,
+        publishedAt: first,
+        userId,
+      });
+
+      // Scheduled = future published_at = never live, so re-scheduling
+      // (the dialog's "Change schedule") stays allowed.
+      const second = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+      const result = await publishContent(ctx.db)({
+        contentId: id,
+        publishedAt: second,
+        userId,
+      });
+      expect(result.publishedAt).toBe(second);
     });
   });
 

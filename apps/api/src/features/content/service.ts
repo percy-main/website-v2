@@ -407,7 +407,7 @@ export function publishContent(db: Kysely<DB>) {
     publishedAt?: string;
     userId: string;
   }) => {
-    const result = await db
+    let query = db
       .updateTable("content_item")
       .set({
         status: "published",
@@ -428,20 +428,47 @@ export function publishContent(db: Kysely<DB>) {
         updated_at: sql`CURRENT_TIMESTAMP`,
       })
       .where("id", "=", params.contentId)
-      .where("status", "!=", "archived")
+      .where("status", "!=", "archived");
+
+    if (params.publishedAt !== undefined) {
+      // Invariant: published_at in the past <=> the item has been
+      // publicly visible. An explicit FUTURE date on an item whose
+      // published_at is already past would silently pull a page that WAS
+      // public - and a later cancel-schedule would see a future
+      // published_at, clear it, and unlock the slug of a page whose URL
+      // was live. Guarded inside the UPDATE's WHERE on the DB clock so
+      // it cannot race the publish boundary; the IS NOT NULL keeps a
+      // first publish (NULL published_at) out of the NULL-propagating
+      // comparison. Explicit past/current dates stay allowed (idempotent
+      // re-publish, migration-style backdating).
+      query = query.where(
+        sql<boolean>`NOT (
+          published_at IS NOT NULL
+          AND published_at <= CURRENT_TIMESTAMP
+          AND ${new Date(params.publishedAt)}::timestamptz > CURRENT_TIMESTAMP
+        )`,
+      );
+    }
+
+    const result = await query
       .returning(["id", "published_at"])
       .executeTakeFirst();
 
     if (!result) {
-      // Either missing or archived; disambiguate for a useful error.
-      const exists = await db
+      // Missing, archived, or scheduling an ever-live item; disambiguate
+      // for a useful error.
+      const existing = await db
         .selectFrom("content_item")
-        .select("id")
+        .select("status")
         .where("id", "=", params.contentId)
         .executeTakeFirst();
+      if (!existing) throwHttpError(404, "Content not found");
+      if (existing.status === "archived") {
+        throwHttpError(409, "Archived content cannot be published");
+      }
       throwHttpError(
-        exists ? 409 : 404,
-        exists ? "Archived content cannot be published" : "Content not found",
+        409,
+        "This item has already been live - it can only be published immediately",
       );
     }
 
@@ -498,6 +525,8 @@ export function unpublishContent(db: Kysely<DB>) {
 
 export function archiveContent(db: Kysely<DB>) {
   return async (params: { contentId: string; userId: string }) => {
+    // Re-archiving must not silently succeed: it would bump
+    // updated_at/updated_by for a no-op, misattributing the archive.
     const result = await db
       .updateTable("content_item")
       .set({
@@ -506,10 +535,23 @@ export function archiveContent(db: Kysely<DB>) {
         updated_at: sql`CURRENT_TIMESTAMP`,
       })
       .where("id", "=", params.contentId)
+      .where("status", "!=", "archived")
       .returning("id")
       .executeTakeFirst();
 
-    if (!result) throwHttpError(404, "Content not found");
+    if (!result) {
+      // Either missing or already archived; disambiguate for a useful
+      // error (same pattern as publishContent).
+      const exists = await db
+        .selectFrom("content_item")
+        .select("id")
+        .where("id", "=", params.contentId)
+        .executeTakeFirst();
+      throwHttpError(
+        exists ? 409 : 404,
+        exists ? "Content is already archived" : "Content not found",
+      );
+    }
     return { id: result.id };
   };
 }
@@ -687,77 +729,88 @@ function toPublicListItem(
 
 export function listPublishedNews(db: Kysely<DB>) {
   return async (params: z.infer<typeof listNewsQuerySchema>) => {
-    const publishedNews = () => publishedOnly(db).where("kind", "=", "news");
+    // The five statements must share ONE value of "now": each evaluates
+    // CURRENT_TIMESTAMP, and an item crossing its scheduled publish
+    // boundary mid-request could otherwise appear in the sidebar
+    // aggregates but not in items/total within a single response. In
+    // PostgreSQL CURRENT_TIMESTAMP is the transaction start time, so a
+    // transaction pins all five to the same clock value. The queries run
+    // sequentially: a Kysely transaction holds a single connection,
+    // which cannot multiplex concurrent statements.
+    return await db.transaction().execute(async (trx) => {
+      const publishedNews = () => publishedOnly(trx).where("kind", "=", "news");
 
-    let filtered = publishedNews();
-    if (params.tag !== undefined) {
-      // jsonb_exists() rather than the ? operator, whose literal question
-      // mark is too easily confused with a parameter placeholder.
-      filtered = filtered.where(
-        sql<boolean>`jsonb_exists(metadata->'tags', ${params.tag})`,
-      );
-    }
+      let filtered = publishedNews();
+      if (params.tag !== undefined) {
+        // jsonb_exists() rather than the ? operator, whose literal question
+        // mark is too easily confused with a parameter placeholder.
+        filtered = filtered.where(
+          sql<boolean>`jsonb_exists(metadata->'tags', ${params.tag})`,
+        );
+      }
 
-    // The sidebar aggregates (tags / archive / authorCount) always span
-    // every published news item, so they build on publishedNews(), not on
-    // the ?tag-filtered query.
-    const [items, totalRow, tagRows, archiveRows, authorRow] =
-      await Promise.all([
-        filtered
-          .select(publicListColumns)
-          .orderBy("published_at", "desc")
-          // Tiebreaker so identical publish times paginate stably.
-          .orderBy("id")
-          .limit(params.pageSize)
-          .offset((params.page - 1) * params.pageSize)
-          .execute(),
-        filtered
-          .select(sql<string>`COUNT(*)`.as("total"))
-          .executeTakeFirstOrThrow(),
-        publishedNews()
-          // jsonb_array_elements_text's output column is named "value";
-          // the alias here only names the lateral relation.
-          .crossJoinLateral(
-            sql`jsonb_array_elements_text(metadata->'tags')`.as("tag"),
-          )
-          .select([
-            sql<string>`tag.value`.as("tag"),
-            sql<string>`COUNT(*)`.as("count"),
-          ])
-          .groupBy(sql`tag.value`)
-          .orderBy(sql`COUNT(*)`, "desc")
-          .orderBy(sql`tag.value`, "asc")
-          .execute(),
-        publishedNews()
-          .select([
-            sql<string>`to_char(published_at AT TIME ZONE 'Europe/London', 'YYYY-MM')`.as(
-              "month",
-            ),
-            sql<string>`COUNT(*)`.as("count"),
-          ])
-          .groupBy(
-            sql`to_char(published_at AT TIME ZONE 'Europe/London', 'YYYY-MM')`,
-          )
-          .orderBy("month", "desc")
-          .execute(),
-        publishedNews()
-          // COUNT(DISTINCT ...) skips NULLs, so authorless items don't count.
-          .select(
-            sql<string>`COUNT(DISTINCT metadata->>'authorSlug')`.as("authors"),
-          )
-          .executeTakeFirstOrThrow(),
-      ]);
+      const items = await filtered
+        .select(publicListColumns)
+        .orderBy("published_at", "desc")
+        // Tiebreaker so identical publish times paginate stably.
+        .orderBy("id")
+        .limit(params.pageSize)
+        .offset((params.page - 1) * params.pageSize)
+        .execute();
 
-    return {
-      items: items.map((row) => toPublicListItem(newsMetadataSchema, row)),
-      total: Number(totalRow.total),
-      tags: tagRows.map((r) => ({ tag: r.tag, count: Number(r.count) })),
-      archive: archiveRows.map((r) => ({
-        month: r.month,
-        count: Number(r.count),
-      })),
-      authorCount: Number(authorRow.authors),
-    };
+      const totalRow = await filtered
+        .select(sql<string>`COUNT(*)`.as("total"))
+        .executeTakeFirstOrThrow();
+
+      // The sidebar aggregates (tags / archive / authorCount) always span
+      // every published news item, so they build on publishedNews(), not
+      // on the ?tag-filtered query.
+      const tagRows = await publishedNews()
+        // jsonb_array_elements_text's output column is named "value";
+        // the alias here only names the lateral relation.
+        .crossJoinLateral(
+          sql`jsonb_array_elements_text(metadata->'tags')`.as("tag"),
+        )
+        .select([
+          sql<string>`tag.value`.as("tag"),
+          sql<string>`COUNT(*)`.as("count"),
+        ])
+        .groupBy(sql`tag.value`)
+        .orderBy(sql`COUNT(*)`, "desc")
+        .orderBy(sql`tag.value`, "asc")
+        .execute();
+
+      const archiveRows = await publishedNews()
+        .select([
+          sql<string>`to_char(published_at AT TIME ZONE 'Europe/London', 'YYYY-MM')`.as(
+            "month",
+          ),
+          sql<string>`COUNT(*)`.as("count"),
+        ])
+        .groupBy(
+          sql`to_char(published_at AT TIME ZONE 'Europe/London', 'YYYY-MM')`,
+        )
+        .orderBy("month", "desc")
+        .execute();
+
+      const authorRow = await publishedNews()
+        // COUNT(DISTINCT ...) skips NULLs, so authorless items don't count.
+        .select(
+          sql<string>`COUNT(DISTINCT metadata->>'authorSlug')`.as("authors"),
+        )
+        .executeTakeFirstOrThrow();
+
+      return {
+        items: items.map((row) => toPublicListItem(newsMetadataSchema, row)),
+        total: Number(totalRow.total),
+        tags: tagRows.map((r) => ({ tag: r.tag, count: Number(r.count) })),
+        archive: archiveRows.map((r) => ({
+          month: r.month,
+          count: Number(r.count),
+        })),
+        authorCount: Number(authorRow.authors),
+      };
+    });
   };
 }
 

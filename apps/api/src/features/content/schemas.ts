@@ -3,6 +3,7 @@ import {
   contentKindSchema,
   contentSlugSchema,
   contentStatusSchema,
+  newsTagSchema,
 } from "@percy-main/shared/content";
 import { z } from "zod";
 
@@ -153,7 +154,9 @@ const publicListItemSchema = z.object({
 });
 
 export const listNewsQuerySchema = z.object({
-  tag: z.string().min(1).max(100).optional(),
+  // Same schema as a stored tag (newsMetadataSchema) so the filter cap
+  // and the stored-tag cap cannot drift apart.
+  tag: newsTagSchema.optional(),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(100).default(5),
 });

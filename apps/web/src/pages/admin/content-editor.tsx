@@ -1037,6 +1037,20 @@ function isScheduled(item: {
 }
 
 /**
+ * Ever-live = published_at is in the past, i.e. the public has (or could
+ * have) seen this item at its URL. The server enforces the matching
+ * invariant - an ever-live item can only be published immediately, since
+ * re-scheduling it would silently pull a page that WAS public - so the
+ * dialog never offers "Schedule for later" here. Mutually exclusive with
+ * isScheduled (that needs a FUTURE published_at).
+ */
+function hasBeenLive(item: { publishedAt: string | null }): boolean {
+  return (
+    item.publishedAt !== null && Date.parse(item.publishedAt) <= Date.now()
+  );
+}
+
+/**
  * Why the schedule can't be confirmed yet, or null when it can. A
  * schedule must be in the future at confirm time. (The server accepts
  * any instant - re-publishing with a past date is a valid backdate.)
@@ -1071,6 +1085,7 @@ function PublishingCard({
   const [scheduleAt, setScheduleAt] = useState("");
 
   const scheduled = isScheduled(item);
+  const everLive = hasBeenLive(item);
 
   // Flip Scheduled -> Live on our own when the publish time passes with
   // the editor open: isScheduled() reads Date.now() at render time only,
@@ -1148,11 +1163,17 @@ function PublishingCard({
     setDialogOpen(true);
   };
 
-  const scheduleProblem = scheduleProblemFor(mode, scheduleAt);
+  // If the publish boundary passes while the dialog is open in schedule
+  // mode, the item is now ever-live and only immediate publishing is
+  // valid - collapse to "now" rather than submitting a schedule the
+  // server would 409.
+  const effectiveMode = everLive ? "now" : mode;
+
+  const scheduleProblem = scheduleProblemFor(effectiveMode, scheduleAt);
 
   const confirmPublish = () => {
     statusMutation.mutate(
-      mode === "schedule"
+      effectiveMode === "schedule"
         ? { action: "publish", publishedAt: ukLocalToIso(scheduleAt) }
         : { action: "publish" },
     );
@@ -1237,29 +1258,33 @@ function PublishingCard({
               {scheduled ? "Change schedule" : "Publish"}
             </DialogTitle>
             <DialogDescription>
-              Go live straight away, or pick a future time.
+              {everLive
+                ? "This item has been live before, so it can only be published immediately."
+                : "Go live straight away, or pick a future time."}
             </DialogDescription>
           </DialogHeader>
           <div className="mt-4 flex flex-col gap-2">
-            <RadioButtons
-              id="publish-mode"
-              options={[
-                {
-                  title: "Publish now",
-                  value: "now",
-                  description: "Visible on the public site immediately",
-                },
-                {
-                  title: "Schedule for later",
-                  value: "schedule",
-                  description:
-                    "Hidden from the public site until the scheduled time",
-                },
-              ]}
-              value={mode}
-              onChange={setMode}
-            />
-            {mode === "schedule" && (
+            {!everLive && (
+              <RadioButtons
+                id="publish-mode"
+                options={[
+                  {
+                    title: "Publish now",
+                    value: "now",
+                    description: "Visible on the public site immediately",
+                  },
+                  {
+                    title: "Schedule for later",
+                    value: "schedule",
+                    description:
+                      "Hidden from the public site until the scheduled time",
+                  },
+                ]}
+                value={mode}
+                onChange={setMode}
+              />
+            )}
+            {effectiveMode === "schedule" && (
               <div className="flex flex-col gap-1">
                 <Label htmlFor="publish-schedule-at">Goes live (UK time)</Label>
                 <Input
@@ -1293,7 +1318,7 @@ function PublishingCard({
             >
               {statusMutation.isPending
                 ? "Publishing…"
-                : mode === "schedule"
+                : effectiveMode === "schedule"
                   ? "Schedule"
                   : "Publish now"}
             </Button>

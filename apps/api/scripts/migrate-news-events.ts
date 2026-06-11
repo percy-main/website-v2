@@ -545,7 +545,19 @@ async function main() {
   console.log(
     `Done with ${String(warnings)} warnings${dryRun ? " (dry run)" : ""}`,
   );
-  if (warnings > 0) process.exitCode = 2;
+  if (warnings > 0) {
+    // Partial migrations have a sharp edge: the public news list and
+    // calendar switch from the bundled static corpus to DB-only content
+    // as soon as ANY migrated content exists, so skipped items vanish
+    // from the public site rather than falling back.
+    console.warn(
+      "NOTE: skipped items will NOT appear on the public site once any " +
+        "migrated content exists - the news list and calendar serve DB " +
+        "content only from that point. Resolve the warnings above and " +
+        "re-run before considering the migration done.",
+    );
+    process.exitCode = 2;
+  }
   await db.destroy();
 }
 
