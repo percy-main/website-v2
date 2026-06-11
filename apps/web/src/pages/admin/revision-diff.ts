@@ -100,6 +100,9 @@ function blockLines(block: unknown, depth: number): string[] {
         lines.push(`${indent}${rowLine}`);
       }
       break;
+    // Custom block labels must cover EVERY render-relevant prop: a prop
+    // change the projection drops would diff as "No differences" while
+    // restore still changes the live page.
     case CUSTOM_BLOCK_TYPES.person: {
       const role = stringProp(props, "role");
       lines.push(
@@ -107,14 +110,23 @@ function blockLines(block: unknown, depth: number): string[] {
       );
       break;
     }
-    case CUSTOM_BLOCK_TYPES.personGrid:
-      lines.push(`${indent}[Person grid: ${stringProp(props, "slugs")}]`);
+    case CUSTOM_BLOCK_TYPES.personGrid: {
+      // entries is the canonical role-preserving prop (compact JSON);
+      // legacy blocks only have the slugs CSV.
+      const entries = stringProp(props, "entries");
+      lines.push(
+        `${indent}[Person grid: ${entries || stringProp(props, "slugs")}]`,
+      );
       break;
+    }
     case CUSTOM_BLOCK_TYPES.contentImage: {
       const alt = stringProp(props, "alt");
       const caption = stringProp(props, "caption");
+      // src identifies the uploaded image (it is the descriptor's
+      // fallback URL), so a replaced photo always shows in the diff.
+      const src = stringProp(props, "src");
       lines.push(
-        `${indent}[Photo${alt ? `: ${alt}` : ""}${caption ? ` - ${caption}` : ""}]`,
+        `${indent}[Photo${alt ? `: ${alt}` : ""}${caption ? ` - ${caption}` : ""}${src ? ` (${src})` : ""}]`,
       );
       break;
     }
@@ -124,23 +136,38 @@ function blockLines(block: unknown, depth: number): string[] {
       );
       break;
     case CUSTOM_BLOCK_TYPES.eventPreview:
-      lines.push(`${indent}[Event preview: ${stringProp(props, "name")}]`);
+      lines.push(
+        `${indent}[Event preview: ${stringProp(props, "name")} (${stringProp(props, "eventId")}, ${stringProp(props, "when")})]`,
+      );
       break;
-    case CUSTOM_BLOCK_TYPES.leagueTable:
-      lines.push(`${indent}[League table: ${stringProp(props, "divisionId")}]`);
+    case CUSTOM_BLOCK_TYPES.leagueTable: {
+      const name = stringProp(props, "name");
+      lines.push(
+        `${indent}[League table: ${stringProp(props, "divisionId")}${name ? ` - ${name}` : ""}]`,
+      );
       break;
+    }
     case CUSTOM_BLOCK_TYPES.leaderboard:
       lines.push(`${indent}[Leaderboard]`);
       break;
     case CUSTOM_BLOCK_TYPES.recordsWall:
       lines.push(`${indent}[Records wall]`);
       break;
-    case CUSTOM_BLOCK_TYPES.contactForm:
-      lines.push(`${indent}[Contact form]`);
+    case CUSTOM_BLOCK_TYPES.contactForm: {
+      const title = stringProp(props, "title");
+      const description = stringProp(props, "description");
+      lines.push(
+        `${indent}[Contact form${title ? `: ${title}` : ""}${description ? ` - ${description}` : ""}]`,
+      );
       break;
-    case CUSTOM_BLOCK_TYPES.cookieSettingsLink:
-      lines.push(`${indent}[Cookie settings link]`);
+    }
+    case CUSTOM_BLOCK_TYPES.cookieSettingsLink: {
+      const linkText = stringProp(props, "text");
+      lines.push(
+        `${indent}[Cookie settings link${linkText ? `: ${linkText}` : ""}]`,
+      );
       break;
+    }
     case CUSTOM_BLOCK_TYPES.consentVersion:
       lines.push(`${indent}[Consent version]`);
       break;

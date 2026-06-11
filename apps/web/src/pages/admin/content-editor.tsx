@@ -2235,7 +2235,7 @@ function RevisionDialog({
   item: ContentItemDetail;
   revisionId: string;
   canRestore: boolean;
-  onRestore: (revision: RevisionDetail) => void;
+  onRestore: (revision: RevisionDetail) => boolean;
   onClose: () => void;
 }) {
   const {
@@ -2329,8 +2329,9 @@ function RevisionDialog({
           {canRestore && revision && (
             <Button
               onClick={() => {
-                onRestore(revision);
-                onClose();
+                // Stays open when the author backs out of overwriting
+                // unsaved work.
+                if (onRestore(revision)) onClose();
               }}
             >
               Restore this version
@@ -2349,7 +2350,7 @@ function HistoryCard({
 }: {
   item: ContentItemDetail;
   canRestore: boolean;
-  onRestore: (revision: RevisionDetail) => void;
+  onRestore: (revision: RevisionDetail) => boolean;
 }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "content", "revisions", item.id],
@@ -2437,7 +2438,19 @@ function useRevisionRestore({
 }) {
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
 
-  const restoreRevision = (revision: RevisionDetail) => {
+  /**
+   * Returns false when the author backs out of overwriting unsaved
+   * work - the dialog stays open so nothing is lost either way.
+   */
+  const restoreRevision = (revision: RevisionDetail): boolean => {
+    if (
+      dirtyRef.current &&
+      !window.confirm(
+        "Restoring will replace your unsaved changes with this version. Continue?",
+      )
+    ) {
+      return false;
+    }
     editor.replaceBlocks(
       editor.document,
       revision.body.length > 0
@@ -2454,6 +2467,7 @@ function useRevisionRestore({
     setRestoreNotice(
       `Restored the version from ${formatUkTime(revision.savedAt)} - review it, then save to keep it.`,
     );
+    return true;
   };
 
   return {

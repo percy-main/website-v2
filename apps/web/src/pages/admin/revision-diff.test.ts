@@ -96,6 +96,56 @@ describe("blocksToLines", () => {
     ]);
   });
 
+  it("covers every render-relevant custom-block prop, so a prop-only change always diffs", () => {
+    const block = (type: string, props: Record<string, unknown>) => [
+      { id: "1", type, props, children: [] },
+    ];
+    // A role change inside a person grid (entries is canonical)
+    expect(
+      blocksToLines(
+        block("personGrid", {
+          slugs: "a,b",
+          entries: '[{"slug":"a","role":"Captain"},{"slug":"b"}]',
+        }),
+      ),
+    ).not.toEqual(
+      blocksToLines(
+        block("personGrid", {
+          slugs: "a,b",
+          entries: '[{"slug":"a"},{"slug":"b"}]',
+        }),
+      ),
+    );
+    // A replaced photo with identical alt/caption
+    expect(
+      blocksToLines(
+        block("contentImage", { alt: "x", caption: "", src: "/uploads/a.jpg" }),
+      ),
+    ).not.toEqual(
+      blocksToLines(
+        block("contentImage", { alt: "x", caption: "", src: "/uploads/b.jpg" }),
+      ),
+    );
+    // An event preview repointed at a different event, same display name
+    expect(
+      blocksToLines(
+        block("eventPreview", {
+          eventId: "e1",
+          name: "AGM",
+          when: "2026-01-01",
+        }),
+      ),
+    ).not.toEqual(
+      blocksToLines(
+        block("eventPreview", {
+          eventId: "e2",
+          name: "AGM",
+          when: "2026-01-01",
+        }),
+      ),
+    );
+  });
+
   it("degrades malformed input to empty output rather than throwing", () => {
     expect(blocksToLines(null)).toEqual([]);
     expect(blocksToLines("not blocks")).toEqual([]);
