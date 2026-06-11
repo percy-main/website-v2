@@ -317,6 +317,238 @@ const contentImageBlock = createReactBlockSpec(
   },
 );
 
+const personGridBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.personGrid,
+    propSchema: {
+      // Comma-separated person slugs - same storage format as content-body
+      slugs: { default: "" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => {
+      const selected = block.props.slugs
+        ? block.props.slugs.split(",").filter(Boolean)
+        : [];
+      const allPeople = getAllPeople();
+      return (
+        <div className="my-2 flex w-full flex-col gap-2">
+          {selected.length > 0 ? (
+            <div className="pointer-events-none" aria-hidden>
+              <mdxComponents.PersonGrid slugs={selected} />
+            </div>
+          ) : (
+            <p className="text-sm text-stone-500">Choose people to display…</p>
+          )}
+          <div className="flex flex-col gap-1">
+            <p className="text-xs text-stone-500">
+              Select people (hold Ctrl/Cmd to pick multiple):
+            </p>
+            <select
+              aria-label="People"
+              multiple
+              size={Math.min(allPeople.length, 6)}
+              value={selected}
+              onChange={(e) => {
+                const chosen = Array.from(e.target.selectedOptions).map(
+                  (o) => o.value,
+                );
+                editor.updateBlock(block, {
+                  props: { ...block.props, slugs: chosen.join(",") },
+                });
+              }}
+              className="rounded border border-stone-300 bg-white p-1 text-sm"
+            >
+              {allPeople.map((p) => (
+                <option key={p.slug} value={p.slug}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      );
+    },
+  },
+);
+
+const leagueTableBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.leagueTable,
+    propSchema: {
+      divisionId: { default: "" },
+      name: { default: "" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => {
+      const set = (key: "divisionId" | "name", value: string) => {
+        editor.updateBlock(block, { props: { ...block.props, [key]: value } });
+      };
+      return (
+        <div className="my-2 flex w-full flex-col gap-2">
+          {block.props.divisionId ? (
+            <div className="pointer-events-none" aria-hidden>
+              <mdxComponents.LeagueTable
+                divisionId={block.props.divisionId}
+                name={block.props.name || undefined}
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-stone-500">
+              Enter a division ID to preview…
+            </p>
+          )}
+          <input
+            aria-label="Division ID"
+            placeholder="Division ID (required)"
+            value={block.props.divisionId}
+            onChange={(e) => {
+              set("divisionId", e.target.value);
+            }}
+            className="rounded border border-stone-300 bg-white p-1 text-sm"
+          />
+          <input
+            aria-label="Table heading"
+            placeholder="Table heading (optional)"
+            value={block.props.name}
+            onChange={(e) => {
+              set("name", e.target.value);
+            }}
+            className="rounded border border-stone-300 bg-white p-1 text-sm"
+          />
+        </div>
+      );
+    },
+  },
+);
+
+const leaderboardBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.leaderboard,
+    propSchema: {},
+    content: "none",
+  },
+  {
+    render: () => (
+      <div className="pointer-events-none my-2 w-full" aria-hidden>
+        <mdxComponents.Leaderboard />
+      </div>
+    ),
+  },
+);
+
+const recordsWallBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.recordsWall,
+    propSchema: {},
+    content: "none",
+  },
+  {
+    render: () => (
+      <div className="pointer-events-none my-2 w-full" aria-hidden>
+        <mdxComponents.RecordsWall />
+      </div>
+    ),
+  },
+);
+
+const contactFormBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.contactForm,
+    propSchema: {
+      title: { default: "" },
+      description: { default: "" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => {
+      const set = (key: "title" | "description", value: string) => {
+        editor.updateBlock(block, { props: { ...block.props, [key]: value } });
+      };
+      return (
+        <div className="my-2 flex w-full flex-col gap-2">
+          {/* Wrap preview in pointer-events-none so the form can't be submitted inside the editor */}
+          <div className="pointer-events-none" aria-hidden>
+            <mdxComponents.ContactForm
+              title={block.props.title || undefined}
+              description={block.props.description || undefined}
+            />
+          </div>
+          <input
+            aria-label="Form title"
+            placeholder="Form title (optional)"
+            value={block.props.title}
+            onChange={(e) => {
+              set("title", e.target.value);
+            }}
+            className="rounded border border-stone-300 bg-white p-1 text-sm"
+          />
+          <input
+            aria-label="Form description"
+            placeholder="Description shown above the fields (optional)"
+            value={block.props.description}
+            onChange={(e) => {
+              set("description", e.target.value);
+            }}
+            className="rounded border border-stone-300 bg-white p-1 text-sm"
+          />
+        </div>
+      );
+    },
+  },
+);
+
+const cookieSettingsLinkBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.cookieSettingsLink,
+    propSchema: {
+      text: { default: "Cookie settings" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => (
+      <div className="my-2 flex w-full flex-col gap-2">
+        <div className="pointer-events-none" aria-hidden>
+          <mdxComponents.CookieSettingsLink>
+            {block.props.text || "Cookie settings"}
+          </mdxComponents.CookieSettingsLink>
+        </div>
+        <input
+          aria-label="Link text"
+          placeholder="Link text"
+          value={block.props.text}
+          onChange={(e) => {
+            editor.updateBlock(block, {
+              props: { ...block.props, text: e.target.value },
+            });
+          }}
+          className="rounded border border-stone-300 bg-white p-1 text-sm"
+        />
+      </div>
+    ),
+  },
+);
+
+const consentVersionBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.consentVersion,
+    propSchema: {},
+    content: "none",
+  },
+  {
+    render: () => (
+      <div className="pointer-events-none my-2" aria-hidden>
+        <mdxComponents.ConsentVersion />
+      </div>
+    ),
+  },
+);
+
 // BlockNote's built-in media blocks are removed: their URL-embed tab
 // would bypass the consent + EXIF-strip + responsive pipeline that the
 // contentImage block (slash menu "Upload photo") goes through.
@@ -328,13 +560,20 @@ const {
   ...allowedDefaultBlocks
 } = defaultBlockSpecs;
 
-const schema = BlockNoteSchema.create({
+export const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...allowedDefaultBlocks,
     [CUSTOM_BLOCK_TYPES.person]: personBlock(),
+    [CUSTOM_BLOCK_TYPES.personGrid]: personGridBlock(),
     [CUSTOM_BLOCK_TYPES.gamePreview]: gamePreviewBlock(),
     [CUSTOM_BLOCK_TYPES.eventPreview]: eventPreviewBlock(),
     [CUSTOM_BLOCK_TYPES.contentImage]: contentImageBlock(),
+    [CUSTOM_BLOCK_TYPES.leagueTable]: leagueTableBlock(),
+    [CUSTOM_BLOCK_TYPES.leaderboard]: leaderboardBlock(),
+    [CUSTOM_BLOCK_TYPES.recordsWall]: recordsWallBlock(),
+    [CUSTOM_BLOCK_TYPES.contactForm]: contactFormBlock(),
+    [CUSTOM_BLOCK_TYPES.cookieSettingsLink]: cookieSettingsLinkBlock(),
+    [CUSTOM_BLOCK_TYPES.consentVersion]: consentVersionBlock(),
   },
 });
 
@@ -397,6 +636,18 @@ function buildSlashItems(editor: Editor, startImageUpload: () => void) {
       },
     },
     {
+      title: "Person grid",
+      subtext: "Show a grid of club member cards",
+      group: "Club content",
+      aliases: ["people", "grid", "team"],
+      icon: <span aria-hidden>👥</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.personGrid,
+        });
+      },
+    },
+    {
       title: "Game preview",
       subtext: "Link a Play-Cricket fixture or result",
       group: "Club content",
@@ -427,6 +678,78 @@ function buildSlashItems(editor: Editor, startImageUpload: () => void) {
       aliases: ["image", "photo", "picture"],
       icon: <span aria-hidden>📷</span>,
       onItemClick: startImageUpload,
+    },
+    {
+      title: "League table",
+      subtext: "Show a live Play-Cricket league standings table",
+      group: "Page widgets",
+      aliases: ["league", "table", "standings", "division"],
+      icon: <span aria-hidden>📊</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.leagueTable,
+        });
+      },
+    },
+    {
+      title: "Leaderboard",
+      subtext: "Show the club batting and bowling leaderboard",
+      group: "Page widgets",
+      aliases: ["leaderboard", "stats", "averages"],
+      icon: <span aria-hidden>🏆</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.leaderboard,
+        });
+      },
+    },
+    {
+      title: "Records wall",
+      subtext: "Show the club batting and bowling records",
+      group: "Page widgets",
+      aliases: ["records", "records wall"],
+      icon: <span aria-hidden>🎖️</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.recordsWall,
+        });
+      },
+    },
+    {
+      title: "Contact form",
+      subtext: "Embed a contact message form",
+      group: "Page widgets",
+      aliases: ["contact", "form", "message"],
+      icon: <span aria-hidden>✉️</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.contactForm,
+        });
+      },
+    },
+    {
+      title: "Cookie settings link",
+      subtext: "Inline link that reopens the cookie consent banner",
+      group: "Page widgets",
+      aliases: ["cookie", "consent", "gdpr", "privacy"],
+      icon: <span aria-hidden>🍪</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.cookieSettingsLink,
+        });
+      },
+    },
+    {
+      title: "Consent version",
+      subtext: "Display the current cookie consent policy version string",
+      group: "Page widgets",
+      aliases: ["consent version", "policy version"],
+      icon: <span aria-hidden>📋</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.consentVersion,
+        });
+      },
     },
   ];
 }

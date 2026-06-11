@@ -380,6 +380,44 @@ function BlockView({ block }: { block: ContentBlock }) {
       return <mdxComponents.Image src={src} alt={alt} caption={caption} />;
     }
 
+    case CUSTOM_BLOCK_TYPES.leagueTable: {
+      const divisionId = stringProp(block, "divisionId");
+      // Required prop: degrade silently when missing.
+      if (!divisionId) return null;
+      return (
+        <mdxComponents.LeagueTable
+          divisionId={divisionId}
+          name={stringProp(block, "name")}
+        />
+      );
+    }
+
+    case CUSTOM_BLOCK_TYPES.leaderboard:
+      return <mdxComponents.Leaderboard />;
+
+    case CUSTOM_BLOCK_TYPES.recordsWall:
+      return <mdxComponents.RecordsWall />;
+
+    case CUSTOM_BLOCK_TYPES.contactForm:
+      return (
+        <mdxComponents.ContactForm
+          title={stringProp(block, "title")}
+          description={stringProp(block, "description")}
+        />
+      );
+
+    case CUSTOM_BLOCK_TYPES.cookieSettingsLink: {
+      const text = stringProp(block, "text") ?? "Cookie settings";
+      return (
+        <mdxComponents.CookieSettingsLink>
+          {text}
+        </mdxComponents.CookieSettingsLink>
+      );
+    }
+
+    case CUSTOM_BLOCK_TYPES.consentVersion:
+      return <mdxComponents.ConsentVersion />;
+
     default:
       // Unknown / not-yet-supported block types degrade silently.
       return null;
