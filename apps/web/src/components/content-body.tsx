@@ -320,8 +320,12 @@ function BlockView({ block }: { block: ContentBlock }) {
     case CUSTOM_BLOCK_TYPES.person: {
       const slug = stringProp(block, "slug");
       if (!slug) return null;
+      // Capped to the editor preview's card width: a standalone person
+      // block would otherwise stretch to the full content column.
       return (
-        <mdxComponents.Person slug={slug} role={stringProp(block, "role")} />
+        <div className="w-full max-w-xs">
+          <mdxComponents.Person slug={slug} role={stringProp(block, "role")} />
+        </div>
       );
     }
 

@@ -1,5 +1,12 @@
 import type { DB } from "@percy-main/db";
-import type { Kysely } from "kysely";
+import {
+  DummyDriver,
+  Kysely,
+  PostgresAdapter,
+  PostgresIntrospector,
+  PostgresQueryCompiler,
+  type RawBuilder,
+} from "kysely";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockExecuteTakeFirst, mockExecuteTakeFirstOrThrow, mockQueryBuilder } =
@@ -35,6 +42,7 @@ const { mockExecuteTakeFirst, mockExecuteTakeFirstOrThrow, mockQueryBuilder } =
   });
 
 import {
+  archiveContent,
   createContent,
   getPublishedGameReport,
   publishContent,
@@ -43,6 +51,42 @@ import {
 } from "./service.ts";
 
 const db = mockQueryBuilder as unknown as Kysely<DB>;
+
+// Compile-only Kysely (DummyDriver never connects): turns the raw SQL
+// expressions the service hands to .set() into inspectable SQL text.
+const compilerDb = new Kysely<DB>({
+  dialect: {
+    createAdapter: () => new PostgresAdapter(),
+    createDriver: () => new DummyDriver(),
+    createIntrospector: (inner) => new PostgresIntrospector(inner),
+    createQueryCompiler: () => new PostgresQueryCompiler(),
+  },
+});
+
+/** SQL text (whitespace-normalised) of a column's value in the first .set() call. */
+function setSqlFor(column: string): string {
+  const setArg = (mockQueryBuilder.set as ReturnType<typeof vi.fn>).mock
+    .calls[0]?.[0] as Record<string, RawBuilder<unknown>>;
+  const builder = setArg[column];
+  if (!builder) throw new Error(`.set() did not include ${column}`);
+  return builder.compile(compilerDb).sql.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * SQL text (whitespace-normalised) of every raw single-argument .where()
+ * guard - the form publishContent's ever-live invariant uses, as opposed
+ * to the three-argument column comparisons.
+ */
+function whereGuardSql(): string[] {
+  return (mockQueryBuilder.where as ReturnType<typeof vi.fn>).mock.calls
+    .filter((call) => call.length === 1)
+    .map((call) =>
+      (call[0] as RawBuilder<unknown>)
+        .compile(compilerDb)
+        .sql.replace(/\s+/g, " ")
+        .trim(),
+    );
+}
 
 const validBody = [
   {
@@ -120,6 +164,107 @@ describe("createContent", () => {
   });
 });
 
+describe("news and event metadata", () => {
+  const newsCreate = (metadata: Record<string, unknown>) =>
+    validCreate({
+      kind: "news" as const,
+      slug: "summer-fair-roundup",
+      title: "Summer fair roundup",
+      metadata,
+    });
+  const eventCreate = (metadata: Record<string, unknown>) =>
+    validCreate({
+      kind: "event" as const,
+      slug: "quiz-night",
+      title: "Quiz night",
+      metadata,
+    });
+
+  it("creates news with tags and an author", async () => {
+    const result = await createContent(db)(
+      newsCreate({ tags: ["seniors"], authorSlug: "alice-smith" }),
+    );
+    expect(result).toEqual({ id: "content-1" });
+  });
+
+  it("rejects an authorSlug that is not slug-shaped", async () => {
+    await expect(
+      createContent(db)(newsCreate({ tags: [], authorSlug: "Alice Smith" })),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("creates an event with a finish and a full location", async () => {
+    const result = await createContent(db)(
+      eventCreate({
+        when: "2026-07-04T18:30:00+01:00",
+        finish: "2026-07-04T22:00:00+01:00",
+        location: {
+          name: "The Clubhouse",
+          street: "St John's Terrace",
+          city: "North Shields",
+          postcode: "NE29 6HS",
+          lat: 55.004,
+          lon: -1.453,
+        },
+      }),
+    );
+    expect(result).toEqual({ id: "content-1" });
+  });
+
+  it("rejects an event without a when", async () => {
+    await expect(
+      createContent(db)(eventCreate({ finish: "2026-07-04T22:00:00+01:00" })),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      createContent(db)(eventCreate({ finish: "2026-07-04T22:00:00+01:00" })),
+    ).rejects.toThrow(/when/);
+  });
+
+  it("rejects a location missing its postcode", async () => {
+    await expect(
+      createContent(db)(
+        eventCreate({
+          when: "2026-07-04T18:30:00+01:00",
+          location: {
+            name: "The Clubhouse",
+            street: "St John's Terrace",
+            city: "North Shields",
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("strips unknown metadata keys, like every other kind", async () => {
+    await createContent(db)(
+      newsCreate({ tags: ["seniors"], county: "Tyne and Wear" }),
+    );
+    const inserted = (mockQueryBuilder.values as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as { metadata: string };
+    expect(JSON.parse(inserted.metadata)).toEqual({ tags: ["seniors"] });
+  });
+
+  it("validates news metadata on the update path too", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "content-1",
+      kind: "news",
+      slug: "summer-fair-roundup",
+      title: "Summer fair roundup",
+      description: null,
+      body: validBody,
+      metadata: { tags: ["seniors"] },
+      published_at: null,
+    });
+    await expect(
+      updateContent(db)({
+        contentId: "content-1",
+        userId: "user-1",
+        metadata: { tags: "seniors" },
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
 describe("updateContent", () => {
   const currentRow = {
     id: "content-1",
@@ -183,10 +328,13 @@ describe("publishContent", () => {
   it("409s when the item is archived", async () => {
     mockExecuteTakeFirst
       .mockResolvedValueOnce(undefined) // update skipped archived row
-      .mockResolvedValueOnce({ id: "content-1" }); // but it exists
+      .mockResolvedValueOnce({ status: "archived" }); // but it exists
     await expect(
       publishContent(db)({ contentId: "content-1", userId: "user-1" }),
-    ).rejects.toMatchObject({ statusCode: 409 });
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: "Archived content cannot be published",
+    });
   });
 
   it("returns the effective publishedAt", async () => {
@@ -204,6 +352,105 @@ describe("publishContent", () => {
       id: "content-1",
       publishedAt: at.toISOString(),
     });
+  });
+
+  it("passes an explicit publishedAt through as a concrete date", async () => {
+    const at = new Date("2026-07-01T10:00:00Z");
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "content-1",
+      published_at: at,
+    });
+    await publishContent(db)({
+      contentId: "content-1",
+      publishedAt: at.toISOString(),
+      userId: "user-1",
+    });
+    const setArg = (mockQueryBuilder.set as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as { published_at: unknown };
+    expect(setArg.published_at).toEqual(at);
+  });
+
+  it("publish-now keeps published_at only when already past (DB-clock CASE)", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "content-1",
+      published_at: new Date("2026-06-01T10:00:00Z"),
+    });
+    await publishContent(db)({ contentId: "content-1", userId: "user-1" });
+    // NULL or a still-future schedule must fall through to now(); only a
+    // past live-from date survives a dateless publish.
+    expect(setSqlFor("published_at")).toBe(
+      "CASE WHEN published_at <= CURRENT_TIMESTAMP THEN published_at ELSE CURRENT_TIMESTAMP END",
+    );
+    // A dateless publish can never violate the ever-live invariant, so
+    // no raw WHERE guard is attached.
+    expect(whereGuardSql()).toEqual([]);
+  });
+
+  it("guards the ever-live invariant in the UPDATE's WHERE (DB clock)", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "content-1",
+      published_at: new Date("2027-01-01T10:00:00Z"),
+    });
+    await publishContent(db)({
+      contentId: "content-1",
+      publishedAt: "2027-01-01T10:00:00Z",
+      userId: "user-1",
+    });
+    // The IS NOT NULL keeps a first publish (NULL published_at) from
+    // NULL-ing the whole predicate and blocking the row.
+    expect(whereGuardSql()).toEqual([
+      "NOT ( published_at IS NOT NULL AND published_at <= CURRENT_TIMESTAMP AND $1::timestamptz > CURRENT_TIMESTAMP )",
+    ]);
+  });
+
+  it("409s when scheduling an item that has already been live", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // ever-live guard excluded the row
+      .mockResolvedValueOnce({ status: "published" }); // exists, not archived
+    await expect(
+      publishContent(db)({
+        contentId: "content-1",
+        publishedAt: "2027-01-01T10:00:00Z",
+        userId: "user-1",
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message:
+        "This item has already been live - it can only be published immediately",
+    });
+  });
+});
+
+describe("archiveContent", () => {
+  it("404s when the item does not exist", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // update matched nothing
+      .mockResolvedValueOnce(undefined); // and it does not exist
+    await expect(
+      archiveContent(db)({ contentId: "missing", userId: "user-1" }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("409s when the item is already archived", async () => {
+    // Re-archiving must not silently bump updated_at/updated_by.
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // update skipped the archived row
+      .mockResolvedValueOnce({ id: "content-1" }); // but it exists
+    await expect(
+      archiveContent(db)({ contentId: "content-1", userId: "user-1" }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: "Content is already archived",
+    });
+  });
+
+  it("archives a non-archived item", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({ id: "content-1" });
+    const result = await archiveContent(db)({
+      contentId: "content-1",
+      userId: "user-1",
+    });
+    expect(result).toEqual({ id: "content-1" });
   });
 });
 
@@ -224,6 +471,17 @@ describe("unpublishContent", () => {
     await expect(
       unpublishContent(db)({ contentId: "missing", userId: "user-1" }),
     ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("clears published_at only while it is still in the future (DB-clock CASE)", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({ id: "content-1" });
+    await unpublishContent(db)({ contentId: "content-1", userId: "user-1" });
+    // Cancelling a schedule that never went live clears the
+    // ever-published marker (unlocking the slug); a past published_at -
+    // the item was publicly visible - is retained.
+    expect(setSqlFor("published_at")).toBe(
+      "CASE WHEN published_at > CURRENT_TIMESTAMP THEN NULL ELSE published_at END",
+    );
   });
 });
 

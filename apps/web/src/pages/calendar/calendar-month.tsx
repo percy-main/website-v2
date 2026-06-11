@@ -1,7 +1,13 @@
 import { OutcomeBadge } from "@/components/outcome-badge.js";
+import { PrefetchLink } from "@/components/prefetch-link.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
+import {
+  eventQueryOptions,
+  eventsListQueryOptions,
+  parseEventMetadata,
+} from "@/lib/content-queries.js";
 import { getAllEvents } from "@/lib/events.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
@@ -338,7 +344,8 @@ function EventCard({ item }: { item: CalendarItem & { type: "event" } }) {
   const time = formatInTimeZone(when, "Europe/London", "HH:mm");
 
   return (
-    <Link
+    <PrefetchLink
+      query={eventQueryOptions(item.id)}
       to={`/calendar/event/${item.id}`}
       className="group mb-2 flex items-center gap-3 rounded-lg border-2 border-dashed border-orange-300/50 bg-orange-50/50 p-3 transition-all hover:translate-x-1 hover:shadow-md sm:gap-4 sm:p-4"
     >
@@ -371,7 +378,7 @@ function EventCard({ item }: { item: CalendarItem & { type: "event" } }) {
       </div>
 
       <IoChevronForward className="size-5 shrink-0 text-stone-300" />
-    </Link>
+    </PrefetchLink>
   );
 }
 
@@ -445,6 +452,9 @@ export function Component() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // DB-backed events (live content editing, #489).
+  const { data: eventsData } = useQuery(eventsListQueryOptions());
+
   const handleFilterChange = (f: Filter) => {
     setActiveFilter(f);
   };
@@ -489,7 +499,17 @@ export function Component() {
       }
     }
 
-    const events = getAllEvents();
+    // TRANSITION FALLBACK (#489): until the content migration has run in
+    // prod the DB holds no published events, so an empty API list falls
+    // back to the bundled MDX corpus. Remove in the cleanup PR once the
+    // migration is verified in prod.
+    const apiEvents = (eventsData?.items ?? []).flatMap((item) => {
+      const meta = parseEventMetadata(item.metadata);
+      return meta
+        ? [{ slug: item.slug, name: item.title, when: meta.when }]
+        : [];
+    });
+    const events = apiEvents.length > 0 ? apiEvents : getAllEvents();
     for (const event of events) {
       const eventDate = new Date(event.when);
       if (

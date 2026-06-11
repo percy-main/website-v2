@@ -20,6 +20,8 @@ import {
   OptimisedImage,
   type PictureSource,
 } from "@/components/optimised-image.js";
+import { RadioButtons } from "@/components/radio-buttons.js";
+import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
 import {
   Card,
@@ -28,6 +30,14 @@ import {
   CardTitle,
 } from "@/components/ui/card.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
 import {
@@ -55,8 +65,15 @@ import {
   CUSTOM_BLOCK_TYPES,
   type ContentKind,
 } from "@percy-main/shared/content";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
 
 // ── Custom blocks ───────────────────────────────────────────────────────
 //
@@ -478,18 +495,325 @@ interface FormState {
   title: string;
   slug: string;
   description: string;
+  // game_report
   playCricketId: string;
+  // news
+  tags: string[];
+  authorSlug: string;
+  // event - datetimes are datetime-local values in UK wall-clock time
+  when: string;
+  finish: string;
+  hasLocation: boolean;
+  locationName: string;
+  locationStreet: string;
+  locationCity: string;
+  locationPostcode: string;
+  locationLat: string;
+  locationLon: string;
+}
+
+// ── Per-kind metadata: hydrate / validate / build ───────────────────────
+
+/** Event times are stored as instants but authored as UK wall-clock. */
+const EVENT_TZ = "Europe/London";
+
+const asString = (value: unknown): string =>
+  typeof value === "string" ? value : "";
+
+const asNumberString = (value: unknown): string =>
+  typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+
+/**
+ * Stored ISO instant -> the wall-clock value a datetime-local input
+ * expects, in UK time - so what the author sees never depends on their
+ * machine timezone.
+ */
+function isoToUkLocal(iso: unknown): string {
+  if (typeof iso !== "string" || iso === "") return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return formatInTimeZone(date, EVENT_TZ, "yyyy-MM-dd'T'HH:mm");
+}
+
+/** Inverse: UK wall-clock from a datetime-local input -> ISO instant. */
+function ukLocalToIso(value: string): string {
+  return fromZonedTime(value, EVENT_TZ).toISOString();
+}
+
+/** Human-readable UK-time rendering of a stored instant. */
+function formatUkTime(iso: string): string {
+  return formatInTimeZone(
+    new Date(iso),
+    EVENT_TZ,
+    "d MMM yyyy, HH:mm 'UK time'",
+  );
+}
+
+/**
+ * Hydrate per-kind fields from stored metadata. Defensive on purpose:
+ * stored JSON may predate the current schema, so anything malformed
+ * degrades to the field default rather than crashing the editor.
+ */
+function initialForm(item: ContentItemDetail | null): FormState {
+  const metadata = item?.metadata ?? {};
+  const location =
+    typeof metadata.location === "object" && metadata.location !== null
+      ? (metadata.location as Record<string, unknown>)
+      : null;
+  return {
+    title: item?.title ?? "",
+    slug: item?.slug ?? "",
+    description: item?.description ?? "",
+    playCricketId: asString(metadata.playCricketId),
+    tags: Array.isArray(metadata.tags)
+      ? metadata.tags.filter(
+          (tag): tag is string => typeof tag === "string" && tag !== "",
+        )
+      : [],
+    authorSlug: asString(metadata.authorSlug),
+    when: isoToUkLocal(metadata.when),
+    finish: isoToUkLocal(metadata.finish),
+    hasLocation: location !== null,
+    locationName: asString(location?.name),
+    locationStreet: asString(location?.street),
+    locationCity: asString(location?.city),
+    locationPostcode: asString(location?.postcode),
+    locationLat: asNumberString(location?.lat),
+    locationLon: asNumberString(location?.lon),
+  };
+}
+
+const isBlankOrNumeric = (value: string) =>
+  value.trim() === "" || !Number.isNaN(Number(value.trim()));
+
+/**
+ * Client-side floor for per-kind metadata the API would 400 without
+ * (the server revalidates everything). Returns the message shown on the
+ * disabled save button, or null when the metadata is saveable.
+ */
+function metadataProblem(kind: ContentKind, form: FormState): string | null {
+  if (kind === "game_report" && !form.playCricketId) {
+    return "Choose a Play-Cricket game first";
+  }
+  if (kind === "event") {
+    if (!form.when) return "Set the event start time first";
+    if (form.hasLocation) {
+      if (
+        !form.locationName.trim() ||
+        !form.locationStreet.trim() ||
+        !form.locationCity.trim() ||
+        !form.locationPostcode.trim()
+      ) {
+        return "Fill in the location fields (or untick Has location)";
+      }
+      if (
+        !isBlankOrNumeric(form.locationLat) ||
+        !isBlankOrNumeric(form.locationLon)
+      ) {
+        return "Latitude and longitude must be numbers";
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Metadata payload per kind, matching the shared metadata schemas.
+ * Optional fields are omitted when unset - never sent as "".
+ */
+function buildMetadata(
+  kind: ContentKind,
+  form: FormState,
+): Record<string, unknown> {
+  if (kind === "news") {
+    return {
+      tags: form.tags,
+      ...(form.authorSlug ? { authorSlug: form.authorSlug } : {}),
+    };
+  }
+  if (kind === "event") {
+    return {
+      when: ukLocalToIso(form.when),
+      ...(form.finish ? { finish: ukLocalToIso(form.finish) } : {}),
+      ...(form.hasLocation
+        ? {
+            location: {
+              name: form.locationName.trim(),
+              street: form.locationStreet.trim(),
+              city: form.locationCity.trim(),
+              postcode: form.locationPostcode.trim(),
+              ...(form.locationLat.trim() !== ""
+                ? { lat: Number(form.locationLat.trim()) }
+                : {}),
+              ...(form.locationLon.trim() !== ""
+                ? { lon: Number(form.locationLon.trim()) }
+                : {}),
+            },
+          }
+        : {}),
+    };
+  }
+  return { playCricketId: form.playCricketId };
+}
+
+/**
+ * Tags already used by items on the cached admin list pages for this
+ * kind - a cheap, offline suggestion source (no extra endpoint). Tags
+ * stay free-form; suggestions only aid consistency.
+ */
+function cachedTagSuggestions(
+  queryClient: QueryClient,
+  kind: ContentKind,
+): string[] {
+  const tags = new Set<string>();
+  for (const [, data] of queryClient.getQueriesData({
+    queryKey: ["admin", "content", kind],
+  })) {
+    const items = (data as { items?: unknown } | undefined)?.items;
+    if (!Array.isArray(items)) continue;
+    for (const item of items) {
+      const itemTags = (item as { metadata?: Record<string, unknown> }).metadata
+        ?.tags;
+      if (!Array.isArray(itemTags)) continue;
+      for (const tag of itemTags) {
+        if (typeof tag === "string" && tag !== "") tags.add(tag);
+      }
+    }
+  }
+  return Array.from(tags).sort((a, b) => a.localeCompare(b));
+}
+
+// ── Per-kind metadata inputs ────────────────────────────────────────────
+
+function TagsInput({
+  tags,
+  suggestions,
+  onChange,
+}: {
+  tags: string[];
+  suggestions: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  const commit = (raw: string) => {
+    const tag = raw.trim();
+    if (tag && !tags.includes(tag)) onChange([...tags, tag]);
+    setDraft("");
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {tags.map((tag) => (
+            <Badge key={tag} variant="secondary" className="gap-1">
+              {tag}
+              <button
+                type="button"
+                aria-label={`Remove tag ${tag}`}
+                className="hover:text-stone-500"
+                onClick={() => {
+                  onChange(tags.filter((t) => t !== tag));
+                }}
+              >
+                ×
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <Input
+        id="news-tags"
+        list="news-tag-suggestions"
+        placeholder="Type a tag, press Enter"
+        value={draft}
+        onChange={(e) => {
+          const value = e.target.value;
+          if (!value.includes(",")) {
+            setDraft(value);
+            return;
+          }
+          // Comma commits mid-type (also handles pasted "a, b, c" lists);
+          // anything after the last comma stays as the draft.
+          const parts = value.split(",");
+          const remainder = parts.pop() ?? "";
+          const seen = new Set(tags);
+          const additions: string[] = [];
+          for (const part of parts) {
+            const tag = part.trim();
+            if (tag !== "" && !seen.has(tag)) {
+              seen.add(tag);
+              additions.push(tag);
+            }
+          }
+          if (additions.length > 0) onChange([...tags, ...additions]);
+          setDraft(remainder);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit(draft);
+          }
+        }}
+        onBlur={() => {
+          if (draft.trim()) commit(draft);
+        }}
+      />
+      <datalist id="news-tag-suggestions">
+        {suggestions.flatMap((s) =>
+          tags.includes(s) ? [] : [<option key={s} value={s} />],
+        )}
+      </datalist>
+    </div>
+  );
+}
+
+// Radix Select items can't have an empty value, so "no author" rides on a
+// sentinel the slug grammar can never produce (no leading hyphens).
+const NO_AUTHOR = "--none--";
+
+function AuthorSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (slug: string) => void;
+}) {
+  const people = getAllPeople().sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <Select
+      value={value === "" ? NO_AUTHOR : value}
+      onValueChange={(next) => {
+        onChange(next === NO_AUTHOR ? "" : next);
+      }}
+    >
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder="No author" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_AUTHOR}>No author</SelectItem>
+        {people.map((p) => (
+          <SelectItem key={p.slug} value={p.slug}>
+            {p.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 function MetadataFields({
   kind,
   form,
   slugLocked,
+  tagSuggestions,
   onChange,
 }: {
   kind: ContentKind;
   form: FormState;
   slugLocked: boolean;
+  tagSuggestions: string[];
   onChange: (updates: Partial<FormState>) => void;
 }) {
   return (
@@ -544,8 +868,202 @@ function MetadataFields({
           )}
         </div>
       )}
+      {kind === "news" && (
+        <>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="news-tags">Tags</Label>
+            <TagsInput
+              tags={form.tags}
+              suggestions={tagSuggestions}
+              onChange={(tags) => {
+                onChange({ tags });
+              }}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label>Author (optional)</Label>
+            <AuthorSelect
+              value={form.authorSlug}
+              onChange={(authorSlug) => {
+                onChange({ authorSlug });
+              }}
+            />
+          </div>
+        </>
+      )}
+      {kind === "event" && (
+        <>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="event-when">Starts (UK time)</Label>
+            <Input
+              id="event-when"
+              type="datetime-local"
+              value={form.when}
+              onChange={(e) => {
+                onChange({ when: e.target.value });
+              }}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="event-finish">Finishes (UK time, optional)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="event-finish"
+                type="datetime-local"
+                value={form.finish}
+                onChange={(e) => {
+                  onChange({ finish: e.target.value });
+                }}
+              />
+              {form.finish && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onChange({ finish: "" });
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="event-has-location"
+              checked={form.hasLocation}
+              onCheckedChange={(value) => {
+                onChange({ hasLocation: value === true });
+              }}
+            />
+            <Label htmlFor="event-has-location">Has location</Label>
+          </div>
+          {form.hasLocation && (
+            <div className="flex flex-col gap-3 rounded-lg border border-stone-200 p-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="event-location-name">Venue name</Label>
+                <Input
+                  id="event-location-name"
+                  value={form.locationName}
+                  onChange={(e) => {
+                    onChange({ locationName: e.target.value });
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="event-location-street">Street</Label>
+                <Input
+                  id="event-location-street"
+                  value={form.locationStreet}
+                  onChange={(e) => {
+                    onChange({ locationStreet: e.target.value });
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="event-location-city">City</Label>
+                <Input
+                  id="event-location-city"
+                  value={form.locationCity}
+                  onChange={(e) => {
+                    onChange({ locationCity: e.target.value });
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="event-location-postcode">Postcode</Label>
+                <Input
+                  id="event-location-postcode"
+                  value={form.locationPostcode}
+                  onChange={(e) => {
+                    onChange({ locationPostcode: e.target.value });
+                  }}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="event-location-lat">Lat (optional)</Label>
+                  <Input
+                    id="event-location-lat"
+                    inputMode="decimal"
+                    value={form.locationLat}
+                    onChange={(e) => {
+                      onChange({ locationLat: e.target.value });
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="event-location-lon">Lon (optional)</Label>
+                  <Input
+                    id="event-location-lon"
+                    inputMode="decimal"
+                    value={form.locationLon}
+                    onChange={(e) => {
+                      onChange({ locationLon: e.target.value });
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </>
   );
+}
+
+type PublishAction =
+  | { action: "publish"; publishedAt?: string }
+  | { action: "unpublish" }
+  | { action: "archive" };
+
+/** setTimeout clamps delays beyond a signed 32-bit int (~24.8 days). */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
+/**
+ * Scheduled = published with a still-future publish time. Client-side
+ * now() comparison is fine here: it only picks the admin copy and
+ * actions; the public visibility decision stays server-side.
+ */
+function isScheduled(item: {
+  status: string;
+  publishedAt: string | null;
+}): boolean {
+  return (
+    item.status === "published" &&
+    item.publishedAt !== null &&
+    Date.parse(item.publishedAt) > Date.now()
+  );
+}
+
+/**
+ * Ever-live = published_at is in the past, i.e. the public has (or could
+ * have) seen this item at its URL. The server enforces the matching
+ * invariant - an ever-live item can only be published immediately, since
+ * re-scheduling it would silently pull a page that WAS public - so the
+ * dialog never offers "Schedule for later" here. Mutually exclusive with
+ * isScheduled (that needs a FUTURE published_at).
+ */
+function hasBeenLive(item: { publishedAt: string | null }): boolean {
+  return (
+    item.publishedAt !== null && Date.parse(item.publishedAt) <= Date.now()
+  );
+}
+
+/**
+ * Why the schedule can't be confirmed yet, or null when it can. A
+ * schedule must be in the future at confirm time. (The server accepts
+ * any instant - re-publishing with a past date is a valid backdate.)
+ */
+function scheduleProblemFor(
+  mode: "now" | "schedule",
+  scheduleAt: string,
+): string | null {
+  if (mode !== "schedule") return null;
+  if (scheduleAt === "") return "Pick a date and time first";
+  return fromZonedTime(scheduleAt, EVENT_TZ).getTime() <= Date.now()
+    ? "The scheduled time must be in the future"
+    : null;
 }
 
 function PublishingCard({
@@ -561,23 +1079,54 @@ function PublishingCard({
   beforePublish: () => Promise<unknown>;
 }) {
   const queryClient = useQueryClient();
-  const [publishAt, setPublishAt] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [mode, setMode] = useState<"now" | "schedule">("now");
+  // UK wall-clock datetime-local value (same convention as event times).
+  const [scheduleAt, setScheduleAt] = useState("");
+
+  const scheduled = isScheduled(item);
+  const everLive = hasBeenLive(item);
+
+  // Flip Scheduled -> Live on our own when the publish time passes with
+  // the editor open: isScheduled() reads Date.now() at render time only,
+  // and a stale "Scheduled" card promises a slug unlock the server
+  // (correctly, on the DB clock) would no longer grant. The mutation
+  // flow is already server-authoritative; this only keeps the card's
+  // state and copy honest.
+  const [, setBoundaryTick] = useState(0);
+  const publishedAtMs =
+    item.publishedAt !== null ? Date.parse(item.publishedAt) : null;
+  useEffect(() => {
+    if (publishedAtMs === null) return;
+    // Small slack so the re-render lands safely on the live side of the
+    // boundary. Delays past the setTimeout clamp are skipped - a
+    // schedule that far out doesn't need an in-session flip.
+    const delay = publishedAtMs - Date.now() + 250;
+    if (delay <= 0 || delay > MAX_TIMEOUT_MS) return;
+    const timer = setTimeout(() => {
+      setBoundaryTick((tick) => tick + 1);
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [publishedAtMs]);
 
   const statusMutation = useMutation({
-    mutationFn: async (action: "publish" | "unpublish" | "archive") => {
-      if (action === "publish") {
+    mutationFn: async (input: PublishAction) => {
+      if (input.action === "publish") {
         // What goes live must be what's in the editor (and what the
         // preview tab shows), not the last-saved state.
         await beforePublish();
+        // "Publish now" sends no publishedAt: the server keeps a past
+        // live-from date and replaces NULL or a future schedule with
+        // now() on its own clock.
         await callApi(
           api.POST("/api/admin/content/{contentId}/publish", {
             params: { path: { contentId: item.id } },
-            body: publishAt
-              ? { publishedAt: new Date(publishAt).toISOString() }
-              : {},
+            body: input.publishedAt ? { publishedAt: input.publishedAt } : {},
           }),
         );
-      } else if (action === "unpublish") {
+      } else if (input.action === "unpublish") {
         await callApi(
           api.POST("/api/admin/content/{contentId}/unpublish", {
             params: { path: { contentId: item.id } },
@@ -591,10 +1140,52 @@ function PublishingCard({
         );
       }
     },
-    onSuccess: () => {
+    onSuccess: (_result, input) => {
+      if (input.action === "publish") setDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
+      // Public pages cache content under ["content", ...] with a 5 minute
+      // staleTime; drop those too so a publish/unpublish shows up on the
+      // live site without waiting out the cache.
+      void queryClient.invalidateQueries({ queryKey: ["content"] });
     },
   });
+
+  const openPublishDialog = () => {
+    statusMutation.reset();
+    if (scheduled && item.publishedAt) {
+      // "Change schedule" starts from the current scheduled time.
+      setMode("schedule");
+      setScheduleAt(isoToUkLocal(item.publishedAt));
+    } else {
+      setMode("now");
+      setScheduleAt("");
+    }
+    setDialogOpen(true);
+  };
+
+  // If the publish boundary passes while the dialog is open in schedule
+  // mode, the item is now ever-live and only immediate publishing is
+  // valid - collapse to "now" rather than submitting a schedule the
+  // server would 409.
+  const effectiveMode = everLive ? "now" : mode;
+
+  const scheduleProblem = scheduleProblemFor(effectiveMode, scheduleAt);
+
+  const confirmPublish = () => {
+    statusMutation.mutate(
+      effectiveMode === "schedule"
+        ? { action: "publish", publishedAt: ukLocalToIso(scheduleAt) }
+        : { action: "publish" },
+    );
+  };
+
+  const mutationError = statusMutation.error && (
+    <p className="text-sm text-red-600">
+      {statusMutation.error instanceof Error
+        ? statusMutation.error.message
+        : "Action failed"}
+    </p>
+  );
 
   return (
     <Card>
@@ -602,75 +1193,138 @@ function PublishingCard({
         <CardTitle className="text-base">Publishing</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        <p className="text-sm text-stone-600">
-          Status: <strong>{item.status}</strong>
-          {item.publishedAt &&
-            ` · live from ${new Date(item.publishedAt).toLocaleString("en-GB")}`}
-        </p>
-        {item.status !== "archived" && (canPublish || canManage) && (
-          <>
-            {canPublish && (
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="publish-at">
-                  Schedule (leave empty to publish now)
-                </Label>
-                <Input
-                  id="publish-at"
-                  type="datetime-local"
-                  value={publishAt}
-                  onChange={(e) => {
-                    setPublishAt(e.target.value);
-                  }}
-                />
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {canPublish && (
-                <Button
-                  size="sm"
-                  disabled={statusMutation.isPending}
-                  onClick={() => {
-                    statusMutation.mutate("publish");
-                  }}
-                >
-                  {publishAt ? "Schedule" : "Publish"}
-                </Button>
-              )}
-              {canPublish && item.status === "published" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={statusMutation.isPending}
-                  onClick={() => {
-                    statusMutation.mutate("unpublish");
-                  }}
-                >
-                  Unpublish
-                </Button>
-              )}
-              {canManage && (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={statusMutation.isPending}
-                  onClick={() => {
-                    statusMutation.mutate("archive");
-                  }}
-                >
-                  Archive
-                </Button>
-              )}
-            </div>
-          </>
-        )}
-        {statusMutation.error && (
-          <p className="text-sm text-red-600">
-            {statusMutation.error instanceof Error
-              ? statusMutation.error.message
-              : "Action failed"}
+        {scheduled && item.publishedAt ? (
+          <p className="text-sm text-stone-600">
+            Status: <strong>scheduled</strong> · goes live{" "}
+            {formatUkTime(item.publishedAt)}
+          </p>
+        ) : (
+          <p className="text-sm text-stone-600">
+            Status: <strong>{item.status}</strong>
+            {item.publishedAt &&
+              ` · live from ${formatUkTime(item.publishedAt)}`}
           </p>
         )}
+        {item.status !== "archived" && (canPublish || canManage) && (
+          <div className="flex flex-wrap gap-2">
+            {canPublish && (
+              <Button
+                size="sm"
+                disabled={statusMutation.isPending}
+                onClick={openPublishDialog}
+              >
+                {scheduled ? "Change schedule" : "Publish…"}
+              </Button>
+            )}
+            {canPublish && item.status === "published" && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={statusMutation.isPending}
+                onClick={() => {
+                  statusMutation.mutate({ action: "unpublish" });
+                }}
+              >
+                {scheduled ? "Cancel schedule" : "Unpublish"}
+              </Button>
+            )}
+            {canManage && (
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={statusMutation.isPending}
+                onClick={() => {
+                  statusMutation.mutate({ action: "archive" });
+                }}
+              >
+                Archive
+              </Button>
+            )}
+          </div>
+        )}
+        {scheduled && canPublish && (
+          <p className="text-xs text-stone-500">
+            Cancelling the schedule returns this item to draft, and the slug
+            unlocks because it never went live.
+          </p>
+        )}
+        {!dialogOpen && mutationError}
       </CardContent>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {scheduled ? "Change schedule" : "Publish"}
+            </DialogTitle>
+            <DialogDescription>
+              {everLive
+                ? "This item has been live before, so it can only be published immediately."
+                : "Go live straight away, or pick a future time."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 flex flex-col gap-2">
+            {!everLive && (
+              <RadioButtons
+                id="publish-mode"
+                options={[
+                  {
+                    title: "Publish now",
+                    value: "now",
+                    description: "Visible on the public site immediately",
+                  },
+                  {
+                    title: "Schedule for later",
+                    value: "schedule",
+                    description:
+                      "Hidden from the public site until the scheduled time",
+                  },
+                ]}
+                value={mode}
+                onChange={setMode}
+              />
+            )}
+            {effectiveMode === "schedule" && (
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="publish-schedule-at">Goes live (UK time)</Label>
+                <Input
+                  id="publish-schedule-at"
+                  type="datetime-local"
+                  value={scheduleAt}
+                  onChange={(e) => {
+                    setScheduleAt(e.target.value);
+                  }}
+                />
+                {scheduleProblem !== null && scheduleAt !== "" && (
+                  <p className="text-sm text-red-600">{scheduleProblem}</p>
+                )}
+              </div>
+            )}
+            {mutationError}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDialogOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={statusMutation.isPending || scheduleProblem !== null}
+              title={scheduleProblem ?? undefined}
+              onClick={confirmPublish}
+            >
+              {statusMutation.isPending
+                ? "Publishing…"
+                : effectiveMode === "schedule"
+                  ? "Schedule"
+                  : "Publish now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -781,15 +1435,7 @@ function LoadedEditor({
     "publish",
   );
 
-  const [form, setForm] = useState<FormState>({
-    title: item?.title ?? "",
-    slug: item?.slug ?? "",
-    description: item?.description ?? "",
-    playCricketId:
-      typeof item?.metadata.playCricketId === "string"
-        ? item.metadata.playCricketId
-        : "",
-  });
+  const [form, setForm] = useState<FormState>(() => initialForm(item));
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(
@@ -831,7 +1477,7 @@ function LoadedEditor({
   const saveMutation = useMutation({
     mutationFn: async () => {
       const body = editorBody();
-      const metadata = { playCricketId: form.playCricketId };
+      const metadata = buildMetadata(kind, form);
       if (item === null) {
         return await callApi(
           api.POST("/api/admin/content", {
@@ -863,6 +1509,9 @@ function LoadedEditor({
       dirtyRef.current = false;
       setLastSavedAt(new Date().toISOString());
       void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
+      // Saving a published item changes the live page immediately; drop
+      // the public ["content", ...] cache so the SPA reflects it.
+      void queryClient.invalidateQueries({ queryKey: ["content"] });
       if (item === null) onCreated(result.id);
     },
   });
@@ -870,7 +1519,9 @@ function LoadedEditor({
   const requestClose = () => {
     if (
       dirtyRef.current &&
-      !window.confirm("Discard unsaved changes to this report?")
+      !window.confirm(
+        `Discard unsaved changes to this ${CONTENT_KIND_NOUNS[kind]}?`,
+      )
     ) {
       return;
     }
@@ -878,7 +1529,14 @@ function LoadedEditor({
   };
 
   const canSave = canManage && (item?.status !== "published" || canPublish);
-  const missingMetadata = kind === "game_report" && !form.playCricketId;
+  const metadataIssue = metadataProblem(kind, form);
+
+  // Suggestions come from list pages already in the query cache; computed
+  // once per mount, which is as fresh as the list the author came from.
+  const tagSuggestions = useMemo(
+    () => (kind === "news" ? cachedTagSuggestions(queryClient, kind) : []),
+    [kind, queryClient],
+  );
 
   const startImageUpload = () => {
     setUploadError(null);
@@ -956,11 +1614,9 @@ function LoadedEditor({
                 saveMutation.isPending ||
                 !form.title ||
                 !form.slug ||
-                missingMetadata
+                metadataIssue !== null
               }
-              title={
-                missingMetadata ? "Choose a Play-Cricket game first" : undefined
-              }
+              title={metadataIssue ?? undefined}
             >
               {saveMutation.isPending
                 ? "Saving…"
@@ -988,6 +1644,7 @@ function LoadedEditor({
             kind={kind}
             form={form}
             slugLocked={slugLocked}
+            tagSuggestions={tagSuggestions}
             onChange={onFormChange}
           />
           {item !== null && (

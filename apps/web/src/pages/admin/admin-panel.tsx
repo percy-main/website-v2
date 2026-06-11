@@ -173,6 +173,20 @@ const SECTIONS: readonly SectionDef[] = [
         visible: (role) => checkPermission(role, "content_reports", "view"),
         render: () => <ContentTab kind="game_report" />,
       },
+      // News and events share the content_news resource by design:
+      // news_editor authors both; reports_editor authors neither.
+      {
+        value: "news",
+        label: "News",
+        visible: (role) => checkPermission(role, "content_news", "view"),
+        render: () => <ContentTab kind="news" />,
+      },
+      {
+        value: "events",
+        label: "Events",
+        visible: (role) => checkPermission(role, "content_news", "view"),
+        render: () => <ContentTab kind="event" />,
+      },
     ],
   },
   {
