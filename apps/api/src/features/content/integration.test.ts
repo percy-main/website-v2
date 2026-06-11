@@ -19,6 +19,7 @@ import {
   getPublishedContent,
   getPublishedGameReport,
   listContent,
+  listPageTree,
   listPublishedEvents,
   listPublishedNews,
   listRevisions,
@@ -1016,6 +1017,69 @@ describe("content service (integration)", () => {
       } finally {
         await app.close();
       }
+    });
+
+    it("lists every page for the admin tree: all statuses, path-ordered, lock and defaults derived", async () => {
+      // Pages from earlier tests share the container, so assertions
+      // filter to this test's own pages; path ordering is preserved
+      // under filtering (a subsequence of an ordered list stays ordered).
+      const root = await mkPage("tree-root", {
+        metadata: { menuOrder: 2, isMainMenu: true },
+      });
+      const childBeta = await mkPage("beta", { parentId: root });
+      const childAlpha = await mkPage("alpha", { parentId: root });
+      const archived = await mkPage("tree-archived");
+      await archiveContent(ctx.db)({ contentId: archived, userId });
+      await publishContent(ctx.db)({ contentId: root, userId });
+
+      const { items } = await listPageTree(ctx.db)();
+      const mine = (id: string, list = items) => list.find((i) => i.id === id);
+      const ids = new Set([root, childAlpha, childBeta, archived]);
+      const ours = items.filter((i) => ids.has(i.id));
+
+      // Ordered by path: ancestors before descendants, siblings lexicographic
+      expect(ours.map((i) => i.path)).toEqual([
+        "/tree-archived",
+        "/tree-root",
+        "/tree-root/alpha",
+        "/tree-root/beta",
+      ]);
+
+      // Published root: explicit metadata surfaces, lock derived
+      expect(mine(root)).toMatchObject({
+        slug: "tree-root",
+        parentId: null,
+        status: "published",
+        menuOrder: 2,
+        isMainMenu: true,
+        pathLocked: true,
+      });
+      expect(mine(root)?.publishedAt).not.toBeNull();
+
+      // Draft child: schema defaults applied, no lock
+      expect(mine(childAlpha)).toMatchObject({
+        slug: "alpha",
+        parentId: root,
+        status: "draft",
+        menuOrder: 99,
+        isMainMenu: false,
+        publishedAt: null,
+        pathLocked: false,
+      });
+
+      // Archived pages stay in the tree (never published → unlocked)
+      expect(mine(archived)).toMatchObject({
+        status: "archived",
+        pathLocked: false,
+      });
+
+      // Unpublish keeps the ever-published marker: still locked as draft
+      await unpublishContent(ctx.db)({ contentId: root, userId });
+      const after = await listPageTree(ctx.db)();
+      expect(mine(root, after.items)).toMatchObject({
+        status: "draft",
+        pathLocked: true,
+      });
     });
   });
 });

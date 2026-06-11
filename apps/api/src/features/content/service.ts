@@ -217,6 +217,66 @@ export function listContent(db: Kysely<DB>) {
   };
 }
 
+// ── Admin: page tree ────────────────────────────────────────────────────
+
+export function listPageTree(db: Kysely<DB>) {
+  return async () => {
+    // Every page regardless of status (the corpus is ~dozens of rows),
+    // ordered by path so ancestors precede their descendants and the
+    // order is stable; the client assembles the tree from parentId.
+    const rows = await db
+      .selectFrom("content_item")
+      .select([
+        "id",
+        "title",
+        "slug",
+        "path",
+        "parent_id",
+        "metadata",
+        "status",
+        "published_at",
+        "updated_at",
+      ])
+      .where("kind", "=", "page")
+      .orderBy("path", "asc")
+      .execute();
+
+    return {
+      items: rows.map((row) => {
+        if (row.path === null) {
+          // Set at create for every page (see the hierarchy helpers), so
+          // a NULL here is a data problem, not a normal state.
+          throwHttpError(500, "Page is missing its path");
+        }
+        // Parsing applies the schema defaults (menuOrder 99, flags
+        // false); a malformed stored row degrades to pure defaults
+        // rather than failing the whole tree (same stance as
+        // pageMenuOrder above).
+        const parsed = pageMetadataSchema.safeParse(row.metadata);
+        const metadata = parsed.success
+          ? parsed.data
+          : pageMetadataSchema.parse({});
+        return {
+          id: row.id,
+          title: row.title,
+          slug: row.slug,
+          path: row.path,
+          parentId: row.parent_id,
+          menuOrder: metadata.menuOrder,
+          isMainMenu: metadata.isMainMenu,
+          status: row.status as ContentStatus,
+          publishedAt: row.published_at?.toISOString() ?? null,
+          updatedAt: row.updated_at.toISOString(),
+          // The ever-published marker IS the slug/parent lock
+          // updateContent enforces; derived server-side so the UI never
+          // re-implements lock semantics.
+          pathLocked: row.published_at !== null,
+        };
+      }),
+    };
+  };
+}
+
 // ── Admin: get ──────────────────────────────────────────────────────────
 
 export function getContent(db: Kysely<DB>) {

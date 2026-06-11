@@ -74,6 +74,7 @@ import {
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
+import { buildPageTree, visibleNodes } from "./pages-tab.lib.js";
 
 // ── Custom blocks ───────────────────────────────────────────────────────
 //
@@ -433,6 +434,8 @@ function buildSlashItems(editor: Editor, startImageUpload: () => void) {
 interface EditorProps {
   kind: ContentKind;
   contentId: string | null;
+  /** Pages only: preset parent for a new child (?parent= URL param). */
+  newParentId?: string | null;
   onClose: () => void;
   onCreated: (id: string) => void;
 }
@@ -440,6 +443,7 @@ interface EditorProps {
 export default function ContentEditor({
   kind,
   contentId,
+  newParentId = null,
   onClose,
   onCreated,
 }: EditorProps) {
@@ -480,6 +484,7 @@ export default function ContentEditor({
       key={contentId ?? "new"}
       kind={kind}
       item={item ?? null}
+      newParentId={newParentId}
       onClose={onClose}
       onCreated={onCreated}
     />
@@ -497,6 +502,13 @@ interface FormState {
   description: string;
   // game_report
   playCricketId: string;
+  // page - menuOrder stays a string while typing; ldjson is the raw
+  // textarea value (validated/parsed only when building the payload)
+  menuOrder: string;
+  isMainMenu: boolean;
+  hideTitle: boolean;
+  ldjson: string;
+  parentId: string | null;
   // news
   tags: string[];
   authorSlug: string;
@@ -554,7 +566,10 @@ function formatUkTime(iso: string): string {
  * stored JSON may predate the current schema, so anything malformed
  * degrades to the field default rather than crashing the editor.
  */
-function initialForm(item: ContentItemDetail | null): FormState {
+function initialForm(
+  item: ContentItemDetail | null,
+  newParentId: string | null,
+): FormState {
   const metadata = item?.metadata ?? {};
   const location =
     typeof metadata.location === "object" && metadata.location !== null
@@ -565,6 +580,14 @@ function initialForm(item: ContentItemDetail | null): FormState {
     slug: item?.slug ?? "",
     description: item?.description ?? "",
     playCricketId: asString(metadata.playCricketId),
+    menuOrder: asNumberString(metadata.menuOrder) || "99",
+    isMainMenu: metadata.isMainMenu === true,
+    hideTitle: metadata.hideTitle === true,
+    ldjson:
+      typeof metadata.ldjson === "object" && metadata.ldjson !== null
+        ? JSON.stringify(metadata.ldjson, null, 2)
+        : "",
+    parentId: item !== null ? item.parentId : newParentId,
     tags: Array.isArray(metadata.tags)
       ? metadata.tags.filter(
           (tag): tag is string => typeof tag === "string" && tag !== "",
@@ -586,6 +609,19 @@ function initialForm(item: ContentItemDetail | null): FormState {
 const isBlankOrNumeric = (value: string) =>
   value.trim() === "" || !Number.isNaN(Number(value.trim()));
 
+/** Parsed ldjson object, or null when the textarea isn't a JSON object. */
+function parseLdjson(raw: string): Record<string, unknown> | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : null;
+}
+
 /**
  * Client-side floor for per-kind metadata the API would 400 without
  * (the server revalidates everything). Returns the message shown on the
@@ -594,6 +630,20 @@ const isBlankOrNumeric = (value: string) =>
 function metadataProblem(kind: ContentKind, form: FormState): string | null {
   if (kind === "game_report" && !form.playCricketId) {
     return "Choose a Play-Cricket game first";
+  }
+  if (kind === "page") {
+    const menuOrder = Number(form.menuOrder.trim());
+    if (
+      form.menuOrder.trim() === "" ||
+      !Number.isInteger(menuOrder) ||
+      menuOrder < 0 ||
+      menuOrder > 999
+    ) {
+      return "Menu order must be a whole number from 0 to 999";
+    }
+    if (form.ldjson.trim() !== "" && parseLdjson(form.ldjson.trim()) === null) {
+      return "Structured data must be a valid JSON object (or left empty)";
+    }
   }
   if (kind === "event") {
     if (!form.when) return "Set the event start time first";
@@ -625,6 +675,16 @@ function buildMetadata(
   kind: ContentKind,
   form: FormState,
 ): Record<string, unknown> {
+  if (kind === "page") {
+    const ldjson = form.ldjson.trim();
+    return {
+      menuOrder: Number(form.menuOrder.trim()),
+      isMainMenu: form.isMainMenu,
+      hideTitle: form.hideTitle,
+      // Omitted entirely when empty - never an empty string for "no value".
+      ...(ldjson !== "" ? { ldjson: parseLdjson(ldjson) } : {}),
+    };
+  }
   if (kind === "news") {
     return {
       tags: form.tags,
@@ -803,15 +863,150 @@ function AuthorSelect({
   );
 }
 
+// Radix Select items can't have an empty value, so "top level" rides on
+// a sentinel the slug grammar can never produce (no leading hyphens).
+const ROOT_PARENT = "--root--";
+
+// menuOrder is deliberately NOT covered by this lock: it is presentation
+// only, so ordering stays editable after publish.
+const PATH_LOCKED_HINT = "Locked after publish - the page's address is fixed";
+
+function PageMetadataFields({
+  form,
+  itemId,
+  slugLocked,
+  onChange,
+}: {
+  form: FormState;
+  /** Editing target, or null when creating - excluded from the picker. */
+  itemId: string | null;
+  slugLocked: boolean;
+  onChange: (updates: Partial<FormState>) => void;
+}) {
+  // Same key as the Pages tab's tree query, so opening the editor from
+  // the tree hits the cache and the picker renders instantly.
+  const { data } = useQuery({
+    queryKey: ["admin", "content", "page-tree"],
+    queryFn: () => callApi(api.GET("/api/admin/content/page-tree")),
+  });
+  const items = useMemo(() => data?.items ?? [], [data]);
+
+  // Parent options: every page except this one and its descendants
+  // (descendants are exactly the rows whose path extends this page's -
+  // the same canonical-prefix rule the backend's cycle check uses).
+  const options = useMemo(() => {
+    const self = items.find((item) => item.id === itemId);
+    const eligible = items.filter(
+      (item) =>
+        item.id !== itemId &&
+        (self === undefined || !item.path.startsWith(`${self.path}/`)),
+    );
+    const allExpanded = new Set(eligible.map((item) => item.id));
+    return visibleNodes(buildPageTree(eligible), allExpanded);
+  }, [items, itemId]);
+
+  // While the tree query is still loading, the parent's path is unknown -
+  // show an ellipsis rather than implying the page sits at the root.
+  const parentPath =
+    form.parentId !== null
+      ? (items.find((item) => item.id === form.parentId)?.path ?? "/…")
+      : "";
+  const pathPreview = `${parentPath}/${form.slug || "…"}`;
+
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        <Label>Parent page{slugLocked ? " (locked after publish)" : ""}</Label>
+        <Select
+          value={form.parentId ?? ROOT_PARENT}
+          disabled={slugLocked}
+          onValueChange={(next) => {
+            onChange({ parentId: next === ROOT_PARENT ? null : next });
+          }}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Top level" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ROOT_PARENT}>Top level (no parent)</SelectItem>
+            {options.map((node) => (
+              <SelectItem key={node.item.id} value={node.item.id}>
+                {"\u00A0".repeat(node.depth * 3)}
+                {node.item.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {slugLocked ? (
+          <span className="text-xs text-stone-500">{PATH_LOCKED_HINT}</span>
+        ) : (
+          <span className="text-xs text-stone-500">
+            Page address: <span className="font-mono">{pathPreview}</span>
+          </span>
+        )}
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="page-menu-order">Menu order (0-999)</Label>
+        <Input
+          id="page-menu-order"
+          inputMode="numeric"
+          value={form.menuOrder}
+          onChange={(e) => {
+            onChange({ menuOrder: e.target.value });
+          }}
+        />
+        <span className="text-xs text-stone-500">
+          Lower numbers appear first among sibling pages.
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="page-is-main-menu"
+          checked={form.isMainMenu}
+          onCheckedChange={(value) => {
+            onChange({ isMainMenu: value === true });
+          }}
+        />
+        <Label htmlFor="page-is-main-menu">Show in the main menu</Label>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="page-hide-title"
+          checked={form.hideTitle}
+          onCheckedChange={(value) => {
+            onChange({ hideTitle: value === true });
+          }}
+        />
+        <Label htmlFor="page-hide-title">Hide the title heading</Label>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="page-ldjson">Structured data (JSON-LD, optional)</Label>
+        <Textarea
+          id="page-ldjson"
+          rows={4}
+          className="font-mono text-xs"
+          placeholder='{"@context": "https://schema.org", …}'
+          value={form.ldjson}
+          onChange={(e) => {
+            onChange({ ldjson: e.target.value });
+          }}
+        />
+      </div>
+    </>
+  );
+}
+
 function MetadataFields({
   kind,
   form,
+  itemId,
   slugLocked,
   tagSuggestions,
   onChange,
 }: {
   kind: ContentKind;
   form: FormState;
+  itemId: string | null;
   slugLocked: boolean;
   tagSuggestions: string[];
   onChange: (updates: Partial<FormState>) => void;
@@ -852,6 +1047,14 @@ function MetadataFields({
           }}
         />
       </div>
+      {kind === "page" && (
+        <PageMetadataFields
+          form={form}
+          itemId={itemId}
+          slugLocked={slugLocked}
+          onChange={onChange}
+        />
+      )}
       {kind === "game_report" && (
         <div className="flex flex-col gap-1">
           <Label>Play-Cricket game</Label>
@@ -1417,11 +1620,13 @@ function EditorPane({
 function LoadedEditor({
   kind,
   item,
+  newParentId,
   onClose,
   onCreated,
 }: {
   kind: ContentKind;
   item: ContentItemDetail | null;
+  newParentId: string | null;
   onClose: () => void;
   onCreated: (id: string) => void;
 }) {
@@ -1435,7 +1640,9 @@ function LoadedEditor({
     "publish",
   );
 
-  const [form, setForm] = useState<FormState>(() => initialForm(item));
+  const [form, setForm] = useState<FormState>(() =>
+    initialForm(item, newParentId),
+  );
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(
@@ -1488,6 +1695,9 @@ function LoadedEditor({
               description: form.description || null,
               body,
               metadata,
+              // Pages nest; every other kind is flat (the API rejects a
+              // parent on non-page kinds).
+              ...(kind === "page" ? { parentId: form.parentId } : {}),
             },
           }),
         );
@@ -1496,7 +1706,14 @@ function LoadedEditor({
         api.PUT("/api/admin/content/{contentId}", {
           params: { path: { contentId: item.id } },
           body: {
-            ...(slugLocked ? {} : { slug: form.slug }),
+            // Slug and (for pages) parent share the ever-published lock:
+            // path = parent path + slug, so neither is sent once locked.
+            ...(slugLocked
+              ? {}
+              : {
+                  slug: form.slug,
+                  ...(kind === "page" ? { parentId: form.parentId } : {}),
+                }),
             title: form.title,
             description: form.description || null,
             body,
@@ -1643,6 +1860,7 @@ function LoadedEditor({
           <MetadataFields
             kind={kind}
             form={form}
+            itemId={item?.id ?? null}
             slugLocked={slugLocked}
             tagSuggestions={tagSuggestions}
             onChange={onFormChange}

@@ -75,6 +75,32 @@ export const listContentResponseSchema = z.object({
   total: z.number().int().nonnegative(),
 });
 
+// ── Admin: page tree ────────────────────────────────────────────────────
+
+/**
+ * Every page regardless of status, ordered by path - the single source
+ * for the admin tree view. pathLocked is the server-derived
+ * ever-published lock (published_at non-null, the same marker
+ * updateContent enforces) so the UI never re-derives lock semantics.
+ */
+export const pageTreeResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      slug: z.string(),
+      path: z.string(),
+      parentId: z.string().nullable(),
+      menuOrder: z.number().int(),
+      isMainMenu: z.boolean(),
+      status: contentStatusSchema,
+      publishedAt: z.string().nullable(),
+      updatedAt: z.string(),
+      pathLocked: z.boolean(),
+    }),
+  ),
+});
+
 // ── Admin: get / create / update ────────────────────────────────────────
 
 export const contentIdParamSchema = z.object({

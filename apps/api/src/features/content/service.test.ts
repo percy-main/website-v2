@@ -50,6 +50,7 @@ import {
   archiveContent,
   createContent,
   getPublishedGameReport,
+  listPageTree,
   publishContent,
   unpublishContent,
   updateContent,
@@ -917,6 +918,101 @@ describe("unpublishContent", () => {
       userId: "user-1",
     });
     expect(result).toEqual({ id: "content-1" });
+  });
+});
+
+describe("listPageTree", () => {
+  const pageRow = (overrides: Record<string, unknown> = {}) => ({
+    id: "page-1",
+    title: "Cricket",
+    slug: "cricket",
+    path: "/cricket",
+    parent_id: null,
+    metadata: { menuOrder: 1, isMainMenu: true, hideTitle: false },
+    status: "draft",
+    published_at: null,
+    updated_at: new Date("2026-06-02T10:00:00Z"),
+    ...overrides,
+  });
+
+  it("maps rows: hierarchy fields, metadata values and timestamps", async () => {
+    mockExecute.mockResolvedValueOnce([
+      pageRow(),
+      pageRow({
+        id: "page-2",
+        title: "Juniors",
+        slug: "juniors",
+        path: "/cricket/juniors",
+        parent_id: "page-1",
+        status: "published",
+        published_at: new Date("2026-06-01T10:00:00Z"),
+      }),
+    ]);
+    const { items } = await listPageTree(db)();
+    expect(items).toEqual([
+      {
+        id: "page-1",
+        title: "Cricket",
+        slug: "cricket",
+        path: "/cricket",
+        parentId: null,
+        menuOrder: 1,
+        isMainMenu: true,
+        status: "draft",
+        publishedAt: null,
+        updatedAt: "2026-06-02T10:00:00.000Z",
+        pathLocked: false,
+      },
+      {
+        id: "page-2",
+        title: "Juniors",
+        slug: "juniors",
+        path: "/cricket/juniors",
+        parentId: "page-1",
+        menuOrder: 1,
+        isMainMenu: true,
+        status: "published",
+        publishedAt: "2026-06-01T10:00:00.000Z",
+        updatedAt: "2026-06-02T10:00:00.000Z",
+        pathLocked: true,
+      },
+    ]);
+  });
+
+  it("derives pathLocked from the ever-published marker, not status", async () => {
+    // Unpublish retains a past published_at (the item WAS live), so a
+    // draft can still be locked; archive never touches the marker.
+    mockExecute.mockResolvedValueOnce([
+      pageRow({
+        status: "draft",
+        published_at: new Date("2026-06-01T10:00:00Z"),
+      }),
+      pageRow({ id: "page-2", path: "/club", status: "archived" }),
+    ]);
+    const { items } = await listPageTree(db)();
+    expect(items[0]).toMatchObject({ status: "draft", pathLocked: true });
+    expect(items[1]).toMatchObject({ status: "archived", pathLocked: false });
+  });
+
+  it("applies schema defaults for keys absent from stored metadata", async () => {
+    mockExecute.mockResolvedValueOnce([pageRow({ metadata: {} })]);
+    const { items } = await listPageTree(db)();
+    expect(items[0]).toMatchObject({ menuOrder: 99, isMainMenu: false });
+  });
+
+  it("degrades malformed stored metadata to pure defaults", async () => {
+    mockExecute.mockResolvedValueOnce([
+      pageRow({ metadata: { menuOrder: "first", isMainMenu: "yes" } }),
+    ]);
+    const { items } = await listPageTree(db)();
+    expect(items[0]).toMatchObject({ menuOrder: 99, isMainMenu: false });
+  });
+
+  it("500s on a page with no path (data problem, not a request error)", async () => {
+    mockExecute.mockResolvedValueOnce([pageRow({ path: null })]);
+    await expect(listPageTree(db)()).rejects.toMatchObject({
+      statusCode: 500,
+    });
   });
 });
 

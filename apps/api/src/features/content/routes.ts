@@ -22,6 +22,7 @@ import {
   listRevisionsResponseSchema,
   navResponseSchema,
   pageByPathQuerySchema,
+  pageTreeResponseSchema,
   playCricketIdParamSchema,
   publicContentParamsSchema,
   publicContentResponseSchema,
@@ -38,6 +39,7 @@ import {
   getPublishedNav,
   getPublishedPageByPath,
   listContent,
+  listPageTree,
   listPublishedEvents,
   listPublishedNews,
   listRevisions,
@@ -73,6 +75,7 @@ const publishResponseSchema = z.object({
 // eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const list = listContent(app.db);
+  const pageTree = listPageTree(app.db);
   const get = getContent(app.db);
   const metaOf = getContentMeta(app.db);
   const create = createContent(app.db);
@@ -102,6 +105,23 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       assertContentPermission(request, request.query.kind, "view");
       return await list(request.query);
+    },
+  );
+
+  // Static segment, so find-my-way prefers it over /admin/content/:contentId.
+  // Same permission treatment as the admin list for kind=page (resource
+  // "content", action "view").
+  app.get(
+    "/admin/content/page-tree",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        response: { 200: pageTreeResponseSchema },
+      },
+    },
+    async (request) => {
+      assertContentPermission(request, "page", "view");
+      return await pageTree();
     },
   );
 
