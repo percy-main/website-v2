@@ -5,6 +5,7 @@ import {
 } from "fastify-type-provider-zod";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { errorHandler } from "../../lib/error-handler.ts";
+import { buildTestApp } from "../../test/app.ts";
 import {
   seedTestUser,
   startTestContainer,
@@ -680,6 +681,280 @@ describe("content service (integration)", () => {
       } finally {
         await app.close();
       }
+    });
+  });
+
+  describe("person kind: lifecycle + safeguarding boundary (HTTP)", () => {
+    // Person profiles carry safeguarding-adjacent flags, so they are
+    // gated by content_people (people_editor / content_admin) instead of
+    // the shared content roles (#498). The boundary is an acceptance
+    // criterion in its own right, so this suite runs the REAL stack -
+    // better-auth sessions, requireAuth, assertContentPermission - not
+    // service calls.
+    let app: Awaited<ReturnType<typeof buildTestApp>>;
+    let peopleEditor: string;
+    let newsEditor: string;
+    let reportsEditor: string;
+    let contentAdmin: string;
+    /** Draft person owned by the service user - the read/write target. */
+    let fixtureId: string;
+
+    const PASSWORD = "Sup3rSecure!password";
+
+    /** Sign up + verify + sign in; returns the session cookie header. */
+    async function sessionFor(role: string): Promise<string> {
+      const email = `${crypto.randomUUID()}@example.com`;
+      const signUp = await app.inject({
+        method: "POST",
+        url: "/api/auth/sign-up/email",
+        payload: { email, password: PASSWORD, name: `Test ${role}` },
+      });
+      expect(signUp.statusCode).toBe(200);
+      // Verified email + role set directly: this suite tests the content
+      // permission boundary, not the verification email flow.
+      await ctx.db
+        .updateTable("user")
+        .set({ role, emailVerified: true })
+        .where("email", "=", email)
+        .execute();
+      const signIn = await app.inject({
+        method: "POST",
+        url: "/api/auth/sign-in/email",
+        payload: { email, password: PASSWORD },
+      });
+      expect(signIn.statusCode).toBe(200);
+      const setCookie = signIn.headers["set-cookie"];
+      const raw = Array.isArray(setCookie)
+        ? setCookie
+        : typeof setCookie === "string"
+          ? [setCookie]
+          : [];
+      const cookie = raw
+        .map((entry) => entry.split(";")[0])
+        .filter(Boolean)
+        .join("; ");
+      expect(cookie).not.toBe("");
+      return cookie;
+    }
+
+    const personPayload = (slug: string) => ({
+      kind: "person",
+      slug,
+      title: "Edith Example",
+      description: null,
+      body: body("A short bio."),
+      metadata: { isDBSChecked: false, hasLeftClub: false },
+    });
+
+    beforeAll(async () => {
+      app = await buildTestApp(ctx.db, ctx.dialect);
+      [peopleEditor, newsEditor, reportsEditor, contentAdmin] =
+        await Promise.all([
+          sessionFor("people_editor"),
+          sessionFor("news_editor"),
+          sessionFor("reports_editor"),
+          sessionFor("content_admin"),
+        ]);
+      ({ id: fixtureId } = await createContent(ctx.db)({
+        kind: "person",
+        slug: "boundary-fixture",
+        title: "Boundary Fixture",
+        description: null,
+        body: body("Fixture bio."),
+        metadata: {},
+        userId,
+      }));
+    }, 120_000);
+
+    afterAll(async () => {
+      await app.close();
+    });
+
+    it("people_editor: create, edit the DBS flag, publish, public serve, revisions", async () => {
+      const create = await app.inject({
+        method: "POST",
+        url: "/api/admin/content",
+        headers: { cookie: peopleEditor },
+        payload: personPayload("edith-example"),
+      });
+      expect(create.statusCode).toBe(200);
+      const { id } = create.json<{ id: string }>();
+
+      const list = await app.inject({
+        method: "GET",
+        url: "/api/admin/content?kind=person",
+        headers: { cookie: peopleEditor },
+      });
+      expect(list.statusCode).toBe(200);
+      expect(
+        list.json<{ items: Array<{ id: string }> }>().items.map((i) => i.id),
+      ).toContain(id);
+
+      // Draft profiles leak nothing publicly
+      const draftPublic = await app.inject({
+        method: "GET",
+        url: "/api/content/person/edith-example",
+      });
+      expect(draftPublic.statusCode).toBe(404);
+
+      // The safeguarding edit itself: toggle the DBS flag
+      const update = await app.inject({
+        method: "PUT",
+        url: `/api/admin/content/${id}`,
+        headers: { cookie: peopleEditor },
+        payload: { metadata: { isDBSChecked: true, hasLeftClub: false } },
+      });
+      expect(update.statusCode).toBe(200);
+
+      const publish = await app.inject({
+        method: "POST",
+        url: `/api/admin/content/${id}/publish`,
+        headers: { cookie: peopleEditor },
+        payload: {},
+      });
+      expect(publish.statusCode).toBe(200);
+
+      // Public route serves the published profile (no auth) with the
+      // projected metadata
+      const pub = await app.inject({
+        method: "GET",
+        url: "/api/content/person/edith-example",
+      });
+      expect(pub.statusCode).toBe(200);
+      const served = pub.json<{
+        title: string;
+        metadata: Record<string, unknown>;
+      }>();
+      expect(served.title).toBe("Edith Example");
+      expect(served.metadata).toEqual({
+        isDBSChecked: true,
+        hasLeftClub: false,
+      });
+
+      // Both saves are in the revision history
+      const revs = await app.inject({
+        method: "GET",
+        url: `/api/admin/content/${id}/revisions`,
+        headers: { cookie: peopleEditor },
+      });
+      expect(revs.statusCode).toBe(200);
+      expect(revs.json<{ revisions: unknown[] }>().revisions).toHaveLength(2);
+    });
+
+    it.each([
+      ["news_editor", () => newsEditor],
+      ["reports_editor", () => reportsEditor],
+    ])(
+      "%s can neither read nor write person content",
+      async (_role, cookieOf) => {
+        const cookie = cookieOf();
+        const attempts = [
+          app.inject({
+            method: "GET",
+            url: "/api/admin/content?kind=person",
+            headers: { cookie },
+          }),
+          app.inject({
+            method: "GET",
+            url: `/api/admin/content/${fixtureId}`,
+            headers: { cookie },
+          }),
+          app.inject({
+            method: "POST",
+            url: "/api/admin/content",
+            headers: { cookie },
+            payload: personPayload("smuggled-profile"),
+          }),
+          app.inject({
+            method: "PUT",
+            url: `/api/admin/content/${fixtureId}`,
+            headers: { cookie },
+            payload: { metadata: { isDBSChecked: true, hasLeftClub: false } },
+          }),
+          app.inject({
+            method: "POST",
+            url: `/api/admin/content/${fixtureId}/publish`,
+            headers: { cookie },
+            payload: {},
+          }),
+          app.inject({
+            method: "POST",
+            url: `/api/admin/content/${fixtureId}/archive`,
+            headers: { cookie },
+          }),
+          app.inject({
+            method: "GET",
+            url: `/api/admin/content/${fixtureId}/revisions`,
+            headers: { cookie },
+          }),
+        ];
+        for (const attempt of await Promise.all(attempts)) {
+          expect(attempt.statusCode).toBe(403);
+        }
+        // And nothing was written or leaked
+        const fixture = await getContent(ctx.db)(fixtureId);
+        expect(fixture.metadata).toEqual({
+          isDBSChecked: false,
+          hasLeftClub: false,
+        });
+        expect(fixture.status).toBe("draft");
+      },
+    );
+
+    it("the boundary cuts both ways: people_editor has no reach into other kinds", async () => {
+      const newsList = await app.inject({
+        method: "GET",
+        url: "/api/admin/content?kind=news",
+        headers: { cookie: peopleEditor },
+      });
+      expect(newsList.statusCode).toBe(403);
+
+      const newsCreate = await app.inject({
+        method: "POST",
+        url: "/api/admin/content",
+        headers: { cookie: peopleEditor },
+        payload: {
+          kind: "news",
+          slug: "people-editor-news",
+          title: "Not allowed",
+          description: null,
+          body: body("Nope."),
+          metadata: { tags: [] },
+        },
+      });
+      expect(newsCreate.statusCode).toBe(403);
+
+      const reportsList = await app.inject({
+        method: "GET",
+        url: "/api/admin/content?kind=game_report",
+        headers: { cookie: peopleEditor },
+      });
+      expect(reportsList.statusCode).toBe(403);
+    });
+
+    it("content_admin manages person content like any other kind", async () => {
+      const list = await app.inject({
+        method: "GET",
+        url: "/api/admin/content?kind=person",
+        headers: { cookie: contentAdmin },
+      });
+      expect(list.statusCode).toBe(200);
+
+      const update = await app.inject({
+        method: "PUT",
+        url: `/api/admin/content/${fixtureId}`,
+        headers: { cookie: contentAdmin },
+        payload: { description: "Updated by the content admin" },
+      });
+      expect(update.statusCode).toBe(200);
+    });
+
+    it("anonymous admin requests are 401, not 403", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/content?kind=person",
+      });
+      expect(res.statusCode).toBe(401);
     });
   });
 

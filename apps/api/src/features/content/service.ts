@@ -24,9 +24,10 @@ function throwHttpError(statusCode: number, message: string): never {
 }
 
 /**
- * Validate kind-specific metadata against the shared schema map. Kinds
- * without a schema are not editable through the API yet (later phases
- * add theirs).
+ * Validate kind-specific metadata against the shared schema map. Every
+ * kind has a schema as of Phase 4; the missing-schema guard stays as a
+ * backstop so a future kind added to CONTENT_KINDS without one fails
+ * closed instead of accepting arbitrary metadata.
  */
 function parseMetadata(kind: ContentKind, metadata: Record<string, unknown>) {
   const schema = CONTENT_METADATA_SCHEMAS[kind];
@@ -1143,10 +1144,12 @@ function toPublic(row: {
   const kind = row.kind as ContentKind;
   // The metadata schema map doubles as the allowlist of kinds the public
   // API serves at all, and projecting through it strips undeclared keys.
-  // NOTE for later phases: a kind whose declared metadata is itself not
-  // fully public (person carries safeguarding-adjacent flags) must add a
-  // dedicated public projection schema here rather than reusing its write
-  // schema.
+  // Person reuses its write schema deliberately (#498): isDBSChecked and
+  // hasLeftClub are safeguarding-ADJACENT but public by design - the
+  // static site has always rendered the DBS badge and filtered rosters on
+  // hasLeftClub, and the content_people gate protects who can WRITE the
+  // flags, not who can see them. A future kind whose declared metadata is
+  // not fully public must add a dedicated projection schema here.
   const schema = CONTENT_METADATA_SCHEMAS[kind];
   if (!schema) throwHttpError(404, "Content not found");
   const metadata = schema.safeParse(row.metadata);
