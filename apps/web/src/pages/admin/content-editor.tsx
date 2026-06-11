@@ -867,7 +867,9 @@ function AuthorSelect({
 // a sentinel the slug grammar can never produce (no leading hyphens).
 const ROOT_PARENT = "--root--";
 
-const PATH_LOCKED_HINT = "Locked after publish - path and ordering are fixed";
+// menuOrder is deliberately NOT covered by this lock: it is presentation
+// only, so ordering stays editable after publish.
+const PATH_LOCKED_HINT = "Locked after publish - the page's address is fixed";
 
 function PageMetadataFields({
   form,

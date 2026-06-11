@@ -34,8 +34,6 @@ import {
 // Same lazy split as content-tab: BlockNote only loads when an item opens.
 const ContentEditor = lazy(() => import("./content-editor.js"));
 
-const LOCKED_HINT = "Locked after publish - path and ordering are fixed";
-
 /** Sibling groups in display order, keyed by member id, for reordering. */
 function siblingGroups(roots: PageTreeNode[]): Map<string, PageTreeItem[]> {
   const groups = new Map<string, PageTreeItem[]>();
@@ -281,17 +279,12 @@ function PageRow({
   const state = displayState(item);
   const index = siblings.findIndex((s) => s.id === item.id);
 
-  // The backend deliberately still accepts menuOrder changes for
-  // ever-published pages (menuOrder is presentation, not part of the
-  // locked URL), so this reorder restriction is UI-only per the issue
-  // spec and trivially reversible if editors need it.
-  const reorderHint = item.pathLocked
-    ? LOCKED_HINT
-    : reordering
-      ? "Reordering…"
-      : null;
-  const canMoveUp = reorderHint === null && index > 0;
-  const canMoveDown = reorderHint === null && index < siblings.length - 1;
+  // menuOrder is presentation-only and deliberately NOT part of the
+  // publish lock (the backend accepts it for ever-published pages too),
+  // so reordering stays enabled regardless of pathLocked - only the
+  // sibling boundaries and an in-flight batch disable the moves.
+  const canMoveUp = !reordering && index > 0;
+  const canMoveDown = !reordering && index < siblings.length - 1;
 
   return (
     <li
@@ -372,14 +365,7 @@ function PageRow({
               }}
             >
               <IoArrowUpOutline className="size-4" />
-              <span>
-                Move up
-                {reorderHint !== null && (
-                  <span className="block text-xs text-stone-500">
-                    {reorderHint}
-                  </span>
-                )}
-              </span>
+              Move up
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={!canMoveDown}
@@ -388,14 +374,7 @@ function PageRow({
               }}
             >
               <IoArrowDownOutline className="size-4" />
-              <span>
-                Move down
-                {reorderHint !== null && (
-                  <span className="block text-xs text-stone-500">
-                    {reorderHint}
-                  </span>
-                )}
-              </span>
+              Move down
             </DropdownMenuItem>
             {state === "live" && (
               <DropdownMenuItem asChild>
