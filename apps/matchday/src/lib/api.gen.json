@@ -23940,6 +23940,20 @@
                             "type": "object",
                             "additionalProperties": {}
                           },
+                          "parentId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "path": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "menuOrder": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
                           "publishedAt": {
                             "nullable": true,
                             "type": "string"
@@ -23966,6 +23980,9 @@
                           "description",
                           "status",
                           "metadata",
+                          "parentId",
+                          "path",
+                          "menuOrder",
                           "publishedAt",
                           "createdAt",
                           "updatedAt",
@@ -24073,6 +24090,12 @@
                   "metadata": {
                     "type": "object",
                     "additionalProperties": {}
+                  },
+                  "parentId": {
+                    "nullable": true,
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   }
                 },
                 "required": [
@@ -24166,6 +24189,20 @@
                       "type": "object",
                       "additionalProperties": {}
                     },
+                    "parentId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "path": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "menuOrder": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
                     "publishedAt": {
                       "nullable": true,
                       "type": "string"
@@ -24236,6 +24273,9 @@
                     "description",
                     "status",
                     "metadata",
+                    "parentId",
+                    "path",
+                    "menuOrder",
                     "publishedAt",
                     "createdAt",
                     "updatedAt",
@@ -24321,6 +24361,12 @@
                   "metadata": {
                     "type": "object",
                     "additionalProperties": {}
+                  },
+                  "parentId": {
+                    "nullable": true,
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   }
                 }
               }
@@ -24843,6 +24889,140 @@
         }
       }
     },
+    "/api/content/page/by-path": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 1000,
+              "pattern": "^(?:\\/[a-z0-9]+(?:-[a-z0-9]+)*)+$"
+            },
+            "in": "query",
+            "name": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "page",
+                        "news",
+                        "event",
+                        "game_report",
+                        "person"
+                      ]
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "type": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "props": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                }
+                              ]
+                            }
+                          },
+                          "content": {},
+                          "children": {
+                            "type": "array",
+                            "items": {}
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "props",
+                          "children"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "publishedAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "slug",
+                    "title",
+                    "description",
+                    "body",
+                    "metadata",
+                    "publishedAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [
+                    null
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/content/news": {
       "get": {
         "parameters": [
@@ -25045,6 +25225,57 @@
                           "metadata",
                           "publishedAt",
                           "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content/nav": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "menuOrder": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "isMainMenu": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "title",
+                          "menuOrder",
+                          "isMainMenu"
                         ],
                         "additionalProperties": false
                       }

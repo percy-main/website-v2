@@ -1,6 +1,7 @@
 import {
   blockPropValueSchema,
   contentKindSchema,
+  contentPathSchema,
   contentSlugSchema,
   contentStatusSchema,
   newsTagSchema,
@@ -42,6 +43,12 @@ export const contentSummarySchema = z.object({
   description: z.string().nullable(),
   status: contentStatusSchema,
   metadata: contentMetadataSchema,
+  // Hierarchy fields: populated for pages, null for every other kind.
+  // menuOrder is hoisted out of metadata so the admin tree view can sort
+  // without re-parsing the metadata jsonb.
+  parentId: z.string().nullable(),
+  path: z.string().nullable(),
+  menuOrder: z.number().int().nullable(),
   publishedAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -81,6 +88,8 @@ export const createContentSchema = z.object({
   description: z.string().min(1).max(1000).nullish(),
   body: contentBodyTransportSchema,
   metadata: contentMetadataSchema,
+  /** Pages only: parent page id (omit/null for a root page). */
+  parentId: z.uuid().nullish(),
 });
 
 export const updateContentSchema = z.object({
@@ -89,6 +98,11 @@ export const updateContentSchema = z.object({
   description: z.string().min(1).max(1000).nullish(),
   body: contentBodyTransportSchema.optional(),
   metadata: contentMetadataSchema.optional(),
+  /**
+   * Pages only: omit to leave the parent unchanged, null to move to the
+   * root, an id to move under that page. Locked once ever published.
+   */
+  parentId: z.uuid().nullish(),
 });
 
 export const contentDetailResponseSchema = contentDetailSchema;
@@ -183,4 +197,27 @@ export const listNewsResponseSchema = z.object({
 
 export const listEventsResponseSchema = z.object({
   items: z.array(publicListItemSchema),
+});
+
+// ── Public: pages (nav + by-path) ───────────────────────────────────────
+
+/**
+ * Every published page's nav fields, ordered by path. A few KB for the
+ * whole site, so no pagination; tree assembly stays client-side
+ * (replaces the build-time getNavigationTree/getBreadcrumbs/
+ * getMainMenuItems over static frontmatter).
+ */
+export const navResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      path: z.string(),
+      title: z.string(),
+      menuOrder: z.number().int(),
+      isMainMenu: z.boolean(),
+    }),
+  ),
+});
+
+export const pageByPathQuerySchema = z.object({
+  path: contentPathSchema,
 });
