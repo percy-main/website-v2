@@ -4,6 +4,7 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { errorHandler } from "../../lib/error-handler.ts";
 import {
   seedTestUser,
   startTestContainer,
@@ -893,6 +894,32 @@ describe("content service (integration)", () => {
       });
       expect(scheduled.publishedAt).toBe(parentAt.toISOString());
 
+      // The mirror gate: re-scheduling the PARENT later than the child's
+      // go-live would leave the child publicly live under a 404ing
+      // parent between the two instants
+      await expect(
+        publishContent(ctx.db)({
+          contentId: parent,
+          publishedAt: new Date(
+            parentAt.getTime() + 30 * 60 * 1000,
+          ).toISOString(),
+          userId,
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message:
+          "Children are scheduled before this go-live - reschedule them first",
+      });
+
+      // Re-scheduling the parent to the SAME instant stays allowed
+      // (equal go-lives, the invariant the child gate permits)
+      const reScheduled = await publishContent(ctx.db)({
+        contentId: parent,
+        publishedAt: parentAt.toISOString(),
+        userId,
+      });
+      expect(reScheduled.publishedAt).toBe(parentAt.toISOString());
+
       // Unwind bottom-up (never live, so the markers clear and the nav
       // test below keeps its exact payload)
       await unpublishContent(ctx.db)({ contentId: child, userId });
@@ -957,6 +984,9 @@ describe("content service (integration)", () => {
       try {
         // Nav: exactly the live pages (no draft, no still-future
         // schedule), ordered by path, defaults applied from the schema.
+        // removed[] lists every ever-live page no longer visible -
+        // exactly the tombstones earlier tests in this describe minted
+        // (unpublish-after-live and archive-after-live), path-ordered.
         const nav = await app.inject({ method: "GET", url: "/content/nav" });
         expect(nav.statusCode).toBe(200);
         expect(nav.json()).toEqual({
@@ -973,6 +1003,13 @@ describe("content service (integration)", () => {
               menuOrder: 99,
               isMainMenu: false,
             },
+          ],
+          removed: [
+            "/rules",
+            "/rules/code-of-conduct",
+            "/sections/alpha",
+            "/vault",
+            "/vault/records",
           ],
         });
 
@@ -1080,6 +1117,132 @@ describe("content service (integration)", () => {
         status: "draft",
         pathLocked: true,
       });
+    });
+
+    it("rejects reserved root slugs but allows them on children", async () => {
+      // The SPA router owns these first segments; a root page there
+      // could never be reached past the router.
+      await expect(mkPage("news")).rejects.toMatchObject({
+        statusCode: 400,
+        message: "This address is reserved by the site",
+      });
+
+      const parent = await mkPage("reserved-host");
+      // Only the first path segment routes, so children may reuse them
+      const child = await mkPage("news", { parentId: parent });
+      expect((await getContent(ctx.db)(child)).path).toBe(
+        "/reserved-host/news",
+      );
+
+      // Renaming a root page onto a reserved slug is equally blocked...
+      await expect(
+        updateContent(ctx.db)({ contentId: parent, slug: "admin", userId }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: "This address is reserved by the site",
+      });
+      // ...as is moving a reserved-slugged child up to the root
+      await expect(
+        updateContent(ctx.db)({ contentId: child, parentId: null, userId }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: "This address is reserved by the site",
+      });
+    });
+
+    it("rejects creating or moving pages under an archived parent", async () => {
+      const attic = await mkPage("attic");
+      await archiveContent(ctx.db)({ contentId: attic, userId });
+
+      await expect(mkPage("boxes", { parentId: attic })).rejects.toMatchObject({
+        statusCode: 400,
+        message: "Cannot create a page under an archived page",
+      });
+
+      const loft = await mkPage("loft");
+      await expect(
+        updateContent(ctx.db)({ contentId: loft, parentId: attic, userId }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: "Cannot move a page under an archived page",
+      });
+    });
+
+    it("rejects computed paths that exceed the path schema bounds", async () => {
+      // Four 200-char segments fit (804 chars); the fifth would push the
+      // materialised path to 1005, past contentPathSchema's 1000 cap -
+      // the same rule the by-path querystring validates, so a deeper
+      // page could never be fetched.
+      const segment = "x".repeat(200);
+      let parentId: string | null = null;
+      for (let depth = 0; depth < 4; depth++) {
+        parentId = await mkPage(segment, { parentId });
+      }
+      await expect(mkPage(segment, { parentId })).rejects.toMatchObject({
+        statusCode: 400,
+        message: /too long or too deep/,
+      });
+    });
+
+    it("tombstones taken-down pages: by-path 410 vs 404 matrix + nav removed[] (HTTP)", async () => {
+      // The SPA falls back to bundled static MDX on 404, so a takedown
+      // (unpublish/archive after going live) must be distinguishable
+      // from "never existed" - 410, plus a nav removed[] entry to drop
+      // resurrected static nav items.
+      await mkPage("tomb-draft"); // created, never published
+      const tombUnpub = await mkPage("tomb-unpub");
+      const tombArch = await mkPage("tomb-arch");
+      const tombSched = await mkPage("tomb-sched");
+
+      await publishContent(ctx.db)({ contentId: tombUnpub, userId });
+      await unpublishContent(ctx.db)({ contentId: tombUnpub, userId });
+      await publishContent(ctx.db)({ contentId: tombArch, userId });
+      await archiveContent(ctx.db)({ contentId: tombArch, userId });
+      await publishContent(ctx.db)({
+        contentId: tombSched,
+        publishedAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        userId,
+      });
+
+      const logger = createTestLogger();
+      const app = Fastify({ logger: { level: "info", stream: logger.stream } });
+      app.setValidatorCompiler(validatorCompiler);
+      app.setSerializerCompiler(serializerCompiler);
+      // The production error handler, so the 410 body assertion below
+      // exercises the real { error } contract, not Fastify's default.
+      app.setErrorHandler(errorHandler);
+      app.decorate("db", ctx.db);
+      await app.register(contentRoutes);
+      try {
+        const get = (path: string) =>
+          app.inject({
+            method: "GET",
+            url: `/content/page/by-path?path=${path}`,
+          });
+
+        // Never live: drafts and future schedules leak nothing - 404
+        expect((await get("/tomb-draft")).statusCode).toBe(404);
+        expect((await get("/tomb-sched")).statusCode).toBe(404);
+
+        // Ever-live but taken down: 410 Gone with the documented body
+        const unpub = await get("/tomb-unpub");
+        expect(unpub.statusCode).toBe(410);
+        expect(unpub.json()).toEqual({ error: "This page has been removed" });
+        expect(unpub.headers.etag).toBeUndefined();
+        expect((await get("/tomb-arch")).statusCode).toBe(410);
+
+        // nav removed[]: exactly the ever-live-but-hidden paths (other
+        // tests minted tombstones of their own, so containment only)
+        const nav = await app
+          .inject({ method: "GET", url: "/content/nav" })
+          .then((res) => res.json<{ items: unknown[]; removed: string[] }>());
+        expect(nav.removed).toContain("/tomb-unpub");
+        expect(nav.removed).toContain("/tomb-arch");
+        expect(nav.removed).not.toContain("/tomb-draft");
+        expect(nav.removed).not.toContain("/tomb-sched");
+      } finally {
+        await app.close();
+      }
     });
   });
 });

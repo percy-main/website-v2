@@ -2,9 +2,11 @@ import type { DB } from "@percy-main/db";
 import {
   CONTENT_METADATA_SCHEMAS,
   contentBodySchema,
+  contentPathSchema,
   eventMetadataSchema,
   newsMetadataSchema,
   pageMetadataSchema,
+  RESERVED_ROOT_SLUGS,
   type ContentKind,
   type ContentStatus,
 } from "@percy-main/shared/content";
@@ -327,19 +329,82 @@ export function getContentMeta(db: Kysely<DB>) {
 // the rows whose path extends its own.
 
 /**
- * Resolve a prospective parent: must exist and be a page. Returns its
+ * Serialise every page-tree mutation on one transaction-scoped advisory
+ * lock (released automatically at commit/rollback).
+ *
+ * The tree invariants - no parent_id cycles, materialised path = parent
+ * path + slug for every descendant, publish ordering, the
+ * ever-published lock - span MULTIPLE rows, so the per-row FOR UPDATE
+ * locks cannot exclude write-skew: two concurrent moves (A under B, B
+ * under A) each pass their cycle check and commit a cycle; a
+ * create-under-parent racing an ancestor rename lands with a stale path
+ * prefix the rename's cascade never saw; a slug change racing a publish
+ * bypasses the ever-published lock. Taking this lock first makes every
+ * page mutation fully serial. The page corpus is ~30 rows with a
+ * handful of edits a day, so the serialisation cost is irrelevant. The
+ * FOR UPDATE row locks stay as belt-and-braces (and for the non-page
+ * flows that share these code paths).
+ */
+async function lockPageTree(tx: Transaction<DB>) {
+  await tx
+    .selectNoFrom(
+      sql`pg_advisory_xact_lock(hashtext('content-page-tree'))`.as(
+        "page_tree_lock",
+      ),
+    )
+    .execute();
+}
+
+/**
+ * Computed paths (on create and for every cascaded descendant on
+ * rename/move) must stay within contentPathSchema's bounds - the same
+ * rule the pages migration enforces - or the public by-path lookup
+ * (whose querystring is validated by that schema) could never reach
+ * the page.
+ */
+function assertValidPath(path: string) {
+  if (!contentPathSchema.safeParse(path).success) {
+    throwHttpError(
+      400,
+      `The resulting page path '${path}' is too long or too deep - use a shorter slug or move the page higher up the tree`,
+    );
+  }
+}
+
+/**
+ * A ROOT page may not occupy a slug the SPA router or infra owns (only
+ * the first path segment routes, so children are unaffected).
+ */
+function assertRootSlugAllowed(slug: string) {
+  if (RESERVED_ROOT_SLUGS.has(slug)) {
+    throwHttpError(400, "This address is reserved by the site");
+  }
+}
+
+/**
+ * Resolve a prospective parent: must exist, be a page, and not be
+ * archived (an archived page is a retired URL prefix - nothing new
+ * grows under it; the publish gate would block the child anyway, so
+ * fail at authoring time with a message that says why). Returns its
  * path (set at create for every page, so non-null - a NULL here means
  * the row predates hierarchy support, which cannot happen: pages were
  * not editable through the API before it).
  */
-async function resolveParentPage(tx: Transaction<DB>, parentId: string) {
+async function resolveParentPage(
+  tx: Transaction<DB>,
+  parentId: string,
+  archivedMessage: string,
+) {
   const parent = await tx
     .selectFrom("content_item")
-    .select(["id", "kind", "path"])
+    .select(["id", "kind", "path", "status"])
     .where("id", "=", parentId)
     .executeTakeFirst();
   if (parent?.kind !== "page") {
     throwHttpError(400, "Parent page not found");
+  }
+  if (parent.status === "archived") {
+    throwHttpError(400, archivedMessage);
   }
   if (parent.path === null) {
     throwHttpError(500, "Parent page is missing its path");
@@ -391,16 +456,30 @@ export function createContent(db: Kysely<DB>) {
     if (parentId !== null && params.kind !== "page") {
       throwHttpError(400, "Only pages can have a parent page");
     }
+    if (params.kind === "page" && parentId === null) {
+      assertRootSlugAllowed(params.slug);
+    }
 
     return await db.transaction().execute(async (tx) => {
+      // Page creates mutate the tree (their path embeds the parent
+      // chain), so they serialise on the advisory lock before any read.
+      if (params.kind === "page") {
+        await lockPageTree(tx);
+      }
+
       let path: string | null = null;
       if (params.kind === "page") {
         if (parentId !== null) {
-          const parent = await resolveParentPage(tx, parentId);
+          const parent = await resolveParentPage(
+            tx,
+            parentId,
+            "Cannot create a page under an archived page",
+          );
           path = `${parent.path}/${params.slug}`;
         } else {
           path = `/${params.slug}`;
         }
+        assertValidPath(path);
       }
 
       // Sibling-slug uniqueness implies path uniqueness too (a path is
@@ -455,6 +534,17 @@ export function updateContent(db: Kysely<DB>) {
     },
   ) => {
     return await db.transaction().execute(async (tx) => {
+      // Slug/parent changes mutate the page tree (path recompute +
+      // descendant cascade), so they serialise on the advisory lock
+      // BEFORE any read - every check below (including the
+      // ever-published lock on published_at) then runs on post-lock
+      // state, closing the change-vs-publish race. Taken whenever the
+      // params are present: the kind isn't known until the row is read,
+      // and over-locking a non-page slug change is harmless.
+      if (params.slug !== undefined || params.parentId !== undefined) {
+        await lockPageTree(tx);
+      }
+
       const current = await tx
         .selectFrom("content_item")
         .select([
@@ -552,12 +642,17 @@ export function updateContent(db: Kysely<DB>) {
 
         let newPath: string;
         if (parentId === null) {
+          assertRootSlugAllowed(slug);
           newPath = `/${slug}`;
         } else {
           if (parentId === current.id) {
             throwHttpError(400, "A page cannot be its own parent");
           }
-          const parent = await resolveParentPage(tx, parentId);
+          const parent = await resolveParentPage(
+            tx,
+            parentId,
+            "Cannot move a page under an archived page",
+          );
           if (parent.path.startsWith(`${oldPath}/`)) {
             throwHttpError(
               400,
@@ -565,6 +660,16 @@ export function updateContent(db: Kysely<DB>) {
             );
           }
           newPath = `${parent.path}/${slug}`;
+        }
+        // The new path AND every cascaded descendant path must stay
+        // within contentPathSchema's bounds (a move deeper can push a
+        // deep subtree over the limit even when this page's own path
+        // is fine).
+        assertValidPath(newPath);
+        for (const d of descendants) {
+          if (d.path !== null) {
+            assertValidPath(newPath + d.path.slice(oldPath.length));
+          }
         }
         path = newPath;
 
@@ -591,12 +696,17 @@ export function updateContent(db: Kysely<DB>) {
         await assertPlayCricketIdAvailable(tx, kind, metadata, current.id);
       }
 
+      // parent_id/path are only written when the hierarchy actually
+      // changed: writing back the values read at the top would clobber
+      // a concurrent ancestor-rename cascade (which bumps this row's
+      // path) from an unrelated edit. Hierarchy changes themselves are
+      // serialised by the advisory lock above.
+      const hierarchyChanged = isPage && (slugChanged || parentChanged);
       await tx
         .updateTable("content_item")
         .set({
           slug,
-          parent_id: parentId,
-          path,
+          ...(hierarchyChanged ? { parent_id: parentId, path } : {}),
           title,
           description,
           body: JSON.stringify(body),
@@ -654,6 +764,14 @@ export function publishContent(db: Kysely<DB>) {
         .where("id", "=", params.contentId)
         .executeTakeFirst();
       if (!peek) throwHttpError(404, "Content not found");
+
+      // Page status transitions participate in the tree invariants
+      // (publish ordering vs slug/parent changes), so they serialise on
+      // the same advisory lock as create/update. Taken before any row
+      // lock; all gates below re-read under it.
+      if (peek.kind === "page") {
+        await lockPageTree(tx);
+      }
 
       const lockParent = (parentId: string) =>
         tx
@@ -717,6 +835,31 @@ export function publishContent(db: Kysely<DB>) {
           throwHttpError(
             400,
             `Parent page goes live at ${parent.published_at.toISOString()}; schedule this page for that time or later`,
+          );
+        }
+      }
+
+      // The mirror gate, parent's side: re-scheduling (or backdating)
+      // this page's go-live must not strand an already-published child
+      // whose go-live precedes it - between the two instants the child
+      // would be publicly live under a 404ing parent. Direct children
+      // suffice: the child gate above guarantees grandchildren never
+      // precede their own parent. Only an explicit publishedAt can move
+      // the go-live later (publish-now never produces a future date).
+      // Equal instants stay allowed, matching the child gate.
+      if (item.kind === "page" && params.publishedAt !== undefined) {
+        const stranded = await tx
+          .selectFrom("content_item")
+          .select("id")
+          .where("parent_id", "=", params.contentId)
+          .where("status", "=", "published")
+          .where("published_at", "<", new Date(params.publishedAt))
+          .forUpdate()
+          .executeTakeFirst();
+        if (stranded) {
+          throwHttpError(
+            400,
+            "Children are scheduled before this go-live - reschedule them first",
           );
         }
       }
@@ -791,6 +934,19 @@ export function unpublishContent(db: Kysely<DB>) {
     // race a concurrent child publish. Lock order parent -> child (the
     // item IS the parent here), consistent with publishContent.
     return await db.transaction().execute(async (tx) => {
+      // Unlocked peek for lock targeting only: page status transitions
+      // serialise on the page-tree advisory lock, which must precede
+      // every row lock. All gates re-read under the locks below.
+      const peek = await tx
+        .selectFrom("content_item")
+        .select("kind")
+        .where("id", "=", params.contentId)
+        .executeTakeFirst();
+      if (!peek) throwHttpError(404, "Content not found");
+      if (peek.kind === "page") {
+        await lockPageTree(tx);
+      }
+
       const item = await tx
         .selectFrom("content_item")
         .select(["kind", "status"])
@@ -861,6 +1017,17 @@ export function archiveContent(db: Kysely<DB>) {
     // Same transaction + lock pattern as unpublishContent: the
     // published-children gate must not race a concurrent child publish.
     return await db.transaction().execute(async (tx) => {
+      // Unlocked peek for lock targeting only (see unpublishContent).
+      const peek = await tx
+        .selectFrom("content_item")
+        .select("kind")
+        .where("id", "=", params.contentId)
+        .executeTakeFirst();
+      if (!peek) throwHttpError(404, "Content not found");
+      if (peek.kind === "page") {
+        await lockPageTree(tx);
+      }
+
       const item = await tx
         .selectFrom("content_item")
         .select(["kind", "status"])
@@ -1048,7 +1215,25 @@ export function getPublishedPageByPath(db: Kysely<DB>) {
       .where("path", "=", path)
       .executeTakeFirst();
 
-    if (!row) throwHttpError(404, "Content not found");
+    if (!row) {
+      // Tombstone: the SPA falls back to its bundled static MDX on 404,
+      // so an urgent takedown (unpublish/archive of a migrated page)
+      // must not read as "missing" and resurrect the stale static
+      // version. A row at this path that has EVER been publicly live
+      // (past published_at - the same marker as the slug lock) but is
+      // not visible now is 410 Gone. Never-live paths (drafts, future
+      // schedules, cancelled schedules) stay 404 and leak nothing.
+      const tombstone = await db
+        .selectFrom("content_item")
+        .select("id")
+        .where("kind", "=", "page")
+        .where("path", "=", path)
+        .where("published_at", "is not", null)
+        .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`)
+        .executeTakeFirst();
+      if (tombstone) throwHttpError(410, "This page has been removed");
+      throwHttpError(404, "Content not found");
+    }
     return toPublic(row);
   };
 }
@@ -1208,6 +1393,23 @@ export function getPublishedNav(db: Kysely<DB>) {
       .orderBy("path", "asc")
       .execute();
 
+    // Tombstoned paths (same ever-live test as the by-path 410): pages
+    // that WERE publicly live but are not visible now. The SPA uses
+    // these to drop matching entries from its bundled static nav, so a
+    // takedown doesn't resurrect the stale static page in menus. The
+    // status partition makes the two queries consistent without a
+    // transaction: a row is either published (items candidate) or not
+    // (removed candidate), never both.
+    const removedRows = await db
+      .selectFrom("content_item")
+      .select("path")
+      .where("kind", "=", "page")
+      .where("status", "!=", "published")
+      .where("published_at", "is not", null)
+      .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`)
+      .orderBy("path", "asc")
+      .execute();
+
     return {
       items: rows.map((row) => {
         if (row.path === null) {
@@ -1226,6 +1428,9 @@ export function getPublishedNav(db: Kysely<DB>) {
           isMainMenu: metadata.data.isMainMenu,
         };
       }),
+      removed: removedRows.flatMap((row) =>
+        row.path === null ? [] : [row.path],
+      ),
     };
   };
 }

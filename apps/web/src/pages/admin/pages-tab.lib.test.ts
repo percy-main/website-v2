@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPageTree,
+  eligibleParents,
   reorderUpdates,
   visibleNodes,
   type PageTreeItem,
@@ -74,6 +75,65 @@ describe("buildPageTree", () => {
 
   it("returns an empty forest for no pages", () => {
     expect(buildPageTree([])).toEqual([]);
+  });
+});
+
+describe("eligibleParents", () => {
+  const items = [
+    item("club", "/club", { status: "published" }),
+    item("history", "/club/history", {
+      parentId: "club",
+      status: "published",
+    }),
+    item("honours", "/club/history/honours", {
+      parentId: "history",
+      status: "published",
+    }),
+    item("old", "/old", { status: "archived" }),
+    item("scratch", "/scratch", { status: "draft" }),
+  ];
+
+  it("excludes the page itself and its descendants", () => {
+    expect(eligibleParents(items, "history", null).map((i) => i.id)).toEqual([
+      "club",
+      "scratch",
+    ]);
+  });
+
+  it("excludes archived pages (the backend rejects them as parents)", () => {
+    expect(eligibleParents(items, null, null).map((i) => i.id)).toEqual([
+      "club",
+      "history",
+      "honours",
+      "scratch",
+    ]);
+  });
+
+  it("keeps the currently-selected parent even when archived", () => {
+    // An existing child of a since-archived parent: the Select must not
+    // go blank, so the archived parent stays (annotated in the picker).
+    expect(eligibleParents(items, "scratch", "old").map((i) => i.id)).toEqual([
+      "club",
+      "history",
+      "honours",
+      "old",
+    ]);
+  });
+
+  it("does not resurrect other archived pages for a selected parent", () => {
+    const withSecondArchived = [
+      ...items,
+      item("older", "/older", { status: "archived" }),
+    ];
+    const ids = eligibleParents(withSecondArchived, "scratch", "old").map(
+      (i) => i.id,
+    );
+    expect(ids).toContain("old");
+    expect(ids).not.toContain("older");
+  });
+
+  it("offers everything but archived when creating (itemId null)", () => {
+    expect(eligibleParents(items, null, null)).toHaveLength(4);
   });
 });
 

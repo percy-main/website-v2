@@ -57,6 +57,29 @@ export function buildPageTree(items: PageTreeItem[]): PageTreeNode[] {
     .map((item) => build(item, 0));
 }
 
+/**
+ * Pages eligible as a parent in the editor's parent picker: every page
+ * except the page itself, its descendants (rows whose path extends this
+ * page's - the same canonical-prefix rule the backend's cycle check
+ * uses), and archived pages (the backend 400s an archived parentId).
+ * Exception: the currently-selected parent stays in the list even when
+ * archived, so an existing child's Select isn't blank - the picker
+ * annotates it instead.
+ */
+export function eligibleParents(
+  items: PageTreeItem[],
+  itemId: string | null,
+  currentParentId: string | null,
+): PageTreeItem[] {
+  const self = items.find((item) => item.id === itemId);
+  return items.filter(
+    (item) =>
+      item.id !== itemId &&
+      (self === undefined || !item.path.startsWith(`${self.path}/`)) &&
+      (item.status !== "archived" || item.id === currentParentId),
+  );
+}
+
 /** Depth-first flatten of the subtrees whose parents are expanded. */
 export function visibleNodes(
   nodes: PageTreeNode[],

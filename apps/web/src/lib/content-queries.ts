@@ -25,8 +25,26 @@ const STALE_TIME = 5 * 60 * 1000;
 // 5 minutes - bounded staleness there is accepted.
 const NOT_FOUND_STALE_TIME = 30 * 1000;
 
+/**
+ * Sentinel for a 410 Gone page: an ever-live page deliberately taken
+ * down (unpublished or archived). Distinct from the 404 `null` so
+ * callers can suppress the static fallback - a takedown must not
+ * resurrect the bundled MDX version of the page.
+ */
+export const PAGE_GONE = { gone: true } as const;
+export type PageGone = typeof PAGE_GONE;
+
+export function isPageGone(value: unknown): value is PageGone {
+  return typeof value === "object" && value !== null && "gone" in value;
+}
+
+// Both miss states go stale fast: `null` so a scheduled publish shows up
+// promptly (see above), PAGE_GONE so reverting a mistaken takedown
+// propagates just as quickly.
 const detailStaleTime = (query: { state: { data: unknown } }) =>
-  query.state.data === null ? NOT_FOUND_STALE_TIME : STALE_TIME;
+  query.state.data === null || isPageGone(query.state.data)
+    ? NOT_FOUND_STALE_TIME
+    : STALE_TIME;
 
 export const NEWS_PAGE_SIZE = 5;
 
@@ -83,8 +101,16 @@ export function pageByPathQueryOptions(path: string) {
           }),
         );
       } catch (err) {
-        // Not published in the DB - callers fall back to the bundled MDX.
-        if ((err as { status?: number }).status === 404) return null;
+        const status = (err as { status?: number }).status;
+        // Never published in the DB - callers fall back to the bundled
+        // MDX.
+        if (status === 404) return null;
+        // Ever-live page taken down (unpublished/archived). A terminal
+        // data state, not an error: callers render "not found" without
+        // the static fallback and without a route_not_found report.
+        if (status === 410) return PAGE_GONE;
+        // Anything else (5xx, network) surfaces as a query error so
+        // callers can tell an API incident apart from a real miss.
         throw err;
       }
     },

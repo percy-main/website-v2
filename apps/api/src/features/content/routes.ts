@@ -14,6 +14,7 @@ import {
   contentDetailResponseSchema,
   contentIdParamSchema,
   createContentSchema,
+  goneResponseSchema,
   listContentQuerySchema,
   listContentResponseSchema,
   listEventsResponseSchema,
@@ -316,12 +317,19 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   // Page lookup by full materialised path - the canonical public page
   // route (nested page slugs are only unique among siblings). Static
   // segments, so find-my-way prefers it over /content/:kind/:slug.
+  // 410 = tombstone: the page WAS live here but has been taken down;
+  // the SPA must not fall back to its bundled static version (404 keeps
+  // that fallback for never-live paths).
   app.get(
     "/content/page/by-path",
     {
       schema: {
         querystring: pageByPathQuerySchema,
-        response: { 200: publicContentResponseSchema, 304: z.null() },
+        response: {
+          200: publicContentResponseSchema,
+          304: z.null(),
+          410: goneResponseSchema,
+        },
       },
     },
     async (request, reply) => {

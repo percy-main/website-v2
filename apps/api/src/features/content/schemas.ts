@@ -242,8 +242,24 @@ export const navResponseSchema = z.object({
       isMainMenu: z.boolean(),
     }),
   ),
+  /**
+   * Tombstoned paths: pages that were publicly live but are no longer
+   * visible (unpublished/archived after going live). The SPA drops
+   * matching entries from its bundled static nav so a takedown does not
+   * resurrect the stale static page in menus.
+   */
+  removed: z.array(z.string()),
 });
 
 export const pageByPathQuerySchema = z.object({
   path: contentPathSchema,
+});
+
+/**
+ * Tombstone body for by-path lookups of ever-live pages that are no
+ * longer visible (410 Gone). Shape matches the global error handler's
+ * `{ error }` reply.
+ */
+export const goneResponseSchema = z.object({
+  error: z.string(),
 });

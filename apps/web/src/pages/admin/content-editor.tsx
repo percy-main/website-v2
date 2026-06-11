@@ -79,7 +79,11 @@ import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
 import { EditorBlockPreview } from "./editor-block-preview.js";
-import { buildPageTree, visibleNodes } from "./pages-tab.lib.js";
+import {
+  buildPageTree,
+  eligibleParents,
+  visibleNodes,
+} from "./pages-tab.lib.js";
 
 // ── Custom blocks ───────────────────────────────────────────────────────
 //
@@ -1282,19 +1286,14 @@ function PageMetadataFields({
   });
   const items = useMemo(() => data?.items ?? [], [data]);
 
-  // Parent options: every page except this one and its descendants
-  // (descendants are exactly the rows whose path extends this page's -
-  // the same canonical-prefix rule the backend's cycle check uses).
+  // Parent options: see eligibleParents (excludes self, descendants and
+  // archived pages, keeping the currently-selected parent even when
+  // archived so the Select isn't blank).
   const options = useMemo(() => {
-    const self = items.find((item) => item.id === itemId);
-    const eligible = items.filter(
-      (item) =>
-        item.id !== itemId &&
-        (self === undefined || !item.path.startsWith(`${self.path}/`)),
-    );
+    const eligible = eligibleParents(items, itemId, form.parentId);
     const allExpanded = new Set(eligible.map((item) => item.id));
     return visibleNodes(buildPageTree(eligible), allExpanded);
-  }, [items, itemId]);
+  }, [items, itemId, form.parentId]);
 
   // While the tree query is still loading, the parent's path is unknown -
   // show an ellipsis rather than implying the page sits at the root.
@@ -1324,6 +1323,7 @@ function PageMetadataFields({
               <SelectItem key={node.item.id} value={node.item.id}>
                 {"\u00A0".repeat(node.depth * 3)}
                 {node.item.title}
+                {node.item.status === "archived" ? " (archived)" : ""}
               </SelectItem>
             ))}
           </SelectContent>

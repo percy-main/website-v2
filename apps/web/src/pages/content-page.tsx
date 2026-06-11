@@ -5,6 +5,7 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useSiteNav } from "@/hooks/use-site-nav.js";
 import type { paths } from "@/lib/api.gen.js";
 import {
+  isPageGone,
   pageByPathQueryOptions,
   parsePageMetadata,
 } from "@/lib/content-queries.js";
@@ -265,6 +266,33 @@ function StaticPageView({
   );
 }
 
+function NotFoundView() {
+  return (
+    <div className="container mx-auto px-4 py-12">
+      <h1>Page Not Found</h1>
+      <p>The page you're looking for doesn't exist.</p>
+    </div>
+  );
+}
+
+/**
+ * Non-404/410 API failure with no static fallback: the page may well
+ * exist, we just couldn't fetch it - distinct copy from the 404 view so
+ * visitors (and screenshots in bug reports) don't conflate an outage
+ * with a missing page.
+ */
+function LoadErrorView() {
+  return (
+    <div className="container mx-auto px-4 py-12">
+      <h1>We couldn't load this page</h1>
+      <p>
+        Something went wrong fetching this page. Please try again in a few
+        minutes.
+      </p>
+    </div>
+  );
+}
+
 export function Component() {
   const { pathname } = useLocation();
 
@@ -282,30 +310,46 @@ export function Component() {
   // long-lived: pages migrate to the DB one section at a time and some
   // (e.g. legal) stay static permanently, so unmigrated paths keep
   // rendering their bundled MDX indefinitely. The MDX renders only once
-  // the query settles (confirmed 404, or an API failure - deliberate
-  // graceful degradation) so a DB-edited page never flashes its stale
-  // MDX ancestor first.
-  const { data: apiPage, isPending } = useQuery({
+  // the query settles so a DB-edited page never flashes its stale MDX
+  // ancestor first. Three terminal query states:
+  //   null      - never published in the DB: static fallback, else 404.
+  //   PAGE_GONE - 410, deliberate takedown of an ever-live page: 404
+  //               view with NO static fallback (takedowns must stick)
+  //               and NO route_not_found report (nothing is missing).
+  //   error     - API incident: static fallback where one exists,
+  //               otherwise a "couldn't load" view - never the 404 copy,
+  //               never a route_not_found report (an outage must not
+  //               spike the not-found metric).
+  const { data, isPending, isError } = useQuery({
     ...pageByPathQueryOptions(path),
     enabled: isContentPath,
   });
+  const gone = isPageGone(data);
+  const apiPage = data == null || isPageGone(data) ? undefined : data;
   const staticPage = contentPageMap.get(path);
+  // What the static corpus is allowed to contribute: a 410 takedown
+  // suppresses the bundled MDX twin entirely.
+  const staticFallback = gone ? undefined : staticPage;
 
   // Sidebar + breadcrumbs come from the merged nav for both static and
   // DB-backed pages.
   const navPages = useSiteNav();
 
   useDocumentMeta(
-    apiPage?.title ?? staticPage?.title,
-    apiPage ? (apiPage.description ?? undefined) : staticPage?.description,
+    apiPage?.title ?? staticFallback?.title,
+    apiPage ? (apiPage.description ?? undefined) : staticFallback?.description,
   );
 
   // 404s land here because router.tsx's catch-all `path: "*"` routes
   // unknown paths through ContentPage rather than triggering the
   // root errorElement (#182). Forward the miss to NR so the not-
-  // found rate is observable. Only after the API query settles - a page
-  // that is still loading is not a miss.
-  const notFound = !apiPage && !staticPage && (!isContentPath || !isPending);
+  // found rate is observable. Only a settled, confirmed miss counts:
+  // still-loading pages, 410 takedowns and API errors are not misses.
+  const notFound =
+    !staticPage &&
+    !gone &&
+    !isError &&
+    (!isContentPath || (!isPending && data === null));
   useEffect(() => {
     if (!notFound) return;
     if (window.newrelic) {
@@ -330,14 +374,15 @@ export function Component() {
     );
   }
 
-  if (staticPage) {
-    return <StaticPageView page={staticPage} navPages={navPages} path={path} />;
+  if (isError && !staticFallback) {
+    return <LoadErrorView />;
   }
 
-  return (
-    <div className="container mx-auto px-4 py-12">
-      <h1>Page Not Found</h1>
-      <p>The page you're looking for doesn't exist.</p>
-    </div>
-  );
+  if (staticFallback) {
+    return (
+      <StaticPageView page={staticFallback} navPages={navPages} path={path} />
+    );
+  }
+
+  return <NotFoundView />;
 }

@@ -29,13 +29,24 @@ export interface NavNode {
  * sorted by path, mirroring the static pipeline's contentPages ordering -
  * with an empty API list (pre-migration) the output is identical to the
  * old static-only list.
+ *
+ * `removedPaths` are tombstones: paths of ever-live DB pages that have
+ * since been unpublished or archived. Static pages at those paths are
+ * dropped instead of resurrecting - an urgent takedown must stick even
+ * where a bundled MDX twin exists. Tombstones with no static twin are
+ * simply no-ops, and an API item at a tombstoned path still wins (the
+ * API only tombstones paths it is not serving).
  */
 export function mergeNavPages(
   apiPages: NavPage[],
   staticPages: NavPage[],
+  removedPaths: readonly string[] = [],
 ): NavPage[] {
+  const removed = new Set(removedPaths);
   const byPath = new Map<string, NavPage>();
-  for (const page of staticPages) byPath.set(page.path, page);
+  for (const page of staticPages) {
+    if (!removed.has(page.path)) byPath.set(page.path, page);
+  }
   for (const page of apiPages) byPath.set(page.path, page);
   return Array.from(byPath.values()).toSorted((a, b) =>
     a.path.localeCompare(b.path),

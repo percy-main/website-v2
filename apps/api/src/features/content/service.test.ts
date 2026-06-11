@@ -5,6 +5,7 @@ import {
   PostgresAdapter,
   PostgresIntrospector,
   PostgresQueryCompiler,
+  type AliasedRawBuilder,
   type RawBuilder,
 } from "kysely";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +22,7 @@ const {
 
   const mockQueryBuilder: Record<string, unknown> = {
     selectFrom: vi.fn().mockReturnThis(),
+    selectNoFrom: vi.fn().mockReturnThis(),
     updateTable: vi.fn().mockReturnThis(),
     insertInto: vi.fn().mockReturnThis(),
     leftJoin: vi.fn().mockReturnThis(),
@@ -50,6 +52,8 @@ import {
   archiveContent,
   createContent,
   getPublishedGameReport,
+  getPublishedNav,
+  getPublishedPageByPath,
   listPageTree,
   publishContent,
   unpublishContent,
@@ -96,6 +100,26 @@ function valuesArgFor(callIndex = 0): Record<string, unknown> {
   if (!arg) throw new Error(`.values() was not called ${callIndex + 1} times`);
   return arg;
 }
+
+/**
+ * SQL text of every .selectNoFrom() call - the form lockPageTree's
+ * advisory lock uses. Compiling through the DummyDriver Kysely proves
+ * the exact statement the service would execute.
+ */
+function selectNoFromSql(): string[] {
+  return (
+    mockQueryBuilder.selectNoFrom as ReturnType<typeof vi.fn>
+  ).mock.calls.map((call) =>
+    compilerDb
+      .selectNoFrom(call[0] as AliasedRawBuilder<unknown, "page_tree_lock">)
+      .compile()
+      .sql.replace(/\s+/g, " ")
+      .trim(),
+  );
+}
+
+const PAGE_TREE_LOCK_SQL =
+  "select pg_advisory_xact_lock(hashtext('content-page-tree')) as \"page_tree_lock\"";
 
 /**
  * SQL text (whitespace-normalised) of every raw single-argument .where()
@@ -430,6 +454,57 @@ describe("page hierarchy: createContent", () => {
     await createContent(db)(validCreate());
     expect(valuesArgFor()).toMatchObject({ parent_id: null, path: null });
   });
+
+  it("rejects a ROOT page on a reserved slug", async () => {
+    await expect(
+      createContent(db)(pageCreate({ slug: "news" })),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "This address is reserved by the site",
+    });
+  });
+
+  it("allows a reserved slug on a CHILD page (only the first segment routes)", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({ id: "parent-1", kind: "page", path: "/cricket" }) // parent fetch
+      .mockResolvedValueOnce(undefined); // sibling slug check
+    const result = await createContent(db)(
+      pageCreate({ slug: "news", parentId: "parent-1" }),
+    );
+    expect(result).toEqual({ id: "content-1" });
+    expect(valuesArgFor()).toMatchObject({ path: "/cricket/news" });
+  });
+
+  it("rejects creating a page under an archived parent", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "parent-1",
+      kind: "page",
+      path: "/cricket",
+      status: "archived",
+    });
+    await expect(
+      createContent(db)(pageCreate({ parentId: "parent-1" })),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Cannot create a page under an archived page",
+    });
+  });
+
+  it("rejects a computed path that exceeds the path schema bounds", async () => {
+    // Parent path of 997 chars + "/" + 4-char slug = 1002 > the schema's
+    // 1000-char cap.
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "parent-1",
+      kind: "page",
+      path: `/${"a".repeat(996)}`,
+    });
+    await expect(
+      createContent(db)(pageCreate({ slug: "team", parentId: "parent-1" })),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: /too long or too deep/,
+    });
+  });
 });
 
 describe("page hierarchy: updateContent", () => {
@@ -450,14 +525,16 @@ describe("page hierarchy: updateContent", () => {
     mockExecuteTakeFirst
       .mockResolvedValueOnce(pageRow) // fetch current
       .mockResolvedValueOnce(undefined); // sibling slug check
-    mockExecute.mockResolvedValueOnce([
-      { id: "child-1", path: "/cricket/juniors", published_at: null },
-      {
-        id: "grandchild-1",
-        path: "/cricket/juniors/coaches",
-        published_at: null,
-      },
-    ]); // descendants
+    mockExecute
+      .mockResolvedValueOnce(undefined) // page-tree advisory lock
+      .mockResolvedValueOnce([
+        { id: "child-1", path: "/cricket/juniors", published_at: null },
+        {
+          id: "grandchild-1",
+          path: "/cricket/juniors/coaches",
+          published_at: null,
+        },
+      ]); // descendants
     const result = await updateContent(db)({
       contentId: "page-1",
       userId: "user-1",
@@ -484,7 +561,9 @@ describe("page hierarchy: updateContent", () => {
       .mockResolvedValueOnce(pageRow) // fetch current
       .mockResolvedValueOnce({ id: "parent-2", kind: "page", path: "/club" }) // new parent
       .mockResolvedValueOnce(undefined); // sibling slug check
-    mockExecute.mockResolvedValueOnce([]); // no descendants
+    mockExecute
+      .mockResolvedValueOnce(undefined) // page-tree advisory lock
+      .mockResolvedValueOnce([]); // no descendants
     await updateContent(db)({
       contentId: "page-1",
       userId: "user-1",
@@ -523,13 +602,15 @@ describe("page hierarchy: updateContent", () => {
 
   it("rejects a slug change that would move an ever-published descendant", async () => {
     mockExecuteTakeFirst.mockResolvedValueOnce(pageRow);
-    mockExecute.mockResolvedValueOnce([
-      {
-        id: "child-1",
-        path: "/cricket/juniors",
-        published_at: new Date("2026-06-01T10:00:00Z"),
-      },
-    ]);
+    mockExecute
+      .mockResolvedValueOnce(undefined) // page-tree advisory lock
+      .mockResolvedValueOnce([
+        {
+          id: "child-1",
+          path: "/cricket/juniors",
+          published_at: new Date("2026-06-01T10:00:00Z"),
+        },
+      ]);
     await expect(
       updateContent(db)({
         contentId: "page-1",
@@ -544,7 +625,9 @@ describe("page hierarchy: updateContent", () => {
 
   it("rejects making a page its own parent", async () => {
     mockExecuteTakeFirst.mockResolvedValueOnce(pageRow);
-    mockExecute.mockResolvedValueOnce([]); // descendants
+    mockExecute
+      .mockResolvedValueOnce(undefined) // page-tree advisory lock
+      .mockResolvedValueOnce([]); // descendants
     await expect(
       updateContent(db)({
         contentId: "page-1",
@@ -563,9 +646,11 @@ describe("page hierarchy: updateContent", () => {
       kind: "page",
       path: "/cricket/juniors",
     }); // new parent = descendant
-    mockExecute.mockResolvedValueOnce([
-      { id: "child-1", path: "/cricket/juniors", published_at: null },
-    ]);
+    mockExecute
+      .mockResolvedValueOnce(undefined) // page-tree advisory lock
+      .mockResolvedValueOnce([
+        { id: "child-1", path: "/cricket/juniors", published_at: null },
+      ]);
     await expect(
       updateContent(db)({
         contentId: "page-1",
@@ -575,6 +660,71 @@ describe("page hierarchy: updateContent", () => {
     ).rejects.toMatchObject({
       statusCode: 400,
       message: "A page cannot be moved under one of its own descendants",
+    });
+  });
+
+  it("rejects renaming a root page to a reserved slug", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce(pageRow);
+    mockExecute
+      .mockResolvedValueOnce(undefined) // page-tree advisory lock
+      .mockResolvedValueOnce([]); // descendants
+    await expect(
+      updateContent(db)({
+        contentId: "page-1",
+        userId: "user-1",
+        slug: "admin",
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "This address is reserved by the site",
+    });
+  });
+
+  it("rejects moving a page under an archived parent", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce(pageRow).mockResolvedValueOnce({
+      id: "parent-2",
+      kind: "page",
+      path: "/club",
+      status: "archived",
+    });
+    mockExecute
+      .mockResolvedValueOnce(undefined) // page-tree advisory lock
+      .mockResolvedValueOnce([]); // descendants
+    await expect(
+      updateContent(db)({
+        contentId: "page-1",
+        userId: "user-1",
+        parentId: "parent-2",
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Cannot move a page under an archived page",
+    });
+  });
+
+  it("rejects a rename that would push a descendant's path over the bounds", async () => {
+    // New root path: "/" + 200 chars = 201. The descendant keeps its
+    // 801-char tail, so its cascaded path would be 1002 > the 1000 cap -
+    // rejected even though the page's own new path is fine.
+    mockExecuteTakeFirst.mockResolvedValueOnce(pageRow);
+    mockExecute
+      .mockResolvedValueOnce(undefined) // page-tree advisory lock
+      .mockResolvedValueOnce([
+        {
+          id: "child-1",
+          path: `/cricket/${"b".repeat(800)}`,
+          published_at: null,
+        },
+      ]);
+    await expect(
+      updateContent(db)({
+        contentId: "page-1",
+        userId: "user-1",
+        slug: "a".repeat(200),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: /too long or too deep/,
     });
   });
 });
@@ -792,6 +942,7 @@ describe("publishContent", () => {
         live_now: false,
       })
       .mockResolvedValueOnce(pagePeek) // locked item
+      .mockResolvedValueOnce(undefined) // stranded-children probe: none
       .mockResolvedValueOnce({ id: "content-1", published_at: parentAt });
     const result = await publishContent(db)({
       contentId: "content-1",
@@ -803,11 +954,83 @@ describe("publishContent", () => {
       publishedAt: parentAt.toISOString(),
     });
   });
+
+  it("rejects re-scheduling a page later than a published child's go-live", async () => {
+    // Root page (no parent gate), explicit later date: the probe finds a
+    // published child whose published_at precedes the new go-live.
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({
+        kind: "page",
+        status: "published",
+        parent_id: null,
+      })
+      .mockResolvedValueOnce({
+        kind: "page",
+        status: "published",
+        parent_id: null,
+      }) // locked item
+      .mockResolvedValueOnce({ id: "child-1" }); // stranded child found
+    await expect(
+      publishContent(db)({
+        contentId: "content-1",
+        publishedAt: "2027-06-01T10:00:00Z",
+        userId: "user-1",
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message:
+        "Children are scheduled before this go-live - reschedule them first",
+    });
+  });
+
+  it("allows re-scheduling when every published child shares the new go-live", async () => {
+    // Equal instants pass: the probe's published_at < newGoLive predicate
+    // is strict, mirroring the child-side gate.
+    const at = new Date("2027-06-01T10:00:00Z");
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({
+        kind: "page",
+        status: "published",
+        parent_id: null,
+      })
+      .mockResolvedValueOnce({
+        kind: "page",
+        status: "published",
+        parent_id: null,
+      }) // locked item
+      .mockResolvedValueOnce(undefined) // no child precedes the new go-live
+      .mockResolvedValueOnce({ id: "content-1", published_at: at }); // update
+    const result = await publishContent(db)({
+      contentId: "content-1",
+      publishedAt: at.toISOString(),
+      userId: "user-1",
+    });
+    expect(result).toEqual({ id: "content-1", publishedAt: at.toISOString() });
+  });
+
+  it("skips the stranded-children probe on publish-now", async () => {
+    // Publish-now can only move the go-live earlier (or keep it), so the
+    // probe never runs - the sequence is peek, locked item, update.
+    const at = new Date("2026-06-01T10:00:00Z");
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "page", status: "draft", parent_id: null })
+      .mockResolvedValueOnce({ kind: "page", status: "draft", parent_id: null })
+      .mockResolvedValueOnce({ id: "content-1", published_at: at }); // update
+    const result = await publishContent(db)({
+      contentId: "content-1",
+      userId: "user-1",
+    });
+    expect(result).toEqual({ id: "content-1", publishedAt: at.toISOString() });
+    // Three executeTakeFirst calls and no fourth probe.
+    expect(mockExecuteTakeFirst).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe("archiveContent", () => {
+  // Call order: 1. unlocked kind peek (advisory-lock targeting) 2. item
+  // row FOR UPDATE 3. [pages] published-child probe 4. the UPDATE.
   it("404s when the item does not exist", async () => {
-    mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // locked item
+    mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // peek
     await expect(
       archiveContent(db)({ contentId: "missing", userId: "user-1" }),
     ).rejects.toMatchObject({ statusCode: 404 });
@@ -815,10 +1038,9 @@ describe("archiveContent", () => {
 
   it("409s when the item is already archived", async () => {
     // Re-archiving must not silently bump updated_at/updated_by.
-    mockExecuteTakeFirst.mockResolvedValueOnce({
-      kind: "game_report",
-      status: "archived",
-    });
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "game_report" }) // peek
+      .mockResolvedValueOnce({ kind: "game_report", status: "archived" });
     await expect(
       archiveContent(db)({ contentId: "content-1", userId: "user-1" }),
     ).rejects.toMatchObject({
@@ -829,6 +1051,7 @@ describe("archiveContent", () => {
 
   it("archives a non-archived item", async () => {
     mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "game_report" }) // peek
       .mockResolvedValueOnce({ kind: "game_report", status: "draft" })
       .mockResolvedValueOnce({ id: "content-1" }); // update
     const result = await archiveContent(db)({
@@ -840,6 +1063,7 @@ describe("archiveContent", () => {
 
   it("409s when archiving a page that has published children", async () => {
     mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "page" }) // peek
       .mockResolvedValueOnce({ kind: "page", status: "published" }) // locked item
       .mockResolvedValueOnce({ id: "child-1" }); // published-child probe
     await expect(
@@ -853,6 +1077,7 @@ describe("archiveContent", () => {
 
   it("archives a page whose children are all drafts", async () => {
     mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "page" }) // peek
       .mockResolvedValueOnce({ kind: "page", status: "published" }) // locked item
       .mockResolvedValueOnce(undefined) // no published child
       .mockResolvedValueOnce({ id: "content-1" }); // update
@@ -865,18 +1090,19 @@ describe("archiveContent", () => {
 });
 
 describe("unpublishContent", () => {
+  // Call order: 1. unlocked kind peek (advisory-lock targeting) 2. item
+  // row FOR UPDATE 3. [pages] published-child probe 4. the UPDATE.
   it("409s when the item is not currently published", async () => {
-    mockExecuteTakeFirst.mockResolvedValueOnce({
-      kind: "game_report",
-      status: "draft",
-    }); // prefetch
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "game_report" }) // peek
+      .mockResolvedValueOnce({ kind: "game_report", status: "draft" });
     await expect(
       unpublishContent(db)({ contentId: "content-1", userId: "user-1" }),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it("404s when the item does not exist", async () => {
-    mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // prefetch
+    mockExecuteTakeFirst.mockResolvedValueOnce(undefined); // peek
     await expect(
       unpublishContent(db)({ contentId: "missing", userId: "user-1" }),
     ).rejects.toMatchObject({ statusCode: 404 });
@@ -884,6 +1110,7 @@ describe("unpublishContent", () => {
 
   it("clears published_at only while it is still in the future (DB-clock CASE)", async () => {
     mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "game_report" }) // peek
       .mockResolvedValueOnce({ kind: "game_report", status: "published" })
       .mockResolvedValueOnce({ id: "content-1" }); // update
     await unpublishContent(db)({ contentId: "content-1", userId: "user-1" });
@@ -897,7 +1124,8 @@ describe("unpublishContent", () => {
 
   it("400s when unpublishing a page that has published children", async () => {
     mockExecuteTakeFirst
-      .mockResolvedValueOnce({ kind: "page", status: "published" }) // prefetch
+      .mockResolvedValueOnce({ kind: "page" }) // peek
+      .mockResolvedValueOnce({ kind: "page", status: "published" }) // locked item
       .mockResolvedValueOnce({ id: "child-1" }); // published-child probe
     await expect(
       unpublishContent(db)({ contentId: "content-1", userId: "user-1" }),
@@ -910,7 +1138,8 @@ describe("unpublishContent", () => {
 
   it("unpublishes a page whose children are all unpublished", async () => {
     mockExecuteTakeFirst
-      .mockResolvedValueOnce({ kind: "page", status: "published" }) // prefetch
+      .mockResolvedValueOnce({ kind: "page" }) // peek
+      .mockResolvedValueOnce({ kind: "page", status: "published" }) // locked item
       .mockResolvedValueOnce(undefined) // no published child
       .mockResolvedValueOnce({ id: "content-1" }); // update
     const result = await unpublishContent(db)({
@@ -918,6 +1147,130 @@ describe("unpublishContent", () => {
       userId: "user-1",
     });
     expect(result).toEqual({ id: "content-1" });
+  });
+});
+
+describe("page-tree advisory lock", () => {
+  // The multi-row tree invariants (cycles, path cascades, publish
+  // ordering, the ever-published lock) cannot be protected by per-row
+  // FOR UPDATE locks alone, so every page mutation must serialise on
+  // pg_advisory_xact_lock(hashtext('content-page-tree')). These tests
+  // pin the exact statement and that non-page flows skip it.
+  const pagePublishMocks = () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "page", status: "draft", parent_id: null })
+      .mockResolvedValueOnce({ kind: "page", status: "draft", parent_id: null })
+      .mockResolvedValueOnce({
+        id: "content-1",
+        published_at: new Date("2026-06-01T10:00:00Z"),
+      });
+  };
+
+  it("is taken for page creates, with the exact statement", async () => {
+    await createContent(db)(
+      validCreate({
+        kind: "page",
+        slug: "about",
+        title: "About",
+        metadata: {},
+      }),
+    );
+    expect(selectNoFromSql()).toEqual([PAGE_TREE_LOCK_SQL]);
+  });
+
+  it("is not taken for non-page creates", async () => {
+    await createContent(db)(validCreate());
+    expect(selectNoFromSql()).toEqual([]);
+  });
+
+  it("is taken for updates that change slug or parent", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "page-1",
+      kind: "page",
+      slug: "cricket",
+      parent_id: null,
+      path: "/cricket",
+      title: "Cricket",
+      description: null,
+      body: validBody,
+      metadata: {},
+      published_at: null,
+    });
+    mockExecute
+      .mockResolvedValueOnce(undefined) // the advisory lock itself
+      .mockResolvedValueOnce([]); // descendants
+    await updateContent(db)({
+      contentId: "page-1",
+      userId: "user-1",
+      slug: "playing",
+    });
+    expect(selectNoFromSql()).toEqual([PAGE_TREE_LOCK_SQL]);
+  });
+
+  it("is not taken for title-only updates", async () => {
+    mockExecuteTakeFirst.mockResolvedValueOnce({
+      id: "page-1",
+      kind: "page",
+      slug: "cricket",
+      parent_id: null,
+      path: "/cricket",
+      title: "Cricket",
+      description: null,
+      body: validBody,
+      metadata: {},
+      published_at: null,
+    });
+    await updateContent(db)({
+      contentId: "page-1",
+      userId: "user-1",
+      title: "New title",
+    });
+    expect(selectNoFromSql()).toEqual([]);
+  });
+
+  it("is taken for page publish, unpublish and archive", async () => {
+    pagePublishMocks();
+    await publishContent(db)({ contentId: "content-1", userId: "user-1" });
+
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "page" }) // peek
+      .mockResolvedValueOnce({ kind: "page", status: "published" })
+      .mockResolvedValueOnce(undefined) // no published child
+      .mockResolvedValueOnce({ id: "content-1" });
+    await unpublishContent(db)({ contentId: "content-1", userId: "user-1" });
+
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({ kind: "page" }) // peek
+      .mockResolvedValueOnce({ kind: "page", status: "draft" })
+      .mockResolvedValueOnce(undefined) // no published child
+      .mockResolvedValueOnce({ id: "content-1" });
+    await archiveContent(db)({ contentId: "content-1", userId: "user-1" });
+
+    expect(selectNoFromSql()).toEqual([
+      PAGE_TREE_LOCK_SQL,
+      PAGE_TREE_LOCK_SQL,
+      PAGE_TREE_LOCK_SQL,
+    ]);
+  });
+
+  it("is not taken for non-page status transitions", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce({
+        kind: "game_report",
+        status: "draft",
+        parent_id: null,
+      })
+      .mockResolvedValueOnce({
+        kind: "game_report",
+        status: "draft",
+        parent_id: null,
+      })
+      .mockResolvedValueOnce({
+        id: "content-1",
+        published_at: new Date("2026-06-01T10:00:00Z"),
+      });
+    await publishContent(db)({ contentId: "content-1", userId: "user-1" });
+    expect(selectNoFromSql()).toEqual([]);
   });
 });
 
@@ -1012,6 +1365,42 @@ describe("listPageTree", () => {
     mockExecute.mockResolvedValueOnce([pageRow({ path: null })]);
     await expect(listPageTree(db)()).rejects.toMatchObject({
       statusCode: 500,
+    });
+  });
+});
+
+describe("getPublishedPageByPath", () => {
+  it("410s (tombstone) for an ever-live page that is no longer visible", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // no publicly visible row
+      .mockResolvedValueOnce({ id: "page-1" }); // ever-live row at the path
+    await expect(getPublishedPageByPath(db)("/club")).rejects.toMatchObject({
+      statusCode: 410,
+      message: "This page has been removed",
+    });
+  });
+
+  it("404s when the path has never been publicly live", async () => {
+    mockExecuteTakeFirst
+      .mockResolvedValueOnce(undefined) // no publicly visible row
+      .mockResolvedValueOnce(undefined); // no ever-live row either
+    await expect(getPublishedPageByPath(db)("/club")).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+});
+
+describe("getPublishedNav", () => {
+  it("returns visible items plus tombstoned paths in removed[]", async () => {
+    mockExecute
+      .mockResolvedValueOnce([{ path: "/club", title: "Club", metadata: {} }]) // visible
+      .mockResolvedValueOnce([{ path: "/old-section" }]); // ever-live, hidden
+    const nav = await getPublishedNav(db)();
+    expect(nav).toEqual({
+      items: [
+        { path: "/club", title: "Club", menuOrder: 99, isMainMenu: false },
+      ],
+      removed: ["/old-section"],
     });
   });
 });

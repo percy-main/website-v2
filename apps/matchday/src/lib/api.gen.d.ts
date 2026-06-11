@@ -13908,6 +13908,17 @@ export interface paths {
                         "application/json": null;
                     };
                 };
+                /** @description Default Response */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
             };
         };
         put?: never;
@@ -14055,6 +14066,7 @@ export interface paths {
                                 menuOrder: number;
                                 isMainMenu: boolean;
                             }[];
+                            removed: string[];
                         };
                     };
                 };

@@ -105,6 +105,46 @@ export const contentPathSchema = z
     "Path must be one or more /slug segments (lowercase letters, numbers and hyphens)",
   );
 
+/**
+ * Top-level URL space a ROOT page may not occupy. Only the first path
+ * segment routes, so child pages are unaffected.
+ *
+ * Two sources:
+ *  - the SPA router's top-level literals (apps/web/src/router.tsx) -
+ *    they are matched ahead of the content catch-all, so a root page at
+ *    one of these could never be reached;
+ *  - infra prefixes (API mount, upload/asset serving, the content API
+ *    itself).
+ *
+ * Keep in lockstep with router.tsx when adding top-level routes.
+ */
+export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
+  // SPA router top-level literals
+  "news",
+  "calendar",
+  "person",
+  "fantasy",
+  "leaderboard",
+  "game",
+  "report-incident",
+  "purchase",
+  "payment",
+  "nets",
+  "availability",
+  "tell-me-about",
+  "auth",
+  "members",
+  "membership",
+  "scout",
+  "admin",
+  "junior-manager",
+  // Infra prefixes
+  "api",
+  "uploads",
+  "assets",
+  "content",
+]);
+
 // ── Kind-specific metadata (replaces MDX frontmatter) ───────────────────
 //
 // Validated on every write by the content API. Only kinds with a schema

@@ -68,6 +68,42 @@ describe("mergeNavPages", () => {
     );
     expect(merged[0]?.path).toBe("/boxing");
   });
+
+  it("drops a static page tombstoned by removed[] - a takedown sticks", () => {
+    const merged = mergeNavPages([], staticPages, ["/club/committee"]);
+    expect(merged.map((p) => p.path)).not.toContain("/club/committee");
+    expect(merged).toHaveLength(staticPages.length - 1);
+  });
+
+  it("treats tombstones with no static twin as no-ops", () => {
+    expect(mergeNavPages([], staticPages, ["/never-existed"])).toEqual(
+      staticPages,
+    );
+  });
+
+  it("lets an API item at a tombstoned path win over the tombstone", () => {
+    // The API only tombstones paths it is not serving, but a stale
+    // removed[] entry must not hide a page the API is publishing.
+    const merged = mergeNavPages(
+      [page("/club/committee", { title: "Committee (DB)" })],
+      staticPages,
+      ["/club/committee"],
+    );
+    expect(merged.find((p) => p.path === "/club/committee")?.title).toBe(
+      "Committee (DB)",
+    );
+  });
+
+  it("removes a tombstoned static page from the main menu", () => {
+    const merged = mergeNavPages([], staticPages, ["/cricket"]);
+    expect(getMainMenuItems(merged).map((p) => p.title)).toEqual(["Club"]);
+  });
+
+  it("defaults to no tombstones when removed[] is omitted", () => {
+    expect(mergeNavPages([], staticPages)).toEqual(
+      mergeNavPages([], staticPages, []),
+    );
+  });
 });
 
 describe("getNavigationTree", () => {
