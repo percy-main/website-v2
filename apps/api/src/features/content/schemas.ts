@@ -225,6 +225,15 @@ export const listEventsResponseSchema = z.object({
   items: z.array(publicListItemSchema),
 });
 
+/**
+ * All published people, title-ordered. Backs person cards/grids, the
+ * public profile index and the editor's people pickers from a single
+ * cached request (~55 rows sitewide, so no pagination).
+ */
+export const listPeopleResponseSchema = z.object({
+  items: z.array(publicListItemSchema),
+});
+
 // ── Public: pages (nav + by-path) ───────────────────────────────────────
 
 /**

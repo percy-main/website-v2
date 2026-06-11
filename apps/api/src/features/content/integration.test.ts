@@ -956,6 +956,49 @@ describe("content service (integration)", () => {
       });
       expect(res.statusCode).toBe(401);
     });
+
+    it("the public roster lists published people only, title-ordered", async () => {
+      // One published (from the lifecycle test) + the draft fixture. Add
+      // a second published person to assert ordering.
+      const { id } = await createContent(ctx.db)({
+        kind: "person",
+        slug: "aaron-aardvark",
+        title: "Aaron Aardvark",
+        description: null,
+        body: body("First alphabetically."),
+        metadata: { isDBSChecked: false, hasLeftClub: true },
+        userId,
+      });
+      await publishContent(ctx.db)({ contentId: id, userId });
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/content/people",
+      });
+      expect(res.statusCode).toBe(200);
+      const { items } = res.json<{
+        items: Array<{
+          slug: string;
+          title: string;
+          metadata: Record<string, unknown>;
+        }>;
+      }>();
+      const slugs = items.map((i) => i.slug);
+      expect(slugs).toContain("aaron-aardvark");
+      expect(slugs).toContain("edith-example");
+      // The draft fixture stays out of the public roster
+      expect(slugs).not.toContain("boundary-fixture");
+      // Title-ordered
+      expect(slugs.indexOf("aaron-aardvark")).toBeLessThan(
+        slugs.indexOf("edith-example"),
+      );
+      // Metadata is projected through the person schema
+      const aaron = items.find((i) => i.slug === "aaron-aardvark");
+      expect(aaron?.metadata).toEqual({
+        isDBSChecked: false,
+        hasLeftClub: true,
+      });
+    });
   });
 
   describe("page hierarchy", () => {

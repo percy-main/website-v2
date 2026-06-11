@@ -20,6 +20,7 @@ import {
   listEventsResponseSchema,
   listNewsQuerySchema,
   listNewsResponseSchema,
+  listPeopleResponseSchema,
   listRevisionsResponseSchema,
   navResponseSchema,
   pageByPathQuerySchema,
@@ -43,6 +44,7 @@ import {
   listPageTree,
   listPublishedEvents,
   listPublishedNews,
+  listPublishedPeople,
   listRevisions,
   publishContent,
   unpublishContent,
@@ -89,6 +91,7 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const publicGameReport = getPublishedGameReport(app.db);
   const publicNews = listPublishedNews(app.db);
   const publicEvents = listPublishedEvents(app.db);
+  const publicPeople = listPublishedPeople(app.db);
   const publicNav = getPublishedNav(app.db);
   const publicPageByPath = getPublishedPageByPath(app.db);
 
@@ -369,6 +372,18 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async () => {
       return await publicEvents();
+    },
+  );
+
+  app.get(
+    "/content/people",
+    {
+      schema: {
+        response: { 200: listPeopleResponseSchema },
+      },
+    },
+    async () => {
+      return await publicPeople();
     },
   );
 

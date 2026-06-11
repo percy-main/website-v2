@@ -6,6 +6,7 @@ import {
   eventMetadataSchema,
   newsMetadataSchema,
   pageMetadataSchema,
+  personMetadataSchema,
   RESERVED_ROOT_SLUGS,
   type ContentKind,
   type ContentStatus,
@@ -1451,6 +1452,24 @@ export function listPublishedEvents(db: Kysely<DB>) {
 
     return {
       items: rows.map((row) => toPublicListItem(eventMetadataSchema, row)),
+    };
+  };
+}
+
+export function listPublishedPeople(db: Kysely<DB>) {
+  return async () => {
+    // No pagination: ~55 profiles sitewide, and every consumer (person
+    // cards, grids, the profile pickers in the editor) wants the whole
+    // roster in one cached request - resolving cards per-slug would be
+    // an N+1 every time a page renders a person grid.
+    const rows = await publishedOnly(db)
+      .select(publicListColumns)
+      .where("kind", "=", "person")
+      .orderBy("title", "asc")
+      .execute();
+
+    return {
+      items: rows.map((row) => toPublicListItem(personMetadataSchema, row)),
     };
   };
 }

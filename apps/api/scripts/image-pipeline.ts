@@ -45,11 +45,55 @@ export interface Converted {
 }
 
 /**
- * Convert one MDX body, resolving each <Image> through the editor-upload
- * processing pipeline (locally - nothing is written here, so --dry-run
- * conversion is complete and writes can be deferred until after the
- * skip/insert decision). The processed-image cache spans articles so a
- * re-used asset is only decoded once.
+ * Run one "/images/..." asset through the editor-upload processing
+ * pipeline (locally - nothing is written here, so --dry-run conversion
+ * is complete and writes can be deferred until after the skip/insert
+ * decision). The cache spans items so a re-used asset is only decoded
+ * once. Used for body <Image> tags and for frontmatter photos (people
+ * profiles, #498) alike.
+ */
+export async function prepareAsset(
+  src: string,
+  alt: string | null,
+  cache: Map<string, PendingImage>,
+): Promise<PendingImage> {
+  const imageId = imageIdForAsset(src);
+  const cached = cache.get(imageId);
+  if (cached) return cached;
+
+  if (!src.startsWith("/images/")) {
+    throw new Error(`unexpected image src '${src}'`);
+  }
+  const assetPath = path.resolve(ASSETS_DIR, src.slice("/images/".length));
+  // A '..' segment in the src could otherwise resolve outside the
+  // bundled assets tree and upload an arbitrary readable file.
+  if (!assetPath.startsWith(ASSETS_DIR + path.sep)) {
+    throw new Error(`image src '${src}' escapes the assets directory`);
+  }
+  let original: Buffer;
+  try {
+    original = await fs.readFile(assetPath);
+  } catch {
+    throw new MissingImageError(src);
+  }
+  const processed = await processImage(
+    original,
+    imageId,
+    CONTENT_IMAGES_PREFIX,
+  );
+  const pending: PendingImage = {
+    imageId,
+    publicPath: src,
+    alt,
+    processed,
+    bytes: original.byteLength,
+  };
+  cache.set(imageId, pending);
+  return pending;
+}
+
+/**
+ * Convert one MDX body, resolving each <Image> through prepareAsset.
  */
 export async function convertBody(
   body: string,
@@ -57,38 +101,7 @@ export async function convertBody(
 ): Promise<Converted> {
   const images: PendingImage[] = [];
   const blocks = await mdxToBlocks(body, async ({ src, alt, caption }) => {
-    const imageId = imageIdForAsset(src);
-    let pending = cache.get(imageId);
-    if (!pending) {
-      if (!src.startsWith("/images/")) {
-        throw new Error(`unexpected image src '${src}'`);
-      }
-      const assetPath = path.resolve(ASSETS_DIR, src.slice("/images/".length));
-      // A '..' segment in the src could otherwise resolve outside the
-      // bundled assets tree and upload an arbitrary readable file.
-      if (!assetPath.startsWith(ASSETS_DIR + path.sep)) {
-        throw new Error(`image src '${src}' escapes the assets directory`);
-      }
-      let original: Buffer;
-      try {
-        original = await fs.readFile(assetPath);
-      } catch {
-        throw new MissingImageError(src);
-      }
-      const processed = await processImage(
-        original,
-        imageId,
-        CONTENT_IMAGES_PREFIX,
-      );
-      pending = {
-        imageId,
-        publicPath: src,
-        alt: alt ?? null,
-        processed,
-        bytes: original.byteLength,
-      };
-      cache.set(imageId, pending);
-    }
+    const pending = await prepareAsset(src, alt ?? null, cache);
     images.push(pending);
     // Exactly the prop set the editor inserts (content-editor.tsx): the
     // plain src falls back to the ladder's largest original-format
