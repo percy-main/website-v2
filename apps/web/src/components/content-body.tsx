@@ -3,6 +3,7 @@ import {
   OptimisedImage,
   type PictureSource,
 } from "@/components/optimised-image.js";
+import { parsePersonGridEntries } from "@/lib/person-grid.js";
 import { cn } from "@/lib/utils.js";
 import {
   contentBodySchema,
@@ -330,6 +331,24 @@ function BlockView({ block }: { block: ContentBlock }) {
     }
 
     case CUSTOM_BLOCK_TYPES.personGrid: {
+      // Role-preserving entries prop (JSON-stringified [{slug, role?}],
+      // same precedent as contentImage's picture prop): compose
+      // PersonGrid with Person children exactly as the MDX corpus does.
+      // Absent or malformed entries degrade to the legacy slugs CSV.
+      const entries = parsePersonGridEntries(stringProp(block, "entries"));
+      if (entries !== null && entries.length > 0) {
+        return (
+          <mdxComponents.PersonGrid>
+            {entries.map((entry, i) => (
+              <mdxComponents.Person
+                key={`${entry.slug}-${String(i)}`}
+                slug={entry.slug}
+                role={entry.role}
+              />
+            ))}
+          </mdxComponents.PersonGrid>
+        );
+      }
       const slugs = stringProp(block, "slugs");
       if (!slugs) return null;
       // Normalise the stored CSV: trim each segment, drop empties - so
