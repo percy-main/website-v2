@@ -3,8 +3,8 @@
  * content API's tables as published items, building parent_id/path from
  * the directory layout (dir/_index.mdx IS the parent item) and pushing
  * each embedded <Image> through the same processing pipeline as editor
- * uploads. pages/legal/** is excluded by design (legal copy stays static
- * and changes via PR review).
+ * uploads. pages/legal/** was initially excluded; #517 migrates it too
+ * so the whole MDX pipeline can be removed.
  *
  * The script inserts rows directly (like migrate-news-events.ts), so it
  * upholds the page-hierarchy invariants itself rather than relying on
@@ -143,9 +143,6 @@ async function main() {
   console.log(`Found ${String(files.length)} pages in ${PAGES_DIR}`);
 
   const tree = buildPageTree(files);
-  for (const exclusion of tree.excluded) {
-    console.log(`  - ${exclusion.file}: ${exclusion.reason}`);
-  }
 
   const counts = {
     inserted: 0,
@@ -496,7 +493,7 @@ async function main() {
   console.log("");
   console.log("=== Migration report ===");
   console.log(
-    `Pages: ${String(counts.inserted)} inserted, ${String(counts.updated)} updated, ${String(counts.unchanged)} unchanged, ${String(counts.skipped)} skipped, ${String(counts.failed)} failed, ${String(tree.excluded.length)} excluded`,
+    `Pages: ${String(counts.inserted)} inserted, ${String(counts.updated)} updated, ${String(counts.unchanged)} unchanged, ${String(counts.skipped)} skipped, ${String(counts.failed)} failed`,
   );
   console.log(
     `Images: ${String(imagesUploaded)} ${dryRun ? "would be uploaded" : "uploaded"}, ${String(imagesReused)} reused`,
@@ -513,10 +510,6 @@ async function main() {
   console.log(`Skipped (${String(skipped.length)}):`);
   for (const item of skipped) {
     console.log(`  ${item.file}: ${item.reason}`);
-  }
-  console.log(`Excluded (${String(tree.excluded.length)}):`);
-  for (const exclusion of tree.excluded) {
-    console.log(`  ${exclusion.file}: ${exclusion.reason}`);
   }
 
   // The before/after nav snapshot artifact: what getPublishedNav would

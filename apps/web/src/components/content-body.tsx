@@ -54,10 +54,15 @@ function isInlineLink(node: unknown): node is InlineLink {
 
 /**
  * Only protocols/paths we trust ever become anchors. Anything else (e.g.
- * javascript:) renders as its text content with no link.
+ * javascript:) renders as its text content with no link. Fragments are
+ * in-page jumps to heading anchors - they never navigate.
  */
 function isSafeHref(href: string): boolean {
-  return /^(https?:|mailto:|tel:)/i.test(href) || /^\/(?!\/)/.test(href);
+  return (
+    /^(https?:|mailto:|tel:)/i.test(href) ||
+    /^\/(?!\/)/.test(href) ||
+    href.startsWith("#")
+  );
 }
 
 /**
@@ -140,6 +145,20 @@ function alignClass(block: ContentBlock): string | undefined {
 function stringProp(block: ContentBlock, name: string): string | undefined {
   const value = block.props[name];
   return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+/**
+ * GitHub-style anchor slug for a heading, so prose can link to sections
+ * with plain #fragment links. Ids are not deduped: duplicate heading
+ * text yields duplicate anchors and the browser jumps to the first.
+ */
+function headingAnchor(content: unknown): string | undefined {
+  const slug = inlineToText(content)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .trim()
+    .replace(/\s+/g, "-");
+  return slug === "" ? undefined : slug;
 }
 
 /**
@@ -276,7 +295,7 @@ function BlockView({ block }: { block: ContentBlock }) {
         <div>
           {createElement(
             `h${level}`,
-            { className: alignClass(block) },
+            { className: alignClass(block), id: headingAnchor(block.content) },
             <InlineContent content={block.content} />,
           )}
           <BlockChildren block={block} />

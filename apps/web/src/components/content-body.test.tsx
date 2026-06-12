@@ -113,6 +113,43 @@ describe("ContentBody", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
+  it("gives headings slugified anchor ids", () => {
+    const html = renderBody([
+      block("heading", {
+        props: { level: 2 },
+        content: [text("What information we collect, use, and why")],
+      }),
+      block("heading", {
+        props: { level: 3 },
+        content: [text("How our consent banner works (Consent Mode v2)")],
+      }),
+    ]);
+    expect(html).toContain('id="what-information-we-collect-use-and-why"');
+    expect(html).toContain('id="how-our-consent-banner-works-consent-mode-v2"');
+  });
+
+  it("omits the heading id when the text slugifies to nothing", () => {
+    const html = renderBody([
+      block("heading", { props: { level: 2 }, content: [text("???")] }),
+    ]);
+    expect(html).not.toContain("id=");
+  });
+
+  it("renders #fragment links for in-page anchors", () => {
+    const html = renderBody([
+      block("paragraph", {
+        content: [
+          {
+            type: "link",
+            href: "#contact-details",
+            content: [text("Contact details")],
+          },
+        ],
+      }),
+    ]);
+    expect(html).toContain('href="#contact-details"');
+  });
+
   it("drops unsafe link protocols but keeps the text", () => {
     const html = renderBody([
       block("paragraph", {
@@ -449,8 +486,8 @@ describe("ContentBody", () => {
     expect(html).toContain("Cookie settings");
   });
 
-  it("renders consentVersion as the current version string", () => {
+  it("renders consentVersion as a self-contained sentence", () => {
     const html = renderBody([block("consentVersion", {})]);
-    expect(html).toContain("v3");
+    expect(html).toContain("This notice is version v3.");
   });
 });
