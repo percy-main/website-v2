@@ -20,6 +20,7 @@ import {
   listEventsResponseSchema,
   listNewsQuerySchema,
   listNewsResponseSchema,
+  listPeopleResponseSchema,
   listRevisionsResponseSchema,
   navResponseSchema,
   pageByPathQuerySchema,
@@ -28,6 +29,8 @@ import {
   publicContentParamsSchema,
   publicContentResponseSchema,
   publishContentSchema,
+  revisionDetailResponseSchema,
+  revisionIdParamSchema,
   updateContentSchema,
 } from "./schemas.ts";
 import {
@@ -39,10 +42,12 @@ import {
   getPublishedGameReport,
   getPublishedNav,
   getPublishedPageByPath,
+  getRevision,
   listContent,
   listPageTree,
   listPublishedEvents,
   listPublishedNews,
+  listPublishedPeople,
   listRevisions,
   publishContent,
   unpublishContent,
@@ -85,10 +90,12 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const unpublish = unpublishContent(app.db);
   const archive = archiveContent(app.db);
   const revisions = listRevisions(app.db);
+  const revision = getRevision(app.db);
   const publicGet = getPublishedContent(app.db);
   const publicGameReport = getPublishedGameReport(app.db);
   const publicNews = listPublishedNews(app.db);
   const publicEvents = listPublishedEvents(app.db);
+  const publicPeople = listPublishedPeople(app.db);
   const publicNav = getPublishedNav(app.db);
   const publicPageByPath = getPublishedPageByPath(app.db);
 
@@ -265,6 +272,25 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
+  app.get(
+    "/admin/content/:contentId/revisions/:revisionId",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        params: revisionIdParamSchema,
+        response: { 200: revisionDetailResponseSchema },
+      },
+    },
+    async (request) => {
+      // Same gate as the list: the revision's own permission model is
+      // the item's kind (the service scopes the lookup to contentId, so
+      // a revision is never reachable under a different item's id).
+      const { kind } = await metaOf(request.params.contentId);
+      assertContentPermission(request, kind, "view");
+      return await revision(request.params);
+    },
+  );
+
   // ── Public (no auth) ──
   //
   // Serves only status='published' AND published_at <= now(). The API is
@@ -295,12 +321,20 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
+  // 410 = person tombstone: the profile WAS live at this slug but has
+  // been taken down; the SPA must not fall back to its bundled static
+  // version (404 keeps that fallback for never-live slugs). Other kinds
+  // never produce a 410 here.
   app.get(
     "/content/:kind/:slug",
     {
       schema: {
         params: publicContentParamsSchema,
-        response: { 200: publicContentResponseSchema, 304: z.null() },
+        response: {
+          200: publicContentResponseSchema,
+          304: z.null(),
+          410: goneResponseSchema,
+        },
       },
     },
     async (request, reply) => {
@@ -369,6 +403,18 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async () => {
       return await publicEvents();
+    },
+  );
+
+  app.get(
+    "/content/people",
+    {
+      schema: {
+        response: { 200: listPeopleResponseSchema },
+      },
+    },
+    async () => {
+      return await publicPeople();
     },
   );
 

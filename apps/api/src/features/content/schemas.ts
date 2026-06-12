@@ -157,6 +157,28 @@ export const listRevisionsResponseSchema = z.object({
   ),
 });
 
+export const revisionIdParamSchema = z.object({
+  contentId: z.uuid(),
+  revisionId: z.uuid(),
+});
+
+/**
+ * One revision in full - body and metadata included - for the history
+ * UI's diff and restore (#500). Slug/parent are not part of a revision:
+ * they identify the item rather than its content, and restoring must
+ * never bypass the slug/path locks.
+ */
+export const revisionDetailResponseSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  body: contentBodyTransportSchema,
+  metadata: contentMetadataSchema,
+  savedAt: z.string(),
+  savedBy: z.string(),
+  savedByName: z.string().nullable(),
+});
+
 // ── Public ──────────────────────────────────────────────────────────────
 
 export const publicContentParamsSchema = z.object({
@@ -223,6 +245,22 @@ export const listNewsResponseSchema = z.object({
 
 export const listEventsResponseSchema = z.object({
   items: z.array(publicListItemSchema),
+});
+
+/**
+ * All published people, title-ordered. Backs person cards/grids, the
+ * public profile index and the editor's people pickers from a single
+ * cached request (~55 rows sitewide, so no pagination).
+ */
+export const listPeopleResponseSchema = z.object({
+  items: z.array(publicListItemSchema),
+  /**
+   * Tombstoned slugs: people who were publicly live but are no longer
+   * visible (unpublished/archived after going live). The SPA drops
+   * matching entries from its bundled static corpus so a takedown does
+   * not resurrect the stale static profile (same pattern as nav.removed).
+   */
+  removed: z.array(z.string()),
 });
 
 // ── Public: pages (nav + by-path) ───────────────────────────────────────

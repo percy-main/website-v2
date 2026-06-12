@@ -6,6 +6,7 @@ import {
   eventMetadataSchema,
   newsMetadataSchema,
   pageMetadataSchema,
+  personMetadataSchema,
   RESERVED_ROOT_SLUGS,
   type ContentKind,
   type ContentStatus,
@@ -24,9 +25,10 @@ function throwHttpError(statusCode: number, message: string): never {
 }
 
 /**
- * Validate kind-specific metadata against the shared schema map. Kinds
- * without a schema are not editable through the API yet (later phases
- * add theirs).
+ * Validate kind-specific metadata against the shared schema map. Every
+ * kind has a schema as of Phase 4; the missing-schema guard stays as a
+ * backstop so a future kind added to CONTENT_KINDS without one fails
+ * closed instead of accepting arbitrary metadata.
  */
 function parseMetadata(kind: ContentKind, metadata: Record<string, unknown>) {
   const schema = CONTENT_METADATA_SCHEMAS[kind];
@@ -1122,6 +1124,50 @@ export function listRevisions(db: Kysely<DB>) {
   };
 }
 
+export function getRevision(db: Kysely<DB>) {
+  return async (params: { contentId: string; revisionId: string }) => {
+    // The content_id filter makes the lookup tenant-safe within the
+    // route's permission model: the route gates on the CONTENT item's
+    // kind, so a revision must never be reachable under a different
+    // (more permissive) item's id.
+    const row = await db
+      .selectFrom("content_revision")
+      .leftJoin("user as saver", "saver.id", "content_revision.saved_by")
+      .select([
+        "content_revision.id",
+        "content_revision.title",
+        "content_revision.description",
+        "content_revision.body",
+        "content_revision.metadata",
+        "content_revision.saved_at",
+        "content_revision.saved_by",
+        "saver.name as saved_by_name",
+      ])
+      .where("content_revision.id", "=", params.revisionId)
+      .where("content_revision.content_id", "=", params.contentId)
+      .executeTakeFirst();
+    if (!row) throwHttpError(404, "Revision not found");
+
+    // A stored body failing the schema is a server-side data problem,
+    // not a bad request - same stance as getContent.
+    const parsedBody = contentBodySchema.safeParse(row.body);
+    if (!parsedBody.success) {
+      throwHttpError(500, "Stored body does not match the block schema");
+    }
+
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      body: parsedBody.data,
+      metadata: row.metadata as Record<string, unknown>,
+      savedAt: row.saved_at.toISOString(),
+      savedBy: row.saved_by,
+      savedByName: row.saved_by_name,
+    };
+  };
+}
+
 // ── Public reads ────────────────────────────────────────────────────────
 
 function toPublic(row: {
@@ -1143,10 +1189,12 @@ function toPublic(row: {
   const kind = row.kind as ContentKind;
   // The metadata schema map doubles as the allowlist of kinds the public
   // API serves at all, and projecting through it strips undeclared keys.
-  // NOTE for later phases: a kind whose declared metadata is itself not
-  // fully public (person carries safeguarding-adjacent flags) must add a
-  // dedicated public projection schema here rather than reusing its write
-  // schema.
+  // Person reuses its write schema deliberately (#498): isDBSChecked and
+  // hasLeftClub are safeguarding-ADJACENT but public by design - the
+  // static site has always rendered the DBS badge and filtered rosters on
+  // hasLeftClub, and the content_people gate protects who can WRITE the
+  // flags, not who can see them. A future kind whose declared metadata is
+  // not fully public must add a dedicated projection schema here.
   const schema = CONTENT_METADATA_SCHEMAS[kind];
   if (!schema) throwHttpError(404, "Content not found");
   const metadata = schema.safeParse(row.metadata);
@@ -1202,7 +1250,26 @@ export function getPublishedContent(db: Kysely<DB>) {
 
     const row = await query.executeTakeFirst();
 
-    if (!row) throwHttpError(404, "Content not found");
+    if (!row) {
+      // Person tombstone, mirroring the by-path page rule: the SPA falls
+      // back to its bundled static profile on 404, so taking down a
+      // migrated profile (unpublish/archive - safeguarding-relevant for
+      // people) must not read as "missing" and resurrect the stale
+      // static version. Ever-live (past published_at) but not visible
+      // now is 410 Gone; never-live rows stay 404 and leak nothing.
+      if (params.kind === "person") {
+        const tombstone = await db
+          .selectFrom("content_item")
+          .select("id")
+          .where("kind", "=", "person")
+          .where("slug", "=", params.slug)
+          .where("published_at", "is not", null)
+          .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`)
+          .executeTakeFirst();
+        if (tombstone) throwHttpError(410, "This profile has been removed");
+      }
+      throwHttpError(404, "Content not found");
+    }
     return toPublic(row);
   };
 }
@@ -1448,6 +1515,42 @@ export function listPublishedEvents(db: Kysely<DB>) {
 
     return {
       items: rows.map((row) => toPublicListItem(eventMetadataSchema, row)),
+    };
+  };
+}
+
+export function listPublishedPeople(db: Kysely<DB>) {
+  return async () => {
+    // No pagination: ~55 profiles sitewide, and every consumer (person
+    // cards, grids, the profile pickers in the editor) wants the whole
+    // roster in one cached request - resolving cards per-slug would be
+    // an N+1 every time a page renders a person grid.
+    const rows = await publishedOnly(db)
+      .select(publicListColumns)
+      .where("kind", "=", "person")
+      .orderBy("title", "asc")
+      .execute();
+
+    // Tombstoned slugs (same ever-live test as the by-slug 410): people
+    // who WERE publicly live but are not visible now. The SPA drops
+    // matching entries from its bundled static corpus so a takedown does
+    // not resurrect the stale static profile in cards and pickers. The
+    // status partition makes the two queries consistent without a
+    // transaction: a row is either published (items candidate) or not
+    // (removed candidate), never both.
+    const removedRows = await db
+      .selectFrom("content_item")
+      .select("slug")
+      .where("kind", "=", "person")
+      .where("status", "!=", "published")
+      .where("published_at", "is not", null)
+      .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`)
+      .orderBy("slug", "asc")
+      .execute();
+
+    return {
+      items: rows.map((row) => toPublicListItem(personMetadataSchema, row)),
+      removed: removedRows.map((row) => row.slug),
     };
   };
 }

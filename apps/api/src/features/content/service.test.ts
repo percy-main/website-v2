@@ -179,12 +179,6 @@ beforeEach(() => {
 });
 
 describe("createContent", () => {
-  it("rejects kinds that are not editable yet", async () => {
-    await expect(
-      createContent(db)(validCreate({ kind: "person", metadata: {} })),
-    ).rejects.toMatchObject({ statusCode: 400 });
-  });
-
   it("rejects metadata that fails the kind schema", async () => {
     await expect(
       createContent(db)(validCreate({ metadata: {} })),
@@ -310,6 +304,97 @@ describe("news and event metadata", () => {
         userId: "user-1",
         metadata: { tags: "seniors" },
       }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+describe("person metadata", () => {
+  const personCreate = (metadata: Record<string, unknown>) =>
+    validCreate({
+      kind: "person" as const,
+      slug: "alice-smith",
+      title: "Alice Smith",
+      metadata,
+    });
+  const validPhoto = {
+    sources: {
+      webp: "/uploads/content/abc/img-320.webp 320w, /uploads/content/abc/img-640.webp 640w",
+    },
+    img: { src: "/uploads/content/abc/img-1920.jpeg", w: 1920, h: 1080 },
+  };
+
+  it("applies the flag defaults when metadata is empty", async () => {
+    await createContent(db)(personCreate({}));
+    const inserted = valuesArgFor() as { metadata: string };
+    expect(JSON.parse(inserted.metadata)).toEqual({
+      isDBSChecked: false,
+      hasLeftClub: false,
+    });
+  });
+
+  it("creates a person with flags and a photo descriptor", async () => {
+    await createContent(db)(
+      personCreate({
+        isDBSChecked: true,
+        hasLeftClub: false,
+        photo: validPhoto,
+      }),
+    );
+    const inserted = valuesArgFor() as { metadata: string };
+    expect(JSON.parse(inserted.metadata)).toEqual({
+      isDBSChecked: true,
+      hasLeftClub: false,
+      photo: validPhoto,
+    });
+  });
+
+  it("strips a name key - title is the single source of the display name", async () => {
+    await createContent(db)(personCreate({ name: "Someone Else" }));
+    const inserted = valuesArgFor() as { metadata: string };
+    expect(JSON.parse(inserted.metadata)).not.toHaveProperty("name");
+  });
+
+  it("rejects a photo src that is not https or site-relative", async () => {
+    await expect(
+      createContent(db)(
+        personCreate({
+          photo: {
+            ...validPhoto,
+            img: { src: "javascript:alert(1)", w: 1, h: 1 },
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      createContent(db)(
+        personCreate({
+          photo: {
+            ...validPhoto,
+            img: { src: "http://evil.example/x.jpg", w: 1, h: 1 },
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("rejects a srcset smuggling an unsafe URL among safe ones", async () => {
+    await expect(
+      createContent(db)(
+        personCreate({
+          photo: {
+            ...validPhoto,
+            sources: {
+              webp: "/uploads/content/abc/img-320.webp 320w, http://evil.example/x.webp 640w",
+            },
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("rejects non-boolean flags rather than coercing", async () => {
+    await expect(
+      createContent(db)(personCreate({ isDBSChecked: "yes" })),
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 });

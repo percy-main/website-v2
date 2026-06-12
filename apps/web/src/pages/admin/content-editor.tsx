@@ -58,11 +58,11 @@ import { useHasPermission } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
 import { uploadContentImage } from "@/lib/content-images.js";
-import { getAllPeople } from "@/lib/people.js";
 import {
   parsePersonGridEntries,
   type PersonGridEntry,
 } from "@/lib/person-grid.js";
+import { usePeopleList } from "@/lib/use-people.js";
 import {
   CONTENT_KIND_RESOURCES,
   contentBodySchema,
@@ -84,12 +84,51 @@ import {
   eligibleParents,
   visibleNodes,
 } from "./pages-tab.lib.js";
+import {
+  blocksToLines,
+  detailLines,
+  diffLines,
+  type DiffLine,
+} from "./revision-diff.js";
 
 // ── Custom blocks ───────────────────────────────────────────────────────
 //
 // Type names come from shared CUSTOM_BLOCK_TYPES so the public renderer
 // maps them 1:1. Each block renders the real public component read-only
 // in-editor, with minimal prop controls underneath.
+
+/**
+ * Single-person picker over the merged roster (DB-backed people first,
+ * static corpus filling the gaps during the migration transition). A
+ * component of its own so the roster hook lives outside the block-spec
+ * render functions.
+ */
+function PersonSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (slug: string) => void;
+}) {
+  const people = usePeopleList();
+  return (
+    <select
+      aria-label="Person"
+      value={value}
+      onChange={(e) => {
+        onChange(e.target.value);
+      }}
+      className="rounded border border-stone-300 bg-white p-1 text-sm"
+    >
+      <option value="">Choose a person…</option>
+      {people.map((p) => (
+        <option key={p.slug} value={p.slug}>
+          {p.name}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 const personBlock = createReactBlockSpec(
   {
@@ -113,23 +152,14 @@ const personBlock = createReactBlockSpec(
         ) : (
           <p className="text-sm text-stone-500">Choose a person…</p>
         )}
-        <select
-          aria-label="Person"
+        <PersonSelect
           value={block.props.slug}
-          onChange={(e) => {
+          onChange={(slug) => {
             editor.updateBlock(block, {
-              props: { ...block.props, slug: e.target.value },
+              props: { ...block.props, slug },
             });
           }}
-          className="rounded border border-stone-300 bg-white p-1 text-sm"
-        >
-          <option value="">Choose a person…</option>
-          {getAllPeople().map((p) => (
-            <option key={p.slug} value={p.slug}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+        />
         <input
           aria-label="Role shown on the card"
           placeholder="Role (optional)"
@@ -252,6 +282,12 @@ function parsePictureProp(raw: string): PictureSource | null {
   } catch {
     return null;
   }
+  return parsePictureValue(parsed);
+}
+
+/** Same structural floor over an already-parsed value (person metadata
+ * stores the descriptor as an object, not a JSON string). */
+function parsePictureValue(parsed: unknown): PictureSource | null {
   // Same structural floor as the public renderer: enough shape that
   // OptimisedImage cannot crash on a malformed stored descriptor.
   const candidate = parsed as {
@@ -358,9 +394,6 @@ const personGridBlock = createReactBlockSpec(
           const trimmed = s.trim();
           return trimmed ? [{ slug: trimmed }] : [];
         });
-      const allPeople = getAllPeople();
-      const nameOf = (slug: string) =>
-        allPeople.find((p) => p.slug === slug)?.name ?? slug;
       const write = (next: PersonGridEntry[]) => {
         editor.updateBlock(block, {
           props: {
@@ -388,61 +421,82 @@ const personGridBlock = createReactBlockSpec(
           ) : (
             <p className="text-sm text-stone-500">Choose people to display…</p>
           )}
-          <div className="flex flex-col gap-1">
-            <p className="text-xs text-stone-500">
-              Select people (hold Ctrl/Cmd to pick multiple):
-            </p>
-            <select
-              aria-label="People"
-              multiple
-              size={Math.min(allPeople.length, 6)}
-              value={entries.map((e) => e.slug)}
-              onChange={(e) => {
-                const chosen = Array.from(e.target.selectedOptions).map(
-                  (o) => o.value,
-                );
-                // People who stay selected keep their role; newly
-                // selected people start role-less.
-                write(
-                  chosen.map(
-                    (slug) =>
-                      entries.find((entry) => entry.slug === slug) ?? { slug },
-                  ),
-                );
-              }}
-              className="rounded border border-stone-300 bg-white p-1 text-sm"
-            >
-              {allPeople.map((p) => (
-                <option key={p.slug} value={p.slug}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {entries.map((entry, i) => (
-            <input
-              key={`${entry.slug}-${String(i)}`}
-              aria-label={`Role shown for ${nameOf(entry.slug)}`}
-              placeholder={`Role for ${nameOf(entry.slug)} (optional)`}
-              value={entry.role ?? ""}
-              onChange={(e) => {
-                const role = e.target.value;
-                write(
-                  entries.map((current, j) =>
-                    j === i
-                      ? { slug: current.slug, ...(role !== "" && { role }) }
-                      : current,
-                  ),
-                );
-              }}
-              className="rounded border border-stone-300 bg-white p-1 text-sm"
-            />
-          ))}
+          <PersonGridControls entries={entries} onWrite={write} />
         </div>
       );
     },
   },
 );
+
+/**
+ * The grid block's people controls, a component of its own so the merged
+ * roster hook lives outside the block-spec render function.
+ */
+function PersonGridControls({
+  entries,
+  onWrite,
+}: {
+  entries: PersonGridEntry[];
+  onWrite: (next: PersonGridEntry[]) => void;
+}) {
+  const allPeople = usePeopleList();
+  const nameOf = (slug: string) =>
+    allPeople.find((p) => p.slug === slug)?.name ?? slug;
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        <p className="text-xs text-stone-500">
+          Select people (hold Ctrl/Cmd to pick multiple):
+        </p>
+        <select
+          aria-label="People"
+          multiple
+          size={Math.min(allPeople.length, 6)}
+          value={entries.map((e) => e.slug)}
+          onChange={(e) => {
+            const chosen = Array.from(e.target.selectedOptions).map(
+              (o) => o.value,
+            );
+            // People who stay selected keep their role; newly
+            // selected people start role-less.
+            onWrite(
+              chosen.map(
+                (slug) =>
+                  entries.find((entry) => entry.slug === slug) ?? { slug },
+              ),
+            );
+          }}
+          className="rounded border border-stone-300 bg-white p-1 text-sm"
+        >
+          {allPeople.map((p) => (
+            <option key={p.slug} value={p.slug}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      {entries.map((entry, i) => (
+        <input
+          key={`${entry.slug}-${String(i)}`}
+          aria-label={`Role shown for ${nameOf(entry.slug)}`}
+          placeholder={`Role for ${nameOf(entry.slug)} (optional)`}
+          value={entry.role ?? ""}
+          onChange={(e) => {
+            const role = e.target.value;
+            onWrite(
+              entries.map((current, j) =>
+                j === i
+                  ? { slug: current.slug, ...(role !== "" && { role }) }
+                  : current,
+              ),
+            );
+          }}
+          className="rounded border border-stone-300 bg-white p-1 text-sm"
+        />
+      ))}
+    </>
+  );
+}
 
 const leagueTableBlock = createReactBlockSpec(
   {
@@ -917,6 +971,11 @@ interface FormState {
   locationPostcode: string;
   locationLat: string;
   locationLon: string;
+  // person - title doubles as the person's name; photo holds the upload
+  // API's PictureSource descriptor (null until a photo is uploaded)
+  isDBSChecked: boolean;
+  hasLeftClub: boolean;
+  photo: PictureSource | null;
 }
 
 // ── Per-kind metadata: hydrate / validate / build ───────────────────────
@@ -957,23 +1016,19 @@ function formatUkTime(iso: string): string {
 }
 
 /**
- * Hydrate per-kind fields from stored metadata. Defensive on purpose:
- * stored JSON may predate the current schema, so anything malformed
- * degrades to the field default rather than crashing the editor.
+ * Hydrate per-kind form fields from stored metadata. Defensive on
+ * purpose: stored JSON may predate the current schema, so anything
+ * malformed degrades to the field default rather than crashing the
+ * editor. Shared by the initial load and revision restore (#500).
  */
-function initialForm(
-  item: ContentItemDetail | null,
-  newParentId: string | null,
-): FormState {
-  const metadata = item?.metadata ?? {};
+function metadataFormFields(
+  metadata: Record<string, unknown>,
+): Omit<FormState, "title" | "slug" | "description" | "parentId"> {
   const location =
     typeof metadata.location === "object" && metadata.location !== null
       ? (metadata.location as Record<string, unknown>)
       : null;
   return {
-    title: item?.title ?? "",
-    slug: item?.slug ?? "",
-    description: item?.description ?? "",
     playCricketId: asString(metadata.playCricketId),
     menuOrder: asNumberString(metadata.menuOrder) || "99",
     isMainMenu: metadata.isMainMenu === true,
@@ -982,7 +1037,6 @@ function initialForm(
       typeof metadata.ldjson === "object" && metadata.ldjson !== null
         ? JSON.stringify(metadata.ldjson, null, 2)
         : "",
-    parentId: item !== null ? item.parentId : newParentId,
     tags: Array.isArray(metadata.tags)
       ? metadata.tags.filter(
           (tag): tag is string => typeof tag === "string" && tag !== "",
@@ -998,6 +1052,22 @@ function initialForm(
     locationPostcode: asString(location?.postcode),
     locationLat: asNumberString(location?.lat),
     locationLon: asNumberString(location?.lon),
+    isDBSChecked: metadata.isDBSChecked === true,
+    hasLeftClub: metadata.hasLeftClub === true,
+    photo: parsePictureValue(metadata.photo),
+  };
+}
+
+function initialForm(
+  item: ContentItemDetail | null,
+  newParentId: string | null,
+): FormState {
+  return {
+    title: item?.title ?? "",
+    slug: item?.slug ?? "",
+    description: item?.description ?? "",
+    parentId: item !== null ? item.parentId : newParentId,
+    ...metadataFormFields(item?.metadata ?? {}),
   };
 }
 
@@ -1106,6 +1176,14 @@ function buildMetadata(
             },
           }
         : {}),
+    };
+  }
+  if (kind === "person") {
+    return {
+      isDBSChecked: form.isDBSChecked,
+      hasLeftClub: form.hasLeftClub,
+      // Omitted entirely when there is no photo - never null/"".
+      ...(form.photo !== null ? { photo: form.photo } : {}),
     };
   }
   return { playCricketId: form.playCricketId };
@@ -1235,7 +1313,7 @@ function AuthorSelect({
   value: string;
   onChange: (slug: string) => void;
 }) {
-  const people = getAllPeople().sort((a, b) => a.name.localeCompare(b.name));
+  const people = usePeopleList();
   return (
     <Select
       value={value === "" ? NO_AUTHOR : value}
@@ -1387,12 +1465,166 @@ function PageMetadataFields({
   );
 }
 
+function PersonPhotoField({
+  photo,
+  personName,
+  consentConfirmed,
+  onChange,
+}: {
+  photo: PictureSource | null;
+  personName: string;
+  consentConfirmed: boolean;
+  onChange: (photo: PictureSource | null) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onFileChosen = async (file: File) => {
+    setUploading(true);
+    setError(null);
+    try {
+      // Same pipeline as editor images: presign -> S3 PUT -> confirm
+      // (EXIF strip + responsive ladder). The descriptor lands in
+      // metadata.photo instead of a contentImage block.
+      const uploaded = await uploadContentImage(file, {});
+      onChange(uploaded.picture);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Upload failed - try again",
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Profile photo (optional)</Label>
+      {photo !== null ? (
+        <OptimisedImage
+          picture={photo}
+          alt={personName || "Profile photo"}
+          className="size-32 rounded-full object-cover"
+          sizes="128px"
+          width={128}
+          height={128}
+        />
+      ) : (
+        <p className="text-xs text-stone-500">
+          No photo yet - the public profile shows a placeholder.
+        </p>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void onFileChosen(file);
+        }}
+      />
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={uploading}
+          onClick={() => {
+            setError(null);
+            if (!consentConfirmed) {
+              setError("Tick the photo consent box below before uploading.");
+              return;
+            }
+            fileInputRef.current?.click();
+          }}
+        >
+          {uploading
+            ? "Uploading…"
+            : photo !== null
+              ? "Replace photo"
+              : "Upload photo"}
+        </Button>
+        {photo !== null && (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={uploading}
+            onClick={() => {
+              onChange(null);
+            }}
+          >
+            Remove photo
+          </Button>
+        )}
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function PersonMetadataFields({
+  form,
+  consentConfirmed,
+  onChange,
+}: {
+  form: FormState;
+  consentConfirmed: boolean;
+  onChange: (updates: Partial<FormState>) => void;
+}) {
+  return (
+    <>
+      <PersonPhotoField
+        photo={form.photo}
+        personName={form.title}
+        consentConfirmed={consentConfirmed}
+        onChange={(photo) => {
+          onChange({ photo });
+        }}
+      />
+      <div className="flex flex-col gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+        <p className="text-xs leading-snug text-stone-700">
+          Safeguarding: both flags below appear on the public website, so keep
+          them accurate. Only tick DBS checked once the club has verified a
+          current certificate, and untick it if the check lapses.
+        </p>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="person-dbs-checked"
+            checked={form.isDBSChecked}
+            onCheckedChange={(value) => {
+              onChange({ isDBSChecked: value === true });
+            }}
+          />
+          <Label htmlFor="person-dbs-checked">
+            DBS checked (shows the DBS badge on the profile)
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="person-has-left-club"
+            checked={form.hasLeftClub}
+            onCheckedChange={(value) => {
+              onChange({ hasLeftClub: value === true });
+            }}
+          />
+          <Label htmlFor="person-has-left-club">
+            Has left the club (kept out of player and sponsorship pickers)
+          </Label>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function MetadataFields({
   kind,
   form,
   itemId,
   slugLocked,
   tagSuggestions,
+  consentConfirmed,
   onChange,
 }: {
   kind: ContentKind;
@@ -1400,12 +1632,15 @@ function MetadataFields({
   itemId: string | null;
   slugLocked: boolean;
   tagSuggestions: string[];
+  consentConfirmed: boolean;
   onChange: (updates: Partial<FormState>) => void;
 }) {
   return (
     <>
       <div className="flex flex-col gap-1">
-        <Label htmlFor="content-title">Title</Label>
+        <Label htmlFor="content-title">
+          {kind === "person" ? "Name" : "Title"}
+        </Label>
         <Input
           id="content-title"
           value={form.title}
@@ -1601,6 +1836,13 @@ function MetadataFields({
             </div>
           )}
         </>
+      )}
+      {kind === "person" && (
+        <PersonMetadataFields
+          form={form}
+          consentConfirmed={consentConfirmed}
+          onChange={onChange}
+        />
       )}
     </>
   );
@@ -1951,6 +2193,292 @@ function ConsentBox({
   );
 }
 
+// ── Revision history (#500) ─────────────────────────────────────────────
+
+type RevisionDetail =
+  paths["/api/admin/content/{contentId}/revisions/{revisionId}"]["get"]["responses"][200]["content"]["application/json"];
+
+function DiffView({ lines }: { lines: DiffLine[] }) {
+  if (lines.length === 0 || lines.every((line) => line.type === "same")) {
+    return <p className="text-sm text-stone-500">No differences.</p>;
+  }
+  return (
+    <div className="max-h-72 overflow-auto rounded border border-stone-200 bg-white p-2 font-mono text-xs whitespace-pre-wrap">
+      {/* Index keys are safe here: the diff is a pure projection of
+          immutable data, rebuilt whole whenever either side changes. */}
+      {lines.map((line, i) => (
+        <div
+          key={`diff-${String(i)}`}
+          className={
+            line.type === "removed"
+              ? "bg-red-50 text-red-700"
+              : line.type === "added"
+                ? "bg-green-50 text-green-700"
+                : "text-stone-600"
+          }
+        >
+          {line.type === "removed" ? "- " : line.type === "added" ? "+ " : "  "}
+          {line.text || " "}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RevisionDialog({
+  item,
+  revisionId,
+  canRestore,
+  onRestore,
+  onClose,
+}: {
+  item: ContentItemDetail;
+  revisionId: string;
+  canRestore: boolean;
+  onRestore: (revision: RevisionDetail) => boolean;
+  onClose: () => void;
+}) {
+  const {
+    data: revision,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["admin", "content", "revision", item.id, revisionId],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/content/{contentId}/revisions/{revisionId}", {
+          params: { path: { contentId: item.id, revisionId } },
+        }),
+      ),
+  });
+
+  // Both diffs read "this version -> latest saved version": red lines
+  // exist only in this version (restore brings them back), green lines
+  // were added since. Unsaved editor changes are not part of either side.
+  const bodyDiff = useMemo(
+    () =>
+      revision
+        ? diffLines(blocksToLines(revision.body), blocksToLines(item.body))
+        : [],
+    [revision, item.body],
+  );
+  const detailsDiff = useMemo(
+    () =>
+      revision
+        ? diffLines(
+            detailLines(revision),
+            detailLines({
+              title: item.title,
+              description: item.description,
+              metadata: item.metadata,
+            }),
+          )
+        : [],
+    [revision, item],
+  );
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            {revision
+              ? `Version from ${formatUkTime(revision.savedAt)}`
+              : "Version"}
+          </DialogTitle>
+          <DialogDescription>
+            Compared with the latest saved version:{" "}
+            <span className="text-red-700">- only in this version</span>,{" "}
+            <span className="text-green-700">+ added since</span>. Restoring
+            copies this version into the editor - nothing changes until you
+            save.
+          </DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <p className="text-sm text-red-600">
+            Couldn&apos;t load this version - {error.message}
+          </p>
+        ) : isLoading || !revision ? (
+          <p className="text-sm text-stone-500">Loading…</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {revision.savedByName && (
+              <p className="text-sm text-stone-600">
+                Saved by {revision.savedByName}
+              </p>
+            )}
+            <div>
+              <h4 className="mb-1 text-sm font-medium">Content</h4>
+              <DiffView lines={bodyDiff} />
+            </div>
+            <div>
+              <h4 className="mb-1 text-sm font-medium">Details</h4>
+              <DiffView lines={detailsDiff} />
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+          {canRestore && revision && (
+            <Button
+              onClick={() => {
+                // Stays open when the author backs out of overwriting
+                // unsaved work.
+                if (onRestore(revision)) onClose();
+              }}
+            >
+              Restore this version
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function HistoryCard({
+  item,
+  canRestore,
+  onRestore,
+}: {
+  item: ContentItemDetail;
+  canRestore: boolean;
+  onRestore: (revision: RevisionDetail) => boolean;
+}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["admin", "content", "revisions", item.id],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/admin/content/{contentId}/revisions", {
+          params: { path: { contentId: item.id } },
+        }),
+      ),
+  });
+  const [openRevisionId, setOpenRevisionId] = useState<string | null>(null);
+  const revisions = data?.revisions ?? [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">History</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        {error ? (
+          <p className="text-sm text-red-600">
+            Couldn&apos;t load history - {error.message}
+          </p>
+        ) : isLoading ? (
+          <p className="text-sm text-stone-500">Loading…</p>
+        ) : (
+          <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto">
+            {revisions.map((rev, i) => (
+              <li key={rev.id}>
+                <button
+                  type="button"
+                  className="w-full rounded px-1 py-1 text-left hover:bg-stone-100"
+                  onClick={() => {
+                    setOpenRevisionId(rev.id);
+                  }}
+                >
+                  <span className="block text-sm">
+                    {formatUkTime(rev.savedAt)}
+                    {i === 0 ? " (latest)" : ""}
+                  </span>
+                  <span className="block text-xs text-stone-500">
+                    {rev.savedByName ?? "Unknown"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-stone-500">
+          Every save keeps the previous version here, so nothing is ever lost.
+          Open one to compare or restore it.
+        </p>
+      </CardContent>
+      {openRevisionId !== null && (
+        <RevisionDialog
+          item={item}
+          revisionId={openRevisionId}
+          canRestore={canRestore}
+          onRestore={onRestore}
+          onClose={() => {
+            setOpenRevisionId(null);
+          }}
+        />
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Copy a revision into the working draft (#500): the editor and form
+ * take the revision's body/metadata, and nothing persists until the
+ * author saves - which writes a NEW revision, so the timeline stays
+ * append-only and history is never rewritten. Slug and (for pages)
+ * parent are not part of a revision and stay as they are. Restoring
+ * never changes publish status.
+ */
+function useRevisionRestore({
+  editor,
+  setForm,
+  dirtyRef,
+}: {
+  editor: Editor;
+  setForm: React.Dispatch<React.SetStateAction<FormState>>;
+  dirtyRef: React.RefObject<boolean>;
+}) {
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
+
+  /**
+   * Returns false when the author backs out of overwriting unsaved
+   * work - the dialog stays open so nothing is lost either way.
+   */
+  const restoreRevision = (revision: RevisionDetail): boolean => {
+    if (
+      dirtyRef.current &&
+      !window.confirm(
+        "Restoring will replace your unsaved changes with this version. Continue?",
+      )
+    ) {
+      return false;
+    }
+    editor.replaceBlocks(
+      editor.document,
+      revision.body.length > 0
+        ? (revision.body as PartialBlock[])
+        : [{ type: "paragraph" }],
+    );
+    setForm((prev) => ({
+      ...prev,
+      title: revision.title,
+      description: revision.description ?? "",
+      ...metadataFormFields(revision.metadata),
+    }));
+    dirtyRef.current = true;
+    setRestoreNotice(
+      `Restored the version from ${formatUkTime(revision.savedAt)} - review it, then save to keep it.`,
+    );
+    return true;
+  };
+
+  return {
+    restoreNotice,
+    clearRestoreNotice: () => {
+      setRestoreNotice(null);
+    },
+    restoreRevision,
+  };
+}
+
 function EditorPane({
   editor,
   slashItems,
@@ -2072,6 +2600,9 @@ function LoadedEditor({
   const editorBody = () =>
     contentBodySchema.parse(JSON.parse(JSON.stringify(editor.document)));
 
+  const { restoreNotice, clearRestoreNotice, restoreRevision } =
+    useRevisionRestore({ editor, setForm, dirtyRef });
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const body = editorBody();
@@ -2115,6 +2646,7 @@ function LoadedEditor({
     },
     onSuccess: (result) => {
       dirtyRef.current = false;
+      clearRestoreNotice();
       setLastSavedAt(new Date().toISOString());
       void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
       // Saving a published item changes the live page immediately; drop
@@ -2246,6 +2778,10 @@ function LoadedEditor({
         </p>
       )}
 
+      {restoreNotice && (
+        <p className="text-sm text-amber-700">{restoreNotice}</p>
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="flex flex-col gap-3 lg:col-span-1">
           <MetadataFields
@@ -2254,6 +2790,7 @@ function LoadedEditor({
             itemId={item?.id ?? null}
             slugLocked={slugLocked}
             tagSuggestions={tagSuggestions}
+            consentConfirmed={consentConfirmed}
             onChange={onFormChange}
           />
           {item !== null && (
@@ -2262,6 +2799,13 @@ function LoadedEditor({
               canPublish={canPublish}
               canManage={canManage}
               beforePublish={() => saveMutation.mutateAsync()}
+            />
+          )}
+          {item !== null && (
+            <HistoryCard
+              item={item}
+              canRestore={canSave}
+              onRestore={restoreRevision}
             />
           )}
           <ConsentBox
