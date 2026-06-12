@@ -1,15 +1,11 @@
 import { ContentBody } from "@/components/content-body.js";
 import { Map } from "@/components/map.js";
-import { mdxComponents } from "@/components/mdx-components.js";
 import { PageLoading } from "@/components/page-loading.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import {
   eventQueryOptions,
   parseEventMetadata,
 } from "@/lib/content-queries.js";
-import { getEventBySlug } from "@/lib/events.js";
-import { getLocationByName } from "@/lib/locations.js";
-import { MDXProvider } from "@mdx-js/react";
 import { useQuery } from "@tanstack/react-query";
 import { AddToCalendarButton } from "add-to-calendar-button-react";
 import { formatInTimeZone } from "date-fns-tz";
@@ -46,10 +42,8 @@ function When({ start, end }: { start: string; end?: string }) {
 }
 
 /**
- * Venue display fields. DB events embed the venue inline in metadata
- * (name/street/city/postcode only - no county/country, a deliberate
- * trim); the static fallback still resolves locations.yaml, which has
- * the two extra fields.
+ * Venue display fields, embedded inline in the event's metadata
+ * (name/street/city/postcode - no county/country, a deliberate trim).
  */
 interface EventVenue {
   name: string;
@@ -167,18 +161,15 @@ export function Component() {
   const { id } = useParams<{ id: string }>();
   const slug = id ?? "";
 
-  // DB-backed event first (live content editing, #489); the bundled MDX
-  // corpus stays as fallback until the migration is verified in prod, then
-  // gets deleted in a follow-up. The MDX renders only once the query
-  // settles (confirmed 404, or an API failure - deliberate graceful
-  // degradation) so a DB-edited event never flashes its stale MDX
-  // ancestor first.
-  const { data: apiEvent, isPending } = useQuery(eventQueryOptions(slug));
-  const staticEvent = id ? getEventBySlug(id) : undefined;
+  const {
+    data: apiEvent,
+    isPending,
+    isError,
+  } = useQuery(eventQueryOptions(slug));
 
   const meta = apiEvent ? parseEventMetadata(apiEvent.metadata) : undefined;
 
-  useDocumentMeta(apiEvent?.title ?? staticEvent?.name ?? "Event");
+  useDocumentMeta(apiEvent?.title ?? "Event");
 
   if (apiEvent && meta) {
     return (
@@ -201,28 +192,17 @@ export function Component() {
     );
   }
 
-  if (staticEvent) {
-    const location = staticEvent.location
-      ? getLocationByName(staticEvent.location)
-      : undefined;
-    const EventContent = staticEvent.Component;
-
+  // The query returns null on a confirmed 404 and throws on anything
+  // else - an API incident must not read as "this event doesn't exist".
+  if (isError) {
     return (
-      <EventLayout
-        name={staticEvent.name}
-        when={staticEvent.when}
-        finish={staticEvent.finish}
-        venue={
-          location ??
-          (staticEvent.location ? { name: staticEvent.location } : undefined)
-        }
-      >
-        <MDXProvider components={mdxComponents}>
-          <div className="mdx-content flex w-full flex-col *:mb-4">
-            <EventContent />
-          </div>
-        </MDXProvider>
-      </EventLayout>
+      <div className="container mx-auto px-4 py-12">
+        <h1>We couldn&apos;t load this event</h1>
+        <p>
+          Something went wrong fetching this event. Please try again in a few
+          minutes.
+        </p>
+      </div>
     );
   }
 

@@ -19,7 +19,7 @@ import { usePeople } from "@/lib/use-people.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
-import { createElement, isValidElement, type ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { IoCalendar, IoChevronForward } from "react-icons/io5";
 import { Link, useLocation } from "react-router";
 
@@ -43,12 +43,10 @@ function RecordsWall() {
 export function PersonCardShell({
   name,
   picture,
-  photoUrl,
   children,
 }: {
   name: string;
   picture?: PictureSource;
-  photoUrl?: string;
   children?: ReactNode;
 }) {
   const resolvedPicture = picture ?? ANON_PICTURE;
@@ -66,7 +64,7 @@ export function PersonCardShell({
         ) : (
           <img
             className="size-24 object-cover object-center"
-            src={photoUrl ?? ANON_IMAGE}
+            src={ANON_IMAGE}
             alt={name}
           />
         )}
@@ -84,18 +82,12 @@ export const PERSON_GRID_CLASSES =
   "grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4";
 
 function Person({ slug, role }: { slug: string; role?: string }) {
-  // Merged roster: DB-backed people first, bundled MDX corpus as the
-  // per-slug fallback during the migration transition (#499). One cached
-  // list query serves every card on the page.
+  // One cached roster query serves every card on the page (#499).
   const person = usePeople().get(slug);
   const name = person?.name ?? slug;
 
   return (
-    <PersonCardShell
-      name={name}
-      picture={person?.picture}
-      photoUrl={person?.photoUrl}
-    >
+    <PersonCardShell name={name} picture={person?.picture}>
       {role && <p className="text-sm text-stone-600">{role}</p>}
       <Link
         to={`/person/${slug}`}
@@ -486,36 +478,6 @@ function ContentImage({
   );
 }
 
-/**
- * Component map provided to MDX content.
- * MDX files can use these as JSX tags: <Person slug="..." />, <LeagueTable divisionId="..." />, etc.
- */
-/**
- * Override for markdown `![alt](src)` images in MDX.
- * Resolves image paths through the optimised image map.
- */
-function MdxImg(props: React.ImgHTMLAttributes<HTMLImageElement>) {
-  const src = props.src ?? "";
-  const picture = getPicture(src);
-
-  if (picture) {
-    return (
-      <OptimisedImage
-        picture={picture}
-        alt={props.alt ?? ""}
-        className="h-auto max-w-full rounded-lg"
-        sizes="(max-width: 512px) 100vw, 512px"
-      />
-    );
-  }
-
-  return <img {...props} alt={props.alt ?? ""} />;
-}
-
-/**
- * Component map provided to MDX content.
- * MDX files can use these as JSX tags: <Person slug="..." />, <LeagueTable divisionId="..." />, etc.
- */
 function CookieSettingsLink({ children }: { children?: ReactNode }) {
   return (
     <button
@@ -537,38 +499,11 @@ function ConsentVersion() {
   return <p>This notice is version {CURRENT_CONSENT_VERSION}.</p>;
 }
 
-/** Plain-text projection of rendered children (for anchor slugs). */
-function nodeText(node: ReactNode): string {
-  if (node == null || typeof node === "boolean") return "";
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(nodeText).join("");
-  if (isValidElement<{ children?: ReactNode }>(node)) {
-    return nodeText(node.props.children);
-  }
-  return "";
-}
-
 /**
- * TRANSITION FALLBACK (#517): markdown headings in the bundled MDX get
- * the same anchor ids ContentBody generates, so #fragment TOC links keep
- * working between this deploy and the legal pages migration. Deleted
- * with the MDX pipeline in the cleanup PR.
+ * The component vocabulary custom content blocks render through - shared
+ * by the public ContentBody renderer and the editor block previews so
+ * the two stay pixel-identical.
  */
-function anchoredHeading(level: 2 | 3) {
-  return function AnchoredHeading({ children }: { children?: ReactNode }) {
-    const slug = nodeText(children)
-      .toLowerCase()
-      .replace(/[^\p{L}\p{N}\s-]/gu, "")
-      .trim()
-      .replace(/\s+/g, "-");
-    return createElement(
-      `h${String(level)}`,
-      { id: slug === "" ? undefined : slug },
-      children,
-    );
-  };
-}
-
 export const mdxComponents = {
   Person,
   PersonGrid,
@@ -581,7 +516,4 @@ export const mdxComponents = {
   CookieSettingsLink,
   ConsentVersion,
   Image: ContentImage,
-  img: MdxImg,
-  h2: anchoredHeading(2),
-  h3: anchoredHeading(3),
 };

@@ -1,5 +1,4 @@
 import { ContentBody } from "@/components/content-body.js";
-import { mdxComponents } from "@/components/mdx-components.js";
 import {
   OptimisedImage,
   type PictureSource,
@@ -12,8 +11,6 @@ import {
   personQueryOptions,
 } from "@/lib/content-queries.js";
 import { getImageUrl, getPicture } from "@/lib/image-map.js";
-import { getPersonBySlug } from "@/lib/people.js";
-import { MDXProvider } from "@mdx-js/react";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { IoChevronForward } from "react-icons/io5";
@@ -25,22 +22,19 @@ const ANON_IMAGE = getImageUrl("/images/anon.jpg");
 const ANON_PICTURE = getPicture("/images/anon.jpg");
 
 /**
- * Shared profile chrome for both sources: breadcrumbs, photo, bio, the
- * stats sidebar and sponsorship CTA (deliberately untouched by #499 -
- * both key off the slug alone).
+ * Profile chrome: breadcrumbs, photo, bio, the stats sidebar and
+ * sponsorship CTA (both key off the slug alone).
  */
 function ProfileView({
   slug,
   name,
   picture,
-  photoUrl,
   isDBSChecked,
   bio,
 }: {
   slug: string;
   name: string;
   picture?: PictureSource;
-  photoUrl?: string;
   isDBSChecked: boolean;
   bio: ReactNode;
 }) {
@@ -73,7 +67,7 @@ function ProfileView({
               ) : (
                 <img
                   className="mb-0 max-h-48 rounded-full"
-                  src={photoUrl ?? ANON_IMAGE}
+                  src={ANON_IMAGE}
                   alt={name}
                   width={132}
                   height={132}
@@ -109,20 +103,15 @@ export function Component() {
   const params = useParams();
   const slug = params.slug ?? "";
 
-  // DB-backed profile first (#499); the bundled MDX corpus stays as
-  // fallback until the people migration is verified in prod, then gets
-  // deleted in a follow-up. The MDX renders only on a CONFIRMED 404 -
-  // never published in the DB - so an edited DB profile can't flash its
-  // stale MDX ancestor, and never on an API error: unlike news/pages,
-  // profiles fail CLOSED on incidents, because a 5xx must not resurrect
-  // a profile whose takedown (410 tombstone / unpublish) the API can't
-  // currently vouch for. Safeguarding beats graceful degradation here.
+  // DB-backed profile (#499). Profiles fail CLOSED on API errors: a 5xx
+  // must not read as "not found" NOR render anything cached as a
+  // profile, because the API is the only source that can vouch for a
+  // takedown (410 tombstone / unpublish). Safeguarding beats graceful
+  // degradation here.
   const { data, isPending, isError } = useQuery(personQueryOptions(slug));
-  const gone = isPageGone(data);
   const apiPerson = data == null || isPageGone(data) ? undefined : data;
-  const staticPerson = gone || isError ? undefined : getPersonBySlug(slug);
 
-  useDocumentMeta(apiPerson?.title ?? staticPerson?.name ?? "Player Profile");
+  useDocumentMeta(apiPerson?.title ?? "Player Profile");
 
   if (apiPerson) {
     const meta = parsePersonMetadata(apiPerson.metadata);
@@ -156,26 +145,6 @@ export function Component() {
           Back to People
         </Link>
       </div>
-    );
-  }
-
-  if (staticPerson) {
-    const Bio = staticPerson.Component;
-    return (
-      <ProfileView
-        slug={staticPerson.slug}
-        name={staticPerson.name}
-        picture={staticPerson.photoPicture}
-        photoUrl={staticPerson.photo}
-        isDBSChecked={staticPerson.isDBSChecked}
-        bio={
-          <MDXProvider components={mdxComponents}>
-            <div className="mdx-content flex flex-col *:mb-4">
-              <Bio />
-            </div>
-          </MDXProvider>
-        }
-      />
     );
   }
 

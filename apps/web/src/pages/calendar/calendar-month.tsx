@@ -8,7 +8,6 @@ import {
   eventsListQueryOptions,
   parseEventMetadata,
 } from "@/lib/content-queries.js";
-import { getAllEvents } from "@/lib/events.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -499,17 +498,12 @@ export function Component() {
       }
     }
 
-    // TRANSITION FALLBACK (#489): until the content migration has run in
-    // prod the DB holds no published events, so an empty API list falls
-    // back to the bundled MDX corpus. Remove in the cleanup PR once the
-    // migration is verified in prod.
-    const apiEvents = (eventsData?.items ?? []).flatMap((item) => {
+    const events = (eventsData?.items ?? []).flatMap((item) => {
       const meta = parseEventMetadata(item.metadata);
       return meta
         ? [{ slug: item.slug, name: item.title, when: meta.when }]
         : [];
     });
-    const events = apiEvents.length > 0 ? apiEvents : getAllEvents();
     for (const event of events) {
       const eventDate = new Date(event.when);
       if (

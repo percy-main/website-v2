@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button.js";
 import { api, callApi } from "@/lib/api-client.js";
+import { parsePersonMetadata } from "@/lib/content-queries.js";
 import {
   generateTeamImage,
   type ShareTeamData,
@@ -15,18 +16,24 @@ function fetchShareData() {
 }
 
 /**
- * Look up a player's photo URL from the people MDX data by fuzzy name match.
- * People MDX is loaded eagerly at build time, so we can import it synchronously.
+ * Look up each player's photo URL in the people roster by fuzzy name
+ * match (fantasy players are Play Cricket names, not person slugs).
+ * Photos are decoration - a roster fetch failure degrades to photoless
+ * cards rather than blocking the share.
  */
 async function resolvePlayerPhotos(
   players: ApiSharePlayer[],
 ): Promise<Array<string | null>> {
-  // Dynamic import to avoid pulling people data into the main bundle
-  // for users who never click share. Both imports are independent — race them.
-  const [{ getPersonBySlug }, peopleModule] = await Promise.all([
-    import("@/lib/people.js"),
-    import("../../lib/people.js"),
-  ]);
+  const photoBySlug = new Map<string, string>();
+  try {
+    const roster = await callApi(api.GET("/api/content/people"));
+    for (const item of roster.items) {
+      const photo = parsePersonMetadata(item.metadata)?.photo;
+      if (photo) photoBySlug.set(item.slug, photo.img.src);
+    }
+  } catch {
+    return players.map(() => null);
+  }
 
   // Try to match each player by slugifying their name
   return players.map((player) => {
@@ -36,8 +43,8 @@ async function resolvePlayerPhotos(
       .replace(/\s+/g, "-")
       .trim();
 
-    const person = getPersonBySlug(slug);
-    if (person?.photo) return person.photo;
+    const photo = photoBySlug.get(slug);
+    if (photo) return photo;
 
     // Try without middle names / initials — just first + last
     const parts = player.playerName.split(" ");
@@ -45,8 +52,8 @@ async function resolvePlayerPhotos(
       const simpleSlug = `${parts[0]}-${parts[parts.length - 1]}`
         .toLowerCase()
         .replace(/[^a-z0-9-]/g, "");
-      const simplePerson = peopleModule.getPersonBySlug(simpleSlug);
-      if (simplePerson?.photo) return simplePerson.photo;
+      const simplePhoto = photoBySlug.get(simpleSlug);
+      if (simplePhoto) return simplePhoto;
     }
 
     return null;

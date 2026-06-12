@@ -1,4 +1,5 @@
 import { OptimisedImage } from "@/components/optimised-image";
+import { PageLoading } from "@/components/page-loading.js";
 import { PaymentForm } from "@/components/payment-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -13,9 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
+import {
+  isPageGone,
+  parsePersonMetadata,
+  personQueryOptions,
+} from "@/lib/content-queries.js";
 import { getImageUrl, getPicture } from "@/lib/image-map";
 import { resizeLogo } from "@/lib/logo-resize";
-import { getPersonBySlug } from "@/lib/people";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
@@ -32,6 +37,43 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
 });
 
 type Step = "details" | "paying" | "success";
+
+function SuccessCard({
+  personName,
+  slug,
+  sponsorEmail,
+}: {
+  personName: string;
+  slug: string;
+  sponsorEmail: string;
+}) {
+  return (
+    <div className="container mx-auto max-w-md px-4 py-12">
+      <Card>
+        <CardHeader>
+          <CardTitle>Thank You!</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p>
+            Your sponsorship of <strong>{personName}</strong> has been received.
+          </p>
+          <p className="text-sm text-stone-600">
+            A confirmation has been sent to {sponsorEmail}. Your details will be
+            reviewed by an admin before being displayed on the site.
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Link
+            to={`/person/${slug}`}
+            className="text-primary text-sm hover:underline"
+          >
+            Back to {personName}&apos;s profile
+          </Link>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
 
 interface SponsorFormState {
   sponsorName: string;
@@ -53,9 +95,112 @@ const initialSponsorFormState: SponsorFormState = {
   logoError: null,
 };
 
+function SponsorFormFields({
+  form,
+  update,
+  onLogoChange,
+}: {
+  form: SponsorFormState;
+  update: (patch: Partial<SponsorFormState>) => void;
+  onLogoChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label htmlFor="sponsorName">Sponsor Name / Company Name *</Label>
+        <Input
+          id="sponsorName"
+          value={form.sponsorName}
+          onChange={(e) => update({ sponsorName: e.target.value })}
+          maxLength={200}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="sponsorEmail">Contact Email *</Label>
+        <Input
+          id="sponsorEmail"
+          type="email"
+          value={form.sponsorEmail}
+          onChange={(e) => update({ sponsorEmail: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="sponsorWebsite">Website URL</Label>
+        <Input
+          id="sponsorWebsite"
+          type="text"
+          placeholder="https://www.example.com (optional)"
+          value={form.sponsorWebsite}
+          onChange={(e) => update({ sponsorWebsite: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="sponsorPhone">Phone</Label>
+        <Input
+          id="sponsorPhone"
+          type="tel"
+          placeholder="Optional"
+          value={form.sponsorPhone}
+          onChange={(e) => update({ sponsorPhone: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="sponsorLogo">Logo</Label>
+        <Input
+          id="sponsorLogo"
+          type="file"
+          accept="image/*"
+          onChange={(e) => void onLogoChange(e)}
+        />
+        {form.logoError && (
+          <p className="mt-1 text-xs text-red-600">{form.logoError}</p>
+        )}
+        {form.logoDataUrl && (
+          <img
+            src={form.logoDataUrl}
+            alt="Logo preview"
+            className="mt-2 max-w-[120px]"
+          />
+        )}
+      </div>
+
+      <div>
+        <Label htmlFor="sponsorMessage">Message / Dedication</Label>
+        <Input
+          id="sponsorMessage"
+          value={form.sponsorMessage}
+          onChange={(e) => update({ sponsorMessage: e.target.value })}
+          maxLength={MAX_MESSAGE_CHARS}
+        />
+        <p className="mt-1 text-xs text-stone-400">
+          {form.sponsorMessage.length}/{MAX_MESSAGE_CHARS}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function Component() {
   const { slug } = useParams();
-  const person = getPersonBySlug(slug ?? "");
+  // Same fail-closed person query as the profile page: an API error or
+  // 410 takedown renders "not found" rather than a sponsorable profile.
+  const {
+    data: personData,
+    isPending: personPending,
+    isError: personError,
+  } = useQuery(personQueryOptions(slug ?? ""));
+  const apiPerson =
+    personData == null || isPageGone(personData) ? undefined : personData;
+  const person = apiPerson
+    ? {
+        name: apiPerson.title,
+        picture: parsePersonMetadata(apiPerson.metadata)?.photo,
+      }
+    : undefined;
 
   useDocumentMeta(person ? `Sponsor ${person.name}` : "Sponsor");
 
@@ -102,6 +247,27 @@ export function Component() {
     onSuccess: () => setStep("paying"),
   });
 
+  if (personPending) {
+    return (
+      <div className="container mx-auto max-w-md px-4 py-12">
+        <PageLoading />
+      </div>
+    );
+  }
+
+  // An API incident must not read as "this person doesn't exist".
+  if (personError) {
+    return (
+      <div className="container mx-auto max-w-md px-4 py-12">
+        <h1>Profile Unavailable</h1>
+        <p>We couldn&apos;t load this profile right now - try again shortly.</p>
+        <Link to="/people" className="text-primary hover:underline">
+          Back to People
+        </Link>
+      </div>
+    );
+  }
+
   if (!person) {
     return (
       <div className="container mx-auto max-w-md px-4 py-12">
@@ -141,31 +307,11 @@ export function Component() {
 
   if (step === "success") {
     return (
-      <div className="container mx-auto max-w-md px-4 py-12">
-        <Card>
-          <CardHeader>
-            <CardTitle>Thank You!</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p>
-              Your sponsorship of <strong>{person.name}</strong> has been
-              received.
-            </p>
-            <p className="text-sm text-stone-600">
-              A confirmation has been sent to {sponsorEmail}. Your details will
-              be reviewed by an admin before being displayed on the site.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Link
-              to={`/person/${slug}`}
-              className="text-primary text-sm hover:underline"
-            >
-              Back to {person.name}&apos;s profile
-            </Link>
-          </CardFooter>
-        </Card>
-      </div>
+      <SuccessCard
+        personName={person.name}
+        slug={slug ?? ""}
+        sponsorEmail={sponsorEmail}
+      />
     );
   }
 
@@ -205,7 +351,7 @@ export function Component() {
         <CardHeader>
           <div className="flex items-center gap-3">
             {(() => {
-              const picture = person.photoPicture ?? ANON_PICTURE;
+              const picture = person.picture ?? ANON_PICTURE;
               return picture ? (
                 <OptimisedImage
                   picture={picture}
@@ -215,7 +361,7 @@ export function Component() {
                 />
               ) : (
                 <img
-                  src={person.photo ?? ANON_IMAGE}
+                  src={ANON_IMAGE}
                   alt={person.name}
                   className="size-10 rounded-full"
                 />
@@ -237,82 +383,11 @@ export function Component() {
             </div>
           )}
 
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="sponsorName">Sponsor Name / Company Name *</Label>
-              <Input
-                id="sponsorName"
-                value={sponsorName}
-                onChange={(e) => update({ sponsorName: e.target.value })}
-                maxLength={200}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="sponsorEmail">Contact Email *</Label>
-              <Input
-                id="sponsorEmail"
-                type="email"
-                value={sponsorEmail}
-                onChange={(e) => update({ sponsorEmail: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="sponsorWebsite">Website URL</Label>
-              <Input
-                id="sponsorWebsite"
-                type="text"
-                placeholder="https://www.example.com (optional)"
-                value={sponsorWebsite}
-                onChange={(e) => update({ sponsorWebsite: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="sponsorPhone">Phone</Label>
-              <Input
-                id="sponsorPhone"
-                type="tel"
-                placeholder="Optional"
-                value={sponsorPhone}
-                onChange={(e) => update({ sponsorPhone: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="sponsorLogo">Logo</Label>
-              <Input
-                id="sponsorLogo"
-                type="file"
-                accept="image/*"
-                onChange={(e) => void handleLogoChange(e)}
-              />
-              {logoError && (
-                <p className="mt-1 text-xs text-red-600">{logoError}</p>
-              )}
-              {logoDataUrl && (
-                <img
-                  src={logoDataUrl}
-                  alt="Logo preview"
-                  className="mt-2 max-w-[120px]"
-                />
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="sponsorMessage">Message / Dedication</Label>
-              <Input
-                id="sponsorMessage"
-                value={sponsorMessage}
-                onChange={(e) => update({ sponsorMessage: e.target.value })}
-                maxLength={MAX_MESSAGE_CHARS}
-              />
-              <p className="mt-1 text-xs text-stone-400">
-                {sponsorMessage.length}/{MAX_MESSAGE_CHARS}
-              </p>
-            </div>
-          </div>
+          <SponsorFormFields
+            form={form}
+            update={update}
+            onLogoChange={handleLogoChange}
+          />
 
           {paymentMutation.error && (
             <Alert variant="destructive">

@@ -3,26 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 // The shared card shell lives in mdx-components, which transitively
-// imports the people corpus (.mdx files) and the vite-imagetools image
-// map, neither of which exists outside a Vite build - stub the lookups,
-// the editor only needs their shapes.
-vi.mock("@/lib/people.js", () => ({
-  getPersonBySlug: () => undefined,
-  getAllPeople: () => [
-    {
-      slug: "alex-slaven",
-      name: "Alex Slaven",
-      photo: undefined,
-      photoPicture: undefined,
-    },
-    {
-      slug: "bob-jones",
-      name: "Bob Jones",
-      photo: undefined,
-      photoPicture: undefined,
-    },
-  ],
-}));
+// imports the vite-imagetools image map, which doesn't exist outside a
+// Vite build - stub the lookups, the editor only needs their shapes.
 vi.mock("@/lib/image-map.js", () => ({
   getImageUrl: () => undefined,
   getPicture: () => undefined,
@@ -32,16 +14,36 @@ vi.mock("@/lib/marketing/consent.js", () => ({
   requestConsentReopen: () => undefined,
 }));
 
+import { peopleListQueryOptions } from "@/lib/content-queries.js";
 import type { PersonGridEntry } from "@/lib/person-grid.js";
 import type { ReactNode } from "react";
 import { PersonEditor, PersonGridEditor } from "./person-editors.js";
 
-// usePeople rides a react-query list query (disabled here, so the
-// merged roster is just the static corpus stub above).
+// usePeople rides a react-query list query (disabled here); the roster
+// is primed straight into the cache.
+const rosterItem = (slug: string, title: string) => ({
+  id: slug,
+  slug,
+  title,
+  description: null,
+  metadata: { isDBSChecked: false, hasLeftClub: false },
+  publishedAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+});
+
+const ROSTER = {
+  items: [
+    rosterItem("alex-slaven", "Alex Slaven"),
+    rosterItem("bob-jones", "Bob Jones"),
+  ],
+  removed: [] as string[],
+};
+
 function render(children: ReactNode): string {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, enabled: false } },
   });
+  queryClient.setQueryData(peopleListQueryOptions().queryKey, ROSTER);
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
   );

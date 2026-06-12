@@ -98,11 +98,10 @@ When making a non-obvious architectural decision — especially when rejecting a
 
 ## Skills for common tasks
 
-| Task                            | Skill                                                    |
-| ------------------------------- | -------------------------------------------------------- |
-| Add or change an API endpoint   | [`add-endpoint`](./skills/add-endpoint/SKILL.md)         |
-| Create a database migration     | [`add-migration`](./skills/add-migration/SKILL.md)       |
-| Add a static MDX content page   | [`add-content-page`](./skills/add-content-page/SKILL.md) |
-| Write unit or integration tests | [`write-tests`](./skills/write-tests/SKILL.md)           |
-| Record an architecture decision | [`add-adr`](./skills/add-adr/SKILL.md)                   |
-| Work on GitHub Actions / CI     | [`work-on-ci`](./skills/work-on-ci/SKILL.md)             |
+| Task                            | Skill                                              |
+| ------------------------------- | -------------------------------------------------- |
+| Add or change an API endpoint   | [`add-endpoint`](./skills/add-endpoint/SKILL.md)   |
+| Create a database migration     | [`add-migration`](./skills/add-migration/SKILL.md) |
+| Write unit or integration tests | [`write-tests`](./skills/write-tests/SKILL.md)     |
+| Record an architecture decision | [`add-adr`](./skills/add-adr/SKILL.md)             |
+| Work on GitHub Actions / CI     | [`work-on-ci`](./skills/work-on-ci/SKILL.md)       |

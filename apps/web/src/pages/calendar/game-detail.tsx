@@ -1,6 +1,5 @@
 import { ContentBody } from "@/components/content-body.js";
 import { Map } from "@/components/map.js";
-import { mdxComponents } from "@/components/mdx-components.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { Scorecard } from "@/components/scorecard.js";
 import { Badge } from "@/components/ui/badge.js";
@@ -11,10 +10,7 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { hasWagonWheel, useWagonWheelQuery } from "@/hooks/use-wagon-wheel.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
-import { getGameReport } from "@/lib/game-reports.js";
-import { getLocationByName } from "@/lib/locations.js";
 import { cn } from "@/lib/utils.js";
-import { MDXProvider } from "@mdx-js/react";
 import { useQuery } from "@tanstack/react-query";
 import { AddToCalendarButton } from "add-to-calendar-button-react";
 import { isAfter } from "date-fns";
@@ -255,10 +251,8 @@ function BallByBallTrigger({ game }: { game: GameData }) {
 }
 
 function GameDetailContent({ game }: { game: GameData }) {
-  // DB-backed report first (live content editing, #479); the bundled MDX
-  // corpus stays as fallback until the migration is verified in prod,
-  // then gets deleted in a follow-up.
-  const { data: apiReport, isPending: apiReportPending } = useQuery({
+  // DB-backed report (live content editing, #479).
+  const { data: apiReport } = useQuery({
     queryKey: ["content", "game-report", game.id],
     queryFn: async () => {
       try {
@@ -271,7 +265,7 @@ function GameDetailContent({ game }: { game: GameData }) {
           ),
         );
       } catch (err) {
-        // No published report for this game - fall back to bundled MDX.
+        // No published report for this game.
         if ((err as { status?: number }).status === 404) return null;
         throw err;
       }
@@ -283,7 +277,6 @@ function GameDetailContent({ game }: { game: GameData }) {
       query.state.data === null ? 30 * 1000 : 5 * 60 * 1000,
     retry: false,
   });
-  const report = getGameReport(game.id);
 
   const title = `${game.team.name} vs. ${game.opposition.club.name} ${game.opposition.team.name} ${game.home ? "(H)" : "(A)"}`;
 
@@ -299,9 +292,7 @@ function GameDetailContent({ game }: { game: GameData }) {
     ? new Date(new Date(game.when).getTime() + 5 * 60 * 60 * 1000).toISOString()
     : undefined;
 
-  const location = game.location?.name
-    ? getLocationByName(game.location.name)
-    : undefined;
+  const location = game.location;
 
   const isFutureGame = game.when
     ? isAfter(new Date(game.when), new Date())
@@ -468,25 +459,11 @@ function GameDetailContent({ game }: { game: GameData }) {
             links show a fallback. */}
         <BallByBallTrigger game={game} />
 
-        {/* Game report: API-published content wins. The bundled MDX
-            renders only once the query settles (confirmed 404, or an API
-            failure - deliberate graceful degradation) so a DB-edited
-            report never flashes its stale MDX ancestor first. */}
-        {apiReport ? (
+        {/* Game report (API-published content) */}
+        {apiReport && (
           <div className="w-full">
             <ContentBody body={apiReport.body} />
           </div>
-        ) : (
-          !apiReportPending &&
-          report && (
-            <div className="w-full">
-              <MDXProvider components={mdxComponents}>
-                <div className="mdx-content flex flex-col *:mb-4">
-                  <report.Component />
-                </div>
-              </MDXProvider>
-            </div>
-          )
         )}
 
         {/* Scorecard (fetches from Play Cricket API) */}

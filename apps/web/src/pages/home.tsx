@@ -9,11 +9,9 @@ import {
   parseEventMetadata,
   parseNewsMetadata,
 } from "@/lib/content-queries.js";
-import { getAllEvents } from "@/lib/events.js";
 import { getPicture } from "@/lib/image-map.js";
-import { allNews } from "@/lib/news.js";
-import { getPersonBySlug, type PersonData } from "@/lib/people.js";
 import { getPriceId } from "@/lib/stripe-env.js";
+import { usePeople, type PersonSummary } from "@/lib/use-people.js";
 import { useQuery } from "@tanstack/react-query";
 import { format, isAfter } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
@@ -52,13 +50,13 @@ const sports = [
   },
 ] as const;
 
-/** One news card on the homepage, whichever corpus it came from. */
+/** One news card on the homepage. */
 interface HomeNewsItem {
   slug: string;
   title: string;
   date: Date;
   tags: string[];
-  author: PersonData | undefined;
+  author: PersonSummary | undefined;
 }
 
 function HomeArticleCard({ article }: { article: HomeNewsItem }) {
@@ -107,18 +105,12 @@ function HomeArticleCard({ article }: { article: HomeNewsItem }) {
 
         <div className="mt-0.5 flex items-center justify-between border-t border-black/[0.04] pt-3">
           <div className="flex items-center gap-2.5">
-            {article.author?.photoPicture ? (
+            {article.author?.picture ? (
               <OptimisedImage
-                picture={article.author.photoPicture}
+                picture={article.author.picture}
                 alt={article.author.name}
                 className="size-7 shrink-0 rounded-full object-cover"
                 sizes="28px"
-              />
-            ) : article.author?.photo ? (
-              <img
-                className="size-7 shrink-0 rounded-full object-cover"
-                src={article.author.photo}
-                alt={article.author.name}
               />
             ) : (
               <div
@@ -192,17 +184,12 @@ function UpcomingStrip() {
       }
     }
 
-    // TRANSITION FALLBACK (#489): until the content migration has run in
-    // prod the DB holds no published events, so an empty API list falls
-    // back to the bundled MDX corpus. Remove in the cleanup PR once the
-    // migration is verified in prod.
-    const apiEvents = (eventsData?.items ?? []).flatMap((item) => {
+    const events = (eventsData?.items ?? []).flatMap((item) => {
       const meta = parseEventMetadata(item.metadata);
       return meta
         ? [{ slug: item.slug, name: item.title, when: meta.when }]
         : [];
     });
-    const events = apiEvents.length > 0 ? apiEvents : getAllEvents();
     for (const event of events) {
       if (!isAfter(new Date(event.when), now)) continue;
       upcoming.push({
@@ -327,23 +314,14 @@ function UpcomingStrip() {
 
 function LatestNewsSection() {
   // Same query (and cache entry) as /news page 1; its page size is 5,
-  // which is exactly the homepage's "latest five".
-  const { data, isPending, isError } = useQuery(
-    newsListQueryOptions({ page: 1 }),
-  );
+  // which is exactly the homepage's "latest five". On error the section
+  // renders nothing - the same "no data, no section" behaviour
+  // UpcomingStrip has.
+  const { data, isError } = useQuery(newsListQueryOptions({ page: 1 }));
+  const people = usePeople();
 
-  // TRANSITION FALLBACK (#489): until the content migration has run in
-  // prod the DB holds no published news. The archive counts span ALL
-  // published news, so a zero sum means the DB corpus is empty and the
-  // bundled MDX stays canonical. An API error degrades the same way so
-  // the page keeps working. While the first request is in flight the
-  // section renders nothing yet - the same "no data, no section"
-  // behaviour UpcomingStrip has. Remove in the cleanup PR once the
-  // migration is verified in prod.
-  const apiHasNews = (data?.archive ?? []).some((m) => m.count > 0);
-  const top5: HomeNewsItem[] = isPending
-    ? []
-    : !isError && data && apiHasNews
+  const top5: HomeNewsItem[] =
+    !isError && data
       ? data.items.map((item) => {
           const meta = parseNewsMetadata(item.metadata);
           return {
@@ -351,12 +329,10 @@ function LatestNewsSection() {
             title: item.title,
             date: new Date(item.publishedAt),
             tags: meta?.tags ?? [],
-            author: meta?.authorSlug
-              ? getPersonBySlug(meta.authorSlug)
-              : undefined,
+            author: meta?.authorSlug ? people.get(meta.authorSlug) : undefined,
           };
         })
-      : allNews.slice(0, 5);
+      : [];
 
   if (top5.length === 0) return null;
 
