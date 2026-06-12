@@ -84,6 +84,7 @@ import {
   eligibleParents,
   visibleNodes,
 } from "./pages-tab.lib.js";
+import { PersonGridEditor } from "./person-grid-editor.js";
 import {
   blocksToLines,
   detailLines,
@@ -404,99 +405,13 @@ const personGridBlock = createReactBlockSpec(
         });
       };
       return (
-        <div className="my-2 flex w-full flex-col gap-2">
-          {entries.length > 0 ? (
-            <EditorBlockPreview>
-              {/* Same children composition as the public renderer. */}
-              <mdxComponents.PersonGrid>
-                {entries.map((entry, i) => (
-                  <mdxComponents.Person
-                    key={`${entry.slug}-${String(i)}`}
-                    slug={entry.slug}
-                    role={entry.role}
-                  />
-                ))}
-              </mdxComponents.PersonGrid>
-            </EditorBlockPreview>
-          ) : (
-            <p className="text-sm text-stone-500">Choose people to display…</p>
-          )}
-          <PersonGridControls entries={entries} onWrite={write} />
+        <div className="my-2 w-full">
+          <PersonGridEditor entries={entries} onWrite={write} />
         </div>
       );
     },
   },
 );
-
-/**
- * The grid block's people controls, a component of its own so the merged
- * roster hook lives outside the block-spec render function.
- */
-function PersonGridControls({
-  entries,
-  onWrite,
-}: {
-  entries: PersonGridEntry[];
-  onWrite: (next: PersonGridEntry[]) => void;
-}) {
-  const allPeople = usePeopleList();
-  const nameOf = (slug: string) =>
-    allPeople.find((p) => p.slug === slug)?.name ?? slug;
-  return (
-    <>
-      <div className="flex flex-col gap-1">
-        <p className="text-xs text-stone-500">
-          Select people (hold Ctrl/Cmd to pick multiple):
-        </p>
-        <select
-          aria-label="People"
-          multiple
-          size={Math.min(allPeople.length, 6)}
-          value={entries.map((e) => e.slug)}
-          onChange={(e) => {
-            const chosen = Array.from(e.target.selectedOptions).map(
-              (o) => o.value,
-            );
-            // People who stay selected keep their role; newly
-            // selected people start role-less.
-            onWrite(
-              chosen.map(
-                (slug) =>
-                  entries.find((entry) => entry.slug === slug) ?? { slug },
-              ),
-            );
-          }}
-          className="rounded border border-stone-300 bg-white p-1 text-sm"
-        >
-          {allPeople.map((p) => (
-            <option key={p.slug} value={p.slug}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      {entries.map((entry, i) => (
-        <input
-          key={`${entry.slug}-${String(i)}`}
-          aria-label={`Role shown for ${nameOf(entry.slug)}`}
-          placeholder={`Role for ${nameOf(entry.slug)} (optional)`}
-          value={entry.role ?? ""}
-          onChange={(e) => {
-            const role = e.target.value;
-            onWrite(
-              entries.map((current, j) =>
-                j === i
-                  ? { slug: current.slug, ...(role !== "" && { role }) }
-                  : current,
-              ),
-            );
-          }}
-          className="rounded border border-stone-300 bg-white p-1 text-sm"
-        />
-      ))}
-    </>
-  );
-}
 
 const leagueTableBlock = createReactBlockSpec(
   {

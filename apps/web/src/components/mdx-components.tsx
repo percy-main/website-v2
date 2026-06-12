@@ -1,5 +1,8 @@
 import { LeaderboardContent } from "@/components/leaderboard-content.js";
-import { OptimisedImage } from "@/components/optimised-image.js";
+import {
+  OptimisedImage,
+  type PictureSource,
+} from "@/components/optimised-image.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { RecordsWall as RecordsWallComponent } from "@/components/records-wall.js";
 import { Button } from "@/components/ui/button.js";
@@ -31,21 +34,31 @@ function RecordsWall() {
   return <RecordsWallComponent />;
 }
 
-function Person({ slug, role }: { slug: string; role?: string }) {
-  // Merged roster: DB-backed people first, bundled MDX corpus as the
-  // per-slug fallback during the migration transition (#499). One cached
-  // list query serves every card on the page.
-  const person = usePeople().get(slug);
-  const name = person?.name ?? slug;
-  const picture = person?.picture ?? ANON_PICTURE;
-
+/**
+ * Presentational person card, shared with the personGrid editor block so
+ * the in-editor cards stay pixel-identical to the public ones (#527).
+ * `children` fills the slot under the name (public: role text + profile
+ * link; editor: an inline role input).
+ */
+export function PersonCardShell({
+  name,
+  picture,
+  photoUrl,
+  children,
+}: {
+  name: string;
+  picture?: PictureSource;
+  photoUrl?: string;
+  children?: ReactNode;
+}) {
+  const resolvedPicture = picture ?? ANON_PICTURE;
   return (
     <div className="person h-full rounded-lg bg-white pb-4 text-stone-900 shadow-md">
       <div className="from-cta h-2 rounded-t-lg bg-gradient-to-r to-orange-400" />
       <div className="mx-auto mt-4 size-24 overflow-hidden rounded-full border-4 border-stone-100">
-        {picture ? (
+        {resolvedPicture ? (
           <OptimisedImage
-            picture={picture}
+            picture={resolvedPicture}
             alt={name}
             className="size-24 object-cover object-center"
             sizes="96px"
@@ -53,22 +66,44 @@ function Person({ slug, role }: { slug: string; role?: string }) {
         ) : (
           <img
             className="size-24 object-cover object-center"
-            src={person?.photoUrl ?? ANON_IMAGE}
+            src={photoUrl ?? ANON_IMAGE}
             alt={name}
           />
         )}
       </div>
       <div className="mt-3 text-center">
         <h5 className="pb-1 font-semibold">{name}</h5>
-        {role && <p className="text-sm text-stone-600">{role}</p>}
-        <Link
-          to={`/person/${slug}`}
-          className="text-primary mt-2 inline-block px-2 text-sm font-medium hover:underline"
-        >
-          Profile
-        </Link>
+        {children}
       </div>
     </div>
+  );
+}
+
+/** Grid layout shared with the personGrid editor block (#527). */
+export const PERSON_GRID_CLASSES =
+  "grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4";
+
+function Person({ slug, role }: { slug: string; role?: string }) {
+  // Merged roster: DB-backed people first, bundled MDX corpus as the
+  // per-slug fallback during the migration transition (#499). One cached
+  // list query serves every card on the page.
+  const person = usePeople().get(slug);
+  const name = person?.name ?? slug;
+
+  return (
+    <PersonCardShell
+      name={name}
+      picture={person?.picture}
+      photoUrl={person?.photoUrl}
+    >
+      {role && <p className="text-sm text-stone-600">{role}</p>}
+      <Link
+        to={`/person/${slug}`}
+        className="text-primary mt-2 inline-block px-2 text-sm font-medium hover:underline"
+      >
+        Profile
+      </Link>
+    </PersonCardShell>
   );
 }
 
@@ -80,14 +115,10 @@ function PersonGrid({
   children?: ReactNode;
 }) {
   if (children) {
-    return (
-      <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {children}
-      </div>
-    );
+    return <div className={PERSON_GRID_CLASSES}>{children}</div>;
   }
   return (
-    <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className={PERSON_GRID_CLASSES}>
       {slugs?.map((slug) => (
         <Person key={slug} slug={slug} />
       ))}
