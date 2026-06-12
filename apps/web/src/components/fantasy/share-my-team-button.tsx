@@ -18,15 +18,21 @@ function fetchShareData() {
 /**
  * Look up each player's photo URL in the people roster by fuzzy name
  * match (fantasy players are Play Cricket names, not person slugs).
+ * Photos are decoration - a roster fetch failure degrades to photoless
+ * cards rather than blocking the share.
  */
 async function resolvePlayerPhotos(
   players: ApiSharePlayer[],
 ): Promise<Array<string | null>> {
-  const roster = await callApi(api.GET("/api/content/people"));
   const photoBySlug = new Map<string, string>();
-  for (const item of roster.items) {
-    const photo = parsePersonMetadata(item.metadata)?.photo;
-    if (photo) photoBySlug.set(item.slug, photo.img.src);
+  try {
+    const roster = await callApi(api.GET("/api/content/people"));
+    for (const item of roster.items) {
+      const photo = parsePersonMetadata(item.metadata)?.photo;
+      if (photo) photoBySlug.set(item.slug, photo.img.src);
+    }
+  } catch {
+    return players.map(() => null);
   }
 
   // Try to match each player by slugifying their name
