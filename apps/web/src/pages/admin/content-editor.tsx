@@ -14,7 +14,6 @@ import {
 import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/shadcn/style.css";
 
-import { ContentBody } from "@/components/content-body.js";
 import {
   CONTACT_FORM_CARD_CLASSES,
   CONTACT_FORM_DESCRIPTION_CLASSES,
@@ -53,12 +52,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { useHasPermission } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client.js";
@@ -462,15 +455,19 @@ const leagueTableBlock = createReactBlockSpec(
       // One BlockSettings instance across the empty/filled branches:
       // typing the division ID flips the block to the preview, and a
       // separate instance would unmount the open modal mid-keystroke.
+      // min-w-0: BlockNote lays blocks out as flex rows, so without it
+      // the block can't shrink below the table's intrinsic width and
+      // the table's own overflow-x scroll never engages.
       return (
-        <div className="relative my-2 w-full">
+        <div className="relative my-2 w-full min-w-0">
+          {/* Not wrapped in EditorBlockPreview: the table is plain text
+              (no links or buttons to neutralise) and inert would swallow
+              the wheel/scrollbar events its horizontal scroll needs. */}
           {block.props.divisionId !== "" && (
-            <EditorBlockPreview>
-              <mdxComponents.LeagueTable
-                divisionId={block.props.divisionId}
-                name={block.props.name || undefined}
-              />
-            </EditorBlockPreview>
+            <mdxComponents.LeagueTable
+              divisionId={block.props.divisionId}
+              name={block.props.name || undefined}
+            />
           )}
           <BlockSettings
             label="League table settings"
@@ -2571,57 +2568,37 @@ function useRevisionRestore({
 function EditorPane({
   editor,
   slashItems,
-  currentBody,
   onDirty,
 }: {
   editor: Editor;
   slashItems: () => ReturnType<typeof getDefaultReactSlashMenuItems>;
-  currentBody: () => unknown;
   onDirty: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState("edit");
-  const [previewBlocks, setPreviewBlocks] = useState<unknown>([]);
-
+  // No separate preview tab: every block renders its published look in
+  // place, so the canvas IS the preview. It sits on the same creamy
+  // background as the public pages so card-style blocks (league table,
+  // contact form, game/event previews) read exactly like the live site.
   return (
-    <Tabs
-      value={activeTab}
-      onValueChange={(tab) => {
-        if (tab === "preview") setPreviewBlocks(currentBody());
-        setActiveTab(tab);
-      }}
-    >
-      <TabsList>
-        <TabsTrigger value="edit">Edit</TabsTrigger>
-        <TabsTrigger value="preview">Preview</TabsTrigger>
-      </TabsList>
-      <TabsContent value="edit">
-        <div className="rounded-lg border border-stone-200 bg-white py-4">
-          <BlockNoteView
-            editor={editor}
-            theme="light"
-            slashMenu={false}
-            onChange={onDirty}
-          >
-            <SuggestionMenuController
-              triggerCharacter="/"
-              getItems={(query) =>
-                Promise.resolve(
-                  filterSuggestionItems(
-                    [...slashItems(), ...getDefaultReactSlashMenuItems(editor)],
-                    query,
-                  ),
-                )
-              }
-            />
-          </BlockNoteView>
-        </div>
-      </TabsContent>
-      <TabsContent value="preview">
-        <div className="rounded-lg border border-stone-200 bg-white p-4">
-          <ContentBody body={previewBlocks} />
-        </div>
-      </TabsContent>
-    </Tabs>
+    <div className="bg-body rounded-lg border border-stone-200 py-4">
+      <BlockNoteView
+        editor={editor}
+        theme="light"
+        slashMenu={false}
+        onChange={onDirty}
+      >
+        <SuggestionMenuController
+          triggerCharacter="/"
+          getItems={(query) =>
+            Promise.resolve(
+              filterSuggestionItems(
+                [...slashItems(), ...getDefaultReactSlashMenuItems(editor)],
+                query,
+              ),
+            )
+          }
+        />
+      </BlockNoteView>
+    </div>
   );
 }
 
@@ -2908,7 +2885,6 @@ function LoadedEditor({
           <EditorPane
             editor={editor}
             slashItems={slashItems}
-            currentBody={editorBody}
             onDirty={() => {
               dirtyRef.current = true;
             }}
