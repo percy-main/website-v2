@@ -1,4 +1,5 @@
 import { OptimisedImage } from "@/components/optimised-image";
+import { PageLoading } from "@/components/page-loading.js";
 import { PaymentForm } from "@/components/payment-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -13,9 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
+import {
+  isPageGone,
+  parsePersonMetadata,
+  personQueryOptions,
+} from "@/lib/content-queries.js";
 import { getImageUrl, getPicture } from "@/lib/image-map";
 import { resizeLogo } from "@/lib/logo-resize";
-import { getPersonBySlug } from "@/lib/people";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
@@ -32,6 +37,43 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
 });
 
 type Step = "details" | "paying" | "success";
+
+function SuccessCard({
+  personName,
+  slug,
+  sponsorEmail,
+}: {
+  personName: string;
+  slug: string;
+  sponsorEmail: string;
+}) {
+  return (
+    <div className="container mx-auto max-w-md px-4 py-12">
+      <Card>
+        <CardHeader>
+          <CardTitle>Thank You!</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p>
+            Your sponsorship of <strong>{personName}</strong> has been received.
+          </p>
+          <p className="text-sm text-stone-600">
+            A confirmation has been sent to {sponsorEmail}. Your details will be
+            reviewed by an admin before being displayed on the site.
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Link
+            to={`/person/${slug}`}
+            className="text-primary text-sm hover:underline"
+          >
+            Back to {personName}&apos;s profile
+          </Link>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
 
 interface SponsorFormState {
   sponsorName: string;
@@ -55,7 +97,19 @@ const initialSponsorFormState: SponsorFormState = {
 
 export function Component() {
   const { slug } = useParams();
-  const person = getPersonBySlug(slug ?? "");
+  // Same fail-closed person query as the profile page: an API error or
+  // 410 takedown renders "not found" rather than a sponsorable profile.
+  const { data: personData, isPending: personPending } = useQuery(
+    personQueryOptions(slug ?? ""),
+  );
+  const apiPerson =
+    personData == null || isPageGone(personData) ? undefined : personData;
+  const person = apiPerson
+    ? {
+        name: apiPerson.title,
+        picture: parsePersonMetadata(apiPerson.metadata)?.photo,
+      }
+    : undefined;
 
   useDocumentMeta(person ? `Sponsor ${person.name}` : "Sponsor");
 
@@ -102,6 +156,14 @@ export function Component() {
     onSuccess: () => setStep("paying"),
   });
 
+  if (personPending) {
+    return (
+      <div className="container mx-auto max-w-md px-4 py-12">
+        <PageLoading />
+      </div>
+    );
+  }
+
   if (!person) {
     return (
       <div className="container mx-auto max-w-md px-4 py-12">
@@ -141,31 +203,11 @@ export function Component() {
 
   if (step === "success") {
     return (
-      <div className="container mx-auto max-w-md px-4 py-12">
-        <Card>
-          <CardHeader>
-            <CardTitle>Thank You!</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p>
-              Your sponsorship of <strong>{person.name}</strong> has been
-              received.
-            </p>
-            <p className="text-sm text-stone-600">
-              A confirmation has been sent to {sponsorEmail}. Your details will
-              be reviewed by an admin before being displayed on the site.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Link
-              to={`/person/${slug}`}
-              className="text-primary text-sm hover:underline"
-            >
-              Back to {person.name}&apos;s profile
-            </Link>
-          </CardFooter>
-        </Card>
-      </div>
+      <SuccessCard
+        personName={person.name}
+        slug={slug ?? ""}
+        sponsorEmail={sponsorEmail}
+      />
     );
   }
 
@@ -205,7 +247,7 @@ export function Component() {
         <CardHeader>
           <div className="flex items-center gap-3">
             {(() => {
-              const picture = person.photoPicture ?? ANON_PICTURE;
+              const picture = person.picture ?? ANON_PICTURE;
               return picture ? (
                 <OptimisedImage
                   picture={picture}
@@ -215,7 +257,7 @@ export function Component() {
                 />
               ) : (
                 <img
-                  src={person.photo ?? ANON_IMAGE}
+                  src={ANON_IMAGE}
                   alt={person.name}
                   className="size-10 rounded-full"
                 />

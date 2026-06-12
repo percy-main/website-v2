@@ -2520,6 +2520,8 @@ export interface paths {
                                 postcode?: string;
                                 county?: string;
                                 country?: string;
+                                lat?: number;
+                                lon?: number;
                             } | null;
                             result: {
                                 /** @enum {string|null} */

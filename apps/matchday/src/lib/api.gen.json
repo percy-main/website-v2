@@ -4368,6 +4368,12 @@
                         },
                         "country": {
                           "type": "string"
+                        },
+                        "lat": {
+                          "type": "number"
+                        },
+                        "lon": {
+                          "type": "number"
                         }
                       },
                       "required": [

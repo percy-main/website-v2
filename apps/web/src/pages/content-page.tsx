@@ -1,5 +1,4 @@
 import { ContentBody } from "@/components/content-body.js";
-import { mdxComponents } from "@/components/mdx-components.js";
 import { PageLoading } from "@/components/page-loading.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useSiteNav } from "@/hooks/use-site-nav.js";
@@ -9,14 +8,12 @@ import {
   pageByPathQueryOptions,
   parsePageMetadata,
 } from "@/lib/content-queries.js";
-import { contentPageMap, type ContentPage } from "@/lib/content.js";
 import {
   getBreadcrumbs,
   getNavigationTree,
   type NavNode,
   type NavPage,
 } from "@/lib/nav.js";
-import { MDXProvider } from "@mdx-js/react";
 import { contentPathSchema } from "@percy-main/shared/content";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
@@ -242,30 +239,6 @@ function ApiPageView({
   );
 }
 
-/** Bundled MDX page - the static pipeline rendering. */
-function StaticPageView({
-  page,
-  navPages,
-  path,
-}: {
-  page: ContentPage;
-  navPages: NavPage[];
-  path: string;
-}) {
-  const PageContent = page.Component;
-
-  return (
-    <PageChrome navPages={navPages} path={path}>
-      <MDXProvider components={mdxComponents}>
-        <div className="mdx-content flex flex-col *:mb-4">
-          {!page.hideTitle && <h2>{page.title}</h2>}
-          <PageContent />
-        </div>
-      </MDXProvider>
-    </PageChrome>
-  );
-}
-
 function NotFoundView() {
   return (
     <div className="container mx-auto px-4 py-12">
@@ -305,40 +278,24 @@ export function Component() {
   // pipeline always has.
   const isContentPath = contentPathSchema.safeParse(path).success;
 
-  // DB-backed page first (page hierarchy, #493). Unlike the news/events
-  // TRANSITION FALLBACK (#489), the static MDX fallback here is
-  // long-lived: pages migrate to the DB one section at a time and some
-  // (e.g. legal) stay static permanently, so unmigrated paths keep
-  // rendering their bundled MDX indefinitely. The MDX renders only once
-  // the query settles so a DB-edited page never flashes its stale MDX
-  // ancestor first. Three terminal query states:
-  //   null      - never published in the DB: static fallback, else 404.
+  // DB-backed page (page hierarchy, #493). Three terminal query states:
+  //   null      - never published in the DB: 404.
   //   PAGE_GONE - 410, deliberate takedown of an ever-live page: 404
-  //               view with NO static fallback (takedowns must stick)
-  //               and NO route_not_found report (nothing is missing).
-  //   error     - API incident: static fallback where one exists,
-  //               otherwise a "couldn't load" view - never the 404 copy,
-  //               never a route_not_found report (an outage must not
-  //               spike the not-found metric).
+  //               view with NO route_not_found report (nothing is
+  //               missing).
+  //   error     - API incident: a "couldn't load" view - never the 404
+  //               copy, never a route_not_found report (an outage must
+  //               not spike the not-found metric).
   const { data, isPending, isError } = useQuery({
     ...pageByPathQueryOptions(path),
     enabled: isContentPath,
   });
   const gone = isPageGone(data);
   const apiPage = data == null || isPageGone(data) ? undefined : data;
-  const staticPage = contentPageMap.get(path);
-  // What the static corpus is allowed to contribute: a 410 takedown
-  // suppresses the bundled MDX twin entirely.
-  const staticFallback = gone ? undefined : staticPage;
 
-  // Sidebar + breadcrumbs come from the merged nav for both static and
-  // DB-backed pages.
   const navPages = useSiteNav();
 
-  useDocumentMeta(
-    apiPage?.title ?? staticFallback?.title,
-    apiPage ? (apiPage.description ?? undefined) : staticFallback?.description,
-  );
+  useDocumentMeta(apiPage?.title, apiPage?.description ?? undefined);
 
   // 404s land here because router.tsx's catch-all `path: "*"` routes
   // unknown paths through ContentPage rather than triggering the
@@ -346,10 +303,7 @@ export function Component() {
   // found rate is observable. Only a settled, confirmed miss counts:
   // still-loading pages, 410 takedowns and API errors are not misses.
   const notFound =
-    !staticPage &&
-    !gone &&
-    !isError &&
-    (!isContentPath || (!isPending && data === null));
+    !gone && !isError && (!isContentPath || (!isPending && data === null));
   useEffect(() => {
     if (!notFound) return;
     if (window.newrelic) {
@@ -374,14 +328,8 @@ export function Component() {
     );
   }
 
-  if (isError && !staticFallback) {
+  if (isError) {
     return <LoadErrorView />;
-  }
-
-  if (staticFallback) {
-    return (
-      <StaticPageView page={staticFallback} navPages={navPages} path={path} />
-    );
   }
 
   return <NotFoundView />;

@@ -19,7 +19,6 @@ import { PickerCard } from "./block-controls.js";
 function EditablePersonCard({
   name,
   picture,
-  photoUrl,
   role,
   removeLabel,
   onRoleChange,
@@ -27,7 +26,6 @@ function EditablePersonCard({
 }: {
   name: string;
   picture?: PictureSource;
-  photoUrl?: string;
   role: string;
   removeLabel: string;
   onRoleChange: (role: string) => void;
@@ -35,7 +33,7 @@ function EditablePersonCard({
 }) {
   return (
     <div className="relative">
-      <PersonCardShell name={name} picture={picture} photoUrl={photoUrl}>
+      <PersonCardShell name={name} picture={picture}>
         <input
           aria-label={`Role shown for ${name}`}
           placeholder="Role (optional)"
@@ -99,7 +97,6 @@ export function PersonGridEditor({
             key={`${entry.slug}-${String(i)}`}
             name={name}
             picture={person?.picture}
-            photoUrl={person?.photoUrl}
             role={entry.role ?? ""}
             removeLabel={`Remove ${name} from the grid`}
             onRoleChange={(role) => {
@@ -160,7 +157,6 @@ export function PersonEditor({
     <EditablePersonCard
       name={name}
       picture={person?.picture}
-      photoUrl={person?.photoUrl}
       role={role}
       removeLabel={`Remove ${name}`}
       onRoleChange={(next) => {

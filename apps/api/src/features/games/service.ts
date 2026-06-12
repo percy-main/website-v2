@@ -48,6 +48,8 @@ export interface GameDetail extends GameListItem {
     postcode?: string;
     county?: string;
     country?: string;
+    lat?: number;
+    lon?: number;
   } | null;
   result: {
     outcome: Outcome | null;
@@ -395,6 +397,8 @@ export function getGame(
           postcode: "NE29 6HS",
           county: "Tyne and Wear",
           country: "United Kingdom",
+          lat: 54.997966890477,
+          lon: -1.47157521028225,
         }
       : matchSummary?.groundName
         ? { name: matchSummary.groundName }

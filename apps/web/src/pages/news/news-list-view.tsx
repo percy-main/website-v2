@@ -9,24 +9,21 @@ import {
   newsListQueryOptions,
   parseNewsMetadata,
 } from "@/lib/content-queries.js";
-import { allNews, type NewsArticle } from "@/lib/news.js";
-import { getPersonBySlug, type PersonData } from "@/lib/people.js";
+import { usePeople, type PersonSummary } from "@/lib/use-people.js";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Link, Navigate } from "react-router";
 
 // Shared rendering for /news/:page and /news/tag/:tag/:page. The list is
-// API-backed (live content editing, #489); the bundled MDX corpus stays as
-// fallback until the content migration is verified in prod, then gets
-// deleted in the cleanup PR.
+// API-backed (live content editing, #489).
 
-/** One article row, whichever corpus it came from. */
+/** One article row. */
 interface NewsListItem {
   slug: string;
   title: string;
   date: Date;
   tags: string[];
-  author: PersonData | undefined;
+  author: PersonSummary | undefined;
 }
 
 interface NewsListViewModel {
@@ -45,93 +42,36 @@ interface NewsListViewModel {
 type NewsListResponse =
   paths["/api/content/news"]["get"]["responses"]["200"]["content"]["application/json"];
 
-function apiItemToListItem(item: NewsListResponse["items"][number]) {
-  const meta = parseNewsMetadata(item.metadata);
-  return {
-    slug: item.slug,
-    title: item.title,
-    date: new Date(item.publishedAt),
-    tags: meta?.tags ?? [],
-    author: meta?.authorSlug ? getPersonBySlug(meta.authorSlug) : undefined,
-  } satisfies NewsListItem;
-}
-
-function staticToListItem(article: NewsArticle): NewsListItem {
-  return {
-    slug: article.slug,
-    title: article.title,
-    date: article.date,
-    tags: article.tags,
-    author: article.author,
-  };
-}
-
-/** "2025-01" -> "January 2025" (matching the static page's archive labels). */
+/** "2025-01" -> "January 2025". */
 function formatArchiveMonth(month: string): string {
   const [year, monthNumber] = month.split("-").map(Number);
   if (!year || !monthNumber) return month;
   return format(new Date(year, monthNumber - 1, 1), "MMMM yyyy");
 }
 
-// Static-corpus aggregates, only used by the transition fallback below.
-const staticTags: Array<{ tag: string; count: number }> = (() => {
-  const counts = new Map<string, number>();
-  for (const article of allNews) {
-    for (const tag of article.tags) {
-      counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    }
-  }
-  return [...counts.entries()]
-    .map(([tag, count]) => ({ tag, count }))
-    .sort((a, b) => b.count - a.count);
-})();
-
-function buildStaticViewModel(tag: string | null, page: number) {
-  const filtered = tag ? allNews.filter((a) => a.tags.includes(tag)) : allNews;
-
-  const lastPage = Math.max(1, Math.ceil(filtered.length / NEWS_PAGE_SIZE));
-  const currentPage = Math.min(Math.max(1, page), lastPage);
-
-  const items = filtered
-    .slice((currentPage - 1) * NEWS_PAGE_SIZE, currentPage * NEWS_PAGE_SIZE)
-    .map(staticToListItem);
-
-  const archiveMap = new Map<string, number>();
-  for (const article of allNews) {
-    const month = format(article.date, "MMMM yyyy");
-    archiveMap.set(month, (archiveMap.get(month) ?? 0) + 1);
-  }
-  const archiveMonths = [...archiveMap.entries()].map(([label, count]) => ({
-    label,
-    count,
-  }));
-
-  const uniqueAuthors = new Set(
-    allNews.flatMap((a) => (a.authorSlug ? [a.authorSlug] : [])),
-  );
-
-  return {
-    items,
-    currentPage,
-    lastPage,
-    tags: staticTags,
-    archiveMonths,
-    totalArticles: allNews.length,
-    authorCount: uniqueAuthors.size,
-  } satisfies NewsListViewModel;
-}
-
-function buildApiViewModel(response: NewsListResponse, page: number) {
+function buildApiViewModel(
+  response: NewsListResponse,
+  page: number,
+  people: Map<string, PersonSummary>,
+) {
   const lastPage = Math.max(1, Math.ceil(response.total / NEWS_PAGE_SIZE));
   const currentPage = Math.min(Math.max(1, page), lastPage);
 
   return {
-    items: response.items.map(apiItemToListItem),
+    items: response.items.map((item) => {
+      const meta = parseNewsMetadata(item.metadata);
+      return {
+        slug: item.slug,
+        title: item.title,
+        date: new Date(item.publishedAt),
+        tags: meta?.tags ?? [],
+        author: meta?.authorSlug ? people.get(meta.authorSlug) : undefined,
+      } satisfies NewsListItem;
+    }),
     currentPage,
     lastPage,
     tags: response.tags.toSorted((a, b) => b.count - a.count),
-    // YYYY-MM sorts lexicographically in date order; newest first, like
-    // the static corpus (which is ordered by article date desc).
+    // YYYY-MM sorts lexicographically in date order; newest first.
     archiveMonths: response.archive
       .toSorted((a, b) => b.month.localeCompare(a.month))
       .map((m) => ({ label: formatArchiveMonth(m.month), count: m.count })),
@@ -142,7 +82,7 @@ function buildApiViewModel(response: NewsListResponse, page: number) {
 
 // ── Cards ───────────────────────────────────────────────────────────────
 
-function authorInitials(author: PersonData | undefined): string {
+function authorInitials(author: PersonSummary | undefined): string {
   return author?.name
     ? author.name
         .split(" ")
@@ -190,18 +130,12 @@ function FeaturedArticleCard({ article }: { article: NewsListItem }) {
 
         <div className="flex items-center justify-between border-t border-black/5 pt-4">
           <div className="flex items-center gap-2.5">
-            {article.author?.photoPicture ? (
+            {article.author?.picture ? (
               <OptimisedImage
-                picture={article.author.photoPicture}
+                picture={article.author.picture}
                 alt={article.author.name}
                 className="size-8 shrink-0 rounded-full object-cover"
                 sizes="32px"
-              />
-            ) : article.author?.photo ? (
-              <img
-                className="size-8 shrink-0 rounded-full object-cover"
-                src={article.author.photo}
-                alt={article.author.name}
               />
             ) : (
               <div className="bg-home-bg text-primary flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold">
@@ -270,18 +204,12 @@ function ArticleCard({ article }: { article: NewsListItem }) {
 
         <div className="mt-0.5 flex items-center justify-between border-t border-black/[0.04] pt-3">
           <div className="flex items-center gap-2.5">
-            {article.author?.photoPicture ? (
+            {article.author?.picture ? (
               <OptimisedImage
-                picture={article.author.photoPicture}
+                picture={article.author.picture}
                 alt={article.author.name}
                 className="size-7 shrink-0 rounded-full object-cover"
                 sizes="28px"
-              />
-            ) : article.author?.photo ? (
-              <img
-                className="size-7 shrink-0 rounded-full object-cover"
-                src={article.author.photo}
-                alt={article.author.name}
               />
             ) : (
               <div className="bg-home-bg text-primary flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">
@@ -527,6 +455,7 @@ export function NewsListView({
   const { data, isPending, isError } = useQuery(
     newsListQueryOptions({ tag: tag ?? undefined, page }),
   );
+  const people = usePeople();
 
   if (isPending) {
     return (
@@ -540,17 +469,19 @@ export function NewsListView({
     );
   }
 
-  // TRANSITION FALLBACK (#489): until the content migration has run in
-  // prod the DB holds no published news. The archive counts span ALL
-  // published news regardless of ?tag, so a zero sum means the DB corpus
-  // is empty and the bundled MDX stays canonical. An API error degrades
-  // the same way so the page keeps working. Remove in the cleanup PR once
-  // the migration is verified in prod.
-  const apiHasNews = (data?.archive ?? []).some((m) => m.count > 0);
-  const vm =
-    !isError && data && apiHasNews
-      ? buildApiViewModel(data, page)
-      : buildStaticViewModel(tag, page);
+  if (isError || !data) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <h1>We couldn&apos;t load the news</h1>
+        <p>
+          Something went wrong fetching the news. Please try again in a few
+          minutes.
+        </p>
+      </div>
+    );
+  }
+
+  const vm = buildApiViewModel(data, page, people);
 
   const basePath = tag ? `/news/tag/${encodeURIComponent(tag)}` : "/news";
 

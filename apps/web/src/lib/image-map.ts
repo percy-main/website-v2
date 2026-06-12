@@ -29,8 +29,8 @@ const urlModules = import.meta.glob<string>(
 );
 
 /**
- * Converts a glob key like `../assets/images/contentful/abc/photo.jpg`
- * to the old public path `/images/contentful/abc/photo.jpg`.
+ * Converts a glob key like `../assets/images/pitch.png` to the public
+ * path `/images/pitch.png`.
  */
 function globKeyToPublicPath(key: string): string {
   return key.replace("../assets/images/", "/images/");

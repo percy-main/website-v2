@@ -3,23 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-// mdx-components transitively imports the people corpus (.mdx files) and
-// the vite-imagetools image map, neither of which exists outside a Vite
-// build - stub the lookups, the renderer only needs their shapes.
-vi.mock("@/lib/people.js", () => ({
-  getPersonBySlug: (slug: string) =>
-    slug === "alex-slaven"
-      ? { name: "Alex Slaven", photo: undefined, photoPicture: undefined }
-      : undefined,
-  getAllPeople: () => [
-    {
-      slug: "alex-slaven",
-      name: "Alex Slaven",
-      photo: undefined,
-      photoPicture: undefined,
-    },
-  ],
-}));
+// mdx-components transitively imports the vite-imagetools image map,
+// which doesn't exist outside a Vite build - stub the lookups, the
+// renderer only needs their shapes.
 vi.mock("@/lib/image-map.js", () => ({
   getImageUrl: () => undefined,
   getPicture: () => undefined,

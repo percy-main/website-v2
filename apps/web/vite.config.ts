@@ -1,11 +1,7 @@
-import mdx from "@mdx-js/rollup";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import path from "path";
-import remarkFrontmatter from "remark-frontmatter";
-import remarkGfm from "remark-gfm";
-import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { imagetools } from "vite-imagetools";
 
@@ -49,10 +45,6 @@ function gtagHtmlPlugin(mode: string): Plugin {
 
 export default defineConfig(({ mode }) => ({
   plugins: [
-    mdx({
-      remarkPlugins: [remarkGfm, remarkFrontmatter, remarkMdxFrontmatter],
-      providerImportSource: "@mdx-js/react",
-    }),
     react(),
     babel({
       presets: [reactCompilerPreset()],

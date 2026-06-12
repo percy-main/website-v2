@@ -54,6 +54,8 @@ const locationSchema = z
     postcode: z.string().optional(),
     county: z.string().optional(),
     country: z.string().optional(),
+    lat: z.number().optional(),
+    lon: z.number().optional(),
   })
   .nullable();
 

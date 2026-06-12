@@ -1,12 +1,10 @@
-// Pure nav-model functions for the merged page hierarchy (#493): DB-backed
-// pages from GET /api/content/nav plus the bundled static MDX pages. Kept
-// free of Vite-only dependencies (content.ts needs import.meta.glob) so
-// the tree/breadcrumb/menu logic is unit-testable in plain vitest.
+// Pure nav-model functions for the page hierarchy (#493): DB-backed
+// pages from GET /api/content/nav. Kept free of Vite-only dependencies
+// so the tree/breadcrumb/menu logic is unit-testable in plain vitest.
 
 /**
- * Lightweight nav shape shared by API nav items and static content pages.
- * Nav trees, breadcrumbs and menus only need these fields - only the page
- * renderer needs the full static ContentPage (with its Component).
+ * Lightweight nav shape. Nav trees, breadcrumbs and menus only need
+ * these fields.
  */
 export interface NavPage {
   /** URL path, e.g. "/club/history/honours" */
@@ -22,35 +20,12 @@ export interface NavNode {
 }
 
 /**
- * Merge API nav items with the static page list. The API wins on a path
- * collision (a migrated page's DB title/menu placement replaces its
- * bundled MDX ancestor); static pages without a DB counterpart pass
- * through unchanged, so sections migrate one at a time. The result is
- * sorted by path, mirroring the static pipeline's contentPages ordering -
- * with an empty API list (pre-migration) the output is identical to the
- * old static-only list.
- *
- * `removedPaths` are tombstones: paths of ever-live DB pages that have
- * since been unpublished or archived. Static pages at those paths are
- * dropped instead of resurrecting - an urgent takedown must stick even
- * where a bundled MDX twin exists. Tombstones with no static twin are
- * simply no-ops, and an API item at a tombstoned path still wins (the
- * API only tombstones paths it is not serving).
+ * Path-sort the API nav items. getNavigationTree's child sort is stable
+ * with path order as the tie-break for equal menuOrders, so the input
+ * ordering is part of the contract, not cosmetic.
  */
-export function mergeNavPages(
-  apiPages: NavPage[],
-  staticPages: NavPage[],
-  removedPaths: readonly string[] = [],
-): NavPage[] {
-  const removed = new Set(removedPaths);
-  const byPath = new Map<string, NavPage>();
-  for (const page of staticPages) {
-    if (!removed.has(page.path)) byPath.set(page.path, page);
-  }
-  for (const page of apiPages) byPath.set(page.path, page);
-  return Array.from(byPath.values()).toSorted((a, b) =>
-    a.path.localeCompare(b.path),
-  );
+export function sortNavPages(pages: NavPage[]): NavPage[] {
+  return pages.toSorted((a, b) => a.path.localeCompare(b.path));
 }
 
 /**

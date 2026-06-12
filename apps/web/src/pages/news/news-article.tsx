@@ -1,5 +1,4 @@
 import { ContentBody } from "@/components/content-body.js";
-import { mdxComponents } from "@/components/mdx-components.js";
 import { OptimisedImage } from "@/components/optimised-image.js";
 import { PageLoading } from "@/components/page-loading.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
@@ -10,9 +9,7 @@ import {
   parseNewsMetadata,
 } from "@/lib/content-queries.js";
 import { getImageUrl, getPicture } from "@/lib/image-map.js";
-import { newsBySlug, type NewsArticle } from "@/lib/news.js";
-import { getPersonBySlug, type PersonData } from "@/lib/people.js";
-import { MDXProvider } from "@mdx-js/react";
+import { usePeople, type PersonSummary } from "@/lib/use-people.js";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { IoChevronForward } from "react-icons/io5";
@@ -24,8 +21,8 @@ const ANON_PICTURE = getPicture("/images/anon.jpg");
 type ApiArticle =
   paths["/api/content/{kind}/{slug}"]["get"]["responses"]["200"]["content"]["application/json"];
 
-function AuthorLink({ author }: { author: PersonData }) {
-  const picture = author.photoPicture ?? ANON_PICTURE;
+function AuthorLink({ author }: { author: PersonSummary }) {
+  const picture = author.picture ?? ANON_PICTURE;
   return (
     <Link to={`/person/${author.slug}`} className="flex items-center gap-4">
       {picture ? (
@@ -38,7 +35,7 @@ function AuthorLink({ author }: { author: PersonData }) {
       ) : (
         <img
           className="size-14 rounded-full object-cover"
-          src={author.photo ?? ANON_IMAGE}
+          src={ANON_IMAGE}
           alt={author.name}
         />
       )}
@@ -62,9 +59,8 @@ function Breadcrumbs({ title }: { title: string }) {
 /** DB-backed article (live content editing, #489). */
 function ApiArticleView({ article }: { article: ApiArticle }) {
   const meta = parseNewsMetadata(article.metadata);
-  const author = meta?.authorSlug
-    ? getPersonBySlug(meta.authorSlug)
-    : undefined;
+  const people = usePeople();
+  const author = meta?.authorSlug ? people.get(meta.authorSlug) : undefined;
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -104,48 +100,17 @@ function ApiArticleView({ article }: { article: ApiArticle }) {
   );
 }
 
-/** Bundled MDX article - the pre-#489 rendering, kept as fallback. */
-function StaticArticleView({ article }: { article: NewsArticle }) {
-  const PageContent = article.Component;
-
-  return (
-    <div className="container mx-auto px-4 py-6">
-      <Breadcrumbs title={article.title} />
-
-      <div className="max-w-3xl">
-        {/* Author + date */}
-        {article.author && <AuthorLink author={article.author} />}
-        <p className="pb-4 text-sm text-stone-600">
-          Published on {format(article.date, "PPPP")}
-        </p>
-
-        {/* Article content */}
-        <MDXProvider components={mdxComponents}>
-          <div className="mdx-content flex flex-col *:mb-4">
-            <PageContent />
-          </div>
-        </MDXProvider>
-      </div>
-    </div>
-  );
-}
-
 export function Component() {
   const params = useParams();
   const slug = params.id ?? "";
 
-  // DB-backed article first (live content editing, #489); the bundled MDX
-  // corpus stays as fallback until the migration is verified in prod, then
-  // gets deleted in a follow-up. The MDX renders only once the query
-  // settles (confirmed 404, or an API failure - deliberate graceful
-  // degradation) so a DB-edited article never flashes its stale MDX
-  // ancestor first.
-  const { data: apiArticle, isPending } = useQuery(
-    newsArticleQueryOptions(slug),
-  );
-  const staticArticle = newsBySlug.get(slug);
+  const {
+    data: apiArticle,
+    isPending,
+    isError,
+  } = useQuery(newsArticleQueryOptions(slug));
 
-  useDocumentMeta(apiArticle?.title ?? staticArticle?.title ?? "News Article");
+  useDocumentMeta(apiArticle?.title ?? "News Article");
 
   if (apiArticle) {
     return <ApiArticleView article={apiArticle} />;
@@ -159,8 +124,18 @@ export function Component() {
     );
   }
 
-  if (staticArticle) {
-    return <StaticArticleView article={staticArticle} />;
+  // The query returns null on a confirmed 404 and throws on anything
+  // else - an API incident must not read as "this article doesn't exist".
+  if (isError) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <h1>We couldn&apos;t load this article</h1>
+        <p>
+          Something went wrong fetching this article. Please try again in a few
+          minutes.
+        </p>
+      </div>
+    );
   }
 
   return (
