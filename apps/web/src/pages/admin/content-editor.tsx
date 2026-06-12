@@ -197,8 +197,11 @@ const eventPreviewBlock = createReactBlockSpec(
   },
   {
     render: ({ block, editor }) => {
-      const complete =
-        block.props.eventId && block.props.name && block.props.when;
+      // Gated on the event alone: once one is chosen, the preview and
+      // settings stay mounted even while name/date are cleared mid-edit
+      // (gating on those too would unmount the open modal per
+      // keystroke - the league table block learned the same lesson).
+      const hasEvent = block.props.eventId !== "";
       const update = (updates: Partial<typeof block.props>) => {
         editor.updateBlock(block, {
           props: { ...block.props, ...updates },
@@ -209,7 +212,7 @@ const eventPreviewBlock = createReactBlockSpec(
       };
       return (
         <div className="relative my-2 w-full max-w-sm">
-          {complete ? (
+          {hasEvent ? (
             <>
               <EditorBlockPreview>
                 <mdxComponents.EventPreview
@@ -248,7 +251,7 @@ const eventPreviewBlock = createReactBlockSpec(
                   <Input
                     id={`event-when-${block.id}`}
                     type="date"
-                    value={block.props.when.slice(0, 10)}
+                    value={ukDate(block.props.when)}
                     onChange={(e) => {
                       update({ when: e.target.value });
                     }}
@@ -742,10 +745,25 @@ function useEventsList(): PickedEvent[] | undefined {
   }));
 }
 
-const eventLabel = (event: PickedEvent) =>
-  event.when
-    ? `${event.title} · ${new Date(event.when).toLocaleDateString("en-GB")}`
-    : event.title;
+/**
+ * The UK calendar date of a stored `when` (ISO instant or plain date),
+ * as a date-input value. Event instants are authored as UK wall-clock
+ * (see EVENT_TZ); a machine-timezone or UTC slice would show the wrong
+ * day for late-evening BST events. Empty for anything unparseable.
+ */
+function ukDate(when: string): string {
+  const date = new Date(when);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : formatInTimeZone(date, EVENT_TZ, "yyyy-MM-dd");
+}
+
+const eventLabel = (event: PickedEvent) => {
+  const date = new Date(event.when);
+  return Number.isNaN(date.getTime())
+    ? event.title
+    : `${event.title} · ${formatInTimeZone(date, EVENT_TZ, "dd/MM/yyyy")}`;
+};
 
 function EventSelect({
   value,
