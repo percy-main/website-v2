@@ -15,7 +15,13 @@ import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/shadcn/style.css";
 
 import { ContentBody } from "@/components/content-body.js";
-import { mdxComponents } from "@/components/mdx-components.js";
+import {
+  CONTACT_FORM_CARD_CLASSES,
+  CONTACT_FORM_DESCRIPTION_CLASSES,
+  CONTACT_FORM_TITLE_CLASSES,
+  ContactFormBody,
+  mdxComponents,
+} from "@/components/mdx-components.js";
 import {
   OptimisedImage,
   type PictureSource,
@@ -59,10 +65,15 @@ import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
 import { uploadContentImage } from "@/lib/content-images.js";
 import {
+  eventsListQueryOptions,
+  parseEventMetadata,
+} from "@/lib/content-queries.js";
+import {
   parsePersonGridEntries,
   type PersonGridEntry,
 } from "@/lib/person-grid.js";
 import { usePeopleList } from "@/lib/use-people.js";
+import { cn } from "@/lib/utils.js";
 import {
   CONTENT_KIND_RESOURCES,
   contentBodySchema,
@@ -77,6 +88,13 @@ import {
 } from "@tanstack/react-query";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  BlockSettings,
+  EMPTY_CARD_CLASSES,
+  EmptyCardPrompt,
+  INLINE_TEXT_INPUT_CLASSES,
+  PickerCard,
+} from "./block-controls.js";
 import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
 import { EditorBlockPreview } from "./editor-block-preview.js";
 import {
@@ -84,7 +102,7 @@ import {
   eligibleParents,
   visibleNodes,
 } from "./pages-tab.lib.js";
-import { PersonGridEditor } from "./person-grid-editor.js";
+import { PersonEditor, PersonGridEditor } from "./person-editors.js";
 import {
   blocksToLines,
   detailLines,
@@ -98,39 +116,6 @@ import {
 // maps them 1:1. Each block renders the real public component read-only
 // in-editor, with minimal prop controls underneath.
 
-/**
- * Single-person picker over the merged roster (DB-backed people first,
- * static corpus filling the gaps during the migration transition). A
- * component of its own so the roster hook lives outside the block-spec
- * render functions.
- */
-function PersonSelect({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (slug: string) => void;
-}) {
-  const people = usePeopleList();
-  return (
-    <select
-      aria-label="Person"
-      value={value}
-      onChange={(e) => {
-        onChange(e.target.value);
-      }}
-      className="rounded border border-stone-300 bg-white p-1 text-sm"
-    >
-      <option value="">Choose a person…</option>
-      {people.map((p) => (
-        <option key={p.slug} value={p.slug}>
-          {p.name}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 const personBlock = createReactBlockSpec(
   {
     type: CUSTOM_BLOCK_TYPES.person,
@@ -142,35 +127,15 @@ const personBlock = createReactBlockSpec(
   },
   {
     render: ({ block, editor }) => (
-      <div className="my-2 flex w-full max-w-xs flex-col gap-2">
-        {block.props.slug ? (
-          <EditorBlockPreview>
-            <mdxComponents.Person
-              slug={block.props.slug}
-              role={block.props.role || undefined}
-            />
-          </EditorBlockPreview>
-        ) : (
-          <p className="text-sm text-stone-500">Choose a person…</p>
-        )}
-        <PersonSelect
-          value={block.props.slug}
-          onChange={(slug) => {
+      <div className="my-2 w-full max-w-xs">
+        <PersonEditor
+          slug={block.props.slug}
+          role={block.props.role}
+          onChange={({ slug, role }) => {
             editor.updateBlock(block, {
-              props: { ...block.props, slug },
+              props: { ...block.props, slug, role },
             });
           }}
-        />
-        <input
-          aria-label="Role shown on the card"
-          placeholder="Role (optional)"
-          value={block.props.role}
-          onChange={(e) => {
-            editor.updateBlock(block, {
-              props: { ...block.props, role: e.target.value },
-            });
-          }}
-          className="rounded border border-stone-300 bg-white p-1 text-sm"
         />
       </div>
     ),
@@ -186,27 +151,37 @@ const gamePreviewBlock = createReactBlockSpec(
     content: "none",
   },
   {
-    render: ({ block, editor }) => (
-      <div className="my-2 w-full">
-        {block.props.playCricketId ? (
-          <EditorBlockPreview>
-            <mdxComponents.GamePreview
-              playCricketId={block.props.playCricketId}
-            />
-          </EditorBlockPreview>
-        ) : (
-          <p className="text-sm text-stone-500">Choose a game…</p>
-        )}
-        <GameSelect
-          value={block.props.playCricketId}
-          onChange={(id) => {
-            editor.updateBlock(block, {
-              props: { ...block.props, playCricketId: id },
-            });
-          }}
-        />
-      </div>
-    ),
+    render: ({ block, editor }) => {
+      const setGame = (playCricketId: string) => {
+        editor.updateBlock(block, {
+          props: { ...block.props, playCricketId },
+        });
+      };
+      return (
+        <div className="relative my-2 w-full">
+          {block.props.playCricketId ? (
+            <>
+              <EditorBlockPreview>
+                <mdxComponents.GamePreview
+                  playCricketId={block.props.playCricketId}
+                />
+              </EditorBlockPreview>
+              <BlockSettings label="Game preview settings" title="Game preview">
+                <div className="flex flex-col gap-1">
+                  <Label>Play-Cricket game</Label>
+                  <GameSelect
+                    value={block.props.playCricketId}
+                    onChange={setGame}
+                  />
+                </div>
+              </BlockSettings>
+            </>
+          ) : (
+            <GamePickerCard onPick={setGame} />
+          )}
+        </div>
+      );
+    },
   },
 );
 
@@ -222,53 +197,71 @@ const eventPreviewBlock = createReactBlockSpec(
   },
   {
     render: ({ block, editor }) => {
-      const complete =
-        block.props.eventId && block.props.name && block.props.when;
-      const set = (key: "eventId" | "name" | "when", value: string) => {
+      // Gated on the event alone: once one is chosen, the preview and
+      // settings stay mounted even while name/date are cleared mid-edit
+      // (gating on those too would unmount the open modal per
+      // keystroke - the league table block learned the same lesson).
+      const hasEvent = block.props.eventId !== "";
+      const update = (updates: Partial<typeof block.props>) => {
         editor.updateBlock(block, {
-          props: { ...block.props, [key]: value },
+          props: { ...block.props, ...updates },
         });
       };
+      const applyEvent = (event: PickedEvent) => {
+        update({ eventId: event.slug, name: event.title, when: event.when });
+      };
       return (
-        <div className="my-2 flex w-full max-w-sm flex-col gap-2">
-          {complete ? (
-            <EditorBlockPreview>
-              <mdxComponents.EventPreview
-                id={block.props.eventId}
-                name={block.props.name}
-                when={block.props.when}
-              />
-            </EditorBlockPreview>
+        <div className="relative my-2 w-full max-w-sm">
+          {hasEvent ? (
+            <>
+              <EditorBlockPreview>
+                <mdxComponents.EventPreview
+                  id={block.props.eventId}
+                  name={block.props.name}
+                  when={block.props.when}
+                />
+              </EditorBlockPreview>
+              <BlockSettings
+                label="Event preview settings"
+                title="Event preview"
+              >
+                <div className="flex flex-col gap-1">
+                  <Label>Event</Label>
+                  <EventSelect
+                    value={block.props.eventId}
+                    onPick={applyEvent}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor={`event-name-${block.id}`}>
+                    Name shown on the card
+                  </Label>
+                  <Input
+                    id={`event-name-${block.id}`}
+                    value={block.props.name}
+                    onChange={(e) => {
+                      update({ name: e.target.value });
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor={`event-when-${block.id}`}>
+                    Date shown on the card
+                  </Label>
+                  <Input
+                    id={`event-when-${block.id}`}
+                    type="date"
+                    value={ukDate(block.props.when)}
+                    onChange={(e) => {
+                      update({ when: e.target.value });
+                    }}
+                  />
+                </div>
+              </BlockSettings>
+            </>
           ) : (
-            <p className="text-sm text-stone-500">Fill in the event details…</p>
+            <EventPickerCard onPick={applyEvent} />
           )}
-          <input
-            aria-label="Event id"
-            placeholder="Event id"
-            value={block.props.eventId}
-            onChange={(e) => {
-              set("eventId", e.target.value);
-            }}
-            className="rounded border border-stone-300 bg-white p-1 text-sm"
-          />
-          <input
-            aria-label="Event name"
-            placeholder="Event name"
-            value={block.props.name}
-            onChange={(e) => {
-              set("name", e.target.value);
-            }}
-            className="rounded border border-stone-300 bg-white p-1 text-sm"
-          />
-          <input
-            aria-label="Event date"
-            type="date"
-            value={block.props.when}
-            onChange={(e) => {
-              set("when", e.target.value);
-            }}
-            className="rounded border border-stone-300 bg-white p-1 text-sm"
-          />
         </div>
       );
     },
@@ -323,8 +316,13 @@ const contentImageBlock = createReactBlockSpec(
   {
     render: ({ block, editor }) => {
       const picture = parsePictureProp(block.props.picture);
+      const set = (key: "caption" | "alt", value: string) => {
+        editor.updateBlock(block, {
+          props: { ...block.props, [key]: value },
+        });
+      };
       return (
-        <figure className="my-2 flex w-full max-w-lg flex-col gap-2">
+        <figure className="relative my-2 w-full max-w-lg">
           <EditorBlockPreview>
             {picture ? (
               <OptimisedImage
@@ -343,28 +341,34 @@ const contentImageBlock = createReactBlockSpec(
               <p className="text-sm text-stone-500">Image uploading…</p>
             )}
           </EditorBlockPreview>
+          {/* Edited in place, styled like the public figcaption. */}
           <input
             aria-label="Caption"
-            placeholder="Caption (optional)"
+            placeholder="Add a caption (optional)…"
             value={block.props.caption}
             onChange={(e) => {
-              editor.updateBlock(block, {
-                props: { ...block.props, caption: e.target.value },
-              });
+              set("caption", e.target.value);
             }}
-            className="rounded border border-stone-300 bg-white p-1 text-sm"
+            className={INLINE_TEXT_INPUT_CLASSES("mt-2 text-sm text-stone-600")}
           />
-          <input
-            aria-label="Alt text for screen readers"
-            placeholder="Describe the photo (alt text)"
-            value={block.props.alt}
-            onChange={(e) => {
-              editor.updateBlock(block, {
-                props: { ...block.props, alt: e.target.value },
-              });
-            }}
-            className="rounded border border-stone-300 bg-white p-1 text-sm"
-          />
+          <BlockSettings label="Image settings" title="Image">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`image-alt-${block.id}`}>
+                Alt text for screen readers
+              </Label>
+              <Input
+                id={`image-alt-${block.id}`}
+                placeholder="Describe the photo"
+                value={block.props.alt}
+                onChange={(e) => {
+                  set("alt", e.target.value);
+                }}
+              />
+              <span className="text-xs text-stone-500">
+                Read aloud by screen readers - not shown on the page.
+              </span>
+            </div>
+          </BlockSettings>
         </figure>
       );
     },
@@ -427,38 +431,66 @@ const leagueTableBlock = createReactBlockSpec(
       const set = (key: "divisionId" | "name", value: string) => {
         editor.updateBlock(block, { props: { ...block.props, [key]: value } });
       };
+      const fields = (
+        <>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`league-division-${block.id}`}>
+              Division ID (required)
+            </Label>
+            <Input
+              id={`league-division-${block.id}`}
+              value={block.props.divisionId}
+              onChange={(e) => {
+                set("divisionId", e.target.value);
+              }}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`league-name-${block.id}`}>
+              Table heading (optional)
+            </Label>
+            <Input
+              id={`league-name-${block.id}`}
+              value={block.props.name}
+              onChange={(e) => {
+                set("name", e.target.value);
+              }}
+            />
+          </div>
+        </>
+      );
+      // One BlockSettings instance across the empty/filled branches:
+      // typing the division ID flips the block to the preview, and a
+      // separate instance would unmount the open modal mid-keystroke.
       return (
-        <div className="my-2 flex w-full flex-col gap-2">
-          {block.props.divisionId ? (
+        <div className="relative my-2 w-full">
+          {block.props.divisionId !== "" && (
             <EditorBlockPreview>
               <mdxComponents.LeagueTable
                 divisionId={block.props.divisionId}
                 name={block.props.name || undefined}
               />
             </EditorBlockPreview>
-          ) : (
-            <p className="text-sm text-stone-500">
-              Enter a division ID to preview…
-            </p>
           )}
-          <input
-            aria-label="Division ID"
-            placeholder="Division ID (required)"
-            value={block.props.divisionId}
-            onChange={(e) => {
-              set("divisionId", e.target.value);
-            }}
-            className="rounded border border-stone-300 bg-white p-1 text-sm"
-          />
-          <input
-            aria-label="Table heading"
-            placeholder="Table heading (optional)"
-            value={block.props.name}
-            onChange={(e) => {
-              set("name", e.target.value);
-            }}
-            className="rounded border border-stone-300 bg-white p-1 text-sm"
-          />
+          <BlockSettings
+            label="League table settings"
+            title="League table"
+            trigger={
+              block.props.divisionId !== ""
+                ? undefined
+                : (open) => (
+                    <button
+                      type="button"
+                      onClick={open}
+                      className={EMPTY_CARD_CLASSES}
+                    >
+                      <EmptyCardPrompt prompt="Set up league table" />
+                    </button>
+                  )
+            }
+          >
+            {fields}
+          </BlockSettings>
         </div>
       );
     },
@@ -509,16 +541,12 @@ const contactFormBlock = createReactBlockSpec(
       const set = (key: "title" | "description", value: string) => {
         editor.updateBlock(block, { props: { ...block.props, [key]: value } });
       };
+      // Same card frame as the public form, with the heading and
+      // description edited in place; only the fields below them are
+      // inert (the form must not be focusable or submittable - mouse OR
+      // keyboard - inside the editor canvas).
       return (
-        <div className="my-2 flex w-full flex-col gap-2">
-          {/* Inert preview: the form must not be focusable or submittable
-              (mouse OR keyboard) inside the editor canvas */}
-          <EditorBlockPreview>
-            <mdxComponents.ContactForm
-              title={block.props.title || undefined}
-              description={block.props.description || undefined}
-            />
-          </EditorBlockPreview>
+        <div className={cn("my-2", CONTACT_FORM_CARD_CLASSES)}>
           <input
             aria-label="Form title"
             placeholder="Form title (optional)"
@@ -526,7 +554,9 @@ const contactFormBlock = createReactBlockSpec(
             onChange={(e) => {
               set("title", e.target.value);
             }}
-            className="rounded border border-stone-300 bg-white p-1 text-sm"
+            className={INLINE_TEXT_INPUT_CLASSES(
+              cn(CONTACT_FORM_TITLE_CLASSES, "placeholder:font-normal"),
+            )}
           />
           <input
             aria-label="Form description"
@@ -535,8 +565,13 @@ const contactFormBlock = createReactBlockSpec(
             onChange={(e) => {
               set("description", e.target.value);
             }}
-            className="rounded border border-stone-300 bg-white p-1 text-sm"
+            className={INLINE_TEXT_INPUT_CLASSES(
+              CONTACT_FORM_DESCRIPTION_CLASSES,
+            )}
           />
+          <EditorBlockPreview>
+            <ContactFormBody />
+          </EditorBlockPreview>
         </div>
       );
     },
@@ -553,22 +588,22 @@ const cookieSettingsLinkBlock = createReactBlockSpec(
   },
   {
     render: ({ block, editor }) => (
-      <div className="my-2 flex w-full flex-col gap-2">
-        <EditorBlockPreview>
-          <mdxComponents.CookieSettingsLink>
-            {block.props.text || "Cookie settings"}
-          </mdxComponents.CookieSettingsLink>
-        </EditorBlockPreview>
+      <div className="my-2 w-full">
+        {/* Edited in place, styled like the public link (which reopens
+            the consent banner - inert here by virtue of being an input). */}
         <input
           aria-label="Link text"
-          placeholder="Link text"
+          placeholder="Cookie settings"
           value={block.props.text}
+          size={Math.max(block.props.text.length, 15)}
           onChange={(e) => {
             editor.updateBlock(block, {
               props: { ...block.props, text: e.target.value },
             });
           }}
-          className="rounded border border-stone-300 bg-white p-1 text-sm"
+          className={INLINE_TEXT_INPUT_CLASSES(
+            "inline w-auto max-w-full text-blue-900 underline",
+          )}
         />
       </div>
     ),
@@ -623,6 +658,23 @@ type PartialBlock = typeof schema.PartialBlock;
 
 // ── Games picker (shared by metadata form + gamePreview block) ──────────
 
+/** This season's games; undefined while loading. */
+function useGamesList() {
+  const season = new Date().getFullYear();
+  const { data: games } = useQuery({
+    queryKey: ["games", season],
+    queryFn: () =>
+      callApi(api.GET("/api/games", { params: { query: { season } } })),
+  });
+  return games;
+}
+
+const gameLabel = (game: {
+  team: { name: string };
+  opposition: { club: { name: string } };
+  matchDate: string;
+}) => `${game.team.name} vs ${game.opposition.club.name} · ${game.matchDate}`;
+
 function GameSelect({
   value,
   onChange,
@@ -630,13 +682,7 @@ function GameSelect({
   value: string;
   onChange: (id: string) => void;
 }) {
-  const season = new Date().getFullYear();
-  const { data: games } = useQuery({
-    queryKey: ["games", season],
-    queryFn: () =>
-      callApi(api.GET("/api/games", { params: { query: { season } } })),
-  });
-
+  const games = useGamesList();
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="w-full">
@@ -645,11 +691,139 @@ function GameSelect({
       <SelectContent>
         {(games ?? []).map((game) => (
           <SelectItem key={game.id} value={game.id}>
-            {game.team.name} vs {game.opposition.club.name} · {game.matchDate}
+            {gameLabel(game)}
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+/** The empty gamePreview block: a dashed picker card (one click). */
+function GamePickerCard({ onPick }: { onPick: (id: string) => void }) {
+  const games = useGamesList();
+  if (games === undefined || games.length === 0) {
+    return (
+      <div className={EMPTY_CARD_CLASSES}>
+        <span className="text-sm text-stone-500">
+          {games === undefined
+            ? "Loading games…"
+            : "No games found for this season"}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <PickerCard
+      label="Choose a game to preview"
+      prompt="Choose game"
+      options={games.map((game) => ({
+        value: game.id,
+        label: gameLabel(game),
+      }))}
+      onPick={onPick}
+    />
+  );
+}
+
+// ── Events picker (eventPreview block) ──────────────────────────────────
+
+/** What picking an event hands back: everything the block stores. */
+interface PickedEvent {
+  slug: string;
+  title: string;
+  when: string;
+}
+
+/** Published events as pickable entries; undefined while loading. */
+function useEventsList(): PickedEvent[] | undefined {
+  const { data } = useQuery(eventsListQueryOptions());
+  return data?.items.map((item) => ({
+    slug: item.slug,
+    title: item.title,
+    when: parseEventMetadata(item.metadata)?.when ?? "",
+  }));
+}
+
+/**
+ * The UK calendar date of a stored `when` (ISO instant or plain date),
+ * as a date-input value. Event instants are authored as UK wall-clock
+ * (see EVENT_TZ); a machine-timezone or UTC slice would show the wrong
+ * day for late-evening BST events. Empty for anything unparseable.
+ */
+function ukDate(when: string): string {
+  const date = new Date(when);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : formatInTimeZone(date, EVENT_TZ, "yyyy-MM-dd");
+}
+
+const eventLabel = (event: PickedEvent) => {
+  const date = new Date(event.when);
+  return Number.isNaN(date.getTime())
+    ? event.title
+    : `${event.title} · ${formatInTimeZone(date, EVENT_TZ, "dd/MM/yyyy")}`;
+};
+
+function EventSelect({
+  value,
+  onPick,
+}: {
+  value: string;
+  onPick: (event: PickedEvent) => void;
+}) {
+  const events = useEventsList() ?? [];
+  return (
+    <Select
+      // Radix needs the value to match an item; legacy hand-entered ids
+      // that aren't published events degrade to the placeholder.
+      value={events.some((event) => event.slug === value) ? value : ""}
+      onValueChange={(slug) => {
+        const event = events.find((candidate) => candidate.slug === slug);
+        if (event) onPick(event);
+      }}
+    >
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder="Choose an event…" />
+      </SelectTrigger>
+      <SelectContent>
+        {events.map((event) => (
+          <SelectItem key={event.slug} value={event.slug}>
+            {eventLabel(event)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** The empty eventPreview block: a dashed picker card (one click). */
+function EventPickerCard({ onPick }: { onPick: (event: PickedEvent) => void }) {
+  const events = useEventsList();
+  if (events === undefined || events.length === 0) {
+    return (
+      <div className={EMPTY_CARD_CLASSES}>
+        <span className="px-3 text-center text-sm text-stone-500">
+          {events === undefined
+            ? "Loading events…"
+            : "No published events yet - create one in the Events tab first"}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <PickerCard
+      label="Choose an event to preview"
+      prompt="Choose event"
+      options={events.map((event) => ({
+        value: event.slug,
+        label: eventLabel(event),
+      }))}
+      onPick={(slug) => {
+        const event = events.find((candidate) => candidate.slug === slug);
+        if (event) onPick(event);
+      }}
+    />
   );
 }
 
