@@ -325,13 +325,23 @@ function GamePreview({ playCricketId }: { playCricketId: string }) {
   );
 }
 
-function ContactForm({
-  title,
-  description,
-}: {
-  title?: string;
-  description?: string;
-}) {
+// The contact form's frame/heading/description styling is shared with
+// the content editor block, which renders an editable title and
+// description in place of the static ones (#527 follow-up) - so the
+// in-editor form stays pixel-identical to the public one.
+export const CONTACT_FORM_CARD_CLASSES =
+  "mx-auto w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-sm";
+export const CONTACT_FORM_TITLE_CLASSES =
+  "text-lg font-semibold tracking-tight text-stone-900";
+export const CONTACT_FORM_DESCRIPTION_CLASSES = "mt-1 text-sm text-stone-500";
+
+/**
+ * The stateful part of the contact form (description, fields, submit,
+ * success/error states) - everything below the heading. Exported so the
+ * editor block can wrap exactly this in its inert preview while keeping
+ * the heading and description editable above it.
+ */
+export function ContactFormBody({ description }: { description?: string }) {
   const location = useLocation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -350,10 +360,7 @@ function ContactForm({
   });
 
   return (
-    <div className="mx-auto w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold tracking-tight text-stone-900">
-        {title}
-      </h2>
+    <>
       {mutation.isSuccess ? (
         <p className="mt-3 text-sm text-stone-600">
           Thanks for getting in touch! We'll get back to you soon.
@@ -361,7 +368,7 @@ function ContactForm({
       ) : (
         <>
           {description ? (
-            <p className="mt-1 text-sm text-stone-500">{description}</p>
+            <p className={CONTACT_FORM_DESCRIPTION_CLASSES}>{description}</p>
           ) : null}
           <form
             className="mt-4 flex flex-col gap-3"
@@ -424,6 +431,21 @@ function ContactForm({
           ) : null}
         </>
       )}
+    </>
+  );
+}
+
+function ContactForm({
+  title,
+  description,
+}: {
+  title?: string;
+  description?: string;
+}) {
+  return (
+    <div className={CONTACT_FORM_CARD_CLASSES}>
+      <h2 className={CONTACT_FORM_TITLE_CLASSES}>{title}</h2>
+      <ContactFormBody description={description} />
     </div>
   );
 }
