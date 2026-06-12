@@ -524,56 +524,171 @@
   --color-secondary: #f5f5f4;
 }
 
-/* MDX content prose styles */
-.mdx-content a {
+/* Editor canvas WYSIWYG parity: the edit canvas IS the page preview, so
+   the canvas re-applies the public content styles that BlockNote's
+   stylesheet would otherwise override. BlockNote's CSS is unlayered and
+   loads with the editor chunk (after this file), so every rule here has
+   to win on specificity, not source order. */
+
+/* Body text: site font + text colour + leading-relaxed - BlockNote
+   ships Inter at line-height 1.5. */
+.bn-shadcn .bn-default-styles {
+  font-family: var(--font-primary);
+}
+.bn-shadcn .bn-editor {
+  color: var(--color-text);
+}
+.bn-shadcn .bn-block-outer {
+  line-height: 1.625;
+}
+
+/* Headings: BlockNote sizes these via an em --level scale (h1 = 3em);
+   re-point each level at the site heading scale, including the base
+   layer's md breakpoint bumps for h1/h3. Family, weight, colour and
+   line-height already reach the inner h1-h6 from the base layer. */
+.bn-shadcn [data-content-type="heading"] {
+  --level: var(--font-size-h1-sm);
+}
+.bn-shadcn [data-content-type="heading"][data-level="2"] {
+  --level: var(--font-size-h2-sm);
+}
+.bn-shadcn [data-content-type="heading"][data-level="3"] {
+  --level: var(--font-size-h3-sm);
+}
+.bn-shadcn [data-content-type="heading"][data-level="4"] {
+  --level: var(--font-size-h4);
+}
+.bn-shadcn [data-content-type="heading"][data-level="5"] {
+  --level: var(--font-size-h5);
+}
+.bn-shadcn [data-content-type="heading"][data-level="6"] {
+  --level: var(--font-size-h6);
+}
+@media (min-width: 768px) {
+  .bn-shadcn [data-content-type="heading"] {
+    --level: var(--font-size-h2);
+  }
+  .bn-shadcn [data-content-type="heading"][data-level="3"] {
+    --level: var(--font-size-h3);
+  }
+}
+
+/* Custom blocks render real site components, so undo the ProseMirror
+   editing-text inheritance (white-space: break-spaces + overflow-wrap:
+   break-word) that public pages never see - without this, the league
+   table compresses itself by breaking team names mid-word instead of
+   overflowing into its horizontal scroll. Scoped to our custom block
+   types: BlockNote's own editable blocks (paragraphs, its table cells)
+   need the ProseMirror wrapping behaviour. */
+.bn-shadcn
+  .bn-block-content:is(
+    [data-content-type="person"],
+    [data-content-type="personGrid"],
+    [data-content-type="gamePreview"],
+    [data-content-type="eventPreview"],
+    [data-content-type="contentImage"],
+    [data-content-type="leagueTable"],
+    [data-content-type="leaderboard"],
+    [data-content-type="recordsWall"],
+    [data-content-type="contactForm"],
+    [data-content-type="cookieSettingsLink"],
+    [data-content-type="consentVersion"]
+  ) {
+  white-space: normal;
+  overflow-wrap: normal;
+
+  /* ProseMirror forces table-layout: fixed for its editable tables;
+     data tables inside custom blocks (league table, leaderboard) size
+     their columns to content like the public page. */
+  & table {
+    table-layout: auto;
+  }
+}
+
+/* Quotes: the branded callout card, not BlockNote's plain gray bar. */
+.bn-shadcn [data-content-type="quote"] blockquote {
+  @apply border-cta bg-surface rounded-lg border-l-4 p-6 shadow-sm;
+  color: var(--color-text);
+}
+
+/* Links: blue with hover underline, as in .mdx-content (BlockNote
+   reverts anchors to the always-underlined UA default). */
+.bn-shadcn .bn-editor .bn-inline-content a {
+  @apply text-blue-600 no-underline hover:underline dark:text-blue-400;
+}
+
+/* Tables: horizontal rules only, like the published table styles
+   (BlockNote draws a full #ddd grid). Column edges still show up via
+   BlockNote's hover handles while editing. */
+.bn-shadcn .bn-editor [data-content-type="table"] table {
+  @apply text-sm;
+}
+.bn-shadcn .bn-editor [data-content-type="table"] th,
+.bn-shadcn .bn-editor [data-content-type="table"] td {
+  @apply border-0 border-b border-gray-100 px-4 py-2;
+}
+.bn-shadcn .bn-editor [data-content-type="table"] th {
+  @apply border-b-2 border-gray-200 bg-gray-50 font-semibold text-gray-700;
+}
+.bn-shadcn .bn-editor [data-content-type="table"] tr:last-child td {
+  @apply border-b-0;
+}
+
+/* MDX content prose styles. Also applied inside the editor canvas
+   (.bn-editor) so custom blocks - which render the same components as
+   the public pages - pick up the same element styles; the WYSIWYG
+   canvas is the preview. Where BlockNote's own later-loaded CSS
+   out-ranks these (its links, quotes, and editable tables), the
+   .bn-shadcn parity rules above re-assert the public look. */
+:is(.mdx-content, .bn-editor) a {
   @apply text-blue-600 hover:underline dark:text-blue-400;
 }
 
-.mdx-content ul {
+:is(.mdx-content, .bn-editor) ul {
   @apply ml-4 list-disc;
 }
 
-.mdx-content ul > li {
+:is(.mdx-content, .bn-editor) ul > li {
   @apply mb-2;
 }
 
-.mdx-content ul > li > ul {
+:is(.mdx-content, .bn-editor) ul > li > ul {
   list-style-type: circle;
 }
 
-.mdx-content ol {
+:is(.mdx-content, .bn-editor) ol {
   @apply ml-4 list-decimal;
 }
 
-.mdx-content ol > li {
+:is(.mdx-content, .bn-editor) ol > li {
   @apply mb-2;
 }
 
-.mdx-content blockquote {
+:is(.mdx-content, .bn-editor) blockquote {
   @apply border-cta bg-surface rounded-lg border-l-4 p-6 shadow-sm;
 }
 
-.mdx-content hr {
+:is(.mdx-content, .bn-editor) hr {
   @apply border-border my-8;
 }
 
-.mdx-content img {
+:is(.mdx-content, .bn-editor) img {
   @apply h-auto max-w-full rounded-lg;
 }
 
-.mdx-content table {
+:is(.mdx-content, .bn-editor) table {
   @apply w-full border-collapse text-sm;
 }
 
-.mdx-content th {
+:is(.mdx-content, .bn-editor) th {
   @apply border-b-2 border-gray-200 bg-gray-50 px-4 py-2 text-left font-semibold text-gray-700;
 }
 
-.mdx-content td {
+:is(.mdx-content, .bn-editor) td {
   @apply border-b border-gray-100 px-4 py-2;
 }
 
-.mdx-content tr:last-child td {
+:is(.mdx-content, .bn-editor) tr:last-child td {
   @apply border-b-0;
 }
 
