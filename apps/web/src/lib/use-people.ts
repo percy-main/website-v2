@@ -25,49 +25,83 @@ export interface PersonSummary {
   hasLeftClub: boolean;
 }
 
+/** The static loader's fields the merge reads (people.ts PersonData). */
+interface StaticPerson {
+  slug: string;
+  name: string;
+  photo?: string;
+  photoPicture?: PictureSource;
+  isDBSChecked: boolean;
+  hasLeftClub: boolean;
+}
+
+interface PeopleListData {
+  items: Array<{ slug: string; title: string; metadata: unknown }>;
+  removed: string[];
+}
+
 /**
- * Every known person, keyed by slug. The API roster wins per slug; static
- * people missing from it (not migrated yet, or the query is still
- * pending/failed) fill the gaps, so cards render instantly from the
- * bundle and never break on API trouble.
+ * Merge the API roster over the static corpus, by slug. Pure and
+ * exported for tests; usePeople feeds it the live query data.
+ *
+ * The API wins per slug; static people missing from it (not migrated
+ * yet, or the query has no data) fill the gaps, so cards render
+ * instantly from the bundle and never break on API trouble. Tombstoned
+ * slugs (data.removed) are dropped AND guarded against in the items
+ * pass, so a taken-down profile cannot resurrect from the static bundle
+ * even if the server's items/removed partition were ever violated.
+ *
+ * Known fail-open window, accepted deliberately: while the query is
+ * pending or has never succeeded, the static corpus renders unfiltered,
+ * so a tombstoned person's CARD (name + photo only - cards carry no DBS
+ * badge or flags) can appear until the roster lands; a background
+ * refetch failure keeps the last successful response, tombstones
+ * included. The full profile page fails CLOSED on API errors instead
+ * (person-profile.tsx) - that is the page with the safeguarding
+ * surface. The window disappears with the static corpus in the cleanup
+ * PR.
  */
+export function mergePeople(
+  staticPeople: readonly StaticPerson[],
+  data: PeopleListData | undefined,
+): Map<string, PersonSummary> {
+  const removed = new Set(data?.removed ?? []);
+  const map = new Map<string, PersonSummary>();
+  for (const person of staticPeople) {
+    if (removed.has(person.slug)) continue;
+    map.set(person.slug, {
+      slug: person.slug,
+      name: person.name,
+      ...(person.photoPicture !== undefined && {
+        picture: person.photoPicture,
+      }),
+      ...(person.photo !== undefined && { photoUrl: person.photo }),
+      isDBSChecked: person.isDBSChecked,
+      hasLeftClub: person.hasLeftClub,
+    });
+  }
+  for (const item of data?.items ?? []) {
+    // Never resurrect a tombstone, whatever the server sent.
+    if (removed.has(item.slug)) continue;
+    const meta = parsePersonMetadata(item.metadata);
+    // A roster row whose metadata fails its schema is unrenderable -
+    // keep the static entry (if any) rather than a half-built one.
+    if (!meta) continue;
+    map.set(item.slug, {
+      slug: item.slug,
+      name: item.title,
+      ...(meta.photo !== undefined && { picture: meta.photo }),
+      isDBSChecked: meta.isDBSChecked,
+      hasLeftClub: meta.hasLeftClub,
+    });
+  }
+  return map;
+}
+
+/** Every known person, keyed by slug - see mergePeople for semantics. */
 export function usePeople(): Map<string, PersonSummary> {
   const { data } = useQuery(peopleListQueryOptions());
-
-  return useMemo(() => {
-    const map = new Map<string, PersonSummary>();
-    for (const person of getAllPeople()) {
-      map.set(person.slug, {
-        slug: person.slug,
-        name: person.name,
-        ...(person.photoPicture !== undefined && {
-          picture: person.photoPicture,
-        }),
-        ...(person.photo !== undefined && { photoUrl: person.photo }),
-        isDBSChecked: person.isDBSChecked,
-        hasLeftClub: person.hasLeftClub,
-      });
-    }
-    // Tombstones: profiles that WERE live but have been taken down must
-    // not resurrect from the static bundle (same rule as nav.removed).
-    for (const slug of data?.removed ?? []) {
-      map.delete(slug);
-    }
-    for (const item of data?.items ?? []) {
-      const meta = parsePersonMetadata(item.metadata);
-      // A roster row whose metadata fails its schema is unrenderable -
-      // keep the static entry (if any) rather than a half-built one.
-      if (!meta) continue;
-      map.set(item.slug, {
-        slug: item.slug,
-        name: item.title,
-        ...(meta.photo !== undefined && { picture: meta.photo }),
-        isDBSChecked: meta.isDBSChecked,
-        hasLeftClub: meta.hasLeftClub,
-      });
-    }
-    return map;
-  }, [data]);
+  return useMemo(() => mergePeople(getAllPeople(), data), [data]);
 }
 
 /** The merged roster as a name-sorted list (pickers, grids). */

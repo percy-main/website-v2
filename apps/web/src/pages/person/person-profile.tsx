@@ -111,15 +111,16 @@ export function Component() {
 
   // DB-backed profile first (#499); the bundled MDX corpus stays as
   // fallback until the people migration is verified in prod, then gets
-  // deleted in a follow-up. The MDX renders only once the query settles
-  // (confirmed 404, or an API failure - deliberate graceful degradation)
-  // so an edited DB profile never flashes its stale MDX ancestor first.
-  // A 410 tombstone (ever-live profile taken down) suppresses the static
-  // fallback entirely: a takedown must not resurrect the bundled MDX.
-  const { data, isPending } = useQuery(personQueryOptions(slug));
+  // deleted in a follow-up. The MDX renders only on a CONFIRMED 404 -
+  // never published in the DB - so an edited DB profile can't flash its
+  // stale MDX ancestor, and never on an API error: unlike news/pages,
+  // profiles fail CLOSED on incidents, because a 5xx must not resurrect
+  // a profile whose takedown (410 tombstone / unpublish) the API can't
+  // currently vouch for. Safeguarding beats graceful degradation here.
+  const { data, isPending, isError } = useQuery(personQueryOptions(slug));
   const gone = isPageGone(data);
   const apiPerson = data == null || isPageGone(data) ? undefined : data;
-  const staticPerson = gone ? undefined : getPersonBySlug(slug);
+  const staticPerson = gone || isError ? undefined : getPersonBySlug(slug);
 
   useDocumentMeta(apiPerson?.title ?? staticPerson?.name ?? "Player Profile");
 
@@ -140,6 +141,20 @@ export function Component() {
     return (
       <div className="container mx-auto px-4 py-6">
         <PageLoading />
+      </div>
+    );
+  }
+
+  if (isError) {
+    // Deliberately NOT the not-found copy: the profile may exist, we
+    // just can't confirm its current state.
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <h1>Profile Unavailable</h1>
+        <p>We couldn&apos;t load this profile right now - try again shortly.</p>
+        <Link to="/people" className="text-primary hover:underline">
+          Back to People
+        </Link>
       </div>
     );
   }

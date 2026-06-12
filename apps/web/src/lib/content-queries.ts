@@ -196,6 +196,11 @@ export function eventsListQueryOptions() {
 
 // One cached roster backs every person card, grid and picker - resolving
 // cards per-slug would be an N+1 each time a page renders a person grid.
+// The flat 5-minute staleTime bounds how long a takedown can keep a
+// person's CARD visible (the full profile page converges within
+// NOT_FOUND_STALE_TIME via its own 410-aware query, and publish/save
+// invalidate ["content"] outright) - the same bounded-staleness stance
+// the other lists take.
 export function peopleListQueryOptions() {
   return queryOptions({
     queryKey: ["content", "people-list"],
