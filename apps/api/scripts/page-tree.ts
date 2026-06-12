@@ -32,10 +32,7 @@ export interface PageTree {
   /** Valid nodes, path-ordered: every ancestor precedes its descendants. */
   ordered: PageNode[];
   failed: PageTreeFailure[];
-  excluded: { file: string; reason: string }[];
 }
-
-export const LEGAL_EXCLUSION_REASON = "excluded by design (legal stays static)";
 
 /**
  * Byte-for-byte mirror of the web app's transform (apps/web
@@ -101,21 +98,16 @@ function deriveNode(file: string): PageNode {
 }
 
 /**
- * Build the page tree from the corpus file list. legal/** is excluded by
- * design; structural failures (bad slug, missing parent _index.mdx, root
- * _index.mdx) fail the file AND - because a page cannot be inserted
- * without its parent row - every descendant of a failed file fails too.
+ * Build the page tree from the corpus file list. Structural failures
+ * (bad slug, missing parent _index.mdx, root _index.mdx) fail the file
+ * AND - because a page cannot be inserted without its parent row - every
+ * descendant of a failed file fails too.
  */
 export function buildPageTree(files: string[]): PageTree {
   const failed: PageTreeFailure[] = [];
-  const excluded: PageTree["excluded"] = [];
 
   const candidates: PageNode[] = [];
   for (const file of [...files].sort()) {
-    if (file.startsWith("legal/")) {
-      excluded.push({ file, reason: LEGAL_EXCLUSION_REASON });
-      continue;
-    }
     try {
       candidates.push(deriveNode(file));
     } catch (err) {
@@ -147,7 +139,7 @@ export function buildPageTree(files: string[]): PageTree {
     ordered.push(node);
   }
 
-  return { ordered, failed, excluded };
+  return { ordered, failed };
 }
 
 /**

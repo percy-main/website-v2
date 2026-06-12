@@ -19,7 +19,7 @@ import { usePeople } from "@/lib/use-people.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
-import { type ReactNode, useState } from "react";
+import { createElement, isValidElement, type ReactNode, useState } from "react";
 import { IoCalendar, IoChevronForward } from "react-icons/io5";
 import { Link, useLocation } from "react-router";
 
@@ -528,8 +528,45 @@ function CookieSettingsLink({ children }: { children?: ReactNode }) {
   );
 }
 
+/**
+ * A complete sentence rather than the bare version string: the block
+ * pipeline only supports block-level components, so this has to read as
+ * a standalone paragraph wherever it lands.
+ */
 function ConsentVersion() {
-  return <>{CURRENT_CONSENT_VERSION}</>;
+  return <p>This notice is version {CURRENT_CONSENT_VERSION}.</p>;
+}
+
+/** Plain-text projection of rendered children (for anchor slugs). */
+function nodeText(node: ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join("");
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    return nodeText(node.props.children);
+  }
+  return "";
+}
+
+/**
+ * TRANSITION FALLBACK (#517): markdown headings in the bundled MDX get
+ * the same anchor ids ContentBody generates, so #fragment TOC links keep
+ * working between this deploy and the legal pages migration. Deleted
+ * with the MDX pipeline in the cleanup PR.
+ */
+function anchoredHeading(level: 2 | 3) {
+  return function AnchoredHeading({ children }: { children?: ReactNode }) {
+    const slug = nodeText(children)
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s-]/gu, "")
+      .trim()
+      .replace(/\s+/g, "-");
+    return createElement(
+      `h${String(level)}`,
+      { id: slug === "" ? undefined : slug },
+      children,
+    );
+  };
 }
 
 export const mdxComponents = {
@@ -545,4 +582,6 @@ export const mdxComponents = {
   ConsentVersion,
   Image: ContentImage,
   img: MdxImg,
+  h2: anchoredHeading(2),
+  h3: anchoredHeading(3),
 };

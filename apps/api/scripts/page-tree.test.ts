@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildPageTree,
   filePathToUrlPath,
-  LEGAL_EXCLUSION_REASON,
   parentFailureReason,
   type PageNode,
 } from "./page-tree.ts";
@@ -34,6 +33,7 @@ describe("buildPageTree", () => {
     "cricket/_index.mdx",
     "cricket/ground/_index.mdx",
     "cricket/ground/grounds-team.mdx",
+    "legal/_index.mdx",
     "legal/privacy.mdx",
   ];
 
@@ -72,15 +72,19 @@ describe("buildPageTree", () => {
         path: "/cricket/ground/grounds-team",
         parentPath: "/cricket/ground",
       },
+      {
+        file: "legal/_index.mdx",
+        slug: "legal",
+        path: "/legal",
+        parentPath: null,
+      },
+      {
+        file: "legal/privacy.mdx",
+        slug: "privacy",
+        path: "/legal/privacy",
+        parentPath: "/legal",
+      },
     ]);
-  });
-
-  it("excludes legal/** by design", () => {
-    const tree = buildPageTree(fixture);
-    expect(tree.excluded).toEqual([
-      { file: "legal/privacy.mdx", reason: LEGAL_EXCLUSION_REASON },
-    ]);
-    expect(tree.ordered.some((n) => n.file.startsWith("legal/"))).toBe(false);
   });
 
   it("orders every parent before its children", () => {
@@ -174,13 +178,9 @@ describe("real corpus parity", () => {
     const tree = buildPageTree(files);
 
     // Structure: the real corpus must produce no structural failures -
-    // every non-legal file lands in ordered, legal is excluded.
+    // every file lands in ordered.
     expect(tree.failed).toEqual([]);
-    const nonLegal = files.filter((f) => !f.startsWith("legal/"));
-    expect(tree.ordered.map((n) => n.file).sort()).toEqual(nonLegal);
-    expect(tree.excluded.map((e) => e.file)).toEqual(
-      files.filter((f) => f.startsWith("legal/")),
-    );
+    expect(tree.ordered.map((n) => n.file).sort()).toEqual(files);
 
     // Paths: structural derivation (parent path + slug) agrees with the
     // web app's file-path transform for every single page.
