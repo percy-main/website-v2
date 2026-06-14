@@ -577,7 +577,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
       // every provider this deployment is configured to use. Both are
       // optional in config so non-Scout deployments can boot, but hitting
       // this route without the keys for SCOUT_PROVIDER_CHAT /
-      // SCOUT_PROVIDER_SUBAGENT / SCOUT_PROVIDER_DB is a misconfiguration.
+      // SCOUT_PROVIDER_SUBAGENT / SCOUT_PROVIDER_REPORT is a misconfiguration.
       const dbReadonly = app.dbReadonly;
       if (!dbReadonly) {
         throw Object.assign(
@@ -585,14 +585,13 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           { statusCode: 503 },
         );
       }
-      // Researcher and analyst providers are checked even on chat / debrief
+      // The report-builder provider is checked even on chat / debrief
       // sessions because the captain can call generate_report mid-session;
       // failing fast at preflight beats failing inside execute() after the
       // user has already seen a "generating" placeholder card.
       const requiredProviders = new Set<ScoutProvider>([
         app.config.SCOUT_PROVIDER_CHAT,
         app.config.SCOUT_PROVIDER_SUBAGENT,
-        app.config.SCOUT_PROVIDER_DB,
         app.config.SCOUT_PROVIDER_REPORT,
       ]);
       if (requiredProviders.has("anthropic") && !app.config.ANTHROPIC_API_KEY) {
@@ -853,12 +852,10 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
           }
         },
         execute: ({ writer }) => {
-          // Parent span for the whole chat turn. Every AI SDK call inside
-          // (main streamText, ask_db / ask_ball_by_ball sub-agents,
-          // generate_report's researcher loop) inherits this as parent via
-          // OTel async context, so the turn shows up as a single trace in
-          // Phoenix. session.id = threadId groups every turn on the same
-          // thread into one Phoenix session.
+          // Parent span for the whole chat turn. The main streamText call
+          // inherits this as parent via OTel async context, so the turn shows
+          // up as a single trace in Phoenix. session.id = threadId groups
+          // every turn on the same thread into one Phoenix session.
           turnSpan = app.phoenixTracer.startSpan("scout.chat.turn", {
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]:

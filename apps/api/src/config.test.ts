@@ -16,11 +16,9 @@ const baseEnv = {
   SCOUT_KB_BUCKET: "x",
   SCOUT_PROVIDER_CHAT: "deepseek",
   SCOUT_PROVIDER_SUBAGENT: "deepseek",
-  SCOUT_PROVIDER_DB: "anthropic",
   SCOUT_PROVIDER_REPORT: "deepseek",
   SCOUT_MODEL_CHAT: "deepseek-v4-pro",
   SCOUT_MODEL_SUBAGENT: "deepseek-v4-pro",
-  SCOUT_MODEL_DB: "claude-haiku-4-5-20251001",
   SCOUT_MODEL_REPORT: "deepseek-v4",
   SCOUT_ATTACHMENT_DERIVE_MODEL: "claude-haiku-4-5-20251001",
   VOYAGE_EMBED_MODEL: "voyage-4",
@@ -42,7 +40,7 @@ describe("parseConfig — defaults", () => {
   it("uses sensible defaults for the report agent budget", () => {
     const config = parseConfig(baseEnv);
     expect(config.SCOUT_REPORT_TIMEOUT_MS).toBe(1_800_000);
-    expect(config.SCOUT_DB_AGENT_MAX_STEPS).toBe(14);
+    expect(config.SCOUT_MAX_STEPS).toBe(20);
   });
 
   it("respects an explicit SCOUT_REPORT_TIMEOUT_MS env override", () => {

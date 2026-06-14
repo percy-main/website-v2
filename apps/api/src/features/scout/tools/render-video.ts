@@ -25,7 +25,7 @@ export function createRenderVideoTool(deps: RenderVideoToolDeps) {
 
 When to render:
 - The captain asked to see a moment from a live-scored match (e.g. "show me my hundred", "the wicket ball", "the partnership winner").
-- ask_ball_by_ball returned ball-level rows with a \`video_id\` AND a \`ball_offset_seconds\` for the ball you want to highlight.
+- A ball-by-ball query (match_ball joined to match_stream via db_run_sql) returned rows with a \`video_id\` AND a \`ball_offset_seconds\` for the ball you want to highlight.
 - You're calling out 1–3 specific deliveries and an embedded clip is more useful than a YouTube URL the user has to click.
 
 When NOT to render:

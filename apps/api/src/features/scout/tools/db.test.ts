@@ -134,7 +134,7 @@ describe("db_describe_table", () => {
       tools.db_describe_table.execute,
       { table: "user" },
     );
-    expect(result.error).toMatch(/not in this sub-agent's allowlist/);
+    expect(result.error).toMatch(/not in the Scout allowlist/);
   });
 
   it("does not call the database for disallowed tables", async () => {
@@ -178,6 +178,12 @@ describe("SCOUT_ALLOWED_TABLES", () => {
     expect(SCOUT_ALLOWED_TABLES).toContain("scout_member");
   });
 
+  it("includes the ball-by-ball surface (folded in from ask_ball_by_ball)", () => {
+    for (const t of ["match_ball", "match_stream", "rv_player_mapping"]) {
+      expect(SCOUT_ALLOWED_TABLES).toContain(t);
+    }
+  });
+
   it("does not include sensitive tables", () => {
     const sensitive = [
       "user",
@@ -190,47 +196,5 @@ describe("SCOUT_ALLOWED_TABLES", () => {
     for (const t of sensitive) {
       expect(SCOUT_ALLOWED_TABLES).not.toContain(t);
     }
-  });
-});
-
-describe("createDbTools with a custom allowedTables", () => {
-  // Specialist sub-agents (e.g. ask_ball_by_ball) pass their own narrower
-  // list. db_describe_table must gate against that list, not the default.
-  const customDeps = {
-    dbReadonly,
-    allowedTables: ["match_ball", "rv_player_mapping"] as const,
-  };
-  const customTools = createDbTools(customDeps);
-
-  it("accepts tables in the custom allowlist", async () => {
-    const executeQuery = vi.fn().mockResolvedValue({ rows: [] });
-    (
-      dbReadonly as unknown as { executeQuery: typeof executeQuery }
-    ).executeQuery = executeQuery;
-    const result = await runTool<{ name?: string; error?: string }>(
-      customTools.db_describe_table.execute,
-      { table: "match_ball" },
-    );
-    expect(result.error).toBeUndefined();
-    expect(result.name).toBe("match_ball");
-  });
-
-  it("rejects tables that are in the default allowlist but not the custom one", async () => {
-    const result = await runTool<{ error: string }>(
-      customTools.db_describe_table.execute,
-      { table: "matchday" },
-    );
-    expect(result.error).toMatch(/not in this sub-agent's allowlist/);
-  });
-
-  it("does not call the database for tables outside the custom allowlist", async () => {
-    const executeQuery = vi.fn();
-    (
-      dbReadonly as unknown as { executeQuery: typeof executeQuery }
-    ).executeQuery = executeQuery;
-    await runTool<unknown>(customTools.db_describe_table.execute, {
-      table: "match_performance_batting",
-    });
-    expect(executeQuery).not.toHaveBeenCalled();
   });
 });

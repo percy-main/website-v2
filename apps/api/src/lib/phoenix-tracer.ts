@@ -29,7 +29,7 @@ export function createPhoenixTracer(config: Config): PhoenixTracer {
   // Without a global ContextManager, OTel's active context is permanently
   // ROOT_CONTEXT, so every span the AI SDK opens via
   // tracer.startActiveSpan(...) becomes a new root - a new trace per
-  // streamText / generateText, no nesting between main agent and sub-agents.
+  // streamText / generateText, with no nesting under the parent turn span.
   // NR's NodeSDK installs one when NEW_RELIC_LICENSE_KEY is set; this
   // ensures one is installed regardless (no-op if NR already did it -
   // setGlobalContextManager returns false rather than overriding).

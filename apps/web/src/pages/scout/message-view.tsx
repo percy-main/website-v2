@@ -622,16 +622,21 @@ function PartView({
     }
     // find_player_photo_sources is the slow web-discovery + face-detection
     // tool. Show a shimmer card while it runs, collapse to a settled pill
-    // (matching ask_db) once it returns.
+    // (matching the DB card) once it returns.
     if (part.type === "tool-find_player_photo_sources") {
       return <PhotoSearchCard part={part} />;
     }
-    // ask_db gets a dedicated card that handles both the in-progress state
-    // (rotating stages + shimmer) and the settled state (small blue pill with
-    // a database icon, click to expand the input/output JSON) — matches the
+    // The direct DB tools (db_run_sql / db_list_tables / db_describe_table)
+    // get a dedicated database-styled card that handles both the in-progress
+    // state (shimmer) and the settled state (small blue pill with a database
+    // icon, click to expand the input/output JSON), matching the
     // ThoughtBubble's two-state pattern so the chat reads consistently.
-    if (part.type === "tool-ask_db") {
-      return <AskDbCard part={part} />;
+    if (
+      part.type === "tool-db_run_sql" ||
+      part.type === "tool-db_list_tables" ||
+      part.type === "tool-db_describe_table"
+    ) {
+      return <DbToolCard part={part} />;
     }
     return <ToolPartView part={part} />;
   }
@@ -1056,33 +1061,32 @@ function QuestionCard({
   );
 }
 
-// ── ask_db card (in-progress + settled) ──────────────────────────────────
+// ── DB tool card (in-progress + settled) ─────────────────────────────────
 //
-// Sub-agent's tool loop typically takes 5–15 seconds (schema lookup → draft
-// SQL → run → maybe retry → summarise). The generic tool-card just shows
-// "·  ask_db ▸" for that whole window which feels dead.
+// The chat / scout / debrief agent now writes SQL itself via the direct DB
+// tools (db_list_tables / db_describe_table / db_run_sql); there is no
+// ask_db sub-agent. Each call is a single fast DB operation, so we show a
+// brief shimmer while it runs rather than rotating fake stage labels.
 //
-// In-progress: rotating stage labels with the same shimmer effect the
-// ThoughtBubble uses. The labels are plausible-but-not-claimed — we don't
-// inspect the sub-agent's actual current step, we just keep the UI alive.
-//
-// Settled: collapses to a small blue pill ("Database query · Xs", or
-// "Database query failed" on error), matching the ThoughtBubble's settled
-// pill so the chat reads consistently. Click expands the input/output JSON
-// for inspection.
-const ASK_DB_STAGES = [
-  "Inspecting schema…",
-  "Drafting SQL query…",
-  "Running query…",
-  "Reading rows…",
-  "Summarising results…",
-];
+// Settled: collapses to a small blue pill ("Database query · Xs" for
+// db_run_sql, "Read schema" for the list/describe lookups, or "… failed" on
+// error), matching the ThoughtBubble's settled pill so the chat reads
+// consistently. Click expands the input/output JSON, now the real SQL and
+// rows, since nothing is summarised away.
+function dbToolLabel(toolType: string): { active: string; settled: string } {
+  if (toolType === "tool-db_run_sql") {
+    return { active: "Running query…", settled: "Database query" };
+  }
+  // db_list_tables / db_describe_table are both schema lookups.
+  return { active: "Reading schema…", settled: "Read schema" };
+}
 
-function AskDbCard({ part }: { part: Part }) {
+function DbToolCard({ part }: { part: Part }) {
   const tool = part as unknown as ToolPart;
   const isDone =
     tool.state === "output-available" || tool.state === "output-error";
   const isError = tool.state === "output-error";
+  const label = dbToolLabel(tool.type);
 
   const startRef = useRef<number | null>(null);
   useEffect(() => {
@@ -1098,15 +1102,6 @@ function AskDbCard({ part }: { part: Part }) {
     }
   }, [isDone, elapsedSec]);
 
-  const [stageIdx, setStageIdx] = useState(0);
-  useEffect(() => {
-    if (isDone) return undefined;
-    const id = setInterval(() => {
-      setStageIdx((i) => (i + 1) % ASK_DB_STAGES.length);
-    }, 1600);
-    return () => clearInterval(id);
-  }, [isDone]);
-
   const [open, setOpen] = useState(false);
 
   if (!isDone) {
@@ -1114,7 +1109,7 @@ function AskDbCard({ part }: { part: Part }) {
       <div className="my-2 rounded border border-blue-200 bg-blue-50/50 px-3 py-2">
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-blue-700">
           <DatabaseIcon className="size-3.5" />
-          <span>Database query</span>
+          <span>Database</span>
         </div>
         <div
           className="animate-thought-shimmer bg-clip-text font-mono text-xs text-transparent"
@@ -1124,7 +1119,7 @@ function AskDbCard({ part }: { part: Part }) {
             backgroundSize: "200% 100%",
           }}
         >
-          {ASK_DB_STAGES[stageIdx]}
+          {label.active}
         </div>
       </div>
     );
@@ -1143,7 +1138,7 @@ function AskDbCard({ part }: { part: Part }) {
       >
         <DatabaseIcon className="size-3" />
         <span>
-          {isError ? "Database query failed" : "Database query"}
+          {isError ? `${label.settled} failed` : label.settled}
           {!isError && elapsedSec != null ? ` · ${elapsedSec}s` : ""}
         </span>
         <span className={isError ? "text-red-400" : "text-blue-400"}>
@@ -1154,9 +1149,7 @@ function AskDbCard({ part }: { part: Part }) {
         <div className="mt-1 rounded border border-blue-200 bg-blue-50/30 p-2 text-xs">
           {tool.input !== undefined && (
             <details open>
-              <summary className="cursor-pointer text-blue-700">
-                question
-              </summary>
+              <summary className="cursor-pointer text-blue-700">input</summary>
               <pre className="mt-1 max-h-48 overflow-auto rounded bg-white p-1 font-mono text-[11px]">
                 {JSON.stringify(tool.input, null, 2)}
               </pre>

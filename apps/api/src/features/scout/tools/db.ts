@@ -4,16 +4,18 @@ import { CompiledQuery, type Kysely } from "kysely";
 import { z } from "zod";
 
 /**
- * Default allowlist for the main ask_db sub-agent: tables Scout's read-only
- * role has SELECT on, plus the redacted scout_member view. Mirrors the GRANT
- * in migration 2026-05-03. Including the list here as defence-in-depth +
- * cleaner output from db_list_tables; the role's grants are the actual
+ * Tables Scout's read-only role has SELECT on, plus the redacted scout_member
+ * view. Mirrors the GRANTs in migration 2026-05-03 and the ball-by-ball
+ * extension on 2026-05-07. The list is here as defence-in-depth + cleaner
+ * output from db_list_tables; the scout_readonly role's grants are the actual
  * security boundary.
  *
- * Other sub-agents (e.g. ask_ball_by_ball) deliberately pass a different,
- * narrower list — they get SELECT on additional tables via the same
- * scout_readonly role but want their schema-discovery + table-name masking
- * scoped to their own concern. See createDbTools({ allowedTables }).
+ * These tools are wired directly into the chat / scout / debrief agent and
+ * the report builder agent; there is no SQL sub-agent. The agent writes SQL
+ * against this whole surface itself, so the list spans both the general
+ * scouting tables and the ball-by-ball tables (match_ball, match_stream,
+ * rv_player_mapping) that used to live behind a separate ask_ball_by_ball
+ * sub-agent.
  */
 export const SCOUT_ALLOWED_TABLES = [
   "matchday",
@@ -30,6 +32,12 @@ export const SCOUT_ALLOWED_TABLES = [
   "availability_response",
   "availability_assignment",
   "scout_member",
+  // Ball-by-ball surface: live-scored deliveries, the YouTube stream join,
+  // and the RV-native to Play Cricket player id mapping needed to filter the
+  // ball feed by a player we know by name or PC id.
+  "match_ball",
+  "match_stream",
+  "rv_player_mapping",
 ] as const;
 
 const ROW_CAP = 500;
@@ -37,36 +45,11 @@ const STATEMENT_TIMEOUT_SECONDS = 30;
 
 export interface DbToolDeps {
   dbReadonly: Kysely<DB>;
-  /**
-   * Tables this sub-agent can discover via db_list_tables / db_describe_table
-   * and whose names are masked in summaries. Defaults to SCOUT_ALLOWED_TABLES
-   * for the main ask_db sub-agent. Pass a narrower list for specialist
-   * sub-agents that should only reason about a subset.
-   *
-   * NOT A SECURITY BOUNDARY. db_run_sql executes any SELECT the underlying
-   * scout_readonly role can perform — including tables outside this
-   * allowlist if the model literally types one in. The hard limit is the
-   * role's GRANTs (migration 2026-05-03 + the BBB extension on
-   * 2026-05-07). This list scopes:
-   *
-   *   - db_list_tables / db_describe_table output (so each sub-agent only
-   *     sees its own concern when discovering schema)
-   *   - maskTableNames in the sub-agent's summary text
-   *   - prompt routing (the system prompt steers the agent to the right
-   *     sub-agent for the kind of question)
-   *
-   * If a real per-sub-agent data boundary is ever needed (e.g. multi-
-   * tenant Scout, untrusted user input), provision separate DB roles
-   * with disjoint GRANTs and inject a different Kysely client per
-   * sub-agent. Today both sub-agents share scout_readonly because they
-   * both read the same club's data and the user is trusted.
-   */
-  allowedTables?: readonly string[];
 }
 
 export function createDbTools(deps: DbToolDeps) {
   const { dbReadonly } = deps;
-  const allowedTables = deps.allowedTables ?? SCOUT_ALLOWED_TABLES;
+  const allowedTables: readonly string[] = SCOUT_ALLOWED_TABLES;
 
   return {
     db_list_tables: tool({
@@ -127,7 +110,7 @@ export function createDbTools(deps: DbToolDeps) {
       execute: async ({ table }) => {
         if (!allowedTables.includes(table)) {
           return {
-            error: `Table "${table}" is not in this sub-agent's allowlist. Use db_list_tables to see what's available.`,
+            error: `Table "${table}" is not in the Scout allowlist. Use db_list_tables to see what's available.`,
             allowed: allowedTables,
           };
         }
@@ -159,7 +142,7 @@ export function createDbTools(deps: DbToolDeps) {
     }),
 
     db_run_sql: tool({
-      description: `Run an ad-hoc read-only SQL query against the Scout database. Use only when the curated tools cannot express what you need (e.g. multi-table joins, aggregates).
+      description: `Run a read-only SQL query against the Scout database. This is your main door to club data: players, matches, performances, availability, and the ball-by-ball feed. Call db_list_tables / db_describe_table first if you're unsure of the schema, then write the SELECT yourself.
 
 Rules:
 - Query must start with SELECT or WITH. INSERT/UPDATE/DELETE/DDL are rejected (and the role lacks the grants anyway).
