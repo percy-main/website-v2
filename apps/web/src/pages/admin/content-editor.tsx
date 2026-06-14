@@ -53,7 +53,13 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { Textarea } from "@/components/ui/textarea.js";
+import {
+  playerOptions,
+  type Ball,
+  type PlayerOption,
+} from "@/components/wagon-wheel-shared.js";
 import { useHasPermission } from "@/hooks/use-has-permission.js";
+import { useWagonWheelQuery } from "@/hooks/use-wagon-wheel.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
 import { uploadContentImage } from "@/lib/content-images.js";
@@ -622,6 +628,129 @@ const consentVersionBlock = createReactBlockSpec(
   },
 );
 
+const wagonWheelBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.wagonWheel,
+    propSchema: {
+      matchId: { default: "" },
+      // Team = batting innings; batter/bowler = RV ids. All stored as
+      // strings (BlockNote JSON) and parsed where the viewer needs numbers.
+      inningsNumber: { default: "" },
+      batterRvId: { default: "" },
+      bowlerRvId: { default: "" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => {
+      const setProp = (
+        key: "inningsNumber" | "batterRvId" | "bowlerRvId",
+        value: string,
+      ) => {
+        editor.updateBlock(block, { props: { ...block.props, [key]: value } });
+      };
+      // Changing the match invalidates the innings/batter/bowler chosen
+      // against the previous one, so clear them.
+      const pickMatch = (matchId: string) => {
+        editor.updateBlock(block, {
+          props: {
+            ...block.props,
+            matchId,
+            inningsNumber: "",
+            batterRvId: "",
+            bowlerRvId: "",
+          },
+        });
+      };
+      return (
+        <div className="relative my-2 w-full min-w-0">
+          {block.props.matchId === "" ? (
+            <MatchPickerCard
+              prompt="Choose a match for the wagon wheel"
+              onPick={pickMatch}
+            />
+          ) : (
+            <>
+              <EditorBlockPreview className="w-full">
+                <mdxComponents.WagonWheel
+                  matchId={block.props.matchId}
+                  inningsNumber={block.props.inningsNumber}
+                  batterRvId={block.props.batterRvId}
+                  bowlerRvId={block.props.bowlerRvId}
+                />
+              </EditorBlockPreview>
+              <BlockSettings label="Wagon wheel settings" title="Wagon wheel">
+                <WagonWheelSettingsFields
+                  matchId={block.props.matchId}
+                  inningsNumber={block.props.inningsNumber}
+                  batterRvId={block.props.batterRvId}
+                  bowlerRvId={block.props.bowlerRvId}
+                  onMatch={pickMatch}
+                  onSet={setProp}
+                />
+              </BlockSettings>
+            </>
+          )}
+        </div>
+      );
+    },
+  },
+);
+
+const wormChartBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.wormChart,
+    propSchema: {
+      matchId: { default: "" },
+      // The batting innings whose line is highlighted (solid). Empty =
+      // first innings.
+      inningsNumber: { default: "" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => {
+      const setInnings = (value: string) => {
+        editor.updateBlock(block, {
+          props: { ...block.props, inningsNumber: value },
+        });
+      };
+      const pickMatch = (matchId: string) => {
+        editor.updateBlock(block, {
+          props: { ...block.props, matchId, inningsNumber: "" },
+        });
+      };
+      return (
+        <div className="relative my-2 w-full min-w-0">
+          {block.props.matchId === "" ? (
+            <MatchPickerCard
+              prompt="Choose a match for the worm chart"
+              onPick={pickMatch}
+            />
+          ) : (
+            <>
+              <EditorBlockPreview className="w-full">
+                <mdxComponents.WormChart
+                  matchId={block.props.matchId}
+                  inningsNumber={block.props.inningsNumber}
+                />
+              </EditorBlockPreview>
+              <BlockSettings label="Worm chart settings" title="Worm chart">
+                <WormChartSettingsFields
+                  matchId={block.props.matchId}
+                  inningsNumber={block.props.inningsNumber}
+                  onMatch={pickMatch}
+                  onSet={setInnings}
+                />
+              </BlockSettings>
+            </>
+          )}
+        </div>
+      );
+    },
+  },
+);
+
 // BlockNote's built-in media blocks are removed: their URL-embed tab
 // would bypass the consent + EXIF-strip + responsive pipeline that the
 // contentImage block (slash menu "Upload photo") goes through.
@@ -644,6 +773,8 @@ export const schema = BlockNoteSchema.create({
     [CUSTOM_BLOCK_TYPES.leagueTable]: leagueTableBlock(),
     [CUSTOM_BLOCK_TYPES.leaderboard]: leaderboardBlock(),
     [CUSTOM_BLOCK_TYPES.recordsWall]: recordsWallBlock(),
+    [CUSTOM_BLOCK_TYPES.wagonWheel]: wagonWheelBlock(),
+    [CUSTOM_BLOCK_TYPES.wormChart]: wormChartBlock(),
     [CUSTOM_BLOCK_TYPES.contactForm]: contactFormBlock(),
     [CUSTOM_BLOCK_TYPES.cookieSettingsLink]: cookieSettingsLinkBlock(),
     [CUSTOM_BLOCK_TYPES.consentVersion]: consentVersionBlock(),
@@ -655,9 +786,10 @@ type PartialBlock = typeof schema.PartialBlock;
 
 // ── Games picker (shared by metadata form + gamePreview block) ──────────
 
-/** This season's games; undefined while loading. */
-function useGamesList() {
-  const season = new Date().getFullYear();
+/** A season's games; undefined while loading. Defaults to the current
+ * season (the metadata form + gamePreview picker); the cricket result
+ * blocks pass a chosen season so historical matches are reachable. */
+function useGamesList(season = new Date().getFullYear()) {
   const { data: games } = useQuery({
     queryKey: ["games", season],
     queryFn: () =>
@@ -720,6 +852,289 @@ function GamePickerCard({ onPick }: { onPick: (id: string) => void }) {
       }))}
       onPick={onPick}
     />
+  );
+}
+
+// ── Cricket result blocks picker (wagon wheel / worm chart) ─────────────
+
+// Current season plus a few prior, so authors can embed historical matches.
+const SEASON_COUNT = 6;
+
+function useSeasons(): number[] {
+  return useMemo(() => {
+    const current = new Date().getFullYear();
+    return Array.from({ length: SEASON_COUNT }, (_, i) => current - i);
+  }, []);
+}
+
+/** Season dropdown + match dropdown. The match list follows the chosen
+ * season; the value degrades to the placeholder when the stored match
+ * isn't in the visible season (same pattern as EventSelect). */
+function SeasonMatchSelect({
+  value,
+  onPick,
+}: {
+  value: string;
+  onPick: (matchId: string) => void;
+}) {
+  const seasons = useSeasons();
+  const [season, setSeason] = useState(seasons[0]);
+  const games = useGamesList(season) ?? [];
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <Select
+        value={String(season)}
+        onValueChange={(v) => setSeason(Number(v))}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {seasons.map((s) => (
+            <SelectItem key={s} value={String(s)}>
+              {s} season
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={games.some((game) => game.id === value) ? value : ""}
+        onValueChange={onPick}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue
+            placeholder={
+              games.length ? "Choose a match…" : "No matches this season"
+            }
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {games.map((game) => (
+            <SelectItem key={game.id} value={game.id}>
+              {gameLabel(game)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/** The empty cricket-block state: a dashed card holding the season + match
+ * pickers, so the author lands on a configured block in one place. */
+function MatchPickerCard({
+  prompt,
+  onPick,
+}: {
+  prompt: string;
+  onPick: (matchId: string) => void;
+}) {
+  return (
+    <div className="flex min-h-48 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-stone-300 p-4">
+      <span className="text-sm text-stone-500">{prompt}</span>
+      <div className="w-full max-w-sm">
+        <SeasonMatchSelect value="" onPick={onPick} />
+      </div>
+    </div>
+  );
+}
+
+interface ConfigInnings {
+  inningsNumber: number;
+  teamName: string;
+  balls: Ball[];
+}
+
+/** The battable innings of a match (those with balls), labelled with the
+ * batting team's name. Team names come from the game detail endpoint, ball
+ * data (for the batter/bowler lists) from the wagon-wheel endpoint - both
+ * share the view-time caches, so the preview opens instantly. */
+function useMatchConfigData(matchId: string): ConfigInnings[] {
+  const { data: game } = useQuery({
+    queryKey: ["game", matchId],
+    queryFn: () =>
+      callApi(
+        api.GET("/api/games/{matchId}", { params: { path: { matchId } } }),
+      ),
+    enabled: matchId !== "",
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const { data: wagonWheel } = useWagonWheelQuery(matchId, matchId !== "");
+  const teamNames = game?.result?.innings.map((inn) => inn.teamName);
+  const result: ConfigInnings[] = [];
+  for (const inn of wagonWheel?.innings ?? []) {
+    if (inn.balls.length === 0) continue;
+    result.push({
+      inningsNumber: inn.inningsNumber,
+      teamName:
+        teamNames?.[inn.inningsNumber - 1] ?? `Innings ${inn.inningsNumber}`,
+      balls: inn.balls,
+    });
+  }
+  return result;
+}
+
+function WagonWheelSettingsFields({
+  matchId,
+  inningsNumber,
+  batterRvId,
+  bowlerRvId,
+  onMatch,
+  onSet,
+}: {
+  matchId: string;
+  inningsNumber: string;
+  batterRvId: string;
+  bowlerRvId: string;
+  onMatch: (matchId: string) => void;
+  onSet: (
+    key: "inningsNumber" | "batterRvId" | "bowlerRvId",
+    value: string,
+  ) => void;
+}) {
+  const innings = useMatchConfigData(matchId);
+  // The effective innings drives the batter/bowler lists: an empty stored
+  // value shows the first innings, which is what the viewer renders too.
+  const effective =
+    innings.find((inn) => String(inn.inningsNumber) === inningsNumber) ??
+    innings[0];
+  const batters = effective ? playerOptions(effective.balls, "bat") : [];
+  const bowlers = effective ? playerOptions(effective.balls, "bowl") : [];
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        <Label>Match (required)</Label>
+        <SeasonMatchSelect value={matchId} onPick={onMatch} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label>Team (required)</Label>
+        <TeamSelect
+          innings={innings}
+          value={effective ? String(effective.inningsNumber) : ""}
+          onChange={(v) => onSet("inningsNumber", v)}
+        />
+      </div>
+      <PlayerConfigSelect
+        label="Batter (optional)"
+        allLabel="All batters"
+        options={batters}
+        value={batterRvId}
+        onChange={(v) => onSet("batterRvId", v)}
+      />
+      <PlayerConfigSelect
+        label="Bowler (optional)"
+        allLabel="All bowlers"
+        options={bowlers}
+        value={bowlerRvId}
+        onChange={(v) => onSet("bowlerRvId", v)}
+      />
+    </>
+  );
+}
+
+function WormChartSettingsFields({
+  matchId,
+  inningsNumber,
+  onMatch,
+  onSet,
+}: {
+  matchId: string;
+  inningsNumber: string;
+  onMatch: (matchId: string) => void;
+  onSet: (value: string) => void;
+}) {
+  const innings = useMatchConfigData(matchId);
+  const effective =
+    innings.find((inn) => String(inn.inningsNumber) === inningsNumber) ??
+    innings[0];
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        <Label>Match (required)</Label>
+        <SeasonMatchSelect value={matchId} onPick={onMatch} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label>Team to highlight</Label>
+        <TeamSelect
+          innings={innings}
+          value={effective ? String(effective.inningsNumber) : ""}
+          onChange={onSet}
+        />
+      </div>
+    </>
+  );
+}
+
+function TeamSelect({
+  innings,
+  value,
+  onChange,
+}: {
+  innings: ConfigInnings[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={onChange}
+      disabled={innings.length === 0}
+    >
+      <SelectTrigger className="w-full">
+        <SelectValue
+          placeholder={innings.length ? "Choose a team…" : "Loading…"}
+        />
+      </SelectTrigger>
+      <SelectContent>
+        {innings.map((inn) => (
+          <SelectItem key={inn.inningsNumber} value={String(inn.inningsNumber)}>
+            {inn.teamName}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// Radix SelectItem can't hold an empty value, so an explicit sentinel item
+// maps back to "" (no filter) when stored.
+const ALL_PLAYERS = "all";
+
+function PlayerConfigSelect({
+  label,
+  allLabel,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  allLabel: string;
+  options: PlayerOption[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label>{label}</Label>
+      <Select
+        value={value === "" ? ALL_PLAYERS : value}
+        onValueChange={(v) => onChange(v === ALL_PLAYERS ? "" : v)}
+        disabled={options.length === 0}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={allLabel} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_PLAYERS}>{allLabel}</SelectItem>
+          {options.map((option) => (
+            <SelectItem key={option.id} value={String(option.id)}>
+              {option.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
@@ -868,6 +1283,30 @@ function buildSlashItems(editor: Editor, startImageUpload: () => void) {
       onItemClick: () => {
         insertOrUpdateBlockForSlashMenu(editor, {
           type: CUSTOM_BLOCK_TYPES.gamePreview,
+        });
+      },
+    },
+    {
+      title: "Wagon wheel",
+      subtext: "Interactive ball-by-ball shot chart for a match",
+      group: "Club content",
+      aliases: ["wagon wheel", "shots", "ball by ball", "cricket"],
+      icon: <span aria-hidden>🎯</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.wagonWheel,
+        });
+      },
+    },
+    {
+      title: "Worm chart",
+      subtext: "Cumulative runs per innings for a match",
+      group: "Club content",
+      aliases: ["worm", "runs", "cumulative", "manhattan", "cricket"],
+      icon: <span aria-hidden>📈</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.wormChart,
         });
       },
     },

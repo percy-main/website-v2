@@ -292,6 +292,12 @@ export const CUSTOM_BLOCK_TYPES = {
   leagueTable: "leagueTable",
   leaderboard: "leaderboard",
   recordsWall: "recordsWall",
+  // Interactive cricket result blocks for match reports / news. Both read
+  // ball-by-ball data from the games API at view time. The wagon wheel plots
+  // shot directions (needs shot data); the worm plots cumulative runs (needs
+  // only runs per ball).
+  wagonWheel: "wagonWheel",
+  wormChart: "wormChart",
   contactForm: "contactForm",
   cookieSettingsLink: "cookieSettingsLink",
   consentVersion: "consentVersion",

@@ -49,6 +49,44 @@ Shows a live fixture or result card, pulling data from Play-Cricket. Displays th
 
 ---
 
+## Wagon wheel
+
+**Slash menu:** Club content > Wagon wheel
+
+Embeds the interactive ball-by-ball shot chart for a match (the same viewer as the "Ball by ball" button on a match page), inside a self-contained dark panel. Plots every scoring shot's direction and length from the wicket, with a cumulative-runs chart, an over-by-over filter, and a ball list.
+
+Pick a match (a season selector lets you reach historical fixtures), then choose the batting team. Optionally pre-filter to a single batter or bowler to spotlight a performance. Readers can still switch innings and change the filters - the configuration only sets the initial view.
+
+The block only renders for matches with recorded shot directions (live-scored Play-Cricket fixtures where the scorer logged shot data); otherwise it shows a short "no data" message.
+
+| Prop          | Type   | Required | Default       | Notes                                                              |
+| ------------- | ------ | -------- | ------------- | ------------------------------------------------------------------ |
+| matchId       | string | Yes      |               | Play-Cricket match identifier (chosen via the season/match picker) |
+| inningsNumber | string | No       | First innings | The batting team to show (1 or 2)                                  |
+| batterRvId    | string | No       | All batters   | Pre-select a single batter's shots                                 |
+| bowlerRvId    | string | No       | All bowlers   | Pre-select shots played off a single bowler                        |
+
+**Typical usage:** Illustrate a match report with a batter's scoring zones or a bowler's wicket-taking spell.
+
+---
+
+## Worm chart
+
+**Slash menu:** Club content > Worm chart
+
+Plots cumulative runs through the innings (the "worm") for both teams on one chart, with wicket markers you can hover for the dismissal. Only needs runs per ball, so it works for any live-scored match, not just those with shot data.
+
+Pick a match and the team whose line should be highlighted (drawn solid; the other team is faded). Readers can flip the highlight between teams.
+
+| Prop          | Type   | Required | Default       | Notes                                                              |
+| ------------- | ------ | -------- | ------------- | ------------------------------------------------------------------ |
+| matchId       | string | Yes      |               | Play-Cricket match identifier (chosen via the season/match picker) |
+| inningsNumber | string | No       | First innings | The batting team to highlight (1 or 2)                             |
+
+**Typical usage:** Show how a run chase unfolded, or compare two innings in a match report.
+
+---
+
 ## Event preview
 
 **Slash menu:** Club content > Event preview

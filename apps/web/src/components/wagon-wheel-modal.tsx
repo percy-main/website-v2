@@ -6,13 +6,19 @@ import {
   VIEW,
 } from "@/components/wagon-wheel-geometry.js";
 import {
+  type Ball,
+  COLORS,
+  CRICKET_BLOCK_PANEL_CLASSES,
+  playerOptions,
+  runColor,
+} from "@/components/wagon-wheel-shared.js";
+import { CumulativeChart } from "@/components/worm-chart.js";
+import {
   hasWagonWheel,
   useWagonWheelQuery,
   type WagonWheelData,
 } from "@/hooks/use-wagon-wheel.js";
 import { useMemo, useState } from "react";
-
-type Ball = WagonWheelData["innings"][number]["balls"][number];
 
 interface WagonWheelModalProps {
   matchId: string;
@@ -47,6 +53,48 @@ export function WagonWheelModal({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Inline, non-modal wagon wheel for embedding in editorial content. Renders
+ * the same interactive viewer inside a self-contained dark panel. The author's
+ * configuration (innings/batter/bowler) seeds the initial view; readers can
+ * still switch innings and change the filters. The `key` on the viewer remounts
+ * it when that configuration changes, so the editor preview tracks edits.
+ */
+export function WagonWheel({
+  matchId,
+  inningsNumber,
+  batterRvId,
+  bowlerRvId,
+  inningsTeamNames,
+}: {
+  matchId: string;
+  inningsNumber?: number;
+  batterRvId?: number;
+  bowlerRvId?: number;
+  inningsTeamNames?: string[];
+}) {
+  const { data, isLoading, isError } = useWagonWheelQuery(matchId);
+  const configKey = `${String(inningsNumber ?? "")}-${String(batterRvId ?? "")}-${String(bowlerRvId ?? "")}`;
+
+  return (
+    <div className={CRICKET_BLOCK_PANEL_CLASSES}>
+      {isLoading && <LoadingState />}
+      {isError && <ErrorState />}
+      {!isLoading && !isError && !hasWagonWheel(data) && <EmptyState />}
+      {!isLoading && !isError && hasWagonWheel(data) && data && (
+        <WagonWheelViewer
+          key={configKey}
+          data={data}
+          inningsTeamNames={inningsTeamNames}
+          initialInningsNumber={inningsNumber}
+          initialBatterRvId={batterRvId}
+          initialBowlerRvId={bowlerRvId}
+        />
+      )}
+    </div>
   );
 }
 
@@ -98,19 +146,41 @@ function EmptyState() {
 interface ViewerProps {
   data: WagonWheelData;
   inningsTeamNames?: string[];
+  // Author-configured initial view (the wagon wheel content block). The
+  // innings selects the starting tab; batter/bowler seed that innings' filter.
+  initialInningsNumber?: number;
+  initialBatterRvId?: number;
+  initialBowlerRvId?: number;
 }
 
-function WagonWheelViewer({ data, inningsTeamNames }: ViewerProps) {
+function WagonWheelViewer({
+  data,
+  inningsTeamNames,
+  initialInningsNumber,
+  initialBatterRvId,
+  initialBowlerRvId,
+}: ViewerProps) {
   const inningsWithBalls = useMemo(
     () => data.innings.filter((inn) => inn.balls.length > 0),
     [data.innings],
   );
 
-  const [inningsIndex, setInningsIndex] = useState(0);
+  const initialIndex = useMemo(() => {
+    if (initialInningsNumber == null) return 0;
+    const i = inningsWithBalls.findIndex(
+      (inn) => inn.inningsNumber === initialInningsNumber,
+    );
+    return i >= 0 ? i : 0;
+  }, [inningsWithBalls, initialInningsNumber]);
+
+  const [inningsIndex, setInningsIndex] = useState(initialIndex);
   const active = inningsWithBalls[inningsIndex];
   if (!active) return <EmptyState />;
 
   const otherInnings = inningsWithBalls.find((_, i) => i !== inningsIndex);
+  // Seed the batter/bowler filter only on the author's chosen innings; once a
+  // reader switches tabs the new innings starts unfiltered.
+  const isInitialInnings = inningsIndex === initialIndex;
 
   return (
     <div className="flex flex-col gap-4">
@@ -148,53 +218,33 @@ function WagonWheelViewer({ data, inningsTeamNames }: ViewerProps) {
         balls={active.balls}
         otherBalls={otherInnings?.balls}
         dismissalPenalty={data.dismissalPenalty}
+        initialBatterRvId={isInitialInnings ? initialBatterRvId : undefined}
+        initialBowlerRvId={isInitialInnings ? initialBowlerRvId : undefined}
       />
     </div>
   );
-}
-
-// Distinct players (by RV id) appearing in an innings, for the filter
-// dropdowns. Balls with a null RV id (placeholder players with no PC mapping)
-// can't be filtered individually, so they're omitted from the options.
-function playerOptions(
-  balls: Ball[],
-  pick: "bat" | "bowl",
-): Array<{ id: number; name: string }> {
-  const byId = new Map<number, string>();
-  for (const b of balls) {
-    const id = pick === "bat" ? b.batterRvId : b.bowlerRvId;
-    if (id == null) continue;
-    // batterName / bowlerName can be null when the RV player has no PC
-    // external_id (placeholder ids like -101 / -102 aren't in
-    // rv_player_mapping), which would surface as "#-101" in the dropdown.
-    // Fall back to parsing the canonical "<bowler> to <batter>: ..." prefix
-    // in lDesc, as dismissalText does. Re-resolve a stored "#id" placeholder
-    // if a later ball yields a real name.
-    const existing = byId.get(id);
-    if (existing === undefined || existing.startsWith("#")) {
-      const name = pick === "bat" ? b.batterName : b.bowlerName;
-      const parsed = /^\s*(.+?)\s+to\s+(.+?):/.exec(b.lDesc);
-      const fromDesc = pick === "bat" ? parsed?.[2] : parsed?.[1];
-      byId.set(id, name ?? fromDesc ?? `#${id}`);
-    }
-  }
-  return [...byId.entries()]
-    .map(([id, name]) => ({ id, name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function InningsView({
   balls,
   otherBalls,
   dismissalPenalty,
+  initialBatterRvId,
+  initialBowlerRvId,
 }: {
   balls: Ball[];
   otherBalls?: Ball[];
   dismissalPenalty: number;
+  initialBatterRvId?: number;
+  initialBowlerRvId?: number;
 }) {
   const [selectedOver, setSelectedOver] = useState<number | null>(null);
-  const [selectedBatter, setSelectedBatter] = useState<number | null>(null);
-  const [selectedBowler, setSelectedBowler] = useState<number | null>(null);
+  const [selectedBatter, setSelectedBatter] = useState<number | null>(
+    initialBatterRvId ?? null,
+  );
+  const [selectedBowler, setSelectedBowler] = useState<number | null>(
+    initialBowlerRvId ?? null,
+  );
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   const batters = useMemo(() => playerOptions(balls, "bat"), [balls]);
@@ -396,23 +446,6 @@ function StatCell({ label, value }: { label: string; value: number }) {
   );
 }
 
-const COLORS = {
-  dot: "#9ca3af",
-  r1: "#5eb3ff",
-  r4: "#4ade80",
-  r6: "#fbbf24",
-  neg: "#ef4444",
-  wkt: "#ec4899",
-};
-
-function runColor(b: Pick<Ball, "runsBat">): string {
-  if (b.runsBat < 0) return COLORS.neg;
-  if (b.runsBat === 0) return COLORS.dot;
-  if (b.runsBat >= 6) return COLORS.r6;
-  if (b.runsBat >= 4) return COLORS.r4;
-  return COLORS.r1;
-}
-
 function Legend() {
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-400">
@@ -599,296 +632,6 @@ function OverFilter({
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// --- Cumulative runs chart ---
-
-interface ChartPoint {
-  x: number;
-  y: number;
-  ball: Ball;
-}
-
-function cumulative(
-  balls: Ball[],
-  dismissalPenalty: number,
-): {
-  points: ChartPoint[];
-  wickets: ChartPoint[];
-  yMin: number;
-  yMax: number;
-} {
-  let total = 0;
-  const points: ChartPoint[] = [];
-  const wickets: ChartPoint[] = [];
-  let yMax = 0;
-  let yMin = 0;
-  balls.forEach((b, idx) => {
-    total += b.runsBat + b.runsExtra;
-    // The dismissal penalty isn't applied to runs_bat upstream — apply it
-    // here so the line visibly dips on each wicket.
-    if (b.dismissed) total -= dismissalPenalty;
-    if (total > yMax) yMax = total;
-    if (total < yMin) yMin = total;
-    const pt: ChartPoint = { x: idx, y: total, ball: b };
-    points.push(pt);
-    if (b.dismissed) wickets.push(pt);
-  });
-  return { points, wickets, yMin, yMax };
-}
-
-function CumulativeChart({
-  balls,
-  otherBalls,
-  dismissalPenalty,
-}: {
-  balls: Ball[];
-  otherBalls?: Ball[];
-  dismissalPenalty: number;
-}) {
-  const current = useMemo(
-    () => cumulative(balls, dismissalPenalty),
-    [balls, dismissalPenalty],
-  );
-  const other = useMemo(
-    () =>
-      otherBalls && otherBalls.length > 0
-        ? cumulative(otherBalls, dismissalPenalty)
-        : null,
-    [otherBalls, dismissalPenalty],
-  );
-
-  const [hover, setHover] = useState<ChartPoint | null>(null);
-
-  if (current.points.length === 0) return null;
-
-  const points = current.points;
-  const wickets = current.wickets;
-  const yMin = Math.min(current.yMin, other ? other.yMin : 0);
-  const yMax = Math.max(current.yMax, other ? other.yMax : 0);
-
-  // Inner SVG coordinate system: 0..1000 wide, 0..120 tall. Mapped to
-  // 100% width via viewBox + preserveAspectRatio="none" so the chart
-  // always fills the section.
-  const W = 1000;
-  const H = 120;
-  const padY = 12;
-  // x-axis spans the longer innings so both lines share scale.
-  const xMax = Math.max(
-    1,
-    points.length - 1,
-    other ? other.points.length - 1 : 0,
-  );
-  const yRange = Math.max(1, yMax - yMin);
-  const sx = (x: number) => (x / xMax) * W;
-  const sy = (y: number) => H - padY - ((y - yMin) / yRange) * (H - padY * 2);
-
-  // Axis markers: every 5 overs on x, every 50 runs on y. The x-axis is
-  // ball-indexed, so map each over boundary to the index of its first ball in
-  // the current (primary) innings.
-  const firstIdxByOver = new Map<number, number>();
-  let maxOver = 0;
-  points.forEach((p, i) => {
-    if (!firstIdxByOver.has(p.ball.over)) firstIdxByOver.set(p.ball.over, i);
-    if (p.ball.over > maxOver) maxOver = p.ball.over;
-  });
-  const overMarks: Array<{ over: number; x: number }> = [];
-  for (let t = 5; t <= maxOver; t += 5) {
-    const idx = firstIdxByOver.get(t);
-    if (idx !== undefined) overMarks.push({ over: t, x: idx });
-  }
-  const runMarks: number[] = [];
-  for (let v = Math.ceil(yMin / 50) * 50; v <= yMax; v += 50) {
-    if (v !== 0) runMarks.push(v); // 0 already drawn as the baseline
-  }
-
-  const toPath = (pts: ChartPoint[]): string =>
-    pts.map((p, i) => `${i === 0 ? "M" : "L"} ${sx(p.x)} ${sy(p.y)}`).join(" ");
-
-  const path = toPath(points);
-  const otherPath = other ? toPath(other.points) : null;
-
-  const lastPoint = points[points.length - 1];
-  const totalRuns = lastPoint ? lastPoint.y : 0;
-  const otherTotal = other?.points.at(-1)?.y ?? 0;
-
-  function dismissalText(b: Ball): string {
-    // batterName / bowlerName can be null when the RV player has no PC
-    // external_id (placeholder ids like -101 / -102 don't get stored in
-    // rv_player_mapping). Fall back to parsing the canonical
-    // " <bowler> to <batter>: ..." prefix in lDesc so the tooltip never
-    // shows "Batter out — bowler bowling".
-    const parsed = /^\s*(.+?)\s+to\s+(.+?):/.exec(b.lDesc);
-    const batter = b.batterName ?? parsed?.[2] ?? "Batter";
-    const bowler = b.bowlerName ?? parsed?.[1] ?? "bowler";
-    return `${batter} out — ${bowler} bowling`;
-  }
-
-  return (
-    <div className="relative rounded-md border border-stone-800 bg-stone-900 p-3">
-      <div className="mb-1 flex items-center justify-between gap-3 text-[10px] font-semibold tracking-wider text-stone-500 uppercase">
-        <span>Cumulative runs</span>
-        <span className="font-mono text-stone-400 normal-case tabular-nums">
-          {totalRuns} • {wickets.length} wkt
-          {wickets.length === 1 ? "" : "s"}
-          {other && <span className="text-stone-500"> (vs {otherTotal})</span>}
-        </span>
-      </div>
-      <div className="relative">
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          preserveAspectRatio="none"
-          className="block h-[120px] w-full"
-          role="img"
-          aria-label={`Cumulative runs: ${totalRuns} runs, ${wickets.length} wickets`}
-        >
-          {/* Run gridlines every 50 (y) */}
-          {runMarks.map((v) => (
-            <line
-              key={`run-${v}`}
-              x1={0}
-              x2={W}
-              y1={sy(v)}
-              y2={sy(v)}
-              stroke="#2a2f3d"
-              strokeWidth={1}
-              strokeDasharray="2 5"
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-          {/* Over gridlines every 5 (x) */}
-          {overMarks.map((m) => (
-            <line
-              key={`over-${m.over}`}
-              x1={sx(m.x)}
-              x2={sx(m.x)}
-              y1={padY}
-              y2={H - padY}
-              stroke="#2a2f3d"
-              strokeWidth={1}
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-          {/* Baseline at y=0 (or yMin if negative) */}
-          <line
-            x1={0}
-            x2={W}
-            y1={sy(0)}
-            y2={sy(0)}
-            stroke="#3b4253"
-            strokeWidth={1}
-            strokeDasharray="3 4"
-          />
-          {otherPath && (
-            <path
-              d={otherPath}
-              fill="none"
-              stroke="#5eb3ff"
-              strokeWidth={2}
-              strokeDasharray="4 3"
-              opacity={0.35}
-              vectorEffect="non-scaling-stroke"
-            />
-          )}
-          <path
-            d={path}
-            fill="none"
-            stroke={COLORS.r1}
-            strokeWidth={2}
-            vectorEffect="non-scaling-stroke"
-          />
-          {wickets.map((w) => (
-            <line
-              key={`${w.ball.over}-${w.ball.ball}-line`}
-              x1={sx(w.x)}
-              x2={sx(w.x)}
-              y1={padY}
-              y2={H - padY}
-              stroke={COLORS.wkt}
-              strokeWidth={1}
-              strokeDasharray="2 2"
-              opacity={0.5}
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-        </svg>
-        {/* Axis labels as HTML overlays — SVG text would distort under
-          preserveAspectRatio="none". Runs up the left, overs along the bottom. */}
-        {runMarks.map((v) => (
-          <span
-            key={`run-lbl-${v}`}
-            className="pointer-events-none absolute left-0 -translate-y-1/2 bg-stone-900/80 pr-1 font-mono text-[9px] text-stone-500 tabular-nums"
-            style={{ top: `${(sy(v) / H) * 100}%` }}
-          >
-            {v}
-          </span>
-        ))}
-        {overMarks.map((m) => (
-          <span
-            key={`over-lbl-${m.over}`}
-            className="pointer-events-none absolute bottom-0 -translate-x-1/2 font-mono text-[9px] text-stone-500 tabular-nums"
-            style={{ left: `${(sx(m.x) / W) * 100}%` }}
-          >
-            {m.over}
-          </span>
-        ))}
-        {/* W markers as HTML overlays. The SVG uses preserveAspectRatio="none",
-          so shapes drawn in viewBox units stretch non-uniformly (tall/skinny
-          ovals on mobile). HTML divs anchored by % stay circular. */}
-        {wickets.map((w) => {
-          const pctX = (sx(w.x) / W) * 100;
-          const pctY = (sy(w.y) / H) * 100;
-          return (
-            <button
-              key={`${w.ball.over}-${w.ball.ball}`}
-              type="button"
-              onMouseEnter={() => setHover(w)}
-              onMouseLeave={() => setHover(null)}
-              onFocus={() => setHover(w)}
-              onBlur={() => setHover(null)}
-              className="absolute flex size-[18px] -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-[11px] font-bold text-stone-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-100"
-              style={{
-                left: `${pctX}%`,
-                top: `${pctY}%`,
-                backgroundColor: COLORS.wkt,
-              }}
-              aria-label={`Wicket at over ${w.ball.over}.${w.ball.ballDisp}`}
-            >
-              W
-            </button>
-          );
-        })}
-      </div>
-      {hover &&
-        (() => {
-          const pctX = (sx(hover.x) / W) * 100;
-          const pctY = (sy(hover.y) / H) * 100;
-          const onRight = pctX > 60;
-          const style: React.CSSProperties = onRight
-            ? {
-                right: `${100 - pctX}%`,
-                top: `calc(${pctY}% + 8px)`,
-                transform: "translateX(-8px)",
-              }
-            : {
-                left: `${pctX}%`,
-                top: `calc(${pctY}% + 8px)`,
-                transform: "translateX(8px)",
-              };
-          return (
-            <div
-              className="pointer-events-none absolute z-10 max-w-[260px] rounded-md border border-stone-800 bg-stone-950/95 px-2 py-1.5 text-xs text-stone-100 shadow-lg"
-              style={style}
-            >
-              <div className="font-semibold">{dismissalText(hover.ball)}</div>
-              <div className="mt-0.5 text-[11px] text-stone-400">
-                {hover.ball.over}.{hover.ball.ballDisp} • score {hover.y}
-              </div>
-            </div>
-          );
-        })()}
     </div>
   );
 }

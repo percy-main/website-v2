@@ -8,6 +8,8 @@ import { RecordsWall as RecordsWallComponent } from "@/components/records-wall.j
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/components/ui/textarea.js";
+import { WagonWheel as WagonWheelView } from "@/components/wagon-wheel-modal.js";
+import { WormChart as WormChartView } from "@/components/worm-chart.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
 import { getImageUrl, getPicture } from "@/lib/image-map.js";
@@ -317,6 +319,67 @@ function GamePreview({ playCricketId }: { playCricketId: string }) {
   );
 }
 
+// Team names per innings for a match, for the cricket result blocks. Shares
+// the GamePreview query cache (same key), so embedding a wagon wheel next to a
+// game preview costs one fetch.
+function useInningsTeamNames(matchId: string): string[] | undefined {
+  const { data: game } = useQuery({
+    queryKey: ["game", matchId],
+    queryFn: () => fetchGame(matchId),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  return game?.result?.innings.map((inn) => inn.teamName);
+}
+
+// Block props are stored as strings (BlockNote JSON); RV ids / innings numbers
+// come back as numbers. Empty / unset / non-numeric degrade to undefined.
+function parseId(value?: string): number | undefined {
+  if (value == null || value === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function WagonWheel({
+  matchId,
+  inningsNumber,
+  batterRvId,
+  bowlerRvId,
+}: {
+  matchId: string;
+  inningsNumber?: string;
+  batterRvId?: string;
+  bowlerRvId?: string;
+}) {
+  const inningsTeamNames = useInningsTeamNames(matchId);
+  return (
+    <WagonWheelView
+      matchId={matchId}
+      inningsNumber={parseId(inningsNumber)}
+      batterRvId={parseId(batterRvId)}
+      bowlerRvId={parseId(bowlerRvId)}
+      inningsTeamNames={inningsTeamNames}
+    />
+  );
+}
+
+function WormChart({
+  matchId,
+  inningsNumber,
+}: {
+  matchId: string;
+  inningsNumber?: string;
+}) {
+  const inningsTeamNames = useInningsTeamNames(matchId);
+  return (
+    <WormChartView
+      matchId={matchId}
+      primaryInningsNumber={parseId(inningsNumber)}
+      inningsTeamNames={inningsTeamNames}
+    />
+  );
+}
+
 // The contact form's frame/heading/description styling is shared with
 // the content editor block, which renders an editable title and
 // description in place of the static ones (#527 follow-up) - so the
@@ -512,6 +575,8 @@ export const mdxComponents = {
   RecordsWall,
   EventPreview,
   GamePreview,
+  WagonWheel,
+  WormChart,
   ContactForm,
   CookieSettingsLink,
   ConsentVersion,
