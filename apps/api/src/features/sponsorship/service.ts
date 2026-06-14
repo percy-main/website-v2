@@ -10,7 +10,10 @@ import type {
   SponsorshipList,
   SponsorshipUpdate,
 } from "./schemas.ts";
-import { publicPlayerSponsorColumns } from "./schemas.ts";
+import {
+  publicGameSponsorColumns,
+  publicPlayerSponsorColumns,
+} from "./schemas.ts";
 
 /**
  * Cancel a Stripe payment intent, swallowing the expected
@@ -70,12 +73,14 @@ export async function getPlayerSponsorshipPrice(
 
 export function getGameSponsorByGameId(db: Kysely<DB>) {
   return async (gameId: string) => {
+    // Public projection only - this route is unauthenticated (see
+    // publicGameSponsorColumns).
     const sponsor = await db
       .selectFrom("game_sponsorship")
       .where("game_id", "=", gameId)
       .where("approved", "=", true)
       .where("paid_at", "is not", null)
-      .selectAll()
+      .select(publicGameSponsorColumns)
       .executeTakeFirst();
 
     return sponsor ?? null;

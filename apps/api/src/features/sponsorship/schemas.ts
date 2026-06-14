@@ -165,12 +165,36 @@ export const publicPlayerSponsorColumns = [
   "sponsor_message",
 ] as const;
 
+// Public projection of a game sponsorship - same rationale as the player
+// one above: this route is unauthenticated, so omit sponsor_email,
+// amount_pence, paid_at, notes and stripe_payment_intent_id.
+const publicGameSponsorSchema = z.object({
+  game_id: z.string(),
+  sponsor_name: z.string(),
+  display_name: z.string().nullable(),
+  sponsor_website: z.string().nullable(),
+  sponsor_phone: z.string().nullable(),
+  sponsor_logo_url: z.string().nullable(),
+  sponsor_message: z.string().nullable(),
+});
+
+/** Columns the public projection selects - keep in sync with the schema. */
+export const publicGameSponsorColumns = [
+  "game_id",
+  "sponsor_name",
+  "display_name",
+  "sponsor_website",
+  "sponsor_phone",
+  "sponsor_logo_url",
+  "sponsor_message",
+] as const;
+
 export const approvedPlayerSponsorsResponseSchema = z.object({
   sponsors: z.array(publicPlayerSponsorSchema),
 });
 
 export const gameSponsorResponseSchema = z.object({
-  sponsor: gameSponsorshipRowSchema.nullable(),
+  sponsor: publicGameSponsorSchema.nullable(),
 });
 
 export const playerSponsorResponseSchema = z.object({
