@@ -5688,20 +5688,15 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": {
-                            "type": "string"
-                          },
                           "slug": {
                             "nullable": true,
-                            "type": "string"
-                          },
-                          "player_name": {
                             "type": "string"
                           },
                           "sponsor_name": {
                             "type": "string"
                           },
-                          "sponsor_email": {
+                          "display_name": {
+                            "nullable": true,
                             "type": "string"
                           },
                           "sponsor_website": {
@@ -5719,54 +5714,16 @@
                           "sponsor_message": {
                             "nullable": true,
                             "type": "string"
-                          },
-                          "amount_pence": {
-                            "type": "number"
-                          },
-                          "season": {
-                            "type": "number"
-                          },
-                          "approved": {
-                            "type": "boolean"
-                          },
-                          "paid_at": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "created_at": {
-                            "type": "string"
-                          },
-                          "display_name": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "notes": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "stripe_payment_intent_id": {
-                            "nullable": true,
-                            "type": "string"
                           }
                         },
                         "required": [
-                          "id",
                           "slug",
-                          "player_name",
                           "sponsor_name",
-                          "sponsor_email",
+                          "display_name",
                           "sponsor_website",
                           "sponsor_phone",
                           "sponsor_logo_url",
-                          "sponsor_message",
-                          "amount_pence",
-                          "season",
-                          "approved",
-                          "paid_at",
-                          "created_at",
-                          "display_name",
-                          "notes",
-                          "stripe_payment_intent_id"
+                          "sponsor_message"
                         ],
                         "additionalProperties": false
                       }
@@ -6026,20 +5983,15 @@
                       "nullable": true,
                       "type": "object",
                       "properties": {
-                        "id": {
-                          "type": "string"
-                        },
                         "slug": {
                           "nullable": true,
-                          "type": "string"
-                        },
-                        "player_name": {
                           "type": "string"
                         },
                         "sponsor_name": {
                           "type": "string"
                         },
-                        "sponsor_email": {
+                        "display_name": {
+                          "nullable": true,
                           "type": "string"
                         },
                         "sponsor_website": {
@@ -6057,54 +6009,16 @@
                         "sponsor_message": {
                           "nullable": true,
                           "type": "string"
-                        },
-                        "amount_pence": {
-                          "type": "number"
-                        },
-                        "season": {
-                          "type": "number"
-                        },
-                        "approved": {
-                          "type": "boolean"
-                        },
-                        "paid_at": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "created_at": {
-                          "type": "string"
-                        },
-                        "display_name": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "notes": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "stripe_payment_intent_id": {
-                          "nullable": true,
-                          "type": "string"
                         }
                       },
                       "required": [
-                        "id",
                         "slug",
-                        "player_name",
                         "sponsor_name",
-                        "sponsor_email",
+                        "display_name",
                         "sponsor_website",
                         "sponsor_phone",
                         "sponsor_logo_url",
-                        "sponsor_message",
-                        "amount_pence",
-                        "season",
-                        "approved",
-                        "paid_at",
-                        "created_at",
-                        "display_name",
-                        "notes",
-                        "stripe_payment_intent_id"
+                        "sponsor_message"
                       ],
                       "additionalProperties": false
                     }

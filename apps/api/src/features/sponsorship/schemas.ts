@@ -138,8 +138,35 @@ const playerSponsorshipRowSchema = z.object({
   stripe_payment_intent_id: z.string().nullable(),
 });
 
+// Public projection of a player sponsorship: only the fields shown on
+// public pages (person cards, profile, leaderboard). Deliberately omits
+// sponsor_email, amount_pence, paid_at, notes and stripe_payment_intent_id
+// - those are private/financial and must never reach the browser, since
+// these routes are unauthenticated and their responses get cached client
+// side.
+const publicPlayerSponsorSchema = z.object({
+  slug: z.string().nullable(),
+  sponsor_name: z.string(),
+  display_name: z.string().nullable(),
+  sponsor_website: z.string().nullable(),
+  sponsor_phone: z.string().nullable(),
+  sponsor_logo_url: z.string().nullable(),
+  sponsor_message: z.string().nullable(),
+});
+
+/** Columns the public projection selects - keep in sync with the schema. */
+export const publicPlayerSponsorColumns = [
+  "slug",
+  "sponsor_name",
+  "display_name",
+  "sponsor_website",
+  "sponsor_phone",
+  "sponsor_logo_url",
+  "sponsor_message",
+] as const;
+
 export const approvedPlayerSponsorsResponseSchema = z.object({
-  sponsors: z.array(playerSponsorshipRowSchema),
+  sponsors: z.array(publicPlayerSponsorSchema),
 });
 
 export const gameSponsorResponseSchema = z.object({
@@ -147,7 +174,7 @@ export const gameSponsorResponseSchema = z.object({
 });
 
 export const playerSponsorResponseSchema = z.object({
-  sponsor: playerSponsorshipRowSchema.nullable(),
+  sponsor: publicPlayerSponsorSchema.nullable(),
 });
 
 export const hasPendingResponseSchema = z.object({

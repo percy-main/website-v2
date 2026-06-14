@@ -18,6 +18,10 @@ import {
   requestConsentReopen,
 } from "@/lib/marketing/consent.js";
 import { usePeople } from "@/lib/use-people.js";
+import {
+  type PlayerSponsorSummary,
+  usePlayerSponsors,
+} from "@/lib/use-player-sponsors.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
@@ -83,9 +87,50 @@ export function PersonCardShell({
 export const PERSON_GRID_CLASSES =
   "grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4";
 
+/**
+ * The "Sponsored by" footer on a person card. Compact by design - the
+ * full sponsor module (message, phone, sponsor-this-player CTA) lives on
+ * the person's profile page; the card just credits the sponsor.
+ */
+function PersonSponsor({ sponsor }: { sponsor: PlayerSponsorSummary }) {
+  const displayName = sponsor.display_name ?? sponsor.sponsor_name;
+  const hasWebsite =
+    sponsor.sponsor_website != null &&
+    /^https?:\/\//i.test(sponsor.sponsor_website);
+
+  return (
+    <div className="mt-3 border-t border-stone-100 pt-3">
+      <p className="text-[11px] font-medium tracking-wide text-stone-400 uppercase">
+        Sponsored by
+      </p>
+      {sponsor.sponsor_logo_url && (
+        <img
+          src={sponsor.sponsor_logo_url}
+          alt={displayName}
+          className="mx-auto mt-1 max-h-10 w-auto max-w-[100px]"
+        />
+      )}
+      {hasWebsite ? (
+        <a
+          href={sponsor.sponsor_website ?? undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary mt-1 inline-block text-sm font-medium hover:underline"
+        >
+          {displayName}
+        </a>
+      ) : (
+        <p className="mt-1 text-sm font-medium text-stone-700">{displayName}</p>
+      )}
+    </div>
+  );
+}
+
 function Person({ slug, role }: { slug: string; role?: string }) {
-  // One cached roster query serves every card on the page (#499).
+  // One cached roster query serves every card on the page (#499); the
+  // approved-sponsors roster rides a second cached query the same way.
   const person = usePeople().get(slug);
+  const sponsor = usePlayerSponsors().get(slug);
   const name = person?.name ?? slug;
 
   return (
@@ -97,6 +142,7 @@ function Person({ slug, role }: { slug: string; role?: string }) {
       >
         Profile
       </Link>
+      {sponsor && <PersonSponsor sponsor={sponsor} />}
     </PersonCardShell>
   );
 }
