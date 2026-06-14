@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Resource } from "../auth/permissions.ts";
+import { blockPropValueSchema } from "./block-types.ts";
 
 // ── Content kinds + statuses ────────────────────────────────────────────
 //
@@ -47,12 +48,6 @@ export type ContentResource = (typeof CONTENT_KIND_RESOURCES)[ContentKind];
 // the public renderer narrows per block type and ignores anything it does
 // not recognise, so unknown types are safe to store. There is deliberately
 // no raw-HTML block type anywhere in the pipeline.
-
-export const blockPropValueSchema = z.union([
-  z.string(),
-  z.number(),
-  z.boolean(),
-]);
 
 export interface ContentBlock {
   id: string;
@@ -271,34 +266,26 @@ export const CONTENT_METADATA_SCHEMAS: Partial<
   person: personMetadataSchema,
 };
 
-// ── Custom block types ──────────────────────────────────────────────────
+// ── Block-type primitives ───────────────────────────────────────────────
 //
-// The directive vocabulary from the original epic plan, as BlockNote
-// custom block type names. Single source of truth shared by the editor
-// (which registers blocks under these names) and the public renderer
-// (which maps them to the existing component map).
+// CUSTOM_BLOCK_TYPES and blockPropValueSchema live in the leaf block-types.ts
+// module (so block-catalog.ts can import them without a circular dependency on
+// this entrypoint). Re-exported here so external importers keep getting them
+// from "@percy-main/shared/content".
+export { blockPropValueSchema, CUSTOM_BLOCK_TYPES } from "./block-types.ts";
 
-export const CUSTOM_BLOCK_TYPES = {
-  person: "person",
-  personGrid: "personGrid",
-  gamePreview: "gamePreview",
-  eventPreview: "eventPreview",
-  // Editor-uploaded image. Replaces BlockNote's built-in image block in
-  // the editor schema (whose URL-embed tab would bypass the consent +
-  // processing pipeline). props.picture carries the JSON-stringified
-  // PictureSource descriptor from the upload API so public pages render
-  // the responsive ladder without any lookup.
-  contentImage: "contentImage",
-  leagueTable: "leagueTable",
-  leaderboard: "leaderboard",
-  recordsWall: "recordsWall",
-  // Interactive cricket result blocks for match reports / news. Both read
-  // ball-by-ball data from the games API at view time. The wagon wheel plots
-  // shot directions (needs shot data); the worm plots cumulative runs (needs
-  // only runs per ball).
-  wagonWheel: "wagonWheel",
-  wormChart: "wormChart",
-  contactForm: "contactForm",
-  cookieSettingsLink: "cookieSettingsLink",
-  consentVersion: "consentVersion",
-} as const;
+// ── Block catalog (AI content-author) ───────────────────────────────────
+export {
+  AGENT_WRITABLE_BLOCK_TYPES,
+  BLOCK_CATALOG,
+  getBlockCatalogEntry,
+  renderBlockCatalogForPrompt,
+  tableContentSchema,
+  writeContentBlockSchema,
+  writeContentBodySchema,
+  type BlockCatalogEntry,
+  type BlockContentKind,
+  type TableContent,
+  type WriteContentBlock,
+  type WriteContentBody,
+} from "./block-catalog.ts";

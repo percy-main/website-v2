@@ -38,6 +38,13 @@ export const SCOUT_ALLOWED_TABLES = [
   "match_ball",
   "match_stream",
   "rv_player_mapping",
+  // Published site content (pages, news, events, people, game reports). Read
+  // access lets the content-author agent resolve real records when emitting
+  // person / personGrid / eventPreview blocks (find a person's slug, an
+  // event's id). SELECT is granted to scout_readonly by the same-named
+  // migration. The grant is the security boundary; this list is defence in
+  // depth + cleaner db_list_tables output.
+  "content_item",
 ] as const;
 
 const ROW_CAP = 500;

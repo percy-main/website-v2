@@ -21,6 +21,8 @@ const baseEnv = {
   SCOUT_MODEL_SUBAGENT: "deepseek-v4-pro",
   SCOUT_MODEL_REPORT: "deepseek-v4",
   SCOUT_ATTACHMENT_DERIVE_MODEL: "claude-haiku-4-5-20251001",
+  CONTENT_AI_PROVIDER: "deepseek",
+  CONTENT_AI_MODEL: "deepseek-v4-pro",
   VOYAGE_EMBED_MODEL: "voyage-4",
   VOYAGE_RERANK_MODEL: "rerank-2.5",
   TAVILY_API_KEY: "tvly-test",

@@ -287,6 +287,15 @@ const configSchema = z.object({
   // Tavily (Scout recognition-source discovery). See ADR 042.
   TAVILY_API_KEY: z.string().min(1),
 
+  // Content-author AI assistant (the "Generate with AI" modal over the
+  // content editor). Reuses Scout's data tools + DeepSeek/Anthropic API keys.
+  // Provider + model are required and explicit (no in-code default) for the
+  // same reason as the SCOUT_* surfaces - config is the single source of
+  // truth and a wrong-by-default deployment can't paper over a missing var.
+  // Reasoning is always on for this agent (see features/content-author/agent).
+  CONTENT_AI_PROVIDER: z.enum(["anthropic", "deepseek"]),
+  CONTENT_AI_MODEL: z.string().min(1),
+
   // Sync task launch (admin "Sync now" button → ECS RunTask)
   AWS_REGION: z.string().default("eu-west-2"),
   SYNC_ECS_CLUSTER: z.string().optional(),

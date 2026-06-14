@@ -18,6 +18,10 @@ export const statements = {
   ai_scout: ["use"],
   ai_facts: ["view", "manage"],
   ai_knowledge: ["view", "manage"],
+  // AI content-author assistant (the "Generate with AI" modal over the
+  // content editor). Usage-only: it streams blocks into the client-side
+  // draft; persistence still flows through the per-kind content gates on save.
+  ai_content: ["use"],
   users: ["view", "manage", "manage_roles"],
   // Live content editing (#479). manage and publish are separate actions
   // deliberately - every role created today gets both (direct publish, no
@@ -45,6 +49,7 @@ const ALL_PERMS = {
   ai_scout: ["use"],
   ai_facts: ["view", "manage"],
   ai_knowledge: ["view", "manage"],
+  ai_content: ["use"],
   users: ["view", "manage", "manage_roles"],
   content: ["view", "manage", "publish"],
   content_news: ["view", "manage", "publish"],
@@ -107,16 +112,20 @@ export const roles = {
     content_news: ["view", "manage", "publish"],
     content_reports: ["view", "manage", "publish"],
     content_people: ["view", "manage", "publish"],
+    ai_content: ["use"],
   }),
   news_editor: ac.newRole({
     content_news: ["view", "manage", "publish"],
     content_reports: ["view", "manage", "publish"],
+    ai_content: ["use"],
   }),
   reports_editor: ac.newRole({
     content_reports: ["view", "manage", "publish"],
+    ai_content: ["use"],
   }),
   people_editor: ac.newRole({
     content_people: ["view", "manage", "publish"],
+    ai_content: ["use"],
   }),
 
   // Member management — same as admin's user CRUD minus the set-role power,

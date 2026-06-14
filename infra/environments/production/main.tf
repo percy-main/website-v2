@@ -208,6 +208,9 @@ module "ecs" {
     SCOUT_MODEL_SUBAGENT          = "deepseek-v4-pro"
     SCOUT_MODEL_REPORT            = "deepseek-v4-pro"
     SCOUT_ATTACHMENT_DERIVE_MODEL = "claude-haiku-4-5-20251001"
+    # Content-author AI assistant ("Generate with AI" over the content editor).
+    CONTENT_AI_PROVIDER           = "deepseek"
+    CONTENT_AI_MODEL              = "deepseek-v4-pro"
     VOYAGE_EMBED_MODEL            = "voyage-4"
     VOYAGE_RERANK_MODEL           = "rerank-2.5"
     # Arize Phoenix LLM tracing - isolated from NR. The collector endpoint
