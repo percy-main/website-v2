@@ -78,6 +78,7 @@ import {
   contentBodySchema,
   CUSTOM_BLOCK_TYPES,
   type ContentKind,
+  type WriteContentBlock,
 } from "@percy-main/shared/content";
 import {
   useMutation,
@@ -86,7 +87,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BlockSettings,
   EMPTY_CARD_CLASSES,
@@ -94,6 +95,10 @@ import {
   INLINE_TEXT_INPUT_CLASSES,
   PickerCard,
 } from "./block-controls.js";
+import {
+  ContentAiModal,
+  type ContentAiEditorContext,
+} from "./content-ai/content-ai-modal.js";
 import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
 import { EditorBlockPreview } from "./editor-block-preview.js";
 import {
@@ -3041,6 +3046,79 @@ function EditorPane({
   );
 }
 
+/**
+ * "Generate with AI" button + modal. Self-contained so the giant LoadedEditor
+ * doesn't carry the AI state. Gated on the same permission the route enforces,
+ * so the button never shows for a user who'd get a 403.
+ */
+function ContentAiLauncher({
+  editor,
+  kind,
+  form,
+  dirtyRef,
+}: {
+  editor: Editor;
+  kind: ContentKind;
+  form: FormState;
+  dirtyRef: React.RefObject<boolean>;
+}) {
+  const { allowed } = useHasPermission("ai_content", "use");
+  const [open, setOpen] = useState(false);
+
+  // Append agent-authored blocks to the end of the draft. Deep-clone via JSON
+  // (same pattern as editorBody) so the blocks become plain PartialBlocks.
+  const handleInsertBlocks = useCallback(
+    (blocks: WriteContentBlock[]) => {
+      const doc = editor.document;
+      editor.insertBlocks(
+        JSON.parse(JSON.stringify(blocks)) as PartialBlock[],
+        doc[doc.length - 1],
+        "after",
+      );
+      dirtyRef.current = true;
+    },
+    [editor, dirtyRef],
+  );
+
+  if (!allowed) return null;
+
+  // Built fresh on each send so the agent sees the current draft metadata
+  // (e.g. a game report's playCricketId) and what blocks already exist.
+  const getEditorContext = (): ContentAiEditorContext => {
+    let metadata: Record<string, unknown>;
+    try {
+      // buildMetadata can throw on a half-filled draft (e.g. an empty event
+      // date); the agent works fine with empty metadata in that case.
+      metadata = buildMetadata(kind, form);
+    } catch {
+      metadata = {};
+    }
+    return {
+      kind,
+      title: form.title,
+      slug: form.slug || undefined,
+      metadata,
+      existingBlockTypes: Array.from(
+        new Set(editor.document.map((b) => b.type)),
+      ),
+    };
+  };
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        ✨ Generate with AI
+      </Button>
+      <ContentAiModal
+        open={open}
+        onOpenChange={setOpen}
+        getEditorContext={getEditorContext}
+        onInsertBlocks={handleInsertBlocks}
+      />
+    </>
+  );
+}
+
 function LoadedEditor({
   kind,
   item,
@@ -3250,6 +3328,12 @@ function LoadedEditor({
               })}
             </span>
           )}
+          <ContentAiLauncher
+            editor={editor}
+            kind={kind}
+            form={form}
+            dirtyRef={dirtyRef}
+          />
           {canSave && (
             <Button
               onClick={() => {
