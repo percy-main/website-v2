@@ -275,7 +275,11 @@ function GamePreview({ playCricketId }: { playCricketId: string }) {
     <Link
       to={`/calendar/game/${game.id}`}
       className={cn(
-        "my-2 flex items-center gap-3 rounded-lg border-l-4 bg-white p-4 no-underline shadow-sm transition-all hover:translate-x-1 hover:shadow-md",
+        // no-underline! (important): BlockNote ships `.bn-shadcn .bn-editor a
+        // { text-decoration: revert }` at specificity (0,2,1), which out-ranks
+        // a plain utility, so the whole-card link inherits the UA underline in
+        // the editor. Important wins regardless of specificity.
+        "my-2 flex items-center gap-3 rounded-lg border-l-4 bg-white p-4 no-underline! shadow-sm transition-all hover:translate-x-1 hover:shadow-md",
         game.home ? "border-l-green-800" : "border-l-blue-600",
       )}
     >

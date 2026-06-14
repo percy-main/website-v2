@@ -85,8 +85,11 @@ export function createContentAuthorAgent(
   });
   // Same read-only DB surface as Scout (scout_readonly). Those tables are
   // intentionally curated to be safe for AI access on this single-tenant,
-  // trusted-user deployment.
-  const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
+  // trusted-user deployment. logger so query failures are logged server-side.
+  const dbTools = createDbTools({
+    dbReadonly: deps.dbReadonly,
+    logger: deps.logger,
+  });
   const weatherTools = createWeatherTools({ cache });
   const writeContentTools = createWriteContentTool({ writer: deps.writer });
 

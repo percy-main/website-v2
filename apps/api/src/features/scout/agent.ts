@@ -138,7 +138,10 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   // context it needs to reason about cricket). The agent now writes SQL
   // itself against the full allowlist (general scouting tables plus the
   // ball-by-ball surface). The read-only pool is the security boundary.
-  const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
+  const dbTools = createDbTools({
+    dbReadonly: deps.dbReadonly,
+    logger: deps.logger,
+  });
   const weatherTools = createWeatherTools({ cache });
   // Charts are useful in chat / scout answers but out of place in a debrief
   // interview — register chart_render for the two scouting-shaped modes only.

@@ -235,8 +235,27 @@ function PartView({ part }: { part: UIMessage["parts"][number] }) {
   }
 
   if (part.type.startsWith("tool-")) {
-    const state = (part as { state?: string }).state;
-    const done = state === "output-available" || state === "output-error";
+    const toolPart = part as {
+      state?: string;
+      errorText?: string;
+      output?: { error?: string };
+    };
+    // A tool can fail two ways: the execute threw (state "output-error",
+    // errorText set), or it returned an { error } payload (e.g. the db tools).
+    // Surface both - otherwise a failed DB call looks identical to a successful
+    // one and there's nothing to debug from.
+    const errorText =
+      toolPart.state === "output-error"
+        ? (toolPart.errorText ?? "tool error")
+        : toolPart.output?.error;
+    if (errorText) {
+      return (
+        <p className="text-xs text-red-600">
+          ⚠ {toolLabel(part.type)} failed: {errorText}
+        </p>
+      );
+    }
+    const done = toolPart.state === "output-available";
     return (
       <p className="text-xs text-stone-500">
         {done ? "✓" : "…"} {toolLabel(part.type)}

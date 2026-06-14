@@ -1,5 +1,6 @@
 import type { DB } from "@percy-main/db";
 import { tool } from "ai";
+import type { FastifyBaseLogger } from "fastify";
 import { CompiledQuery, type Kysely } from "kysely";
 import { z } from "zod";
 
@@ -51,11 +52,35 @@ const STATEMENT_TIMEOUT_SECONDS = 30;
 
 export interface DbToolDeps {
   dbReadonly: Kysely<DB>;
+  /**
+   * Optional - when supplied, db tool failures are logged server-side. Without
+   * it the failures are still returned to the model as { error } but are
+   * otherwise invisible (no log, and the FE only shows a tool chip), which
+   * makes "the DB calls silently failed" impossible to debug.
+   */
+  logger?: FastifyBaseLogger;
 }
 
 export function createDbTools(deps: DbToolDeps) {
-  const { dbReadonly } = deps;
+  const { dbReadonly, logger } = deps;
   const allowedTables: readonly string[] = SCOUT_ALLOWED_TABLES;
+
+  // Shape an error for both the model (sanitised string) and the operator log.
+  const fail = (
+    toolName: string,
+    err: unknown,
+    extra?: Record<string, unknown>,
+  ) => {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Query failed with an unknown error.";
+    logger?.error(
+      { err, tool: toolName, ...extra },
+      `db tool ${toolName} failed: ${message}`,
+    );
+    return { error: message };
+  };
 
   return {
     db_list_tables: tool({
@@ -63,47 +88,53 @@ export function createDbTools(deps: DbToolDeps) {
         "List the tables Scout can read, with their columns and types. Call this first when you need to know what data is available before writing a SQL query.",
       inputSchema: z.object({}),
       execute: async () => {
-        const placeholders = allowedTables.map((_, i) => `$${i + 1}`).join(",");
-        const out = await dbReadonly.executeQuery(
-          CompiledQuery.raw(
-            `SELECT table_name, column_name, data_type, is_nullable
-             FROM information_schema.columns
-             WHERE table_schema = 'public' AND table_name IN (${placeholders})
-             ORDER BY table_name, ordinal_position`,
-            [...allowedTables],
-          ),
-        );
+        try {
+          const placeholders = allowedTables
+            .map((_, i) => `$${i + 1}`)
+            .join(",");
+          const out = await dbReadonly.executeQuery(
+            CompiledQuery.raw(
+              `SELECT table_name, column_name, data_type, is_nullable
+               FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name IN (${placeholders})
+               ORDER BY table_name, ordinal_position`,
+              [...allowedTables],
+            ),
+          );
 
-        const rows = out.rows as Array<{
-          table_name: string;
-          column_name: string;
-          data_type: string;
-          is_nullable: string;
-        }>;
+          const rows = out.rows as Array<{
+            table_name: string;
+            column_name: string;
+            data_type: string;
+            is_nullable: string;
+          }>;
 
-        const byTable = new Map<
-          string,
-          Array<{ name: string; type: string; nullable: boolean }>
-        >();
-        for (const row of rows) {
-          let cols = byTable.get(row.table_name);
-          if (!cols) {
-            cols = [];
-            byTable.set(row.table_name, cols);
+          const byTable = new Map<
+            string,
+            Array<{ name: string; type: string; nullable: boolean }>
+          >();
+          for (const row of rows) {
+            let cols = byTable.get(row.table_name);
+            if (!cols) {
+              cols = [];
+              byTable.set(row.table_name, cols);
+            }
+            cols.push({
+              name: row.column_name,
+              type: row.data_type,
+              nullable: row.is_nullable === "YES",
+            });
           }
-          cols.push({
-            name: row.column_name,
-            type: row.data_type,
-            nullable: row.is_nullable === "YES",
-          });
-        }
 
-        return {
-          tables: [...byTable.entries()].map(([name, columns]) => ({
-            name,
-            columns,
-          })),
-        };
+          return {
+            tables: [...byTable.entries()].map(([name, columns]) => ({
+              name,
+              columns,
+            })),
+          };
+        } catch (err) {
+          return fail("db_list_tables", err);
+        }
       },
     }),
 
@@ -121,29 +152,33 @@ export function createDbTools(deps: DbToolDeps) {
           };
         }
 
-        const out = await dbReadonly.executeQuery(
-          CompiledQuery.raw(
-            `SELECT column_name, data_type, is_nullable
-             FROM information_schema.columns
-             WHERE table_schema = 'public' AND table_name = $1
-             ORDER BY ordinal_position`,
-            [table],
-          ),
-        );
-        const rows = out.rows as Array<{
-          column_name: string;
-          data_type: string;
-          is_nullable: string;
-        }>;
+        try {
+          const out = await dbReadonly.executeQuery(
+            CompiledQuery.raw(
+              `SELECT column_name, data_type, is_nullable
+               FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = $1
+               ORDER BY ordinal_position`,
+              [table],
+            ),
+          );
+          const rows = out.rows as Array<{
+            column_name: string;
+            data_type: string;
+            is_nullable: string;
+          }>;
 
-        return {
-          name: table,
-          columns: rows.map((r) => ({
-            name: r.column_name,
-            type: r.data_type,
-            nullable: r.is_nullable === "YES",
-          })),
-        };
+          return {
+            name: table,
+            columns: rows.map((r) => ({
+              name: r.column_name,
+              type: r.data_type,
+              nullable: r.is_nullable === "YES",
+            })),
+          };
+        } catch (err) {
+          return fail("db_describe_table", err, { table });
+        }
       },
     }),
 
@@ -234,12 +269,7 @@ NOTE — match_date is text in ISO YYYY-MM-DD:
             truncated,
           };
         } catch (err) {
-          return {
-            error:
-              err instanceof Error
-                ? err.message
-                : "Query failed with an unknown error.",
-          };
+          return fail("db_run_sql", err, { query: trimmed.slice(0, 500) });
         }
       },
     }),
