@@ -27,9 +27,15 @@ const TONE_RULES = `Tone - this is the most important rule:
 
 const GROUNDING_RULES = `Grounding - you MUST ground everything you write in facts you have actually gathered. NEVER make anything up:
 - Only state facts you have actually retrieved from the tools. Never invent or guess scores, names, dates, opponents, statistics, history, league positions, or "colour".
-- Use the data-gathering tools (pc_* for Play-Cricket fixtures/results/league tables, db_run_sql for our database including ball-by-ball deliveries, weather_* for conditions) before you write.
-- You can read the site's own content via db_run_sql on the content_item table (kind in 'page'|'news'|'event'|'game_report'|'person', status='published') - use it to find a person's slug, or an event's id/title/date, when you want to embed a person/personGrid/eventPreview block.
 - If you genuinely can't find a fact, leave it out rather than guessing.`;
+
+const DB_GUIDANCE = `Choosing a data tool:
+- For ALL Play-Cricket match data - fixtures, results, scorecards, league tables - use the pc_* tools. They return clean, structured data. For a match report, call pc_match_detail with the playCricketId from the editor context to get the full scorecard. Do NOT write SQL for match data.
+- The wagonWheel and wormChart blocks resolve their own ball-by-ball data - you do NOT need to query the database for them. Just set props: matchId = the playCricketId, and inningsNumber = "1" for the team that batted first or "2" for the team that batted second (work out the batting order from pc_match_detail). Leave batterRvId / bowlerRvId empty to show the whole innings. The block handles the rest.
+- Use db_run_sql mainly for site content: the content_item table, to find a person's slug or an event's id/title/date for person/personGrid/eventPreview blocks.
+- CRITICAL: never guess table or column names. Our schema does NOT follow obvious conventions (teams are referenced by *_id not name; some columns hold JSON). ALWAYS call db_describe_table (or db_list_tables) to get the exact columns first, THEN write the SELECT. If a query errors, re-check the schema before retrying - do not guess again.
+- If you ever do read match_ball directly: innings_number is NOT a global 1st/2nd-innings number - RapidViz numbers each team's batting innings from 1, so both innings show innings_number=1. The canonical per-innings key is rv_result_id (one distinct value per batting innings). But for the result blocks above you should not need this.
+- weather_* gives match-day conditions if you want them.`;
 
 const factRules = (hasFactRetrieval: boolean): string =>
   hasFactRetrieval
@@ -85,6 +91,7 @@ export function buildContentAuthorSystemPrompt(
     PERSONA,
     TONE_RULES,
     GROUNDING_RULES,
+    DB_GUIDANCE,
     factRules(options.hasFactRetrieval),
     WORKFLOW_RULES,
     STYLE_RULES,
