@@ -324,6 +324,10 @@ describe("ContentBody", () => {
       block("leagueTable", {
         props: { divisionId: "div-1", name: "Division 1" },
       }),
+      block("wagonWheel", {
+        props: { matchId: "123", inningsNumber: "1" },
+      }),
+      block("wormChart", { props: { matchId: "123" } }),
       block("leaderboard", {}),
       block("recordsWall", {}),
       block("contactForm", {
@@ -340,6 +344,8 @@ describe("ContentBody", () => {
     expect(html).toContain("Get in touch");
     expect(html).toContain("Manage cookies");
     expect(html).toContain("v3");
+    // Both cricket result blocks render their dark panel wrapper.
+    expect(html.match(/wagon-wheel-surface/g)).toHaveLength(2);
   });
 
   it("renders personGrid via the shared PersonGrid component", () => {
@@ -475,5 +481,42 @@ describe("ContentBody", () => {
   it("renders consentVersion as a self-contained sentence", () => {
     const html = renderBody([block("consentVersion", {})]);
     expect(html).toContain("This notice is version v3.");
+  });
+
+  it("hides the wagonWheel block when matchId is missing", () => {
+    const html = renderBody([
+      block("wagonWheel", { props: { inningsNumber: "1" } }),
+    ]);
+    expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
+  });
+
+  it("renders the wagonWheel panel when a match is set", () => {
+    // The viewer fetches ball data at view time (disabled in tests); the dark
+    // panel wrapper renders regardless so the block is never invisible.
+    const html = renderBody([
+      block("wagonWheel", {
+        props: {
+          matchId: "123",
+          inningsNumber: "1",
+          batterRvId: "42",
+          bowlerRvId: "7",
+        },
+      }),
+    ]);
+    expect(html).toContain("wagon-wheel-surface");
+  });
+
+  it("hides the wormChart block when matchId is missing", () => {
+    const html = renderBody([
+      block("wormChart", { props: { inningsNumber: "2" } }),
+    ]);
+    expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
+  });
+
+  it("renders the wormChart panel when a match is set", () => {
+    const html = renderBody([
+      block("wormChart", { props: { matchId: "123", inningsNumber: "2" } }),
+    ]);
+    expect(html).toContain("wagon-wheel-surface");
   });
 });

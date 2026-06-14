@@ -386,6 +386,31 @@ function BlockView({ block }: { block: ContentBlock }) {
       return <mdxComponents.GamePreview playCricketId={playCricketId} />;
     }
 
+    case CUSTOM_BLOCK_TYPES.wagonWheel: {
+      const matchId = stringProp(block, "matchId");
+      // Required prop: degrade silently when missing.
+      if (!matchId) return null;
+      return (
+        <mdxComponents.WagonWheel
+          matchId={matchId}
+          inningsNumber={stringProp(block, "inningsNumber")}
+          batterRvId={stringProp(block, "batterRvId")}
+          bowlerRvId={stringProp(block, "bowlerRvId")}
+        />
+      );
+    }
+
+    case CUSTOM_BLOCK_TYPES.wormChart: {
+      const matchId = stringProp(block, "matchId");
+      if (!matchId) return null;
+      return (
+        <mdxComponents.WormChart
+          matchId={matchId}
+          inningsNumber={stringProp(block, "inningsNumber")}
+        />
+      );
+    }
+
     case CUSTOM_BLOCK_TYPES.eventPreview: {
       const id = stringProp(block, "eventId");
       const name = stringProp(block, "name");
