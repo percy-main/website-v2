@@ -23,10 +23,6 @@ export function playerSponsorsQueryOptions() {
   });
 }
 
-interface PlayerSponsorsData {
-  sponsors: PlayerSponsorSummary[];
-}
-
 /**
  * Index approved sponsors by person slug. The DB enforces one paid
  * sponsorship per (slug, season), so a slug maps to at most one sponsor.
@@ -35,10 +31,10 @@ interface PlayerSponsorsData {
  * it the live query data.
  */
 export function buildPlayerSponsors(
-  data: PlayerSponsorsData | undefined,
+  sponsors: PlayerSponsorSummary[] | undefined,
 ): Map<string, PlayerSponsorSummary> {
   const map = new Map<string, PlayerSponsorSummary>();
-  for (const sponsor of data?.sponsors ?? []) {
+  for (const sponsor of sponsors ?? []) {
     if (sponsor.slug) map.set(sponsor.slug, sponsor);
   }
   return map;
@@ -47,5 +43,5 @@ export function buildPlayerSponsors(
 /** Approved player sponsors keyed by person slug - see buildPlayerSponsors. */
 export function usePlayerSponsors(): Map<string, PlayerSponsorSummary> {
   const { data } = useQuery(playerSponsorsQueryOptions());
-  return useMemo(() => buildPlayerSponsors(data), [data]);
+  return useMemo(() => buildPlayerSponsors(data?.sponsors), [data]);
 }

@@ -9,27 +9,16 @@ import {
 
 const sponsor = (
   overrides: Partial<PlayerSponsorSummary>,
-): PlayerSponsorSummary =>
-  ({
-    id: "s1",
-    slug: "alex-young",
-    player_name: "Alex Young",
-    sponsor_name: "Acme Ltd",
-    sponsor_email: "acme@example.com",
-    sponsor_website: null,
-    sponsor_phone: null,
-    sponsor_logo_url: null,
-    sponsor_message: null,
-    amount_pence: 5000,
-    season: 2026,
-    approved: true,
-    paid_at: "2026-01-01",
-    created_at: "2026-01-01",
-    display_name: null,
-    notes: null,
-    stripe_payment_intent_id: null,
-    ...overrides,
-  });
+): PlayerSponsorSummary => ({
+  slug: "alex-young",
+  sponsor_name: "Acme Ltd",
+  sponsor_website: null,
+  sponsor_phone: null,
+  sponsor_logo_url: null,
+  sponsor_message: null,
+  display_name: null,
+  ...overrides,
+});
 
 describe("buildPlayerSponsors", () => {
   it("returns an empty map while the query has no data", () => {
@@ -37,14 +26,12 @@ describe("buildPlayerSponsors", () => {
   });
 
   it("indexes sponsors by person slug", () => {
-    const map = buildPlayerSponsors({ sponsors: [sponsor({})] });
+    const map = buildPlayerSponsors([sponsor({})]);
     expect(map.get("alex-young")?.sponsor_name).toBe("Acme Ltd");
   });
 
   it("drops rows without a slug - they can't match a person card", () => {
-    const map = buildPlayerSponsors({
-      sponsors: [sponsor({ id: "s2", slug: null })],
-    });
+    const map = buildPlayerSponsors([sponsor({ slug: null })]);
     expect(map.size).toBe(0);
   });
 });
