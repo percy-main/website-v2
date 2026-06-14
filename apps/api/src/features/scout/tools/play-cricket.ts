@@ -90,7 +90,11 @@ CRITICAL — do NOT use status to decide whether a match was played. Many played
 
 LEAGUE-TABLE WORKFLOW: pc_league_table needs a divisionId. The divisionId IS competition_id from a match summary row whose competition_type === "League". To find the right divisionId for a team's league: pull pc_match_summary for the season, filter to one row where the team is involved AND competition_type === "League", read competition_id off that row, pass it to pc_league_table.
 
-Tip: when finding the next/last fixture, prefer ["matches[].id", "matches[].match_date", "matches[].home_team_name", "matches[].away_team_name"] and filter by date relative to today.`,
+TEAM name vs CLUB name: home_team_name / away_team_name are ONLY the XI label ("1st XI", "2nd XI", "Under 13") and carry no club, so "1st XI vs 2nd XI" tells you nothing about who is playing. The club is home_club_name / away_club_name ("Percy Main", "Tynemouth"). For any fixture or "who do we play" question, project the club fields, not just the team fields.
+
+HOME vs AWAY is decided by club id, NOT by ground_name (blank grounds, the "Add New Ground" placeholder, and shared venues make ground unreliable). Percy Main is HOME when home_club_id == 134 and AWAY when away_club_id == 134.
+
+Tip: when finding the next/last fixture, project ["matches[].id", "matches[].match_date", "matches[].home_club_name", "matches[].home_club_id", "matches[].home_team_name", "matches[].away_club_name", "matches[].away_club_id", "matches[].away_team_name"], filter by date relative to today, and (for "our home game") keep rows where home_club_id == 134.`,
       inputSchema: z.object({
         season: z
           .number()

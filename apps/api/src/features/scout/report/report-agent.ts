@@ -121,6 +121,8 @@ Hard rules:
 
 - NEVER infer or invent NAMES from numeric ids. team_ids, club_ids, player_ids, competition_ids are NUMBERS. When you project an *_id field, pair it with the matching *_name on the SAME pc_* call.
 
+- TEAM name vs CLUB name: home_team_name / away_team_name are the XI label only ("1st XI", "2nd XI"); the club is home_club_name / away_club_name ("Percy Main", "Tynemouth"). Project the club_name fields to know which club a row is about, and remember Percy Main is the home side when home_club_id == 134 (away when away_club_id == 134), not whatever the ground_name says.
+
 - ALWAYS pass narrow \`fields\` projections to pc_* tools. The underlying API response is cached, so widening on a second call costs nothing at the API.
 
 - match_date is text in ISO YYYY-MM-DD on our DB tables; lex order = chronological order, so plain ORDER BY / WHERE / BETWEEN work. Don't wrap it in to_date(). The Play Cricket API still returns dd/mm/yyyy, which only matters when reading pc_* output, not when querying our DB.
