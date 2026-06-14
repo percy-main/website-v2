@@ -31,7 +31,7 @@ const generateReportInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      "Play Cricket match id for this fixture. From the upcoming-fixtures launcher message, or from ask_db / pc_match_summary.",
+      "Play Cricket match id for this fixture. From the upcoming-fixtures launcher message, or from db_run_sql / pc_match_summary.",
     ),
   ourTeam: z
     .string()
@@ -101,7 +101,7 @@ export function createGenerateReportTool(deps: GenerateReportToolDeps) {
 Call this AT MOST ONCE per session. The input is just the match identifiers — NOT the report content. The queued job gathers everything (selection, opposition stats, weather, facts) itself; do not stream stats or analysis into these args.
 
 Required:
-- matchId: the Play Cricket match id (from the upcoming-fixtures launcher message, or from ask_db on availability_fixture).
+- matchId: the Play Cricket match id (from the upcoming-fixtures launcher message, or from db_run_sql on availability_fixture).
 - ourTeam: our team name, e.g. 'Percy Main 1st XI'.
 - opposition: opposition team name.
 - homeAway: 'home' or 'away'.

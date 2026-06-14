@@ -41,7 +41,7 @@ export function createPlayCricketCitationTools(
 
   return {
     cite_match: tool({
-      description: `Attach a citation to a claim grounded in a specific Play Cricket match — past or upcoming. Call this immediately after the sentence the citation supports, with the matchId you got from a pc_* tool response (matches[].id, match_details[].id) or from ask_db (the local mirror). The frontend renders an inline [N] chip and a card linking to the match's page on percymain.play-cricket.com.
+      description: `Attach a citation to a claim grounded in a specific Play Cricket match — past or upcoming. Call this immediately after the sentence the citation supports, with the matchId you got from a pc_* tool response (matches[].id, match_details[].id) or from db_run_sql (the local mirror). The frontend renders an inline [N] chip and a card linking to the match's page on percymain.play-cricket.com.
 
 When to call:
 - You stated something specific about a single match: "We beat Backworth by 47 runs on 26/04/2025" → cite_match with that matchId.
@@ -59,7 +59,7 @@ One call per cited match. The same matchId can appear multiple times if the resp
           .string()
           .min(1)
           .describe(
-            "Play Cricket match id, exactly as it appears in pc_* responses (matches[].id, match_details[].id) or in ask_db rows. Numeric string, e.g. '7262912'.",
+            "Play Cricket match id, exactly as it appears in pc_* responses (matches[].id, match_details[].id) or in db_run_sql rows. Numeric string, e.g. '7262912'.",
           ),
         claim,
         matchDate: z

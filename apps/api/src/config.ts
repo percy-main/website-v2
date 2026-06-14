@@ -132,8 +132,9 @@ const configSchema = z.object({
     .default(900),
   // Anthropic-only — image / PDF input is on Anthropic regardless of
   // SCOUT_PROVIDER_CHAT, so the deriver gets a dedicated model id rather
-  // than reusing SCOUT_MODEL_SUBAGENT (which tracks the sub-agent provider
-  // and may be a deepseek id when the captain is running everything on DS).
+  // than reusing SCOUT_MODEL_SUBAGENT (which tracks the title-generator
+  // provider and may be a deepseek id when the captain is running everything
+  // on DS).
   SCOUT_ATTACHMENT_DERIVE_MODEL: z.string().min(1),
   SCOUT_ATTACHMENT_MAX_PER_TURN: z.coerce.number().int().positive().default(4),
 
@@ -238,25 +239,20 @@ const configSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   DEEPSEEK_API_KEY: z.string().optional(),
   SCOUT_DB_URL: z.url().optional(),
-  // Provider + model id for each Scout agent surface. All required and
-  // explicit — no in-code defaults — so prod / staging / local config
+  // Provider + model id for each Scout LLM surface. All required and
+  // explicit (no in-code defaults) so prod / staging / local config
   // stays the single source of truth and a wrong-by-default deployment
-  // can't paper over a missing env var.
+  // can't paper over a missing env var. CHAT drives the chat / scout /
+  // debrief agent; SUBAGENT drives the short thread-title generator;
+  // REPORT drives the background report builder. The DB tools (db_run_sql
+  // etc.) are wired straight into those agents and run no LLM of their own,
+  // so there is no separate DB provider/model.
   SCOUT_PROVIDER_CHAT: z.enum(["anthropic", "deepseek"]),
   SCOUT_PROVIDER_SUBAGENT: z.enum(["anthropic", "deepseek"]),
-  SCOUT_PROVIDER_DB: z.enum(["anthropic", "deepseek"]),
   SCOUT_PROVIDER_REPORT: z.enum(["anthropic", "deepseek"]),
   SCOUT_MODEL_CHAT: z.string().min(1),
   SCOUT_MODEL_SUBAGENT: z.string().min(1),
-  SCOUT_MODEL_DB: z.string().min(1),
   SCOUT_MODEL_REPORT: z.string().min(1),
-  // ask_db sub-agent step cap. A typical question takes 3-5 steps:
-  // db_list_tables, 1-2 db_describe_table, 1-2 db_run_sql (often a first
-  // query returns 0 rows due to a wrong filter, prompting one refinement).
-  // Default 8 was tight enough to fire "ran out of steps mid-loop" warnings
-  // during normal researcher runs; 14 leaves real headroom without
-  // encouraging the model to keep poking indefinitely.
-  SCOUT_DB_AGENT_MAX_STEPS: z.coerce.number().int().positive().default(14),
   SCOUT_MAX_STEPS: z.coerce.number().int().positive().default(20),
   // Report agent step ceiling (the loop behind generate_report). Gathers
   // Wall-clock cap on the report agent. DeepSeek can hold a single

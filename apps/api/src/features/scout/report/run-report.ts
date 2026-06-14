@@ -15,8 +15,9 @@ export interface RunReportDeps {
   /** Main read/write pool — used for scout_report orchestration UPDATEs and
    *  for tools that legitimately need writes (cache, fact_record). */
   db: Kysely<DB>;
-  /** Read-only pool — passed to ask_db so the LLM cannot author
-   *  destructive SQL. Falls back to `db` only as a dev convenience. */
+  /** Read-only pool, passed to the report agent's db tools so the LLM
+   *  cannot author destructive SQL. Falls back to `db` only as a dev
+   *  convenience. */
   dbReadonly: Kysely<DB>;
   playCricket: PlayCricketApiClient;
   config: Config;

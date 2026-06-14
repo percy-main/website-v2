@@ -22,11 +22,10 @@ import {
   SCOUT_FOCUSED_SYSTEM_PROMPT,
   SCOUT_SYSTEM_PROMPT,
 } from "./system-prompt.ts";
-import { createAskBallByBallTool } from "./tools/ask-ball-by-ball.ts";
-import { createAskDbTool } from "./tools/ask-db.ts";
 import { createAskQuestionTool } from "./tools/ask-question.ts";
 import { createScoutCache } from "./tools/cache.ts";
 import { createChartTool } from "./tools/chart.ts";
+import { createDbTools } from "./tools/db.ts";
 import { createFaceDetector } from "./tools/face-detection.ts";
 import { createFactTools } from "./tools/facts.ts";
 import { createGenerateReportTool } from "./tools/generate-report.ts";
@@ -124,40 +123,22 @@ export interface ScoutAgent {
 
 export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   const cache = createScoutCache(deps.db);
-  // Raw pc_* tools, not a wrapping sub-agent. The sub-agent layer was paying
-  // an extra LLM hop (and a separate context window of guard rails) to do
-  // what amounts to "pick the right pc_* and project the fields the caller
-  // asked for" — work the main agent already does well. The cache instance
-  // is shared with the weather tools so a multi-step scouting flow can reuse
-  // a cached match_summary across pc_* calls without round-tripping the API.
+  // Raw pc_* tools, not a wrapping sub-agent. The cache instance is shared
+  // with the weather tools so a multi-step scouting flow can reuse a cached
+  // match_summary across pc_* calls without round-tripping the API.
   const playCricketTools = createPlayCricketTools({
     playCricket: deps.playCricket,
     cache,
     logger: deps.logger,
   });
-  // The main agent gets a single ask_db tool, not the raw SQL surface.
-  // Failed queries, schema dumps, and intermediate row samples stay inside
-  // the sub-agent's loop — see tools/ask-db.ts for the full rationale.
-  const dbTools = createAskDbTool({
-    dbReadonly: deps.dbReadonly,
-    provider: deps.config.SCOUT_PROVIDER_DB,
-    modelId: deps.config.SCOUT_MODEL_DB,
-    maxSteps: deps.config.SCOUT_DB_AGENT_MAX_STEPS,
-    logger: deps.logger,
-    phoenixTracer: deps.phoenixTracer,
-  });
-  // Specialist sub-agent for ball-level analytics. Same isolation as ask_db
-  // (rows never reach the main chat) but a narrower allowlist + stricter
-  // tool description so the main agent only reaches for it on genuinely
-  // ball-by-ball questions. Reuses the DB-agent provider/model/step config.
-  const ballByBallTools = createAskBallByBallTool({
-    dbReadonly: deps.dbReadonly,
-    provider: deps.config.SCOUT_PROVIDER_DB,
-    modelId: deps.config.SCOUT_MODEL_DB,
-    maxSteps: deps.config.SCOUT_DB_AGENT_MAX_STEPS,
-    logger: deps.logger,
-    phoenixTracer: deps.phoenixTracer,
-  });
+  // Direct DB access: db_list_tables / db_describe_table / db_run_sql wired
+  // straight into the agent. There used to be ask_db / ask_ball_by_ball
+  // sub-agents wrapping these; they were dropped because the summarising hop
+  // hid the actual rows, SQL, and errors from the main agent (the very
+  // context it needs to reason about cricket). The agent now writes SQL
+  // itself against the full allowlist (general scouting tables plus the
+  // ball-by-ball surface). The read-only pool is the security boundary.
+  const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
   const weatherTools = createWeatherTools({ cache });
   // Charts are useful in chat / scout answers but out of place in a debrief
   // interview — register chart_render for the two scouting-shaped modes only.
@@ -191,9 +172,10 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
   // threadId is required to file reports against the owning thread, so we
   // only register the tool when one is present.
   //
-  // The tool runs a researcher sub-agent INTERNALLY to compile the report
-  // payload — the main agent never has to stream the structured JSON itself.
-  // We pass the researcher its own dependencies (model + tool surface) here.
+  // The tool only queues the job: a background report-builder agent (ECS in
+  // prod, in-process in dev) gathers the data and assembles the PDF on its
+  // own. The main chat agent never streams the report content itself; it just
+  // confirms the report was queued.
   const reportTools =
     (deps.mode === "chat" || deps.mode === "scout") && deps.threadId
       ? createGenerateReportTool({
@@ -309,7 +291,7 @@ export function createScoutAgent(deps: ScoutAgentDeps): ScoutAgent {
 
 Date formats are split between sources:
 - The Play Cricket API (queried via the pc_* tools) emits match_date in dd/mm/yyyy — today is ${ddmmyyyy} in that format. Pass dd/mm/yyyy values back through unchanged.
-- Our database (queried via ask_db) stores match_date as ISO ${iso}-style. Lex order = chronological order.
+- Our database (queried via db_run_sql) stores match_date as ISO ${iso}-style. Lex order = chronological order.
 
 When asked about the "next" or "upcoming" match for ANY club (Percy Main or opposition), call pc_match_summary / pc_site_matches with match_date filtered against today (${iso}). The local DB only carries fixtures for matches that already have a synced scorecard, so it's not the right source for upcoming-fixture questions. Don't trust your gut on what day-of-week a date falls on; always compare against the iso date above.`;
 
@@ -348,7 +330,6 @@ When asked about the "next" or "upcoming" match for ANY club (Percy Main or oppo
     tools: {
       ...playCricketTools,
       ...dbTools,
-      ...ballByBallTools,
       ...weatherTools,
       ...chartTools,
       ...videoTools,

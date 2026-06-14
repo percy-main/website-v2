@@ -39,11 +39,10 @@ export function resolveModel(
  * single generateText call. Empty for any other provider — Anthropic has
  * no equivalent toggle, and an empty object is a safe no-op for the AI SDK.
  *
- * Use this on every sub-agent that does structured tool-calling
- * (ask_db, the researcher loop, the analyst): the work is mechanical
- * orchestration, not deep reasoning, and DeepSeek-flash with thinking
- * enabled spends a multi-minute reasoning pass before its first tool call
- * which is wasted budget for these tasks.
+ * Use this on the report builder agent's loop: the work is mechanical
+ * orchestration (gather data, call the section tools), not deep reasoning,
+ * and DeepSeek-flash with thinking enabled spends a multi-minute reasoning
+ * pass before its first tool call which is wasted budget for that task.
  *
  * The Record<string, Record<string, JsonValue>> shape mirrors the AI SDK's
  * SharedV3ProviderOptions deep alias (not exported from the public "ai"

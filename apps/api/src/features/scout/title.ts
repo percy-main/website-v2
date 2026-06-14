@@ -19,7 +19,7 @@ export interface TitleDeps {
 
 /**
  * If the thread still has the placeholder title and we now have at least
- * one user message, ask the configured sub-agent for a 4-word title and
+ * one user message, ask the configured title model for a 4-word title and
  * overwrite it. Best effort — failures are swallowed (the placeholder
  * remains) so a title gen blip can't break a chat turn.
  */

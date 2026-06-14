@@ -10,8 +10,8 @@ import type { VoyageClient } from "../facts/voyage.ts";
 import { deepseekFastProviderOptions, resolveModel } from "../provider.ts";
 import { GROUNDING_RULES, IMPORTANT_CONTEXT } from "../system-prompt.ts";
 import { buildPhoenixTelemetry } from "../telemetry.ts";
-import { createAskDbTool } from "../tools/ask-db.ts";
 import { createScoutCache } from "../tools/cache.ts";
+import { createDbTools } from "../tools/db.ts";
 import { createFactTools } from "../tools/facts.ts";
 import { createPlayCricketCitationTools } from "../tools/play-cricket-citations.ts";
 import { createPlayCricketTools } from "../tools/play-cricket.ts";
@@ -87,7 +87,7 @@ Optional-section tools:
   - chart_render({ chart, section, caption })                — Chart.js v4 spec; goes under that section's players
 
 Data-gathering tools (call as needed; interleave with output tools):
-  - ask_db                     — local DB (past Percy Main matches, our internal scheduling, our players' stats). NOT for league standings or future opposition fixtures.
+  - db_list_tables / db_describe_table / db_run_sql: direct read-only SQL against the local DB (past Percy Main matches, our internal scheduling, our players' stats, and the ball-by-ball feed). NOT for league standings or future opposition fixtures. Call db_list_tables first if you're unsure of the schema, then write the SELECT yourself. Aggregate in SQL (COUNT / SUM / AVG / GROUP BY); never pull hundreds of raw rows back to reduce them by hand.
   - pc_match_summary, pc_match_detail, pc_league_table, pc_site_matches, pc_site_results, pc_find_opposition_matches, pc_list_players — Play Cricket API. ALWAYS pass narrow \`fields\` projections. ALWAYS pair every \`*_id\` projection with the matching \`*_name\` field on the SAME call — never infer names from numeric ids.
   - weather_get / weather_geocode  — open-meteo forecast for ground lat/lng.
   - fact_retrieve                  — recorded captain/club facts.
@@ -99,7 +99,7 @@ Recommended workflow (interleave freely):
 
 1. Match scope sanity — pc_match_detail with the names + ground projection. Pick up the opposition's club_id while you're there.
 
-2. Selection / our players. ask_db for the selected XI plus their season batting / bowling figures and last-6-innings scores. add_our_player for each. cite_player_stats for any aggregate you quote.
+2. Selection / our players. db_run_sql for the selected XI plus their season batting / bowling figures and last-6-innings scores. add_our_player for each. cite_player_stats for any aggregate you quote.
 
 3. Opposition recent form. pc_site_results(siteId=<their clubId>, season) for their last played matches with innings totals. pc_match_detail on the games where you want full batter/bowler lines. Add the threats via add_their_player. cite_match / cite_player_stats as you go.
 
@@ -123,7 +123,7 @@ Hard rules:
 
 - ALWAYS pass narrow \`fields\` projections to pc_* tools. The underlying API response is cached, so widening on a second call costs nothing at the API.
 
-- ask_db is a black box. NEVER name tables, columns, or DB structure in your questions. Cricket terms only.
+- match_date is text in ISO YYYY-MM-DD on our DB tables; lex order = chronological order, so plain ORDER BY / WHERE / BETWEEN work. Don't wrap it in to_date(). The Play Cricket API still returns dd/mm/yyyy, which only matters when reading pc_* output, not when querying our DB.
 
 - Cite generously but only when grounded. The references page falls out of cite_match / cite_player_stats calls — claims you don't cite get no URL on it.
 
@@ -160,14 +160,9 @@ export async function runReportAgent(
     cache,
     logger: deps.logger,
   });
-  const dbTools = createAskDbTool({
-    dbReadonly: deps.dbReadonly,
-    provider: deps.config.SCOUT_PROVIDER_DB,
-    modelId: deps.config.SCOUT_MODEL_DB,
-    maxSteps: deps.config.SCOUT_DB_AGENT_MAX_STEPS,
-    logger: deps.logger,
-    phoenixTracer: deps.phoenixTracer,
-  });
+  // Direct DB tools, no ask_db sub-agent. The report builder writes SQL
+  // against the read-only pool itself, same as the chat agent.
+  const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
   const weatherTools = createWeatherTools({ cache });
   const sectionTools = createSectionTools({ accumulator });
   // Citation tools: writer omitted (no FE stream during reports), accumulator
