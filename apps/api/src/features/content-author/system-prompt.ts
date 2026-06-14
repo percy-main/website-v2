@@ -30,12 +30,23 @@ const GROUNDING_RULES = `Grounding - you MUST ground everything you write in fac
 - If you genuinely can't find a fact, leave it out rather than guessing.`;
 
 const DB_GUIDANCE = `Choosing a data tool:
-- For ALL Play-Cricket match data - fixtures, results, scorecards, league tables - use the pc_* tools. They return clean, structured data. For a match report, call pc_match_detail with the playCricketId from the editor context to get the full scorecard. Do NOT write SQL for match data.
-- The wagonWheel and wormChart blocks resolve their own ball-by-ball data - you do NOT need to query the database for them. Just set props: matchId = the playCricketId, and inningsNumber = "1" for the team that batted first or "2" for the team that batted second (work out the batting order from pc_match_detail). Leave batterRvId / bowlerRvId empty to show the whole innings. The block handles the rest.
-- Use db_run_sql mainly for site content: the content_item table, to find a person's slug or an event's id/title/date for person/personGrid/eventPreview blocks.
-- CRITICAL: never guess table or column names. Our schema does NOT follow obvious conventions (teams are referenced by *_id not name; some columns hold JSON). ALWAYS call db_describe_table (or db_list_tables) to get the exact columns first, THEN write the SELECT. If a query errors, re-check the schema before retrying - do not guess again.
-- If you ever do read match_ball directly: innings_number is NOT a global 1st/2nd-innings number - RapidViz numbers each team's batting innings from 1, so both innings show innings_number=1. The canonical per-innings key is rv_result_id (one distinct value per batting innings). But for the result blocks above you should not need this.
-- weather_* gives match-day conditions if you want them.`;
+- For the match scorecard, results, fixtures and league tables, use the pc_* tools. For a match report, call pc_match_detail with the playCricketId from the editor context. These return clean structured data - don't hand-write SQL for them.
+
+Ball-by-ball (the match_ball table) - USE IT when it's there. Not every match is ball-by-ball scored, but when it is, it's the richest source you have: it lets you describe how the innings was actually built - key partnerships, a momentum-shifting over, who took the big wickets, a flurry of boundaries, a tense run chase. Always check for it on a match report and weave what you find into the prose. It makes a far better report than the scorecard alone.
+- Columns (describe the table to confirm): match_id (= the playCricketId), rv_result_id, over_no, ball_no, batter_rv_id, bowler_rv_id, dismissed_batter_rv_id, runs_bat, runs_extra, extras_type, l_desc / s_desc (ball descriptions). Player NAMES come from joining rv_player_mapping (rv_player_id -> player_name); the ball table only has rv ids.
+- Innings quirk: innings_number is per-team (RapidViz numbers each team's batting innings from 1), so BOTH innings show innings_number=1. The real per-innings key is rv_result_id - one distinct value per batting innings. Group/filter by rv_result_id, and tell the innings apart by their batters' names (join rv_player_mapping) or by earliest ball_time_utc.
+- Example - top scorers in an innings:
+  SELECT m.player_name, SUM(b.runs_bat) AS runs
+  FROM match_ball b JOIN rv_player_mapping m ON m.rv_player_id = b.batter_rv_id
+  WHERE b.match_id = '<playCricketId>' AND b.rv_result_id = '<one rv_result_id>'
+  GROUP BY m.player_name ORDER BY runs DESC;
+
+Other data:
+- The wagonWheel / wormChart blocks render their OWN ball-by-ball data - to embed one you only set props (matchId = playCricketId, inningsNumber = "1"/"2" in batting order; leave batterRvId/bowlerRvId empty for the whole innings). That's separate from reading match_ball yourself for the prose above - do both: read the data to write vividly, and embed the block so readers can explore it.
+- Use db_run_sql on the content_item table to find a person's slug or an event's id/title/date for person/personGrid/eventPreview blocks.
+- weather_* gives match-day conditions if you want them.
+
+CRITICAL: never guess table or column names - our schema doesn't follow obvious conventions (teams are *_id not name; some columns hold JSON). Call db_describe_table first, then write the SELECT. If a query errors, re-check the schema before retrying; don't guess again.`;
 
 const factRules = (hasFactRetrieval: boolean): string =>
   hasFactRetrieval
