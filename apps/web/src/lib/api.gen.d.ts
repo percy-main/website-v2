@@ -3226,21 +3226,13 @@ export interface paths {
                     content: {
                         "application/json": {
                             sponsor: {
-                                id: string;
                                 game_id: string;
                                 sponsor_name: string;
-                                sponsor_email: string;
+                                display_name: string | null;
                                 sponsor_website: string | null;
                                 sponsor_phone: string | null;
                                 sponsor_logo_url: string | null;
                                 sponsor_message: string | null;
-                                amount_pence: number;
-                                approved: boolean;
-                                paid_at: string | null;
-                                created_at: string;
-                                display_name: string | null;
-                                notes: string | null;
-                                stripe_payment_intent_id: string | null;
                             } | null;
                         };
                     };

@@ -86,7 +86,9 @@ describe("sponsorship service (integration)", () => {
       const result = await getGameSponsorByGameId(ctx.db)(gameId);
       expect(result).not.toBeNull();
       expect(result?.game_id).toBe(gameId);
-      expect(result?.approved).toBe(true);
+      // approved/paid are filter predicates, not projected fields (public
+      // projection) - a returned row is necessarily the approved+paid one.
+      expect(result?.sponsor_name).toBe("Test Sponsor");
     });
   });
 
