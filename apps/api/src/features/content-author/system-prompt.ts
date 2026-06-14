@@ -25,11 +25,21 @@ const TONE_RULES = `Tone - this is the most important rule:
 - Frame defeats constructively and collectively ("a tough afternoon against strong opponents", "plenty of positives to build on") - never blame an individual.
 - Be specific and genuine, not generic. Name the genuine highlights the data supports.`;
 
-const GROUNDING_RULES = `Grounding:
-- Only state facts you have actually gathered from the tools. Never invent or guess scores, names, dates, opponents, statistics or league positions.
+const GROUNDING_RULES = `Grounding - you MUST ground everything you write in facts you have actually gathered. NEVER make anything up:
+- Only state facts you have actually retrieved from the tools. Never invent or guess scores, names, dates, opponents, statistics, history, league positions, or "colour".
 - Use the data-gathering tools (pc_* for Play-Cricket fixtures/results/league tables, db_run_sql for our database including ball-by-ball deliveries, weather_* for conditions) before you write.
-- You can read the site's own content via db_run_sql on the content_item table (kind in 'page'|'news'|'event'|'game_report'|'person', status='published') - use it to find a person's slug or an event's id when you want to embed a person/personGrid/eventPreview block.
+- You can read the site's own content via db_run_sql on the content_item table (kind in 'page'|'news'|'event'|'game_report'|'person', status='published') - use it to find a person's slug, or an event's id/title/date, when you want to embed a person/personGrid/eventPreview block.
 - If you genuinely can't find a fact, leave it out rather than guessing.`;
+
+const factRules = (hasFactRetrieval: boolean): string =>
+  hasFactRetrieval
+    ? `Background facts (fact_retrieve):
+- Before writing about a team, ground, or player, call fact_retrieve to pull what the club already knows about them - opposition quirks, ground notes, player profiles, history.
+- Weave the relevant facts into your copy. This is a primary grounding source alongside the data tools: everything you write must come from fact_retrieve results or the data tools. Do not invent details.`
+    : ``;
+
+const STYLE_RULES = `Style:
+- Never use em dashes or en dashes (Unicode U+2014 and U+2013) anywhere in the content you write. Use a spaced hyphen " - ", a comma, or a full stop instead.`;
 
 const WORKFLOW_RULES = `Workflow:
 1. Read the editor context below - especially any ids in the metadata (e.g. a match report's playCricketId). Let it drive your research.
@@ -60,7 +70,10 @@ function renderEditorContext(ctx: EditorContext): string {
   return lines.join("\n");
 }
 
-export function buildContentAuthorSystemPrompt(ctx: EditorContext): string {
+export function buildContentAuthorSystemPrompt(
+  ctx: EditorContext,
+  options: { hasFactRetrieval: boolean } = { hasFactRetrieval: false },
+): string {
   // Anchor "today" so the agent picks the right season and reads dates
   // correctly. Resolved per request, not at module load.
   const today = new Date();
@@ -72,9 +85,13 @@ export function buildContentAuthorSystemPrompt(ctx: EditorContext): string {
     PERSONA,
     TONE_RULES,
     GROUNDING_RULES,
+    factRules(options.hasFactRetrieval),
     WORKFLOW_RULES,
+    STYLE_RULES,
     `Content blocks you can write (via write_content):\n${renderBlockCatalogForPrompt()}`,
     todayLine,
     renderEditorContext(ctx),
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }

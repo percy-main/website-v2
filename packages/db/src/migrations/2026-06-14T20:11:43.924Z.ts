@@ -8,13 +8,13 @@ import { type Kysely, sql } from "kysely";
  *
  * content_item was created after the scout_readonly role's explicit grant
  * list (migrations 2026-05-03 / 2026-05-07), so it was not covered. The role's
- * GRANTs are the hard security boundary; the SCOUT_ALLOWED_TABLES allowlist in
+ * GRANTs are the security boundary; the SCOUT_ALLOWED_TABLES allowlist in
  * apps/api/src/features/scout/tools/db.ts is defence in depth on top.
  *
- * Note: scout_readonly is shared with the cricket-analyst Scout agent, which
- * therefore also gains read access to content_item. Acceptable - it is
- * read-only and the data is the club's own site content; the content-author
- * system prompt steers it to published rows.
+ * scout_readonly is the shared read-only role for all AI agents (Scout +
+ * content author). Its tables are intentionally curated to be safe for AI /
+ * LLM access on this single-tenant, trusted-user deployment, so the content
+ * author sharing that surface (now including content_item) is by design.
  */
 export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`GRANT SELECT ON content_item TO scout_readonly`.execute(db);

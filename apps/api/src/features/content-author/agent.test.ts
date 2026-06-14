@@ -5,15 +5,18 @@ import { describe, expect, it } from "vitest";
 import type { Config } from "../../config.ts";
 import { createNoopLogger } from "../../lib/worker-logger.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
+import type { VoyageClient } from "../scout/facts/voyage.ts";
 import { createContentAuthorAgent } from "./agent.ts";
 import { type EditorContext } from "./system-prompt.ts";
 
 function makeAgent(overrides?: {
   provider?: "anthropic" | "deepseek";
   editorContext?: Partial<EditorContext>;
+  withVoyage?: boolean;
 }) {
   // The agent only reaches its DB / writer during tool invocation, which these
   // tests never trigger - empty stubs are safe (mirrors scout/agent.test.ts).
+  // A stub voyage is enough to construct fact_retrieve (it isn't called here).
   const stubDb = {} as Kysely<DB>;
   const stubPlayCricket = {} as PlayCricketApiClient;
   const stubWriter = {} as UIMessageStreamWriter;
@@ -40,6 +43,8 @@ function makeAgent(overrides?: {
     config: stubConfig,
     writer: stubWriter,
     logger: createNoopLogger(),
+    userId: "test-user",
+    voyage: overrides?.withVoyage ? ({} as VoyageClient) : undefined,
     editorContext,
   });
 }
@@ -51,6 +56,18 @@ describe("content-author agent - tool surface + reasoning", () => {
     expect(agent.tools.pc_match_detail).toBeDefined();
     expect(agent.tools.db_run_sql).toBeDefined();
     expect(agent.tools.weather_get).toBeDefined();
+  });
+
+  it("registers read-only fact_retrieve when voyage is configured (and not fact_record)", () => {
+    const agent = makeAgent({ withVoyage: true });
+    expect(agent.tools.fact_retrieve).toBeDefined();
+    expect(agent.tools.fact_record).toBeUndefined();
+    expect(agent.tools.cite_fact).toBeUndefined();
+  });
+
+  it("omits fact_retrieve when voyage is not configured", () => {
+    const agent = makeAgent({ withVoyage: false });
+    expect(agent.tools.fact_retrieve).toBeUndefined();
   });
 
   it("enables reasoning for deepseek", () => {
@@ -93,6 +110,19 @@ describe("content-author agent - system prompt", () => {
     const agent = makeAgent();
     expect(agent.system).toContain("positive");
     expect(agent.system).toContain("NEVER call out");
+  });
+
+  it("insists on grounding and forbids em dashes", () => {
+    const agent = makeAgent();
+    expect(agent.system).toContain("NEVER make anything up");
+    expect(agent.system).toContain("U+2014");
+  });
+
+  it("adds fact_retrieve grounding guidance only when voyage is configured", () => {
+    expect(makeAgent({ withVoyage: true }).system).toContain("fact_retrieve");
+    expect(makeAgent({ withVoyage: false }).system).not.toContain(
+      "fact_retrieve",
+    );
   });
 
   it("injects the editor metadata so research is grounded", () => {

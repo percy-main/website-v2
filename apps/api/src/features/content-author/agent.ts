@@ -9,9 +9,11 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { Config } from "../../config.ts";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
+import type { VoyageClient } from "../scout/facts/voyage.ts";
 import { resolveModel } from "../scout/provider.ts";
 import { createScoutCache } from "../scout/tools/cache.ts";
 import { createDbTools } from "../scout/tools/db.ts";
+import { createFactTools } from "../scout/tools/facts.ts";
 import { createPlayCricketTools } from "../scout/tools/play-cricket.ts";
 import { createWeatherTools } from "../scout/tools/weather.ts";
 import {
@@ -47,6 +49,12 @@ export interface ContentAuthorAgentDeps {
   // Stream writer used by write_content to emit data-content-blocks parts.
   writer: UIMessageStreamWriter;
   logger: FastifyBaseLogger;
+  // Authenticated caller - scopes fact retrieval (club + this user's facts).
+  userId: string;
+  // Voyage client for read-only fact retrieval (teams / grounds / players).
+  // Optional: when absent (VOYAGE_API_KEY unset) the fact_retrieve tool is
+  // simply not registered, exactly as Scout degrades.
+  voyage?: VoyageClient;
   // Editor state injected into the system prompt to ground research.
   editorContext: EditorContext;
 }
@@ -75,9 +83,25 @@ export function createContentAuthorAgent(
     cache,
     logger: deps.logger,
   });
+  // Same read-only DB surface as Scout (scout_readonly). Those tables are
+  // intentionally curated to be safe for AI access on this single-tenant,
+  // trusted-user deployment.
   const dbTools = createDbTools({ dbReadonly: deps.dbReadonly });
   const weatherTools = createWeatherTools({ cache });
   const writeContentTools = createWriteContentTool({ writer: deps.writer });
+
+  // Read-only fact retrieval for grounding (teams, grounds, players). We expose
+  // ONLY fact_retrieve - the author never records or cites facts.
+  const factTools: ToolSet = deps.voyage
+    ? {
+        fact_retrieve: createFactTools({
+          db: deps.db,
+          voyage: deps.voyage,
+          userId: deps.userId,
+          logger: deps.logger,
+        }).fact_retrieve,
+      }
+    : {};
 
   const resolved = resolveModel(
     deps.config.CONTENT_AI_PROVIDER,
@@ -100,11 +124,14 @@ export function createContentAuthorAgent(
 
   return {
     model: resolved.model,
-    system: buildContentAuthorSystemPrompt(deps.editorContext),
+    system: buildContentAuthorSystemPrompt(deps.editorContext, {
+      hasFactRetrieval: Boolean(deps.voyage),
+    }),
     tools: {
       ...playCricketTools,
       ...dbTools,
       ...weatherTools,
+      ...factTools,
       ...writeContentTools,
     },
     maxSteps: deps.config.SCOUT_MAX_STEPS,

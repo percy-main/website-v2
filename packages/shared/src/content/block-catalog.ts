@@ -151,13 +151,13 @@ export const BLOCK_CATALOG: readonly BlockCatalogEntry[] = [
   {
     type: CUSTOM_BLOCK_TYPES.eventPreview,
     description:
-      "A calendar event card. `eventId` is the event's content slug (content_item, kind='event'); `name` and `when` (ISO date) are shown on the card.",
+      "A calendar event card. All three props are required (the public renderer hides the card otherwise): `eventId` is the event's content slug (content_item, kind='event'), `name` is the event title, `when` is its ISO date - read them together from the content_item row.",
     contentKind: "none",
     agentWritable: true,
     propsSchema: z.object({
       eventId: z.string().min(1),
-      name: z.string().optional(),
-      when: z.string().optional(),
+      name: z.string().min(1),
+      when: z.string().min(1),
     }),
   },
   {

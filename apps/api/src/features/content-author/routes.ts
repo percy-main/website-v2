@@ -9,6 +9,7 @@ import {
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { getAuthSession, requirePermission } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
+import { createVoyageClient } from "../scout/facts/voyage.ts";
 import { buildPhoenixTelemetry } from "../scout/telemetry.ts";
 import { createContentAuthorAgent } from "./agent.ts";
 import { contentAuthorRequestBodySchema } from "./schemas.ts";
@@ -95,6 +96,16 @@ export const contentAuthorRoutes: FastifyPluginAsyncZod = async (app) => {
         siteId: app.config.PLAY_CRICKET_SITE_ID,
       });
 
+      // Voyage powers read-only fact retrieval (teams / grounds / players).
+      // Optional - without it the agent just runs without fact_retrieve.
+      const voyage = app.config.VOYAGE_API_KEY
+        ? createVoyageClient({
+            apiKey: app.config.VOYAGE_API_KEY,
+            embedModel: app.config.VOYAGE_EMBED_MODEL,
+            rerankModel: app.config.VOYAGE_RERANK_MODEL,
+          })
+        : undefined;
+
       // Convert up front - createUIMessageStream's execute is synchronous.
       const modelMessages = await convertToModelMessages(incoming);
 
@@ -108,6 +119,8 @@ export const contentAuthorRoutes: FastifyPluginAsyncZod = async (app) => {
             config: app.config,
             writer,
             logger: app.log,
+            userId: user.id,
+            voyage,
             editorContext,
           });
 

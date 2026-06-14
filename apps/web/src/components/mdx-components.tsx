@@ -275,7 +275,7 @@ function GamePreview({ playCricketId }: { playCricketId: string }) {
     <Link
       to={`/calendar/game/${game.id}`}
       className={cn(
-        "my-2 flex items-center gap-3 rounded-lg border-l-4 bg-white p-4 shadow-sm transition-all hover:translate-x-1 hover:shadow-md",
+        "my-2 flex items-center gap-3 rounded-lg border-l-4 bg-white p-4 no-underline shadow-sm transition-all hover:translate-x-1 hover:shadow-md",
         game.home ? "border-l-green-800" : "border-l-blue-600",
       )}
     >
