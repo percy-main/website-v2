@@ -1,5 +1,11 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog.js";
 import {
+  polar,
+  ROPE,
+  shotRadius,
+  VIEW,
+} from "@/components/wagon-wheel-geometry.js";
+import {
   hasWagonWheel,
   useWagonWheelQuery,
   type WagonWheelData,
@@ -205,7 +211,11 @@ function InningsView({
     [balls, selectedOver, selectedBatter, selectedBowler],
   );
 
-  const stats = computeStats(filtered, dismissalPenalty);
+  const stats = computeStats(
+    filtered,
+    dismissalPenalty,
+    selectedBatter !== null,
+  );
 
   return (
     <>
@@ -341,9 +351,19 @@ interface Stats {
   wickets: number;
 }
 
-function computeStats(balls: Ball[], dismissalPenalty: number): Stats {
+function computeStats(
+  balls: Ball[],
+  dismissalPenalty: number,
+  batterSelected: boolean,
+): Stats {
   const wickets = balls.filter((b) => b.dismissed).length;
-  const gross = balls.reduce((a, b) => a + b.runsBat + b.runsExtra, 0);
+  // With a single batter filtered, "Runs" is that batter's own score (off the
+  // bat only) so it matches the scorecard. Otherwise it's the total runs on
+  // these balls, including extras (the innings / over / bowler views).
+  const gross = balls.reduce(
+    (a, b) => a + b.runsBat + (batterSelected ? 0 : b.runsExtra),
+    0,
+  );
   return {
     runs: gross - wickets * dismissalPenalty,
     balls: balls.length,
@@ -874,24 +894,6 @@ function CumulativeChart({
 }
 
 // --- Wheel ---
-
-const ROPE = 240;
-// Must be > the maximum shotRadius (278 for sixes) plus marker padding so
-// dismissal rings on boundaries don't clip against the viewBox edge.
-const VIEW = 295;
-const MAX_LEN = 50;
-
-function shotRadius(b: Pick<Ball, "runsBat" | "shotLength">): number {
-  if (b.runsBat >= 6) return 278;
-  if (b.runsBat >= 4) return 256;
-  if (b.shotLength == null) return 0;
-  return (b.shotLength / MAX_LEN) * 210;
-}
-
-function polar(deg: number, r: number): [number, number] {
-  const a = (deg * Math.PI) / 180;
-  return [Math.sin(a) * r, Math.cos(a) * r];
-}
 
 function ballKey(b: Pick<Ball, "over" | "ball">): string {
   return `${b.over}-${b.ball}`;
