@@ -58,7 +58,7 @@ export function PersonCardShell({
   const resolvedPicture = picture ?? ANON_PICTURE;
   return (
     <div className="person h-full rounded-lg bg-white pb-4 text-stone-900 shadow-md">
-      <div className="from-cta h-2 rounded-t-lg bg-gradient-to-r to-orange-400" />
+      <div className="bg-cta h-2 rounded-t-lg" />
       <div className="mx-auto mt-4 size-24 overflow-hidden rounded-full border-4 border-stone-100">
         {resolvedPicture ? (
           <OptimisedImage

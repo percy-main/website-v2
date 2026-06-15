@@ -1,5 +1,9 @@
 import "@fontsource-variable/lora";
 import "@fontsource-variable/source-sans-3";
+// Heavy condensed display face for the experimental "First-Class" content
+// theme (riso / screenprint poster look). Self-hosted to keep the no-external-
+// fonts policy; stands in for Haettenschweiler / Impact, which have no web font.
+import "@fontsource/anton";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router";

@@ -22,8 +22,10 @@ declare module "*?as=picture" {
 }
 
 /**
- * @fontsource-variable/* packages resolve to CSS files imported purely for
- * their side effects (font-face injection) and ship no type declarations.
- * Declared here so TS 6.0's noUncheckedSideEffectImports default is satisfied.
+ * @fontsource-variable/* and @fontsource/* packages resolve to CSS files
+ * imported purely for their side effects (font-face injection) and ship no
+ * type declarations. Declared here so TS 6.0's noUncheckedSideEffectImports
+ * default is satisfied.
  */
 declare module "@fontsource-variable/*";
+declare module "@fontsource/*";

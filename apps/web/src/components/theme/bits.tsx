@@ -1,0 +1,87 @@
+import { useInView } from "@/hooks/use-in-view.js";
+import { cn } from "@/lib/utils.js";
+import type { ReactNode } from "react";
+import { Link } from "react-router";
+import { RisoHeading } from "./riso-heading.js";
+
+/** A small uppercase, heavily letterspaced label — the "No. 03" kicker. */
+export function Kicker({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("fc-kicker", className)}>{children}</div>;
+}
+
+/**
+ * Section masthead: an oversized riso heading paired with a right-aligned note,
+ * sitting above a section's content.
+ */
+export function SectionMast({
+  title,
+  note,
+  front,
+  back,
+  blend,
+  className,
+}: {
+  title: ReactNode;
+  note?: ReactNode;
+  front?: string;
+  back?: string;
+  blend?: "multiply" | "normal";
+  className?: string;
+}) {
+  return (
+    <div className={cn("fc-mast", className)}>
+      <RisoHeading as="h2" front={front} back={back} blend={blend}>
+        {title}
+      </RisoHeading>
+      {note && <div className="fc-mast-note">{note}</div>}
+    </div>
+  );
+}
+
+/** A rotated, stamped CTA. Renders an internal Link or an external anchor. */
+export function StampLink({
+  to,
+  href,
+  children,
+  className,
+}: {
+  to?: string;
+  href?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  if (href) {
+    return (
+      <a className={cn("fc-stamp", className)} href={href}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link className={cn("fc-stamp", className)} to={to ?? "#"}>
+      {children}
+    </Link>
+  );
+}
+
+/** Fades + lifts its children once they scroll into view. */
+export function Reveal({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  const { ref, inView } = useInView<HTMLDivElement>();
+  return (
+    <div ref={ref} className={cn("fc-rv", inView && "in", className)}>
+      {children}
+    </div>
+  );
+}

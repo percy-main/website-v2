@@ -23,7 +23,7 @@ export const SiteFooter: FC = () => {
             <p className="mt-3 text-sm text-white/60">
               <a
                 href="https://register-of-charities.charitycommission.gov.uk/en/charity-search/-/charity-details/5231516/charity-overview"
-                className="text-orange-300 transition hover:text-orange-200"
+                className="text-cta transition hover:text-[#f7864f]"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -118,7 +118,7 @@ export const SiteFooter: FC = () => {
             </address>
             <a
               href="mailto:trustees@percymain.org"
-              className="mt-3 inline-block text-sm text-orange-300 transition hover:text-orange-200"
+              className="text-cta mt-3 inline-block text-sm transition hover:text-[#f7864f]"
             >
               trustees@percymain.org
             </a>

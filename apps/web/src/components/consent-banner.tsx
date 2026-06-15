@@ -43,7 +43,7 @@ export function ConsentBanner() {
             no; the site works the same either way.{" "}
             <Link
               to="/legal/privacy"
-              className="text-orange-300 underline underline-offset-2 hover:text-orange-200"
+              className="text-cta underline underline-offset-2 hover:text-[#f7864f]"
             >
               Privacy
             </Link>
