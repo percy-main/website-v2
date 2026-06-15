@@ -59,7 +59,10 @@ function isActive(pathname: string, item: MenuItem): boolean {
   return pathname.startsWith(item.match.start);
 }
 
-const AuthNav: FC<{ variant: "nav" | "bar" }> = ({ variant }) => {
+const AuthNav: FC<{ variant: "nav" | "bar"; onClick?: () => void }> = ({
+  variant,
+  onClick,
+}) => {
   const session = useSession();
   const location = useLocation();
 
@@ -70,12 +73,13 @@ const AuthNav: FC<{ variant: "nav" | "bar" }> = ({ variant }) => {
   const url = loggedIn ? "/members" : "/auth/login";
 
   // The account link on the main bar — same box metrics as a NavItem
-  // (border-b-2 + py-2) so its baseline lines up with the menu.
+  // (border-b-2 + py-2) so its baseline lines up with the menu. `paper` is a
+  // fixed cream that does not invert in dark mode (the bar is always orange).
   if (variant === "bar") {
     return (
       <Link
         to={url}
-        className="hover:text-creamy text-creamy/80 inline-block border-b-2 border-transparent px-3 py-2 text-sm font-medium tracking-wider uppercase transition"
+        className="hover:text-paper text-paper/80 inline-block border-b-2 border-transparent px-3 py-2 text-sm font-medium tracking-wider uppercase transition"
       >
         {label}
       </Link>
@@ -91,6 +95,7 @@ const AuthNav: FC<{ variant: "nav" | "bar" }> = ({ variant }) => {
   return (
     <Link
       to={url}
+      onClick={onClick}
       className={`hover:text-primary inline-block min-w-28 border-b-2 px-3 py-2 text-center text-sm font-medium tracking-wider uppercase transition ${
         active
           ? "border-primary/40 text-primary"
@@ -125,10 +130,8 @@ const NavItem: FC<{
   return (
     <Link
       to={item.url}
-      className={`hover:text-creamy inline-block border-b-2 px-3 py-2 text-sm font-medium tracking-wider uppercase transition lg:block ${
-        active
-          ? "border-creamy text-creamy"
-          : "text-creamy/80 border-transparent"
+      className={`hover:text-paper inline-block border-b-2 px-3 py-2 text-sm font-medium tracking-wider uppercase transition lg:block ${
+        active ? "border-paper text-paper" : "text-paper/80 border-transparent"
       }`}
     >
       {item.name}
@@ -196,7 +199,7 @@ export const SiteHeader: FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={openDrawer}
-              className="text-creamy flex items-center p-1 lg:hidden"
+              className="text-paper flex items-center p-1 lg:hidden"
               aria-label="Open menu"
             >
               <HamburgerIcon />
@@ -206,7 +209,7 @@ export const SiteHeader: FC = () => {
             {menu.map((item, i) => (
               <li key={item.name} className="flex items-center">
                 {i > 0 && (
-                  <span className="bg-creamy/30 h-4 w-px" aria-hidden="true" />
+                  <span className="bg-paper/30 h-4 w-px" aria-hidden="true" />
                 )}
                 <span className="px-1">
                   <NavItem
@@ -219,7 +222,7 @@ export const SiteHeader: FC = () => {
           </ul>
           <div className="flex items-center gap-1">
             {!themeToggleHidden && (
-              <ThemeToggle className="text-creamy/80 hover:text-creamy p-1 transition" />
+              <ThemeToggle className="text-paper/80 hover:text-paper p-1 transition" />
             )}
             <AuthNav variant="bar" />
           </div>
@@ -279,7 +282,7 @@ export const SiteHeader: FC = () => {
                 </Link>
               </li>
               <li className="mt-3">
-                <AuthNav variant="nav" />
+                <AuthNav variant="nav" onClick={closeDrawer} />
               </li>
             </ul>
           </div>

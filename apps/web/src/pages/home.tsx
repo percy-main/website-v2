@@ -291,10 +291,7 @@ function LatestNewsSection() {
 
   return (
     <Plate variant="paper" flush>
-      <SectionMast
-        title="Latest"
-        note="Match reports, club news and the word from the boundary rope."
-      />
+      <SectionMast title="Latest News" />
 
       <div className="grid gap-5 md:grid-cols-2">
         {top5.slice(0, 2).map((article) => (
@@ -386,7 +383,6 @@ export function Component() {
       <Plate variant="navy" flush>
         <SectionMast
           title="The Numbers"
-          note="This season's leaders across the club, with the bat and the ball."
           front="var(--fc-paper)"
           back="var(--fc-orange)"
           blend="normal"

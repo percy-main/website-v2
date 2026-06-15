@@ -19,6 +19,10 @@
   --color-secondary: #fee140;
   --color-body: #faf8f3;
   --color-creamy: #faf8f3;
+  /* A fixed warm cream that does NOT invert in dark mode (unlike --color-creamy).
+     Used for text/icons on the always-orange header so they stay light on the
+     standard dark-mode routes too. */
+  --color-paper: #f1e5c9;
   --color-surface: #ffffff;
   --color-surface-raised: #f9fafb;
   --color-border: #e5e7eb;
@@ -847,7 +851,10 @@
   --fc-riso-blend: multiply;
 }
 .fc-riso-base {
-  visibility: hidden;
+  /* transparent (not visibility:hidden) so the real heading text stays in the
+     accessibility tree and selectable; the visible ink is the two layers below,
+     which are aria-hidden. This is the sizing layer. */
+  color: transparent;
 }
 .fc-riso-back,
 .fc-riso-front {
@@ -874,6 +881,16 @@
 }
 .fc-riso.in:hover .fc-riso-front {
   transform: translate(-3px, -2px);
+}
+/* Headings are smaller on phones, so the off-register ink shift is dialled down
+   to stay legible rather than reading as a smudge. */
+@media (max-width: 640px) {
+  .fc-riso-back {
+    transform: translate(9px, 7px);
+  }
+  .fc-riso.in .fc-riso-back {
+    transform: translate(3px, 3px);
+  }
 }
 
 /* --- Plate: a printed sheet --- */
@@ -1273,6 +1290,10 @@
   }
   .fc-frow-tag {
     display: none;
+  }
+  /* The litho is decorative; shrink it to ~60% on phones so the hero copy leads. */
+  .fc-hero-figwrap {
+    max-width: 215px;
   }
 }
 
