@@ -1278,8 +1278,8 @@
   .fc-hero {
     grid-template-columns: 1fr;
   }
+  /* Natural order on mobile: heading + copy lead, the litho sits below them. */
   .fc-hero-figwrap {
-    order: -1;
     max-width: 360px;
     margin-inline: auto;
   }
