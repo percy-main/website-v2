@@ -233,7 +233,7 @@ function ApiPageView({
   // without inventing a <script type="application/ld+json"> here.
   return (
     <PageChrome navPages={navPages} path={path}>
-      {!meta?.hideTitle && <h2 className="mb-4">{page.title}</h2>}
+      {!meta?.hideTitle && <h2 className="fc-two-tone mb-4">{page.title}</h2>}
       <ContentBody body={page.body} />
     </PageChrome>
   );

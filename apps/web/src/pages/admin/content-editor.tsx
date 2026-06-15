@@ -3023,7 +3023,10 @@ function EditorPane({
   // background as the public pages so card-style blocks (league table,
   // contact form, game/event previews) read exactly like the live site.
   return (
-    <div className="bg-body rounded-lg border border-stone-200 py-4">
+    // fc-theme on the canvas wrapper makes the editor a First-Class scope, so
+    // the SAME .fc-theme content rules that style published pages style the
+    // canvas — the preview matches the live site without any separate styling.
+    <div className="fc-theme bg-body rounded-lg border border-stone-200 py-4">
       <BlockNoteView
         editor={editor}
         theme="light"
