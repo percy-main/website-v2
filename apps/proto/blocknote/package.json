@@ -10,9 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@blocknote/core": "^0.47.2",
-    "@blocknote/mantine": "^0.47.2",
-    "@blocknote/react": "^0.47.2",
+    "@blocknote/core": "^0.51.4",
+    "@blocknote/mantine": "^0.51.4",
+    "@blocknote/react": "^0.51.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
@@ -21,7 +21,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^6.0.2",
-    "tailwindcss": "^4.3.0",
+    "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.16"
   }
