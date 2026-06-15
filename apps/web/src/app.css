@@ -1101,8 +1101,23 @@
 .fc-hero {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
-  gap: 28px;
+  grid-template-areas:
+    "head figure"
+    "rest figure";
+  column-gap: 28px;
+  row-gap: 1.5rem;
+}
+.fc-hero-head {
+  grid-area: head;
+}
+.fc-hero-rest {
+  grid-area: rest;
+}
+.fc-hero-figwrap {
+  grid-area: figure;
+  display: flex;
   align-items: center;
+  justify-content: center;
 }
 .fc-sub {
   font-family: var(--fc-display);
@@ -1275,10 +1290,14 @@
 }
 
 @media (max-width: 820px) {
+  /* Single column: the litho sits between the heading and the supporting copy. */
   .fc-hero {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "head"
+      "figure"
+      "rest";
   }
-  /* Natural order on mobile: heading + copy lead, the litho sits below them. */
   .fc-hero-figwrap {
     max-width: 360px;
     margin-inline: auto;

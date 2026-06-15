@@ -326,13 +326,25 @@ export function Component() {
       {/* PLATE 01 — HERO */}
       <Plate variant="paper">
         <div className="fc-hero">
-          <div>
+          <div className="fc-hero-head">
             <RisoHeading as="h1" className="text-[clamp(64px,12vw,168px)]">
               Percy Main
             </RisoHeading>
-            <div className="fc-sub mb-5">
+            <div className="fc-sub">
               Community <span className="o">Sports Club</span>
             </div>
+          </div>
+          <div className="fc-hero-figwrap" aria-hidden="true">
+            <img
+              src="/images/fc-hero-cricket.png"
+              alt=""
+              width={720}
+              height={837}
+              className="mx-auto block h-auto w-full max-w-[480px]"
+              loading="eager"
+            />
+          </div>
+          <div className="fc-hero-rest">
             <Reveal>
               <p className="fc-lede">
                 Cricket, football, boxing and running - eleven a side or on your
@@ -362,16 +374,6 @@ export function Component() {
                 Our redevelopment plans
               </Link>
             </div>
-          </div>
-          <div className="fc-hero-figwrap" aria-hidden="true">
-            <img
-              src="/images/fc-hero-cricket.png"
-              alt=""
-              width={720}
-              height={837}
-              className="mx-auto block h-auto w-full max-w-[480px]"
-              loading="eager"
-            />
           </div>
         </div>
       </Plate>
