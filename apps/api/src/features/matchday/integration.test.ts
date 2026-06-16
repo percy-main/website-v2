@@ -519,6 +519,82 @@ describe("matchday service (integration)", () => {
         }),
       ).rejects.toThrow("availability request is still open");
     });
+
+    it("imports a dependent assignment without flattening it to a guest", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `cm-dep-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const parentId = await seedMember(
+        "CM Parent",
+        `cm-parent-${crypto.randomUUID()}@test.com`,
+      );
+      const dependentId = `dep-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("dependent")
+        .values({
+          id: dependentId,
+          member_id: parentId,
+          name: "CM Junior",
+          sex: "male",
+          dob: "2013-05-01",
+        })
+        .execute();
+
+      // A closed request with a dependent already picked into its fixture.
+      const requestId = `req-${crypto.randomUUID()}`;
+      const playCricketMatchId = `pcm-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("availability_request")
+        .values({
+          id: requestId,
+          created_by: userId,
+          date_from: "2026-09-05",
+          date_to: "2026-09-05",
+          status: "closed",
+        })
+        .execute();
+      const fixtureId = `fix-${crypto.randomUUID()}`;
+      await ctx.db
+        .insertInto("availability_fixture")
+        .values({
+          id: fixtureId,
+          availability_request_id: requestId,
+          match_date: "2026-09-05",
+          play_cricket_match_id: playCricketMatchId,
+          play_cricket_team_id: teamId,
+          opposition: "Juniors-up CC",
+          is_home: true,
+        })
+        .execute();
+      await ctx.db
+        .insertInto("availability_assignment")
+        .values({
+          id: `aa-${crypto.randomUUID()}`,
+          availability_fixture_id: fixtureId,
+          member_id: null,
+          dependent_id: dependentId,
+          player_name: "CM Junior",
+          position: 1,
+        })
+        .execute();
+
+      const result = await createMatchday(ctx.db)(userId, "admin", {
+        teamId,
+        matchDate: "2026-09-05",
+        opposition: "Juniors-up CC",
+        playCricketMatchId,
+      });
+
+      const player = await ctx.db
+        .selectFrom("matchday_player")
+        .where("matchday_id", "=", result.id)
+        .select(["member_id", "dependent_id", "player_name"])
+        .executeTakeFirst();
+      expect(player?.dependent_id).toBe(dependentId);
+      expect(player?.member_id).toBeNull();
+    });
   });
 
   describe("addPlayer / removePlayer", () => {

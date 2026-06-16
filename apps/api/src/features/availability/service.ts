@@ -1085,39 +1085,33 @@ export function setDependentAvailability(db: Kysely<DB>) {
     if (!fixture)
       throwHttpError(404, "No fixtures on this date for this request");
 
-    const dependent = await db
-      .selectFrom("dependent")
-      .where("id", "=", dependentId)
+    // Flip-only: a junior only reaches an official through the pools once
+    // their parent has answered, and there's no junior no-response pool, so
+    // the override edits an existing answer rather than conjuring one for an
+    // arbitrary child. A never-answered junior is added via the guest path.
+    const existing = await db
+      .selectFrom("availability_response")
+      .where("availability_request_id", "=", requestId)
+      .where("dependent_id", "=", dependentId)
+      .where("match_date", "=", date)
       .select("id")
       .executeTakeFirst();
 
-    if (!dependent) throwHttpError(404, "Dependent not found");
-
-    const now = new Date().toISOString();
+    if (!existing) {
+      throwHttpError(
+        404,
+        "No availability to override for this dependent - their parent must answer first",
+      );
+    }
 
     await db
-      .insertInto("availability_response")
-      .values({
-        id: crypto.randomUUID(),
-        availability_request_id: requestId,
-        member_id: null,
-        dependent_id: dependentId,
-        match_date: date,
+      .updateTable("availability_response")
+      .set({
         status: data.status,
         overridden_by: userId,
-        created_at: now,
-        updated_at: now,
+        updated_at: new Date().toISOString(),
       })
-      .onConflict((oc) =>
-        oc
-          .columns(["availability_request_id", "dependent_id", "match_date"])
-          .where("dependent_id", "is not", null)
-          .doUpdateSet({
-            status: data.status,
-            overridden_by: userId,
-            updated_at: now,
-          }),
-      )
+      .where("id", "=", existing.id)
       .execute();
 
     return { success: true };

@@ -819,6 +819,39 @@ describe("availability service (integration)", () => {
       ).toBe(true);
     });
 
+    it("won't override a dependent whose parent hasn't answered", async () => {
+      const parentId = await seedMember(
+        "Parent NoAns",
+        `parent-noans-${crypto.randomUUID()}@test.com`,
+      );
+      const depId = await seedDependent(parentId, "Junior NoAns");
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `admin-noans-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("NoAns XI");
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-08-15",
+        "2027-08-15",
+        "open",
+      );
+      await seedFixture(reqId, teamId, "2027-08-15");
+
+      // No response exists for this dependent, so there's nothing to flip.
+      await expect(
+        setDependentAvailability(ctx.db)(
+          admin.userId,
+          "admin",
+          reqId,
+          "2027-08-15",
+          depId,
+          { status: "available" },
+        ),
+      ).rejects.toThrow("parent must answer first");
+    });
+
     it("counts a dependent respondent in the request list", async () => {
       const email = `parent-count-${crypto.randomUUID()}@test.com`;
       const parentId = await seedMember("Parent Count", email);

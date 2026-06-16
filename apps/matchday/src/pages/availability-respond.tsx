@@ -237,6 +237,7 @@ export default function AvailabilityRespond() {
       key={selected.key}
       subject={selected}
       availableCountByKey={availableCountByKey}
+      hasPicker={hasDependents}
       onExit={() => {
         if (hasDependents) {
           backToPicker();
@@ -340,10 +341,12 @@ function SubjectPicker({
 function SubjectStepper({
   subject,
   availableCountByKey,
+  hasPicker,
   onExit,
 }: {
   subject: Subject;
   availableCountByKey: Map<string, number>;
+  hasPicker: boolean;
   onExit: () => void;
 }) {
   const qc = useQueryClient();
@@ -417,7 +420,7 @@ function SubjectStepper({
           }
           body="Nice one."
           onBack={onExit}
-          backLabel="Choose someone else"
+          backLabel={hasPicker ? "Choose someone else" : "Back to home"}
           icon="check"
         />
       </FlowFrame>
