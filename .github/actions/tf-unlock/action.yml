@@ -10,6 +10,19 @@ inputs:
   environment:
     description: TF environment name (matches infra/environments/<name>/).
     required: true
+  role-to-assume:
+    description: >
+      IAM role ARN to (re)assume for the unlock. The cleanup runs after a
+      plan/apply that may have run long; the job's original OIDC
+      credentials expire after ~1h, so a job killed by the 6h
+      max-execution-time reaches this step with dead creds and the
+      get-item / force-unlock fails (exit 254) - the exact way the
+      2026-06-15 shared lock leaked. Re-assuming here mints a fresh
+      session so the cleanup always has live creds. Use the same role the
+      caller used for plan/apply (read-write for apply layers, the plan
+      role for plan-only / drift - both have dynamodb Put/DeleteItem on
+      the locks table).
+    required: true
   bucket:
     description: S3 state bucket name.
     required: false
@@ -26,6 +39,16 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Refresh AWS credentials for the unlock
+      # Mint a fresh OIDC session so this cleanup is not defeated by the
+      # job's original credentials having expired during a long-running
+      # or timed-out plan/apply. Needs `id-token: write` on the caller
+      # workflow (all TF workflows already declare it).
+      uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+      with:
+        role-to-assume: ${{ inputs.role-to-assume }}
+        aws-region: ${{ inputs.region }}
+
     - name: Force-unlock if a CI runner left a stale lock
       shell: bash
       working-directory: infra/environments/${{ inputs.environment }}

@@ -49,6 +49,9 @@ jobs:
   terraform-shared:
     if: ${{ inputs.target == 'shared' || inputs.target == 'both' }}
     runs-on: ubuntu-latest
+    # Bound runtime under the 1h OIDC credential lifetime so the cleanup
+    # steps below always run with live creds (see deploy.yml / tf-unlock).
+    timeout-minutes: 30
     # Shared layer applies foundational infra (Route 53, IAM, S3
     # backend) — gate on the production environment so a manual run
     # against an arbitrary ref still requires reviewer approval.
@@ -93,11 +96,19 @@ jobs:
 
       - name: Terraform Plan
         id: plan
+        timeout-minutes: 10
         working-directory: infra/environments/shared
         # See ADR 035 — apply-time plan recorded for audit.
         run: |
           terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if plan didn't release its own
+        if: always() && steps.plan.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: shared
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
 
       - name: Plan summary
         if: always()
@@ -112,10 +123,18 @@ jobs:
 
       - name: Terraform Apply
         id: apply
+        timeout-minutes: 25
         working-directory: infra/environments/shared
         run: |
           terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if apply didn't release its own
+        if: always() && steps.apply.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: shared
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
 
       - name: Apply summary
         if: always()
@@ -179,6 +198,8 @@ jobs:
     if: ${{ always() && (inputs.target == 'production' || inputs.target == 'both') && (needs.terraform-shared.result == 'success' || needs.terraform-shared.result == 'skipped') }}
     needs: terraform-shared
     runs-on: ubuntu-latest
+    # See terraform-shared: bound runtime under the credential lifetime.
+    timeout-minutes: 30
     environment: production
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -211,10 +232,18 @@ jobs:
 
       - name: Terraform Plan
         id: plan
+        timeout-minutes: 10
         working-directory: infra/environments/production
         run: |
           terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if plan didn't release its own
+        if: always() && steps.plan.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: production
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
 
       - name: Plan summary
         if: always()
@@ -229,10 +258,18 @@ jobs:
 
       - name: Terraform Apply
         id: apply
+        timeout-minutes: 25
         working-directory: infra/environments/production
         run: |
           terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if apply didn't release its own
+        if: always() && steps.apply.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: production
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
 
       - name: Apply summary
         if: always()
