@@ -174,11 +174,18 @@ function UpcomingStrip() {
     if (games) {
       for (const game of games) {
         if (!game.when || !isAfter(new Date(game.when), now)) continue;
+        // Bind the club name's trailing token (typically "CC") to the word
+        // before it with a non-breaking space, so a wrap moves the whole club
+        // name to the next line rather than orphaning "CC" on its own.
+        const opponent = game.opposition.club.name.replace(
+          / (\S+)$/,
+          "\u00A0$1",
+        );
         upcoming.push({
           id: game.id,
           type: "game",
           when: game.when,
-          displayName: `${game.team.name} vs ${game.opposition.club.name}`,
+          displayName: `${game.team.name} vs ${opponent}`,
           home: game.home,
           href: `/calendar/game/${game.id}`,
         });
