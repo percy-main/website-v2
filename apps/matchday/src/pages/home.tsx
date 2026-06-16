@@ -234,7 +234,7 @@ function AvailabilityAwaitingCard() {
   // case with a primary CTA.
   if (unanswered === 0) {
     const answered = openItems.reduce(
-      (acc, i) => acc + i.myResponses.length,
+      (acc, i) => acc + i.myResponses.length + i.dependentResponses.length,
       0,
     );
     return (
@@ -513,12 +513,23 @@ function countWord(n: number): string {
 
 function countUnansweredDates(data: ActiveAvailability | undefined): number {
   if (!data) return 0;
+  // A parent answers for themselves plus each junior dependent, so an
+  // unanswered date counts once per subject still missing an answer.
+  const dependentIds = data.dependents.map((d) => d.id);
   let n = 0;
   for (const item of data.items) {
     if (item.status !== "open") continue;
-    const answered = new Set(item.myResponses.map((r) => r.match_date));
     const dates = new Set(item.fixtures.map((f) => f.match_date));
-    for (const d of dates) if (!answered.has(d)) n++;
+    const selfAnswered = new Set(item.myResponses.map((r) => r.match_date));
+    for (const d of dates) if (!selfAnswered.has(d)) n++;
+    for (const depId of dependentIds) {
+      const answered = new Set(
+        item.dependentResponses
+          .filter((r) => r.dependent_id === depId)
+          .map((r) => r.match_date),
+      );
+      for (const d of dates) if (!answered.has(d)) n++;
+    }
   }
   return n;
 }

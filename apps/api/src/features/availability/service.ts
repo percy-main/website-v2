@@ -359,10 +359,18 @@ export function listRequests(db: Kysely<DB>) {
           )
           .where("availability_fixture.play_cricket_team_id", "in", teamIds)
           .groupBy("availability_response.availability_request_id")
-          .select([
+          .select((eb) => [
             "availability_response.availability_request_id as availability_request_id",
-            db.fn
-              .count<string>("availability_response.member_id")
+            // Distinct responders: a member or a dependent (juniors playing
+            // up). Exactly one id is set per row, so coalescing gives the
+            // responder's id.
+            eb.fn
+              .count<string>(
+                eb.fn.coalesce(
+                  "availability_response.member_id",
+                  "availability_response.dependent_id",
+                ),
+              )
               .distinct()
               .as("respondent_count"),
           ])
@@ -371,9 +379,12 @@ export function listRequests(db: Kysely<DB>) {
           .selectFrom("availability_response")
           .where("availability_request_id", "in", requestIds)
           .groupBy("availability_request_id")
-          .select([
+          .select((eb) => [
             "availability_request_id",
-            db.fn.count<string>("member_id").distinct().as("respondent_count"),
+            eb.fn
+              .count<string>(eb.fn.coalesce("member_id", "dependent_id"))
+              .distinct()
+              .as("respondent_count"),
           ])
           .execute();
 
@@ -725,7 +736,7 @@ export function getDateDetail(db: Kysely<DB>) {
     // Per amendments §2: all responses surface to officials, regardless
     // of whether the responder is in one of the request's user groups.
     // (The pre-amendment behaviour filtered non-group respondents out.)
-    const responses = await db
+    const memberResponses = await db
       .selectFrom("availability_response")
       .innerJoin("member", "member.id", "availability_response.member_id")
       .where("availability_response.availability_request_id", "=", requestId)
@@ -740,6 +751,53 @@ export function getDateDetail(db: Kysely<DB>) {
       ])
       .orderBy("member.name", "asc")
       .execute();
+
+    // Junior dependents a parent answered for on this date - these play
+    // up into the senior squad, so they surface in the same pools as
+    // members (keyed by dependent_id rather than member_id).
+    const dependentResponses = await db
+      .selectFrom("availability_response")
+      .innerJoin(
+        "dependent",
+        "dependent.id",
+        "availability_response.dependent_id",
+      )
+      .where("availability_response.availability_request_id", "=", requestId)
+      .where("availability_response.match_date", "=", date)
+      .where("availability_response.dependent_id", "is not", null)
+      .select([
+        "availability_response.id",
+        "availability_response.dependent_id",
+        "availability_response.status",
+        "availability_response.note",
+        "availability_response.overridden_by",
+        "dependent.name as member_name",
+      ])
+      .orderBy("dependent.name", "asc")
+      .execute();
+
+    // Unified respondent pool: members carry member_id, dependents carry
+    // dependent_id; exactly one is set per item.
+    const responses = [
+      ...memberResponses.map((r) => ({
+        id: r.id,
+        member_id: r.member_id,
+        dependent_id: null as string | null,
+        status: r.status,
+        note: r.note,
+        overridden_by: r.overridden_by,
+        member_name: r.member_name,
+      })),
+      ...dependentResponses.map((r) => ({
+        id: r.id,
+        member_id: null as string | null,
+        dependent_id: r.dependent_id,
+        status: r.status,
+        note: r.note,
+        overridden_by: r.overridden_by,
+        member_name: r.member_name,
+      })),
+    ];
 
     // The no-response pool stays scoped to the union of the request's
     // user groups - without a group anchor it would be every member in
@@ -763,17 +821,22 @@ export function getDateDetail(db: Kysely<DB>) {
             .orderBy("member.name", "asc")
             .execute();
 
-    const respondedMemberIds = new Set(responses.map((r) => r.member_id));
+    // The no-response pool is members-only (dependents aren't group
+    // members, so there's no roster to diff them against).
+    const respondedMemberIds = new Set(memberResponses.map((r) => r.member_id));
     const noResponse = allMembers.filter((m) => !respondedMemberIds.has(m.id));
 
     const available = responses.filter((r) => r.status === "available");
     const unavailable = responses.filter((r) => r.status === "unavailable");
 
-    // Build assigned member IDs set (across all fixtures on this date)
+    // Build assigned member + dependent ID sets (across all fixtures on
+    // this date) so the picker can grey out already-picked players.
     const assignedMemberIds = new Set<string>();
+    const assignedDependentIds = new Set<string>();
     for (const list of assignmentsByFixture.values()) {
       for (const a of list) {
         if (a.member_id) assignedMemberIds.add(a.member_id);
+        if (a.dependent_id) assignedDependentIds.add(a.dependent_id);
       }
     }
 
@@ -790,6 +853,7 @@ export function getDateDetail(db: Kysely<DB>) {
         noResponse,
       },
       assignedMemberIds: Array.from(assignedMemberIds),
+      assignedDependentIds: Array.from(assignedDependentIds),
     };
   };
 }
@@ -835,6 +899,20 @@ export function assignPlayer(db: Kysely<DB>) {
       }
     }
 
+    // Same guard for a junior dependent picked to play up.
+    if (data.dependentId) {
+      const existing = await db
+        .selectFrom("availability_assignment")
+        .where("availability_fixture_id", "=", data.fixtureId)
+        .where("dependent_id", "=", data.dependentId)
+        .select("id")
+        .executeTakeFirst();
+
+      if (existing) {
+        throwHttpError(409, "This player is already assigned to this fixture");
+      }
+    }
+
     // Count current assignments and get next position
     const currentCount = await db
       .selectFrom("availability_assignment")
@@ -859,6 +937,7 @@ export function assignPlayer(db: Kysely<DB>) {
         id,
         availability_fixture_id: data.fixtureId,
         member_id: data.memberId ?? null,
+        dependent_id: data.dependentId ?? null,
         player_name: data.playerName,
         position,
       })
@@ -972,6 +1051,80 @@ export function setAvailability(db: Kysely<DB>) {
 }
 
 /**
+ * Official override of a junior dependent's availability - the dependent
+ * counterpart to setAvailability. Lets a captain flip a junior already in
+ * the pools (their parent answered) without going through the parent.
+ * Same team-scoped access rule: an official may only override on a date
+ * where they have a fixture of their own.
+ */
+export function setDependentAvailability(db: Kysely<DB>) {
+  return async (
+    userId: string,
+    role: string,
+    requestId: string,
+    date: string,
+    dependentId: string,
+    data: SetAvailability,
+  ) => {
+    const scope = await accessibleTeamScope(db, userId, role);
+    if (scope?.size === 0) {
+      throwHttpError(404, "No fixtures on this date for this request");
+    }
+
+    let fixtureQuery = db
+      .selectFrom("availability_fixture")
+      .where("availability_request_id", "=", requestId)
+      .where("match_date", "=", date);
+    if (scope) {
+      fixtureQuery = fixtureQuery.where("play_cricket_team_id", "in", [
+        ...scope,
+      ]);
+    }
+    const fixture = await fixtureQuery.select("id").executeTakeFirst();
+
+    if (!fixture)
+      throwHttpError(404, "No fixtures on this date for this request");
+
+    const dependent = await db
+      .selectFrom("dependent")
+      .where("id", "=", dependentId)
+      .select("id")
+      .executeTakeFirst();
+
+    if (!dependent) throwHttpError(404, "Dependent not found");
+
+    const now = new Date().toISOString();
+
+    await db
+      .insertInto("availability_response")
+      .values({
+        id: crypto.randomUUID(),
+        availability_request_id: requestId,
+        member_id: null,
+        dependent_id: dependentId,
+        match_date: date,
+        status: data.status,
+        overridden_by: userId,
+        created_at: now,
+        updated_at: now,
+      })
+      .onConflict((oc) =>
+        oc
+          .columns(["availability_request_id", "dependent_id", "match_date"])
+          .where("dependent_id", "is not", null)
+          .doUpdateSet({
+            status: data.status,
+            overridden_by: userId,
+            updated_at: now,
+          }),
+      )
+      .execute();
+
+    return { success: true };
+  };
+}
+
+/**
  * Materialise matchday + matchday_player rows for one availability_fixture
  * from its current assignments. Fixtures with zero assignments are
  * skipped (no team to confirm).
@@ -1045,6 +1198,7 @@ async function materialiseFixtureMatchday(
         id: crypto.randomUUID(),
         matchday_id: matchdayId,
         member_id: a.member_id,
+        dependent_id: a.dependent_id,
         player_name: a.player_name,
         status: "selected" as const,
       })),
@@ -1254,8 +1408,18 @@ export function getActiveRequests(db: Kysely<DB>) {
     // member of any of its groups; users with no member record see
     // nothing here.
     if (!member) {
-      return { memberId: null, items: [] };
+      return { memberId: null, dependents: [], items: [] };
     }
+
+    // The member's junior dependents. A parent answers availability for
+    // themselves plus each of these (juniors playing up into seniors).
+    const dependents = await db
+      .selectFrom("dependent")
+      .where("member_id", "=", member.id)
+      .select(["id", "name"])
+      .orderBy("name", "asc")
+      .execute();
+    const dependentIds = dependents.map((d) => d.id);
 
     const requests = await db
       .selectFrom("availability_request")
@@ -1276,7 +1440,7 @@ export function getActiveRequests(db: Kysely<DB>) {
       .execute();
 
     if (requests.length === 0) {
-      return { memberId: member?.id ?? null, items: [] };
+      return { memberId: member.id, dependents, items: [] };
     }
 
     const requestIds = requests.map((r) => r.id);
@@ -1306,28 +1470,30 @@ export function getActiveRequests(db: Kysely<DB>) {
       .execute();
 
     // Get member's existing responses
-    let myResponses: Array<{
-      availability_request_id: string;
-      match_date: string;
-      status: string;
-      note: string | null;
-      id: string;
-    }> = [];
+    const myResponses = await db
+      .selectFrom("availability_response")
+      .where("availability_request_id", "in", requestIds)
+      .where("member_id", "=", member.id)
+      .select(["id", "availability_request_id", "match_date", "status", "note"])
+      .execute();
 
-    if (member) {
-      myResponses = await db
-        .selectFrom("availability_response")
-        .where("availability_request_id", "in", requestIds)
-        .where("member_id", "=", member.id)
-        .select([
-          "id",
-          "availability_request_id",
-          "match_date",
-          "status",
-          "note",
-        ])
-        .execute();
-    }
+    // The member's dependents' existing answers, so the wizard can
+    // pre-fill each dependent's step.
+    const dependentResponses =
+      dependentIds.length === 0
+        ? []
+        : await db
+            .selectFrom("availability_response")
+            .where("availability_request_id", "in", requestIds)
+            .where("dependent_id", "in", dependentIds)
+            .select([
+              "availability_request_id",
+              "dependent_id",
+              "match_date",
+              "status",
+              "note",
+            ])
+            .execute();
 
     const today = new Date().toISOString().split("T")[0];
     const activeFixtures = fixtures.filter((f) => f.match_date >= today);
@@ -1363,6 +1529,28 @@ export function getActiveRequests(db: Kysely<DB>) {
       responsesByRequest.set(r.availability_request_id, list);
     }
 
+    const dependentResponsesByRequest = new Map<
+      string,
+      Array<{
+        dependent_id: string;
+        match_date: string;
+        status: string;
+        note: string | null;
+      }>
+    >();
+    for (const r of dependentResponses) {
+      if (!r.dependent_id) continue;
+      const list =
+        dependentResponsesByRequest.get(r.availability_request_id) ?? [];
+      list.push({
+        dependent_id: r.dependent_id,
+        match_date: r.match_date,
+        status: r.status,
+        note: r.note,
+      });
+      dependentResponsesByRequest.set(r.availability_request_id, list);
+    }
+
     const availableCountsByRequest = new Map<
       string,
       Array<{ match_date: string; count: number }>
@@ -1375,11 +1563,13 @@ export function getActiveRequests(db: Kysely<DB>) {
     }
 
     return {
-      memberId: member?.id ?? null,
+      memberId: member.id,
+      dependents,
       items: requests.map((r) => ({
         ...r,
         fixtures: fixturesByRequest.get(r.id) ?? [],
         myResponses: responsesByRequest.get(r.id) ?? [],
+        dependentResponses: dependentResponsesByRequest.get(r.id) ?? [],
         availableCounts: availableCountsByRequest.get(r.id) ?? [],
       })),
     };
@@ -1397,6 +1587,27 @@ export function respond(db: Kysely<DB>) {
       .executeTakeFirst();
 
     if (!member) throwHttpError(404, "Member record not found");
+
+    // Resolve the subject: the member themselves, or one of their junior
+    // dependents (a child playing up into a senior squad). A parent may
+    // only answer for a dependent registered under their own member row.
+    let subjectDependentId: string | null = null;
+    if (data.subjectDependentId) {
+      const dependent = await db
+        .selectFrom("dependent")
+        .where("id", "=", data.subjectDependentId)
+        .where("member_id", "=", member.id)
+        .select("id")
+        .executeTakeFirst();
+
+      if (!dependent) {
+        throwHttpError(
+          403,
+          "That dependent is not registered under your account",
+        );
+      }
+      subjectDependentId = dependent.id;
+    }
 
     const request = await db
       .selectFrom("availability_request")
@@ -1426,31 +1637,50 @@ export function respond(db: Kysely<DB>) {
 
     const now = new Date().toISOString();
 
-    // Upsert responses
+    // Upsert responses against the resolved subject. Member and dependent
+    // answers live in the same table with exactly one of member_id /
+    // dependent_id set, each keyed by its own (partial) unique index.
     for (const r of data.responses) {
-      await db
-        .insertInto("availability_response")
-        .values({
-          id: crypto.randomUUID(),
-          availability_request_id: requestId,
-          member_id: member.id,
-          match_date: r.matchDate,
-          status: r.status,
-          note: r.note ?? null,
-          created_at: now,
-          updated_at: now,
-        })
-        .onConflict((oc) =>
-          oc
-            .columns(["availability_request_id", "member_id", "match_date"])
-            .doUpdateSet({
-              status: r.status,
-              note: r.note ?? null,
-              overridden_by: null,
-              updated_at: now,
-            }),
-        )
-        .execute();
+      const insert = db.insertInto("availability_response").values({
+        id: crypto.randomUUID(),
+        availability_request_id: requestId,
+        member_id: subjectDependentId ? null : member.id,
+        dependent_id: subjectDependentId,
+        match_date: r.matchDate,
+        status: r.status,
+        note: r.note ?? null,
+        created_at: now,
+        updated_at: now,
+      });
+
+      const upsert = subjectDependentId
+        ? insert.onConflict((oc) =>
+            oc
+              .columns([
+                "availability_request_id",
+                "dependent_id",
+                "match_date",
+              ])
+              .where("dependent_id", "is not", null)
+              .doUpdateSet({
+                status: r.status,
+                note: r.note ?? null,
+                overridden_by: null,
+                updated_at: now,
+              }),
+          )
+        : insert.onConflict((oc) =>
+            oc
+              .columns(["availability_request_id", "member_id", "match_date"])
+              .doUpdateSet({
+                status: r.status,
+                note: r.note ?? null,
+                overridden_by: null,
+                updated_at: now,
+              }),
+          );
+
+      await upsert.execute();
     }
 
     return { success: true };

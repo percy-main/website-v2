@@ -3,22 +3,34 @@ import { fmtDate } from "@/features/format.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, CheckIcon, CircleAlertIcon, XIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  CircleAlertIcon,
+  XIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 /**
  * Phase 2 availability response flow.
  *
  * Reads /api/availability/active. The response gives us each active
  * request + the list of fixtures in its date range + the user's
- * existing responses. We flatten across requests into the set of
- * (request, match_date) pairs the user hasn't answered yet, then walk
- * one date per screen.
+ * existing responses, plus any junior dependents the member can answer
+ * for and their existing responses.
+ *
+ * A parent of juniors answers for several "subjects" - themselves and
+ * each dependent (a junior playing up into a senior squad). When they
+ * have dependents we open on a subject picker; choosing one walks its
+ * unanswered dates one screen at a time, then drops back to the picker
+ * with the remaining subjects still selectable. With no dependents the
+ * picker is skipped entirely and it behaves as the plain self flow.
  *
  * Per the plan: tap-not-swipe, both available/unavailable buttons on
- * the same screen, optional note, "apply same to all remaining"
- * power-user affordance, end-state celebration.
+ * the same screen, optional note, end-state celebration. The selected
+ * subject lives in the URL (`?for=`) so it survives reloads and back.
  */
 
 type ActiveResponse = ApiResponse<"/api/availability/active">;
@@ -31,54 +43,113 @@ interface Step {
   fixtures: Fixture[];
 }
 
+interface Subject {
+  // "self" for the member, otherwise the dependent's id. Also the value
+  // carried in the `?for=` search param.
+  key: string;
+  name: string;
+  dependentId: string | null;
+  // Unanswered (request, date) pairs for this subject.
+  steps: Step[];
+  answeredCount: number;
+  // Total answerable dates across open requests (uniform across
+  // subjects - everyone shares the same fixture dates).
+  totalCount: number;
+}
+
+const SELF_KEY = "self";
+
+function datesByRequest(openItems: ActiveItem[]) {
+  // Per request: the unique match_dates and their fixtures. Shared by
+  // every subject, so compute once.
+  return openItems.map((item) => {
+    const byDate = new Map<string, Fixture[]>();
+    for (const f of item.fixtures) {
+      const list = byDate.get(f.match_date) ?? [];
+      list.push(f);
+      byDate.set(f.match_date, list);
+    }
+    return { requestId: item.id, byDate };
+  });
+}
+
+function subjectFrom(
+  key: string,
+  name: string,
+  dependentId: string | null,
+  perRequest: ReturnType<typeof datesByRequest>,
+  answeredByRequest: Map<string, Set<string>>,
+): Subject {
+  const steps: Step[] = [];
+  let answeredCount = 0;
+  let totalCount = 0;
+  for (const { requestId, byDate } of perRequest) {
+    const answered = answeredByRequest.get(requestId) ?? new Set<string>();
+    for (const [date, fixtures] of byDate) {
+      totalCount += 1;
+      if (answered.has(date)) {
+        answeredCount += 1;
+      } else {
+        steps.push({ requestId, date, fixtures });
+      }
+    }
+  }
+  steps.sort((a, b) => a.date.localeCompare(b.date));
+  return { key, name, dependentId, steps, answeredCount, totalCount };
+}
+
+function buildSubjects(data: ActiveResponse | undefined): Subject[] {
+  if (!data) return [];
+  const openItems = data.items.filter((i) => i.status === "open");
+  const perRequest = datesByRequest(openItems);
+  const subjects: Subject[] = [];
+
+  if (data.memberId) {
+    const answeredByRequest = new Map<string, Set<string>>();
+    for (const item of openItems) {
+      answeredByRequest.set(
+        item.id,
+        new Set(item.myResponses.map((r) => r.match_date)),
+      );
+    }
+    subjects.push(
+      subjectFrom(SELF_KEY, "You", null, perRequest, answeredByRequest),
+    );
+  }
+
+  for (const dep of data.dependents) {
+    const answeredByRequest = new Map<string, Set<string>>();
+    for (const item of openItems) {
+      answeredByRequest.set(
+        item.id,
+        new Set(
+          item.dependentResponses
+            .filter((r) => r.dependent_id === dep.id)
+            .map((r) => r.match_date),
+        ),
+      );
+    }
+    subjects.push(
+      subjectFrom(dep.id, dep.name, dep.id, perRequest, answeredByRequest),
+    );
+  }
+
+  return subjects;
+}
+
 export default function AvailabilityRespond() {
   const navigate = useNavigate();
-  const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["availability", "active"],
     queryFn: () => callApi(api.GET("/api/availability/active")),
   });
 
-  const computedSteps = useMemo<Step[]>(() => {
-    if (!data) return [];
-    const out: Step[] = [];
-    for (const item of data.items) {
-      if (item.status !== "open") continue;
-      // The unique match_dates in this request, grouped from the
-      // fixture list. The user answers per date, not per fixture.
-      const byDate = new Map<string, Fixture[]>();
-      for (const f of item.fixtures) {
-        const list = byDate.get(f.match_date) ?? [];
-        list.push(f);
-        byDate.set(f.match_date, list);
-      }
-      const answered = new Set(item.myResponses.map((r) => r.match_date));
-      for (const [date, fixtures] of byDate) {
-        if (answered.has(date)) continue;
-        out.push({ requestId: item.id, date, fixtures });
-      }
-    }
-    out.sort((a, b) => a.date.localeCompare(b.date));
-    return out;
-  }, [data]);
-
-  // Snapshot the unanswered step set once data first loads with at least
-  // one entry. We invalidate the availability query after each save so
-  // the home card stays fresh, but the refetch removes the just-answered
-  // date from `computedSteps` - without this snapshot the list shrinks
-  // under us and bounces the user to the "all done" screen after the
-  // first answer. (Setting state from render is the documented React
-  // pattern for "store info from previous renders"; the conditional
-  // makes it idempotent.)
-  const [snapshot, setSnapshot] = useState<Step[] | null>(null);
-  if (snapshot === null && computedSteps.length > 0) {
-    setSnapshot(computedSteps);
-  }
-  const flowSteps = snapshot ?? computedSteps;
+  const subjects = useMemo(() => buildSubjects(data), [data]);
 
   // Available-so-far counts come back fresh on every refetch (we want
   // these to update as other players answer), so they're keyed off the
-  // live `data` rather than the snapshotted `flowSteps`.
+  // live `data`.
   const availableCountByKey = useMemo<Map<string, number>>(() => {
     const m = new Map<string, number>();
     for (const item of data?.items ?? []) {
@@ -88,53 +159,6 @@ export default function AvailabilityRespond() {
     }
     return m;
   }, [data]);
-
-  const [stepIndex, setStepIndex] = useState(0);
-  const [note, setNote] = useState("");
-  const current = flowSteps[stepIndex];
-  const currentAvailableCount = current
-    ? (availableCountByKey.get(`${current.requestId}:${current.date}`) ?? 0)
-    : 0;
-
-  // Player-side endpoint — gated on requireAuth, accepts a batch of
-  // { matchDate, status, note? } per request. Per-date PUT is the
-  // official override path; using it as a player returned 403.
-  const respond = useMutation({
-    mutationFn: (vars: {
-      requestId: string;
-      responses: Array<{
-        matchDate: string;
-        status: "available" | "unavailable";
-        note?: string;
-      }>;
-    }) =>
-      callApi(
-        api.POST("/api/availability/requests/{requestId}/respond", {
-          params: { path: { requestId: vars.requestId } },
-          body: { responses: vars.responses },
-        }),
-      ),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["availability"] });
-    },
-  });
-
-  async function pick(answer: "available" | "unavailable") {
-    if (!current) return;
-    const noteTrim = note.trim();
-    await respond.mutateAsync({
-      requestId: current.requestId,
-      responses: [
-        {
-          matchDate: current.date,
-          status: answer,
-          ...(noteTrim && { note: noteTrim }),
-        },
-      ],
-    });
-    setNote("");
-    setStepIndex((prev) => Math.min(prev + 1, flowSteps.length));
-  }
 
   if (isLoading) {
     return (
@@ -162,7 +186,9 @@ export default function AvailabilityRespond() {
       </FlowFrame>
     );
   }
-  if (flowSteps.length === 0) {
+
+  const totalDates = subjects[0]?.totalCount ?? 0;
+  if (totalDates === 0) {
     return (
       <FlowFrame>
         <EmptyDone
@@ -175,30 +201,235 @@ export default function AvailabilityRespond() {
       </FlowFrame>
     );
   }
-  if (stepIndex >= flowSteps.length || !current) {
+
+  // Only the member's own subject exists -> no picker, straight into the
+  // self flow exactly as before.
+  const hasDependents = subjects.some((s) => s.dependentId !== null);
+  const forParam = searchParams.get("for");
+  const selected = hasDependents
+    ? subjects.find((s) => s.key === forParam)
+    : subjects[0];
+
+  if (!selected) {
     return (
       <FlowFrame>
-        <EmptyDone
-          title="All done"
-          body="See you on the pitch."
+        <SubjectPicker
+          subjects={subjects}
+          onSelect={(key) => {
+            setSearchParams({ for: key });
+          }}
           onBack={() => {
             void navigate("/");
           }}
+        />
+      </FlowFrame>
+    );
+  }
+
+  const backToPicker = () => {
+    setSearchParams({}, { replace: true });
+  };
+
+  return (
+    <SubjectStepper
+      // Remount when the subject changes so the snapshot + step index
+      // reset cleanly for the newly chosen person.
+      key={selected.key}
+      subject={selected}
+      availableCountByKey={availableCountByKey}
+      onExit={() => {
+        if (hasDependents) {
+          backToPicker();
+        } else {
+          void navigate("/");
+        }
+      }}
+    />
+  );
+}
+
+function SubjectPicker({
+  subjects,
+  onSelect,
+  onBack,
+}: {
+  subjects: Subject[];
+  onSelect: (key: string) => void;
+  onBack: () => void;
+}) {
+  const allDone = subjects.every((s) => s.steps.length === 0);
+  return (
+    <>
+      <header className="border-border flex items-center gap-3 border-b p-3">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back"
+          className="text-text-secondary hover:bg-surface-raised grid size-9 place-items-center rounded-md"
+        >
+          <ArrowLeftIcon className="size-5" />
+        </button>
+        <h1 className="text-base font-semibold">Answer availability</h1>
+      </header>
+      <div className="mx-auto w-full max-w-md px-5 py-6">
+        <p className="text-text-secondary text-sm">
+          Who are you answering for?
+        </p>
+        <ul className="mt-4 space-y-2">
+          {subjects.map((s) => {
+            const done = s.steps.length === 0;
+            return (
+              <li key={s.key}>
+                <button
+                  type="button"
+                  disabled={done}
+                  onClick={() => onSelect(s.key)}
+                  className={cn(
+                    "border-border bg-surface-raised flex w-full items-center gap-3 rounded-xl border p-4 text-left",
+                    done ? "opacity-70" : "hover:border-navy",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "grid size-9 shrink-0 place-items-center rounded-full text-sm font-semibold",
+                      done
+                        ? "bg-success-bg text-success"
+                        : "bg-info-bg text-navy dark:text-white",
+                    )}
+                  >
+                    {done ? (
+                      <CheckIcon className="size-5" strokeWidth={2.4} />
+                    ) : (
+                      initials(s.name)
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {s.key === SELF_KEY ? "Myself" : s.name}
+                    </span>
+                    <span className="text-text-secondary block text-xs">
+                      {done
+                        ? "All answered"
+                        : `${s.answeredCount} of ${s.totalCount} answered`}
+                    </span>
+                  </span>
+                  {!done && (
+                    <ChevronRightIcon className="text-text-secondary size-5 shrink-0" />
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        {allDone && (
+          <div className="mt-6 text-center">
+            <p className="text-text-secondary text-sm">
+              Everyone's availability is in. Thank you!
+            </p>
+            <Button tone="primary" className="mt-4 w-full" onClick={onBack}>
+              Back to home
+            </Button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function SubjectStepper({
+  subject,
+  availableCountByKey,
+  onExit,
+}: {
+  subject: Subject;
+  availableCountByKey: Map<string, number>;
+  onExit: () => void;
+}) {
+  const qc = useQueryClient();
+
+  // Snapshot the unanswered steps on entry. We invalidate the
+  // availability query after each save so the picker counts stay fresh,
+  // but the refetch would otherwise shrink this list under us and bounce
+  // to the done screen after the first answer.
+  const [flowSteps] = useState<Step[]>(subject.steps);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [note, setNote] = useState("");
+
+  const respond = useMutation({
+    mutationFn: (vars: {
+      requestId: string;
+      responses: Array<{
+        matchDate: string;
+        status: "available" | "unavailable";
+        note?: string;
+      }>;
+    }) =>
+      callApi(
+        api.POST("/api/availability/requests/{requestId}/respond", {
+          params: { path: { requestId: vars.requestId } },
+          body: {
+            ...(subject.dependentId
+              ? { subjectDependentId: subject.dependentId }
+              : {}),
+            responses: vars.responses,
+          },
+        }),
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["availability"] });
+    },
+  });
+
+  const current = flowSteps[stepIndex];
+  const total = flowSteps.length;
+  const currentAvailableCount = current
+    ? (availableCountByKey.get(`${current.requestId}:${current.date}`) ?? 0)
+    : 0;
+
+  async function pick(answer: "available" | "unavailable") {
+    if (!current) return;
+    const noteTrim = note.trim();
+    await respond.mutateAsync({
+      requestId: current.requestId,
+      responses: [
+        {
+          matchDate: current.date,
+          status: answer,
+          ...(noteTrim && { note: noteTrim }),
+        },
+      ],
+    });
+    setNote("");
+    setStepIndex((prev) => prev + 1);
+  }
+
+  // Either the subject was already fully answered, or we've just walked
+  // its last date.
+  if (flowSteps.length === 0 || stepIndex >= flowSteps.length || !current) {
+    return (
+      <FlowFrame>
+        <EmptyDone
+          title={
+            subject.key === SELF_KEY
+              ? "Your availability is in"
+              : `${subject.name}'s availability is in`
+          }
+          body="Nice one."
+          onBack={onExit}
+          backLabel="Choose someone else"
           icon="check"
         />
       </FlowFrame>
     );
   }
 
-  const total = flowSteps.length;
   return (
     <FlowFrame>
       <header className="border-border flex items-center gap-3 border-b p-3">
         <button
           type="button"
-          onClick={() => {
-            void navigate("/");
-          }}
+          onClick={onExit}
           aria-label="Back"
           className="text-text-secondary hover:bg-surface-raised grid size-9 place-items-center rounded-md"
         >
@@ -221,25 +452,23 @@ export default function AvailabilityRespond() {
         </div>
         <button
           type="button"
-          onClick={() => {
-            void navigate("/");
-          }}
+          onClick={onExit}
           className="text-text-secondary text-xs font-medium"
         >
-          Skip all →
+          Done
         </button>
       </header>
       <div className="mx-auto w-full max-w-md px-5 py-6">
         <div className="flex items-baseline justify-between">
           <span className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
-            {fmtDate(current.date, "EEEE")}
+            Answering for {subject.key === SELF_KEY ? "yourself" : subject.name}
           </span>
           <span className="text-text-secondary text-xs">
             {stepIndex + 1} of {total}
           </span>
         </div>
         <h1 className="mt-1 text-2xl font-semibold tracking-[-0.015em]">
-          {fmtDate(current.date, "d MMMM")}
+          {fmtDate(current.date, "EEEE d MMMM")}
         </h1>
 
         <div className="mt-4 space-y-2">
@@ -325,15 +554,25 @@ export default function AvailabilityRespond() {
   );
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const first = parts[0][0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : "";
+  return (first + last).toUpperCase();
+}
+
 function EmptyDone({
   title,
   body,
   onBack,
+  backLabel,
   icon,
 }: {
   title: string;
   body: string;
   onBack: () => void;
+  backLabel?: string;
   icon?: "check";
 }) {
   return (
@@ -353,7 +592,7 @@ function EmptyDone({
       </h1>
       <p className="text-text-secondary mt-1 text-sm">{body}</p>
       <Button tone="primary" className="mt-6 w-full max-w-xs" onClick={onBack}>
-        Back to home
+        {backLabel ?? "Back to home"}
       </Button>
     </div>
   );

@@ -29,6 +29,12 @@ export const requestDateMemberParamSchema = z.object({
   memberId: z.string(),
 });
 
+export const requestDateDependentParamSchema = z.object({
+  requestId: z.string(),
+  date: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
+  dependentId: z.string(),
+});
+
 // ── Body schemas ──
 
 export const createRequestSchema = z.object({
@@ -43,17 +49,30 @@ export const previewRangeSchema = z.object({
   dateTo: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
 });
 
-export const assignPlayerSchema = z.object({
-  fixtureId: z.string(),
-  memberId: z.string().optional(),
-  playerName: z.string().min(1),
-});
+export const assignPlayerSchema = z
+  .object({
+    fixtureId: z.string(),
+    memberId: z.string().optional(),
+    // A junior dependent (no member row) picked to play up into a senior
+    // squad. Mutually exclusive with memberId; the guest path supplies
+    // neither and relies on playerName alone.
+    dependentId: z.string().optional(),
+    playerName: z.string().min(1),
+  })
+  .refine((d) => !(d.memberId && d.dependentId), {
+    message: "Cannot assign both a member and a dependent",
+    path: ["dependentId"],
+  });
 
 export const setAvailabilitySchema = z.object({
   status: z.enum(["available", "unavailable"]),
 });
 
 export const respondSchema = z.object({
+  // When set, the parent is answering on behalf of one of their junior
+  // dependents (omit to answer for themselves). The dependent must be
+  // registered under the signed-in member.
+  subjectDependentId: z.string().optional(),
   responses: z.array(
     z.object({
       matchDate: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD format"),
@@ -154,14 +173,20 @@ const assignmentSchema = z.object({
   id: z.string(),
   availability_fixture_id: z.string(),
   member_id: z.string().nullable(),
+  dependent_id: z.string().nullable(),
   player_name: z.string(),
   position: z.number(),
   created_at: z.string(),
 });
 
+// A respondent in the date-detail pools. Exactly one of member_id /
+// dependent_id is set: a member answering for themselves, or a junior
+// dependent a parent answered for. `member_name` carries the subject's
+// display name in both cases.
 const responseItemSchema = z.object({
   id: z.string(),
-  member_id: z.string(),
+  member_id: z.string().nullable(),
+  dependent_id: z.string().nullable(),
   status: z.string(),
   note: z.string().nullable(),
   overridden_by: z.string().nullable(),
@@ -200,6 +225,7 @@ export const getDateDetailResponseSchema = z.object({
     noResponse: z.array(memberPoolItemSchema),
   }),
   assignedMemberIds: z.array(z.string()),
+  assignedDependentIds: z.array(z.string()),
 });
 
 export const assignPlayerResponseSchema = z.object({
@@ -252,6 +278,15 @@ const myResponseSchema = z.object({
   note: z.string().nullable(),
 });
 
+// A dependent's existing answer to a request, used to pre-fill the
+// per-dependent step of the answering wizard.
+const dependentResponseSchema = z.object({
+  dependent_id: z.string(),
+  match_date: z.string(),
+  status: z.string(),
+  note: z.string().nullable(),
+});
+
 const availableCountSchema = z.object({
   match_date: z.string(),
   count: z.number(),
@@ -259,6 +294,9 @@ const availableCountSchema = z.object({
 
 export const getActiveRequestsResponseSchema = z.object({
   memberId: z.string().nullable(),
+  // The signed-in member's junior dependents. The answering wizard lets a
+  // parent answer for themselves plus each of these.
+  dependents: z.array(z.object({ id: z.string(), name: z.string() })),
   items: z.array(
     z.object({
       id: z.string(),
@@ -269,6 +307,7 @@ export const getActiveRequestsResponseSchema = z.object({
       created_at: z.string(),
       fixtures: z.array(activeFixtureSchema),
       myResponses: z.array(myResponseSchema),
+      dependentResponses: z.array(dependentResponseSchema),
       availableCounts: z.array(availableCountSchema),
     }),
   ),

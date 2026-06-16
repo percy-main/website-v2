@@ -25,6 +25,35 @@ type OverrideStatus = "available" | "unavailable";
 
 type Tab = "available" | "unavailable" | "noResponse";
 
+// A pool item or assignment refers to either a member or a junior
+// dependent (a child playing up into a senior squad). Exactly one id is
+// set; guest assignments have neither.
+interface SubjectRef {
+  memberId?: string;
+  dependentId?: string;
+}
+
+// A namespaced key so member ids and dependent ids never collide when
+// indexing assignments by their subject.
+function refKey(r: {
+  member_id: string | null;
+  dependent_id: string | null;
+}): string | null {
+  if (r.member_id) return `m:${r.member_id}`;
+  if (r.dependent_id) return `d:${r.dependent_id}`;
+  return null;
+}
+
+function poolKey(p: Pool): string {
+  return refKey(p) ?? p.id;
+}
+
+function poolSubject(p: Pool): SubjectRef {
+  return p.member_id
+    ? { memberId: p.member_id }
+    : { dependentId: p.dependent_id ?? undefined };
+}
+
 /**
  * Phase 3 per-date picker.
  *
@@ -70,6 +99,7 @@ export default function OfficialAvailabilityDate() {
   const assign = useMutation({
     mutationFn: (vars: {
       memberId?: string;
+      dependentId?: string;
       fixtureId: string;
       playerName: string;
     }) =>
@@ -81,6 +111,7 @@ export default function OfficialAvailabilityDate() {
           body: {
             fixtureId: vars.fixtureId,
             ...(vars.memberId ? { memberId: vars.memberId } : {}),
+            ...(vars.dependentId ? { dependentId: vars.dependentId } : {}),
             playerName: vars.playerName,
           },
         }),
@@ -109,7 +140,7 @@ export default function OfficialAvailabilityDate() {
     // a duplicate assign would 409, so the two-step is the only path.
     mutationFn: async (vars: {
       assignmentId: string;
-      memberId: string;
+      subject: SubjectRef;
       playerName: string;
       fixtureId: string;
     }) => {
@@ -125,7 +156,12 @@ export default function OfficialAvailabilityDate() {
           },
           body: {
             fixtureId: vars.fixtureId,
-            memberId: vars.memberId,
+            ...(vars.subject.memberId
+              ? { memberId: vars.subject.memberId }
+              : {}),
+            ...(vars.subject.dependentId
+              ? { dependentId: vars.subject.dependentId }
+              : {}),
             playerName: vars.playerName,
           },
         }),
@@ -185,6 +221,26 @@ export default function OfficialAvailabilityDate() {
     onSuccess: invalidate,
   });
 
+  const overrideDependent = useMutation({
+    mutationFn: (vars: { dependentId: string; status: OverrideStatus }) =>
+      callApi(
+        api.PUT(
+          "/api/availability/requests/{requestId}/dates/{date}/dependents/{dependentId}/availability",
+          {
+            params: {
+              path: {
+                requestId: requestId ?? "",
+                date: date ?? "",
+                dependentId: vars.dependentId,
+              },
+            },
+            body: { status: vars.status },
+          },
+        ),
+      ),
+    onSuccess: invalidate,
+  });
+
   if (isLoading) return <Skel />;
   if (isError || !data)
     return (
@@ -210,29 +266,27 @@ export default function OfficialAvailabilityDate() {
   // lists every fixture (confirmed ones get a "Manage squad" link).
   const openFixtures = pd.fixtures.filter((f) => !f.matchdayId);
 
-  // Index of each member's current assignment (if any) so each list can
-  // surface a "currently in <team>" pill and "Move" action without a
-  // per-row scan of every fixture.
-  const assignmentByMember = new Map<
+  // Index of each subject's current assignment (if any) - keyed by
+  // member or dependent - so each list can surface a "currently in
+  // <team>" pill and "Move" action without a per-row scan of every
+  // fixture.
+  const assignmentBySubject = new Map<
     string,
     { fixture: Fixture; assignment: Assignment }
   >();
   for (const f of pd.fixtures) {
     for (const a of f.assignments) {
-      if (a.member_id)
-        assignmentByMember.set(a.member_id, { fixture: f, assignment: a });
+      const k = refKey(a);
+      if (k) assignmentBySubject.set(k, { fixture: f, assignment: a });
     }
   }
 
   const actions = {
-    assign: (
-      memberId: string | undefined,
-      playerName: string,
-      fixtureId: string,
-    ) => assign.mutate({ memberId, playerName, fixtureId }),
+    assign: (subject: SubjectRef, playerName: string, fixtureId: string) =>
+      assign.mutate({ ...subject, playerName, fixtureId }),
     move: (vars: {
       assignmentId: string;
-      memberId: string;
+      subject: SubjectRef;
       playerName: string;
       fixtureId: string;
     }) => move.mutate(vars),
@@ -241,6 +295,13 @@ export default function OfficialAvailabilityDate() {
       override.mutate({ memberId, status: "available" }),
     setUnavailable: (memberId: string) =>
       override.mutate({ memberId, status: "unavailable" }),
+    // Override a pool item's status, routing members and dependents to
+    // their respective endpoints.
+    overrideStatus: (p: Pool, status: OverrideStatus) => {
+      if (p.member_id) override.mutate({ memberId: p.member_id, status });
+      else if (p.dependent_id)
+        overrideDependent.mutate({ dependentId: p.dependent_id, status });
+    },
     openAssignSheet: (p: Pool) => setAssignTarget(p),
   };
 
@@ -248,7 +309,8 @@ export default function OfficialAvailabilityDate() {
     assign.isPending ||
     unassign.isPending ||
     move.isPending ||
-    override.isPending;
+    override.isPending ||
+    overrideDependent.isPending;
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-24 md:max-w-6xl">
@@ -309,7 +371,7 @@ export default function OfficialAvailabilityDate() {
             <AvailableList
               players={available}
               fixtures={openFixtures}
-              assignmentByMember={assignmentByMember}
+              assignmentBySubject={assignmentBySubject}
               actions={actions}
               actionPending={actionPending}
             />
@@ -357,7 +419,7 @@ export default function OfficialAvailabilityDate() {
               <AvailableList
                 players={available}
                 fixtures={openFixtures}
-                assignmentByMember={assignmentByMember}
+                assignmentBySubject={assignmentBySubject}
                 actions={actions}
                 actionPending={actionPending}
                 compact
@@ -406,28 +468,28 @@ export default function OfficialAvailabilityDate() {
           target={assignTarget}
           fixtures={openFixtures}
           currentAssignment={
-            assignmentByMember.get(assignTarget.member_id)?.assignment ?? null
+            assignmentBySubject.get(poolKey(assignTarget))?.assignment ?? null
           }
           onCancel={() => setAssignTarget(null)}
           onAssign={(fixtureId) => {
-            const current = assignmentByMember.get(assignTarget.member_id);
+            const current = assignmentBySubject.get(poolKey(assignTarget));
             if (current) {
               move.mutate({
                 assignmentId: current.assignment.id,
-                memberId: assignTarget.member_id,
+                subject: poolSubject(assignTarget),
                 playerName: assignTarget.member_name ?? "Unknown",
                 fixtureId,
               });
             } else {
               actions.assign(
-                assignTarget.member_id,
+                poolSubject(assignTarget),
                 assignTarget.member_name ?? "Unknown",
                 fixtureId,
               );
             }
           }}
           onUnassign={() => {
-            const current = assignmentByMember.get(assignTarget.member_id);
+            const current = assignmentBySubject.get(poolKey(assignTarget));
             if (current) actions.unassign(current.assignment.id);
           }}
           pending={actionPending}
@@ -438,20 +500,17 @@ export default function OfficialAvailabilityDate() {
 }
 
 interface ListActions {
-  assign: (
-    memberId: string | undefined,
-    playerName: string,
-    fixtureId: string,
-  ) => void;
+  assign: (subject: SubjectRef, playerName: string, fixtureId: string) => void;
   move: (vars: {
     assignmentId: string;
-    memberId: string;
+    subject: SubjectRef;
     playerName: string;
     fixtureId: string;
   }) => void;
   unassign: (assignmentId: string) => void;
   setAvailable: (memberId: string) => void;
   setUnavailable: (memberId: string) => void;
+  overrideStatus: (p: Pool, status: OverrideStatus) => void;
   openAssignSheet: (p: Pool) => void;
 }
 
@@ -513,14 +572,17 @@ function SegBtn({
 function AvailableList({
   players,
   fixtures,
-  assignmentByMember,
+  assignmentBySubject,
   actions,
   actionPending,
   compact,
 }: {
   players: Pool[];
   fixtures: Fixture[];
-  assignmentByMember: Map<string, { fixture: Fixture; assignment: Assignment }>;
+  assignmentBySubject: Map<
+    string,
+    { fixture: Fixture; assignment: Assignment }
+  >;
   actions: ListActions;
   actionPending: boolean;
   compact?: boolean;
@@ -532,7 +594,7 @@ function AvailableList({
         <p className="text-text-secondary px-4 py-6 text-sm">No one matches.</p>
       )}
       {players.map((p) => {
-        const current = assignmentByMember.get(p.member_id);
+        const current = assignmentBySubject.get(poolKey(p));
         // A player snapshotted into a confirmed matchday can't be moved
         // from here - the team is owned by the matchday screen now - so we
         // show their team as a static label rather than a move button.
@@ -543,7 +605,10 @@ function AvailableList({
             className={cn("bg-surface flex items-center gap-3", pad)}
           >
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{p.member_name}</p>
+              <p className="truncate text-sm font-medium">
+                {p.member_name}
+                {p.dependent_id && <JuniorBadge />}
+              </p>
               {p.note && (
                 <p className="text-text-secondary truncate text-xs">
                   "{p.note}"
@@ -577,7 +642,7 @@ function AvailableList({
                 disabled={actionPending}
                 onClick={() =>
                   actions.assign(
-                    p.member_id,
+                    poolSubject(p),
                     p.member_name ?? "Unknown",
                     fixtures[0].id,
                   )
@@ -597,7 +662,7 @@ function AvailableList({
             )}
             <button
               type="button"
-              onClick={() => actions.setUnavailable(p.member_id)}
+              onClick={() => actions.overrideStatus(p, "unavailable")}
               disabled={actionPending}
               className="text-text-secondary hover:text-danger text-[11px] font-medium disabled:opacity-60"
             >
@@ -607,6 +672,14 @@ function AvailableList({
         );
       })}
     </div>
+  );
+}
+
+function JuniorBadge() {
+  return (
+    <span className="bg-info-bg text-navy ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase dark:text-white">
+      Junior
+    </span>
   );
 }
 
@@ -633,7 +706,10 @@ function UnavailableList({
           className={cn("bg-surface flex items-center gap-3", pad)}
         >
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{p.member_name}</p>
+            <p className="truncate text-sm font-medium">
+              {p.member_name}
+              {p.dependent_id && <JuniorBadge />}
+            </p>
             {p.note && (
               <p className="text-text-secondary truncate text-xs">"{p.note}"</p>
             )}
@@ -645,7 +721,7 @@ function UnavailableList({
           </div>
           <button
             type="button"
-            onClick={() => actions.setAvailable(p.member_id)}
+            onClick={() => actions.overrideStatus(p, "available")}
             disabled={actionPending}
             className="text-success text-[11px] font-medium disabled:opacity-60"
           >
@@ -787,10 +863,16 @@ function AssignmentRail({
                         {a.position}.
                       </span>
                       {a.player_name}
-                      {!a.member_id && (
+                      {a.dependent_id ? (
                         <span className="text-text-secondary ml-1.5 italic">
-                          (guest)
+                          (junior)
                         </span>
+                      ) : (
+                        !a.member_id && (
+                          <span className="text-text-secondary ml-1.5 italic">
+                            (guest)
+                          </span>
+                        )
                       )}
                     </span>
                     {/* Once confirmed the squad is owned by the matchday
@@ -889,11 +971,7 @@ function GuestEntry({
   onAdd,
 }: {
   fixtures: Fixture[];
-  onAdd: (
-    memberId: string | undefined,
-    playerName: string,
-    fixtureId: string,
-  ) => void;
+  onAdd: (subject: SubjectRef, playerName: string, fixtureId: string) => void;
 }) {
   const [name, setName] = useState("");
   const [fixtureId, setFixtureId] = useState(fixtures[0]?.id ?? "");
@@ -936,7 +1014,7 @@ function GuestEntry({
           tone="outline"
           disabled={!canAdd}
           onClick={() => {
-            onAdd(undefined, name.trim(), fixtureValue);
+            onAdd({}, name.trim(), fixtureValue);
             setName("");
           }}
         >
