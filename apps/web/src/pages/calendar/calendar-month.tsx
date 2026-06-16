@@ -9,9 +9,11 @@ import {
   parseEventMetadata,
 } from "@/lib/content-queries.js";
 import { cn } from "@/lib/utils.js";
+import { expandEventOccurrences } from "@percy-main/shared/content";
 import { useQuery } from "@tanstack/react-query";
 import {
   addMonths,
+  endOfMonth,
   format,
   getDay,
   getDaysInMonth,
@@ -63,6 +65,8 @@ type CalendarItem =
       category: "event";
       when: string;
       eventName: string;
+      slug: string;
+      occurrenceDate: string;
     };
 
 // --- Constants ---
@@ -344,8 +348,8 @@ function EventCard({ item }: { item: CalendarItem & { type: "event" } }) {
 
   return (
     <PrefetchLink
-      query={eventQueryOptions(item.id)}
-      to={`/calendar/event/${item.id}`}
+      query={eventQueryOptions(item.slug)}
+      to={`/calendar/event/${item.slug}?on=${item.occurrenceDate}`}
       className="group mb-2 flex items-center gap-3 rounded-lg border-2 border-dashed border-orange-300/50 bg-orange-50/50 p-3 transition-all hover:translate-x-1 hover:shadow-md sm:gap-4 sm:p-4"
     >
       <div className="flex shrink-0 flex-col items-center gap-1">
@@ -498,27 +502,34 @@ export function Component() {
       }
     }
 
-    const events = (eventsData?.items ?? []).flatMap((item) => {
+    // Expand each event (recurring or not) into the concrete occurrences that
+    // fall within the displayed month. Recurrence expansion is DST-correct and
+    // skips cancelled dates; non-recurring events yield their single date.
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+    for (const item of eventsData?.items ?? []) {
       const meta = parseEventMetadata(item.metadata);
-      return meta
-        ? [{ slug: item.slug, name: item.title, when: meta.when }]
-        : [];
-    });
-    for (const event of events) {
-      const eventDate = new Date(event.when);
-      if (
-        eventDate.getFullYear() !== date.getFullYear() ||
-        eventDate.getMonth() !== date.getMonth()
-      )
-        continue;
-
-      items.push({
-        id: event.slug,
-        type: "event",
-        category: "event",
-        when: event.when,
-        eventName: event.name,
-      });
+      if (!meta) continue;
+      for (const occ of expandEventOccurrences(meta, {
+        from: monthStart,
+        to: monthEnd,
+      })) {
+        items.push({
+          id: `${item.slug}#${occ.date}`,
+          type: "event",
+          category: "event",
+          // London-local ISO so the agenda groups it under the right day
+          // (groupItemsByDate keys off the leading date portion of `when`).
+          when: formatInTimeZone(
+            new Date(occ.start),
+            "Europe/London",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+          ),
+          eventName: item.title,
+          slug: item.slug,
+          occurrenceDate: occ.date,
+        });
+      }
     }
 
     return sortCalendarItems(items);

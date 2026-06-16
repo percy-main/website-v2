@@ -19,6 +19,7 @@ import {
 } from "@/lib/content-queries.js";
 import { getPriceId } from "@/lib/stripe-env.js";
 import { usePeople, type PersonSummary } from "@/lib/use-people.js";
+import { nextOccurrence } from "@percy-main/shared/content";
 import { useQuery } from "@tanstack/react-query";
 import { format, isAfter } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
@@ -184,20 +185,19 @@ function UpcomingStrip() {
       }
     }
 
-    const events = (eventsData?.items ?? []).flatMap((item) => {
+    for (const item of eventsData?.items ?? []) {
       const meta = parseEventMetadata(item.metadata);
-      return meta
-        ? [{ slug: item.slug, name: item.title, when: meta.when }]
-        : [];
-    });
-    for (const event of events) {
-      if (!isAfter(new Date(event.when), now)) continue;
+      if (!meta) continue;
+      // The next non-cancelled occurrence (the single future date for
+      // one-off events, or nothing once a series has elapsed).
+      const occ = nextOccurrence(meta, now);
+      if (!occ) continue;
       upcoming.push({
-        id: event.slug,
+        id: item.slug,
         type: "event",
-        when: event.when,
-        displayName: event.name,
-        href: `/calendar/event/${event.slug}`,
+        when: occ.start,
+        displayName: item.title,
+        href: `/calendar/event/${item.slug}?on=${occ.date}`,
       });
     }
 

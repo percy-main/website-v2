@@ -77,6 +77,7 @@ import {
   CONTENT_KIND_RESOURCES,
   contentBodySchema,
   CUSTOM_BLOCK_TYPES,
+  expandEventOccurrences,
   type ContentKind,
   type WriteContentBlock,
 } from "@percy-main/shared/content";
@@ -88,6 +89,7 @@ import {
 } from "@tanstack/react-query";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as rruleNs from "rrule";
 import {
   BlockSettings,
   EMPTY_CARD_CLASSES,
@@ -1494,6 +1496,16 @@ interface FormState {
   // event - datetimes are datetime-local values in UK wall-clock time
   when: string;
   finish: string;
+  // event recurrence - a structured builder for an iCal RRULE body. The
+  // assembled rule + exceptions are stored under metadata.recurrence.
+  repeats: "none" | "daily" | "weekly" | "monthly" | "yearly";
+  recurrenceInterval: string;
+  recurrenceByDay: string[]; // weekday codes: MO TU WE TH FR SA SU
+  recurrenceMonthMode: "dayOfMonth" | "nthWeekday";
+  recurrenceEnd: "never" | "until" | "count";
+  recurrenceUntil: string; // yyyy-MM-dd (UK calendar date)
+  recurrenceCount: string;
+  recurrenceExceptions: string[]; // cancelled dates, UK yyyy-MM-dd
   hasLocation: boolean;
   locationName: string;
   locationStreet: string;
@@ -1512,6 +1524,180 @@ interface FormState {
 
 /** Event times are stored as instants but authored as UK wall-clock. */
 const EVENT_TZ = "Europe/London";
+
+// rrule has no "exports" map, so bundlers resolve its ESM build (named
+// exports) while Node resolves its CJS build (members under the interop
+// default). Prefer the named export, fall back to default - works in the
+// browser, in vitest's Node runtime, and in SSR.
+const { RRule } =
+  (rruleNs as typeof rruleNs & { default?: typeof rruleNs }).default ?? rruleNs;
+
+// Weekday codes indexed by rrule's weekday number (MO=0 .. SU=6).
+const WEEKDAY_CODES = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"] as const;
+const WEEKDAY_BY_CODE: Record<string, rruleNs.Weekday> = {
+  MO: RRule.MO,
+  TU: RRule.TU,
+  WE: RRule.WE,
+  TH: RRule.TH,
+  FR: RRule.FR,
+  SA: RRule.SA,
+  SU: RRule.SU,
+};
+const FREQ_BY_REPEATS = {
+  daily: RRule.DAILY,
+  weekly: RRule.WEEKLY,
+  monthly: RRule.MONTHLY,
+  yearly: RRule.YEARLY,
+} as const;
+
+type RepeatsOption = FormState["repeats"];
+
+const REPEATS_LABELS: Array<{ value: RepeatsOption; label: string }> = [
+  { value: "none", label: "Does not repeat" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "yearly", label: "Yearly" },
+];
+
+/** The Nth weekday-in-month a date falls on (1-based), e.g. 9th -> 2. */
+function weekOfMonth(dayOfMonth: number): number {
+  return Math.floor((dayOfMonth - 1) / 7) + 1;
+}
+
+/**
+ * Assemble the stored RRULE body (no DTSTART line) from the builder fields.
+ * Returns null when the event does not repeat or the start is unset. Mirrors
+ * the shared eventMetadataSchema.recurrence shape on the way out.
+ */
+function buildEventRecurrence(
+  form: FormState,
+): { rrule: string; exceptions?: string[] } | null {
+  if (form.repeats === "none" || !form.when) return null;
+
+  const interval = Math.max(1, Number(form.recurrenceInterval) || 1);
+  const options: Partial<rruleNs.Options> = {
+    freq: FREQ_BY_REPEATS[form.repeats],
+    interval,
+  };
+
+  if (form.repeats === "weekly" && form.recurrenceByDay.length > 0) {
+    options.byweekday = form.recurrenceByDay.map((c) => WEEKDAY_BY_CODE[c]);
+  }
+
+  if (form.repeats === "monthly") {
+    // The day the series starts drives both monthly modes.
+    const start = new Date(ukLocalToIso(form.when));
+    const dayOfMonth = Number(formatInTimeZone(start, EVENT_TZ, "d"));
+    const weekday = Number(formatInTimeZone(start, EVENT_TZ, "i")) - 1; // 1..7 -> 0..6
+    if (form.recurrenceMonthMode === "nthWeekday") {
+      options.byweekday = [WEEKDAY_BY_CODE[WEEKDAY_CODES[weekday]]];
+      options.bysetpos = [weekOfMonth(dayOfMonth)];
+    } else {
+      options.bymonthday = [dayOfMonth];
+    }
+  }
+
+  if (form.recurrenceEnd === "count") {
+    options.count = Math.max(1, Number(form.recurrenceCount) || 1);
+  } else if (form.recurrenceEnd === "until" && form.recurrenceUntil) {
+    // End of the chosen UK day, encoded in the floating space the shared
+    // expander compares against (see packages/shared .../recurrence.ts).
+    const [y, m, d] = form.recurrenceUntil.split("-").map(Number);
+    options.until = new Date(Date.UTC(y, m - 1, d, 23, 59, 59));
+  }
+
+  // optionsToString emits "RRULE:FREQ=..."; store the body only.
+  const body = RRule.optionsToString(options).replace(/^RRULE:/, "");
+  return {
+    rrule: body,
+    ...(form.recurrenceExceptions.length > 0
+      ? { exceptions: form.recurrenceExceptions }
+      : {}),
+  };
+}
+
+/** Hydrate the recurrence builder fields from stored metadata.recurrence. */
+function recurrenceFormFields(recurrence: unknown): {
+  repeats: RepeatsOption;
+  recurrenceInterval: string;
+  recurrenceByDay: string[];
+  recurrenceMonthMode: "dayOfMonth" | "nthWeekday";
+  recurrenceEnd: "never" | "until" | "count";
+  recurrenceUntil: string;
+  recurrenceCount: string;
+  recurrenceExceptions: string[];
+} {
+  const defaults = {
+    repeats: "none" as RepeatsOption,
+    recurrenceInterval: "1",
+    recurrenceByDay: [] as string[],
+    recurrenceMonthMode: "dayOfMonth" as "dayOfMonth" | "nthWeekday",
+    recurrenceEnd: "never" as "never" | "until" | "count",
+    recurrenceUntil: "",
+    recurrenceCount: "",
+    recurrenceExceptions: [] as string[],
+  };
+  const rule =
+    typeof recurrence === "object" &&
+    recurrence !== null &&
+    typeof (recurrence as Record<string, unknown>).rrule === "string"
+      ? (recurrence as { rrule: string; exceptions?: unknown })
+      : null;
+  if (!rule) return defaults;
+
+  let options: Partial<rruleNs.Options>;
+  try {
+    options = RRule.parseString(rule.rrule);
+  } catch {
+    return defaults;
+  }
+
+  const repeats: RepeatsOption =
+    options.freq === RRule.DAILY
+      ? "daily"
+      : options.freq === RRule.WEEKLY
+        ? "weekly"
+        : options.freq === RRule.MONTHLY
+          ? "monthly"
+          : options.freq === RRule.YEARLY
+            ? "yearly"
+            : "none";
+
+  // byweekday entries may be Weekday instances or plain numbers.
+  const byDayNums = toArray(options.byweekday).map((w) =>
+    typeof w === "number" ? w : (w as rruleNs.Weekday).weekday,
+  );
+  const bysetpos = toArray(options.bysetpos);
+
+  return {
+    repeats,
+    recurrenceInterval: String(options.interval ?? 1),
+    recurrenceByDay:
+      repeats === "weekly"
+        ? byDayNums.flatMap((n) => (WEEKDAY_CODES[n] ? [WEEKDAY_CODES[n]] : []))
+        : [],
+    recurrenceMonthMode: bysetpos.length > 0 ? "nthWeekday" : "dayOfMonth",
+    recurrenceEnd:
+      options.count != null
+        ? "count"
+        : options.until != null
+          ? "until"
+          : "never",
+    recurrenceUntil: options.until
+      ? `${pad4(options.until.getUTCFullYear())}-${pad2(options.until.getUTCMonth() + 1)}-${pad2(options.until.getUTCDate())}`
+      : "",
+    recurrenceCount: options.count != null ? String(options.count) : "",
+    recurrenceExceptions: Array.isArray(rule.exceptions)
+      ? rule.exceptions.filter((d): d is string => typeof d === "string")
+      : [],
+  };
+}
+
+const toArray = <T,>(value: T | T[] | null | undefined): T[] =>
+  value == null ? [] : Array.isArray(value) ? value : [value];
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const pad4 = (n: number) => String(n).padStart(4, "0");
 
 const asString = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -1575,6 +1761,7 @@ function metadataFormFields(
     authorSlug: asString(metadata.authorSlug),
     when: isoToUkLocal(metadata.when),
     finish: isoToUkLocal(metadata.finish),
+    ...recurrenceFormFields(metadata.recurrence),
     hasLocation: location !== null,
     locationName: asString(location?.name),
     locationStreet: asString(location?.street),
@@ -1642,6 +1829,19 @@ function metadataProblem(kind: ContentKind, form: FormState): string | null {
   }
   if (kind === "event") {
     if (!form.when) return "Set the event start time first";
+    if (form.repeats !== "none") {
+      if (form.recurrenceEnd === "until" && !form.recurrenceUntil) {
+        return "Set the date the repeat ends on (or choose another end option)";
+      }
+      if (
+        form.recurrenceEnd === "count" &&
+        !(Number(form.recurrenceCount) >= 1)
+      ) {
+        return "Set how many times the event repeats";
+      }
+      const recurrence = buildEventRecurrence(form);
+      if (!recurrence) return "The recurrence rule is incomplete";
+    }
     if (form.hasLocation) {
       if (
         !form.locationName.trim() ||
@@ -1687,9 +1887,11 @@ function buildMetadata(
     };
   }
   if (kind === "event") {
+    const recurrence = buildEventRecurrence(form);
     return {
       when: ukLocalToIso(form.when),
       ...(form.finish ? { finish: ukLocalToIso(form.finish) } : {}),
+      ...(recurrence ? { recurrence } : {}),
       ...(form.hasLocation
         ? {
             location: {
@@ -2148,6 +2350,246 @@ function PersonMetadataFields({
   );
 }
 
+const ordinal = (n: number): string => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+};
+
+/**
+ * Structured recurrence builder for events. Drives the iCal RRULE body and
+ * exception list under metadata.recurrence via the shared expander, so the
+ * preview here matches exactly what every public surface will render.
+ */
+function EventRecurrenceFields({
+  form,
+  onChange,
+}: {
+  form: FormState;
+  onChange: (updates: Partial<FormState>) => void;
+}) {
+  const exceptions = new Set(form.recurrenceExceptions);
+
+  // Preview the next handful of occurrences, ignoring exceptions so cancelled
+  // dates still show (struck-through) with a Restore action.
+  const preview = useMemo(() => {
+    if (form.repeats === "none" || !form.when) return [];
+    const rule = buildEventRecurrence({ ...form, recurrenceExceptions: [] });
+    if (!rule) return [];
+    const start = new Date(ukLocalToIso(form.when));
+    const horizonDays =
+      { daily: 1, weekly: 7, monthly: 31, yearly: 366 }[form.repeats] ?? 31;
+    const interval = Math.max(1, Number(form.recurrenceInterval) || 1);
+    const to = new Date(
+      start.getTime() + horizonDays * interval * 9 * 24 * 60 * 60 * 1000,
+    );
+    return expandEventOccurrences(
+      { when: start.toISOString(), recurrence: rule },
+      { from: new Date(start.getTime() - 1000), to },
+    ).slice(0, 8);
+  }, [form]);
+
+  const toggleException = (date: string) => {
+    onChange({
+      recurrenceExceptions: exceptions.has(date)
+        ? form.recurrenceExceptions.filter((d) => d !== date)
+        : [...form.recurrenceExceptions, date].sort(),
+    });
+  };
+
+  const toggleWeekday = (code: string) => {
+    const selected = new Set(form.recurrenceByDay);
+    if (selected.has(code)) selected.delete(code);
+    else selected.add(code);
+    onChange({
+      recurrenceByDay: WEEKDAY_CODES.filter((c) => selected.has(c)),
+    });
+  };
+
+  // Monthly mode labels reflect the start date the rule anchors on.
+  const start = form.when ? new Date(ukLocalToIso(form.when)) : null;
+  const monthlyDayLabel = start
+    ? `On day ${formatInTimeZone(start, EVENT_TZ, "d")} of the month`
+    : "On day-of-month";
+  const monthlyNthLabel = start
+    ? `On the ${ordinal(weekOfMonth(Number(formatInTimeZone(start, EVENT_TZ, "d"))))} ${formatInTimeZone(start, EVENT_TZ, "EEEE")}`
+    : "On the Nth weekday";
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-stone-200 p-3">
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="event-repeats">Repeats</Label>
+        <Select
+          value={form.repeats}
+          onValueChange={(value) => {
+            onChange({ repeats: value as RepeatsOption });
+          }}
+        >
+          <SelectTrigger id="event-repeats">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {REPEATS_LABELS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {form.repeats !== "none" && (
+        <>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="event-recurrence-interval">Every</Label>
+            <Input
+              id="event-recurrence-interval"
+              type="number"
+              min={1}
+              className="w-20"
+              value={form.recurrenceInterval}
+              onChange={(e) => {
+                onChange({ recurrenceInterval: e.target.value });
+              }}
+            />
+            <span className="text-sm text-stone-600">
+              {{
+                daily: "day(s)",
+                weekly: "week(s)",
+                monthly: "month(s)",
+                yearly: "year(s)",
+                none: "",
+              }[form.repeats] ?? ""}
+            </span>
+          </div>
+
+          {form.repeats === "weekly" && (
+            <div className="flex flex-col gap-1">
+              <Label>On days</Label>
+              <div className="flex flex-wrap gap-3">
+                {WEEKDAY_CODES.map((code) => (
+                  <label key={code} className="flex items-center gap-1">
+                    <Checkbox
+                      checked={form.recurrenceByDay.includes(code)}
+                      onCheckedChange={() => {
+                        toggleWeekday(code);
+                      }}
+                    />
+                    <span className="text-sm">{code}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {form.repeats === "monthly" && (
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="event-recurrence-month-mode">Monthly on</Label>
+              <Select
+                value={form.recurrenceMonthMode}
+                onValueChange={(value) => {
+                  onChange({
+                    recurrenceMonthMode: value as "dayOfMonth" | "nthWeekday",
+                  });
+                }}
+              >
+                <SelectTrigger id="event-recurrence-month-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dayOfMonth">{monthlyDayLabel}</SelectItem>
+                  <SelectItem value="nthWeekday">{monthlyNthLabel}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="event-recurrence-end">Ends</Label>
+            <Select
+              value={form.recurrenceEnd}
+              onValueChange={(value) => {
+                onChange({
+                  recurrenceEnd: value as "never" | "until" | "count",
+                });
+              }}
+            >
+              <SelectTrigger id="event-recurrence-end">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="never">Never</SelectItem>
+                <SelectItem value="until">On date</SelectItem>
+                <SelectItem value="count">After N times</SelectItem>
+              </SelectContent>
+            </Select>
+            {form.recurrenceEnd === "until" && (
+              <Input
+                type="date"
+                className="mt-1"
+                value={form.recurrenceUntil}
+                onChange={(e) => {
+                  onChange({ recurrenceUntil: e.target.value });
+                }}
+              />
+            )}
+            {form.recurrenceEnd === "count" && (
+              <Input
+                type="number"
+                min={1}
+                className="mt-1 w-24"
+                value={form.recurrenceCount}
+                onChange={(e) => {
+                  onChange({ recurrenceCount: e.target.value });
+                }}
+              />
+            )}
+          </div>
+
+          {preview.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <Label>Upcoming occurrences</Label>
+              <ul className="flex flex-col gap-1">
+                {preview.map((occ) => {
+                  const cancelled = exceptions.has(occ.date);
+                  return (
+                    <li
+                      key={occ.date}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span
+                        className={cn(
+                          "text-sm",
+                          cancelled && "text-stone-400 line-through",
+                        )}
+                      >
+                        {formatInTimeZone(
+                          new Date(occ.start),
+                          EVENT_TZ,
+                          "EEE d MMM yyyy, HH:mm",
+                        )}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          toggleException(occ.date);
+                        }}
+                      >
+                        {cancelled ? "Restore" : "Skip"}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function MetadataFields({
   kind,
   form,
@@ -2287,6 +2729,7 @@ function MetadataFields({
               )}
             </div>
           </div>
+          <EventRecurrenceFields form={form} onChange={onChange} />
           <div className="flex items-center gap-2">
             <Checkbox
               id="event-has-location"
