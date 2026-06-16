@@ -5629,6 +5629,7 @@ export interface paths {
                                     id: string;
                                     availability_fixture_id: string;
                                     member_id: string | null;
+                                    dependent_id: string | null;
                                     player_name: string;
                                     position: number;
                                     created_at: string;
@@ -5638,7 +5639,8 @@ export interface paths {
                             pools: {
                                 available: {
                                     id: string;
-                                    member_id: string;
+                                    member_id: string | null;
+                                    dependent_id: string | null;
                                     status: string;
                                     note: string | null;
                                     overridden_by: string | null;
@@ -5646,7 +5648,8 @@ export interface paths {
                                 }[];
                                 unavailable: {
                                     id: string;
-                                    member_id: string;
+                                    member_id: string | null;
+                                    dependent_id: string | null;
                                     status: string;
                                     note: string | null;
                                     overridden_by: string | null;
@@ -5656,9 +5659,11 @@ export interface paths {
                                     id: string;
                                     name: string | null;
                                     member_category: string | null;
+                                    dependent_id: string | null;
                                 }[];
                             };
                             assignedMemberIds: string[];
+                            assignedDependentIds: string[];
                         };
                     };
                 };
@@ -5696,6 +5701,7 @@ export interface paths {
                     "application/json": {
                         fixtureId: string;
                         memberId?: string;
+                        dependentId?: string;
                         playerName: string;
                     };
                 };
@@ -5776,6 +5782,54 @@ export interface paths {
                     requestId: string;
                     date: string;
                     memberId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "available" | "unavailable";
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/availability/requests/{requestId}/dates/{date}/dependents/{dependentId}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    requestId: string;
+                    date: string;
+                    dependentId: string;
                 };
                 cookie?: never;
             };
@@ -6074,6 +6128,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             memberId: string | null;
+                            dependents: {
+                                id: string;
+                                name: string;
+                            }[];
                             items: {
                                 id: string;
                                 created_by: string;
@@ -6096,6 +6154,12 @@ export interface paths {
                                 myResponses: {
                                     id: string;
                                     availability_request_id: string;
+                                    match_date: string;
+                                    status: string;
+                                    note: string | null;
+                                }[];
+                                dependentResponses: {
+                                    dependent_id: string;
                                     match_date: string;
                                     status: string;
                                     note: string | null;
@@ -6139,6 +6203,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
+                        subjectDependentId?: string;
                         responses: {
                             matchDate: string;
                             /** @enum {string} */

@@ -88,6 +88,7 @@ export interface Account {
 export interface AvailabilityAssignment {
   availability_fixture_id: string;
   created_at: Generated<string>;
+  dependent_id: string | null;
   id: string;
   member_id: string | null;
   player_name: string;
@@ -125,9 +126,10 @@ export interface AvailabilityRequestGroup {
 export interface AvailabilityResponse {
   availability_request_id: string;
   created_at: Generated<string>;
+  dependent_id: string | null;
   id: string;
   match_date: string;
-  member_id: string;
+  member_id: string | null;
   note: string | null;
   overridden_by: string | null;
   status: string;

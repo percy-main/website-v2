@@ -16,6 +16,7 @@ import {
   removeAssignment,
   respond,
   setAvailability,
+  setDependentAvailability,
   updateRequestStatus,
 } from "./service.ts";
 
@@ -48,6 +49,16 @@ async function seedTeam(name: string, isJunior = false) {
 async function seedMember(name: string, email: string) {
   const id = `mem-${crypto.randomUUID()}`;
   await ctx.db.insertInto("member").values({ id, name, email }).execute();
+  return id;
+}
+
+/** Seed a dependent (junior) registered under a parent member. */
+async function seedDependent(memberId: string, name: string) {
+  const id = `dep-${crypto.randomUUID()}`;
+  await ctx.db
+    .insertInto("dependent")
+    .values({ id, member_id: memberId, name, sex: "male", dob: "2013-05-01" })
+    .execute();
   return id;
 }
 
@@ -593,6 +604,342 @@ describe("availability service (integration)", () => {
       expect(req?.fixtures.length).toBeGreaterThanOrEqual(1);
       expect(req?.myResponses).toHaveLength(1);
       expect(req?.myResponses[0].status).toBe("available");
+    });
+  });
+
+  describe("dependent flow (juniors playing up)", () => {
+    it("a parent can respond on behalf of their dependent", async () => {
+      const email = `parent-${crypto.randomUUID()}@test.com`;
+      const parentId = await seedMember("Parent One", email);
+      const depId = await seedDependent(parentId, "Junior One");
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `admin-dep-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Senior XI");
+      const groupId = await seedGroup("Senior group", [parentId]);
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-07-01",
+        "2027-07-01",
+        "open",
+        groupId,
+      );
+      await seedFixture(reqId, teamId, "2027-07-01");
+
+      await respond(ctx.db)(email, reqId, {
+        subjectDependentId: depId,
+        responses: [{ matchDate: "2027-07-01", status: "available" }],
+      });
+
+      // Stored against the dependent, not the parent member.
+      const row = await ctx.db
+        .selectFrom("availability_response")
+        .where("availability_request_id", "=", reqId)
+        .where("dependent_id", "=", depId)
+        .select(["member_id", "dependent_id", "status"])
+        .executeTakeFirst();
+      expect(row?.member_id).toBeNull();
+      expect(row?.dependent_id).toBe(depId);
+      expect(row?.status).toBe("available");
+
+      // Surfaced back through the active feed for the wizard to pre-fill.
+      const active = await getActiveRequests(ctx.db)(email);
+      expect(active.dependents.map((d) => d.id)).toContain(depId);
+      const item = active.items.find((r) => r.id === reqId);
+      expect(item?.dependentResponses).toContainEqual(
+        expect.objectContaining({
+          dependent_id: depId,
+          match_date: "2027-07-01",
+          status: "available",
+        }),
+      );
+    });
+
+    it("rejects responding for a dependent that isn't the member's", async () => {
+      const parentEmail = `parent-a-${crypto.randomUUID()}@test.com`;
+      await seedMember("Parent A", parentEmail);
+
+      const otherParentId = await seedMember(
+        "Parent B",
+        `parent-b-${crypto.randomUUID()}@test.com`,
+      );
+      const otherDepId = await seedDependent(otherParentId, "Not Yours");
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `admin-own-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Own XI");
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-07-08",
+        "2027-07-08",
+        "open",
+      );
+      await seedFixture(reqId, teamId, "2027-07-08");
+
+      await expect(
+        respond(ctx.db)(parentEmail, reqId, {
+          subjectDependentId: otherDepId,
+          responses: [{ matchDate: "2027-07-08", status: "available" }],
+        }),
+      ).rejects.toThrow("not registered under your account");
+    });
+
+    it("surfaces an available dependent in the picker and materialises them into the matchday", async () => {
+      const email = `parent-pick-${crypto.randomUUID()}@test.com`;
+      const parentId = await seedMember("Parent Pick", email);
+      const depId = await seedDependent(parentId, "Junior Pick");
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `admin-pick-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Pick XI");
+      const groupId = await seedGroup("Pick group", [parentId]);
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-07-15",
+        "2027-07-15",
+        "open",
+        groupId,
+      );
+      const fixtureId = await seedFixture(reqId, teamId, "2027-07-15");
+
+      await respond(ctx.db)(email, reqId, {
+        subjectDependentId: depId,
+        responses: [{ matchDate: "2027-07-15", status: "available" }],
+      });
+
+      const detail = await getDateDetail(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-07-15",
+      );
+      const availableDep = detail.pools.available.find(
+        (r) => r.dependent_id === depId,
+      );
+      expect(availableDep?.member_name).toBe("Junior Pick");
+      expect(availableDep?.member_id).toBeNull();
+
+      // Pick the junior into the senior fixture.
+      await assignPlayer(ctx.db)(admin.userId, "admin", reqId, "2027-07-15", {
+        fixtureId,
+        dependentId: depId,
+        playerName: "Junior Pick",
+      });
+
+      // Duplicate assignment of the same dependent is rejected.
+      await expect(
+        assignPlayer(ctx.db)(admin.userId, "admin", reqId, "2027-07-15", {
+          fixtureId,
+          dependentId: depId,
+          playerName: "Junior Pick",
+        }),
+      ).rejects.toThrow("already assigned");
+
+      const afterAssign = await getDateDetail(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-07-15",
+      );
+      expect(afterAssign.assignedDependentIds).toContain(depId);
+
+      // Closing the request materialises the dependent into matchday_player.
+      await updateRequestStatus(ctx.db)(admin.userId, "admin", reqId, {
+        status: "closed",
+      });
+      const player = await ctx.db
+        .selectFrom("matchday_player")
+        .innerJoin("matchday", "matchday.id", "matchday_player.matchday_id")
+        .where("matchday.play_cricket_team_id", "=", teamId)
+        .where("matchday.match_date", "=", "2027-07-15")
+        .where("matchday_player.dependent_id", "=", depId)
+        .select(["matchday_player.dependent_id", "matchday_player.member_id"])
+        .executeTakeFirst();
+      expect(player?.dependent_id).toBe(depId);
+      expect(player?.member_id).toBeNull();
+    });
+
+    it("an official can override a dependent's availability", async () => {
+      const email = `parent-ovr-${crypto.randomUUID()}@test.com`;
+      const parentId = await seedMember("Parent Ovr", email);
+      const depId = await seedDependent(parentId, "Junior Ovr");
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `admin-ovr-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Ovr XI");
+      const groupId = await seedGroup("Ovr group", [parentId]);
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-08-01",
+        "2027-08-01",
+        "open",
+        groupId,
+      );
+      await seedFixture(reqId, teamId, "2027-08-01");
+
+      // Parent says available; official overrides to unavailable.
+      await respond(ctx.db)(email, reqId, {
+        subjectDependentId: depId,
+        responses: [{ matchDate: "2027-08-01", status: "available" }],
+      });
+      await setDependentAvailability(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-08-01",
+        depId,
+        { status: "unavailable" },
+      );
+
+      const row = await ctx.db
+        .selectFrom("availability_response")
+        .where("availability_request_id", "=", reqId)
+        .where("dependent_id", "=", depId)
+        .select(["status", "overridden_by"])
+        .executeTakeFirst();
+      expect(row?.status).toBe("unavailable");
+      expect(row?.overridden_by).toBe(admin.userId);
+
+      const detail = await getDateDetail(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-08-01",
+      );
+      expect(
+        detail.pools.unavailable.some((r) => r.dependent_id === depId),
+      ).toBe(true);
+    });
+
+    it("won't override a dependent whose parent isn't in the request's groups", async () => {
+      // Parent is in no group, so this request never reached them - their
+      // child must not be reachable by id.
+      const parentId = await seedMember(
+        "Parent OOS",
+        `parent-oos-${crypto.randomUUID()}@test.com`,
+      );
+      const depId = await seedDependent(parentId, "Junior OOS");
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `admin-oos-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("OOS XI");
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-08-15",
+        "2027-08-15",
+        "open",
+      );
+      await seedFixture(reqId, teamId, "2027-08-15");
+
+      await expect(
+        setDependentAvailability(ctx.db)(
+          admin.userId,
+          "admin",
+          reqId,
+          "2027-08-15",
+          depId,
+          { status: "available" },
+        ),
+      ).rejects.toThrow("not found for this request");
+    });
+
+    it("lists an un-answered dependent in the no-response pool and lets an official mark them available", async () => {
+      const email = `parent-nr-${crypto.randomUUID()}@test.com`;
+      const parentId = await seedMember("Parent NR", email);
+      const depId = await seedDependent(parentId, "Junior NR");
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `admin-nr-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("NR XI");
+      const groupId = await seedGroup("NR group", [parentId]);
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-09-01",
+        "2027-09-01",
+        "open",
+        groupId,
+      );
+      await seedFixture(reqId, teamId, "2027-09-01");
+
+      // Nobody has answered - the junior shows up in no-response.
+      const before = await getDateDetail(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-09-01",
+      );
+      expect(
+        before.pools.noResponse.some((m) => m.dependent_id === depId),
+      ).toBe(true);
+
+      // Official marks the never-answered junior available (creates a row).
+      await setDependentAvailability(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-09-01",
+        depId,
+        { status: "available" },
+      );
+
+      const after = await getDateDetail(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-09-01",
+      );
+      expect(after.pools.available.some((r) => r.dependent_id === depId)).toBe(
+        true,
+      );
+      expect(after.pools.noResponse.some((m) => m.dependent_id === depId)).toBe(
+        false,
+      );
+    });
+
+    it("counts a dependent respondent in the request list", async () => {
+      const email = `parent-count-${crypto.randomUUID()}@test.com`;
+      const parentId = await seedMember("Parent Count", email);
+      const depId = await seedDependent(parentId, "Junior Count");
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `admin-count-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("Count XI");
+      const groupId = await seedGroup("Count group", [parentId]);
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-08-08",
+        "2027-08-08",
+        "open",
+        groupId,
+      );
+      await seedFixture(reqId, teamId, "2027-08-08");
+
+      // Only the dependent answers - the parent never responds for self.
+      await respond(ctx.db)(email, reqId, {
+        subjectDependentId: depId,
+        responses: [{ matchDate: "2027-08-08", status: "available" }],
+      });
+
+      const result = await listRequests(ctx.db)(admin.userId, "admin", {
+        limit: 100,
+        offset: 0,
+      });
+      const req = result.items.find((r) => r.id === reqId);
+      expect(req?.respondentCount).toBe(1);
     });
   });
 
@@ -1143,7 +1490,7 @@ describe("availability service (integration)", () => {
       // Amendments §2: both responses (group + non-group) surface to
       // officials.
       const availableIds = detail.pools.available.map(
-        (r: { member_id: string }) => r.member_id,
+        (r: { member_id: string | null }) => r.member_id,
       );
       expect(availableIds).toContain(inGroup.memberId);
       expect(availableIds).toContain(outsider.memberId);

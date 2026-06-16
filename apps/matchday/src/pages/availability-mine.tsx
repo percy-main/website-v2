@@ -26,13 +26,33 @@ import { Link } from "react-router";
  * The step-by-step wizard at /availability/respond stays for fast-path
  * first-time answering; this page is the persistent surface a player
  * lands on when they want to remember or change what they said.
+ *
+ * A parent of juniors sees a section per subject - themselves plus each
+ * dependent (a junior playing up into a senior squad) - since the wizard
+ * only walks unanswered dates, this is where a parent goes back to change
+ * a dependent's answer.
  */
 
 type ActiveResponse = ApiResponse<"/api/availability/active">;
 type ActiveItem = ActiveResponse["items"][number];
 type Fixture = ActiveItem["fixtures"][number];
-type MyResponse = ActiveItem["myResponses"][number];
 type AvailableCount = ActiveItem["availableCounts"][number];
+type Dependent = ActiveResponse["dependents"][number];
+
+const SELF_KEY = "self";
+
+interface SubjectRow {
+  key: string;
+  name: string;
+  dependentId: string | null;
+}
+
+// An existing answer for a (subject, date): note + status, shared shape
+// across self and dependents.
+interface ExistingAnswer {
+  status: string;
+  note: string | null;
+}
 
 export default function AvailabilityMine() {
   const { data, isLoading, isError } = useQuery({
@@ -63,7 +83,9 @@ export default function AvailabilityMine() {
   }
 
   const items = (data?.items ?? []).filter((i) => i.status === "open");
-  const unansweredCount = countUnanswered(items);
+  const dependents = data?.dependents ?? [];
+  const subjects = buildSubjects(dependents);
+  const unansweredCount = countUnanswered(items, subjects);
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-3 px-4 py-6">
@@ -90,23 +112,62 @@ export default function AvailabilityMine() {
       )}
 
       {items.map((req) => (
-        <RequestCard key={req.id} request={req} />
+        <RequestCard key={req.id} request={req} subjects={subjects} />
       ))}
     </div>
   );
 }
 
-function countUnanswered(items: ActiveItem[]): number {
+function buildSubjects(dependents: Dependent[]): SubjectRow[] {
+  return [
+    { key: SELF_KEY, name: "You", dependentId: null },
+    ...dependents.map((d) => ({ key: d.id, name: d.name, dependentId: d.id })),
+  ];
+}
+
+function answeredDatesFor(item: ActiveItem, subject: SubjectRow): Set<string> {
+  if (subject.dependentId === null) {
+    return new Set(item.myResponses.map((r) => r.match_date));
+  }
+  return new Set(
+    item.dependentResponses
+      .filter((r) => r.dependent_id === subject.dependentId)
+      .map((r) => r.match_date),
+  );
+}
+
+function existingFor(
+  item: ActiveItem,
+  subject: SubjectRow,
+  date: string,
+): ExistingAnswer | undefined {
+  if (subject.dependentId === null) {
+    return item.myResponses.find((r) => r.match_date === date);
+  }
+  return item.dependentResponses.find(
+    (r) => r.dependent_id === subject.dependentId && r.match_date === date,
+  );
+}
+
+function countUnanswered(items: ActiveItem[], subjects: SubjectRow[]): number {
   let n = 0;
   for (const item of items) {
-    const answered = new Set(item.myResponses.map((r) => r.match_date));
     const dates = new Set(item.fixtures.map((f) => f.match_date));
-    for (const d of dates) if (!answered.has(d)) n++;
+    for (const subject of subjects) {
+      const answered = answeredDatesFor(item, subject);
+      for (const d of dates) if (!answered.has(d)) n++;
+    }
   }
   return n;
 }
 
-function RequestCard({ request }: { request: ActiveItem }) {
+function RequestCard({
+  request,
+  subjects,
+}: {
+  request: ActiveItem;
+  subjects: SubjectRow[];
+}) {
   const byDate = new Map<string, Fixture[]>();
   for (const f of request.fixtures) {
     const list = byDate.get(f.match_date) ?? [];
@@ -114,12 +175,12 @@ function RequestCard({ request }: { request: ActiveItem }) {
     byDate.set(f.match_date, list);
   }
   const dates = Array.from(byDate.keys()).sort();
-  const responseByDate = new Map<string, MyResponse>();
-  for (const r of request.myResponses) responseByDate.set(r.match_date, r);
   const availableCountByDate = new Map<string, AvailableCount>();
   for (const c of request.availableCounts) {
     availableCountByDate.set(c.match_date, c);
   }
+
+  const multiSubject = subjects.length > 1;
 
   return (
     <Card>
@@ -133,16 +194,26 @@ function RequestCard({ request }: { request: ActiveItem }) {
           {dates.length} {dates.length === 1 ? "date" : "dates"}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {dates.map((date) => (
-          <DateRow
-            key={date}
-            requestId={request.id}
-            date={date}
-            fixtures={byDate.get(date) ?? []}
-            existing={responseByDate.get(date)}
-            availableCount={availableCountByDate.get(date)?.count ?? 0}
-          />
+      <CardContent className="space-y-4">
+        {subjects.map((subject) => (
+          <div key={subject.key} className="space-y-2">
+            {multiSubject && (
+              <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
+                {subject.key === SELF_KEY ? "You" : subject.name}
+              </p>
+            )}
+            {dates.map((date) => (
+              <DateRow
+                key={`${subject.key}:${date}`}
+                requestId={request.id}
+                date={date}
+                fixtures={byDate.get(date) ?? []}
+                subjectDependentId={subject.dependentId}
+                existing={existingFor(request, subject, date)}
+                availableCount={availableCountByDate.get(date)?.count ?? 0}
+              />
+            ))}
+          </div>
         ))}
       </CardContent>
     </Card>
@@ -153,13 +224,15 @@ function DateRow({
   requestId,
   date,
   fixtures,
+  subjectDependentId,
   existing,
   availableCount,
 }: {
   requestId: string;
   date: string;
   fixtures: Fixture[];
-  existing: MyResponse | undefined;
+  subjectDependentId: string | null;
+  existing: ExistingAnswer | undefined;
   availableCount: number;
 }) {
   const qc = useQueryClient();
@@ -173,6 +246,7 @@ function DateRow({
         api.POST("/api/availability/requests/{requestId}/respond", {
           params: { path: { requestId } },
           body: {
+            ...(subjectDependentId ? { subjectDependentId } : {}),
             responses: [
               {
                 matchDate: date,

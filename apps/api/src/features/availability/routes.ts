@@ -24,6 +24,7 @@ import {
   notifySendSchema,
   previewFixturesResponseSchema,
   previewRangeSchema,
+  requestDateDependentParamSchema,
   requestDateFixtureParamSchema,
   requestDateMemberParamSchema,
   requestDateParamSchema,
@@ -49,6 +50,7 @@ import {
   respond,
   sendAvailabilityNotification,
   setAvailability,
+  setDependentAvailability,
   updateRequestStatus,
 } from "./service.ts";
 
@@ -224,6 +226,31 @@ export const availabilityRoutes: FastifyPluginAsyncZod = async (app) => {
         request.params.requestId,
         request.params.date,
         request.params.memberId,
+        request.body,
+      );
+    },
+  );
+
+  const setDepAvail = setDependentAvailability(app.db);
+  app.put(
+    "/availability/requests/:requestId/dates/:date/dependents/:dependentId/availability",
+    {
+      preHandler: [matchdayManage],
+      schema: {
+        params: requestDateDependentParamSchema,
+        body: setAvailabilitySchema,
+        response: { 200: successResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await setDepAvail(
+        user.id,
+        role,
+        request.params.requestId,
+        request.params.date,
+        request.params.dependentId,
         request.body,
       );
     },

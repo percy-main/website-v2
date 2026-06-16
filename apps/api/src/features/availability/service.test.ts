@@ -258,9 +258,14 @@ describe("availability service", () => {
   describe("getActiveRequests", () => {
     it("returns empty items when no open requests", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce({ id: "member-1" }); // member lookup
+      mockExecute.mockResolvedValueOnce([]); // dependents
       mockExecute.mockResolvedValueOnce([]); // requests
       const result = await getActiveRequests(db)("test@example.com");
-      expect(result).toEqual({ memberId: "member-1", items: [] });
+      expect(result).toEqual({
+        memberId: "member-1",
+        dependents: [],
+        items: [],
+      });
     });
   });
 

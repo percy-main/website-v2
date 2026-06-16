@@ -1064,6 +1064,7 @@ export function createMatchday(db: Kysely<DB>) {
           .where("availability_fixture.play_cricket_team_id", "=", data.teamId)
           .select([
             "availability_assignment.member_id",
+            "availability_assignment.dependent_id",
             "availability_assignment.player_name",
           ])
           .orderBy("availability_assignment.position", "asc")
@@ -1077,6 +1078,10 @@ export function createMatchday(db: Kysely<DB>) {
                 id: crypto.randomUUID(),
                 matchday_id: id,
                 member_id: a.member_id,
+                // Carry the junior linkage through so a dependent picked
+                // via the availability picker doesn't collapse into an
+                // anonymous guest row on direct matchday creation.
+                dependent_id: a.dependent_id,
                 player_name: a.player_name,
                 status: "selected" as const,
               })),
