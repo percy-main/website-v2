@@ -87,21 +87,23 @@ jobs:
           fi
           exit 0
 
-      - name: Release stale state lock if the job was cancelled mid-plan
-        # Drift takes the state lock during plan. If this job is cancelled
-        # or hits its timeout-minutes while the plan holds the lock, the
-        # lock is orphaned - and, unlike the PR-plan and deploy workflows,
-        # drift previously had no cleanup, so it sat stale until another
-        # run cleared it. Gate on cancelled(), NOT on plan failure: a
-        # clean plan error here is usually lock contention with another
-        # LIVE run, and force-unlocking then would clobber that run's
-        # active lock. The plan role has dynamodb Put/DeleteItem on the
-        # locks table (shared/main.tf), so force-unlock works under it.
-        if: cancelled()
+      - name: Release stale state lock if drift orphaned its own
+        # Drift takes the state lock during plan; a step timeout or other
+        # non-success exit can leave that lock behind. Fire on any
+        # non-success plan, but scope the unlock to THIS runner
+        # (only-current-runner) so a plan that failed on lock contention
+        # with another LIVE run never force-unlocks that run's active
+        # lock - drift only ever clears a lock it orphaned itself.
+        # cancelled() is deliberately NOT used: a timeout-minutes expiry
+        # is a failure, not a cancellation, so gating on it would miss the
+        # hung-plan case entirely. The plan role has dynamodb
+        # Put/DeleteItem on the locks table (shared/main.tf).
+        if: always() && steps.plan.outcome != 'success'
         uses: ./.github/actions/tf-unlock
         with:
           environment: ${{ matrix.environment }}
           role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
+          only-current-runner: "true"
 
       - name: Plan summary
         if: always()

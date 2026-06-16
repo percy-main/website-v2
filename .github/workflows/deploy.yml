@@ -68,11 +68,12 @@ jobs:
   terraform-shared:
     needs: ci
     runs-on: ubuntu-latest
-    # Bound total runtime well under the 1h OIDC credential lifetime so a
-    # hung plan/apply cannot run to the 6h default limit and reach the
-    # tf-unlock cleanup with expired creds (how the 2026-06-15 shared
-    # lock leaked: get-item exit 254, no force-unlock).
-    timeout-minutes: 30
+    # Backstop the per-step timeouts below (plan 10m + apply 25m): keep
+    # it above their sum so a genuine hang trips the graceful step
+    # timeout first (which keeps the job alive for the in-job cleanup),
+    # not this job-level cancel. Still well under the 6h default that let
+    # the 2026-06-15 shared lock squat and leak.
+    timeout-minutes: 45
     # Shared layer applies Route 53, IAM, S3 backend, certificates -
     # gate on the production environment (same reviewer list as the
     # production layer) so a bad merge can't auto-apply foundational
@@ -223,8 +224,8 @@ jobs:
   terraform-production:
     needs: terraform-shared
     runs-on: ubuntu-latest
-    # See terraform-shared: bound runtime under the credential lifetime.
-    timeout-minutes: 30
+    # See terraform-shared: backstop above the plan + apply step budget.
+    timeout-minutes: 45
     environment: production
     env:
       TF_VERSION: "1.7"

@@ -35,6 +35,19 @@ inputs:
     description: AWS region for DynamoDB calls.
     required: false
     default: eu-west-2
+  only-current-runner:
+    description: >
+      When "true", only force-unlock a lock whose holder is THIS job's
+      runner (user@hostname). This makes the cleanup provably
+      non-clobbering: a lock held by a different, still-live run is never
+      touched, so the step is safe even when it fires on an ordinary
+      lock-contention failure. Use it for workflows whose plan/apply can
+      fail because another live run holds the lock (drift, manual apply).
+      Leave "false" (default) for the push-to-main deploy and PR-plan
+      jobs, whose broad runner@* sweep doubles as cross-run recovery for
+      a lock orphaned by a runner that died before it could self-clean.
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -57,6 +70,7 @@ runs:
         TABLE: ${{ inputs.table }}
         REGION: ${{ inputs.region }}
         ENV: ${{ inputs.environment }}
+        ONLY_CURRENT_RUNNER: ${{ inputs.only-current-runner }}
       run: |
         # The s3 backend's DynamoDB lock row uses LockID = "<bucket>/<key>"
         # (no -md5 suffix; that suffix is the separate state-digest row
@@ -97,6 +111,21 @@ runs:
             echo "Lock holder $LOCK_WHO is not a CI runner — refusing to force-unlock."
             exit 0 ;;
         esac
+
+        # Optional tighter scope: only clear a lock taken by THIS runner.
+        # terraform records the holder as "$(id -un)@$(hostname)"; the
+        # cleanup runs in the same job on the same runner, so a lock this
+        # job orphaned matches exactly, while a lock held by a different
+        # live run never does. This makes the cleanup safe to run even on
+        # a plain lock-contention failure, without force-unlocking
+        # someone else's active lock.
+        if [ "${ONLY_CURRENT_RUNNER:-false}" = "true" ]; then
+          SELF="$(id -un)@$(hostname)"
+          if [ "$LOCK_WHO" != "$SELF" ]; then
+            echo "Lock holder $LOCK_WHO is not this runner ($SELF) - leaving it for its owner or downstream recovery."
+            exit 0
+          fi
+        fi
 
         echo "Force-unlocking stale CI lock $LOCK_ID (held by $LOCK_WHO since $LOCK_CREATED)"
         terraform force-unlock -force "$LOCK_ID"

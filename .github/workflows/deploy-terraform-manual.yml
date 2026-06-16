@@ -49,9 +49,10 @@ jobs:
   terraform-shared:
     if: ${{ inputs.target == 'shared' || inputs.target == 'both' }}
     runs-on: ubuntu-latest
-    # Bound runtime under the 1h OIDC credential lifetime so the cleanup
-    # steps below always run with live creds (see deploy.yml / tf-unlock).
-    timeout-minutes: 30
+    # Backstop above the plan 10m + apply 25m step budget so a genuine
+    # hang trips the graceful step timeout first (keeping the job alive
+    # for the in-job cleanup), not this job-level cancel.
+    timeout-minutes: 45
     # Shared layer applies foundational infra (Route 53, IAM, S3
     # backend) — gate on the production environment so a manual run
     # against an arbitrary ref still requires reviewer approval.
@@ -109,6 +110,11 @@ jobs:
         with:
           environment: shared
           role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          # Manual plan/apply has no -lock-timeout, so it can fail
+          # immediately on contention with a live run. Scope the unlock to
+          # this runner's own lock so that failure cannot clobber the
+          # other run's active lock.
+          only-current-runner: "true"
 
       - name: Plan summary
         if: always()
@@ -135,6 +141,11 @@ jobs:
         with:
           environment: shared
           role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          # Manual plan/apply has no -lock-timeout, so it can fail
+          # immediately on contention with a live run. Scope the unlock to
+          # this runner's own lock so that failure cannot clobber the
+          # other run's active lock.
+          only-current-runner: "true"
 
       - name: Apply summary
         if: always()
@@ -198,8 +209,8 @@ jobs:
     if: ${{ always() && (inputs.target == 'production' || inputs.target == 'both') && (needs.terraform-shared.result == 'success' || needs.terraform-shared.result == 'skipped') }}
     needs: terraform-shared
     runs-on: ubuntu-latest
-    # See terraform-shared: bound runtime under the credential lifetime.
-    timeout-minutes: 30
+    # See terraform-shared: backstop above the plan + apply step budget.
+    timeout-minutes: 45
     environment: production
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -244,6 +255,9 @@ jobs:
         with:
           environment: production
           role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          # See the shared job: scope to this runner's own lock so a
+          # contention failure cannot clobber another live run's lock.
+          only-current-runner: "true"
 
       - name: Plan summary
         if: always()
@@ -270,6 +284,9 @@ jobs:
         with:
           environment: production
           role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          # See the shared job: scope to this runner's own lock so a
+          # contention failure cannot clobber another live run's lock.
+          only-current-runner: "true"
 
       - name: Apply summary
         if: always()
