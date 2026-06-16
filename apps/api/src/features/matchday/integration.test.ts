@@ -1,4 +1,4 @@
-import { format, subDays } from "date-fns";
+import { addDays, format, subDays } from "date-fns";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SendPush } from "../../lib/push-sender.ts";
@@ -191,7 +191,11 @@ async function seedMatchday(overrides: {
     .values({
       id,
       play_cricket_team_id: overrides.teamId,
-      match_date: overrides.matchDate ?? "2026-06-15",
+      // Default to an upcoming date relative to "now" so the fixture never
+      // rots into the past and trips the "game has already taken place" /
+      // upcoming-matches filters as real time marches on.
+      match_date:
+        overrides.matchDate ?? format(addDays(new Date(), 7), "yyyy-MM-dd"),
       opposition: "Opposition CC",
       created_by: overrides.createdBy,
       status: overrides.status ?? "pending",
