@@ -5659,6 +5659,7 @@ export interface paths {
                                     id: string;
                                     name: string | null;
                                     member_category: string | null;
+                                    dependent_id: string | null;
                                 }[];
                             };
                             assignedMemberIds: string[];

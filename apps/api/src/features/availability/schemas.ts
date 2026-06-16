@@ -193,10 +193,14 @@ const responseItemSchema = z.object({
   member_name: z.string().nullable(),
 });
 
+// An un-answered subject in the no-response pool: a group member, or a
+// junior dependent of one (dependent_id set). `id` is the subject's own id
+// in both cases.
 const memberPoolItemSchema = z.object({
   id: z.string(),
   name: z.string().nullable(),
   member_category: z.string().nullable(),
+  dependent_id: z.string().nullable(),
 });
 
 const dateDetailFixtureSchema = z.object({

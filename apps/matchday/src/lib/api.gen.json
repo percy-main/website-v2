@@ -9933,12 +9933,17 @@
                               "member_category": {
                                 "nullable": true,
                                 "type": "string"
+                              },
+                              "dependent_id": {
+                                "nullable": true,
+                                "type": "string"
                               }
                             },
                             "required": [
                               "id",
                               "name",
-                              "member_category"
+                              "member_category",
+                              "dependent_id"
                             ],
                             "additionalProperties": false
                           }

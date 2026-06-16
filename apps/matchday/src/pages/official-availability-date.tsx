@@ -54,6 +54,12 @@ function poolSubject(p: Pool): SubjectRef {
     : { dependentId: p.dependent_id ?? undefined };
 }
 
+// A no-response row is a member (dependent_id null, id = member id) or a
+// junior dependent (dependent_id set, id = dependent id).
+function noRespSubject(m: NoResp): SubjectRef {
+  return m.dependent_id ? { dependentId: m.dependent_id } : { memberId: m.id };
+}
+
 /**
  * Phase 3 per-date picker.
  *
@@ -291,16 +297,13 @@ export default function OfficialAvailabilityDate() {
       fixtureId: string;
     }) => move.mutate(vars),
     unassign: (assignmentId: string) => unassign.mutate(assignmentId),
-    setAvailable: (memberId: string) =>
-      override.mutate({ memberId, status: "available" }),
-    setUnavailable: (memberId: string) =>
-      override.mutate({ memberId, status: "unavailable" }),
-    // Override a pool item's status, routing members and dependents to
-    // their respective endpoints.
-    overrideStatus: (p: Pool, status: OverrideStatus) => {
-      if (p.member_id) override.mutate({ memberId: p.member_id, status });
-      else if (p.dependent_id)
-        overrideDependent.mutate({ dependentId: p.dependent_id, status });
+    // Override a subject's status, routing members and dependents to their
+    // respective endpoints.
+    overrideStatus: (subject: SubjectRef, status: OverrideStatus) => {
+      if (subject.memberId)
+        override.mutate({ memberId: subject.memberId, status });
+      else if (subject.dependentId)
+        overrideDependent.mutate({ dependentId: subject.dependentId, status });
     },
     openAssignSheet: (p: Pool) => setAssignTarget(p),
   };
@@ -508,9 +511,7 @@ interface ListActions {
     fixtureId: string;
   }) => void;
   unassign: (assignmentId: string) => void;
-  setAvailable: (memberId: string) => void;
-  setUnavailable: (memberId: string) => void;
-  overrideStatus: (p: Pool, status: OverrideStatus) => void;
+  overrideStatus: (subject: SubjectRef, status: OverrideStatus) => void;
   openAssignSheet: (p: Pool) => void;
 }
 
@@ -662,7 +663,9 @@ function AvailableList({
             )}
             <button
               type="button"
-              onClick={() => actions.overrideStatus(p, "unavailable")}
+              onClick={() =>
+                actions.overrideStatus(poolSubject(p), "unavailable")
+              }
               disabled={actionPending}
               className="text-text-secondary hover:text-danger text-[11px] font-medium disabled:opacity-60"
             >
@@ -721,7 +724,7 @@ function UnavailableList({
           </div>
           <button
             type="button"
-            onClick={() => actions.overrideStatus(p, "available")}
+            onClick={() => actions.overrideStatus(poolSubject(p), "available")}
             disabled={actionPending}
             className="text-success text-[11px] font-medium disabled:opacity-60"
           >
@@ -756,14 +759,19 @@ function NoResponseList({
           className={cn("bg-surface flex items-center gap-3", pad)}
         >
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{m.name}</p>
+            <p className="truncate text-sm font-medium">
+              {m.name}
+              {m.dependent_id && <JuniorBadge />}
+            </p>
             {m.member_category && (
               <p className="text-text-secondary text-xs">{m.member_category}</p>
             )}
           </div>
           <button
             type="button"
-            onClick={() => actions.setAvailable(m.id)}
+            onClick={() =>
+              actions.overrideStatus(noRespSubject(m), "available")
+            }
             disabled={actionPending}
             className="text-success text-[11px] font-medium disabled:opacity-60"
           >
@@ -771,7 +779,9 @@ function NoResponseList({
           </button>
           <button
             type="button"
-            onClick={() => actions.setUnavailable(m.id)}
+            onClick={() =>
+              actions.overrideStatus(noRespSubject(m), "unavailable")
+            }
             disabled={actionPending}
             className="text-danger text-[11px] font-medium disabled:opacity-60"
           >

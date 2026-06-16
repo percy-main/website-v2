@@ -819,18 +819,20 @@ describe("availability service (integration)", () => {
       ).toBe(true);
     });
 
-    it("won't override a dependent whose parent hasn't answered", async () => {
+    it("won't override a dependent whose parent isn't in the request's groups", async () => {
+      // Parent is in no group, so this request never reached them - their
+      // child must not be reachable by id.
       const parentId = await seedMember(
-        "Parent NoAns",
-        `parent-noans-${crypto.randomUUID()}@test.com`,
+        "Parent OOS",
+        `parent-oos-${crypto.randomUUID()}@test.com`,
       );
-      const depId = await seedDependent(parentId, "Junior NoAns");
+      const depId = await seedDependent(parentId, "Junior OOS");
 
       const admin = await seedTestUser(ctx.db, {
-        email: `admin-noans-${crypto.randomUUID()}@test.com`,
+        email: `admin-oos-${crypto.randomUUID()}@test.com`,
         role: "admin",
       });
-      const teamId = await seedTeam("NoAns XI");
+      const teamId = await seedTeam("OOS XI");
       const reqId = await seedRequest(
         admin.userId,
         "2027-08-15",
@@ -839,7 +841,6 @@ describe("availability service (integration)", () => {
       );
       await seedFixture(reqId, teamId, "2027-08-15");
 
-      // No response exists for this dependent, so there's nothing to flip.
       await expect(
         setDependentAvailability(ctx.db)(
           admin.userId,
@@ -849,7 +850,62 @@ describe("availability service (integration)", () => {
           depId,
           { status: "available" },
         ),
-      ).rejects.toThrow("parent must answer first");
+      ).rejects.toThrow("not found for this request");
+    });
+
+    it("lists an un-answered dependent in the no-response pool and lets an official mark them available", async () => {
+      const email = `parent-nr-${crypto.randomUUID()}@test.com`;
+      const parentId = await seedMember("Parent NR", email);
+      const depId = await seedDependent(parentId, "Junior NR");
+
+      const admin = await seedTestUser(ctx.db, {
+        email: `admin-nr-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam("NR XI");
+      const groupId = await seedGroup("NR group", [parentId]);
+      const reqId = await seedRequest(
+        admin.userId,
+        "2027-09-01",
+        "2027-09-01",
+        "open",
+        groupId,
+      );
+      await seedFixture(reqId, teamId, "2027-09-01");
+
+      // Nobody has answered - the junior shows up in no-response.
+      const before = await getDateDetail(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-09-01",
+      );
+      expect(
+        before.pools.noResponse.some((m) => m.dependent_id === depId),
+      ).toBe(true);
+
+      // Official marks the never-answered junior available (creates a row).
+      await setDependentAvailability(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-09-01",
+        depId,
+        { status: "available" },
+      );
+
+      const after = await getDateDetail(ctx.db)(
+        admin.userId,
+        "admin",
+        reqId,
+        "2027-09-01",
+      );
+      expect(after.pools.available.some((r) => r.dependent_id === depId)).toBe(
+        true,
+      );
+      expect(after.pools.noResponse.some((m) => m.dependent_id === depId)).toBe(
+        false,
+      );
     });
 
     it("counts a dependent respondent in the request list", async () => {

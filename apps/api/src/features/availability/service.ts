@@ -821,10 +821,53 @@ export function getDateDetail(db: Kysely<DB>) {
             .orderBy("member.name", "asc")
             .execute();
 
-    // The no-response pool is members-only (dependents aren't group
-    // members, so there's no roster to diff them against).
+    // Juniors who could play up: the dependents of the request's group
+    // members. Scoped the same way as the member pool (a request's parents
+    // are the members in its groups), so a parent's child surfaces even
+    // when nobody has answered for them yet.
+    const allDependents =
+      requestGroupIds.length === 0
+        ? []
+        : await db
+            .selectFrom("dependent")
+            .innerJoin(
+              "user_group_member",
+              "user_group_member.member_id",
+              "dependent.member_id",
+            )
+            .where("user_group_member.group_id", "in", requestGroupIds)
+            .select(["dependent.id", "dependent.name"])
+            .distinct()
+            .orderBy("dependent.name", "asc")
+            .execute();
+
     const respondedMemberIds = new Set(memberResponses.map((r) => r.member_id));
-    const noResponse = allMembers.filter((m) => !respondedMemberIds.has(m.id));
+    const respondedDependentIds = new Set(
+      dependentResponses.map((r) => r.dependent_id),
+    );
+    const noResponse: Array<{
+      id: string;
+      name: string | null;
+      member_category: string | null;
+      dependent_id: string | null;
+    }> = [
+      ...allMembers
+        .filter((m) => !respondedMemberIds.has(m.id))
+        .map((m) => ({
+          id: m.id,
+          name: m.name,
+          member_category: m.member_category,
+          dependent_id: null,
+        })),
+      ...allDependents
+        .filter((d) => !respondedDependentIds.has(d.id))
+        .map((d) => ({
+          id: d.id,
+          name: d.name,
+          member_category: null,
+          dependent_id: d.id,
+        })),
+    ];
 
     const available = responses.filter((r) => r.status === "available");
     const unavailable = responses.filter((r) => r.status === "unavailable");
@@ -1085,33 +1128,56 @@ export function setDependentAvailability(db: Kysely<DB>) {
     if (!fixture)
       throwHttpError(404, "No fixtures on this date for this request");
 
-    // Flip-only: a junior only reaches an official through the pools once
-    // their parent has answered, and there's no junior no-response pool, so
-    // the override edits an existing answer rather than conjuring one for an
-    // arbitrary child. A never-answered junior is added via the guest path.
-    const existing = await db
-      .selectFrom("availability_response")
-      .where("availability_request_id", "=", requestId)
-      .where("dependent_id", "=", dependentId)
-      .where("match_date", "=", date)
-      .select("id")
+    // Scope guard: the dependent must belong to a parent who is a member of
+    // one of this request's groups (i.e. a parent who received it). This is
+    // what bounds which juniors an official may set availability for - it
+    // matches the dependents shown in the no-response pool, so a captain can
+    // mark a never-answered junior available, but can't reach an unrelated
+    // child by id.
+    const inScope = await db
+      .selectFrom("dependent")
+      .innerJoin(
+        "user_group_member",
+        "user_group_member.member_id",
+        "dependent.member_id",
+      )
+      .innerJoin(
+        "availability_request_group",
+        "availability_request_group.user_group_id",
+        "user_group_member.group_id",
+      )
+      .where("dependent.id", "=", dependentId)
+      .where("availability_request_group.request_id", "=", requestId)
+      .select("dependent.id")
       .executeTakeFirst();
 
-    if (!existing) {
-      throwHttpError(
-        404,
-        "No availability to override for this dependent - their parent must answer first",
-      );
-    }
+    if (!inScope) throwHttpError(404, "Dependent not found for this request");
+
+    const now = new Date().toISOString();
 
     await db
-      .updateTable("availability_response")
-      .set({
+      .insertInto("availability_response")
+      .values({
+        id: crypto.randomUUID(),
+        availability_request_id: requestId,
+        member_id: null,
+        dependent_id: dependentId,
+        match_date: date,
         status: data.status,
         overridden_by: userId,
-        updated_at: new Date().toISOString(),
+        created_at: now,
+        updated_at: now,
       })
-      .where("id", "=", existing.id)
+      .onConflict((oc) =>
+        oc
+          .columns(["availability_request_id", "dependent_id", "match_date"])
+          .where("dependent_id", "is not", null)
+          .doUpdateSet({
+            status: data.status,
+            overridden_by: userId,
+            updated_at: now,
+          }),
+      )
       .execute();
 
     return { success: true };
