@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Resource } from "../auth/permissions.ts";
 import { blockPropValueSchema } from "./block-types.ts";
+import { rrulestr } from "./rrule-compat.ts";
 
 // ── Content kinds + statuses ────────────────────────────────────────────
 //
@@ -186,6 +187,26 @@ export type NewsMetadata = z.infer<typeof newsMetadataSchema>;
 export const eventMetadataSchema = z.object({
   when: z.iso.datetime({ offset: true }),
   finish: z.iso.datetime({ offset: true }).optional(),
+  // Optional iCal recurrence. `when` is the series DTSTART; each occurrence
+  // keeps the same finish-minus-when duration. Expansion (DST-correct, in
+  // Europe/London) lives in ./recurrence.ts and is shared by every consumer.
+  recurrence: z
+    .object({
+      // RRULE body only (no DTSTART line); DTSTART is the event's `when`.
+      // e.g. "FREQ=WEEKLY;BYDAY=TU".
+      rrule: z.string().min(1),
+      // Europe/London calendar dates (yyyy-MM-dd) of occurrences to cancel.
+      exceptions: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+    })
+    .refine((r) => {
+      try {
+        rrulestr(`RRULE:${r.rrule}`);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Invalid recurrence rule")
+    .optional(),
   // Inline venue embed, deliberately minimal: no county/country fields.
   location: z
     .object({
@@ -265,6 +286,19 @@ export const CONTENT_METADATA_SCHEMAS: Partial<
   game_report: gameReportMetadataSchema,
   person: personMetadataSchema,
 };
+
+// ── Recurrence expansion ────────────────────────────────────────────────
+export {
+  EVENT_TIME_ZONE,
+  expandEventOccurrences,
+  latestOccurrenceBefore,
+  nextOccurrence,
+  occurrenceOnDate,
+  recurrenceSummary,
+  viewedOccurrence,
+  type DateRange,
+  type Occurrence,
+} from "./recurrence.ts";
 
 // ── Block-type primitives ───────────────────────────────────────────────
 //

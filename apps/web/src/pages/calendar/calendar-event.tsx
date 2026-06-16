@@ -6,12 +6,17 @@ import {
   eventQueryOptions,
   parseEventMetadata,
 } from "@/lib/content-queries.js";
+import {
+  expandEventOccurrences,
+  recurrenceSummary,
+  viewedOccurrence,
+} from "@percy-main/shared/content";
 import { useQuery } from "@tanstack/react-query";
 import { AddToCalendarButton } from "add-to-calendar-button-react";
 import { formatInTimeZone } from "date-fns-tz";
 import type { ReactNode } from "react";
 import { IoCalendar, IoChevronForward } from "react-icons/io5";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 
 function When({ start, end }: { start: string; end?: string }) {
   return (
@@ -61,12 +66,16 @@ function EventLayout({
   when,
   finish,
   venue,
+  repeats,
+  upcoming,
   children,
 }: {
   name: string;
   when: string;
   finish?: string;
   venue?: EventVenue;
+  repeats?: string;
+  upcoming?: Array<{ date: string; href: string; label: string }>;
   children: ReactNode;
 }) {
   const year = formatInTimeZone(new Date(when), "Europe/London", "yyyy");
@@ -136,6 +145,32 @@ function EventLayout({
             <When start={when} end={finish} />
           </div>
         </div>
+
+        {repeats && (
+          <div className="flex w-full flex-col gap-2 rounded-xl bg-white p-4">
+            <p>
+              <span className="font-semibold">Repeats: </span>
+              {repeats}
+            </p>
+            {upcoming && upcoming.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <span className="font-semibold">Upcoming dates</span>
+                <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                  {upcoming.map((o) => (
+                    <li key={o.date}>
+                      <Link
+                        to={o.href}
+                        className="hover:text-primary text-stone-600 hover:underline"
+                      >
+                        {o.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {venue?.lat != null && venue?.lon != null && (
@@ -160,6 +195,8 @@ function EventLayout({
 export function Component() {
   const { id } = useParams<{ id: string }>();
   const slug = id ?? "";
+  const [searchParams] = useSearchParams();
+  const on = searchParams.get("on");
 
   const {
     data: apiEvent,
@@ -172,12 +209,45 @@ export function Component() {
   useDocumentMeta(apiEvent?.title ?? "Event");
 
   if (apiEvent && meta) {
+    // Resolve which occurrence to show: the ?on date, else the next upcoming,
+    // else the most recent past one. Non-recurring events resolve to their
+    // single date. Add-to-calendar and the breadcrumb follow this occurrence.
+    const now = new Date();
+    const occ = viewedOccurrence(meta, { on, now }) ?? {
+      start: meta.when,
+      finish: meta.finish,
+      date: formatInTimeZone(
+        new Date(meta.when),
+        "Europe/London",
+        "yyyy-MM-dd",
+      ),
+    };
+    const repeats = recurrenceSummary(meta);
+    const upcoming = meta.recurrence
+      ? expandEventOccurrences(meta, {
+          from: now,
+          to: new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000),
+        })
+          .slice(0, 8)
+          .map((o) => ({
+            date: o.date,
+            href: `/calendar/event/${slug}?on=${o.date}`,
+            label: formatInTimeZone(
+              new Date(o.start),
+              "Europe/London",
+              "EEE d MMM",
+            ),
+          }))
+      : undefined;
+
     return (
       <EventLayout
         name={apiEvent.title}
-        when={meta.when}
-        finish={meta.finish}
+        when={occ.start}
+        finish={occ.finish}
         venue={meta.location}
+        repeats={repeats}
+        upcoming={upcoming}
       >
         <ContentBody body={apiEvent.body} className="w-full" />
       </EventLayout>
