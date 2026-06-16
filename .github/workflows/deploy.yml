@@ -68,6 +68,12 @@ jobs:
   terraform-shared:
     needs: ci
     runs-on: ubuntu-latest
+    # Backstop the per-step timeouts below (plan 10m + apply 25m): keep
+    # it above their sum so a genuine hang trips the graceful step
+    # timeout first (which keeps the job alive for the in-job cleanup),
+    # not this job-level cancel. Still well under the 6h default that let
+    # the 2026-06-15 shared lock squat and leak.
+    timeout-minutes: 45
     # Shared layer applies Route 53, IAM, S3 backend, certificates -
     # gate on the production environment (same reviewer list as the
     # production layer) so a bad merge can't auto-apply foundational
@@ -110,6 +116,10 @@ jobs:
 
       - name: Terraform Plan
         id: plan
+        # Fail the step fast on a hung plan rather than holding the state
+        # lock to the job limit; subsequent cleanup then runs with creds
+        # still well within their 1h lifetime.
+        timeout-minutes: 10
         working-directory: infra/environments/shared
         # Plan-then-apply in the gated job: PR reviewers approve from
         # the PR's plan comment; this records the apply-time plan in
@@ -131,6 +141,7 @@ jobs:
         uses: ./.github/actions/tf-unlock
         with:
           environment: shared
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
 
       - name: Plan summary
         if: always()
@@ -145,6 +156,7 @@ jobs:
 
       - name: Terraform Apply
         id: apply
+        timeout-minutes: 25
         working-directory: infra/environments/shared
         run: |
           terraform apply -auto-approve -lock-timeout=2m -no-color tfplan 2>&1 | tee apply.log
@@ -155,6 +167,7 @@ jobs:
         uses: ./.github/actions/tf-unlock
         with:
           environment: shared
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
 
       - name: Apply summary
         if: always()
@@ -211,6 +224,8 @@ jobs:
   terraform-production:
     needs: terraform-shared
     runs-on: ubuntu-latest
+    # See terraform-shared: backstop above the plan + apply step budget.
+    timeout-minutes: 45
     environment: production
     env:
       TF_VERSION: "1.7"
@@ -233,6 +248,7 @@ jobs:
 
       - name: Terraform Plan
         id: plan
+        timeout-minutes: 10
         working-directory: infra/environments/production
         run: |
           terraform plan -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
@@ -243,6 +259,7 @@ jobs:
         uses: ./.github/actions/tf-unlock
         with:
           environment: production
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
 
       - name: Plan summary
         if: always()
@@ -257,6 +274,7 @@ jobs:
 
       - name: Terraform Apply
         id: apply
+        timeout-minutes: 25
         working-directory: infra/environments/production
         run: |
           terraform apply -auto-approve -lock-timeout=2m -no-color tfplan 2>&1 | tee apply.log
@@ -267,6 +285,7 @@ jobs:
         uses: ./.github/actions/tf-unlock
         with:
           environment: production
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
 
       - name: Apply summary
         if: always()

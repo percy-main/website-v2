@@ -49,6 +49,10 @@ jobs:
   terraform-shared:
     if: ${{ inputs.target == 'shared' || inputs.target == 'both' }}
     runs-on: ubuntu-latest
+    # Backstop above the plan 10m + apply 25m step budget so a genuine
+    # hang trips the graceful step timeout first (keeping the job alive
+    # for the in-job cleanup), not this job-level cancel.
+    timeout-minutes: 45
     # Shared layer applies foundational infra (Route 53, IAM, S3
     # backend) — gate on the production environment so a manual run
     # against an arbitrary ref still requires reviewer approval.
@@ -93,11 +97,24 @@ jobs:
 
       - name: Terraform Plan
         id: plan
+        timeout-minutes: 10
         working-directory: infra/environments/shared
         # See ADR 035 — apply-time plan recorded for audit.
         run: |
           terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if plan didn't release its own
+        if: always() && steps.plan.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: shared
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          # Manual plan/apply has no -lock-timeout, so it can fail
+          # immediately on contention with a live run. Scope the unlock to
+          # this runner's own lock so that failure cannot clobber the
+          # other run's active lock.
+          only-current-runner: "true"
 
       - name: Plan summary
         if: always()
@@ -112,10 +129,23 @@ jobs:
 
       - name: Terraform Apply
         id: apply
+        timeout-minutes: 25
         working-directory: infra/environments/shared
         run: |
           terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if apply didn't release its own
+        if: always() && steps.apply.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: shared
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          # Manual plan/apply has no -lock-timeout, so it can fail
+          # immediately on contention with a live run. Scope the unlock to
+          # this runner's own lock so that failure cannot clobber the
+          # other run's active lock.
+          only-current-runner: "true"
 
       - name: Apply summary
         if: always()
@@ -179,6 +209,8 @@ jobs:
     if: ${{ always() && (inputs.target == 'production' || inputs.target == 'both') && (needs.terraform-shared.result == 'success' || needs.terraform-shared.result == 'skipped') }}
     needs: terraform-shared
     runs-on: ubuntu-latest
+    # See terraform-shared: backstop above the plan + apply step budget.
+    timeout-minutes: 45
     environment: production
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -211,10 +243,21 @@ jobs:
 
       - name: Terraform Plan
         id: plan
+        timeout-minutes: 10
         working-directory: infra/environments/production
         run: |
           terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if plan didn't release its own
+        if: always() && steps.plan.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: production
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          # See the shared job: scope to this runner's own lock so a
+          # contention failure cannot clobber another live run's lock.
+          only-current-runner: "true"
 
       - name: Plan summary
         if: always()
@@ -229,10 +272,21 @@ jobs:
 
       - name: Terraform Apply
         id: apply
+        timeout-minutes: 25
         working-directory: infra/environments/production
         run: |
           terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
           exit ${PIPESTATUS[0]}
+
+      - name: Release stale state lock if apply didn't release its own
+        if: always() && steps.apply.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: production
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          # See the shared job: scope to this runner's own lock so a
+          # contention failure cannot clobber another live run's lock.
+          only-current-runner: "true"
 
       - name: Apply summary
         if: always()

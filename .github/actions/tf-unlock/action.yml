@@ -10,6 +10,19 @@ inputs:
   environment:
     description: TF environment name (matches infra/environments/<name>/).
     required: true
+  role-to-assume:
+    description: >
+      IAM role ARN to (re)assume for the unlock. The cleanup runs after a
+      plan/apply that may have run long; the job's original OIDC
+      credentials expire after ~1h, so a job killed by the 6h
+      max-execution-time reaches this step with dead creds and the
+      get-item / force-unlock fails (exit 254) - the exact way the
+      2026-06-15 shared lock leaked. Re-assuming here mints a fresh
+      session so the cleanup always has live creds. Use the same role the
+      caller used for plan/apply (read-write for apply layers, the plan
+      role for plan-only / drift - both have dynamodb Put/DeleteItem on
+      the locks table).
+    required: true
   bucket:
     description: S3 state bucket name.
     required: false
@@ -22,10 +35,33 @@ inputs:
     description: AWS region for DynamoDB calls.
     required: false
     default: eu-west-2
+  only-current-runner:
+    description: >
+      When "true", only force-unlock a lock whose holder is THIS job's
+      runner (user@hostname). This makes the cleanup provably
+      non-clobbering: a lock held by a different, still-live run is never
+      touched, so the step is safe even when it fires on an ordinary
+      lock-contention failure. Use it for workflows whose plan/apply can
+      fail because another live run holds the lock (drift, manual apply).
+      Leave "false" (default) for the push-to-main deploy and PR-plan
+      jobs, whose broad runner@* sweep doubles as cross-run recovery for
+      a lock orphaned by a runner that died before it could self-clean.
+    required: false
+    default: "false"
 
 runs:
   using: composite
   steps:
+    - name: Refresh AWS credentials for the unlock
+      # Mint a fresh OIDC session so this cleanup is not defeated by the
+      # job's original credentials having expired during a long-running
+      # or timed-out plan/apply. Needs `id-token: write` on the caller
+      # workflow (all TF workflows already declare it).
+      uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+      with:
+        role-to-assume: ${{ inputs.role-to-assume }}
+        aws-region: ${{ inputs.region }}
+
     - name: Force-unlock if a CI runner left a stale lock
       shell: bash
       working-directory: infra/environments/${{ inputs.environment }}
@@ -34,6 +70,7 @@ runs:
         TABLE: ${{ inputs.table }}
         REGION: ${{ inputs.region }}
         ENV: ${{ inputs.environment }}
+        ONLY_CURRENT_RUNNER: ${{ inputs.only-current-runner }}
       run: |
         # The s3 backend's DynamoDB lock row uses LockID = "<bucket>/<key>"
         # (no -md5 suffix; that suffix is the separate state-digest row
@@ -74,6 +111,21 @@ runs:
             echo "Lock holder $LOCK_WHO is not a CI runner — refusing to force-unlock."
             exit 0 ;;
         esac
+
+        # Optional tighter scope: only clear a lock taken by THIS runner.
+        # terraform records the holder as "$(id -un)@$(hostname)"; the
+        # cleanup runs in the same job on the same runner, so a lock this
+        # job orphaned matches exactly, while a lock held by a different
+        # live run never does. This makes the cleanup safe to run even on
+        # a plain lock-contention failure, without force-unlocking
+        # someone else's active lock.
+        if [ "${ONLY_CURRENT_RUNNER:-false}" = "true" ]; then
+          SELF="$(id -un)@$(hostname)"
+          if [ "$LOCK_WHO" != "$SELF" ]; then
+            echo "Lock holder $LOCK_WHO is not this runner ($SELF) - leaving it for its owner or downstream recovery."
+            exit 0
+          fi
+        fi
 
         echo "Force-unlocking stale CI lock $LOCK_ID (held by $LOCK_WHO since $LOCK_CREATED)"
         terraform force-unlock -force "$LOCK_ID"

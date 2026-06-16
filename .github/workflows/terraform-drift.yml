@@ -36,6 +36,10 @@ env:
 jobs:
   drift:
     runs-on: ubuntu-latest
+    # Bound execution under the 1h OIDC credential lifetime. A drift plan
+    # that hangs would otherwise hold the state lock to the 6h default and
+    # reach the cleanup below with expired creds.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -64,6 +68,10 @@ jobs:
 
       - name: Terraform Plan (detailed exit code)
         id: plan
+        # Fail fast on a hung plan; terraform releases the lock on the
+        # SIGTERM a step timeout sends. The cancelled() cleanup below is
+        # the backstop for a job-level cancellation.
+        timeout-minutes: 10
         working-directory: infra/environments/${{ matrix.environment }}
         # Exit codes: 0 = no changes, 1 = error, 2 = changes present.
         # We capture the code so the next step can branch.
@@ -78,6 +86,24 @@ jobs:
             exit 1
           fi
           exit 0
+
+      - name: Release stale state lock if drift orphaned its own
+        # Drift takes the state lock during plan; a step timeout or other
+        # non-success exit can leave that lock behind. Fire on any
+        # non-success plan, but scope the unlock to THIS runner
+        # (only-current-runner) so a plan that failed on lock contention
+        # with another LIVE run never force-unlocks that run's active
+        # lock - drift only ever clears a lock it orphaned itself.
+        # cancelled() is deliberately NOT used: a timeout-minutes expiry
+        # is a failure, not a cancellation, so gating on it would miss the
+        # hung-plan case entirely. The plan role has dynamodb
+        # Put/DeleteItem on the locks table (shared/main.tf).
+        if: always() && steps.plan.outcome != 'success'
+        uses: ./.github/actions/tf-unlock
+        with:
+          environment: ${{ matrix.environment }}
+          role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
+          only-current-runner: "true"
 
       - name: Plan summary
         if: always()

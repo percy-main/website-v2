@@ -28,6 +28,12 @@ env:
 jobs:
   plan:
     runs-on: ubuntu-latest
+    # Bound execution well under the 1h OIDC credential lifetime. The
+    # 2026-06-15 stale lock came from a dependabot plan (shared) that hung
+    # and ran to the 6h default limit; by then its creds had expired, so
+    # the tf-unlock cleanup could not release the lock. A short cap frees
+    # the lock fast and keeps the cleanup creds valid.
+    timeout-minutes: 20
     # Backend-wide serialization. The workflow-level concurrency above
     # handles cancel-on-new-commit within a single PR; this job-level
     # group queues plans across PRs against the same backend so they
@@ -58,6 +64,9 @@ jobs:
 
       - name: Terraform Plan
         id: plan
+        # Fail the step fast on a hung plan rather than holding the lock
+        # to the job limit; the job cap above is the backstop.
+        timeout-minutes: 10
         working-directory: infra/environments/${{ matrix.environment }}
         # Use PIPESTATUS so a non-zero from terraform isn't masked by tee's 0.
         # (setup-terraform's wrapper appears to break the runner's default
@@ -82,6 +91,7 @@ jobs:
         uses: ./.github/actions/tf-unlock
         with:
           environment: ${{ matrix.environment }}
+          role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
 
       - name: Plan summary
         if: always()
