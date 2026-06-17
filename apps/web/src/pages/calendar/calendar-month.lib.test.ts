@@ -24,6 +24,12 @@ describe("categoriseTeam", () => {
     expect(categoriseTeam("midweek")).toBe("mid");
   });
 
+  it("recognises women's sides (but not 'girls', which stay junior)", () => {
+    expect(categoriseTeam("Womens Softball")).toBe("wxi");
+    expect(categoriseTeam("Women's XI")).toBe("wxi");
+    expect(categoriseTeam("Ladies")).toBe("wxi");
+  });
+
   it("recognises juniors via 'under', 'junior', 'colts', and U-codes", () => {
     expect(categoriseTeam("Under 13s")).toBe("jun");
     expect(categoriseTeam("Junior Dynamos")).toBe("jun");

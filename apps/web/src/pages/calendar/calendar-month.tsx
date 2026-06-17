@@ -49,7 +49,7 @@ type CalendarItem =
   | {
       id: string;
       type: "game";
-      category: "1xi" | "2xi" | "mid" | "jun";
+      category: "1xi" | "2xi" | "mid" | "wxi" | "jun";
       when: string;
       home: boolean;
       teamName: string;
@@ -78,6 +78,7 @@ const FILTER_LABELS: Array<{ key: Filter; label: string }> = [
   { key: "1xi", label: "1st XI" },
   { key: "2xi", label: "2nd XI" },
   { key: "mid", label: "Midweek XI" },
+  { key: "wxi", label: "Women's XI" },
   { key: "jun", label: "Juniors" },
   { key: "event", label: "Events" },
 ];
@@ -276,13 +277,15 @@ function FilterPills({
 function toFixtureStripItem(item: CalendarItem): FixtureStripItem {
   const time = formatInTimeZone(new Date(item.when), "Europe/London", "HH:mm");
 
+  // The day heading already prints the date, so the row's left block carries
+  // the time instead (no duplicated date), and the time is dropped from meta.
   if (item.type === "event") {
     return {
       id: item.id,
       href: `/calendar/event/${item.slug}?on=${item.occurrenceDate}`,
       when: item.when,
+      lead: time,
       title: item.eventName,
-      meta: time,
       tag: "Event",
     };
   }
@@ -296,6 +299,7 @@ function toFixtureStripItem(item: CalendarItem): FixtureStripItem {
     id: item.id,
     href: `/calendar/game/${item.id}`,
     when: item.when,
+    lead: time,
     title: (
       <>
         {item.teamName} vs {item.oppositionClub} {item.oppositionTeam}
@@ -303,7 +307,7 @@ function toFixtureStripItem(item: CalendarItem): FixtureStripItem {
     ),
     meta: (
       <>
-        {[competition, time].filter(Boolean).join(" · ")}
+        {competition}
         {outcomeLabel ? ` · ${outcomeLabel}` : ""}
         {item.scoreDescription ? ` · ${item.scoreDescription}` : ""}
         {item.sponsorName ? ` · Sponsored by ${item.sponsorName}` : ""}
@@ -577,7 +581,9 @@ export function Component() {
       <div className="flex gap-6 lg:gap-8">
         {/* Left Sidebar: Mini Calendar (desktop only) */}
         <aside className="hidden w-64 shrink-0 lg:block">
-          <div className="sticky top-4 space-y-4">
+          {/* Offset clears the sticky site header (top-0) so the pinned widget
+              is not tucked underneath it. */}
+          <div className="sticky top-20 space-y-4">
             <MiniCalendar
               date={date}
               itemsByDay={itemsByDay}

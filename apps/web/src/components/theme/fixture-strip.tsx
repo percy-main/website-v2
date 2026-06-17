@@ -8,14 +8,20 @@ export interface FixtureStripItem {
   id: string;
   /** Where the row links to. */
   href: string;
-  /** ISO datetime; the date block + any time in `meta` derive from it. */
+  /** ISO datetime; the date block derives from it unless `lead` overrides it. */
   when: string;
   /** The headline of the row, e.g. "1st XI vs Tynemouth CC". */
   title: ReactNode;
-  /** Secondary line under the title, e.g. "Match · 2:00 PM". */
-  meta: ReactNode;
+  /** Secondary line under the title, e.g. "Match · 2:00 PM". Omitted if absent. */
+  meta?: ReactNode;
   /** Right-hand stamp, e.g. "Home" / "Away" / "Event". */
   tag: ReactNode;
+  /**
+   * Overrides the left block. The default is the date derived from `when`;
+   * pass e.g. a time when rows are already grouped under a date heading, so
+   * the date is not printed twice.
+   */
+  lead?: ReactNode;
 }
 
 /**
@@ -31,13 +37,23 @@ export function FixtureStrip({ items }: { items: FixtureStripItem[] }) {
       {items.map((item) => (
         <Link key={item.id} to={item.href} className="fc-frow">
           <div className="fc-frow-date">
-            {formatInTimeZone(new Date(item.when), "Europe/London", "EEE dd")}
-            <br />
-            {formatInTimeZone(new Date(item.when), "Europe/London", "MMM")}
+            {item.lead ?? (
+              <>
+                {formatInTimeZone(
+                  new Date(item.when),
+                  "Europe/London",
+                  "EEE dd",
+                )}
+                <br />
+                {formatInTimeZone(new Date(item.when), "Europe/London", "MMM")}
+              </>
+            )}
           </div>
           <div>
             <div className="fc-frow-opp">{item.title}</div>
-            <div className="fc-frow-meta">{item.meta}</div>
+            {item.meta != null && (
+              <div className="fc-frow-meta">{item.meta}</div>
+            )}
           </div>
           <div className="fc-frow-tag">{item.tag}</div>
         </Link>
