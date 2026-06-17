@@ -1,13 +1,6 @@
 import { PaymentForm } from "@/components/payment-form";
+import { StampButton } from "@/components/theme/bits.js";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
@@ -140,7 +133,7 @@ export function Component() {
   if (gameLoading) {
     return (
       <div className="container mx-auto max-w-md px-4 py-12">
-        <div className="h-6 w-48 animate-pulse rounded bg-stone-200" />
+        <div className="bg-primary/10 h-6 w-48 animate-pulse rounded" />
       </div>
     );
   }
@@ -148,8 +141,8 @@ export function Component() {
   if (!game) {
     return (
       <div className="container mx-auto max-w-md px-4 py-12">
-        <h1>Game Not Found</h1>
-        <Link to="/calendar" className="text-primary hover:underline">
+        <h1 className="fc-two-tone">Game Not Found</h1>
+        <Link to="/calendar" className="text-cta hover:underline">
           Back to Calendar
         </Link>
       </div>
@@ -159,29 +152,22 @@ export function Component() {
   if (step === "success") {
     return (
       <div className="container mx-auto max-w-md px-4 py-12">
-        <Card>
-          <CardHeader>
-            <CardTitle>Thank You!</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p>
-              Thank you for sponsoring this game! Your sponsorship details will
-              be reviewed by our team and displayed on the game page once
-              approved.
-            </p>
-            <p className="text-sm text-stone-600">
-              A confirmation email has been sent to {sponsorEmail}.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Link
-              to={`/calendar/game/${id}`}
-              className="text-primary text-sm hover:underline"
-            >
-              Back to game
-            </Link>
-          </CardFooter>
-        </Card>
+        <div className="border-primary bg-surface flex flex-col gap-3 border-2 p-6">
+          <h2 className="fc-two-tone text-xl font-semibold">Thank You!</h2>
+          <p>
+            Thank you for sponsoring this game! Your sponsorship details will be
+            reviewed by our team and displayed on the game page once approved.
+          </p>
+          <p className="text-muted text-sm">
+            A confirmation email has been sent to {sponsorEmail}.
+          </p>
+          <Link
+            to={`/calendar/game/${id}`}
+            className="text-cta self-start text-sm hover:underline"
+          >
+            Back to game
+          </Link>
+        </div>
       </div>
     );
   }
@@ -204,33 +190,35 @@ export function Component() {
     <div className="container mx-auto max-w-md px-4 py-6">
       {/* Breadcrumbs */}
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/calendar" className="hover:text-primary text-stone-600">
+        <Link to="/calendar" className="hover:text-primary text-muted">
           Calendar
         </Link>
-        <IoChevronForward className="text-stone-400" size={14} />
+        <IoChevronForward className="text-muted" size={14} />
         <Link
           to={`/calendar/game/${id}`}
-          className="hover:text-primary text-stone-600"
+          className="hover:text-primary text-muted"
         >
           {gameTitle}
         </Link>
-        <IoChevronForward className="text-stone-400" size={14} />
-        <span className="text-dark font-medium">Sponsor</span>
+        <IoChevronForward className="text-muted" size={14} />
+        <span className="text-primary font-medium">Sponsor</span>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Sponsor This Game</CardTitle>
-          <p className="text-sm text-stone-600">{gameTitle}</p>
-          <p className="text-sm text-stone-600">
+      <div className="border-primary bg-surface border-2 p-6">
+        <div className="space-y-1">
+          <h2 className="fc-two-tone text-xl font-semibold">
+            Sponsor This Game
+          </h2>
+          <p className="text-muted text-sm">{gameTitle}</p>
+          <p className="text-muted text-sm">
             Sponsor this game and your details will be displayed on the match
             page.
           </p>
-        </CardHeader>
+        </div>
 
-        <CardContent className="space-y-4">
+        <div className="mt-4 space-y-4">
           {priceData && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            <div className="border-primary bg-surface text-primary border-2 px-4 py-3 text-sm">
               Game sponsorship:{" "}
               <strong>
                 {currencyFormatter.format(priceData.amountPence / 100)}
@@ -292,7 +280,7 @@ export function Component() {
                 onChange={(e) => void handleLogoChange(e)}
               />
               {logoError && (
-                <p className="mt-1 text-xs text-red-600">{logoError}</p>
+                <p className="mt-1 text-xs text-red-700">{logoError}</p>
               )}
               {logoDataUrl && (
                 <img
@@ -312,7 +300,7 @@ export function Component() {
                 placeholder='e.g. "Good luck lads!" or "In memory of…"'
                 maxLength={MAX_MESSAGE_CHARS}
               />
-              <p className="mt-1 text-xs text-stone-400">
+              <p className="text-muted mt-1 text-xs">
                 {sponsorMessage.length}/{MAX_MESSAGE_CHARS}
               </p>
             </div>
@@ -325,23 +313,26 @@ export function Component() {
               </AlertDescription>
             </Alert>
           )}
-        </CardContent>
+        </div>
 
-        <CardFooter className="flex justify-between">
+        <div className="mt-6 flex items-center justify-between">
           <Link
             to={`/calendar/game/${id}`}
-            className="text-sm text-stone-500 hover:underline"
+            className="text-muted text-sm hover:underline"
           >
             Cancel
           </Link>
-          <Button
+          <StampButton
+            size="sm"
             onClick={() => paymentMutation.mutate()}
             disabled={!isFormValid || paymentMutation.isPending}
           >
-            {paymentMutation.isPending ? "Processing…" : "Continue to Payment"}
-          </Button>
-        </CardFooter>
-      </Card>
+            {paymentMutation.isPending
+              ? "Processing…"
+              : "Continue to Payment →"}
+          </StampButton>
+        </div>
+      </div>
     </div>
   );
 }

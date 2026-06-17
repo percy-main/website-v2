@@ -44,7 +44,7 @@ export const SegmentPicker: FC<SegmentPickerProps> = ({
         name={id}
         value={value}
         onChange={selectSegment}
-        className="border-border bg-surface text-dark ring-offset-surface flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
+        className="border-border bg-surface text-dark ring-offset-surface flex h-10 w-full border-2 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         <option value="" disabled>
           Choose one…

@@ -7,7 +7,7 @@
 
 import { isBefore } from "date-fns";
 
-export type TeamCategory = "1xi" | "2xi" | "mid" | "jun";
+export type TeamCategory = "1xi" | "2xi" | "mid" | "wxi" | "jun";
 export type Filter = "all" | TeamCategory | "event";
 
 export const MONTH_NAMES = [
@@ -34,6 +34,9 @@ export function categoriseTeam(teamName: string): TeamCategory {
   if (/1st/i.test(teamName)) return "1xi";
   if (/2nd/i.test(teamName)) return "2xi";
   if (/midweek/i.test(teamName)) return "mid";
+  // Women's / ladies sides (e.g. "Womens Softball"). "Girls" stays a junior
+  // side and is intentionally not matched here.
+  if (/wom(a|e)n|ladies/i.test(teamName)) return "wxi";
   if (/under|junior|colts|\bU\d{2}\b/i.test(teamName)) return "jun";
   return "1xi";
 }

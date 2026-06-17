@@ -6,8 +6,8 @@
  * RootLayout). Everything under that class re-points the core design tokens to
  * the paper/orange/navy palette and switches headings to the condensed display
  * face, so existing components shift palette without per-file edits. Admin,
- * members, membership, auth, scout and the junior-manager tools keep the
- * standard club theme and are deliberately excluded.
+ * members, auth, scout and the junior-manager tools keep the standard club
+ * theme and are deliberately excluded.
  *
  * This single predicate is the source of truth, shared by the class toggle and
  * by the chrome (header / footer) that render theme-aware variants.
@@ -17,7 +17,6 @@
 const NON_THEMED_PREFIXES = [
   "/auth",
   "/members",
-  "/membership",
   "/admin",
   "/scout",
   "/junior-manager",

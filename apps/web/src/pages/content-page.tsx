@@ -14,6 +14,7 @@ import {
   type NavNode,
   type NavPage,
 } from "@/lib/nav.js";
+import { cn } from "@/lib/utils.js";
 import { contentPathSchema } from "@percy-main/shared/content";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
@@ -36,35 +37,40 @@ function SidebarNav({
         const isActive = currentPath.startsWith(child.page.path);
         return (
           <Fragment key={child.page.path}>
+            {/* Top-level items read as printed section labels: condensed
+                display face, uppercase, with an orange registration bar
+                marking the active section. */}
             <Link
               to={child.page.path}
-              className={`py-1 ${
+              className={cn(
+                "font-secondary py-1.5 text-[15px] leading-tight tracking-wide uppercase transition-colors",
                 isActive
-                  ? "border-primary text-primary ml-[-0.76rem] border-l-4 pl-2 font-medium"
-                  : "hover:text-primary text-stone-700"
-              }`}
+                  ? "border-cta text-primary ml-[-0.85rem] border-l-4 pl-3"
+                  : "text-primary/70 hover:text-cta",
+              )}
             >
               {child.page.title}
             </Link>
             {child.children.length > 0 && (
-              <div className="ml-4 flex flex-col">
+              <div className="mt-1 mb-1 flex flex-col">
                 {child.children.map((grandchild) => {
                   const isChildActive =
                     currentPath === grandchild.page.path ||
                     currentPath.startsWith(grandchild.page.path + "/");
+                  // Each child carries its own left rule; the rules stack into
+                  // one continuous hairline, and the active child inks it orange.
                   return (
                     <Link
                       key={grandchild.page.path}
                       to={grandchild.page.path}
-                      className={`py-1 ${
+                      className={cn(
+                        "ml-1 border-l-2 py-1 pl-3 text-sm transition-colors",
                         isChildActive
-                          ? "border-primary text-primary ml-[-1.76rem] border-l-4 pl-4 font-medium"
-                          : "hover:text-primary text-stone-600"
-                      }`}
+                          ? "border-cta text-primary font-semibold"
+                          : "border-border text-muted hover:text-cta",
+                      )}
                     >
-                      <span className={isChildActive ? "pl-2" : ""}>
-                        {grandchild.page.title}
-                      </span>
+                      {grandchild.page.title}
                     </Link>
                   );
                 })}
@@ -90,18 +96,19 @@ function MobileSidebarNav({
 
   return (
     <nav className="text-sm md:hidden">
-      <div className="flex flex-col overflow-hidden rounded-lg border border-stone-200 bg-white shadow-md">
+      <div className="border-primary bg-surface flex flex-col overflow-hidden border-2">
         {tree.children.map((child) => {
           const isActive = currentPath.startsWith(child.page.path);
           return (
             <div key={child.page.path}>
               <Link
                 to={child.page.path}
-                className={`block border-b border-stone-100 px-4 py-2.5 font-medium transition-colors last:border-b-0 ${
+                className={cn(
+                  "font-secondary border-border block border-b px-4 py-2.5 tracking-wide uppercase transition-colors last:border-b-0",
                   isActive
-                    ? "bg-primary/5 text-primary"
-                    : "hover:text-primary text-stone-800 hover:bg-stone-50"
-                }`}
+                    ? "bg-cta/10 text-primary"
+                    : "text-primary/80 hover:bg-cta/10 hover:text-cta",
+                )}
               >
                 {child.page.title}
               </Link>
@@ -113,11 +120,12 @@ function MobileSidebarNav({
                   <Link
                     key={grandchild.page.path}
                     to={grandchild.page.path}
-                    className={`block border-b border-stone-100 py-2.5 pr-4 pl-9 transition-colors last:border-b-0 ${
+                    className={cn(
+                      "border-border block border-b py-2.5 pr-4 pl-9 transition-colors last:border-b-0",
                       isChildActive
-                        ? "bg-primary/5 text-primary font-medium"
-                        : "hover:text-primary text-stone-600 hover:bg-stone-50"
-                    }`}
+                        ? "bg-cta/10 text-primary font-semibold"
+                        : "text-muted hover:bg-cta/10 hover:text-cta",
+                    )}
                   >
                     {grandchild.page.title}
                   </Link>
@@ -154,12 +162,13 @@ function PageChrome({
 
   return (
     <div className="container mx-auto px-4 py-6">
-      {/* Breadcrumbs */}
-      <div className="text-h4 mb-4 flex items-center gap-2">
+      {/* Breadcrumbs: a compact letterspaced trail, the same kicker voice as
+          the rest of the print system. */}
+      <div className="mb-5 flex items-center gap-2 text-xs font-semibold tracking-wide uppercase">
         {hasSidebar && (
           <button
             onClick={() => setMobileNavOpen(!mobileNavOpen)}
-            className="text-dark flex cursor-pointer items-center p-1 md:hidden"
+            className="text-primary flex cursor-pointer items-center p-1 md:hidden"
             aria-label="Toggle section menu"
           >
             <svg className="size-5 fill-current" viewBox="0 0 20 20">
@@ -169,14 +178,13 @@ function PageChrome({
         )}
         {breadcrumbs.map((crumb, i) => (
           <span key={crumb.path} className="flex items-center gap-2">
-            {i > 0 && <IoChevronForward className="text-stone-400" size={14} />}
+            {i > 0 && (
+              <IoChevronForward className="text-primary/40" size={12} />
+            )}
             {i === breadcrumbs.length - 1 ? (
-              <span className="text-dark font-medium">{crumb.title}</span>
+              <span className="text-primary">{crumb.title}</span>
             ) : (
-              <Link
-                to={crumb.path}
-                className="hover:text-primary text-stone-600"
-              >
+              <Link to={crumb.path} className="text-muted hover:text-cta">
                 {crumb.title}
               </Link>
             )}

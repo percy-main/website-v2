@@ -1,10 +1,10 @@
 import { RadioButtons } from "@/components/radio-buttons";
-import { buttonVariants } from "@/components/ui/button";
+import { StampLink } from "@/components/theme/bits.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta";
 import { api, callApi } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 
 type MembershipType =
   | "senior_player"
@@ -28,7 +28,7 @@ function PayMembershipInner() {
 
   if (isLoading || !options) {
     return (
-      <div className="text-center text-sm text-stone-500">Loading prices…</div>
+      <div className="text-muted text-center text-sm">Loading prices…</div>
     );
   }
 
@@ -58,7 +58,7 @@ function PayMembershipInner() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h4>Choose Your Membership</h4>
+      <h4 className="fc-two-tone">Choose Your Membership</h4>
 
       <div className="mt-8">
         <section className="mb-12">
@@ -128,12 +128,11 @@ function PayMembershipInner() {
           </section>
           {selectedPrice && (
             <section className="mb-12">
-              <Link
+              <StampLink
                 to={`/purchase/${selectedPrice.id}?${purchaseParams.toString()}`}
-                className={buttonVariants()}
               >
-                Pay Online
-              </Link>
+                Pay Online →
+              </StampLink>
             </section>
           )}
         </>

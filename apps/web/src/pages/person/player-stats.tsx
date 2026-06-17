@@ -1,3 +1,4 @@
+import { Kicker } from "@/components/theme/bits.js";
 import {
   Table,
   TableBody,
@@ -18,9 +19,9 @@ type FormatStats = CareerStats["formats"][number];
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-center">
-      <div className="text-lg font-bold text-green-800">{value}</div>
-      <div className="text-xs text-stone-500">{label}</div>
+    <div className="border-primary bg-surface border-2 px-3 py-2 text-center">
+      <div className="text-primary text-lg font-bold">{value}</div>
+      <div className="text-muted text-xs">{label}</div>
     </div>
   );
 }
@@ -40,9 +41,9 @@ function FormatSection({
   return (
     <section className="mb-8 last:mb-0">
       {showHeading && (
-        <h3 className="mb-3 text-base font-semibold text-stone-700">
+        <Kicker level={3} className="mb-3">
           {format.label}
-        </h3>
+        </Kicker>
       )}
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
@@ -65,8 +66,8 @@ function FormatSection({
 
       {battingSeasons.length > 0 && (
         <div>
-          <p className="mb-1 text-xs font-medium text-stone-500">Batting</p>
-          <div className="overflow-x-auto">
+          <Kicker className="mb-1">Batting</Kicker>
+          <div className="fc-stat overflow-x-auto">
             <Table>
               <caption className="sr-only">
                 Batting statistics by season
@@ -159,8 +160,8 @@ function FormatSection({
 
       {bowlingSeasons.length > 0 && (
         <div className="mt-4">
-          <p className="mb-1 text-xs font-medium text-stone-500">Bowling</p>
-          <div className="overflow-x-auto">
+          <Kicker className="mb-1">Bowling</Kicker>
+          <div className="fc-stat overflow-x-auto">
             <Table>
               <caption className="sr-only">
                 Bowling statistics by season
@@ -256,13 +257,10 @@ export function PlayerStats({ slug }: { slug: string }) {
   if (careerPending) {
     return (
       <div className="mt-6 space-y-3">
-        <div className="h-6 w-32 animate-pulse rounded bg-stone-200" />
+        <div className="bg-primary/10 h-6 w-32 animate-pulse rounded" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
           {["s1", "s2", "s3", "s4", "s5"].map((k) => (
-            <div
-              key={k}
-              className="h-16 animate-pulse rounded-lg bg-stone-100"
-            />
+            <div key={k} className="bg-primary/10 h-16 animate-pulse" />
           ))}
         </div>
       </div>
@@ -282,7 +280,7 @@ export function PlayerStats({ slug }: { slug: string }) {
 
   return (
     <div className="mt-6">
-      <h2 className="mb-4 text-lg font-semibold">Statistics</h2>
+      <h2 className="fc-two-tone mb-4 text-lg font-semibold">Statistics</h2>
 
       {formats.map((format) => (
         <FormatSection
@@ -293,11 +291,11 @@ export function PlayerStats({ slug }: { slug: string }) {
       ))}
 
       {hardballSeasons.length > 0 && (
-        <p className="mt-4 text-xs text-stone-400">
+        <p className="text-muted mt-4 text-xs">
           View the full{" "}
           <Link
             to={`/cricket/records/leaderboards?season=${hardballSeasons[0].season}`}
-            className="text-green-800 underline decoration-green-800/30 underline-offset-2 hover:decoration-green-800"
+            className="text-primary decoration-cta/70 hover:text-cta underline underline-offset-2"
           >
             {hardballSeasons[0].season} season leaderboard
           </Link>

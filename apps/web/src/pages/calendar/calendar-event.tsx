@@ -20,7 +20,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 
 function When({ start, end }: { start: string; end?: string }) {
   return (
-    <div className="flex flex-row items-center justify-between gap-4 rounded-xl bg-white p-4">
+    <div className="border-primary bg-surface text-primary flex flex-row items-center justify-between gap-4 border-2 p-4">
       <IoCalendar fontSize={32} />
       <div className="flex flex-col gap-4">
         <p>
@@ -84,18 +84,18 @@ function EventLayout({
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/calendar" className="hover:text-primary text-stone-600">
+        <Link to="/calendar" className="hover:text-primary text-muted">
           Calendar
         </Link>
-        <IoChevronForward className="text-stone-400" size={14} />
+        <IoChevronForward className="text-muted" size={14} />
         <Link
           to={`/calendar/${year}/${month.toLowerCase()}`}
-          className="hover:text-primary text-stone-600"
+          className="hover:text-primary text-muted"
         >
           {month} {year}
         </Link>
-        <IoChevronForward className="text-stone-400" size={14} />
-        <span className="text-dark font-medium">{name}</span>
+        <IoChevronForward className="text-muted" size={14} />
+        <span className="fc-two-tone font-medium">{name}</span>
       </div>
 
       <div className="flex flex-col items-start gap-4">
@@ -147,7 +147,7 @@ function EventLayout({
         </div>
 
         {repeats && (
-          <div className="flex w-full flex-col gap-2 rounded-xl bg-white p-4">
+          <div className="border-primary bg-surface text-primary flex w-full flex-col gap-2 border-2 p-4">
             <p>
               <span className="font-semibold">Repeats: </span>
               {repeats}
@@ -160,7 +160,7 @@ function EventLayout({
                     <li key={o.date}>
                       <Link
                         to={o.href}
-                        className="hover:text-primary text-stone-600 hover:underline"
+                        className="hover:text-cta text-muted hover:underline"
                       >
                         {o.label}
                       </Link>
@@ -178,7 +178,7 @@ function EventLayout({
           center={{ lat: venue.lat, lon: venue.lon }}
           infoWindow={{ header: venue.name }}
         >
-          <div className="flex flex-col gap-2 bg-white p-4 text-lg sm:text-sm">
+          <div className="border-primary bg-surface text-primary flex flex-col gap-2 border-2 p-4 text-lg sm:text-sm">
             <h4 className="text-h6 md:text-h5">{venue.name}</h4>
             {venue.street && <p>{venue.street}</p>}
             {venue.city && <p>{venue.city}</p>}
@@ -278,8 +278,8 @@ export function Component() {
 
   return (
     <div className="container mx-auto px-4 py-12">
-      <h1 className="text-2xl font-semibold">Event Not Found</h1>
-      <p className="mt-2 text-stone-600">This event could not be found.</p>
+      <h1 className="fc-two-tone text-2xl font-semibold">Event Not Found</h1>
+      <p className="text-muted mt-2">This event could not be found.</p>
       <Link
         to="/calendar"
         className="text-primary mt-4 inline-block hover:underline"

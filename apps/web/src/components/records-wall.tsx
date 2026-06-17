@@ -1,10 +1,4 @@
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card.js";
-import {
   Table,
   TableBody,
   TableCell,
@@ -44,7 +38,7 @@ function PlayerLink({ name, slug }: { name: string; slug: string | null }) {
     return (
       <Link
         to={`/person/${slug}`}
-        className="font-medium text-green-800 underline decoration-green-800/30 underline-offset-2 hover:decoration-green-800"
+        className="text-primary decoration-cta/70 hover:text-cta font-medium underline underline-offset-2"
       >
         {name}
       </Link>
@@ -61,22 +55,16 @@ type HonourEntry = NonNullable<HonoursData>["centuries"][number];
 
 function RecordCard({ record }: { record: RecordItem }) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-stone-500">
-          {record.title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-green-800">{record.value}</div>
-        <div className="mt-1">
-          <PlayerLink name={record.playerName} slug={record.slug} />
-        </div>
-        {record.season > 0 && (
-          <div className="mt-0.5 text-sm text-stone-500">{record.season}</div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="border-primary bg-surface border-2 p-4">
+      <div className="text-muted pb-2 text-sm font-medium">{record.title}</div>
+      <div className="text-primary text-3xl font-bold">{record.value}</div>
+      <div className="mt-1">
+        <PlayerLink name={record.playerName} slug={record.slug} />
+      </div>
+      {record.season > 0 && (
+        <div className="text-muted mt-0.5 text-sm">{record.season}</div>
+      )}
+    </div>
   );
 }
 
@@ -84,15 +72,11 @@ function RecordsSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: 7 }).map((_, i) => (
-        <Card key={i}>
-          <CardHeader className="pb-2">
-            <div className="h-4 w-24 animate-pulse rounded bg-stone-200" />
-          </CardHeader>
-          <CardContent>
-            <div className="h-8 w-16 animate-pulse rounded bg-stone-200" />
-            <div className="mt-2 h-4 w-32 animate-pulse rounded bg-stone-200" />
-          </CardContent>
-        </Card>
+        <div key={i} className="border-primary bg-surface border-2 p-4">
+          <div className="bg-primary/10 h-4 w-24 animate-pulse rounded" />
+          <div className="bg-primary/10 mt-2 h-8 w-16 animate-pulse rounded" />
+          <div className="bg-primary/10 mt-2 h-4 w-32 animate-pulse rounded" />
+        </div>
       ))}
     </div>
   );
@@ -107,7 +91,7 @@ function HonoursTable({
 }) {
   if (entries.length === 0) {
     return (
-      <p className="py-8 text-center text-stone-500">
+      <p className="text-muted py-8 text-center">
         {type === "batting"
           ? "No centuries recorded yet."
           : "No five-wicket hauls recorded yet."}
@@ -116,37 +100,39 @@ function HonoursTable({
   }
 
   return (
-    <Table>
-      <caption className="sr-only">
-        {type === "batting" ? "Centuries" : "Five-wicket hauls"}
-      </caption>
-      <TableHeader>
-        <TableRow>
-          <TableHead scope="col">Player</TableHead>
-          <TableHead scope="col" className="text-right">
-            {type === "batting" ? "Score" : "Figures"}
-          </TableHead>
-          <TableHead scope="col" className="text-right">
-            Season
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {entries.map((entry) => (
-          <TableRow
-            key={`${entry.playerName}-${entry.matchDate}-${entry.value}`}
-          >
-            <TableCell>
-              <PlayerLink name={entry.playerName} slug={entry.slug} />
-            </TableCell>
-            <TableCell className="text-right font-bold">
-              {entry.value}
-            </TableCell>
-            <TableCell className="text-right">{entry.season}</TableCell>
+    <div className="fc-stat">
+      <Table>
+        <caption className="sr-only">
+          {type === "batting" ? "Centuries" : "Five-wicket hauls"}
+        </caption>
+        <TableHeader>
+          <TableRow>
+            <TableHead scope="col">Player</TableHead>
+            <TableHead scope="col" className="text-right">
+              {type === "batting" ? "Score" : "Figures"}
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              Season
+            </TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {entries.map((entry) => (
+            <TableRow
+              key={`${entry.playerName}-${entry.matchDate}-${entry.value}`}
+            >
+              <TableCell>
+                <PlayerLink name={entry.playerName} slug={entry.slug} />
+              </TableCell>
+              <TableCell className="text-right font-bold">
+                {entry.value}
+              </TableCell>
+              <TableCell className="text-right">{entry.season}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
 
@@ -160,7 +146,7 @@ export function RecordsWall() {
 
   if (recordsQuery.error || honoursQuery.error) {
     return (
-      <p className="py-4 text-center text-red-600">Failed to load records.</p>
+      <p className="py-4 text-center text-red-700">Failed to load records.</p>
     );
   }
 
@@ -168,7 +154,9 @@ export function RecordsWall() {
     <div className="space-y-10">
       {/* All-Time Records */}
       <section>
-        <h2 className="mb-4 text-2xl font-semibold">All-Time Records</h2>
+        <h2 className="fc-two-tone mb-4 text-2xl font-semibold">
+          All-Time Records
+        </h2>
         {recordsQuery.isPending ? (
           <RecordsSkeleton />
         ) : records ? (
@@ -182,13 +170,15 @@ export function RecordsWall() {
 
       {/* Honours Board */}
       <section>
-        <h2 className="mb-4 text-2xl font-semibold">Honours Board</h2>
+        <h2 className="fc-two-tone mb-4 text-2xl font-semibold">
+          Honours Board
+        </h2>
         {honoursQuery.isPending ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
               <div
                 key={i}
-                className="h-10 animate-pulse rounded bg-stone-200"
+                className="bg-primary/10 h-10 animate-pulse rounded"
               />
             ))}
           </div>

@@ -2,10 +2,12 @@ import { OptimisedImage } from "@/components/optimised-image.js";
 import { SeasonLeaders } from "@/components/season-leaders.js";
 import {
   Kicker,
+  PosterLink,
   Reveal,
   SectionMast,
   StampLink,
 } from "@/components/theme/bits.js";
+import { FixtureStrip } from "@/components/theme/fixture-strip.js";
 import { Plate } from "@/components/theme/plate.js";
 import { RisoHeading } from "@/components/theme/riso-heading.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
@@ -239,31 +241,20 @@ function UpcomingStrip() {
         back="var(--fc-navy)"
         blend="normal"
       />
-      <div className="fc-fixtures">
-        {items.map((item) => (
-          <Link key={item.id} to={item.href} className="fc-frow">
-            <div className="fc-frow-date">
-              {formatInTimeZone(new Date(item.when), "Europe/London", "EEE dd")}
-              <br />
-              {formatInTimeZone(new Date(item.when), "Europe/London", "MMM")}
-            </div>
-            <div>
-              <div className="fc-frow-opp">{item.displayName}</div>
-              <div className="fc-frow-meta">
-                {item.type === "game" ? "Match" : "Club Event"} ·{" "}
-                {formatInTimeZone(
-                  new Date(item.when),
-                  "Europe/London",
-                  "h:mm a",
-                )}
-              </div>
-            </div>
-            <div className="fc-frow-tag">
-              {item.type === "game" ? (item.home ? "Home" : "Away") : "Event"}
-            </div>
-          </Link>
-        ))}
-      </div>
+      <FixtureStrip
+        items={items.map((item) => ({
+          id: item.id,
+          href: item.href,
+          when: item.when,
+          title: item.displayName,
+          meta: `${item.type === "game" ? "Match" : "Club Event"} · ${formatInTimeZone(
+            new Date(item.when),
+            "Europe/London",
+            "h:mm a",
+          )}`,
+          tag: item.type === "game" ? (item.home ? "Home" : "Away") : "Event",
+        }))}
+      />
       <div className="mt-7">
         <Link
           to="/calendar"
@@ -374,12 +365,9 @@ export function Component() {
             </div>
             <div className="mt-9 flex flex-wrap items-center gap-5">
               <StampLink to="/auth/register">Join the Club &rarr;</StampLink>
-              <Link
-                to="/charity/redevelopment"
-                className="font-secondary border-b-2 border-[#1b2a55] pb-1 text-[18px] tracking-wide text-[#1b2a55] uppercase transition hover:border-[#ef4a1e] hover:text-[#ef4a1e]"
-              >
+              <PosterLink to="/charity/redevelopment" className="text-[18px]">
                 Our redevelopment plans
-              </Link>
+              </PosterLink>
             </div>
           </div>
         </div>
@@ -396,7 +384,7 @@ export function Component() {
           back="var(--fc-orange)"
           blend="normal"
         />
-        <div className="fc-statlines">
+        <div className="fc-stat fc-stat--invert">
           <SeasonLeaders />
         </div>
       </Plate>

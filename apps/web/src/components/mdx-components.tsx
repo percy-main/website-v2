@@ -5,7 +5,7 @@ import {
 } from "@/components/optimised-image.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { RecordsWall as RecordsWallComponent } from "@/components/records-wall.js";
-import { Button } from "@/components/ui/button.js";
+import { PosterLink, StampButton } from "@/components/theme/bits.js";
 import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { WagonWheel as WagonWheelView } from "@/components/wagon-wheel-modal.js";
@@ -42,9 +42,10 @@ function RecordsWall() {
 
 /**
  * Presentational person card, shared with the personGrid editor block so
- * the in-editor cards stay pixel-identical to the public ones (#527).
- * `children` fills the slot under the name (public: role text + profile
- * link; editor: an inline role input).
+ * the in-editor cards stay pixel-identical to the public ones (#527). The
+ * name rides a printed orange masthead at the top (cream ink); `children`
+ * fills the slot beneath the photo (public: role text + profile link;
+ * editor: an inline role input).
  */
 export function PersonCardShell({
   name,
@@ -58,7 +59,11 @@ export function PersonCardShell({
   const resolvedPicture = picture ?? ANON_PICTURE;
   return (
     <div className="person h-full rounded-lg bg-white pb-4 text-stone-900 shadow-md">
-      <div className="bg-cta h-2 rounded-t-lg" />
+      <div className="bg-navy rounded-t-lg px-4 py-3 text-center">
+        <h5 className="text-paper m-0 font-semibold tracking-wide uppercase">
+          {name}
+        </h5>
+      </div>
       <div className="mx-auto mt-4 size-24 overflow-hidden rounded-full border-4 border-stone-100">
         {resolvedPicture ? (
           <OptimisedImage
@@ -75,10 +80,7 @@ export function PersonCardShell({
           />
         )}
       </div>
-      <div className="mt-3 text-center">
-        <h5 className="pb-1 font-semibold">{name}</h5>
-        {children}
-      </div>
+      <div className="mt-3 text-center">{children}</div>
     </div>
   );
 }
@@ -136,12 +138,9 @@ function Person({ slug, role }: { slug: string; role?: string }) {
   return (
     <PersonCardShell name={name} picture={person?.picture}>
       {role && <p className="text-sm text-stone-600">{role}</p>}
-      <Link
-        to={`/person/${slug}`}
-        className="text-primary mt-2 inline-block px-2 text-sm font-medium hover:underline"
-      >
+      <PosterLink to={`/person/${slug}`} className="mt-2 text-[15px]">
         Profile
-      </Link>
+      </PosterLink>
       {sponsor && <PersonSponsor sponsor={sponsor} />}
     </PersonCardShell>
   );
@@ -525,9 +524,14 @@ export function ContactFormBody({ description }: { description?: string }) {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
             />
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? "Sending…" : "Send Message"}
-            </Button>
+            <StampButton
+              type="submit"
+              size="sm"
+              disabled={mutation.isPending}
+              className="mt-1 self-start"
+            >
+              {mutation.isPending ? "Sending…" : "Send Message →"}
+            </StampButton>
           </form>
           {mutation.isError ? (
             <p className="mt-3 text-sm text-red-600">

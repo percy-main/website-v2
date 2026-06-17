@@ -139,7 +139,7 @@ function SkeletonRows({ cols }: { cols: number }) {
         <TableRow key={i}>
           {Array.from({ length: cols }).map((_, j) => (
             <TableCell key={j}>
-              <div className="h-4 w-12 animate-pulse rounded bg-stone-200" />
+              <div className="bg-primary/10 h-4 w-12 animate-pulse rounded" />
             </TableCell>
           ))}
         </TableRow>
@@ -162,7 +162,7 @@ function PlayerName({
   const nameElement = slug ? (
     <Link
       to={`/person/${slug}`}
-      className="font-medium text-green-800 underline decoration-green-800/30 underline-offset-2 hover:decoration-green-800"
+      className="text-primary decoration-cta/70 hover:text-cta font-medium underline underline-offset-2"
     >
       {name}
     </Link>
@@ -174,7 +174,7 @@ function PlayerName({
     <div>
       {nameElement}
       {sponsor && (
-        <span className="block text-xs text-stone-500">
+        <span className="text-muted block text-xs">
           {sponsor.display_name ?? sponsor.sponsor_name}
         </span>
       )}
@@ -195,14 +195,14 @@ function BattingTable({
 }) {
   if (error) {
     return (
-      <p className="py-4 text-center text-red-600">
+      <p className="py-4 text-center text-red-700">
         Failed to load batting leaderboard.
       </p>
     );
   }
 
   return (
-    <div>
+    <div className="fc-stat">
       <Table>
         <caption className="sr-only">Season batting leaderboard</caption>
         <TableHeader>
@@ -247,17 +247,14 @@ function BattingTable({
           {isPending && <SkeletonRows cols={12} />}
           {entries?.length === 0 && (
             <TableRow>
-              <TableCell
-                colSpan={12}
-                className="py-8 text-center text-stone-500"
-              >
+              <TableCell colSpan={12} className="text-muted py-8 text-center">
                 No batting data available yet.
               </TableCell>
             </TableRow>
           )}
           {entries?.map((e, i) => (
             <TableRow key={e.playerId}>
-              <TableCell className="text-stone-500">{i + 1}</TableCell>
+              <TableCell className="text-muted">{i + 1}</TableCell>
               <TableCell>
                 <PlayerName
                   name={e.playerName}
@@ -294,7 +291,7 @@ function BattingTable({
         </TableBody>
       </Table>
       {entries && entries.length > 0 && (
-        <p className="mt-2 text-xs text-stone-500">
+        <p className="text-muted mt-2 text-xs">
           Averages shown for players with 3+ innings.
         </p>
       )}
@@ -315,14 +312,14 @@ function BowlingTable({
 }) {
   if (error) {
     return (
-      <p className="py-4 text-center text-red-600">
+      <p className="py-4 text-center text-red-700">
         Failed to load bowling leaderboard.
       </p>
     );
   }
 
   return (
-    <div>
+    <div className="fc-stat">
       <Table>
         <caption className="sr-only">Season bowling leaderboard</caption>
         <TableHeader>
@@ -361,17 +358,14 @@ function BowlingTable({
           {isPending && <SkeletonRows cols={10} />}
           {entries?.length === 0 && (
             <TableRow>
-              <TableCell
-                colSpan={10}
-                className="py-8 text-center text-stone-500"
-              >
+              <TableCell colSpan={10} className="text-muted py-8 text-center">
                 No bowling data available yet.
               </TableCell>
             </TableRow>
           )}
           {entries?.map((e, i) => (
             <TableRow key={e.playerId}>
-              <TableCell className="text-stone-500">{i + 1}</TableCell>
+              <TableCell className="text-muted">{i + 1}</TableCell>
               <TableCell>
                 <PlayerName
                   name={e.playerName}
@@ -404,7 +398,7 @@ function BowlingTable({
         </TableBody>
       </Table>
       {entries && entries.length > 0 && (
-        <p className="mt-2 text-xs text-stone-500">
+        <p className="text-muted mt-2 text-xs">
           Averages and strike rates shown for bowlers with 10+ overs.
         </p>
       )}
@@ -484,13 +478,13 @@ export function LeaderboardContent() {
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-2xl font-semibold">
+        <h2 className="fc-two-tone text-2xl font-semibold">
           {season !== null ? `${season} Season` : "All Time"} Leaderboard
         </h2>
         <select
           value={season !== null ? String(season) : "all"}
           onChange={(e) => handleSeasonChange(e.target.value)}
-          className="rounded border border-stone-300 px-3 py-1.5 text-sm"
+          className="border-primary bg-surface text-primary border-2 px-3 py-1.5 text-sm"
         >
           <option value="all">All Time</option>
           {seasons.map((y) => (
@@ -504,18 +498,18 @@ export function LeaderboardContent() {
       {/* Filters */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
         {/* Category toggle */}
-        <div className="inline-flex rounded-md bg-stone-100 p-1">
+        <div className="border-primary bg-surface inline-flex border-2 p-1">
           <button
-            className={`rounded px-3 py-1 text-sm font-medium ${
-              !isJunior ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"
+            className={`px-3 py-1 text-sm font-medium ${
+              !isJunior ? "bg-primary text-paper" : "text-muted"
             }`}
             onClick={() => handleCategoryChange(false)}
           >
             Seniors
           </button>
           <button
-            className={`rounded px-3 py-1 text-sm font-medium ${
-              isJunior ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"
+            className={`px-3 py-1 text-sm font-medium ${
+              isJunior ? "bg-primary text-paper" : "text-muted"
             }`}
             onClick={() => handleCategoryChange(true)}
           >
@@ -527,7 +521,7 @@ export function LeaderboardContent() {
         <select
           value={teamId}
           onChange={(e) => setTeamId(e.target.value)}
-          className="rounded border border-stone-300 px-3 py-1.5 text-sm"
+          className="border-primary bg-surface text-primary border-2 px-3 py-1.5 text-sm"
         >
           <option value="">All teams</option>
           {filteredTeams.map((t) => (
@@ -545,7 +539,7 @@ export function LeaderboardContent() {
                 type="checkbox"
                 checked={competitionTypes.includes(type)}
                 onChange={() => toggleCompetitionType(type)}
-                className="rounded border-stone-300"
+                className="border-border"
               />
               {type}
             </label>
@@ -586,7 +580,7 @@ export function LeaderboardContent() {
         {season !== null && season > FIRST_SEASON && (
           <button
             onClick={() => handleSeasonChange(String(season - 1))}
-            className="rounded border border-stone-300 px-4 py-2 text-sm hover:bg-stone-50"
+            className="border-primary bg-surface text-primary hover:bg-cta/10 border-2 px-4 py-2 text-sm"
           >
             {season - 1}
           </button>
@@ -594,7 +588,7 @@ export function LeaderboardContent() {
         {season !== null && season < seasons[0] && (
           <button
             onClick={() => handleSeasonChange(String(season + 1))}
-            className="rounded border border-stone-300 px-4 py-2 text-sm hover:bg-stone-50"
+            className="border-primary bg-surface text-primary hover:bg-cta/10 border-2 px-4 py-2 text-sm"
           >
             {season + 1}
           </button>
@@ -602,7 +596,7 @@ export function LeaderboardContent() {
         {season !== null && (
           <button
             onClick={() => handleSeasonChange("all")}
-            className="rounded border border-stone-300 px-4 py-2 text-sm hover:bg-stone-50"
+            className="border-primary bg-surface text-primary hover:bg-cta/10 border-2 px-4 py-2 text-sm"
           >
             All Time
           </button>

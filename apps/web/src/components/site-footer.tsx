@@ -10,20 +10,20 @@ export const SiteFooter: FC = () => {
   const now = useClientDate();
 
   return (
-    <footer className="bg-primary text-white">
+    <footer className="bg-primary text-paper">
       <div className="container mx-auto px-8 py-12">
         <div className="grid gap-10 md:grid-cols-3">
           {/* Column 1: About */}
           <div>
             <Logo size="md" />
-            <p className="mt-4 text-sm leading-relaxed text-white/80">
+            <p className="text-paper/80 mt-4 text-sm leading-relaxed">
               Community sports club providing facilities for cricket, football,
               boxing, and running in Percy Main and surrounding areas.
             </p>
-            <p className="mt-3 text-sm text-white/60">
+            <p className="text-paper/70 mt-3 text-sm">
               <a
                 href="https://register-of-charities.charitycommission.gov.uk/en/charity-search/-/charity-details/5231516/charity-overview"
-                className="text-cta transition hover:text-[#f7864f]"
+                className="text-cta hover:text-paper transition"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -34,14 +34,14 @@ export const SiteFooter: FC = () => {
 
           {/* Column 2: Quick Links */}
           <div>
-            <h4 className="mb-4 text-sm font-semibold tracking-wider text-white uppercase">
+            <h4 className="text-cta mb-4 text-xs font-bold tracking-[0.2em] uppercase">
               Quick Links
             </h4>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link
                   to="/calendar"
-                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
+                  className="text-paper/80 hover:text-paper transition max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Calendar
                 </Link>
@@ -49,7 +49,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/news/1"
-                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
+                  className="text-paper/80 hover:text-paper transition max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   News
                 </Link>
@@ -57,7 +57,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/person"
-                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
+                  className="text-paper/80 hover:text-paper transition max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   People
                 </Link>
@@ -65,7 +65,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/cricket"
-                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
+                  className="text-paper/80 hover:text-paper transition max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Cricket
                 </Link>
@@ -73,7 +73,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/report-incident"
-                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
+                  className="text-paper/80 hover:text-paper transition max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Report an accident or incident
                 </Link>
@@ -81,7 +81,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/legal/privacy"
-                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
+                  className="text-paper/80 hover:text-paper transition max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Privacy Policy
                 </Link>
@@ -89,7 +89,7 @@ export const SiteFooter: FC = () => {
               <li>
                 <Link
                   to="/cricket/safeguarding"
-                  className="text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
+                  className="text-paper/80 hover:text-paper transition max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Safeguarding
                 </Link>
@@ -98,7 +98,7 @@ export const SiteFooter: FC = () => {
                 <button
                   type="button"
                   onClick={openCookieSettings}
-                  className="text-left text-white/80 transition hover:text-white max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
+                  className="text-paper/80 hover:text-paper text-left transition max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
                 >
                   Cookie settings
                 </button>
@@ -108,17 +108,17 @@ export const SiteFooter: FC = () => {
 
           {/* Column 3: Contact */}
           <div>
-            <h4 className="mb-4 text-sm font-semibold tracking-wider text-white uppercase">
+            <h4 className="text-cta mb-4 text-xs font-bold tracking-[0.2em] uppercase">
               Contact
             </h4>
-            <address className="space-y-1 text-sm text-white/80 not-italic">
+            <address className="text-paper/80 space-y-1 text-sm not-italic">
               <p>St. Johns Terrace</p>
               <p>North Shields</p>
               <p>NE29 6HS</p>
             </address>
             <a
               href="mailto:trustees@percymain.org"
-              className="text-cta mt-3 inline-block text-sm transition hover:text-[#f7864f]"
+              className="text-cta hover:text-paper mt-3 inline-block text-sm transition"
             >
               trustees@percymain.org
             </a>
@@ -128,8 +128,8 @@ export const SiteFooter: FC = () => {
       </div>
 
       {/* Bottom bar */}
-      <div className="border-t border-white/10">
-        <div className="container mx-auto flex flex-col items-center justify-between gap-3 px-8 py-4 text-sm text-white/60 md:flex-row">
+      <div className="border-paper/15 border-t">
+        <div className="text-paper/60 container mx-auto flex flex-col items-center justify-between gap-3 px-8 py-4 text-sm md:flex-row">
           <p>
             &copy; {now?.getFullYear() ?? ""} Percy Main Community Sports Club
           </p>
