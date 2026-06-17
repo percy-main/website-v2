@@ -870,26 +870,28 @@
 .fc-riso-back {
   color: var(--fc-riso-back);
   mix-blend-mode: var(--fc-riso-blend);
-  transform: translate(20px, 15px);
+  /* Offsets are in em so the off-register shift stays proportional at every
+     heading size: a fixed px shift that reads as a tight registration on the
+     168px hero looks loosely overlapped on a small section title. */
+  transform: translate(0.12em, 0.09em);
   transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .fc-riso.in .fc-riso-back {
-  transform: translate(6px, 5px);
+  transform: translate(0.04em, 0.03em);
 }
 .fc-riso.in:hover .fc-riso-back {
-  transform: translate(13px, 11px) rotate(0.4deg);
+  transform: translate(0.08em, 0.065em) rotate(0.4deg);
 }
 .fc-riso.in:hover .fc-riso-front {
-  transform: translate(-3px, -2px);
+  transform: translate(-0.02em, -0.013em);
 }
-/* Headings are smaller on phones, so the off-register ink shift is dialled down
-   to stay legible rather than reading as a smudge. */
+/* A touch tighter on phones so the smaller headings never read as a smudge. */
 @media (max-width: 640px) {
   .fc-riso-back {
-    transform: translate(9px, 7px);
+    transform: translate(0.08em, 0.06em);
   }
   .fc-riso.in .fc-riso-back {
-    transform: translate(3px, 3px);
+    transform: translate(0.03em, 0.025em);
   }
 }
 
