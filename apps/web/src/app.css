@@ -23,6 +23,10 @@
      Used for text/icons on the always-orange header so they stay light on the
      standard dark-mode routes too. */
   --color-paper: #f1e5c9;
+  /* The brand navy as a fixed token (matches --fc-navy, which only exists under
+     .fc-theme). Lets shared components reach the navy in any theme - e.g. the
+     person-card masthead, which also renders in the standard-themed editor. */
+  --color-navy: #1b2a55;
   --color-surface: #ffffff;
   --color-surface-raised: #f9fafb;
   --color-border: #e5e7eb;

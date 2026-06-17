@@ -5,7 +5,7 @@ import {
 } from "@/components/optimised-image.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { RecordsWall as RecordsWallComponent } from "@/components/records-wall.js";
-import { StampButton } from "@/components/theme/bits.js";
+import { PosterLink, StampButton } from "@/components/theme/bits.js";
 import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { WagonWheel as WagonWheelView } from "@/components/wagon-wheel-modal.js";
@@ -59,7 +59,7 @@ export function PersonCardShell({
   const resolvedPicture = picture ?? ANON_PICTURE;
   return (
     <div className="person h-full rounded-lg bg-white pb-4 text-stone-900 shadow-md">
-      <div className="bg-cta rounded-t-lg px-4 py-3 text-center">
+      <div className="bg-navy rounded-t-lg px-4 py-3 text-center">
         <h5 className="text-paper m-0 font-semibold tracking-wide uppercase">
           {name}
         </h5>
@@ -138,12 +138,9 @@ function Person({ slug, role }: { slug: string; role?: string }) {
   return (
     <PersonCardShell name={name} picture={person?.picture}>
       {role && <p className="text-sm text-stone-600">{role}</p>}
-      <Link
-        to={`/person/${slug}`}
-        className="text-primary mt-2 inline-block px-2 text-sm font-medium hover:underline"
-      >
+      <PosterLink to={`/person/${slug}`} className="mt-2 text-[15px]">
         Profile
-      </Link>
+      </PosterLink>
       {sponsor && <PersonSponsor sponsor={sponsor} />}
     </PersonCardShell>
   );

@@ -126,6 +126,42 @@ export function StampButton({
   );
 }
 
+/**
+ * The underlined poster link from the homepage hero ("Our redevelopment
+ * plans"): condensed uppercase, navy with a navy rule, flipping to orange on
+ * hover. Renders an internal Link or an external anchor. The text-colour
+ * importants assert the navy over `.mdx-content a` (which paints every
+ * editorial anchor orange) so it reads the same in content as in chrome.
+ */
+export function PosterLink({
+  to,
+  href,
+  children,
+  className,
+}: {
+  to?: string;
+  href?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const cls = cn(
+    "font-secondary border-navy hover:border-cta inline-block border-b-2 pb-1 tracking-wide text-navy! uppercase transition hover:text-cta! hover:no-underline!",
+    className,
+  );
+  if (href) {
+    return (
+      <a className={cls} href={href}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link className={cls} to={to ?? "#"}>
+      {children}
+    </Link>
+  );
+}
+
 /** Fades + lifts its children once they scroll into view. */
 export function Reveal({
   children,

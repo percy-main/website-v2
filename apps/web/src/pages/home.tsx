@@ -2,6 +2,7 @@ import { OptimisedImage } from "@/components/optimised-image.js";
 import { SeasonLeaders } from "@/components/season-leaders.js";
 import {
   Kicker,
+  PosterLink,
   Reveal,
   SectionMast,
   StampLink,
@@ -364,12 +365,9 @@ export function Component() {
             </div>
             <div className="mt-9 flex flex-wrap items-center gap-5">
               <StampLink to="/auth/register">Join the Club &rarr;</StampLink>
-              <Link
-                to="/charity/redevelopment"
-                className="font-secondary border-b-2 border-[#1b2a55] pb-1 text-[18px] tracking-wide text-[#1b2a55] uppercase transition hover:border-[#ef4a1e] hover:text-[#ef4a1e]"
-              >
+              <PosterLink to="/charity/redevelopment" className="text-[18px]">
                 Our redevelopment plans
-              </Link>
+              </PosterLink>
             </div>
           </div>
         </div>
