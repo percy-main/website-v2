@@ -42,9 +42,10 @@ function RecordsWall() {
 
 /**
  * Presentational person card, shared with the personGrid editor block so
- * the in-editor cards stay pixel-identical to the public ones (#527).
- * `children` fills the slot under the name (public: role text + profile
- * link; editor: an inline role input).
+ * the in-editor cards stay pixel-identical to the public ones (#527). The
+ * name rides a printed orange masthead at the top (cream ink); `children`
+ * fills the slot beneath the photo (public: role text + profile link;
+ * editor: an inline role input).
  */
 export function PersonCardShell({
   name,
@@ -58,7 +59,11 @@ export function PersonCardShell({
   const resolvedPicture = picture ?? ANON_PICTURE;
   return (
     <div className="person h-full rounded-lg bg-white pb-4 text-stone-900 shadow-md">
-      <div className="bg-cta h-2 rounded-t-lg" />
+      <div className="bg-cta rounded-t-lg px-4 py-3 text-center">
+        <h5 className="text-paper m-0 font-semibold tracking-wide uppercase">
+          {name}
+        </h5>
+      </div>
       <div className="mx-auto mt-4 size-24 overflow-hidden rounded-full border-4 border-stone-100">
         {resolvedPicture ? (
           <OptimisedImage
@@ -75,10 +80,7 @@ export function PersonCardShell({
           />
         )}
       </div>
-      <div className="mt-3 text-center">
-        <h5 className="pb-1 font-semibold">{name}</h5>
-        {children}
-      </div>
+      <div className="mt-3 text-center">{children}</div>
     </div>
   );
 }
