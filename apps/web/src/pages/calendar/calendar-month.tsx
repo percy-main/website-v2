@@ -23,7 +23,7 @@ import {
   startOfMonth,
 } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import {
@@ -467,7 +467,6 @@ export function Component() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
-  const todayScrolledRef = useRef(false);
   const locationPathname = location.pathname;
   const locationState: unknown = location.state;
 
@@ -595,8 +594,9 @@ export function Component() {
   };
 
   // Arriving via the Today button from another month: scroll once the agenda
-  // for the current month has rendered, then clear the one-shot nav flag so a
-  // later re-render or back-navigation does not re-trigger it.
+  // for the current month has rendered, then clear the nav flag. Clearing the
+  // flag (not a one-shot ref) is what stops a re-fire, so a later
+  // "other month -> Today" on this still-mounted page scrolls again.
   const navState: unknown = locationState;
   const wantsTodayScroll =
     typeof navState === "object" &&
@@ -604,9 +604,7 @@ export function Component() {
     "scrollToToday" in navState &&
     navState.scrollToToday === true;
   useEffect(() => {
-    if (!wantsTodayScroll || todayScrolledRef.current || todayTargetDay == null)
-      return;
-    todayScrolledRef.current = true;
+    if (!wantsTodayScroll || todayTargetDay == null) return;
     document
       .getElementById(`agenda-day-${todayTargetDay}`)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
