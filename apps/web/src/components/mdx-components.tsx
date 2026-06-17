@@ -5,7 +5,7 @@ import {
 } from "@/components/optimised-image.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { RecordsWall as RecordsWallComponent } from "@/components/records-wall.js";
-import { Button } from "@/components/ui/button.js";
+import { StampButton } from "@/components/theme/bits.js";
 import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { WagonWheel as WagonWheelView } from "@/components/wagon-wheel-modal.js";
@@ -525,9 +525,14 @@ export function ContactFormBody({ description }: { description?: string }) {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
             />
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? "Sending…" : "Send Message"}
-            </Button>
+            <StampButton
+              type="submit"
+              size="sm"
+              disabled={mutation.isPending}
+              className="mt-1 self-start"
+            >
+              {mutation.isPending ? "Sending…" : "Send Message →"}
+            </StampButton>
           </form>
           {mutation.isError ? (
             <p className="mt-3 text-sm text-red-600">

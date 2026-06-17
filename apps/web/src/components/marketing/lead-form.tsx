@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { StampButton } from "@/components/theme/bits.js";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,7 +63,6 @@ function emptyToUndefined(value: string): string | undefined {
   return trimmed.length === 0 ? undefined : trimmed;
 }
 
-// eslint-disable-next-line react-doctor/no-giant-component -- single conversion form whose adult/junior variants share submit logic, validation, attribution capture and analytics; splitting would just thread props between halves of one cohesive form.
 export const LeadForm: FC<LeadFormProps> = ({
   campaignId,
   segment,
@@ -340,7 +339,7 @@ export const LeadForm: FC<LeadFormProps> = ({
       {mutation.isError && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+          className="bg-surface border-2 border-red-700 p-3 text-sm text-red-800"
         >
           <p className="font-medium">Something went wrong.</p>
           <p className="mt-1">
@@ -356,15 +355,9 @@ export const LeadForm: FC<LeadFormProps> = ({
         </div>
       )}
 
-      <Button
-        type="submit"
-        variant="cta"
-        size="lg"
-        className="w-full"
-        disabled={isPending}
-      >
-        {isPending ? "Sending…" : "Get in touch"}
-      </Button>
+      <StampButton type="submit" size="sm" disabled={isPending}>
+        {isPending ? "Sending…" : "Get in touch →"}
+      </StampButton>
     </form>
   );
 };
@@ -381,7 +374,7 @@ const Field: FC<FieldProps> = ({ id, label, required, hint, children }) => (
   <div className="space-y-1.5">
     <Label htmlFor={id}>
       {label}
-      {required && <span className="text-red-600"> *</span>}
+      {required && <span className="text-red-700"> *</span>}
     </Label>
     {children}
     {hint && <p className="text-muted text-xs">{hint}</p>}
@@ -399,7 +392,7 @@ const SuccessMessage: FC<SuccessMessageProps> = ({ variant, displayName }) => {
     <div
       role="status"
       aria-live="polite"
-      className="rounded-lg border border-green-200 bg-green-50 p-5 text-sm text-green-900"
+      className="border-primary bg-surface text-primary border-2 p-5 text-sm"
     >
       {variant === "junior" ? (
         <>

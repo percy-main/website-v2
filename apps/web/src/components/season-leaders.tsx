@@ -43,7 +43,7 @@ function PlayerLink({
     return (
       <Link
         to={`/person/${slug}`}
-        className="font-medium text-green-800 underline decoration-green-800/30 underline-offset-2 hover:decoration-green-800"
+        className="text-primary decoration-cta/70 hover:text-cta font-medium underline underline-offset-2"
       >
         {name}
       </Link>
@@ -65,7 +65,7 @@ function MiniTable({
 }) {
   return (
     <div className="min-w-0 flex-1">
-      <h4 className="mb-3 text-sm font-semibold tracking-wide text-stone-600 uppercase">
+      <h4 className="text-muted mb-3 text-sm font-semibold tracking-wide uppercase">
         {title}
       </h4>
       <Table>
@@ -138,11 +138,11 @@ export function SeasonLeaders() {
         <div className="grid gap-6 md:grid-cols-2">
           {["batting", "bowling"].map((col) => (
             <div key={col} className="space-y-3">
-              <div className="h-4 w-24 animate-pulse rounded bg-stone-200" />
+              <div className="bg-primary/10 h-4 w-24 animate-pulse rounded" />
               {["row1", "row2", "row3"].map((row) => (
                 <div
                   key={`${col}-${row}`}
-                  className="h-8 animate-pulse rounded bg-stone-100"
+                  className="bg-primary/10 h-8 animate-pulse rounded"
                 />
               ))}
             </div>
@@ -182,7 +182,7 @@ export function SeasonLeaders() {
                 <TableRow
                   key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}
                 >
-                  <TableCell className="text-stone-400">{idx + 1}</TableCell>
+                  <TableCell className="text-muted">{idx + 1}</TableCell>
                   <TableCell>
                     <PlayerLink name={entry.playerName} slug={entry.slug} />
                   </TableCell>
@@ -232,7 +232,7 @@ export function SeasonLeaders() {
                 <TableRow
                   key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}
                 >
-                  <TableCell className="text-stone-400">{idx + 1}</TableCell>
+                  <TableCell className="text-muted">{idx + 1}</TableCell>
                   <TableCell>
                     <PlayerLink name={entry.playerName} slug={entry.slug} />
                   </TableCell>
@@ -255,7 +255,7 @@ export function SeasonLeaders() {
       <div className="mt-4 text-center">
         <Link
           to={`/cricket/records/leaderboards?season=${effectiveSeason}`}
-          className="text-primary hover:text-primary-light text-sm font-medium transition"
+          className="text-primary decoration-cta/70 hover:text-cta text-sm font-medium underline underline-offset-2 transition"
         >
           View full {effectiveSeason} leaderboard &rarr;
         </Link>

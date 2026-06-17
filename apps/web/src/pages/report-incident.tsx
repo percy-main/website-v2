@@ -1,5 +1,6 @@
+import { Kicker, StampButton } from "@/components/theme/bits.js";
+import { RisoHeading } from "@/components/theme/riso-heading.js";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -190,14 +191,17 @@ export function Component() {
   if (submit.isSuccess) {
     return (
       <div className="container mx-auto max-w-2xl px-4 py-8">
-        <h1>Thank you</h1>
+        <h1 className="fc-two-tone">Thank you</h1>
         <p className="mt-4">
           Your report has been received. We&rsquo;ve sent a confirmation to the
           email address you provided. The club trustees will review it and, if
           needed, be in touch using the contact details you gave us.
         </p>
         <p className="mt-4">
-          <Link className="text-blue-900 underline" to="/">
+          <Link
+            className="text-primary decoration-cta/70 hover:text-cta underline underline-offset-2"
+            to="/"
+          >
             Back to the home page
           </Link>
         </p>
@@ -207,7 +211,7 @@ export function Component() {
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
-      <h1>Report an accident or incident</h1>
+      <RisoHeading as="h1">Report an accident or incident</RisoHeading>
 
       <Alert variant="destructive" className="mt-4">
         <AlertDescription>
@@ -217,12 +221,15 @@ export function Component() {
         </AlertDescription>
       </Alert>
 
-      <p className="mt-4 text-sm text-stone-700">
+      <p className="text-muted mt-4 text-sm">
         This form is for reporting something that has already happened at, or in
         connection with, the club. The information you submit will be used by
         the club to record, review and respond to accidents, incidents and
         safety concerns. See our{" "}
-        <Link className="text-blue-900 underline" to="/legal/privacy">
+        <Link
+          className="text-primary decoration-cta/70 hover:text-cta underline underline-offset-2"
+          to="/legal/privacy"
+        >
           privacy policy
         </Link>{" "}
         for how we handle this information.
@@ -254,7 +261,7 @@ export function Component() {
         </div>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">About you</h2>
+          <Kicker>About you</Kicker>
           <FieldRow>
             <Field>
               <Label htmlFor="reporterName">Your name *</Label>
@@ -330,9 +337,7 @@ export function Component() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">
-            Details of the injured / affected person
-          </h2>
+          <Kicker>Details of the injured / affected person</Kicker>
           <FieldRow>
             <Field>
               <Label htmlFor="affectedName">
@@ -389,7 +394,7 @@ export function Component() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Accident / incident details</h2>
+          <Kicker>Accident / incident details</Kicker>
           <FieldRow>
             <Field>
               <Label htmlFor="occurredAt">When did it happen? *</Label>
@@ -460,9 +465,7 @@ export function Component() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">
-            Injury or ill health details
-          </h2>
+          <Kicker>Injury or ill health details</Kicker>
           <div className="flex items-center gap-2">
             <Checkbox
               id="injuryOccurred"
@@ -567,9 +570,7 @@ export function Component() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">
-            Immediate actions and witnesses
-          </h2>
+          <Kicker>Immediate actions and witnesses</Kicker>
           <Field>
             <Label htmlFor="immediateActions">
               Details of any immediate actions taken
@@ -595,8 +596,8 @@ export function Component() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Declaration</h2>
-          <div className="border-border bg-muted/30 flex items-start gap-3 rounded border p-4">
+          <Kicker>Declaration</Kicker>
+          <div className="border-primary bg-surface flex items-start gap-3 border-2 p-4">
             <Checkbox
               id="declarationConfirmed"
               className="mt-1"
@@ -633,12 +634,13 @@ export function Component() {
         )}
 
         <div className="flex justify-end">
-          <Button
+          <StampButton
             type="submit"
+            size="sm"
             disabled={submit.isPending || !declarationConfirmed}
           >
-            {submit.isPending ? "Submitting…" : "Submit report"}
-          </Button>
+            {submit.isPending ? "Submitting…" : "Submit report →"}
+          </StampButton>
         </div>
       </form>
     </div>

@@ -2,9 +2,7 @@ import { ContentBody } from "@/components/content-body.js";
 import { Map } from "@/components/map.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
 import { Scorecard } from "@/components/scorecard.js";
-import { Badge } from "@/components/ui/badge.js";
-import { Button, buttonVariants } from "@/components/ui/button.js";
-import { Card, CardContent } from "@/components/ui/card.js";
+import { StampButton, StampLink } from "@/components/theme/bits.js";
 import { WagonWheelModal } from "@/components/wagon-wheel-modal.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { hasWagonWheel, useWagonWheelQuery } from "@/hooks/use-wagon-wheel.js";
@@ -52,14 +50,11 @@ function SponsorThisGame({ gameId, when }: { gameId: string; when: string }) {
   if (!isFuture || pendingData?.hasPending) return null;
 
   return (
-    <div className="flex w-full flex-col items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
-      <p className="text-sm text-orange-600">No match sponsor… yet</p>
-      <Link
-        to={`/calendar/game/${gameId}/sponsor`}
-        className={buttonVariants({ variant: "default", size: "sm" })}
-      >
-        Sponsor This Game
-      </Link>
+    <div className="border-cta bg-surface text-primary flex w-full flex-col items-center gap-2 border-2 px-4 py-3">
+      <p className="text-cta text-sm">No match sponsor… yet</p>
+      <StampLink to={`/calendar/game/${gameId}/sponsor`}>
+        Sponsor This Game →
+      </StampLink>
     </div>
   );
 }
@@ -79,7 +74,7 @@ function formatInningsScore(inn: {
 
 function When({ start, end }: { start: string; end?: string }) {
   return (
-    <div className="flex w-full flex-row items-center justify-between gap-4 rounded-lg border border-orange-200 bg-orange-50 p-4 md:w-auto">
+    <div className="border-cta bg-surface text-primary flex w-full flex-row items-center justify-between gap-4 border-2 p-4 md:w-auto">
       <IoCalendar fontSize={32} />
       <div className="flex flex-col gap-4">
         <p>
@@ -112,39 +107,37 @@ function ResultSummary({
 }) {
   const isPairs = result.gameType === "Pairs";
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {result.outcome && <OutcomeBadge outcome={result.outcome} />}
-          {isPairs && (
-            <span className="rounded-full bg-stone-700 px-2 py-0.5 text-xs font-semibold text-white">
-              Women&apos;s Softball
+    <div className="border-primary bg-surface flex flex-col gap-3 border-2 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {result.outcome && <OutcomeBadge outcome={result.outcome} />}
+        {isPairs && (
+          <span className="bg-primary text-paper rounded-full px-2 py-0.5 text-xs font-semibold">
+            Women&apos;s Softball
+          </span>
+        )}
+        {result.toss && (
+          <span className="text-muted text-sm">{result.toss}</span>
+        )}
+      </div>
+      <div className="flex flex-col gap-2">
+        {result.innings.map((inn) => (
+          <div
+            key={`${inn.teamBattingId}-${inn.runs}-${inn.wickets}-${inn.overs}`}
+            className="flex items-baseline justify-between gap-4"
+          >
+            <span className="text-sm font-medium">{inn.teamName}</span>
+            <span className="flex items-baseline gap-2 font-mono text-sm font-semibold tabular-nums">
+              <span>{formatInningsScore(inn)}</span>
+              {inn.netScore !== null && (
+                <span className="border-border bg-surface text-primary rounded border px-1.5 py-0.5 text-xs font-bold">
+                  Net {inn.netScore}
+                </span>
+              )}
             </span>
-          )}
-          {result.toss && (
-            <span className="text-sm text-stone-600">{result.toss}</span>
-          )}
-        </div>
-        <div className="flex flex-col gap-2">
-          {result.innings.map((inn) => (
-            <div
-              key={`${inn.teamBattingId}-${inn.runs}-${inn.wickets}-${inn.overs}`}
-              className="flex items-baseline justify-between gap-4"
-            >
-              <span className="text-sm font-medium">{inn.teamName}</span>
-              <span className="flex items-baseline gap-2 font-mono text-sm font-semibold tabular-nums">
-                <span>{formatInningsScore(inn)}</span>
-                {inn.netScore !== null && (
-                  <span className="rounded bg-green-50 px-1.5 py-0.5 text-xs font-bold text-green-800">
-                    Net {inn.netScore}
-                  </span>
-                )}
-              </span>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -157,7 +150,7 @@ function SponsorBadge({
     !!sponsor.website && /^https?:\/\//i.test(sponsor.website);
 
   const content = (
-    <div className="flex w-full flex-col items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+    <div className="border-cta bg-surface flex w-full flex-col items-center gap-2 border-2 px-4 py-3">
       {sponsor.logoUrl && (
         <img
           src={sponsor.logoUrl}
@@ -166,10 +159,10 @@ function SponsorBadge({
         />
       )}
       <div className="text-center">
-        <p className="text-xs text-orange-600">Match sponsored by</p>
+        <p className="text-cta text-xs">Match sponsored by</p>
         <p
           className={cn(
-            "text-lg font-semibold text-orange-800",
+            "text-cta text-lg font-semibold",
             hasValidWebsite && "underline decoration-dotted underline-offset-2",
           )}
         >
@@ -178,16 +171,14 @@ function SponsorBadge({
         {sponsor.phone && (
           <a
             href={`tel:${sponsor.phone}`}
-            className="mt-1 block text-sm text-orange-700 underline decoration-dotted underline-offset-2"
+            className="text-cta mt-1 block text-sm underline decoration-dotted underline-offset-2"
             onClick={(e) => e.stopPropagation()}
           >
             {sponsor.phone}
           </a>
         )}
       </div>
-      {sponsor.message && (
-        <p className="text-sm text-orange-600">{sponsor.message}</p>
-      )}
+      {sponsor.message && <p className="text-cta text-sm">{sponsor.message}</p>}
     </div>
   );
 
@@ -231,14 +222,9 @@ function BallByBallTrigger({ game }: { game: GameData }) {
   return (
     <>
       {available && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setOpen(true)}
-        >
-          Ball by ball viewer
-        </Button>
+        <StampButton variant="navy" size="sm" onClick={() => setOpen(true)}>
+          Ball by ball viewer →
+        </StampButton>
       )}
       <WagonWheelModal
         matchId={game.id}
@@ -302,22 +288,22 @@ function GameDetailContent({ game }: { game: GameData }) {
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/calendar" className="hover:text-primary text-stone-600">
+        <Link to="/calendar" className="hover:text-primary text-muted">
           Calendar
         </Link>
-        <IoChevronForward className="text-stone-400" size={14} />
+        <IoChevronForward className="text-muted" size={14} />
         {year && month && (
           <>
             <Link
               to={`/calendar/${year}/${month.toLowerCase()}`}
-              className="hover:text-primary text-stone-600"
+              className="hover:text-primary text-muted"
             >
               {month} {year}
             </Link>
-            <IoChevronForward className="text-stone-400" size={14} />
+            <IoChevronForward className="text-muted" size={14} />
           </>
         )}
-        <span className="text-dark font-medium">{title}</span>
+        <span className="fc-two-tone font-medium">{title}</span>
       </div>
 
       <div className="flex flex-col items-start gap-6">
@@ -408,9 +394,16 @@ function GameDetailContent({ game }: { game: GameData }) {
               {game.home !== undefined && (
                 <li>
                   <strong>Venue:</strong>{" "}
-                  <Badge variant={game.home ? "default" : "secondary"}>
+                  <span
+                    className={cn(
+                      "inline-flex items-center border-2 px-2 py-0.5 text-xs font-bold tracking-wider uppercase",
+                      game.home
+                        ? "border-primary text-primary"
+                        : "border-cta text-cta",
+                    )}
+                  >
                     {game.home ? "Home" : "Away"}
-                  </Badge>
+                  </span>
                 </li>
               )}
             </ul>
@@ -422,20 +415,18 @@ function GameDetailContent({ game }: { game: GameData }) {
 
         {/* Team lineup — hidden once Play Cricket has a result (scorecard shows actual teams) */}
         {!game.result && game.lineup && game.lineup.players.length > 0 && (
-          <Card>
-            <CardContent className="flex flex-col gap-3 p-4">
-              <h4 className="text-lg font-semibold">
-                {game.lineup.confirmed ? "Team" : "Selected Team"}
-              </h4>
-              <ol className="list-inside list-decimal space-y-1">
-                {game.lineup.players.map((player, pos) => (
-                  <li key={`${pos}-${player.name}`} className="text-sm">
-                    {player.name}
-                  </li>
-                ))}
-              </ol>
-            </CardContent>
-          </Card>
+          <div className="border-primary bg-surface flex flex-col gap-3 border-2 p-4">
+            <h4 className="fc-two-tone text-lg font-semibold">
+              {game.lineup.confirmed ? "Team" : "Selected Team"}
+            </h4>
+            <ol className="list-inside list-decimal space-y-1">
+              {game.lineup.players.map((player, pos) => (
+                <li key={`${pos}-${player.name}`} className="text-sm">
+                  {player.name}
+                </li>
+              ))}
+            </ol>
+          </div>
         )}
 
         {/* Result summary — full card if Play Cricket has data, badge-only for manual result */}
@@ -443,14 +434,10 @@ function GameDetailContent({ game }: { game: GameData }) {
           <ResultSummary result={game.result} />
         ) : (
           game.outcome && (
-            <Card>
-              <CardContent className="flex items-center gap-2 p-4">
-                <OutcomeBadge outcome={game.outcome} />
-                <span className="text-sm text-stone-600">
-                  Full scorecard pending
-                </span>
-              </CardContent>
-            </Card>
+            <div className="border-primary bg-surface flex items-center gap-2 border-2 p-4">
+              <OutcomeBadge outcome={game.outcome} />
+              <span className="text-muted text-sm">Full scorecard pending</span>
+            </div>
           )
         )}
 
@@ -476,7 +463,7 @@ function GameDetailContent({ game }: { game: GameData }) {
           center={{ lat: location.lat, lon: location.lon }}
           infoWindow={{ header: location.name }}
         >
-          <div className="flex flex-col gap-2 bg-white p-4 text-lg sm:text-sm">
+          <div className="border-primary bg-surface text-primary flex flex-col gap-2 border-2 p-4 text-lg sm:text-sm">
             <h4 className="text-lg font-semibold md:text-xl">
               {location.name}
             </h4>
@@ -516,9 +503,9 @@ export function Component() {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="flex flex-col gap-4">
-          <div className="h-6 w-64 animate-pulse rounded bg-stone-200" />
-          <div className="h-4 w-48 animate-pulse rounded bg-stone-100" />
-          <div className="h-32 animate-pulse rounded bg-stone-100" />
+          <div className="bg-primary/10 h-6 w-64 animate-pulse rounded" />
+          <div className="bg-primary/10 h-4 w-48 animate-pulse rounded" />
+          <div className="bg-primary/10 h-32 animate-pulse rounded" />
         </div>
       </div>
     );
@@ -527,8 +514,8 @@ export function Component() {
   if (!game) {
     return (
       <div className="container mx-auto px-4 py-12">
-        <h1 className="text-2xl font-semibold">Game Not Found</h1>
-        <p className="mt-2 text-stone-600">This game could not be found.</p>
+        <h1 className="fc-two-tone text-2xl font-semibold">Game Not Found</h1>
+        <p className="text-muted mt-2">This game could not be found.</p>
         <Link
           to="/calendar"
           className="text-primary mt-4 inline-block hover:underline"

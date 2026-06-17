@@ -87,9 +87,9 @@ export function Component() {
       <TrialIsFree />
 
       {/* Dedicated segment links — secondary navigation option */}
-      <section className="bg-white py-10">
+      <section className="bg-body py-10">
         <div className="container mx-auto px-6">
-          <h2 className="text-h4 mb-6 text-center">
+          <h2 className="fc-two-tone text-h4 mb-6 text-center">
             Or jump straight to a dedicated page
           </h2>
           <div className="mx-auto grid max-w-4xl gap-4 sm:grid-cols-2">
@@ -97,12 +97,12 @@ export function Component() {
               <Link
                 key={link.segment}
                 to={link.href}
-                className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+                className="border-primary bg-surface border-2 p-5 transition-transform hover:-translate-y-[3px]"
               >
-                <h3 className="text-dark mb-1 text-lg font-semibold">
+                <h3 className="text-primary mb-1 text-lg font-semibold">
                   {link.label}
                 </h3>
-                <p className="text-sm text-stone-700">{link.description}</p>
+                <p className="text-muted text-sm">{link.description}</p>
               </Link>
             ))}
           </div>
@@ -123,7 +123,7 @@ export function Component() {
               variant={variant}
             />
           ) : (
-            <p className="text-sm text-stone-600">
+            <p className="text-muted text-sm">
               Pick a group above to see the form.
             </p>
           )}

@@ -1,7 +1,8 @@
 import { PaymentForm } from "@/components/payment-form";
 import { RadioButtons } from "@/components/radio-buttons";
+import { Kicker, StampButton, StampLink } from "@/components/theme/bits.js";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -63,17 +64,17 @@ function StepIndicator({ currentStep }: { currentStep: Step }) {
   const currentIndex = STEPS.indexOf(currentStep);
   return (
     <nav className="mb-6">
-      <ol className="flex items-center text-xs font-medium text-stone-500 sm:text-sm">
+      <ol className="text-muted flex items-center text-xs font-medium sm:text-sm">
         {STEPS.map((step, i) => {
           const isActive = i === currentIndex;
           const isComplete = i < currentIndex;
           return (
             <li
               key={step}
-              className={`flex items-center ${i < STEPS.length - 1 ? "after:mx-2 after:inline-block after:h-px after:w-4 after:bg-stone-300 after:content-[''] sm:after:w-8" : ""}`}
+              className={`flex items-center ${i < STEPS.length - 1 ? "after:bg-border after:mx-2 after:inline-block after:h-px after:w-4 after:content-[''] sm:after:w-8" : ""}`}
             >
               <span
-                className={`flex items-center gap-1 whitespace-nowrap ${isActive ? "font-semibold text-blue-700" : ""} ${isComplete ? "text-green-600" : ""}`}
+                className={`flex items-center gap-1 whitespace-nowrap ${isActive ? "text-cta font-semibold" : ""} ${isComplete ? "text-primary" : ""}`}
               >
                 {isComplete && (
                   <svg
@@ -110,12 +111,12 @@ function StepNav({
 }) {
   return (
     <div className="mb-8 flex flex-wrap gap-3">
-      <Button type="button" variant="outline" onClick={onBack}>
+      <StampButton variant="navy" size="sm" onClick={onBack}>
         Back
-      </Button>
-      <Button type="button" onClick={onNext}>
-        {nextLabel}
-      </Button>
+      </StampButton>
+      <StampButton size="sm" onClick={onNext}>
+        {nextLabel} →
+      </StampButton>
     </div>
   );
 }
@@ -191,18 +192,15 @@ function SocialMembershipUpsell() {
   if (membership) return null;
 
   return (
-    <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-4">
+    <div className="border-primary bg-surface text-primary mt-8 border-2 p-4">
       <p className="mb-2 text-sm font-semibold">Support the club?</p>
-      <p className="mb-3 text-sm text-stone-600">
+      <p className="text-muted mb-3 text-sm">
         As a parent you don&apos;t need a membership, but if you&apos;d like to
         support the club you can become a social member.
       </p>
-      <Link
-        to="/membership/pay"
-        className={buttonVariants({ variant: "outline" })}
-      >
-        Become a Social Member
-      </Link>
+      <StampLink to="/membership/pay" className="fc-stamp--navy fc-stamp--sm">
+        Become a Social Member →
+      </StampLink>
     </div>
   );
 }
@@ -255,7 +253,7 @@ function JuniorRegistrationInner() {
 
   const payMutation = useMutation({
     // Junior registration pays only the charge just created for these
-    // dependents — passing chargeIds prevents bundling unrelated
+    // dependents - passing chargeIds prevents bundling unrelated
     // outstanding charges (#93) like a parent's own membership fee.
     mutationFn: (chargeIds: string[]) =>
       callApi(
@@ -303,15 +301,13 @@ function JuniorRegistrationInner() {
   if (step === "done") {
     return (
       <div className="mx-auto max-w-2xl">
-        <div className="rounded-lg border border-green-200 bg-green-50 p-6 text-center">
-          <h4 className="mb-2">Registration & Payment Complete</h4>
-          <p className="mb-4 text-sm text-stone-600">
+        <div className="border-primary bg-surface flex flex-col items-center border-2 p-6 text-center">
+          <h4 className="fc-two-tone mb-2">Registration & Payment Complete</h4>
+          <p className="text-muted mb-4 text-sm">
             Your junior members have been registered and payment has been
             received. You can view your payment history in the members area.
           </p>
-          <Link to="/members?tab=payments" className={buttonVariants()}>
-            Go to Members Area
-          </Link>
+          <StampLink to="/members?tab=payments">Go to Members Area →</StampLink>
         </div>
         <SocialMembershipUpsell />
       </div>
@@ -320,8 +316,11 @@ function JuniorRegistrationInner() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h4 className="mb-2">Junior Membership Registration</h4>
-      <p className="mb-4 text-sm text-stone-600">
+      <Kicker className="mb-1">
+        Step {STEPS.indexOf(step) + 1} of {STEPS.length} - {STEP_LABELS[step]}
+      </Kicker>
+      <h4 className="fc-two-tone mb-2">Junior Membership Registration</h4>
+      <p className="text-muted mb-4 text-sm">
         Register your children as junior members of Percy Main Cricket Club.
       </p>
 
@@ -333,7 +332,7 @@ function JuniorRegistrationInner() {
           {dependents.map((dep, i) => (
             <div
               key={dep.clientId}
-              className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
+              className="border-primary bg-surface mb-6 border-2 p-4"
             >
               <div className="mb-2 flex items-center justify-between">
                 <h5 className="text-sm font-semibold">
@@ -385,18 +384,21 @@ function JuniorRegistrationInner() {
               />
 
               {errors[i] && (
-                <p className="mt-1 text-sm text-red-600">{errors[i]}</p>
+                <p className="mt-1 text-sm text-red-700">{errors[i]}</p>
               )}
             </div>
           ))}
 
           <div className="mb-8 flex flex-wrap gap-3">
-            <Button type="button" variant="outline" onClick={addChild}>
+            <StampButton variant="navy" size="sm" onClick={addChild}>
               + Add Another Child
-            </Button>
-            <Button type="button" onClick={() => validateAndAdvance("cricket")}>
-              Next: Cricket Experience
-            </Button>
+            </StampButton>
+            <StampButton
+              size="sm"
+              onClick={() => validateAndAdvance("cricket")}
+            >
+              Next: Cricket Experience →
+            </StampButton>
           </div>
         </>
       )}
@@ -407,11 +409,11 @@ function JuniorRegistrationInner() {
           {dependents.map((dep, i) => (
             <div
               key={dep.clientId}
-              className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
+              className="border-primary bg-surface mb-6 border-2 p-4"
             >
               <h5 className="mb-3 text-sm font-semibold">{dep.name}</h5>
 
-              <p className="mb-2 text-sm font-medium text-stone-700">
+              <p className="text-primary mb-2 text-sm font-medium">
                 Has your child played cricket before?
               </p>
               <RadioButtons
@@ -437,7 +439,7 @@ function JuniorRegistrationInner() {
 
               {dep.played_before && (
                 <>
-                  <p className="mb-2 text-sm font-medium text-stone-700">
+                  <p className="text-primary mb-2 text-sm font-medium">
                     Where have they played cricket?
                   </p>
                   <RadioButtons
@@ -455,7 +457,7 @@ function JuniorRegistrationInner() {
               )}
 
               {errors[i] && (
-                <p className="mt-1 text-sm text-red-600">{errors[i]}</p>
+                <p className="mt-1 text-sm text-red-700">{errors[i]}</p>
               )}
             </div>
           ))}
@@ -474,11 +476,11 @@ function JuniorRegistrationInner() {
           {dependents.map((dep, i) => (
             <div
               key={dep.clientId}
-              className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
+              className="border-primary bg-surface mb-6 border-2 p-4"
             >
               <h5 className="mb-3 text-sm font-semibold">{dep.name}</h5>
 
-              <p className="mb-2 text-sm font-medium text-stone-700">
+              <p className="text-primary mb-2 text-sm font-medium">
                 Do you give permission for your mobile phone number to be added
                 to this child&apos;s team WhatsApp groups?
               </p>
@@ -500,7 +502,7 @@ function JuniorRegistrationInner() {
                 ]}
               />
 
-              <h6 className="mt-4 mb-2 text-sm font-semibold text-stone-700">
+              <h6 className="text-primary mt-4 mb-2 text-sm font-semibold">
                 Alternative Contact
               </h6>
               {i > 0 && (
@@ -540,7 +542,7 @@ function JuniorRegistrationInner() {
                   updateDependent(i, { alt_contact_phone: val })
                 }
               />
-              <p className="mb-2 text-sm font-medium text-stone-700">
+              <p className="text-primary mb-2 text-sm font-medium">
                 Would you like the alternative contact phone number to be added
                 to team WhatsApp groups?
               </p>
@@ -565,7 +567,7 @@ function JuniorRegistrationInner() {
               />
 
               {errors[i] && (
-                <p className="mt-1 text-sm text-red-600">{errors[i]}</p>
+                <p className="mt-1 text-sm text-red-700">{errors[i]}</p>
               )}
             </div>
           ))}
@@ -584,7 +586,7 @@ function JuniorRegistrationInner() {
           {dependents.map((dep, i) => (
             <div
               key={dep.clientId}
-              className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
+              className="border-primary bg-surface mb-6 border-2 p-4"
             >
               <h5 className="mb-3 text-sm font-semibold">{dep.name}</h5>
 
@@ -621,7 +623,7 @@ function JuniorRegistrationInner() {
                 onChange={(val) => updateDependent(i, { gp_phone: val })}
               />
 
-              <p className="mb-2 text-sm font-medium text-stone-700">
+              <p className="text-primary mb-2 text-sm font-medium">
                 Do you consider your child to have a disability?
               </p>
               <RadioButtons
@@ -647,7 +649,7 @@ function JuniorRegistrationInner() {
 
               {dep.has_disability && (
                 <>
-                  <p className="mb-2 text-sm font-medium text-stone-700">
+                  <p className="text-primary mb-2 text-sm font-medium">
                     What is the nature of the disability?
                   </p>
                   <RadioButtons
@@ -679,8 +681,8 @@ function JuniorRegistrationInner() {
                 />
               </div>
 
-              <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3">
-                <p className="mb-2 text-sm font-medium text-stone-700">
+              <div className="border-cta bg-surface mt-4 border-2 p-3">
+                <p className="text-primary mb-2 text-sm font-medium">
                   I give my consent that in an emergency situation, the Club may
                   act in loco parentis to seek emergency medical treatment,
                   including anaesthetic if required.
@@ -706,8 +708,8 @@ function JuniorRegistrationInner() {
                 />
               </div>
 
-              <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3">
-                <p className="mb-2 text-sm font-medium text-stone-700">
+              <div className="border-cta bg-surface mt-4 border-2 p-3">
+                <p className="text-primary mb-2 text-sm font-medium">
                   I confirm that to the best of my knowledge, my child does not
                   suffer from any medical condition other than those listed
                   above.
@@ -734,7 +736,7 @@ function JuniorRegistrationInner() {
               </div>
 
               {errors[i] && (
-                <p className="mt-1 text-sm text-red-600">{errors[i]}</p>
+                <p className="mt-1 text-sm text-red-700">{errors[i]}</p>
               )}
             </div>
           ))}
@@ -750,9 +752,9 @@ function JuniorRegistrationInner() {
       {/* Step 5: Consents */}
       {step === "consents" && (
         <>
-          <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="border-primary bg-surface text-primary mb-6 border-2 p-4">
             <h5 className="mb-2 text-sm font-semibold">Data Protection</h5>
-            <p className="text-sm text-stone-600">
+            <p className="text-muted text-sm">
               Percy Main Cricket Club collects personal data to administer
               membership, organise cricket activities, and communicate with
               members. Your data is processed in accordance with our{" "}
@@ -760,7 +762,7 @@ function JuniorRegistrationInner() {
                 to="/legal/privacy"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-700 underline hover:text-blue-900"
+                className="text-primary decoration-cta/70 hover:text-cta underline underline-offset-2"
               >
                 Privacy Policy
               </Link>
@@ -773,12 +775,12 @@ function JuniorRegistrationInner() {
           {dependents.map((dep, i) => (
             <div
               key={dep.clientId}
-              className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
+              className="border-primary bg-surface mb-6 border-2 p-4"
             >
               <h5 className="mb-3 text-sm font-semibold">{dep.name}</h5>
 
-              <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-3">
-                <p className="mb-2 text-sm font-medium text-stone-700">
+              <div className="border-cta bg-surface mb-4 border-2 p-3">
+                <p className="text-primary mb-2 text-sm font-medium">
                   I confirm I have read the Privacy Policy and consent to the
                   processing of my child&apos;s personal data as described.
                 </p>
@@ -803,8 +805,8 @@ function JuniorRegistrationInner() {
                 />
               </div>
 
-              <div className="rounded border border-amber-200 bg-amber-50 p-3">
-                <p className="mb-2 text-sm font-medium text-stone-700">
+              <div className="border-cta bg-surface border-2 p-3">
+                <p className="text-primary mb-2 text-sm font-medium">
                   I give my consent to my child being photographed and/or
                   videoed for the purposes of coaching and/or publicity.
                 </p>
@@ -830,7 +832,7 @@ function JuniorRegistrationInner() {
               </div>
 
               {errors[i] && (
-                <p className="mt-1 text-sm text-red-600">{errors[i]}</p>
+                <p className="mt-1 text-sm text-red-700">{errors[i]}</p>
               )}
             </div>
           ))}
@@ -849,7 +851,7 @@ function JuniorRegistrationInner() {
           {dependents.map((dep, i) => (
             <div
               key={dep.clientId}
-              className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm"
+              className="border-primary bg-surface mb-6 border-2 p-4"
             >
               <div className="mb-2 flex items-center justify-between">
                 <h5 className="font-semibold">
@@ -857,27 +859,27 @@ function JuniorRegistrationInner() {
                 </h5>
               </div>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                <dt className="font-medium text-stone-500">Date of Birth</dt>
+                <dt className="text-muted font-medium">Date of Birth</dt>
                 <dd>{format(new Date(dep.dob), "dd/MM/yyyy")}</dd>
-                <dt className="font-medium text-stone-500">Gender</dt>
+                <dt className="text-muted font-medium">Gender</dt>
                 <dd className="capitalize">{dep.sex}</dd>
-                <dt className="font-medium text-stone-500">School Year</dt>
+                <dt className="text-muted font-medium">School Year</dt>
                 <dd>{dep.school_year}</dd>
-                <dt className="font-medium text-stone-500">Played Before</dt>
+                <dt className="text-muted font-medium">Played Before</dt>
                 <dd>{dep.played_before ? "Yes" : "No"}</dd>
                 {dep.played_before && dep.previous_cricket && (
                   <>
-                    <dt className="font-medium text-stone-500">Where</dt>
+                    <dt className="text-muted font-medium">Where</dt>
                     <dd>{dep.previous_cricket}</dd>
                   </>
                 )}
-                <dt className="font-medium text-stone-500">Photo Consent</dt>
+                <dt className="text-muted font-medium">Photo Consent</dt>
                 <dd>{dep.photo_consent ? "Yes" : "No"}</dd>
               </dl>
             </div>
           ))}
 
-          <div className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+          <div className="border-primary bg-surface mb-6 border-2 p-4">
             <h5 className="mb-2 font-semibold">Payment Summary</h5>
             <table className="w-full text-left text-sm">
               <thead>
@@ -907,14 +909,14 @@ function JuniorRegistrationInner() {
             </table>
           </div>
 
-          <p className="mb-4 text-sm text-stone-600">
+          <p className="text-muted mb-4 text-sm">
             This is a one-off payment for junior membership valid until the end
             of {new Date().getFullYear()}. You will not be automatically charged
             when it expires.
           </p>
 
           {addDependentsMutation.error && (
-            <p className="mb-4 text-sm text-red-600">
+            <p className="mb-4 text-sm text-red-700">
               {addDependentsMutation.error instanceof Error
                 ? addDependentsMutation.error.message
                 : "Registration failed. Please try again."}
@@ -922,22 +924,22 @@ function JuniorRegistrationInner() {
           )}
 
           <div className="mb-8 flex flex-wrap gap-3">
-            <Button
-              type="button"
-              variant="outline"
+            <StampButton
+              variant="navy"
+              size="sm"
               onClick={() => setStep("consents")}
             >
               Back
-            </Button>
-            <Button
-              type="button"
+            </StampButton>
+            <StampButton
+              size="sm"
               disabled={addDependentsMutation.isPending}
               onClick={() => void handleSubmit()}
             >
               {addDependentsMutation.isPending
                 ? "Registering…"
-                : "Confirm & Continue to Payment"}
-            </Button>
+                : "Confirm & Continue to Payment →"}
+            </StampButton>
           </div>
         </>
       )}
@@ -946,8 +948,8 @@ function JuniorRegistrationInner() {
       {step === "payment" && (
         <div>
           {payMutation.isPending && !paymentData && (
-            <div className="rounded-lg border border-stone-200 bg-white p-6 text-center">
-              <p className="text-sm text-stone-600">Setting up payment…</p>
+            <div className="border-primary bg-surface border-2 p-6 text-center">
+              <p className="text-muted text-sm">Setting up payment…</p>
             </div>
           )}
 
@@ -956,9 +958,9 @@ function JuniorRegistrationInner() {
               <Alert variant="destructive">
                 <AlertDescription>{paymentError}</AlertDescription>
               </Alert>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  type="button"
+              <div className="flex flex-wrap items-center gap-3">
+                <StampButton
+                  size="sm"
                   disabled={!addDependentsMutation.data?.chargeId}
                   onClick={() => {
                     const chargeId = addDependentsMutation.data?.chargeId;
@@ -967,11 +969,11 @@ function JuniorRegistrationInner() {
                     payMutation.mutate([chargeId]);
                   }}
                 >
-                  Try Again
-                </Button>
+                  Try Again →
+                </StampButton>
                 <Link
                   to="/members?tab=payments"
-                  className={buttonVariants({ variant: "outline" })}
+                  className="text-primary decoration-cta/70 hover:text-cta text-sm underline underline-offset-2"
                 >
                   Pay Later
                 </Link>
@@ -993,7 +995,7 @@ function JuniorRegistrationInner() {
                       },
                     }),
                   ).catch(() => {
-                    // Payment succeeded at Stripe but confirmation failed — the
+                    // Payment succeeded at Stripe but confirmation failed - the
                     // webhook will reconcile, so still show success.
                   });
                   setStep("done");
@@ -1002,11 +1004,11 @@ function JuniorRegistrationInner() {
                   window.location.href = "/members?tab=payments";
                 }}
               />
-              <p className="text-center text-sm text-stone-500">
+              <p className="text-muted text-center text-sm">
                 Or{" "}
                 <Link
                   to="/members?tab=payments"
-                  className="text-blue-700 underline hover:text-blue-900"
+                  className="text-primary decoration-cta/70 hover:text-cta underline underline-offset-2"
                 >
                   pay later in the members area
                 </Link>

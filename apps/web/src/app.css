@@ -1059,17 +1059,28 @@
   max-width: 26ch;
   text-align: right;
 }
+/* Fallbacks (brand orange/cream/navy + the display face) keep the stamp
+   self-sufficient where the fc-theme vars are absent — e.g. the admin
+   content editor preview, which renders the same shared components but is
+   not a First-Class route, so the editor stamp stays identical to public. */
 .fc-stamp {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  font-family: var(--fc-display);
+  font-family: var(
+    --fc-display,
+    "Anton",
+    "Haettenschweiler",
+    "Impact",
+    "Arial Narrow",
+    sans-serif
+  );
   text-transform: uppercase;
   font-size: 26px;
   letter-spacing: 0.04em;
   line-height: 1;
-  color: var(--fc-paper);
-  background: var(--fc-orange);
+  color: var(--fc-paper, #f1e5c9);
+  background: var(--fc-orange, #ef4a1e);
   padding: 14px 34px;
   border: none;
   text-decoration: none;
@@ -1080,10 +1091,25 @@
 }
 .fc-stamp:hover {
   transform: rotate(-2.5deg) scale(1.04);
-  color: var(--fc-paper);
+  color: var(--fc-paper, #f1e5c9);
 }
 .fc-stamp--navy {
-  background: var(--fc-navy);
+  background: var(--fc-navy, #1b2a55);
+}
+/* Tighter size for inline form submits (Send Message, Pay, ...). */
+.fc-stamp--sm {
+  font-size: 18px;
+  letter-spacing: 0.03em;
+  gap: 9px;
+  padding: 10px 24px;
+}
+/* A pending/disabled submit must not invite a click. */
+.fc-stamp:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.fc-stamp:disabled:hover {
+  transform: rotate(-2.5deg);
 }
 .fc-rv {
   opacity: 0;
@@ -1371,57 +1397,77 @@
   border-radius: 0;
 }
 
-/* ---- Scoreboard stat lines (home "The Numbers", on a navy plate) ---- */
-.fc-statlines {
-  color: var(--fc-paper);
+/* ============================================================
+   Editorial stat table — the reusable scoreboard treatment. Wrap any
+   table (incl. a shadcn <Table>) in .fc-stat and it reads as a printed
+   stat sheet: blocky display face, orange uppercase headers, hairline
+   rules. Default ink is navy-on-paper (for cream pages: leaderboards,
+   player stats, scorecards, records). Add .fc-stat--invert for cream-on-
+   navy on a dark plate (home "The Numbers"). The ink set is driven by
+   custom properties so both variants share one rule set.
+   ============================================================ */
+.fc-theme .fc-stat {
+  --fc-stat-ink: var(--fc-navy);
+  --fc-stat-head: var(--fc-orange);
+  --fc-stat-rule: rgb(27 42 85 / 16%);
+  --fc-stat-rule-strong: var(--fc-navy);
+  --fc-stat-row-hover: rgb(239 74 30 / 10%);
+  color: var(--fc-stat-ink);
 }
-.fc-statlines :is(h3, h4) {
-  color: var(--fc-paper);
+.fc-theme .fc-stat--invert {
+  --fc-stat-ink: var(--fc-paper);
+  --fc-stat-head: var(--fc-orange);
+  --fc-stat-rule: rgb(241 229 201 / 16%);
+  --fc-stat-rule-strong: rgb(241 229 201 / 45%);
+  --fc-stat-row-hover: rgb(239 74 30 / 16%);
 }
-.fc-statlines table {
+.fc-theme .fc-stat :is(h3, h4) {
+  color: var(--fc-stat-ink);
+}
+.fc-theme .fc-stat table {
   width: 100%;
   border-collapse: collapse;
 }
-.fc-statlines tr {
+.fc-theme .fc-stat tr {
   border: 0;
 }
-/* The shadcn row hover/selected fill is light and bleached the cream text —
+/* The shadcn row hover/selected fill is light and bleaches the ink —
    replace it with a faint orange wash that keeps the text legible. */
-.fc-statlines tbody tr:hover,
-.fc-statlines tbody tr[data-state="selected"] {
-  background-color: rgb(239 74 30 / 16%);
+.fc-theme .fc-stat tbody tr:hover,
+.fc-theme .fc-stat tbody tr[data-state="selected"] {
+  background-color: var(--fc-stat-row-hover);
 }
 /* Blocky display face throughout — the scoreboard reads in one voice. */
-.fc-statlines th {
+.fc-theme .fc-stat th {
   font-family: var(--fc-display);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 13px;
-  color: var(--fc-orange);
+  color: var(--fc-stat-head);
   padding: 8px 10px;
-  border-bottom: 2px solid rgb(241 229 201 / 45%);
+  border-bottom: 2px solid var(--fc-stat-rule-strong);
 }
-.fc-statlines td {
+.fc-theme .fc-stat td {
   font-family: var(--fc-display);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.01em;
   font-size: 19px;
-  color: var(--fc-paper);
+  color: var(--fc-stat-ink);
   padding: 7px 10px;
-  border-bottom: 1px solid rgb(241 229 201 / 16%);
+  border-bottom: 1px solid var(--fc-stat-rule);
 }
-.fc-statlines :is(td.font-bold, .font-bold) {
+.fc-theme .fc-stat :is(td.font-bold, .font-bold) {
   font-size: 23px;
-  color: var(--fc-paper);
+  color: var(--fc-stat-ink);
 }
-.fc-statlines a {
-  color: var(--fc-paper);
+.fc-theme .fc-stat a {
+  color: var(--fc-stat-ink);
   text-decoration: underline;
   text-decoration-color: rgb(239 74 30 / 80%);
   text-underline-offset: 3px;
 }
-.fc-statlines a:hover {
+.fc-theme .fc-stat a:hover {
   color: var(--fc-orange);
 }

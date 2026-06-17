@@ -70,6 +70,45 @@ export function StampLink({
   );
 }
 
+/**
+ * The stamped CTA as a real <button> — the action-triggering twin of
+ * StampLink, for form submits and onClick handlers. `size="sm"` is the
+ * tighter form-field size; `variant="navy"` swaps the orange ink for navy.
+ */
+export function StampButton({
+  type = "button",
+  variant,
+  size,
+  disabled,
+  onClick,
+  children,
+  className,
+}: {
+  type?: "button" | "submit" | "reset";
+  variant?: "navy";
+  size?: "sm";
+  disabled?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type={type}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "fc-stamp",
+        variant === "navy" && "fc-stamp--navy",
+        size === "sm" && "fc-stamp--sm",
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 /** Fades + lifts its children once they scroll into view. */
 export function Reveal({
   children,

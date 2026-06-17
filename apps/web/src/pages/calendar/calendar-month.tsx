@@ -1,10 +1,12 @@
-import { OutcomeBadge } from "@/components/outcome-badge.js";
-import { PrefetchLink } from "@/components/prefetch-link.js";
+import { Kicker } from "@/components/theme/bits.js";
+import {
+  FixtureStrip,
+  type FixtureStripItem,
+} from "@/components/theme/fixture-strip.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
 import {
-  eventQueryOptions,
   eventsListQueryOptions,
   parseEventMetadata,
 } from "@/lib/content-queries.js";
@@ -80,11 +82,14 @@ const FILTER_LABELS: Array<{ key: Filter; label: string }> = [
   { key: "event", label: "Events" },
 ];
 
-const TEAM_BORDER_CLASSES: Record<string, string> = {
-  "1xi": "border-l-green-800",
-  "2xi": "border-l-blue-600",
-  mid: "border-l-violet-600",
-  jun: "border-l-amber-600",
+const OUTCOME_LABELS: Record<Outcome, string> = {
+  W: "Won",
+  L: "Lost",
+  D: "Draw",
+  T: "Tied",
+  A: "Abandoned",
+  C: "Cancelled",
+  N: "No result",
 };
 
 // --- Mini Calendar ---
@@ -119,15 +124,15 @@ function MiniCalendar({
     cells.push({ key: `day-${d}`, day: d });
 
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 text-sm font-bold text-stone-900">
+    <div className="border-primary bg-surface border-2 p-4">
+      <div className="text-primary mb-3 text-sm font-bold">
         {format(date, "MMMM yyyy")}
       </div>
       <div className="mb-1 grid grid-cols-7 text-center">
         {dayHeaders.map((d) => (
           <div
             key={d.key}
-            className="py-1 text-[11px] font-semibold tracking-wider text-stone-400 uppercase"
+            className="text-muted py-1 text-[11px] font-semibold tracking-wider uppercase"
           >
             {d.label}
           </div>
@@ -137,7 +142,7 @@ function MiniCalendar({
         {cells.map((cell) => {
           if (cell.day === null) {
             return (
-              <span key={cell.key} className="py-1.5 text-xs text-stone-300" />
+              <span key={cell.key} className="text-muted/40 py-1.5 text-xs" />
             );
           }
           const day = cell.day;
@@ -148,19 +153,19 @@ function MiniCalendar({
           const isTodayDay = isToday(cellDate);
 
           const classes = cn(
-            "relative rounded py-1.5 text-xs transition-colors",
-            !hasItems && "text-stone-500",
+            "relative py-1.5 text-xs transition-colors",
+            !hasItems && "text-muted",
             hasItems &&
-              "cursor-pointer font-semibold text-stone-900 hover:bg-green-50",
-            isSelected && "!bg-green-800 !text-white",
-            isTodayDay && !isSelected && "ring-1 ring-green-800/40",
+              "text-primary hover:bg-primary/10 cursor-pointer font-semibold",
+            isSelected && "!bg-primary !text-paper",
+            isTodayDay && !isSelected && "ring-primary/40 ring-1",
           );
 
           const dot = hasItems && (
             <span
               className={cn(
                 "mx-auto mt-0.5 block rounded-full",
-                isSelected ? "bg-white" : "bg-green-800",
+                isSelected ? "bg-paper" : "bg-cta",
                 hasMultiple ? "h-[5px] w-2 rounded-sm" : "h-[5px] w-[5px]",
               )}
             />
@@ -199,28 +204,26 @@ function MonthSummary({
   stats: { won: number; lost: number; upcoming: number };
 }) {
   return (
-    <div className="mt-4 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-      <h4 className="mb-2 text-xs font-semibold tracking-wider text-stone-400 uppercase">
+    <div className="border-primary bg-surface mt-4 border-2 p-4">
+      <h4 className="text-muted mb-2 text-xs font-semibold tracking-wider uppercase">
         Month Summary
       </h4>
       <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-lg bg-green-50 p-2 text-center">
-          <div className="text-lg font-bold text-green-700">{stats.won}</div>
-          <div className="text-[10px] font-semibold text-green-600 uppercase">
+        <div className="border-border bg-surface border p-2 text-center">
+          <div className="text-primary text-lg font-bold">{stats.won}</div>
+          <div className="text-primary text-[10px] font-semibold uppercase">
             Won
           </div>
         </div>
-        <div className="rounded-lg bg-red-50 p-2 text-center">
+        <div className="border-border bg-surface border p-2 text-center">
           <div className="text-lg font-bold text-red-700">{stats.lost}</div>
-          <div className="text-[10px] font-semibold text-red-600 uppercase">
+          <div className="text-[10px] font-semibold text-red-700 uppercase">
             Lost
           </div>
         </div>
-        <div className="rounded-lg bg-stone-100 p-2 text-center">
-          <div className="text-lg font-bold text-stone-600">
-            {stats.upcoming}
-          </div>
-          <div className="text-[10px] font-semibold text-stone-400 uppercase">
+        <div className="border-border bg-surface border p-2 text-center">
+          <div className="text-cta text-lg font-bold">{stats.upcoming}</div>
+          <div className="text-cta text-[10px] font-semibold uppercase">
             Upcoming
           </div>
         </div>
@@ -248,10 +251,10 @@ function FilterPills({
             type="button"
             onClick={() => onChange(key)}
             className={cn(
-              "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+              "px-4 py-1.5 text-sm font-medium transition-colors",
               isActive
-                ? "bg-green-800 text-white shadow-md"
-                : "border-2 border-stone-200 text-stone-700 hover:border-stone-300",
+                ? "bg-primary text-paper"
+                : "border-border text-muted hover:border-primary border-2",
             )}
           >
             {label}
@@ -262,127 +265,52 @@ function FilterPills({
   );
 }
 
-// --- Fixture Card ---
+// --- Fixture strip mapping ---
 
-function FixtureCard({ item }: { item: CalendarItem & { type: "game" } }) {
-  const when = new Date(item.when);
-  const time = formatInTimeZone(when, "Europe/London", "HH:mm");
-  const borderClass = TEAM_BORDER_CLASSES[item.category] ?? "";
-  const hasResultStripe = item.outcome === "W" || item.outcome === "L";
+/**
+ * Map a calendar item (game or event) into a poster fixture-strip row. Games
+ * link to the game page with a Home/Away tag; events link to the event page
+ * with an "Event" tag. The result word (W/L/D ...) and any sponsor note ride
+ * along in the meta line so the strip stays a single, consistent voice.
+ */
+function toFixtureStripItem(item: CalendarItem): FixtureStripItem {
+  const time = formatInTimeZone(new Date(item.when), "Europe/London", "HH:mm");
 
-  return (
-    <Link
-      to={`/calendar/game/${item.id}`}
-      className={cn(
-        "group relative mb-2 flex items-center gap-3 overflow-hidden rounded-lg border-l-4 bg-white p-3 shadow-sm transition-all hover:translate-x-1 hover:shadow-md sm:gap-4 sm:p-4",
-        borderClass,
-      )}
-    >
-      {hasResultStripe && (
-        <span
-          className={cn(
-            "absolute top-0 right-0 bottom-0 w-[3px]",
-            item.outcome === "W" ? "bg-green-600" : "bg-red-600",
-          )}
-        />
-      )}
+  if (item.type === "event") {
+    return {
+      id: item.id,
+      href: `/calendar/event/${item.slug}?on=${item.occurrenceDate}`,
+      when: item.when,
+      title: item.eventName,
+      meta: time,
+      tag: "Event",
+    };
+  }
 
-      <div className="flex shrink-0 flex-col items-center gap-1">
-        <span
-          className={cn(
-            "flex size-7 items-center justify-center rounded-md text-xs font-semibold",
-            item.home
-              ? "bg-green-100 text-green-800"
-              : "bg-blue-100 text-blue-800",
-          )}
-        >
-          {item.home ? "H" : "A"}
-        </span>
-        <span className="text-[10px] font-bold tracking-wider text-stone-400 uppercase">
-          {time}
-        </span>
-      </div>
+  const competition = item.leagueName || item.competitionName;
+  const outcomeLabel = item.outcome
+    ? (OUTCOME_LABELS[item.outcome] ?? null)
+    : null;
 
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-          <span className="text-sm font-bold text-stone-900 sm:text-base">
-            {item.teamName}
-          </span>
-          <span className="text-sm text-stone-400">vs.</span>
-          <span className="text-sm font-semibold text-stone-900 sm:text-base">
-            {item.oppositionClub} {item.oppositionTeam}
-          </span>
-        </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-stone-400">
-            {item.leagueName || item.competitionName}
-          </span>
-          {item.sponsorName && (
-            <>
-              <span className="mx-1 size-1 rounded-full bg-stone-200" />
-              <span className="text-xs font-medium text-orange-600">
-                Sponsored by {item.sponsorName}
-              </span>
-            </>
-          )}
-        </div>
-      </div>
-
-      {item.outcome && (
-        <OutcomeBadge
-          outcome={item.outcome}
-          scoreDescription={item.scoreDescription ?? undefined}
-        />
-      )}
-
-      <IoChevronForward className="size-5 shrink-0 text-stone-300" />
-    </Link>
-  );
-}
-
-// --- Event Card ---
-
-function EventCard({ item }: { item: CalendarItem & { type: "event" } }) {
-  const when = new Date(item.when);
-  const time = formatInTimeZone(when, "Europe/London", "HH:mm");
-
-  return (
-    <PrefetchLink
-      query={eventQueryOptions(item.slug)}
-      to={`/calendar/event/${item.slug}?on=${item.occurrenceDate}`}
-      className="group mb-2 flex items-center gap-3 rounded-lg border-2 border-dashed border-orange-300/50 bg-orange-50/50 p-3 transition-all hover:translate-x-1 hover:shadow-md sm:gap-4 sm:p-4"
-    >
-      <div className="flex shrink-0 flex-col items-center gap-1">
-        <span className="flex size-7 items-center justify-center rounded-md bg-orange-100 text-orange-600">
-          <svg
-            className="size-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </span>
-        <span className="text-[10px] font-bold tracking-wider text-stone-400 uppercase">
-          {time}
-        </span>
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-orange-600 uppercase">
-            Event
-          </span>
-          <span className="text-sm font-bold text-stone-900 sm:text-base">
-            {item.eventName}
-          </span>
-        </div>
-      </div>
-
-      <IoChevronForward className="size-5 shrink-0 text-stone-300" />
-    </PrefetchLink>
-  );
+  return {
+    id: item.id,
+    href: `/calendar/game/${item.id}`,
+    when: item.when,
+    title: (
+      <>
+        {item.teamName} vs {item.oppositionClub} {item.oppositionTeam}
+      </>
+    ),
+    meta: (
+      <>
+        {[competition, time].filter(Boolean).join(" · ")}
+        {outcomeLabel ? ` · ${outcomeLabel}` : ""}
+        {item.scoreDescription ? ` · ${item.scoreDescription}` : ""}
+        {item.sponsorName ? ` · Sponsored by ${item.sponsorName}` : ""}
+      </>
+    ),
+    tag: item.home ? "Home" : "Away",
+  };
 }
 
 // --- Date Group ---
@@ -398,19 +326,11 @@ function DateGroup({
   const heading = format(date, "EEEE d MMMM");
 
   return (
-    <div className="mb-6" id={`agenda-day-${date.getDate()}`}>
-      <div className="mb-3">
-        <h3 className="mb-0 text-base font-semibold text-stone-900 sm:text-lg">
-          {heading}
-        </h3>
+    <div className="mb-8" id={`agenda-day-${date.getDate()}`}>
+      <div className="mb-2">
+        <Kicker>{heading}</Kicker>
       </div>
-      {items.map((item) =>
-        item.type === "event" ? (
-          <EventCard key={item.id} item={item} />
-        ) : (
-          <FixtureCard key={item.id} item={item} />
-        ),
-      )}
+      <FixtureStrip items={items.map(toFixtureStripItem)} />
     </div>
   );
 }
@@ -420,11 +340,11 @@ function DateGroup({
 function PastUpcomingDivider() {
   return (
     <div className="relative my-8 flex items-center">
-      <div className="flex-1 border-t-2 border-dashed border-green-800/20" />
-      <span className="mx-4 shrink-0 rounded-full bg-green-800 px-4 py-1 text-xs font-bold tracking-wider text-white uppercase">
+      <div className="border-primary/30 flex-1 border-t-2 border-dashed" />
+      <span className="bg-cta text-paper mx-4 shrink-0 px-4 py-1 text-xs font-bold tracking-wider uppercase">
         Upcoming
       </span>
-      <div className="flex-1 border-t-2 border-dashed border-green-800/20" />
+      <div className="border-primary/30 flex-1 border-t-2 border-dashed" />
     </div>
   );
 }
@@ -576,11 +496,11 @@ export function Component() {
     <div className="container mx-auto px-4 py-6">
       {/* Breadcrumbs */}
       <div className="text-h4 mb-4 flex items-center gap-2">
-        <Link to="/calendar" className="hover:text-primary text-stone-600">
+        <Link to="/calendar" className="hover:text-primary text-muted">
           Calendar
         </Link>
-        <IoChevronForward className="text-stone-400" size={14} />
-        <span className="text-dark font-medium">
+        <IoChevronForward className="text-muted" size={14} />
+        <span className="text-primary font-medium">
           {monthDisplay} {yearDisplay}
         </span>
       </div>
@@ -590,7 +510,7 @@ export function Component() {
         <div className="flex items-center gap-4 sm:gap-8">
           <Link
             to={prevPath}
-            className="flex size-10 items-center justify-center rounded-lg border-2 border-green-800/20 text-green-800 transition-colors hover:bg-green-800 hover:text-white"
+            className="border-primary text-primary hover:bg-primary hover:text-paper flex size-10 items-center justify-center border-2 transition-colors"
           >
             <svg
               className="size-5"
@@ -603,10 +523,10 @@ export function Component() {
             </svg>
           </Link>
           <div>
-            <h1 className="mb-0 text-2xl font-semibold text-stone-900 sm:text-3xl">
+            <h1 className="fc-two-tone mb-0 text-2xl font-semibold sm:text-3xl">
               {monthDisplay} {yearDisplay}
             </h1>
-            <p className="text-sm text-stone-500">
+            <p className="text-muted text-sm">
               {totalFixtures} fixture{totalFixtures !== 1 ? "s" : ""}
               {totalResults > 0 && (
                 <>
@@ -619,7 +539,7 @@ export function Component() {
           </div>
           <Link
             to={nextPath}
-            className="flex size-10 items-center justify-center rounded-lg border-2 border-green-800/20 text-green-800 transition-colors hover:bg-green-800 hover:text-white"
+            className="border-primary text-primary hover:bg-primary hover:text-paper flex size-10 items-center justify-center border-2 transition-colors"
           >
             <svg
               className="size-5"
@@ -635,7 +555,7 @@ export function Component() {
 
         <Link
           to={todayPath}
-          className="hidden items-center gap-1.5 rounded-lg bg-green-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 sm:flex"
+          className="border-primary text-primary hover:bg-primary hover:text-paper hidden items-center gap-1.5 border-2 px-4 py-2 text-sm font-semibold transition sm:flex"
         >
           <svg
             className="size-4"
@@ -673,9 +593,9 @@ export function Component() {
         {/* Main Agenda */}
         <div className="min-w-0 flex-1">
           {grouped.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg bg-white p-8 text-center shadow-sm">
+            <div className="border-primary bg-surface flex flex-col items-center justify-center border-2 p-8 text-center">
               <svg
-                className="mb-3 size-12 text-stone-300"
+                className="text-primary/30 mb-3 size-12"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -683,7 +603,7 @@ export function Component() {
               >
                 <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <p className="font-medium text-stone-600">
+              <p className="text-muted font-medium">
                 {activeFilter === "all"
                   ? `No events scheduled for ${monthDisplay}`
                   : `No ${FILTER_LABELS.find((f) => f.key === activeFilter)?.label ?? ""} fixtures for ${monthDisplay}`}

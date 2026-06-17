@@ -1,9 +1,4 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card.js";
+import { Kicker } from "@/components/theme/bits.js";
 import {
   Table,
   TableBody,
@@ -358,7 +353,7 @@ function PlayerName({
   return (
     <Link
       to={`/person/${slug}`}
-      className={`${className ?? ""} text-primary inline-flex items-center gap-0.5 underline decoration-dotted decoration-1 underline-offset-2 hover:decoration-solid`}
+      className={`${className ?? ""} text-primary decoration-cta/70 hover:text-cta inline-flex items-center gap-0.5 underline underline-offset-2`}
       title="View player profile"
     >
       {name}
@@ -390,7 +385,7 @@ function BattingCard({
   const totalColSpan = isPairs ? 5 : 5;
 
   return (
-    <div>
+    <div className="fc-stat">
       <Table>
         <caption className="sr-only">Batting scorecard</caption>
         <TableHeader>
@@ -425,9 +420,7 @@ function BattingCard({
                     slug={b.memberSlug}
                     className="font-medium"
                   />
-                  <div className="text-xs text-stone-500">
-                    {formatDismissal(b)}
-                  </div>
+                  <div className="text-muted text-xs">{formatDismissal(b)}</div>
                 </div>
               </TableCell>
               <TableCell className="text-right font-mono font-semibold tabular-nums">
@@ -453,7 +446,7 @@ function BattingCard({
           ))}
           <TableRow>
             <TableCell>
-              <span className="text-sm text-stone-600">
+              <span className="text-muted text-sm">
                 Extras ({formatExtrasBreakdown(extras)})
               </span>
             </TableCell>
@@ -474,7 +467,7 @@ function BattingCard({
         </TableBody>
       </Table>
       {didNotBat.length > 0 && (
-        <p className="mt-2 text-xs text-stone-500">
+        <p className="text-muted mt-2 text-xs">
           <strong>Did not bat:</strong>{" "}
           {didNotBat.map((b, i) => (
             <span key={b.position}>
@@ -490,71 +483,73 @@ function BattingCard({
 
 function BowlingCard({ bowling }: { bowling: BowlingEntry[] }) {
   return (
-    <Table>
-      <caption className="sr-only">Bowling scorecard</caption>
-      <TableHeader>
-        <TableRow>
-          <TableHead scope="col" className="w-full">
-            Bowler
-          </TableHead>
-          <TableHead scope="col" className="text-right">
-            O
-          </TableHead>
-          <TableHead scope="col" className="text-right">
-            M
-          </TableHead>
-          <TableHead scope="col" className="text-right">
-            R
-          </TableHead>
-          <TableHead scope="col" className="text-right">
-            W
-          </TableHead>
-          <TableHead scope="col" className="text-right">
-            Econ
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {bowling.map((b) => {
-          const decimalOvers = oversToDecimal(b.overs);
-          const economy =
-            decimalOvers > 0 ? (b.runs / decimalOvers).toFixed(1) : "-";
-          return (
-            <TableRow key={b.memberSlug ?? b.name}>
-              <TableCell>
-                <PlayerName
-                  name={b.name}
-                  slug={b.memberSlug}
-                  className="font-medium"
-                />
-              </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
-                {b.overs}
-              </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
-                {b.maidens}
-              </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
-                {b.runs}
-              </TableCell>
-              <TableCell className="text-right font-mono font-semibold tabular-nums">
-                {b.wickets}
-              </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
-                {economy}
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+    <div className="fc-stat">
+      <Table>
+        <caption className="sr-only">Bowling scorecard</caption>
+        <TableHeader>
+          <TableRow>
+            <TableHead scope="col" className="w-full">
+              Bowler
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              O
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              M
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              R
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              W
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              Econ
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {bowling.map((b) => {
+            const decimalOvers = oversToDecimal(b.overs);
+            const economy =
+              decimalOvers > 0 ? (b.runs / decimalOvers).toFixed(1) : "-";
+            return (
+              <TableRow key={b.memberSlug ?? b.name}>
+                <TableCell>
+                  <PlayerName
+                    name={b.name}
+                    slug={b.memberSlug}
+                    className="font-medium"
+                  />
+                </TableCell>
+                <TableCell className="text-right font-mono tabular-nums">
+                  {b.overs}
+                </TableCell>
+                <TableCell className="text-right font-mono tabular-nums">
+                  {b.maidens}
+                </TableCell>
+                <TableCell className="text-right font-mono tabular-nums">
+                  {b.runs}
+                </TableCell>
+                <TableCell className="text-right font-mono font-semibold tabular-nums">
+                  {b.wickets}
+                </TableCell>
+                <TableCell className="text-right font-mono tabular-nums">
+                  {economy}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
 
 function FallOfWickets({ fow }: { fow: FoWEntry[] }) {
   if (fow.length === 0) return null;
   return (
-    <p className="text-xs text-stone-600">
+    <p className="text-muted text-xs">
       <strong>Fall of wickets:</strong>{" "}
       {fow.map((f, i) => (
         <span key={f.wicketNumber}>
@@ -580,19 +575,21 @@ function InningsCard({
   const showNetScore =
     isPairs && startingRuns !== null && dismissalPenalty !== null;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg">{innings.teamBattingName}</CardTitle>
-        <div className="text-sm font-semibold text-stone-700">
+    <div className="border-primary bg-surface border-2">
+      <div className="border-border border-b p-4 pb-2">
+        <div className="text-primary text-lg font-semibold">
+          {innings.teamBattingName}
+        </div>
+        <div className="text-muted text-sm font-semibold">
           {formatTotalScore(innings.total)}
         </div>
         {showNetScore && (
-          <div className="text-base font-bold text-stone-800">
+          <div className="text-primary text-base font-bold">
             Net Score {netScore(innings.total, startingRuns, dismissalPenalty)}
           </div>
         )}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      </div>
+      <div className="flex flex-col gap-4 p-4">
         <BattingCard
           batting={innings.batting}
           extras={innings.extras}
@@ -600,34 +597,34 @@ function InningsCard({
           isPairs={isPairs}
         />
         <FallOfWickets fow={innings.fallOfWickets} />
-        <div className="border-t pt-4">
-          <h5 className="mb-2 text-sm font-semibold text-stone-700">Bowling</h5>
+        <div className="border-border border-t pt-4">
+          <Kicker className="mb-2">Bowling</Kicker>
           <BowlingCard bowling={innings.bowling} />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 function ScorecardSkeleton() {
   return (
     <div className="flex flex-col gap-4">
-      <h4 className="text-lg font-semibold md:text-xl">Scorecard</h4>
+      <h4 className="fc-two-tone text-lg font-semibold md:text-xl">
+        Scorecard
+      </h4>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {["innings-1", "innings-2"].map((k) => (
-          <Card key={k}>
-            <CardHeader>
-              <div className="h-5 w-40 animate-pulse rounded bg-stone-200" />
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <div key={k} className="border-primary bg-surface border-2 p-4">
+            <div className="bg-primary/10 h-5 w-40 animate-pulse rounded" />
+            <div className="mt-4 space-y-3">
               {["r1", "r2", "r3", "r4", "r5", "r6"].map((row) => (
                 <div
                   key={`${k}-${row}`}
-                  className="h-4 animate-pulse rounded bg-stone-100"
+                  className="bg-primary/10 h-4 animate-pulse rounded"
                 />
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -639,9 +636,11 @@ function ScorecardDisplay({ data }: { data: MatchDetailData }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <h4 className="text-lg font-semibold md:text-xl">Scorecard</h4>
+        <h4 className="fc-two-tone text-lg font-semibold md:text-xl">
+          Scorecard
+        </h4>
         {isPairs && (
-          <span className="rounded-full bg-stone-700 px-2 py-0.5 text-xs font-semibold text-white">
+          <span className="bg-primary text-paper px-2 py-0.5 text-xs font-semibold">
             Women&apos;s Softball
           </span>
         )}
