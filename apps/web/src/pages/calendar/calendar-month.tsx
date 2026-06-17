@@ -23,9 +23,9 @@ import {
   startOfMonth,
 } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IoChevronForward } from "react-icons/io5";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import {
   categoriseTeam,
   filterItemsByCategory,
@@ -266,6 +266,105 @@ function FilterPills({
   );
 }
 
+// --- Month Navigation Header ---
+
+function MonthNavHeader({
+  prevPath,
+  nextPath,
+  todayPath,
+  monthDisplay,
+  yearDisplay,
+  totalFixtures,
+  totalResults,
+  isCurrentMonth,
+  onToday,
+}: {
+  prevPath: string;
+  nextPath: string;
+  todayPath: string;
+  monthDisplay: string;
+  yearDisplay: string;
+  totalFixtures: number;
+  totalResults: number;
+  isCurrentMonth: boolean;
+  onToday: () => void;
+}) {
+  return (
+    <div className="mb-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+      <div className="flex items-center gap-4 sm:gap-8">
+        <Link
+          to={prevPath}
+          className="border-primary text-primary hover:bg-primary hover:text-paper flex size-10 items-center justify-center border-2 transition-colors"
+        >
+          <svg
+            className="size-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path d="M15 19l-7-7 7-7" />
+          </svg>
+        </Link>
+        <div>
+          <h1 className="fc-two-tone mb-0 text-2xl font-semibold sm:text-3xl">
+            {monthDisplay} {yearDisplay}
+          </h1>
+          <p className="text-muted text-sm">
+            {totalFixtures} fixture{totalFixtures !== 1 ? "s" : ""}
+            {totalResults > 0 && (
+              <>
+                {" "}
+                &middot; {totalResults} result{totalResults !== 1 ? "s" : ""}
+              </>
+            )}
+          </p>
+        </div>
+        <Link
+          to={nextPath}
+          className="border-primary text-primary hover:bg-primary hover:text-paper flex size-10 items-center justify-center border-2 transition-colors"
+        >
+          <svg
+            className="size-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
+      </div>
+
+      <Link
+        to={todayPath}
+        state={{ scrollToToday: true }}
+        onClick={(e) => {
+          // Already on the current month: no navigation needed, just scroll
+          // the agenda to today. Other months fall through to the Link's
+          // navigation, and the effect scrolls once it lands.
+          if (isCurrentMonth) {
+            e.preventDefault();
+            onToday();
+          }
+        }}
+        className="border-primary text-primary hover:bg-primary hover:text-paper hidden items-center gap-1.5 border-2 px-4 py-2 text-sm font-semibold transition sm:flex"
+      >
+        <svg
+          className="size-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        Today
+      </Link>
+    </div>
+  );
+}
+
 // --- Fixture strip mapping ---
 
 /**
@@ -330,7 +429,7 @@ function DateGroup({
   const heading = format(date, "EEEE d MMMM");
 
   return (
-    <div className="mb-8" id={`agenda-day-${date.getDate()}`}>
+    <div className="mb-8 scroll-mt-24" id={`agenda-day-${date.getDate()}`}>
       <div className="mb-2">
         <Kicker level={3}>{heading}</Kicker>
       </div>
@@ -366,6 +465,11 @@ export function Component() {
 
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const todayScrolledRef = useRef(false);
+  const locationPathname = location.pathname;
+  const locationState: unknown = location.state;
 
   const date = parsed
     ? new Date(parsed.year, parsed.monthIndex, 1)
@@ -465,6 +569,50 @@ export function Component() {
   const stats = summariseMonth(allItems, new Date());
   const dividerIndex = findDividerIndex(grouped, new Date());
 
+  // "Today" scrolling. The day-of-month to land on is today itself if it has
+  // fixtures, otherwise the next group on/after today (falling back to the
+  // last group). Null when the displayed month is not the current month, or
+  // before the agenda has rendered.
+  const isCurrentMonth =
+    date.getFullYear() === new Date().getFullYear() &&
+    date.getMonth() === new Date().getMonth();
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const todayTargetDay =
+    isCurrentMonth && grouped.length > 0
+      ? new Date(
+          (
+            grouped.find((g) => g.dateStr >= todayStr) ??
+            grouped[grouped.length - 1]
+          ).dateStr,
+        ).getDate()
+      : null;
+
+  const scrollToToday = () => {
+    if (todayTargetDay == null) return;
+    document
+      .getElementById(`agenda-day-${todayTargetDay}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // Arriving via the Today button from another month: scroll once the agenda
+  // for the current month has rendered, then clear the one-shot nav flag so a
+  // later re-render or back-navigation does not re-trigger it.
+  const navState: unknown = locationState;
+  const wantsTodayScroll =
+    typeof navState === "object" &&
+    navState !== null &&
+    "scrollToToday" in navState &&
+    navState.scrollToToday === true;
+  useEffect(() => {
+    if (!wantsTodayScroll || todayScrolledRef.current || todayTargetDay == null)
+      return;
+    todayScrolledRef.current = true;
+    document
+      .getElementById(`agenda-day-${todayTargetDay}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    void navigate(locationPathname, { replace: true, state: null });
+  }, [wantsTodayScroll, todayTargetDay, navigate, locationPathname]);
+
   // Navigation
   const prevDate = addMonths(date, -1);
   const nextDate = addMonths(date, 1);
@@ -509,70 +657,17 @@ export function Component() {
         </span>
       </div>
 
-      {/* Month Navigation Header */}
-      <div className="mb-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-        <div className="flex items-center gap-4 sm:gap-8">
-          <Link
-            to={prevPath}
-            className="border-primary text-primary hover:bg-primary hover:text-paper flex size-10 items-center justify-center border-2 transition-colors"
-          >
-            <svg
-              className="size-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path d="M15 19l-7-7 7-7" />
-            </svg>
-          </Link>
-          <div>
-            <h1 className="fc-two-tone mb-0 text-2xl font-semibold sm:text-3xl">
-              {monthDisplay} {yearDisplay}
-            </h1>
-            <p className="text-muted text-sm">
-              {totalFixtures} fixture{totalFixtures !== 1 ? "s" : ""}
-              {totalResults > 0 && (
-                <>
-                  {" "}
-                  &middot; {totalResults} result
-                  {totalResults !== 1 ? "s" : ""}
-                </>
-              )}
-            </p>
-          </div>
-          <Link
-            to={nextPath}
-            className="border-primary text-primary hover:bg-primary hover:text-paper flex size-10 items-center justify-center border-2 transition-colors"
-          >
-            <svg
-              className="size-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
-        </div>
-
-        <Link
-          to={todayPath}
-          className="border-primary text-primary hover:bg-primary hover:text-paper hidden items-center gap-1.5 border-2 px-4 py-2 text-sm font-semibold transition sm:flex"
-        >
-          <svg
-            className="size-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          Today
-        </Link>
-      </div>
+      <MonthNavHeader
+        prevPath={prevPath}
+        nextPath={nextPath}
+        todayPath={todayPath}
+        monthDisplay={monthDisplay}
+        yearDisplay={yearDisplay}
+        totalFixtures={totalFixtures}
+        totalResults={totalResults}
+        isCurrentMonth={isCurrentMonth}
+        onToday={scrollToToday}
+      />
 
       {/* Filter Pills */}
       <FilterPills active={activeFilter} onChange={handleFilterChange} />
