@@ -328,7 +328,7 @@ function DateGroup({
   return (
     <div className="mb-8" id={`agenda-day-${date.getDate()}`}>
       <div className="mb-2">
-        <Kicker>{heading}</Kicker>
+        <Kicker level={3}>{heading}</Kicker>
       </div>
       <FixtureStrip items={items.map(toFixtureStripItem)} />
     </div>

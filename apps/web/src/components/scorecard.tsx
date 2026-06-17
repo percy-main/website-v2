@@ -598,7 +598,9 @@ function InningsCard({
         />
         <FallOfWickets fow={innings.fallOfWickets} />
         <div className="border-border border-t pt-4">
-          <Kicker className="mb-2">Bowling</Kicker>
+          <Kicker level={5} className="mb-2">
+            Bowling
+          </Kicker>
           <BowlingCard bowling={innings.bowling} />
         </div>
       </div>

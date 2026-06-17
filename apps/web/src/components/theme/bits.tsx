@@ -4,15 +4,32 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { RisoHeading } from "./riso-heading.js";
 
-/** A small uppercase, heavily letterspaced label — the "No. 03" kicker. */
+/**
+ * A small uppercase, heavily letterspaced label — the "No. 03" kicker.
+ * Pass `level` when the kicker stands in for a real section heading (it then
+ * exposes `role="heading"` at that aria-level so screen-reader heading
+ * navigation still works); omit it for a purely decorative eyebrow sitting
+ * above its own heading. Kept as a <div> either way so the print styling is
+ * not overridden by the global heading rules.
+ */
 export function Kicker({
   children,
+  level,
   className,
 }: {
   children: ReactNode;
+  level?: 2 | 3 | 4 | 5 | 6;
   className?: string;
 }) {
-  return <div className={cn("fc-kicker", className)}>{children}</div>;
+  return (
+    <div
+      className={cn("fc-kicker", className)}
+      role={level ? "heading" : undefined}
+      aria-level={level}
+    >
+      {children}
+    </div>
+  );
 }
 
 /**

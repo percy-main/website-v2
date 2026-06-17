@@ -261,7 +261,7 @@ export function Component() {
         </div>
 
         <section className="flex flex-col gap-3">
-          <Kicker>About you</Kicker>
+          <Kicker level={2}>About you</Kicker>
           <FieldRow>
             <Field>
               <Label htmlFor="reporterName">Your name *</Label>
@@ -337,7 +337,7 @@ export function Component() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Kicker>Details of the injured / affected person</Kicker>
+          <Kicker level={2}>Details of the injured / affected person</Kicker>
           <FieldRow>
             <Field>
               <Label htmlFor="affectedName">
@@ -394,7 +394,7 @@ export function Component() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Kicker>Accident / incident details</Kicker>
+          <Kicker level={2}>Accident / incident details</Kicker>
           <FieldRow>
             <Field>
               <Label htmlFor="occurredAt">When did it happen? *</Label>
@@ -465,7 +465,7 @@ export function Component() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Kicker>Injury or ill health details</Kicker>
+          <Kicker level={2}>Injury or ill health details</Kicker>
           <div className="flex items-center gap-2">
             <Checkbox
               id="injuryOccurred"
@@ -570,7 +570,7 @@ export function Component() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Kicker>Immediate actions and witnesses</Kicker>
+          <Kicker level={2}>Immediate actions and witnesses</Kicker>
           <Field>
             <Label htmlFor="immediateActions">
               Details of any immediate actions taken
@@ -596,7 +596,7 @@ export function Component() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Kicker>Declaration</Kicker>
+          <Kicker level={2}>Declaration</Kicker>
           <div className="border-primary bg-surface flex items-start gap-3 border-2 p-4">
             <Checkbox
               id="declarationConfirmed"

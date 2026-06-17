@@ -40,7 +40,11 @@ function FormatSection({
 
   return (
     <section className="mb-8 last:mb-0">
-      {showHeading && <Kicker className="mb-3">{format.label}</Kicker>}
+      {showHeading && (
+        <Kicker level={3} className="mb-3">
+          {format.label}
+        </Kicker>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
         <StatCard label="Matches" value={String(career.batting.matches)} />
