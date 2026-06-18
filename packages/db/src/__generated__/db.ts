@@ -273,6 +273,57 @@ export interface EventSubscriber {
   meta: Json;
 }
 
+export interface Expense {
+  amount_pence: number;
+  claimant_name: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  currency: Generated<string>;
+  description: string;
+  id: Generated<string>;
+  paid_at: Timestamp | null;
+  payout_failure_reason: string | null;
+  receipt_image_url: string | null;
+  status: Generated<string>;
+  stripe_outbound_payment_id: string | null;
+  stripe_payout_method_id: string | null;
+  stripe_recipient_account_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ExpenseApproval {
+  approver_user_id: string;
+  created_at: Generated<Timestamp>;
+  decision: string;
+  expense_id: string;
+  id: Generated<string>;
+  note: string | null;
+}
+
+export interface ExpenseCategory {
+  archived_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  id: Generated<string>;
+  name: string;
+}
+
+export interface ExpenseCategoryLink {
+  category_id: string;
+  expense_id: string;
+}
+
+export interface ExpenseEvent {
+  actor_user_id: string | null;
+  created_at: Generated<Timestamp>;
+  expense_id: string;
+  from_status: string | null;
+  id: Generated<string>;
+  metadata: Json | null;
+  to_status: string | null;
+  type: string;
+}
+
 export interface FantasyChaosWeek {
   created_at: Generated<string>;
   description: string;
@@ -1045,6 +1096,11 @@ export interface DB {
   document: Document;
   document_assignment: DocumentAssignment;
   event_subscriber: EventSubscriber;
+  expense: Expense;
+  expense_approval: ExpenseApproval;
+  expense_category: ExpenseCategory;
+  expense_category_link: ExpenseCategoryLink;
+  expense_event: ExpenseEvent;
   fantasy_chaos_week: FantasyChaosWeek;
   fantasy_chip_usage: FantasyChipUsage;
   fantasy_player: FantasyPlayer;
