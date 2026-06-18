@@ -6,24 +6,27 @@ To add a new ADR, use the [`add-adr` skill](../../.claude/skills/add-adr/SKILL.m
 
 ## Index
 
-| #                                                        | Title                                                       | Date       | Status   |
-| -------------------------------------------------------- | ----------------------------------------------------------- | ---------- | -------- |
-| [001](001-api-framework.md)                              | API Framework - Fastify over Express                        | 2026-03-14 | Accepted |
-| [002](002-email-provider.md)                             | Email Provider - SES over Mailgun                           | 2026-03-14 | Accepted |
-| [003](003-baseline-migration-strategy.md)                | Baseline Migration Strategy - Single Consolidated Migration | 2026-03-14 | Accepted |
-| [004](004-auth-database-type.md)                         | better-auth Database Type - postgres                        | 2026-03-14 | Accepted |
-| [005](005-generated-types-approach.md)                   | Generated DB Types - Placeholder with PostgreSQL Types      | 2026-03-14 | Accepted |
-| [006](006-monorepo-structure.md)                         | Monorepo Structure - Following the Plan                     | 2026-03-14 | Accepted |
-| [007](007-webhook-raw-body.md)                           | Stripe Webhook Raw Body Handling                            | 2026-03-14 | Accepted |
-| [008](008-vite-proxy-for-local-dev.md)                   | Vite Dev Server Proxy for Local Development                 | 2026-03-14 | Accepted |
-| [009](009-dependency-injection.md)                       | Functional Dependency Injection                             | 2026-03-14 | Accepted |
-| [010](010-testcontainers.md)                             | Testcontainers for Integration Tests                        | 2026-03-14 | Accepted |
-| [011](011-api-type-safety.md)                            | API Type Safety Between Backend and Frontend                | 2026-03-16 | Accepted |
-| [012](012-prod-db-access.md)                             | Production DB Access via Tailscale                          | 2026-04-20 | Accepted |
-| [042](042-scout-recognition-sources.md)                  | Scout Recognition Sources - Public-Source Discovery         | 2026-05-14 | Accepted |
-| [043](043-db-role-split-principle-of-least-privilege.md) | DB Role Split - Principle of Least Privilege                | 2026-05-15 | Accepted |
-| [044](044-matchday-notification-channel-modelling.md)    | Matchday notification channel modelling                     | 2026-05-21 | Accepted |
-| [045](045-matchday-service-worker-push-integration.md)   | Matchday service worker push integration via importScripts  | 2026-05-21 | Accepted |
-| [046](046-vapid-public-key-via-api.md)                   | VAPID public key delivered via API, not bundled             | 2026-05-21 | Accepted |
-| [047](047-content-editor-blocknote.md)                   | Content Editor - BlockNote with JSON canonical format       | 2026-06-10 | Accepted |
-| [048](048-editor-image-webp-only-sync-processing.md)     | Editor images - WebP-only ladder, synchronous processing    | 2026-06-10 | Accepted |
+| #                                                         | Title                                                       | Date       | Status   |
+| --------------------------------------------------------- | ----------------------------------------------------------- | ---------- | -------- |
+| [001](001-api-framework.md)                               | API Framework - Fastify over Express                        | 2026-03-14 | Accepted |
+| [002](002-email-provider.md)                              | Email Provider - SES over Mailgun                           | 2026-03-14 | Accepted |
+| [003](003-baseline-migration-strategy.md)                 | Baseline Migration Strategy - Single Consolidated Migration | 2026-03-14 | Accepted |
+| [004](004-auth-database-type.md)                          | better-auth Database Type - postgres                        | 2026-03-14 | Accepted |
+| [005](005-generated-types-approach.md)                    | Generated DB Types - Placeholder with PostgreSQL Types      | 2026-03-14 | Accepted |
+| [006](006-monorepo-structure.md)                          | Monorepo Structure - Following the Plan                     | 2026-03-14 | Accepted |
+| [007](007-webhook-raw-body.md)                            | Stripe Webhook Raw Body Handling                            | 2026-03-14 | Accepted |
+| [008](008-vite-proxy-for-local-dev.md)                    | Vite Dev Server Proxy for Local Development                 | 2026-03-14 | Accepted |
+| [009](009-dependency-injection.md)                        | Functional Dependency Injection                             | 2026-03-14 | Accepted |
+| [010](010-testcontainers.md)                              | Testcontainers for Integration Tests                        | 2026-03-14 | Accepted |
+| [011](011-api-type-safety.md)                             | API Type Safety Between Backend and Frontend                | 2026-03-16 | Accepted |
+| [012](012-prod-db-access.md)                              | Production DB Access via Tailscale                          | 2026-04-20 | Accepted |
+| [042](042-scout-recognition-sources.md)                   | Scout Recognition Sources - Public-Source Discovery         | 2026-05-14 | Accepted |
+| [043](043-db-role-split-principle-of-least-privilege.md)  | DB Role Split - Principle of Least Privilege                | 2026-05-15 | Accepted |
+| [044](044-matchday-notification-channel-modelling.md)     | Matchday notification channel modelling                     | 2026-05-21 | Accepted |
+| [045](045-matchday-service-worker-push-integration.md)    | Matchday service worker push integration via importScripts  | 2026-05-21 | Accepted |
+| [046](046-vapid-public-key-via-api.md)                    | VAPID public key delivered via API, not bundled             | 2026-05-21 | Accepted |
+| [047](047-content-editor-blocknote.md)                    | Content Editor - BlockNote with JSON canonical format       | 2026-06-10 | Accepted |
+| [048](048-editor-image-webp-only-sync-processing.md)      | Editor images - WebP-only ladder, synchronous processing    | 2026-06-10 | Accepted |
+| [049](049-ai-content-author-assistant.md)                 | AI content-author assistant                                 | 2026-06-10 | Accepted |
+| [050](050-reimbursement-payouts-stripe-global-payouts.md) | Reimbursement payouts via Stripe Global Payouts             | 2026-06-18 | Accepted |
+| [051](051-stripe-global-payouts-raw-request-isolation.md) | Preview v2 Global Payouts via rawRequest on isolated client | 2026-06-18 | Accepted |

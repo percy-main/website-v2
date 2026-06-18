@@ -47,18 +47,18 @@ aggregated totals.
 
 ## 3. Repo patterns to reuse
 
-| Concern | Existing asset | Notes |
-| --- | --- | --- |
-| Approve/deny + email-on-decision template | `apps/api/src/features/financial-relief/` (CRUD, status transitions, decision email, DI deps) | Primary template for the workflow + notify lifecycle. |
-| Roles | `packages/shared/src/auth/permissions.ts` (`statements`, `roles`, `ALL_PERMS`, `ASSIGNABLE_ROLES`, `ROLE_LABELS`). Existing `finance_viewer` / `finance_admin`. | Roles persist as a comma-separated string in `user.role`. `checkPermission()` shared FE/BE. |
-| Route auth | `requirePermission(resource, action)` preHandler + `getAuthSession(request)` in `apps/api/src/features/auth/middleware.ts` | 401 / 403 handled for us. |
-| Receipt upload | `app.s3.uploadReceipt(...)` in `apps/api/src/lib/s3-upload.ts` (base64 data-URL in JSON body, 5MB cap, jpeg/png/webp/heic). Config `S3_RECEIPT_PREFIX`. | Generic infra; reuse directly. Retain images indefinitely (decision 13.9). |
-| Email to a user | `app.send({ to, subject, html })` + React Email templates in `packages/email/src/templates/`. Model on `FinancialReliefDecision.tsx`. | SES via `createSesSend`; dev viewer on port 5174. |
-| Stripe v1 client | `createStripe({ stripeSecretKey })` in `apps/api/src/features/payments/stripe.ts`. `stripe@^22.2.1` (Basil, v1). Clients created per-plugin, injected into curried services. | The v2 Global Payouts client must be a SEPARATE instance (section 7). |
-| Stripe v1 webhooks | `apps/api/src/features/payments/webhook.ts` + `stripe_webhook_event` idempotency table + encapsulated raw-body parser + `StripeWebhookTerminalError` | The v2 money-movement events use a DIFFERENT delivery mechanism (section 7). |
-| Money | integer `*_amount_pence` columns, currency hardcoded `"gbp"`. | Format with `Intl.NumberFormat("en-GB", { currency: "GBP" })`. |
-| Admin UI | React Router v7 + react-query + typed client (`apps/web/src/lib/api-client.ts`). Tabs in `apps/web/src/pages/admin/admin-panel.tsx` (`SECTIONS`). Model the page on `apps/web/src/pages/admin/expense-history-tab.tsx`. | Finance section already exists. |
-| Migrations | `pnpm db:migration` -> write `up()` -> `pnpm db:up` -> `pnpm db:types` -> `pnpm openapi:generate`. Skills: `add-migration`, `add-endpoint`, `write-tests`. | Clean create-table template: `packages/db/src/migrations/2026-05-21T21:13:05.080Z.ts`. |
+| Concern                                   | Existing asset                                                                                                                                                                                                          | Notes                                                                                       |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Approve/deny + email-on-decision template | `apps/api/src/features/financial-relief/` (CRUD, status transitions, decision email, DI deps)                                                                                                                           | Primary template for the workflow + notify lifecycle.                                       |
+| Roles                                     | `packages/shared/src/auth/permissions.ts` (`statements`, `roles`, `ALL_PERMS`, `ASSIGNABLE_ROLES`, `ROLE_LABELS`). Existing `finance_viewer` / `finance_admin`.                                                         | Roles persist as a comma-separated string in `user.role`. `checkPermission()` shared FE/BE. |
+| Route auth                                | `requirePermission(resource, action)` preHandler + `getAuthSession(request)` in `apps/api/src/features/auth/middleware.ts`                                                                                              | 401 / 403 handled for us.                                                                   |
+| Receipt upload                            | `app.s3.uploadReceipt(...)` in `apps/api/src/lib/s3-upload.ts` (base64 data-URL in JSON body, 5MB cap, jpeg/png/webp/heic). Config `S3_RECEIPT_PREFIX`.                                                                 | Generic infra; reuse directly. Retain images indefinitely (decision 13.9).                  |
+| Email to a user                           | `app.send({ to, subject, html })` + React Email templates in `packages/email/src/templates/`. Model on `FinancialReliefDecision.tsx`.                                                                                   | SES via `createSesSend`; dev viewer on port 5174.                                           |
+| Stripe v1 client                          | `createStripe({ stripeSecretKey })` in `apps/api/src/features/payments/stripe.ts`. `stripe@^22.2.1` (Basil, v1). Clients created per-plugin, injected into curried services.                                            | The v2 Global Payouts client must be a SEPARATE instance (section 7).                       |
+| Stripe v1 webhooks                        | `apps/api/src/features/payments/webhook.ts` + `stripe_webhook_event` idempotency table + encapsulated raw-body parser + `StripeWebhookTerminalError`                                                                    | The v2 money-movement events use a DIFFERENT delivery mechanism (section 7).                |
+| Money                                     | integer `*_amount_pence` columns, currency hardcoded `"gbp"`.                                                                                                                                                           | Format with `Intl.NumberFormat("en-GB", { currency: "GBP" })`.                              |
+| Admin UI                                  | React Router v7 + react-query + typed client (`apps/web/src/lib/api-client.ts`). Tabs in `apps/web/src/pages/admin/admin-panel.tsx` (`SECTIONS`). Model the page on `apps/web/src/pages/admin/expense-history-tab.tsx`. | Finance section already exists.                                                             |
+| Migrations                                | `pnpm db:migration` -> write `up()` -> `pnpm db:up` -> `pnpm db:types` -> `pnpm openapi:generate`. Skills: `add-migration`, `add-endpoint`, `write-tests`.                                                              | Clean create-table template: `packages/db/src/migrations/2026-05-21T21:13:05.080Z.ts`.      |
 
 New standalone feature folder: `apps/api/src/features/expense/`
 (`routes.ts`, `service.ts`, `schemas.ts`, `service.test.ts`, `integration.test.ts`).
@@ -68,6 +68,7 @@ New standalone feature folder: `apps/api/src/features/expense/`
 New tables via Kysely migration. All money as integer pence.
 
 ### `expense`
+
 - `id` uuid pk
 - `created_by` -> `user.id` (submitter)
 - `claimant_name` text (display name at submit time)
@@ -88,6 +89,7 @@ Indexes: `status`, `created_by`. Receipt-required rule enforced in the submit
 service/schema, not as a pure column check (it depends on amount).
 
 ### `expense_approval` (enforces the two-approver rule + separation of duties)
+
 - `id` uuid pk
 - `expense_id` -> `expense.id` on delete cascade
 - `approver_user_id` -> `user.id`
@@ -101,6 +103,7 @@ Status is derived from approvals + the threshold (section 9). The submitter is
 never permitted a row here.
 
 ### `expense_category` (admin-editable tag vocabulary, decision 13.4)
+
 - `id` uuid pk
 - `name` citext unique (case-insensitive dedupe)
 - `created_by` -> `user.id` null
@@ -108,6 +111,7 @@ never permitted a row here.
 - `created_at` timestamptz not null default now()
 
 ### `expense_category_link` (many-to-many: an expense has one or more tags)
+
 - `expense_id` -> `expense.id` on delete cascade
 - `category_id` -> `expense_category.id`
 - composite pk `(expense_id, category_id)`
@@ -118,6 +122,7 @@ the approver can add/remove at decision; creating a "new" tag upserts into
 least one tag is required to reach `approved`.
 
 ### `expense_event` (append-only audit log)
+
 - `id` uuid pk
 - `expense_id` -> `expense.id` on delete cascade
 - `actor_user_id` -> `user.id` null (null for Stripe-system events)
@@ -137,6 +142,7 @@ Add an `expenses` resource to `packages/shared/src/auth/permissions.ts`
 Actions: `submit`, `view_own`, `view`, `approve`, `pay`, `manage_tags`.
 
 Roles:
+
 - `expense_submitter` -> `expenses: ["submit", "view_own"]`.
 - `expense_approver` -> `expenses: ["view", "approve"]`.
 - `pay` and the full dashboard granted to the existing `finance_admin` /
@@ -145,6 +151,7 @@ Roles:
   Submitters/approvers can still create new tags inline via proposal.
 
 Controls / separation of duties:
+
 - An approver cannot approve their own submission (no `expense_approval` row
   where `approver_user_id == created_by`).
 - The two required approvals (for GBP 50+) must come from two distinct users
@@ -208,7 +215,9 @@ product is in preview.
   integration time rather than assuming the field set.
 
 ### New config (`apps/api/src/config.ts`)
+
 Required env vars (Terraform threads placeholders, per repo convention):
+
 - `STRIPE_FINANCIAL_ACCOUNT_ID`
 - `STRIPE_PAYOUTS_API_VERSION` (preview version string)
 
@@ -239,6 +248,7 @@ pending --1st approve--> ------------------> approved --pay--> paid
 ## 9. Notifications
 
 Reuse `app.send` + new React Email templates in `packages/email/src/templates/`:
+
 - On submit: email every user holding `expense_approver` (decision 13.3).
 - On first approval of a GBP 50+ expense: email the approver pool that a second
   approval is needed.
@@ -252,6 +262,7 @@ All sends are best-effort (try/catch + log), matching `financial-relief`.
 
 Via the `add-endpoint` skill (Zod schemas, curried services, OpenAPI regen,
 typed client):
+
 - `POST /api/expenses` - submit (`expenses:submit`). description, amount,
   optional `receiptImage` data-URL (required when amount > GBP 10), proposed
   tag names/ids.
@@ -281,6 +292,7 @@ typed client):
 ## 12. Testing
 
 This is a money-movement feature, so coverage is expected, not optional:
+
 - Unit tests (mocked DB) for the status machine: single vs two-approver paths,
   self-approval rejection, distinct-approver enforcement, receipt-required rule,
   tag-required-on-approval, payout idempotency.
