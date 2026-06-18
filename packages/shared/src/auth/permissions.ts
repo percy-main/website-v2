@@ -11,6 +11,11 @@ export const statements = {
   documents: ["manage"],
   marketing: ["view", "manage"],
   finance: ["view", "manage"],
+  // Expenses reimbursement (EXPENSES.md). submit + view_own are the
+  // member-facing claimant actions; view/approve are the approver actions;
+  // pay triggers a Stripe payout (distinct from approve so paying is a
+  // separate permission); manage_tags edits the category vocabulary.
+  expenses: ["submit", "view_own", "view", "approve", "pay", "manage_tags"],
   fantasy: ["manage"],
   matchday: ["view", "manage"],
   juniors: ["view", "manage"],
@@ -42,6 +47,7 @@ const ALL_PERMS = {
   documents: ["manage"],
   marketing: ["view", "manage"],
   finance: ["view", "manage"],
+  expenses: ["submit", "view_own", "view", "approve", "pay", "manage_tags"],
   fantasy: ["manage"],
   matchday: ["view", "manage"],
   juniors: ["view", "manage"],
@@ -79,9 +85,22 @@ export const roles = {
   marketing_viewer: ac.newRole({ marketing: ["view"] }),
   marketing_admin: ac.newRole({ marketing: ["view", "manage"] }),
 
-  // Finance — treasurer, charges, fee rates, sponsorships
+  // Finance — treasurer, charges, fee rates, sponsorships. finance_admin
+  // also owns the expenses dashboard: viewing all claims, paying out
+  // approved ones, and curating the tag vocabulary. Approving claims is a
+  // deliberately separate role (expense_approver) so paying and approving
+  // can be held by different people.
   finance_viewer: ac.newRole({ finance: ["view"] }),
-  finance_admin: ac.newRole({ finance: ["view", "manage"] }),
+  finance_admin: ac.newRole({
+    finance: ["view", "manage"],
+    expenses: ["view", "pay", "manage_tags"],
+  }),
+
+  // Expenses (EXPENSES.md). expense_submitter raises claims for themselves;
+  // expense_approver reviews and approves/denies them (a GBP 50+ claim needs
+  // two distinct approvers). Both can propose new tags inline.
+  expense_submitter: ac.newRole({ expenses: ["submit", "view_own"] }),
+  expense_approver: ac.newRole({ expenses: ["view", "approve"] }),
 
   // Fantasy — admin-only (play-fantasy itself is open to any authenticated
   // member, so no viewer role).
@@ -173,6 +192,8 @@ export const ASSIGNABLE_ROLES: readonly RoleName[] = [
   "marketing_viewer",
   "finance_admin",
   "finance_viewer",
+  "expense_approver",
+  "expense_submitter",
   "fantasy_admin",
   "matchday_admin",
   "matchday_viewer",
@@ -205,6 +226,8 @@ export const ROLE_LABELS: Record<RoleName, string> = {
   marketing_admin: "Marketing admin",
   finance_viewer: "Finance viewer",
   finance_admin: "Finance admin",
+  expense_approver: "Expense approver",
+  expense_submitter: "Expense submitter",
   fantasy_admin: "Fantasy admin",
   matchday_viewer: "Matchday viewer",
   matchday_admin: "Matchday admin",
@@ -259,6 +282,7 @@ export function hasAdminPanelAccess(
     checkPermission(rawRole, "marketing", "view") ||
     checkPermission(rawRole, "finance", "view") ||
     checkPermission(rawRole, "finance", "manage") ||
+    checkPermission(rawRole, "expenses", "view") ||
     checkPermission(rawRole, "matchday", "view") ||
     checkPermission(rawRole, "fantasy", "manage") ||
     checkPermission(rawRole, "incidents", "view") ||
