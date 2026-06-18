@@ -14,6 +14,7 @@ import { sql, type Kysely } from "kysely";
 import { createElement } from "react";
 import { render } from "react-email";
 import type { S3Uploader } from "../../lib/s3-upload.ts";
+import type { PayoutsClient } from "./payouts.ts";
 import type {
   CreateCategory,
   DecideExpense,
@@ -920,5 +921,249 @@ export function updateCategory(db: Kysely<DB>) {
       throw err;
     }
     return { success: true };
+  };
+}
+
+// --- Stripe Global Payouts (Phase 2) -------------------------------------
+
+interface PayoutDeps extends NotifyDeps {
+  client: PayoutsClient | null;
+}
+
+/**
+ * Pay an approved claim via Stripe Global Payouts. The first time a claimant is
+ * paid we create their recipient and (if they have no bank details on file)
+ * return a Stripe-hosted setup link instead of paying - so the bank details
+ * live in Stripe, never here. Idempotent: a claim that already has an
+ * OutboundPayment id is never paid twice.
+ */
+export function payoutExpense(db: Kysely<DB>, deps: PayoutDeps) {
+  return async (
+    actorUserId: string,
+    expenseId: string,
+    log: FastifyBaseLogger,
+  ) => {
+    const expense = await db
+      .selectFrom("expense as e")
+      .leftJoin("user as u", "u.id", "e.created_by")
+      .where("e.id", "=", expenseId)
+      .select([
+        "e.id",
+        "e.created_by as createdBy",
+        "e.status",
+        "e.amount_pence as amountPence",
+        "e.claimant_name as claimantName",
+        "e.stripe_recipient_account_id as recipientId",
+        "e.stripe_outbound_payment_id as outboundPaymentId",
+        "u.email as claimantEmail",
+      ])
+      .executeTakeFirst();
+    if (!expense) httpError(404, "Expense not found");
+
+    // Idempotency: never create a second payout for a claim.
+    if (expense.outboundPaymentId) {
+      return {
+        status: expense.status as ExpenseStatus,
+        stripeOutboundPaymentId: expense.outboundPaymentId,
+        onboardingUrl: null,
+      };
+    }
+    if (!["approved", "payout_failed"].includes(expense.status)) {
+      httpError(400, "Only an approved claim can be paid");
+    }
+    if (!deps.client) {
+      httpError(503, "Stripe Global Payouts is not configured");
+    }
+    const client = deps.client;
+
+    // Reuse the claimant's recipient across claims; create one on first payout.
+    let recipientId = expense.recipientId;
+    if (!recipientId) {
+      const prior = await db
+        .selectFrom("expense")
+        .where("created_by", "=", expense.createdBy)
+        .where("stripe_recipient_account_id", "is not", null)
+        .orderBy("created_at", "desc")
+        .select(["stripe_recipient_account_id as recipientId"])
+        .executeTakeFirst();
+      recipientId = prior?.recipientId ?? null;
+    }
+    recipientId ??= await client.createRecipient({
+      name: expense.claimantName,
+      email: expense.claimantEmail,
+    });
+    await db
+      .updateTable("expense")
+      .set({ stripe_recipient_account_id: recipientId })
+      .where("id", "=", expenseId)
+      .execute();
+
+    // Bank details live in Stripe. If the claimant hasn't added them yet, hand
+    // back a hosted setup link rather than paying.
+    const payoutMethodId = await client.getDefaultPayoutMethodId(recipientId);
+    if (!payoutMethodId) {
+      const returnUrl = `${deps.baseUrl}/admin?section=finance&sub=reimbursements`;
+      const onboardingUrl = await client.createPayoutMethodSetupLink({
+        recipientId,
+        returnUrl,
+        refreshUrl: returnUrl,
+      });
+      await db
+        .insertInto("expense_event")
+        .values({
+          id: crypto.randomUUID(),
+          expense_id: expenseId,
+          actor_user_id: actorUserId,
+          type: "payout_setup_required",
+          from_status: expense.status,
+          to_status: expense.status,
+          metadata: { note: "Awaiting the claimant's bank details in Stripe" },
+        })
+        .execute();
+      return {
+        status: expense.status as ExpenseStatus,
+        stripeOutboundPaymentId: null,
+        onboardingUrl,
+      };
+    }
+
+    // Pay. Idempotency key = expense id so a retry returns the same payment.
+    try {
+      const op = await client.createOutboundPayment({
+        recipientId,
+        payoutMethodId,
+        amountPence: expense.amountPence,
+        description: `Percy Main expense reimbursement ${expenseId}`,
+        idempotencyKey: expenseId,
+      });
+      const now = new Date().toISOString();
+      await db.transaction().execute(async (trx) => {
+        await trx
+          .updateTable("expense")
+          .set({
+            status: "paid",
+            paid_at: now,
+            stripe_payout_method_id: payoutMethodId,
+            stripe_outbound_payment_id: op.id,
+            payout_failure_reason: null,
+            updated_at: now,
+          })
+          .where("id", "=", expenseId)
+          .execute();
+        await trx
+          .insertInto("expense_event")
+          .values({
+            id: crypto.randomUUID(),
+            expense_id: expenseId,
+            actor_user_id: actorUserId,
+            type: "payout_initiated",
+            from_status: expense.status,
+            to_status: "paid",
+            metadata: { outboundPaymentId: op.id, stripeStatus: op.status },
+          })
+          .execute();
+      });
+
+      if (expense.claimantEmail) {
+        await notifySubmitter(
+          deps,
+          {
+            to: expense.claimantEmail,
+            recipientName: expense.claimantName,
+            outcome: "paid",
+            note: null,
+            amountPence: expense.amountPence,
+          },
+          log,
+        );
+      }
+      return {
+        status: "paid" as ExpenseStatus,
+        stripeOutboundPaymentId: op.id,
+        onboardingUrl: null,
+      };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Payout failed";
+      log.error({ err, expenseId }, "expense_payout_failed");
+      const now = new Date().toISOString();
+      await db.transaction().execute(async (trx) => {
+        await trx
+          .updateTable("expense")
+          .set({
+            status: "payout_failed",
+            payout_failure_reason: reason,
+            updated_at: now,
+          })
+          .where("id", "=", expenseId)
+          .execute();
+        await trx
+          .insertInto("expense_event")
+          .values({
+            id: crypto.randomUUID(),
+            expense_id: expenseId,
+            actor_user_id: actorUserId,
+            type: "payout_failed",
+            from_status: expense.status,
+            to_status: "payout_failed",
+            metadata: { note: reason },
+          })
+          .execute();
+      });
+      return {
+        status: "payout_failed" as ExpenseStatus,
+        stripeOutboundPaymentId: null,
+        onboardingUrl: null,
+      };
+    }
+  };
+}
+
+/**
+ * Apply a Stripe webhook outcome for an OutboundPayment to the matching claim.
+ * Idempotent and tolerant of unmatched ids (logs and returns).
+ */
+export function applyPayoutWebhook(db: Kysely<DB>) {
+  return async (
+    outboundPaymentId: string,
+    outcome: "paid" | "payout_failed",
+    log: FastifyBaseLogger,
+  ) => {
+    const expense = await db
+      .selectFrom("expense")
+      .where("stripe_outbound_payment_id", "=", outboundPaymentId)
+      .select(["id", "status"])
+      .executeTakeFirst();
+    if (!expense) {
+      log.warn({ outboundPaymentId }, "expense_payout_webhook_unmatched");
+      return;
+    }
+    if (expense.status === outcome) return;
+
+    const now = new Date().toISOString();
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable("expense")
+        .set({
+          status: outcome,
+          paid_at: outcome === "paid" ? now : null,
+          payout_failure_reason:
+            outcome === "payout_failed" ? "Reported failed by Stripe" : null,
+          updated_at: now,
+        })
+        .where("id", "=", expense.id)
+        .execute();
+      await trx
+        .insertInto("expense_event")
+        .values({
+          id: crypto.randomUUID(),
+          expense_id: expense.id,
+          actor_user_id: null,
+          type: outcome === "paid" ? "payout_paid" : "payout_failed",
+          from_status: expense.status,
+          to_status: outcome,
+          metadata: { source: "stripe_webhook", outboundPaymentId },
+        })
+        .execute();
+    });
   };
 }

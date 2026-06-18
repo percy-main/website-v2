@@ -204,6 +204,9 @@ export const markPaidExpenseResponseSchema = successResponseSchema;
 export const payoutExpenseResponseSchema = z.object({
   status: expenseStatusSchema,
   stripeOutboundPaymentId: z.string().nullable(),
+  // Stripe-hosted link the claimant must follow to add bank details before a
+  // payout can run. Null once the payment is created.
+  onboardingUrl: z.string().nullable(),
 });
 export const createCategoryResponseSchema = tagSchema;
 export const updateCategoryResponseSchema = successResponseSchema;

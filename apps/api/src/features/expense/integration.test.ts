@@ -7,7 +7,9 @@ import {
   stopTestContainer,
   type TestContext,
 } from "../../test/containers.ts";
+import type { PayoutsClient } from "./payouts.ts";
 import {
+  applyPayoutWebhook,
   createCategory,
   decideExpense,
   getExpenseDetail,
@@ -16,6 +18,7 @@ import {
   listCategories,
   listExpenses,
   markExpensePaid,
+  payoutExpense,
   submitExpense,
   updateCategory,
 } from "./service.ts";
@@ -421,5 +424,216 @@ describe("expense (integration)", () => {
     expect(active.categories.some((c) => c.id === first.id)).toBe(false);
     const all = await listCategories(ctx.db)(true);
     expect(all.categories.some((c) => c.id === first.id)).toBe(true);
+  });
+});
+
+function fakeClient(overrides: Partial<PayoutsClient> = {}): PayoutsClient {
+  return {
+    createRecipient: vi.fn().mockResolvedValue("acct_recipient_test"),
+    createPayoutMethodSetupLink: vi
+      .fn()
+      .mockResolvedValue("https://stripe.test/onboard"),
+    getDefaultPayoutMethodId: vi.fn().mockResolvedValue(null),
+    createOutboundPayment: vi
+      .fn()
+      .mockResolvedValue({
+        id: `op_${crypto.randomUUID()}`,
+        status: "processing",
+      }),
+    parseWebhookEvent: vi.fn(),
+    ...overrides,
+  };
+}
+
+async function approvedClaim(amountPence = 2000) {
+  const submitter = await seedSubmitter();
+  const approver = await seedApprover();
+  const { id } = await submitClaim(submitter, { amountPence });
+  await decideExpense(ctx.db, deps())(
+    approver.userId,
+    id,
+    { decision: "approve" },
+    log,
+  );
+  return { id, submitter };
+}
+
+describe("expense payouts (integration)", () => {
+  it("returns a Stripe onboarding link when the claimant has no payout method", async () => {
+    const payer = await seedTestUser(ctx.db, {
+      role: "finance_admin",
+      withMember: false,
+    });
+    const { id } = await approvedClaim();
+    const client = fakeClient({
+      getDefaultPayoutMethodId: vi.fn().mockResolvedValue(null),
+    });
+
+    const result = await payoutExpense(ctx.db, {
+      client,
+      send: vi.fn(),
+      baseUrl: "https://percymain.org",
+    })(payer.userId, id, log);
+
+    expect(result.onboardingUrl).toBe("https://stripe.test/onboard");
+    expect(result.status).toBe("approved");
+    const row = await ctx.db
+      .selectFrom("expense")
+      .where("id", "=", id)
+      .select(["status", "stripe_recipient_account_id"])
+      .executeTakeFirstOrThrow();
+    expect(row.status).toBe("approved");
+    expect(row.stripe_recipient_account_id).toBe("acct_recipient_test");
+  });
+
+  it("creates an outbound payment and marks the claim paid", async () => {
+    const payer = await seedTestUser(ctx.db, {
+      role: "finance_admin",
+      withMember: false,
+    });
+    const { id } = await approvedClaim(3000);
+    const opId = `op_${crypto.randomUUID()}`;
+    const send = vi.fn().mockResolvedValue(undefined);
+    const client = fakeClient({
+      getDefaultPayoutMethodId: vi.fn().mockResolvedValue("pm_test"),
+      createOutboundPayment: vi
+        .fn()
+        .mockResolvedValue({ id: opId, status: "processing" }),
+    });
+
+    const result = await payoutExpense(ctx.db, {
+      client,
+      send,
+      baseUrl: "https://percymain.org",
+    })(payer.userId, id, log);
+
+    expect(result.status).toBe("paid");
+    expect(result.stripeOutboundPaymentId).toBe(opId);
+    expect(send).toHaveBeenCalledOnce();
+    const row = await ctx.db
+      .selectFrom("expense")
+      .where("id", "=", id)
+      .select(["status", "stripe_outbound_payment_id", "paid_at"])
+      .executeTakeFirstOrThrow();
+    expect(row.status).toBe("paid");
+    expect(row.stripe_outbound_payment_id).toBe(opId);
+    expect(row.paid_at).not.toBeNull();
+  });
+
+  it("never pays a claim twice (idempotent)", async () => {
+    const payer = await seedTestUser(ctx.db, {
+      role: "finance_admin",
+      withMember: false,
+    });
+    const { id } = await approvedClaim();
+    const createOutboundPayment = vi
+      .fn()
+      .mockResolvedValue({
+        id: `op_${crypto.randomUUID()}`,
+        status: "processing",
+      });
+    const client = fakeClient({
+      getDefaultPayoutMethodId: vi.fn().mockResolvedValue("pm_test"),
+      createOutboundPayment,
+    });
+    const run = () =>
+      payoutExpense(ctx.db, {
+        client,
+        send: vi.fn(),
+        baseUrl: "https://percymain.org",
+      })(payer.userId, id, log);
+
+    const first = await run();
+    const second = await run();
+    expect(second.stripeOutboundPaymentId).toBe(first.stripeOutboundPaymentId);
+    expect(createOutboundPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it("records payout_failed when the OutboundPayment call throws", async () => {
+    const payer = await seedTestUser(ctx.db, {
+      role: "finance_admin",
+      withMember: false,
+    });
+    const { id } = await approvedClaim();
+    const client = fakeClient({
+      getDefaultPayoutMethodId: vi.fn().mockResolvedValue("pm_test"),
+      createOutboundPayment: vi
+        .fn()
+        .mockRejectedValue(new Error("insufficient funds")),
+    });
+
+    const result = await payoutExpense(ctx.db, {
+      client,
+      send: vi.fn(),
+      baseUrl: "https://percymain.org",
+    })(payer.userId, id, log);
+
+    expect(result.status).toBe("payout_failed");
+    const row = await ctx.db
+      .selectFrom("expense")
+      .where("id", "=", id)
+      .select(["status", "payout_failure_reason"])
+      .executeTakeFirstOrThrow();
+    expect(row.status).toBe("payout_failed");
+    expect(row.payout_failure_reason).toContain("insufficient funds");
+  });
+
+  it("rejects a payout on a non-approved claim (400)", async () => {
+    const payer = await seedTestUser(ctx.db, {
+      role: "finance_admin",
+      withMember: false,
+    });
+    const submitter = await seedSubmitter();
+    const { id } = await submitClaim(submitter);
+    await expect(
+      payoutExpense(ctx.db, {
+        client: fakeClient(),
+        send: vi.fn(),
+        baseUrl: "https://percymain.org",
+      })(payer.userId, id, log),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("returns 503 when Global Payouts is not configured", async () => {
+    const payer = await seedTestUser(ctx.db, {
+      role: "finance_admin",
+      withMember: false,
+    });
+    const { id } = await approvedClaim();
+    await expect(
+      payoutExpense(ctx.db, {
+        client: null,
+        send: vi.fn(),
+        baseUrl: "https://percymain.org",
+      })(payer.userId, id, log),
+    ).rejects.toMatchObject({ statusCode: 503 });
+  });
+
+  it("webhook flips a paid claim to payout_failed on a failure event", async () => {
+    const payer = await seedTestUser(ctx.db, {
+      role: "finance_admin",
+      withMember: false,
+    });
+    const { id } = await approvedClaim();
+    const opId = `op_${crypto.randomUUID()}`;
+    await payoutExpense(ctx.db, {
+      client: fakeClient({
+        getDefaultPayoutMethodId: vi.fn().mockResolvedValue("pm_test"),
+        createOutboundPayment: vi
+          .fn()
+          .mockResolvedValue({ id: opId, status: "processing" }),
+      }),
+      send: vi.fn(),
+      baseUrl: "https://percymain.org",
+    })(payer.userId, id, log);
+
+    await applyPayoutWebhook(ctx.db)(opId, "payout_failed", log);
+
+    const row = await ctx.db
+      .selectFrom("expense")
+      .where("id", "=", id)
+      .select(["status"])
+      .executeTakeFirstOrThrow();
+    expect(row.status).toBe("payout_failed");
   });
 });

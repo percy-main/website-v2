@@ -135,6 +135,22 @@ function DetailBody({
     onError: (e: Error) => setError(e.message),
   });
 
+  const payout = useMutation({
+    mutationFn: () =>
+      callApi(
+        api.POST("/api/expenses/{expenseId}/payout", {
+          params: { path: { expenseId } },
+        }),
+      ),
+    onSuccess: async () => {
+      setError(null);
+      // If there's no payout method on file yet, the result carries a hosted
+      // link (read off payout.data below) for the claimant to add bank details.
+      await queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
   if (isLoading || !data) {
     return <p className="text-stone-500">Loading…</p>;
   }
@@ -145,7 +161,7 @@ function DetailBody({
     expense.status === "awaiting_second_approval";
   const payable =
     expense.status === "approved" || expense.status === "payout_failed";
-  const busy = decide.isPending || markPaid.isPending;
+  const busy = decide.isPending || markPaid.isPending || payout.isPending;
 
   return (
     <div className="space-y-4">
@@ -279,15 +295,34 @@ function DetailBody({
               </>
             )}
             {canPay && payable && (
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => markPaid.mutate()}
-              >
-                Mark paid (manual)
-              </Button>
+              <>
+                <Button disabled={busy} onClick={() => payout.mutate()}>
+                  Pay via Stripe
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => markPaid.mutate()}
+                >
+                  Mark paid (manual)
+                </Button>
+              </>
             )}
           </div>
+          {payout.data?.onboardingUrl && (
+            <p className="text-sm text-amber-700">
+              The claimant needs to add their bank details first.{" "}
+              <a
+                href={payout.data.onboardingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                Open the secure Stripe setup link
+              </a>{" "}
+              and share it with them, then pay again.
+            </p>
+          )}
         </div>
       ) : null}
 

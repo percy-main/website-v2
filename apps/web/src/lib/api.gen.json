@@ -23567,6 +23567,69 @@
         }
       }
     },
+    "/api/expenses/{expenseId}/payout": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "expenseId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "awaiting_second_approval",
+                        "approved",
+                        "denied",
+                        "paid",
+                        "payout_failed"
+                      ]
+                    },
+                    "stripeOutboundPaymentId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "onboardingUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "stripeOutboundPaymentId",
+                    "onboardingUrl"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stripe/payouts-webhook": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/admin/user-groups": {
       "get": {
         "responses": {

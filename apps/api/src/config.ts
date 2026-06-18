@@ -63,6 +63,19 @@ const configSchema = z.object({
   STRIPE_SECRET_KEY: z.string(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
+  // Stripe Global Payouts (EXPENSES.md Phase 2). Preview v2 API; see
+  // features/expense/payouts.ts. Deliberately placeholder-tolerant (not hard
+  // required) so the API boots everywhere before the preview Financial Account
+  // is provisioned - the payout endpoint returns a clear "not configured"
+  // error until both are set. Enabling payouts in prod also means wiring these
+  // as SSM params in infra (mirror VAPID_PUBLIC_KEY) and seeding the real
+  // financial account id + preview version string.
+  STRIPE_FINANCIAL_ACCOUNT_ID: optionalPlaceholderString,
+  STRIPE_PAYOUTS_API_VERSION: optionalPlaceholderString,
+  // Separate webhook signing secret for the v2 money-management event
+  // destination (distinct from the v1 STRIPE_WEBHOOK_SECRET).
+  STRIPE_PAYOUTS_WEBHOOK_SECRET: optionalPlaceholderString,
+
   // Email
   EMAIL_PROVIDER: z.enum(["dev", "ses"]).default("dev"),
   SES_REGION: z.string().default("eu-west-2"),
