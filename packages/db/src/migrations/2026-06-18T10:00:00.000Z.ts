@@ -29,9 +29,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("description", "text", (col) => col.notNull())
     .addColumn("amount_pence", "integer", (col) => col.notNull())
     .addColumn("currency", "text", (col) => col.notNull().defaultTo("gbp"))
-    .addColumn("status", "text", (col) =>
-      col.notNull().defaultTo("pending"),
-    )
+    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending"))
     .addColumn("receipt_image_url", "text")
     // Stripe Global Payouts linkage (Phase 2). Nullable: a claim has no
     // payout objects until it is paid.

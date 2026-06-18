@@ -434,12 +434,10 @@ function fakeClient(overrides: Partial<PayoutsClient> = {}): PayoutsClient {
       .fn()
       .mockResolvedValue("https://stripe.test/onboard"),
     getDefaultPayoutMethodId: vi.fn().mockResolvedValue(null),
-    createOutboundPayment: vi
-      .fn()
-      .mockResolvedValue({
-        id: `op_${crypto.randomUUID()}`,
-        status: "processing",
-      }),
+    createOutboundPayment: vi.fn().mockResolvedValue({
+      id: `op_${crypto.randomUUID()}`,
+      status: "processing",
+    }),
     parseWebhookEvent: vi.fn(),
     ...overrides,
   };
@@ -526,12 +524,10 @@ describe("expense payouts (integration)", () => {
       withMember: false,
     });
     const { id } = await approvedClaim();
-    const createOutboundPayment = vi
-      .fn()
-      .mockResolvedValue({
-        id: `op_${crypto.randomUUID()}`,
-        status: "processing",
-      });
+    const createOutboundPayment = vi.fn().mockResolvedValue({
+      id: `op_${crypto.randomUUID()}`,
+      status: "processing",
+    });
     const client = fakeClient({
       getDefaultPayoutMethodId: vi.fn().mockResolvedValue("pm_test"),
       createOutboundPayment,
