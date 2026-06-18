@@ -28,13 +28,19 @@ export type SubmitExpense = z.infer<typeof submitExpenseSchema>;
 
 // --- Params --------------------------------------------------------------
 
-export const expenseIdParamSchema = z.object({ expenseId: z.string().min(1) });
+export const expenseIdParamSchema = z.object({ expenseId: z.uuid() });
 export type ExpenseIdParam = z.infer<typeof expenseIdParamSchema>;
 
 export const categoryIdParamSchema = z.object({
-  categoryId: z.string().min(1),
+  categoryId: z.uuid(),
 });
 export type CategoryIdParam = z.infer<typeof categoryIdParamSchema>;
+
+// Accepts an ISO date ("2026-06-18") or datetime; rejects garbage so a bad
+// filter returns a Zod 400 rather than reaching Postgres as a 500.
+const dateFilter = z
+  .string()
+  .refine((v) => !Number.isNaN(Date.parse(v)), { message: "Invalid date" });
 
 // --- Approver / admin actions -------------------------------------------
 
@@ -75,16 +81,16 @@ export const listExpensesSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   status: z.union([expenseStatusSchema, z.literal("all")]).default("all"),
-  tagId: z.string().optional(),
+  tagId: z.uuid().optional(),
   search: z.string().optional(),
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
+  dateFrom: dateFilter.optional(),
+  dateTo: dateFilter.optional(),
 });
 export type ListExpenses = z.infer<typeof listExpensesSchema>;
 
 export const summaryQuerySchema = z.object({
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
+  dateFrom: dateFilter.optional(),
+  dateTo: dateFilter.optional(),
 });
 export type SummaryQuery = z.infer<typeof summaryQuerySchema>;
 

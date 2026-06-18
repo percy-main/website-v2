@@ -632,4 +632,37 @@ describe("expense payouts (integration)", () => {
       .executeTakeFirstOrThrow();
     expect(row.status).toBe("payout_failed");
   });
+
+  it("retries a webhook-failed payout instead of echoing the old failed one", async () => {
+    const payer = await seedTestUser(ctx.db, {
+      role: "finance_admin",
+      withMember: false,
+    });
+    const { id } = await approvedClaim();
+    const firstOp = `op_${crypto.randomUUID()}`;
+    const secondOp = `op_${crypto.randomUUID()}`;
+    const createOutboundPayment = vi
+      .fn()
+      .mockResolvedValueOnce({ id: firstOp, status: "processing" })
+      .mockResolvedValueOnce({ id: secondOp, status: "processing" });
+    const run = () =>
+      payoutExpense(ctx.db, {
+        client: fakeClient({
+          getDefaultPayoutMethodId: vi.fn().mockResolvedValue("pm_test"),
+          createOutboundPayment,
+        }),
+        send: vi.fn(),
+        baseUrl: "https://percymain.org",
+      })(payer.userId, id, log);
+
+    await run();
+    await applyPayoutWebhook(ctx.db)(firstOp, "payout_failed", log);
+
+    // The claim is payout_failed but still carries firstOp's id. A retry must
+    // NOT short-circuit on that id; it should create a fresh payment.
+    const retry = await run();
+    expect(createOutboundPayment).toHaveBeenCalledTimes(2);
+    expect(retry.status).toBe("paid");
+    expect(retry.stripeOutboundPaymentId).toBe(secondOp);
+  });
 });

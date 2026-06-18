@@ -235,7 +235,7 @@ async function notifyApprovers(
         amountPence: args.amountPence,
         description: args.description,
         secondApproval: args.secondApproval,
-        reviewUrl: `${deps.baseUrl}/admin?section=finance&tab=expenses`,
+        reviewUrl: `${deps.baseUrl}/admin?section=finance&sub=reimbursements`,
       }),
     );
     await Promise.all(
@@ -585,6 +585,22 @@ export function decideExpense(db: Kysely<DB>, deps: NotifyDeps) {
     }
 
     const outcome = await db.transaction().execute(async (trx) => {
+      // Lock the claim row so concurrent decisions serialise. Without this,
+      // two approvers acting at once on a GBP 50+ claim could each read
+      // "pending", insert an approval, and both land on
+      // awaiting_second_approval (miscounting the two approvals). Re-read the
+      // status under the lock and re-check the guard.
+      const locked = await trx
+        .selectFrom("expense")
+        .where("id", "=", expenseId)
+        .select(["status"])
+        .forUpdate()
+        .executeTakeFirstOrThrow();
+      const fromStatus = locked.status;
+      if (!["pending", "awaiting_second_approval"].includes(fromStatus)) {
+        httpError(400, "This claim has already been decided");
+      }
+
       // Record this approver's decision. The unique (expense_id,
       // approver_user_id) constraint blocks a second decision from the same
       // person, which is what makes the two-approver rule require two
@@ -625,7 +641,7 @@ export function decideExpense(db: Kysely<DB>, deps: NotifyDeps) {
             expense_id: expenseId,
             actor_user_id: approverUserId,
             type: "denied",
-            from_status: expense.status,
+            from_status: fromStatus,
             to_status: "denied",
             metadata: data.note ? { note: data.note } : null,
           })
@@ -674,7 +690,7 @@ export function decideExpense(db: Kysely<DB>, deps: NotifyDeps) {
           expense_id: expenseId,
           actor_user_id: approverUserId,
           type: "approved",
-          from_status: expense.status,
+          from_status: fromStatus,
           to_status: nextStatus,
           metadata: {
             approvalCount: approvedCount,
@@ -748,6 +764,17 @@ export function markExpensePaid(db: Kysely<DB>, deps: NotifyDeps) {
 
     const now = new Date().toISOString();
     await db.transaction().execute(async (trx) => {
+      // Lock + re-check under the row lock so a manual mark-paid can't race a
+      // Stripe payout (or another mark-paid) into a double "paid".
+      const locked = await trx
+        .selectFrom("expense")
+        .where("id", "=", expenseId)
+        .select(["status"])
+        .forUpdate()
+        .executeTakeFirstOrThrow();
+      if (!["approved", "payout_failed"].includes(locked.status)) {
+        httpError(400, "Only an approved claim can be marked paid");
+      }
       await trx
         .updateTable("expense")
         .set({ status: "paid", paid_at: now, updated_at: now })
@@ -760,7 +787,7 @@ export function markExpensePaid(db: Kysely<DB>, deps: NotifyDeps) {
           expense_id: expenseId,
           actor_user_id: actorUserId,
           type: "payout_paid",
-          from_status: expense.status,
+          from_status: locked.status,
           to_status: "paid",
           metadata: {
             manual: true,
@@ -960,10 +987,12 @@ export function payoutExpense(db: Kysely<DB>, deps: PayoutDeps) {
       .executeTakeFirst();
     if (!expense) httpError(404, "Expense not found");
 
-    // Idempotency: never create a second payout for a claim.
-    if (expense.outboundPaymentId) {
+    // A paid claim is terminal - never pay it again. (A payout_failed claim
+    // may still carry the failed OutboundPayment id, but it IS retryable, so
+    // we don't short-circuit on the id alone.)
+    if (expense.status === "paid") {
       return {
-        status: expense.status as ExpenseStatus,
+        status: "paid" as ExpenseStatus,
         stripeOutboundPaymentId: expense.outboundPaymentId,
         onboardingUrl: null,
       };
@@ -1027,15 +1056,33 @@ export function payoutExpense(db: Kysely<DB>, deps: PayoutDeps) {
       };
     }
 
-    // Pay. Idempotency key = expense id so a retry returns the same payment.
+    // Pay. For a first attempt the idempotency key is the expense id (a
+    // double-submit returns the same payment). A retry after a webhook-failed
+    // payout uses a fresh key so Stripe creates a NEW payment rather than
+    // echoing the old failed one.
+    const idempotencyKey =
+      expense.status === "payout_failed"
+        ? `${expenseId}:retry:${crypto.randomUUID()}`
+        : expenseId;
     try {
       const op = await client.createOutboundPayment({
         recipientId,
         payoutMethodId,
         amountPence: expense.amountPence,
         description: `Percy Main expense reimbursement ${expenseId}`,
-        idempotencyKey: expenseId,
+        idempotencyKey,
       });
+
+      // A synchronously-terminal failure status must not be recorded as paid;
+      // treat it like a thrown error. processing/posted/pending are optimistic
+      // "on its way" and the webhook confirms or corrects them.
+      const terminalFailure = ["failed", "returned", "canceled"].includes(
+        op.status.toLowerCase(),
+      );
+      if (terminalFailure) {
+        throw new Error(`Stripe returned status "${op.status}"`);
+      }
+
       const now = new Date().toISOString();
       await db.transaction().execute(async (trx) => {
         await trx

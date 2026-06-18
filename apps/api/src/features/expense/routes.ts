@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { z } from "zod";
 import {
   getAuthSession,
   requireAnyPermission,
@@ -289,28 +290,39 @@ export const expenseRoutes: FastifyPluginAsyncZod = async (app) => {
 
     const onWebhook = applyPayoutWebhook(app.db);
 
-    webhookScope.post("/stripe/payouts-webhook", async (request, reply) => {
-      const signature = request.headers["stripe-signature"];
-      if (!payoutsClient || typeof signature !== "string") {
-        return reply.status(400).send({ error: "Bad webhook request" });
-      }
-      let event;
-      try {
-        event = payoutsClient.parseWebhookEvent(
-          request.body as Buffer,
-          signature,
-        );
-      } catch (err) {
-        request.log.error({ err }, "expense_payout_webhook_bad_signature");
-        return reply.status(400).send({ error: "Invalid signature" });
-      }
+    webhookScope.post(
+      "/stripe/payouts-webhook",
+      {
+        schema: {
+          response: {
+            200: z.object({ received: z.boolean() }),
+            400: z.object({ error: z.string() }),
+          },
+        },
+      },
+      async (request, reply) => {
+        const signature = request.headers["stripe-signature"];
+        if (!payoutsClient || typeof signature !== "string") {
+          return reply.status(400).send({ error: "Bad webhook request" });
+        }
+        let event;
+        try {
+          event = payoutsClient.parseWebhookEvent(
+            request.body as Buffer,
+            signature,
+          );
+        } catch (err) {
+          request.log.error({ err }, "expense_payout_webhook_bad_signature");
+          return reply.status(400).send({ error: "Invalid signature" });
+        }
 
-      const outcome = mapOutboundPaymentEvent(event.type);
-      if (outcome) {
-        const id = outboundPaymentIdFromEvent(event);
-        if (id) await onWebhook(id, outcome, request.log);
-      }
-      return reply.status(200).send({ received: true });
-    });
+        const outcome = mapOutboundPaymentEvent(event.type);
+        if (outcome) {
+          const id = outboundPaymentIdFromEvent(event);
+          if (id) await onWebhook(id, outcome, request.log);
+        }
+        return reply.status(200).send({ received: true });
+      },
+    );
   });
 };

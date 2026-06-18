@@ -87,7 +87,8 @@ export const ExpenseSubmitted = email<Props>(
       amountPence: 2350,
       description: "Petrol to the away fixture at Tynemouth",
       secondApproval: false,
-      reviewUrl: "http://localhost:5173/admin?section=finance&tab=expenses",
+      reviewUrl:
+        "http://localhost:5173/admin?section=finance&sub=reimbursements",
     },
   },
 )(Component);
