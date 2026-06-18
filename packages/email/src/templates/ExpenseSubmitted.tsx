@@ -49,7 +49,8 @@ const Component: FC<Props> = ({
         {secondApproval ? (
           <Text style={styles.paragraph}>
             An expense claim of {formatGbp(amountPence)} from {claimantName} has
-            its first approval and needs a second approver before it can be paid.
+            its first approval and needs a second approver before it can be
+            paid.
           </Text>
         ) : (
           <Text style={styles.paragraph}>

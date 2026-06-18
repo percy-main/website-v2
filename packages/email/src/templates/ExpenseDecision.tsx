@@ -79,17 +79,14 @@ const Component: FC<Props> = ({
   </Html>
 );
 
-export const ExpenseDecision = email<Props>(
-  "An update on your expense claim",
-  {
-    preview: {
-      imageBaseUrl: "http://localhost:5173/images",
-      recipientName: "Jane Smith",
-      outcome: "approved",
-      note: "Approved under the travel budget.",
-      amountPence: 2350,
-    },
+export const ExpenseDecision = email<Props>("An update on your expense claim", {
+  preview: {
+    imageBaseUrl: "http://localhost:5173/images",
+    recipientName: "Jane Smith",
+    outcome: "approved",
+    note: "Approved under the travel budget.",
+    amountPence: 2350,
   },
-)(Component);
+})(Component);
 
 export default Component;

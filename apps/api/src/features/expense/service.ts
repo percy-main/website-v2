@@ -1,5 +1,9 @@
 import type { DB } from "@percy-main/db";
-import { ExpenseDecision, ExpenseSubmitted, type Email } from "@percy-main/email";
+import {
+  ExpenseDecision,
+  ExpenseSubmitted,
+  type Email,
+} from "@percy-main/email";
 import {
   EXPENSE_STATUSES,
   expenseNeedsTwoApprovers,
@@ -112,7 +116,9 @@ async function setExpenseTags(
   if (categoryIds.length > 0) {
     await exec
       .insertInto("expense_category_link")
-      .values(categoryIds.map((id) => ({ expense_id: expenseId, category_id: id })))
+      .values(
+        categoryIds.map((id) => ({ expense_id: expenseId, category_id: id })),
+      )
       .execute();
   }
 }
@@ -121,7 +127,7 @@ async function setExpenseTags(
 async function loadRowExtras(db: Kysely<DB>, expenseIds: string[]) {
   if (expenseIds.length === 0) {
     return {
-      tagsByExpense: new Map<string, { id: string; name: string }[]>(),
+      tagsByExpense: new Map<string, Array<{ id: string; name: string }>>(),
       approvalCountByExpense: new Map<string, number>(),
       decidedAtByExpense: new Map<string, string>(),
     };
@@ -134,7 +140,7 @@ async function loadRowExtras(db: Kysely<DB>, expenseIds: string[]) {
     .select(["l.expense_id as expenseId", "c.id as id", "c.name as name"])
     .orderBy("c.name", "asc")
     .execute();
-  const tagsByExpense = new Map<string, { id: string; name: string }[]>();
+  const tagsByExpense = new Map<string, Array<{ id: string; name: string }>>();
   for (const t of tagRows) {
     const list = tagsByExpense.get(t.expenseId) ?? [];
     list.push({ id: t.id, name: t.name });
@@ -538,7 +544,7 @@ function readEventNote(metadata: unknown): string | null {
     metadata &&
     typeof metadata === "object" &&
     "note" in metadata &&
-    typeof (metadata as { note: unknown }).note === "string"
+    typeof metadata.note === "string"
   ) {
     return (metadata as { note: string }).note;
   }
@@ -623,7 +629,10 @@ export function decideExpense(db: Kysely<DB>, deps: NotifyDeps) {
             metadata: data.note ? { note: data.note } : null,
           })
           .execute();
-        return { status: "denied" as ExpenseStatus, secondApprovalNeeded: false };
+        return {
+          status: "denied" as ExpenseStatus,
+          secondApprovalNeeded: false,
+        };
       }
 
       // Approve: finalise tags (approver may edit the set), then require at
@@ -792,21 +801,25 @@ export function getExpenseSummary(db: Kysely<DB>) {
       .select((eb) => [
         "status",
         eb.fn.countAll<string>().as("count"),
-        eb.fn.coalesce(eb.fn.sum("amount_pence"), sql<string>`0`).as("sumPence"),
+        eb.fn
+          .coalesce(eb.fn.sum("amount_pence"), sql<string>`0`)
+          .as("sumPence"),
       ])
       .groupBy("status")
       .execute();
 
     const emptyBucket = () => ({ count: 0, totalPence: 0 });
-    const byStatus: Record<ExpenseStatus, { count: number; totalPence: number }> =
-      {
-        pending: emptyBucket(),
-        awaiting_second_approval: emptyBucket(),
-        approved: emptyBucket(),
-        denied: emptyBucket(),
-        paid: emptyBucket(),
-        payout_failed: emptyBucket(),
-      };
+    const byStatus: Record<
+      ExpenseStatus,
+      { count: number; totalPence: number }
+    > = {
+      pending: emptyBucket(),
+      awaiting_second_approval: emptyBucket(),
+      approved: emptyBucket(),
+      denied: emptyBucket(),
+      paid: emptyBucket(),
+      payout_failed: emptyBucket(),
+    };
     let totalCount = 0;
     let totalPence = 0;
     for (const r of statusRows) {

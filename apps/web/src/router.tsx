@@ -185,6 +185,17 @@ export const router = createBrowserRouter([
                 path: "members/financial-relief",
                 lazy: () => import("./pages/members/financial-relief.js"),
               },
+              {
+                element: (
+                  <RequirePermission resource="expenses" action="view_own" />
+                ),
+                children: [
+                  {
+                    path: "members/expenses",
+                    lazy: () => import("./pages/members/expenses.js"),
+                  },
+                ],
+              },
               // Membership flows
               {
                 path: "membership/join",

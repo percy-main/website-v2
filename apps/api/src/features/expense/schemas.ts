@@ -1,4 +1,7 @@
-import { expenseReceiptRequired, expenseStatusSchema } from "@percy-main/shared";
+import {
+  expenseReceiptRequired,
+  expenseStatusSchema,
+} from "@percy-main/shared";
 import { z } from "zod";
 
 const successResponseSchema = z.object({ success: z.boolean() });
@@ -17,13 +20,10 @@ export const submitExpenseSchema = z
     // created. The approver can edit the final set at decision time.
     tagNames: z.array(z.string().trim().min(1).max(60)).max(10).default([]),
   })
-  .refine(
-    (d) => !expenseReceiptRequired(d.amountPence) || !!d.receiptImage,
-    {
-      message: "A receipt is required for claims over GBP 10",
-      path: ["receiptImage"],
-    },
-  );
+  .refine((d) => !expenseReceiptRequired(d.amountPence) || !!d.receiptImage, {
+    message: "A receipt is required for claims over GBP 10",
+    path: ["receiptImage"],
+  });
 export type SubmitExpense = z.infer<typeof submitExpenseSchema>;
 
 // --- Params --------------------------------------------------------------

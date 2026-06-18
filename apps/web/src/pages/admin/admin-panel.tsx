@@ -22,6 +22,7 @@ import { MatchFeesTab } from "./match-fees-tab";
 import { MembersTab } from "./members-tab";
 import { PagesTab } from "./pages-tab";
 import { RecordLinkingTab } from "./record-linking-tab";
+import { ReimbursementsTab } from "./reimbursements-tab";
 import { SponsorshipsTab } from "./sponsorships-tab";
 import { TreasurerTab } from "./treasurer-tab";
 
@@ -137,6 +138,12 @@ const SECTIONS: readonly SectionDef[] = [
         label: "Expenses",
         visible: (role) => checkPermission(role, "finance", "manage"),
         render: () => <ExpenseHistoryTab />,
+      },
+      {
+        value: "reimbursements",
+        label: "Reimbursements",
+        visible: (role) => checkPermission(role, "expenses", "view"),
+        render: () => <ReimbursementsTab />,
       },
       {
         value: "match-fees",

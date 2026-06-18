@@ -57,10 +57,7 @@ async function submitClaim(
   overrides: { amountPence?: number; tagNames?: string[] } = {},
 ) {
   const send = vi.fn().mockResolvedValue(undefined);
-  const { id } = await submitExpense(
-    ctx.db,
-    deps(send),
-  )(
+  const { id } = await submitExpense(ctx.db, deps(send))(
     submitter.userId,
     submitter.name,
     {
@@ -76,7 +73,9 @@ async function submitClaim(
 describe("expense (integration)", () => {
   it("submit creates a pending expense, tag links and a submitted event", async () => {
     const submitter = await seedSubmitter();
-    const { id } = await submitClaim(submitter, { tagNames: ["Fuel", "Travel"] });
+    const { id } = await submitClaim(submitter, {
+      tagNames: ["Fuel", "Travel"],
+    });
 
     const row = await ctx.db
       .selectFrom("expense")
@@ -115,10 +114,7 @@ describe("expense (integration)", () => {
 
   it("submit stores a receipt url when an image is provided", async () => {
     const submitter = await seedSubmitter();
-    const { id } = await submitExpense(
-      ctx.db,
-      deps(),
-    )(
+    const { id } = await submitExpense(ctx.db, deps())(
       submitter.userId,
       submitter.name,
       {
@@ -140,10 +136,7 @@ describe("expense (integration)", () => {
   it("submit rejects a malformed receipt data url (400)", async () => {
     const submitter = await seedSubmitter();
     await expect(
-      submitExpense(
-        ctx.db,
-        deps(),
-      )(
+      submitExpense(ctx.db, deps())(
         submitter.userId,
         submitter.name,
         {
@@ -237,7 +230,12 @@ describe("expense (integration)", () => {
     });
     const { id } = await submitClaim(both);
     await expect(
-      decideExpense(ctx.db, deps())(both.userId, id, { decision: "approve" }, log),
+      decideExpense(ctx.db, deps())(
+        both.userId,
+        id,
+        { decision: "approve" },
+        log,
+      ),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 
@@ -329,12 +327,10 @@ describe("expense (integration)", () => {
     );
 
     const send = vi.fn().mockResolvedValue(undefined);
-    const result = await markExpensePaid(ctx.db, { send, baseUrl: "https://x" })(
-      payer.userId,
-      id,
-      { note: "Faster Payment sent" },
-      log,
-    );
+    const result = await markExpensePaid(ctx.db, {
+      send,
+      baseUrl: "https://x",
+    })(payer.userId, id, { note: "Faster Payment sent" }, log);
     expect(result.success).toBe(true);
     expect(send).toHaveBeenCalledOnce();
 
