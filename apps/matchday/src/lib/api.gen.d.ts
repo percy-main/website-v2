@@ -12378,6 +12378,524 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                    status?: ("pending" | "awaiting_second_approval" | "approved" | "denied" | "paid" | "payout_failed") | "all";
+                    tagId?: string;
+                    search?: string;
+                    dateFrom?: string;
+                    dateTo?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                claimantUserId: string;
+                                claimantName: string;
+                                description: string;
+                                amountPence: number;
+                                currency: string;
+                                /** @enum {string} */
+                                status: "pending" | "awaiting_second_approval" | "approved" | "denied" | "paid" | "payout_failed";
+                                createdAt: string;
+                                updatedAt: string;
+                                decidedAt: string | null;
+                                paidAt: string | null;
+                                approvalCount: number;
+                                needsTwoApprovers: boolean;
+                                hasReceipt: boolean;
+                                tags: {
+                                    id: string;
+                                    name: string;
+                                }[];
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        description: string;
+                        amountPence: number;
+                        receiptImage?: string | null;
+                        /** @default [] */
+                        tagNames?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                claimantUserId: string;
+                                claimantName: string;
+                                description: string;
+                                amountPence: number;
+                                currency: string;
+                                /** @enum {string} */
+                                status: "pending" | "awaiting_second_approval" | "approved" | "denied" | "paid" | "payout_failed";
+                                createdAt: string;
+                                updatedAt: string;
+                                decidedAt: string | null;
+                                paidAt: string | null;
+                                approvalCount: number;
+                                needsTwoApprovers: boolean;
+                                hasReceipt: boolean;
+                                tags: {
+                                    id: string;
+                                    name: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expense-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            categories: {
+                                id: string;
+                                name: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expense-categories/{categoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    categoryId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        archived?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/expenses/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    dateFrom?: string;
+                    dateTo?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            byStatus: {
+                                pending: {
+                                    count: number;
+                                    totalPence: number;
+                                };
+                                awaiting_second_approval: {
+                                    count: number;
+                                    totalPence: number;
+                                };
+                                approved: {
+                                    count: number;
+                                    totalPence: number;
+                                };
+                                denied: {
+                                    count: number;
+                                    totalPence: number;
+                                };
+                                paid: {
+                                    count: number;
+                                    totalPence: number;
+                                };
+                                payout_failed: {
+                                    count: number;
+                                    totalPence: number;
+                                };
+                            };
+                            byTag: {
+                                tagId: string;
+                                tagName: string;
+                                count: number;
+                                totalPence: number;
+                            }[];
+                            totals: {
+                                count: number;
+                                totalPence: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/{expenseId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    expenseId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            expense: {
+                                id: string;
+                                claimantUserId: string;
+                                claimantName: string;
+                                claimantEmail: string | null;
+                                description: string;
+                                amountPence: number;
+                                currency: string;
+                                /** @enum {string} */
+                                status: "pending" | "awaiting_second_approval" | "approved" | "denied" | "paid" | "payout_failed";
+                                receiptImageUrl: string | null;
+                                payoutFailureReason: string | null;
+                                stripeOutboundPaymentId: string | null;
+                                needsTwoApprovers: boolean;
+                                createdAt: string;
+                                updatedAt: string;
+                                paidAt: string | null;
+                            };
+                            tags: {
+                                id: string;
+                                name: string;
+                            }[];
+                            approvals: {
+                                id: string;
+                                approverUserId: string;
+                                approverName: string | null;
+                                /** @enum {string} */
+                                decision: "approved" | "denied";
+                                note: string | null;
+                                createdAt: string;
+                            }[];
+                            events: {
+                                id: string;
+                                type: string;
+                                fromStatus: string | null;
+                                toStatus: string | null;
+                                note: string | null;
+                                actorUserId: string | null;
+                                actorName: string | null;
+                                createdAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/{expenseId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    expenseId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        decision: "approve" | "deny";
+                        note?: string | null;
+                        tagNames?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status: "pending" | "awaiting_second_approval" | "approved" | "denied" | "paid" | "payout_failed";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/{expenseId}/mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    expenseId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        note?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/user-groups": {
         parameters: {
             query?: never;

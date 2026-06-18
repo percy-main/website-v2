@@ -3,6 +3,8 @@ export { createSend } from "./send.ts";
 export { AvailabilityRequest } from "./templates/AvailabilityRequest.tsx";
 export { ChaosWeekAnnouncement } from "./templates/ChaosWeekAnnouncement.tsx";
 export { ChargeNotification } from "./templates/ChargeNotification.tsx";
+export { ExpenseDecision } from "./templates/ExpenseDecision.tsx";
+export { ExpenseSubmitted } from "./templates/ExpenseSubmitted.tsx";
 export { FantasyReminder } from "./templates/FantasyReminder.tsx";
 export { FinancialReliefDecision } from "./templates/FinancialReliefDecision.tsx";
 export { FinancialReliefReceived } from "./templates/FinancialReliefReceived.tsx";

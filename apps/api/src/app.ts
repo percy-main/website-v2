@@ -50,6 +50,7 @@ import { contentImageRoutes } from "./features/content-images/routes.ts";
 import { contentRoutes } from "./features/content/routes.ts";
 import { cricketLeaderboardRoutes } from "./features/cricket-leaderboard/routes.ts";
 import { documentRoutes } from "./features/documents/routes.ts";
+import { expenseRoutes } from "./features/expense/routes.ts";
 import { fantasyRoutes } from "./features/fantasy/routes.ts";
 import { financialReliefRoutes } from "./features/financial-relief/routes.ts";
 import { gamesRoutes } from "./features/games/routes.ts";
@@ -310,6 +311,7 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   await app.register(contactRoutes, { prefix: "/api" });
   await app.register(incidentReportRoutes, { prefix: "/api" });
   await app.register(financialReliefRoutes, { prefix: "/api" });
+  await app.register(expenseRoutes, { prefix: "/api" });
   await app.register(userGroupsRoutes, { prefix: "/api" });
   await app.register(marketingRoutes, { prefix: "/api" });
   await app.register(notifPrefsRoutes, { prefix: "/api" });

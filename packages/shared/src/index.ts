@@ -28,6 +28,17 @@ export {
 
 export { stripeConfig, type StripeConfig } from "./stripe-config.ts";
 
+export {
+  EXPENSE_RECEIPT_REQUIRED_ABOVE_PENCE,
+  EXPENSE_STATUS_LABELS,
+  EXPENSE_STATUSES,
+  EXPENSE_TWO_APPROVAL_THRESHOLD_PENCE,
+  expenseNeedsTwoApprovers,
+  expenseReceiptRequired,
+  expenseStatusSchema,
+  type ExpenseStatus,
+} from "./expenses.ts";
+
 export { nameSimilarity, normalizeName } from "./name-similarity.ts";
 
 export { chartSpecSchema, type ChartSpec } from "./scout-chart.ts";
