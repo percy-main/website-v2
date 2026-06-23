@@ -206,6 +206,20 @@ export interface ContentItem {
   updated_by: string;
 }
 
+export interface ContentProposal {
+  content_id: string;
+  created_at: Generated<Timestamp>;
+  decision_note: string | null;
+  id: Generated<string>;
+  proposed_body: Json;
+  proposed_by: string;
+  proposed_metadata: Generated<Json>;
+  reviewed_at: Timestamp | null;
+  reviewed_by: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface ContentRevision {
   body: Json;
   content_id: string;
@@ -1040,6 +1054,7 @@ export interface DB {
   contact_submission: ContactSubmission;
   content_image: ContentImage;
   content_item: ContentItem;
+  content_proposal: ContentProposal;
   content_revision: ContentRevision;
   dependent: Dependent;
   document: Document;
