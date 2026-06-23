@@ -409,15 +409,36 @@ export function approveProfileProposal(db: Kysely<DB>, deps: NotifyDeps) {
         throwHttpError(409, "Only person profiles can be self-edited");
       }
 
+      // Claim the proposal FIRST: the guarded pending->approved flip is what
+      // serialises concurrent reviews. Doing it before touching content_item
+      // means a losing concurrent approve fails here (0 rows) and rolls back
+      // without ever re-writing the profile or inserting a stray revision.
+      const marked = await tx
+        .updateTable("content_proposal")
+        .set({
+          status: "approved",
+          reviewed_by: params.reviewerUserId,
+          reviewed_at: sql`CURRENT_TIMESTAMP`,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", params.proposalId)
+        .where("status", "=", "pending")
+        .returning("id")
+        .executeTakeFirst();
+      if (!marked)
+        throwHttpError(409, "This proposal has already been reviewed");
+
       const body = parseBody(proposal.proposed_body);
       const proposedMeta = proposedMetadataSchema.parse(
         proposal.proposed_metadata,
       );
       const currentMeta = personMetadataSchema.parse(proposal.current_metadata);
 
-      // Merge the photo onto the live metadata; the safeguarding flags
-      // (isDBSChecked / hasLeftClub) are never self-editable, so they pass
-      // through untouched. An absent proposed photo removes it.
+      // Rebuild the metadata from scratch: carry the safeguarding flags
+      // (isDBSChecked / hasLeftClub) through untouched - they are never
+      // self-editable - and take the photo solely from the proposal. The
+      // proposal always reflects the owner's intended end state, so an
+      // absent proposed photo means "no photo" and removes the live one.
       const newMetadata = {
         isDBSChecked: currentMeta.isDBSChecked,
         hasLeftClub: currentMeta.hasLeftClub,
@@ -448,23 +469,6 @@ export function approveProfileProposal(db: Kysely<DB>, deps: NotifyDeps) {
         },
         params.reviewerUserId,
       );
-
-      // Guarded status flip: only the transaction that flips pending->approved
-      // wins, so a concurrent approve/reject of the same proposal gets the 409.
-      const marked = await tx
-        .updateTable("content_proposal")
-        .set({
-          status: "approved",
-          reviewed_by: params.reviewerUserId,
-          reviewed_at: sql`CURRENT_TIMESTAMP`,
-          updated_at: sql`CURRENT_TIMESTAMP`,
-        })
-        .where("id", "=", params.proposalId)
-        .where("status", "=", "pending")
-        .returning("id")
-        .executeTakeFirst();
-      if (!marked)
-        throwHttpError(409, "This proposal has already been reviewed");
 
       return {
         proposerEmail: proposal.proposer_email,

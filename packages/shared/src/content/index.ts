@@ -305,20 +305,6 @@ export const CONTENT_PROPOSAL_STATUSES = [
 export const contentProposalStatusSchema = z.enum(CONTENT_PROPOSAL_STATUSES);
 export type ContentProposalStatus = z.infer<typeof contentProposalStatusSchema>;
 
-/**
- * The self-editable slice of a person profile a proposal carries: the bio
- * body and the photo (null = remove it). The owner cannot touch their
- * name (title), slug, or the safeguarding flags, so those are absent here
- * by construction. The body is the full recursive BlockNote schema; the
- * API's transport layer validates depth-1 and the service re-validates the
- * whole tree on submit/approve, mirroring the content feature.
- */
-export const selfEditableProfileSchema = z.object({
-  body: contentBodySchema,
-  photo: personPhotoSchema.nullable(),
-});
-export type SelfEditableProfile = z.infer<typeof selfEditableProfileSchema>;
-
 // ── Recurrence expansion ────────────────────────────────────────────────
 export {
   EVENT_TIME_ZONE,

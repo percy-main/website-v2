@@ -63,7 +63,11 @@ describe("content-proposal service (integration)", () => {
   // Create a person profile and link a fresh owner's member row to it by
   // slug - the exact eligibility chain (user.email -> member -> slug ->
   // person content_item) the feature relies on.
-  async function seedOwnerWithProfile(slug: string, name: string) {
+  async function seedOwnerWithProfile(
+    slug: string,
+    name: string,
+    opts: { photo?: PersonPhoto } = {},
+  ) {
     const owner = await seedTestUser(ctx.db, {
       name,
       withMember: true,
@@ -74,7 +78,11 @@ describe("content-proposal service (integration)", () => {
       title: name,
       description: null,
       body: body("Original bio"),
-      metadata: { isDBSChecked: true, hasLeftClub: false },
+      metadata: {
+        isDBSChecked: true,
+        hasLeftClub: false,
+        ...(opts.photo ? { photo: opts.photo } : {}),
+      },
       userId: authorId,
     });
     if (!owner.memberId)
@@ -234,6 +242,70 @@ describe("content-proposal service (integration)", () => {
     expect(sent.map((s) => s.to)).toContain(owner.email);
     const state = await getProfileEditState(ctx.db)(owner.email);
     expect(state.pendingProposal).toBeNull();
+  });
+
+  it("approving a photo-removal proposal removes the live photo, keeping flags", async () => {
+    const owner = await seedOwnerWithProfile("jo-photo", "Jo Photo", {
+      photo: photo("jo-orig"),
+    });
+    // Sanity: the profile starts with a photo.
+    const before = await getContent(ctx.db)(owner.contentId);
+    expect(before.metadata.photo).toMatchObject({
+      img: { src: "/uploads/jo-orig.png" },
+    });
+
+    const { deps } = recordingDeps();
+    const { id: proposalId } = await submitProfileProposal(
+      ctx.db,
+      deps,
+    )({
+      userId: owner.userId,
+      userEmail: owner.email,
+      body: body("Bio with the photo removed"),
+      photo: null,
+    });
+    await approveProfileProposal(
+      ctx.db,
+      deps,
+    )({
+      proposalId,
+      reviewerUserId: reviewerId,
+    });
+
+    const after = await getContent(ctx.db)(owner.contentId);
+    expect(after.metadata.photo).toBeUndefined();
+    expect(after.metadata.isDBSChecked).toBe(true);
+  });
+
+  it("approving a bio-only edit keeps the existing photo (resent unchanged)", async () => {
+    const owner = await seedOwnerWithProfile("kim-photo", "Kim Photo", {
+      photo: photo("kim-orig"),
+    });
+    const { deps } = recordingDeps();
+    const { id: proposalId } = await submitProfileProposal(
+      ctx.db,
+      deps,
+    )({
+      userId: owner.userId,
+      userEmail: owner.email,
+      body: body("Updated bio"),
+      // The UI seeds the photo field from the current photo, so an unchanged
+      // photo round-trips as the same value.
+      photo: photo("kim-orig"),
+    });
+    await approveProfileProposal(
+      ctx.db,
+      deps,
+    )({
+      proposalId,
+      reviewerUserId: reviewerId,
+    });
+
+    const after = await getContent(ctx.db)(owner.contentId);
+    expect(after.metadata.photo).toMatchObject({
+      img: { src: "/uploads/kim-orig.png" },
+    });
+    expect(after.body[0]?.content).toMatchObject([{ text: "Updated bio" }]);
   });
 
   it("approving an already-reviewed proposal returns 409", async () => {
