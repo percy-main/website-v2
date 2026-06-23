@@ -44,13 +44,19 @@ export interface OutcomeInnings {
   runs: string;
   wickets: string;
   overs: string;
-  declared: boolean;
+  /** true/false when known; null for historical match-detail innings where the flag is unknown. */
+  declared: boolean | null;
 }
 
 export interface Outcome {
   /** Raw Play Cricket result code/text, verbatim. Do not read alone. */
   result: string;
-  /** Plain-English winner, e.g. "Percy Main won". The reliable signal. */
+  /**
+   * Plain-English result, expressed relative to result_applied_to_club, e.g.
+   * "Percy Main won" or "...Won bat second 27". Covers non-win states too
+   * (tied, drawn, abandoned, cancelled), so read it literally - it does not
+   * always name a winner. The reliable result signal.
+   */
   result_description: string;
   /** team_id the raw `result` code is expressed relative to. */
   result_applied_to: string;
@@ -107,7 +113,8 @@ export function buildOutcome(match: unknown): Outcome | null {
         runs: str(i.runs),
         wickets: str(i.wickets),
         overs: str(i.overs),
-        declared: Boolean(i.declared),
+        // null means "unknown" (historical match-detail), not "did not declare".
+        declared: i.declared === null ? null : Boolean(i.declared),
       };
     }),
   };
@@ -115,17 +122,20 @@ export function buildOutcome(match: unknown): Outcome | null {
 
 // Attach `outcome` to each row of a projected array, reading the matching raw
 // row by index. The projector maps every source element 1:1 (never filters),
-// so projected[i] aligns with raw[i]. Rows the projector didn't keep are left
-// untouched; unplayed rows get no outcome.
+// so projected[i] aligns with raw[i]. Unplayed rows get no outcome and are left
+// as projected. A played row always gets its outcome - including the case where
+// the caller projected ONLY outcome sub-paths (e.g. ["...outcome.result_description"]),
+// which leaves the projected row undefined because `outcome` doesn't exist in
+// the raw response yet; we materialise `{ outcome }` so the contract holds.
 function attachToArray(projectedArr: unknown, rawArr: unknown): unknown {
   if (!Array.isArray(projectedArr) || !Array.isArray(rawArr)) {
     return projectedArr;
   }
   const rawRows = rawArr as unknown[];
   return (projectedArr as unknown[]).map((row: unknown, i: number) => {
-    if (!isRec(row)) return row;
     const outcome = buildOutcome(rawRows[i]);
-    return outcome ? { ...row, outcome } : row;
+    if (!outcome) return row;
+    return isRec(row) ? { ...row, outcome } : { outcome };
   });
 }
 

@@ -90,6 +90,24 @@ describe("buildOutcome", () => {
     });
     expect(outcome?.result_applied_to_club).toBeNull();
   });
+
+  it("preserves declared as a tri-state: true / false / null (unknown)", () => {
+    // match-detail innings carry declared as boolean|null (null for historical
+    // matches, where the flag is genuinely unknown - not "did not declare").
+    const outcome = buildOutcome({
+      ...wonRow,
+      innings: [
+        { team_batting_id: "134134", runs: "297", declared: true },
+        { team_batting_id: "200", runs: "130", declared: false },
+        { team_batting_id: "200", runs: "44", declared: null },
+      ],
+    });
+    expect(outcome?.innings.map((i) => i.declared)).toEqual([
+      true,
+      false,
+      null,
+    ]);
+  });
 });
 
 describe("enrichOutcomes", () => {
@@ -143,6 +161,25 @@ describe("enrichOutcomes", () => {
     expect(
       enriched.matches[0].match_details[0].outcome?.result_applied_to_club,
     ).toBe("Percy Main");
+  });
+
+  it("attaches outcome even when ONLY outcome sub-paths were projected", () => {
+    const raw = { result_summary: [wonRow] };
+    // `outcome` doesn't exist in the raw response, so projecting only an
+    // outcome sub-path leaves the projected row empty - enrichment must still
+    // materialise the full outcome so the "always present" contract holds.
+    const projected = project(raw, [
+      "result_summary[].outcome.result_description",
+    ]);
+    const enriched = enrichOutcomes(projected, raw) as {
+      result_summary: Array<{
+        outcome?: { result_description: string; innings: unknown[] };
+      }>;
+    };
+    expect(enriched.result_summary[0].outcome?.result_description).toBe(
+      "Percy Main won",
+    );
+    expect(enriched.result_summary[0].outcome?.innings).toHaveLength(2);
   });
 
   it("does not fabricate match rows for an aggregate-only projection", () => {

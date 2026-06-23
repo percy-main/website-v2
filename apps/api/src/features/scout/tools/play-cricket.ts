@@ -14,9 +14,9 @@ const HOUR = 60 * 60;
 // play-cricket-outcome.ts), so each played-match row is enriched with a
 // computed `outcome` object - the agent should read THAT, not the raw code.
 const OUTCOME_NOTE = `READING THE RESULT - every played-match row carries a computed \`outcome\` object. It is ALWAYS present (you do not need to project it) and is the only correct way to read the result:
-  outcome.result_description   — plain-English winner, e.g. "Percy Main won". THIS names who won; trust it above all else.
+  outcome.result_description   — plain-English result, e.g. "Percy Main won". This is the reliable result signal, but read it LITERALLY: it is phrased relative to outcome.result_applied_to_club and also covers draws, ties, abandoned, cancelled and in-progress matches, so do NOT assume it always names a winner. Pair it with outcome.result_applied_to_club to know which side it describes.
   outcome.result               — raw Play Cricket code/text ("W", "L", "Won by 5 wickets"). NEVER read this on its own: it is "W"/"L" relative to outcome.result_applied_to (NOT the home side, NOT any fixed club) and its format is inconsistent across competitions.
-  outcome.result_applied_to / outcome.result_applied_to_club — the team_id the raw code refers to, plus that team's club name resolved within this response.
+  outcome.result_applied_to / outcome.result_applied_to_club — the team_id the raw code/description refers to, plus that team's club name resolved within this response.
   outcome.batted_first_club    — the club that batted first.
   outcome.innings[].batting_club with .runs/.wickets/.overs — every innings total already attributed to the club that batted it. NEVER assume innings[0] is the home side; read batting_club. (result_summary often omits team_batting_name, so batting_club is the only reliable owner of a total.)`;
 
