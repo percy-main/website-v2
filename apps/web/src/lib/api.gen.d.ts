@@ -14345,6 +14345,374 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/profile/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            profile: {
+                                contentId: string;
+                                slug: string;
+                                title: string;
+                                body: {
+                                    id: string;
+                                    type: string;
+                                    props: {
+                                        [key: string]: string | number | boolean;
+                                    };
+                                    content?: unknown;
+                                    children: unknown[];
+                                }[];
+                                photo: {
+                                    sources: {
+                                        [key: string]: string;
+                                    };
+                                    img: {
+                                        src: string;
+                                        w: number;
+                                        h: number;
+                                    };
+                                } | null;
+                            } | null;
+                            pendingProposal: {
+                                id: string;
+                                body: {
+                                    id: string;
+                                    type: string;
+                                    props: {
+                                        [key: string]: string | number | boolean;
+                                    };
+                                    content?: unknown;
+                                    children: unknown[];
+                                }[];
+                                photo: {
+                                    sources: {
+                                        [key: string]: string;
+                                    };
+                                    img: {
+                                        src: string;
+                                        w: number;
+                                        h: number;
+                                    };
+                                } | null;
+                                createdAt: string;
+                            } | null;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profile/edit/proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        body: {
+                            id: string;
+                            type: string;
+                            props: {
+                                [key: string]: string | number | boolean;
+                            };
+                            content?: unknown;
+                            children: unknown[];
+                        }[];
+                        photo: {
+                            sources: {
+                                [key: string]: string;
+                            };
+                            img: {
+                                src: string;
+                                w: number;
+                                h: number;
+                            };
+                        } | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/profile-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                contentId: string;
+                                slug: string;
+                                title: string;
+                                proposedBy: string;
+                                proposedByName: string | null;
+                                createdAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/profile-proposals/{proposalId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            contentId: string;
+                            slug: string;
+                            title: string;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected";
+                            proposedBy: string;
+                            proposedByName: string | null;
+                            createdAt: string;
+                            proposed: {
+                                body: {
+                                    id: string;
+                                    type: string;
+                                    props: {
+                                        [key: string]: string | number | boolean;
+                                    };
+                                    content?: unknown;
+                                    children: unknown[];
+                                }[];
+                                photo: {
+                                    sources: {
+                                        [key: string]: string;
+                                    };
+                                    img: {
+                                        src: string;
+                                        w: number;
+                                        h: number;
+                                    };
+                                } | null;
+                            };
+                            current: {
+                                body: {
+                                    id: string;
+                                    type: string;
+                                    props: {
+                                        [key: string]: string | number | boolean;
+                                    };
+                                    content?: unknown;
+                                    children: unknown[];
+                                }[];
+                                photo: {
+                                    sources: {
+                                        [key: string]: string;
+                                    };
+                                    img: {
+                                        src: string;
+                                        w: number;
+                                        h: number;
+                                    };
+                                } | null;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/profile-proposals/{proposalId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/profile-proposals/{proposalId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {

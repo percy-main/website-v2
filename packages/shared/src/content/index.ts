@@ -287,6 +287,38 @@ export const CONTENT_METADATA_SCHEMAS: Partial<
   person: personMetadataSchema,
 };
 
+// ── Profile self-edit proposals (#575) ──────────────────────────────────
+//
+// The review tier the permissions model reserved (manage vs publish on
+// content_people). A slug-linked member proposes edits to ONLY the
+// self-editable subset of their own person profile - the bio (body) and
+// the photo; title/slug and the safeguarding flags (isDBSChecked /
+// hasLeftClub) stay admin-only. The proposal awaits a content_people
+// publisher's approval before it replaces the live profile content.
+
+export const CONTENT_PROPOSAL_STATUSES = [
+  "pending",
+  "approved",
+  "rejected",
+] as const;
+
+export const contentProposalStatusSchema = z.enum(CONTENT_PROPOSAL_STATUSES);
+export type ContentProposalStatus = z.infer<typeof contentProposalStatusSchema>;
+
+/**
+ * The self-editable slice of a person profile a proposal carries: the bio
+ * body and the photo (null = remove it). The owner cannot touch their
+ * name (title), slug, or the safeguarding flags, so those are absent here
+ * by construction. The body is the full recursive BlockNote schema; the
+ * API's transport layer validates depth-1 and the service re-validates the
+ * whole tree on submit/approve, mirroring the content feature.
+ */
+export const selfEditableProfileSchema = z.object({
+  body: contentBodySchema,
+  photo: personPhotoSchema.nullable(),
+});
+export type SelfEditableProfile = z.infer<typeof selfEditableProfileSchema>;
+
 // ── Recurrence expansion ────────────────────────────────────────────────
 export {
   EVENT_TIME_ZONE,
