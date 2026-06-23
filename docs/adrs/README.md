@@ -27,3 +27,5 @@ To add a new ADR, use the [`add-adr` skill](../../.claude/skills/add-adr/SKILL.m
 | [046](046-vapid-public-key-via-api.md)                   | VAPID public key delivered via API, not bundled             | 2026-05-21 | Accepted |
 | [047](047-content-editor-blocknote.md)                   | Content Editor - BlockNote with JSON canonical format       | 2026-06-10 | Accepted |
 | [048](048-editor-image-webp-only-sync-processing.md)     | Editor images - WebP-only ladder, synchronous processing    | 2026-06-10 | Accepted |
+| [049](049-ai-content-author-assistant.md)                | AI content-author assistant reuses Scout's tools            | 2026-06-14 | Accepted |
+| [050](050-profile-self-edit-proposal-tier.md)            | Profile self-editing via a proposal/approval tier           | 2026-06-23 | Accepted |
