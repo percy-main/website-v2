@@ -1,11 +1,9 @@
 # Trivy vulnerability suppressions. One CVE per line, with `exp:YYYY-MM-DD`
 # to force a periodic re-review. Each entry must be justified in a comment.
 # See https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
-
-# CVE-2026-33671 — picomatch RegEx DoS via crafted extglob patterns.
-# picomatch@4.0.3 is bundled inside npm in the node:24-alpine base image
-# (at /usr/local/lib/node_modules/npm/**). We run the API via corepack +
-# pnpm; npm is not on the runtime path, and no untrusted input ever reaches
-# it. Our application-level picomatch is already 4.0.4 (the fixed version).
-# Re-check once node:24-alpine ships a refreshed bundled npm.
-CVE-2026-33671 exp:2026-08-15
+#
+# No active suppressions. The previous CVE-2026-33671 (picomatch) entry covered
+# a copy bundled inside the base image's npm; apps/api/Dockerfile now strips npm
+# and the pnpm store from the runtime image, so that copy no longer exists and
+# the suppression is unnecessary. Add new entries here with a justification and
+# an `exp:` date.
