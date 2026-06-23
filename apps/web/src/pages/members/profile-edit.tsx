@@ -124,7 +124,7 @@ function PendingNotice({
         ) : null}
         <div>
           <p className="mb-2 text-sm font-medium">Proposed bio</p>
-          <div className="rounded-md border p-4">
+          <div className="fc-theme bg-body rounded-md border p-4">
             <ContentBody body={proposal.body} />
           </div>
         </div>
@@ -142,6 +142,12 @@ function EditForm({ profile }: { profile: NonNullable<EditState["profile"]> }) {
   // component is keyed on the profile so it remounts if the profile changes.
   const [body, setBody] = useState<SubmitBody>(() => profile.body);
   const [photo, setPhoto] = useState<ProfilePhoto>(() => profile.photo);
+  // Photo consent gates SUBMIT (not the upload button). It is only relevant
+  // when the submission includes a photo.
+  const [consent, setConsent] = useState(false);
+  const [consentError, setConsentError] = useState(false);
+
+  const needsConsent = photo != null;
 
   const submit = useMutation({
     mutationFn: () =>
@@ -153,6 +159,25 @@ function EditForm({ profile }: { profile: NonNullable<EditState["profile"]> }) {
     },
   });
 
+  const onSubmit = () => {
+    if (needsConsent && !consent) {
+      setConsentError(true);
+      return;
+    }
+    setConsentError(false);
+    submit.mutate();
+  };
+
+  // Changing the photo or ticking consent clears a previous consent error.
+  const onPhotoChange = (next: ProfilePhoto) => {
+    setPhoto(next);
+    setConsentError(false);
+  };
+  const onConsentChange = (next: boolean) => {
+    setConsent(next);
+    if (next) setConsentError(false);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -160,7 +185,14 @@ function EditForm({ profile }: { profile: NonNullable<EditState["profile"]> }) {
           <CardTitle>Photo</CardTitle>
         </CardHeader>
         <CardContent>
-          <PhotoField photo={photo} name={profile.title} onChange={setPhoto} />
+          <PhotoField
+            photo={photo}
+            name={profile.title}
+            onChange={onPhotoChange}
+            consent={consent}
+            onConsentChange={onConsentChange}
+            consentError={consentError}
+          />
         </CardContent>
       </Card>
 
@@ -184,13 +216,20 @@ function EditForm({ profile }: { profile: NonNullable<EditState["profile"]> }) {
                 Your bio contains advanced content that can only be edited by a
                 content editor. You can still update your photo here.
               </p>
-              <div className="rounded-md border p-4">
+              <div className="fc-theme bg-body rounded-md border p-4">
                 <ContentBody body={profile.body} />
               </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {consentError ? (
+        <p className="text-destructive text-sm">
+          Please tick the box confirming you have permission to use your photo
+          before submitting.
+        </p>
+      ) : null}
 
       {submit.isError ? (
         <p className="text-destructive text-sm">
@@ -202,7 +241,7 @@ function EditForm({ profile }: { profile: NonNullable<EditState["profile"]> }) {
 
       <div className="flex items-center gap-3">
         <Button
-          onClick={() => submit.mutate()}
+          onClick={onSubmit}
           disabled={submit.isPending || submit.isSuccess}
         >
           {submit.isPending ? "Submitting..." : "Submit for review"}
@@ -219,13 +258,18 @@ function PhotoField({
   photo,
   name,
   onChange,
+  consent,
+  onConsentChange,
+  consentError,
 }: {
   photo: ProfilePhoto;
   name: string;
   onChange: (photo: ProfilePhoto) => void;
+  consent: boolean;
+  onConsentChange: (consent: boolean) => void;
+  consentError: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [consent, setConsent] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -266,7 +310,7 @@ function PhotoField({
           <Button
             type="button"
             variant="outline"
-            disabled={!consent || uploading}
+            disabled={uploading}
             onClick={() => inputRef.current?.click()}
           >
             {uploading ? "Uploading..." : photo ? "Replace photo" : "Add photo"}
@@ -284,20 +328,29 @@ function PhotoField({
         </div>
       </div>
 
-      <div className="flex items-start gap-2">
-        <Checkbox
-          id="profile-photo-consent"
-          checked={consent}
-          onCheckedChange={(v) => setConsent(v === true)}
-        />
-        <Label
-          htmlFor="profile-photo-consent"
-          className="text-sm font-normal text-stone-600"
-        >
-          I confirm I have permission to use this photo and consent to it being
-          shown on the club website.
-        </Label>
-      </div>
+      {/* Consent only applies when a photo is part of the submission. It no
+          longer gates the upload button - it gates Submit (handled by the
+          parent), with a clear error there if it's missing. */}
+      {photo ? (
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id="profile-photo-consent"
+            checked={consent}
+            onCheckedChange={(v) => onConsentChange(v === true)}
+          />
+          <Label
+            htmlFor="profile-photo-consent"
+            className={
+              consentError
+                ? "text-destructive text-sm font-normal"
+                : "text-sm font-normal text-stone-600"
+            }
+          >
+            I confirm I have permission to use this photo and consent to it
+            being shown on the club website.
+          </Label>
+        </div>
+      ) : null}
       <Label className="sr-only" htmlFor="profile-photo-input">
         Profile photo
       </Label>

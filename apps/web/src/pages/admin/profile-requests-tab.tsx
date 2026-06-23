@@ -287,8 +287,10 @@ function ProfileColumn({
   highlight?: boolean;
 }) {
   return (
+    // fc-theme so the bio renders in the same poster styling the live profile
+    // uses - the reviewer compares like-for-like with the published look.
     <div
-      className={`rounded-md border p-4 ${highlight ? "border-stone-800" : ""}`}
+      className={`fc-theme bg-body rounded-md border p-4 ${highlight ? "border-stone-800" : ""}`}
     >
       <p className="mb-3 text-sm font-medium tracking-wide text-stone-500 uppercase">
         {heading}

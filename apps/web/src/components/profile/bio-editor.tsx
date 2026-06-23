@@ -72,9 +72,15 @@ export function BioEditor({ initialContent, onChange }: BioEditorProps) {
   const editor = useCreateBlockNote({ schema: bioSchema, initialContent });
 
   return (
-    <div className="bg-background rounded-md border">
+    // fc-theme on the canvas wrapper scopes the SAME First-Class content
+    // rules that style published profiles onto the editor, so the canvas IS
+    // the preview - matching the admin content editor (content-editor.tsx
+    // EditorPane). Without this the canvas falls back to BlockNote's default
+    // (generic serif headings) instead of the poster styling.
+    <div className="fc-theme bg-body rounded-lg border border-stone-200 py-4">
       <BlockNoteView
         editor={editor}
+        theme="light"
         slashMenu={false}
         onChange={() => {
           // Same serialise-then-validate path the admin editor uses, against
