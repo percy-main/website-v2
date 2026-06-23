@@ -5,6 +5,13 @@ import {
   requirePermission,
 } from "../auth/middleware.ts";
 import {
+  confirmUploadSchema,
+  contentImageResponseSchema,
+  uploadUrlResponseSchema,
+  uploadUrlSchema,
+} from "../content-images/schemas.ts";
+import { confirmUpload, createUploadUrl } from "../content-images/service.ts";
+import {
   listProposalsResponseSchema,
   profileEditStateResponseSchema,
   proposalDetailResponseSchema,
@@ -16,6 +23,7 @@ import {
 } from "./schemas.ts";
 import {
   approveProfileProposal,
+  assertCanEditProfile,
   getProfileEditState,
   getProposalDetail,
   listPendingProposals,
@@ -37,6 +45,12 @@ export const contentProposalRoutes: FastifyPluginAsyncZod = async (app) => {
   const detail = getProposalDetail(app.db);
   const approve = approveProfileProposal(app.db, notifyDeps);
   const reject = rejectProfileProposal(app.db, notifyDeps);
+  const canEdit = assertCanEditProfile(app.db);
+  // Profile owners hold no content role, so they can't use the admin
+  // content-images endpoints. These self-service routes reuse the same
+  // upload/process service, gated instead on owning an editable profile.
+  const photoUploadUrl = createUploadUrl(app.contentImages, app.config);
+  const photoConfirm = confirmUpload(app.db, app.contentImages, app.config);
 
   // The reviewer pool is everyone who can publish people. Approving applies
   // the edit to the live profile, so it is gated on the same publish action
@@ -79,6 +93,46 @@ export const contentProposalRoutes: FastifyPluginAsyncZod = async (app) => {
         userEmail: user.email,
         body: request.body.body,
         photo: request.body.photo,
+      });
+    },
+  );
+
+  // Self-service profile photo upload (presign + confirm), reusing the
+  // content-images pipeline. Gated on owning an editable profile rather than
+  // a content-manage role.
+  app.post(
+    "/profile/edit/photo-upload-url",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        body: uploadUrlSchema,
+        response: { 200: uploadUrlResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      await canEdit(user.email);
+      return await photoUploadUrl({ contentType: request.body.contentType });
+    },
+  );
+
+  app.post(
+    "/profile/edit/photo",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        body: confirmUploadSchema,
+        response: { 200: contentImageResponseSchema },
+      },
+    },
+    async (request) => {
+      const { user } = getAuthSession(request);
+      await canEdit(user.email);
+      return await photoConfirm({
+        imageId: request.body.imageId,
+        pendingKey: request.body.pendingKey,
+        alt: request.body.alt,
+        userId: user.id,
       });
     },
   );

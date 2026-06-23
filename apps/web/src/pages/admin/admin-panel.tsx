@@ -21,6 +21,7 @@ import { MarketingOutboxTab } from "./marketing-outbox-tab";
 import { MatchFeesTab } from "./match-fees-tab";
 import { MembersTab } from "./members-tab";
 import { PagesTab } from "./pages-tab";
+import { ProfileRequestsTab } from "./profile-requests-tab";
 import { RecordLinkingTab } from "./record-linking-tab";
 import { SponsorshipsTab } from "./sponsorships-tab";
 import { TreasurerTab } from "./treasurer-tab";
@@ -206,6 +207,15 @@ const SECTIONS: readonly SectionDef[] = [
         label: "Profiles",
         visible: (role) => checkPermission(role, "content_people", "view"),
         render: () => <ContentTab kind="person" />,
+      },
+      // Member-submitted profile edits awaiting review. Gated on publish
+      // (the approver action) so only editors who can apply the change see
+      // the queue.
+      {
+        value: "profile-requests",
+        label: "Profile Requests",
+        visible: (role) => checkPermission(role, "content_people", "publish"),
+        render: () => <ProfileRequestsTab />,
       },
     ],
   },

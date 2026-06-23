@@ -129,6 +129,21 @@ async function listProfileReviewers(
     .map((r) => ({ id: r.id, email: r.email, name: r.name }));
 }
 
+/**
+ * Throw 403 unless the caller has a self-editable profile. Used to gate the
+ * self-service photo upload (which reuses the content-images service) on the
+ * same eligibility as the proposal routes - a member uploading a profile
+ * photo must own a slug-linked profile.
+ */
+export function assertCanEditProfile(db: Kysely<DB>) {
+  return async (userEmail: string) => {
+    const profile = await resolveEditableProfile(db, userEmail);
+    if (!profile) {
+      throwHttpError(403, "You do not have a profile you can edit");
+    }
+  };
+}
+
 // ── Owner: read edit state ──────────────────────────────────────────────
 
 export function getProfileEditState(db: Kysely<DB>) {

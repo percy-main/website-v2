@@ -67,7 +67,6 @@ describe("content-proposal service (integration)", () => {
     const owner = await seedTestUser(ctx.db, {
       name,
       withMember: true,
-      role: null,
     });
     const { id } = await createContent(ctx.db)({
       kind: "person",
