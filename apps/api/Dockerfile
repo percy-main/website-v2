@@ -41,7 +41,22 @@ COPY --from=builder /app/packages/shared/package.json packages/shared/
 COPY --from=builder /app/packages/db/package.json packages/db/
 COPY --from=builder /app/packages/email/package.json packages/email/
 
-RUN pnpm install --frozen-lockfile --prod
+# Install prod deps, then strip build-only tooling in the SAME layer so the
+# bytes never enter the image. The container runs node directly (see CMD), so
+# pnpm and npm are never on the runtime path. Removing them here:
+#   - drops the ~800MB pnpm store + corepack cache (real size win, same layer),
+#   - drops the base image's bundled npm,
+# which clears two classes of Trivy finding their vendored files trip:
+#   - undici 6.25.0 (CVE-2026-12151, HIGH) bundled inside pnpm + npm (our
+#     application undici is already on a fixed line),
+#   - example credentials in dependency READMEs cached under the pnpm store
+#     (Trivy's secret scanner skips node_modules but not the store path).
+# node_modules is hardlinked from the store, so it survives the store removal.
+RUN pnpm install --frozen-lockfile --prod && \
+    rm -rf /root/.local/share/pnpm \
+           /root/.cache/node/corepack \
+           /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm /usr/local/bin/npx
 
 # Rewrite package exports from source to compiled dist. Matches any
 # `"./src/<path>.ts"` export target and rewrites it to `"./dist/<path>.js"`,
