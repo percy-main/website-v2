@@ -4,9 +4,21 @@ import { z } from "zod";
 import type { PlayCricketApiClient } from "../../play-cricket/api-client.ts";
 import type { ScoutCache } from "./cache.ts";
 import { approxJsonBytes } from "./payload-size.ts";
+import { enrichOutcomes } from "./play-cricket-outcome.ts";
 import { project } from "./projector.ts";
 
 const HOUR = 60 * 60;
+
+// Shared guidance embedded in every result-bearing tool description. Play
+// Cricket's raw result fields are individually unreadable (see
+// play-cricket-outcome.ts), so each played-match row is enriched with a
+// computed `outcome` object - the agent should read THAT, not the raw code.
+const OUTCOME_NOTE = `READING THE RESULT - every played-match row carries a computed \`outcome\` object. It is ALWAYS present (you do not need to project it) and is the only correct way to read the result:
+  outcome.result_description   — plain-English winner, e.g. "Percy Main won". THIS names who won; trust it above all else.
+  outcome.result               — raw Play Cricket code/text ("W", "L", "Won by 5 wickets"). NEVER read this on its own: it is "W"/"L" relative to outcome.result_applied_to (NOT the home side, NOT any fixed club) and its format is inconsistent across competitions.
+  outcome.result_applied_to / outcome.result_applied_to_club — the team_id the raw code refers to, plus that team's club name resolved within this response.
+  outcome.batted_first_club    — the club that batted first.
+  outcome.innings[].batting_club with .runs/.wickets/.overs — every innings total already attributed to the club that batted it. NEVER assume innings[0] is the home side; read batting_club. (result_summary often omits team_batting_name, so batting_club is the only reliable owner of a total.)`;
 
 export interface PlayCricketToolDeps {
   playCricket: PlayCricketApiClient;
@@ -130,6 +142,9 @@ Available field paths under match_details[]:
   match_details[].batted_first     — team that batted first
   match_details[].result, match_details[].result_description
   match_details[].players[].home_team[].player_name, match_details[].players[].away_team[].player_name
+
+${OUTCOME_NOTE}
+
   match_details[].innings[].team_batting_name, match_details[].innings[].innings_number
   match_details[].innings[].runs, match_details[].innings[].wickets, match_details[].innings[].overs
   match_details[].innings[].total_extras, match_details[].innings[].declared
@@ -156,7 +171,7 @@ Ask for the narrowest set that answers the question — e.g. for innings totals 
           24 * HOUR,
           () => playCricket.getMatchDetail(matchId),
         );
-        const projected = project(raw, fields);
+        const projected = enrichOutcomes(project(raw, fields), raw);
         logPayload(logger, "pc_match_detail", fields, raw, projected);
         return projected;
       },
@@ -233,12 +248,14 @@ Response shape: { result_summary: [<row>...] }. Each row contains the same ident
   result_summary[].match_date
   result_summary[].home_club_name, result_summary[].home_team_name, result_summary[].home_club_id, result_summary[].home_team_id
   result_summary[].away_club_name, result_summary[].away_team_name, result_summary[].away_club_id, result_summary[].away_team_id
-  result_summary[].result, result_summary[].result_applied_to, result_summary[].batted_first, result_summary[].toss
+  result_summary[].result, result_summary[].result_description, result_summary[].result_applied_to, result_summary[].batted_first, result_summary[].toss
   result_summary[].innings[]                    — innings totals (use [] alone to keep all fields per innings)
   result_summary[].innings[].team_batting_name, result_summary[].innings[].team_batting_id
   result_summary[].innings[].runs, result_summary[].innings[].wickets, result_summary[].innings[].overs
   result_summary[].innings[].declared
   result_summary[].batting_points, result_summary[].bowling_points, result_summary[].penalty_runs
+
+${OUTCOME_NOTE}
 
 Field names for bonus points may vary by competition; if a path looks empty, ask for result_summary[] (the whole row) on a single example match to inspect what's actually returned.`,
       inputSchema: z.object({
@@ -253,7 +270,7 @@ Field names for bonus points may vary by competition; if a path looks empty, ask
           6 * HOUR,
           () => playCricket.getResultSummaryForSite(siteId, season),
         );
-        const projected = project(raw, fields);
+        const projected = enrichOutcomes(project(raw, fields), raw);
         logPayload(logger, "pc_site_results", fields, raw, projected);
         return projected;
       },
@@ -262,7 +279,7 @@ Field names for bonus points may vary by competition; if a path looks empty, ask
     pc_find_opposition_matches: tool({
       description: `Find matches the named opposition team has played against Percy Main in a given season — filters Percy Main's match summary by name, then pulls full scorecards. NOTE: this only sees matches involving Percy Main. To scout an opposition's matches against OTHER clubs, use pc_site_matches instead (look up their site_id via home_club_id/away_club_id from any of our matches against them, then fetch their full season).
 
-Response shape: { oppositionName, season, matchedCount, fetchedCount, matches: [<full match-detail response>] }. Each entry in matches[] is a full match-detail response, so its inner shape is matches[].match_details[].* — use the same paths documented on pc_match_detail, just prefixed with matches[].
+Response shape: { oppositionName, season, matchedCount, fetchedCount, matches: [<full match-detail response>] }. Each entry in matches[] is a full match-detail response, so its inner shape is matches[].match_details[].* — use the same paths documented on pc_match_detail, just prefixed with matches[]. Each matches[].match_details[] entry carries the same always-present computed \`outcome\` object described on pc_match_detail; read outcome.result_description for the winner.
 
 Examples:
   ["matchedCount", "fetchedCount"]   — just the counts
@@ -333,7 +350,7 @@ Examples:
             };
           },
         );
-        const projected = project(raw, fields);
+        const projected = enrichOutcomes(project(raw, fields), raw);
         logPayload(
           logger,
           "pc_find_opposition_matches",
