@@ -27,18 +27,26 @@ import { type Kysely, sql } from "kysely";
 // getPublishedContent, so a leaderboard click never dead-ends in the short
 // window before a page exists.
 
+// The public content slug schema caps slugs at 200 chars; stay well under it
+// so a collision suffix (-2, -3, ...) still fits. member.slug feeds that
+// validated route and is inserted verbatim into content_item.slug on first
+// self-edit, so an over-long base would yield an unreachable profile.
+const SLUG_BASE_MAX = 180;
+
 // Exported for unit testing - the collision logic is the only non-trivial
 // part of this backfill, so it is covered directly.
 export function slugify(name: string): string {
   // NFKD splits an accented letter into a base char + a combining mark; drop
-  // the combining marks (U+0300-U+036F) so "José Núñez" -> "jose-nunez"
-  // rather than leaving a stray hyphen where each mark was. Everything else
-  // non-alphanumeric then collapses to a single hyphen.
+  // the combining marks so "José Núñez" -> "jose-nunez" rather than leaving a
+  // stray hyphen where each mark was. Everything else non-alphanumeric then
+  // collapses to a single hyphen. Truncate before the final trim so a cut
+  // landing on a hyphen does not leave a trailing one.
   return name
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, SLUG_BASE_MAX)
     .replace(/^-+|-+$/g, "");
 }
 

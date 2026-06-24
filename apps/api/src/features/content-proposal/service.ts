@@ -231,6 +231,19 @@ export function submitProfileProposal(db: Kysely<DB>, deps: NotifyDeps) {
         // or an admin authoring the page) instead of clashing on the slug.
         let resolvedContentId = profile.contentId;
         if (resolvedContentId === null) {
+          // Serialise concurrent first submissions for the same slug (a member
+          // double-submitting): without this, two transactions both see no
+          // item and race the unique (kind, slug) insert, surfacing a 500.
+          // The lock makes the check-then-create below atomic per slug -
+          // mirrors lockPageTree in the content service.
+          await tx
+            .selectNoFrom(
+              sql`pg_advisory_xact_lock(hashtext(${`content-person-create:${profile.slug}`}))`.as(
+                "person_create_lock",
+              ),
+            )
+            .execute();
+
           const existingItem = await tx
             .selectFrom("content_item")
             .select("id")
@@ -476,6 +489,7 @@ export function approveProfileProposal(db: Kysely<DB>, deps: NotifyDeps) {
           "content_item.description",
           "content_item.metadata as current_metadata",
           "content_item.status as item_status",
+          "content_item.published_at as item_published_at",
         ])
         .executeTakeFirst();
       if (!proposal) throwHttpError(404, "Proposal not found");
@@ -522,17 +536,20 @@ export function approveProfileProposal(db: Kysely<DB>, deps: NotifyDeps) {
         ...(proposedMeta.photo ? { photo: proposedMeta.photo } : {}),
       };
 
-      // First approval of a self-created profile publishes it. Only ever
-      // promote a DRAFT: a published item stays published, and an archived
-      // (deliberately taken-down) profile must NOT be resurrected by an edit
-      // approval - safeguarding beats convenience.
-      const publishFields =
-        proposal.item_status === "draft"
-          ? {
-              status: "published",
-              published_at: sql<Date>`CURRENT_TIMESTAMP`,
-            }
-          : {};
+      // First approval of a self-created profile publishes it. Promote ONLY a
+      // never-published draft (status = draft AND published_at IS NULL): that
+      // is exactly the create-on-first-edit case. A published item stays
+      // published; an unpublished or archived profile retains its past
+      // published_at, so it is deliberately NOT resurrected by an edit
+      // approval - a takedown is safeguarding-relevant and must stick.
+      const isFirstPublish =
+        proposal.item_status === "draft" && proposal.item_published_at === null;
+      const publishFields = isFirstPublish
+        ? {
+            status: "published",
+            published_at: sql<Date>`CURRENT_TIMESTAMP`,
+          }
+        : {};
 
       await tx
         .updateTable("content_item")

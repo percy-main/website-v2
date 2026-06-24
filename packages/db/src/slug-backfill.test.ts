@@ -25,6 +25,20 @@ describe("slugify", () => {
   it("returns an empty string for a name with no slug characters", () => {
     expect(slugify("!!!")).toBe("");
   });
+
+  it("caps the slug length so it stays under the content slug limit", () => {
+    const slug = slugify("a".repeat(250));
+    expect(slug.length).toBeLessThanOrEqual(180);
+    expect(slug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+  });
+
+  it("does not leave a trailing hyphen when the cut lands on one", () => {
+    // 179 'a's, then a separator, then more: the slice at 180 lands on the
+    // hyphen, which the final trim removes.
+    const slug = slugify(`${"a".repeat(179)} bbbb`);
+    expect(slug.endsWith("-")).toBe(false);
+    expect(slug).toBe("a".repeat(179));
+  });
 });
 
 describe("nextFreeSlug", () => {

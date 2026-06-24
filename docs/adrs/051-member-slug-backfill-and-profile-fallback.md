@@ -59,8 +59,11 @@ the first self-edit create the page.
   same ADR 050 approval gate - content is still admin-reviewed before publishing.
 - **Safeguarding is preserved.** The tombstone (410) check precedes the stub, so
   a deliberately unpublished/archived profile is never re-exposed as a stub.
-  Approval only ever promotes a `draft` to `published`; it never republishes an
-  `archived` item. Soft-deleted members get no stub (404).
+  Approval promotes only a **never-published** draft (status `draft` **and** no
+  past `published_at`) - exactly the create-on-first-edit case. An unpublished
+  or archived profile retains its `published_at`, so an approved edit updates
+  its body but never republishes it; a takedown sticks. Soft-deleted members
+  get no stub (404).
 
 ### Gate leaderboard links on page existence (rejected)
 

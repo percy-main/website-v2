@@ -13,6 +13,8 @@ import {
   getContent,
   getPublishedContent,
   listRevisions,
+  publishContent,
+  unpublishContent,
 } from "../content/service.ts";
 import {
   approveProfileProposal,
@@ -287,6 +289,46 @@ describe("content-proposal service (integration)", () => {
     if (!contentId) throw new Error("profile should now have a content id");
     const { revisions } = await listRevisions(ctx.db)(contentId);
     expect(revisions).toHaveLength(2);
+  });
+
+  it("does not republish a taken-down profile when an edit is approved", async () => {
+    const owner = await seedOwnerWithProfile("quinn-removed", "Quinn Removed");
+    // Take it live, then deliberately unpublish it. Unpublish flips status
+    // back to draft but RETAINS published_at as the ever-published marker.
+    await publishContent(ctx.db)({
+      contentId: owner.contentId,
+      userId: authorId,
+    });
+    await unpublishContent(ctx.db)({
+      contentId: owner.contentId,
+      userId: authorId,
+    });
+
+    const { deps } = recordingDeps();
+    const { id: proposalId } = await submitProfileProposal(
+      ctx.db,
+      deps,
+    )({
+      userId: owner.userId,
+      userEmail: owner.email,
+      body: body("Trying to sneak back online"),
+      photo: null,
+    });
+    await approveProfileProposal(
+      ctx.db,
+      deps,
+    )({ proposalId, reviewerUserId: reviewerId });
+
+    // The edit applied, but the profile stays unpublished - a takedown sticks.
+    const after = await getContent(ctx.db)(owner.contentId);
+    expect(after.status).toBe("draft");
+    expect(after.body[0]?.content).toMatchObject([
+      { text: "Trying to sneak back online" },
+    ]);
+    // Still not served publicly: a tombstone (410), never resurrected.
+    await expect(
+      getPublishedContent(ctx.db)({ kind: "person", slug: "quinn-removed" }),
+    ).rejects.toMatchObject({ statusCode: 410 });
   });
 
   it("approves a proposal: applies bio + photo, preserves flags + title, writes a revision, emails the proposer", async () => {
