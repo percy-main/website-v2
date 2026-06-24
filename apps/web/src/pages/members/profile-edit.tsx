@@ -72,7 +72,9 @@ export function Component() {
       {data.pendingProposal ? (
         <PendingNotice proposal={data.pendingProposal} />
       ) : (
-        <EditForm key={data.profile.contentId} profile={data.profile} />
+        // Keyed on slug, not contentId: a not-yet-created profile has no
+        // contentId, and the slug is stable for the profile's lifetime.
+        <EditForm key={data.profile.slug} profile={data.profile} />
       )}
     </Shell>
   );

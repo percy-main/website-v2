@@ -1237,6 +1237,39 @@ function publishedOnly(db: Kysely<DB>) {
     .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`);
 }
 
+/**
+ * A member-backed stub person profile for a backfilled slug that has no
+ * published page yet (the fallback in getPublishedContent). Same public
+ * shape as toPublic, with an empty body and default (no-DBS) metadata; the
+ * SPA's stats and sponsor panels render from the slug alone. Returns null
+ * when no live, named member owns the slug, so the caller falls through to
+ * 404. Timestamps are "now" - the stub is transient (it disappears the
+ * moment a real page is published) so it is deliberately not cache-stable.
+ */
+async function memberProfileStub(db: Kysely<DB>, slug: string) {
+  const member = await db
+    .selectFrom("member")
+    .select(["name"])
+    .where("slug", "=", slug)
+    .where("deleted_at", "is", null)
+    .where("name", "is not", null)
+    .executeTakeFirst();
+  if (!member?.name) return null;
+
+  const now = new Date().toISOString();
+  return {
+    id: `member-stub:${slug}`,
+    kind: "person" as ContentKind,
+    slug,
+    title: member.name,
+    description: null,
+    body: [] as z.infer<typeof contentBodySchema>,
+    metadata: { isDBSChecked: false, hasLeftClub: false },
+    publishedAt: now,
+    updatedAt: now,
+  };
+}
+
 export function getPublishedContent(db: Kysely<DB>) {
   return async (params: { kind: ContentKind; slug: string }) => {
     let query = publishedOnly(db)
@@ -1271,6 +1304,17 @@ export function getPublishedContent(db: Kysely<DB>) {
           .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`)
           .executeTakeFirst();
         if (tombstone) throwHttpError(410, "This profile has been removed");
+
+        // Member-backed fallback. Slugs are backfilled across all members
+        // (the link that drives leaderboard/records profile links), so a
+        // member can have a slug before anyone has authored their profile
+        // page. Rather than dead-end a leaderboard click on "not found",
+        // serve a minimal stub - the name plus the stats/sponsor panels,
+        // which key off the slug alone. This runs only AFTER the tombstone
+        // check, so an unpublished/archived takedown still wins (410) and is
+        // never resurrected; a soft-deleted member gets nothing (404).
+        const stub = await memberProfileStub(db, params.slug);
+        if (stub) return stub;
       }
       throwHttpError(404, "Content not found");
     }
