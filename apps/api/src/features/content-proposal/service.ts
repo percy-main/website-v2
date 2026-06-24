@@ -63,7 +63,10 @@ interface NotifyDeps {
 // profile - eligibility falls out of the existing link, no opt-in flag.
 
 interface EditableProfile {
-  contentId: string;
+  // null when the member is slug-linked but no person content_item exists
+  // yet - a "virtual" profile the owner can fill in. submitProfileProposal
+  // creates the draft item on first submit; approval publishes it.
+  contentId: string | null;
   slug: string;
   title: string;
   body: unknown;
@@ -79,7 +82,7 @@ async function resolveEditableProfile(
     .where("email", "=", userEmail)
     .where("deleted_at", "is", null)
     .where("slug", "is not", null)
-    .select(["slug"])
+    .select(["slug", "name"])
     .executeTakeFirst();
   if (!member?.slug) return null;
 
@@ -89,7 +92,22 @@ async function resolveEditableProfile(
     .where("slug", "=", member.slug)
     .select(["id", "slug", "title", "body", "metadata"])
     .executeTakeFirst();
-  if (!person) return null;
+
+  if (!person) {
+    // Linked, but the profile page does not exist yet. Offer a virtual,
+    // empty profile so the owner can author their first bio - it becomes a
+    // real (draft) person item on submit, published on approval. Needs a
+    // display title, which is the member's name; without one there is
+    // nothing to seed a profile from, so treat it as not editable.
+    if (!member.name) return null;
+    return {
+      contentId: null,
+      slug: member.slug,
+      title: member.name,
+      body: [],
+      photo: null,
+    };
+  }
 
   // A stored profile failing its schema is a server-side data problem; fall
   // back to "no photo" rather than blocking the owner from editing their bio.
@@ -153,12 +171,16 @@ export function getProfileEditState(db: Kysely<DB>) {
       return { profile: null, pendingProposal: null };
     }
 
-    const pending = await db
-      .selectFrom("content_proposal")
-      .where("content_id", "=", profile.contentId)
-      .where("status", "=", "pending")
-      .select(["id", "proposed_body", "proposed_metadata", "created_at"])
-      .executeTakeFirst();
+    // A virtual (not-yet-created) profile can have no proposal: a proposal
+    // references a content_item, which only exists once the owner submits.
+    const pending = profile.contentId
+      ? await db
+          .selectFrom("content_proposal")
+          .where("content_id", "=", profile.contentId)
+          .where("status", "=", "pending")
+          .select(["id", "proposed_body", "proposed_metadata", "created_at"])
+          .executeTakeFirst()
+      : undefined;
 
     return {
       profile: {
@@ -199,36 +221,90 @@ export function submitProfileProposal(db: Kysely<DB>, deps: NotifyDeps) {
     const body = parseBody(params.body);
     const proposedMetadata = params.photo ? { photo: params.photo } : {};
 
-    const proposalId = await db.transaction().execute(async (tx) => {
-      // One open proposal per profile: block a second while one is pending.
-      // The partial unique index is the backstop against a race; this is the
-      // friendly 409.
-      const existing = await tx
-        .selectFrom("content_proposal")
-        .select("id")
-        .where("content_id", "=", profile.contentId)
-        .where("status", "=", "pending")
-        .executeTakeFirst();
-      if (existing) {
-        throwHttpError(
-          409,
-          "You already have an edit awaiting review - it must be approved or rejected before you can submit another",
-        );
-      }
+    const { proposalId, contentId } = await db
+      .transaction()
+      .execute(async (tx) => {
+        // Resolve (or lazily create) the person item this proposal targets.
+        // A virtual profile (no page yet) gets a draft person item now so the
+        // proposal can reference it; approval publishes it. Re-check inside
+        // the txn and reuse any item that appeared meanwhile (a racing submit
+        // or an admin authoring the page) instead of clashing on the slug.
+        let resolvedContentId = profile.contentId;
+        if (resolvedContentId === null) {
+          const existingItem = await tx
+            .selectFrom("content_item")
+            .select("id")
+            .where("kind", "=", "person")
+            .where("slug", "=", profile.slug)
+            .executeTakeFirst();
+          if (existingItem) {
+            resolvedContentId = existingItem.id;
+          } else {
+            const emptyBody: unknown[] = [];
+            const seedMetadata = { isDBSChecked: false, hasLeftClub: false };
+            const created = await tx
+              .insertInto("content_item")
+              .values({
+                kind: "person",
+                slug: profile.slug,
+                parent_id: null,
+                path: null,
+                title: profile.title,
+                description: null,
+                body: JSON.stringify(emptyBody),
+                metadata: JSON.stringify(seedMetadata),
+                status: "draft",
+                created_by: params.userId,
+                updated_by: params.userId,
+              })
+              .returning("id")
+              .executeTakeFirstOrThrow();
+            resolvedContentId = created.id;
+            // Seed history like any content create, so the profile's revision
+            // log starts from its empty draft.
+            await writeRevision(
+              tx,
+              {
+                id: resolvedContentId,
+                title: profile.title,
+                description: null,
+                body: emptyBody,
+                metadata: seedMetadata,
+              },
+              params.userId,
+            );
+          }
+        }
 
-      const row = await tx
-        .insertInto("content_proposal")
-        .values({
-          content_id: profile.contentId,
-          proposed_body: JSON.stringify(body),
-          proposed_metadata: JSON.stringify(proposedMetadata),
-          proposed_by: params.userId,
-          status: "pending",
-        })
-        .returning("id")
-        .executeTakeFirstOrThrow();
-      return row.id;
-    });
+        // One open proposal per profile: block a second while one is pending.
+        // The partial unique index is the backstop against a race; this is the
+        // friendly 409.
+        const existing = await tx
+          .selectFrom("content_proposal")
+          .select("id")
+          .where("content_id", "=", resolvedContentId)
+          .where("status", "=", "pending")
+          .executeTakeFirst();
+        if (existing) {
+          throwHttpError(
+            409,
+            "You already have an edit awaiting review - it must be approved or rejected before you can submit another",
+          );
+        }
+
+        const row = await tx
+          .insertInto("content_proposal")
+          .values({
+            content_id: resolvedContentId,
+            proposed_body: JSON.stringify(body),
+            proposed_metadata: JSON.stringify(proposedMetadata),
+            proposed_by: params.userId,
+            status: "pending",
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        return { proposalId: row.id, contentId: resolvedContentId };
+      });
 
     // Notify every content publisher (excluding the proposer) so any of them
     // can review. Best-effort: a mail failure must not roll back the
@@ -255,7 +331,7 @@ export function submitProfileProposal(db: Kysely<DB>, deps: NotifyDeps) {
       );
     } catch (err) {
       deps.log.error(
-        { err, contentId: profile.contentId },
+        { err, contentId },
         "profile_proposal_reviewer_notification_failed",
       );
     }
@@ -399,6 +475,7 @@ export function approveProfileProposal(db: Kysely<DB>, deps: NotifyDeps) {
           "content_item.title",
           "content_item.description",
           "content_item.metadata as current_metadata",
+          "content_item.status as item_status",
         ])
         .executeTakeFirst();
       if (!proposal) throwHttpError(404, "Proposal not found");
@@ -445,6 +522,18 @@ export function approveProfileProposal(db: Kysely<DB>, deps: NotifyDeps) {
         ...(proposedMeta.photo ? { photo: proposedMeta.photo } : {}),
       };
 
+      // First approval of a self-created profile publishes it. Only ever
+      // promote a DRAFT: a published item stays published, and an archived
+      // (deliberately taken-down) profile must NOT be resurrected by an edit
+      // approval - safeguarding beats convenience.
+      const publishFields =
+        proposal.item_status === "draft"
+          ? {
+              status: "published",
+              published_at: sql<Date>`CURRENT_TIMESTAMP`,
+            }
+          : {};
+
       await tx
         .updateTable("content_item")
         .set({
@@ -452,6 +541,7 @@ export function approveProfileProposal(db: Kysely<DB>, deps: NotifyDeps) {
           metadata: JSON.stringify(newMetadata),
           updated_by: params.reviewerUserId,
           updated_at: sql`CURRENT_TIMESTAMP`,
+          ...publishFields,
         })
         .where("id", "=", proposal.content_id)
         .execute();

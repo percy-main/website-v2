@@ -15,7 +15,8 @@
     "db:setup-scout": "tsx ./scripts/setup-scout-readonly.ts",
     "db:setup-app-roles": "tsx ./scripts/setup-app-roles.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "test": "vitest run"
   },
   "dependencies": {
     "@percy-main/shared": "workspace:*",
@@ -31,6 +32,7 @@
     "dotenv": "^17.4.2",
     "kysely-codegen": "^0.20.0",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   }
 }

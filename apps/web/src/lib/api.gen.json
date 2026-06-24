@@ -25862,6 +25862,7 @@
                       "type": "object",
                       "properties": {
                         "contentId": {
+                          "nullable": true,
                           "type": "string"
                         },
                         "slug": {

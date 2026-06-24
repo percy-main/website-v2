@@ -14369,7 +14369,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             profile: {
-                                contentId: string;
+                                contentId: string | null;
                                 slug: string;
                                 title: string;
                                 body: {

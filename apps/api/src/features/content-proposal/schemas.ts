@@ -24,13 +24,15 @@ const profileEditFieldsSchema = z.object({
 /**
  * The logged-in member's profile-edit state. `profile` is null when the
  * caller has no slug-linked person profile (so the UI shows nothing to
- * edit). `pendingProposal` is the one open proposal awaiting review, if
- * any - while it exists the owner cannot submit another.
+ * edit). `contentId` is null for a slug-linked member whose profile page
+ * does not exist yet - a "virtual" profile they can author, created on
+ * first submit. `pendingProposal` is the one open proposal awaiting review,
+ * if any - while it exists the owner cannot submit another.
  */
 export const profileEditStateResponseSchema = z.object({
   profile: z
     .object({
-      contentId: z.string(),
+      contentId: z.string().nullable(),
       slug: z.string(),
       title: z.string(),
       body: contentBodyTransportSchema,

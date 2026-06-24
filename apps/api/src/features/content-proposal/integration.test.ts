@@ -11,6 +11,7 @@ import {
 import {
   createContent,
   getContent,
+  getPublishedContent,
   listRevisions,
 } from "../content/service.ts";
 import {
@@ -93,6 +94,20 @@ describe("content-proposal service (integration)", () => {
       .where("id", "=", owner.memberId)
       .execute();
     return { ...owner, contentId: id };
+  }
+
+  // A member slug-linked (the backfill default) but with NO person page yet -
+  // the "create on first edit" precondition.
+  async function seedLinkedMemberNoProfile(slug: string, name: string) {
+    const member = await seedTestUser(ctx.db, { name, withMember: true });
+    if (!member.memberId)
+      throw new Error("seedTestUser did not create a member");
+    await ctx.db
+      .updateTable("member")
+      .set({ slug })
+      .where("id", "=", member.memberId)
+      .execute();
+    return member;
   }
 
   beforeAll(async () => {
@@ -195,6 +210,83 @@ describe("content-proposal service (integration)", () => {
         photo: null,
       }),
     ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("offers a virtual profile to a linked member with no page yet", async () => {
+    const member = await seedLinkedMemberNoProfile("ned-new", "Ned New");
+    const state = await getProfileEditState(ctx.db)(member.email);
+    expect(state.profile).not.toBeNull();
+    expect(state.profile?.contentId).toBeNull();
+    expect(state.profile?.slug).toBe("ned-new");
+    expect(state.profile?.title).toBe("Ned New");
+    expect(state.profile?.body).toEqual([]);
+    expect(state.pendingProposal).toBeNull();
+  });
+
+  it("creates a draft profile on first submit and publishes it on approval", async () => {
+    const member = await seedLinkedMemberNoProfile(
+      "opal-author",
+      "Opal Author",
+    );
+
+    // Public lookup before any submit: the member-backed stub stands in (no
+    // page exists yet), so a leaderboard click does not dead-end.
+    const stub = await getPublishedContent(ctx.db)({
+      kind: "person",
+      slug: "opal-author",
+    });
+    expect(stub.id).toBe("member-stub:opal-author");
+
+    const { deps } = recordingDeps();
+    const { id: proposalId } = await submitProfileProposal(
+      ctx.db,
+      deps,
+    )({
+      userId: member.userId,
+      userEmail: member.email,
+      body: body("Opal's first bio"),
+      photo: null,
+    });
+
+    // The draft page now exists and is the owner's editable profile, but it
+    // is NOT public yet - the stub still answers the public lookup.
+    const afterSubmit = await getProfileEditState(ctx.db)(member.email);
+    expect(afterSubmit.profile?.contentId).not.toBeNull();
+    expect(afterSubmit.pendingProposal?.id).toBe(proposalId);
+    const stillStub = await getPublishedContent(ctx.db)({
+      kind: "person",
+      slug: "opal-author",
+    });
+    expect(stillStub.id).toBe("member-stub:opal-author");
+
+    // Approval publishes the page: the real profile now answers publicly.
+    await approveProfileProposal(
+      ctx.db,
+      deps,
+    )({ proposalId, reviewerUserId: reviewerId });
+
+    const published = await getPublishedContent(ctx.db)({
+      kind: "person",
+      slug: "opal-author",
+    });
+    expect(published.id).not.toBe("member-stub:opal-author");
+    expect(published.title).toBe("Opal Author");
+    expect(published.body[0]?.content).toMatchObject([
+      { text: "Opal's first bio" },
+    ]);
+    // A self-created profile starts with the safe default flags.
+    expect(published.metadata).toMatchObject({
+      isDBSChecked: false,
+      hasLeftClub: false,
+    });
+
+    // Owner can edit again; the proposal history is empty-draft + approval.
+    const settled = await getProfileEditState(ctx.db)(member.email);
+    expect(settled.pendingProposal).toBeNull();
+    const contentId = settled.profile?.contentId;
+    if (!contentId) throw new Error("profile should now have a content id");
+    const { revisions } = await listRevisions(ctx.db)(contentId);
+    expect(revisions).toHaveLength(2);
   });
 
   it("approves a proposal: applies bio + photo, preserves flags + title, writes a revision, emails the proposer", async () => {
