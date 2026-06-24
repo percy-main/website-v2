@@ -60,6 +60,14 @@ export function Component() {
   const hasAdminAccess = useHasAdminPanelAccess();
   const hasJuniorAccess = useHasPermission("juniors", "view").allowed;
 
+  // Only members whose account is slug-linked to a player profile have
+  // something to edit; the link is hidden otherwise.
+  const { data: profileEditState } = useQuery({
+    queryKey: ["profile", "edit"],
+    queryFn: () => callApi(api.GET("/api/profile/edit")),
+  });
+  const hasEditableProfile = profileEditState?.profile != null;
+
   if (!session) return null;
 
   const { user } = session;
@@ -105,6 +113,14 @@ export function Component() {
             >
               Fantasy Cricket
             </Link>
+            {hasEditableProfile && (
+              <Link
+                className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"
+                to="/members/profile"
+              >
+                Edit my profile
+              </Link>
+            )}
             <ScoutLink />
             <Link
               className="rounded border border-stone-800 px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-200"

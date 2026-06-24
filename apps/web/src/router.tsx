@@ -170,6 +170,10 @@ export const router = createBrowserRouter([
                 lazy: () => import("./pages/members/members-dashboard.js"),
               },
               {
+                path: "members/profile",
+                lazy: () => import("./pages/members/profile-edit.js"),
+              },
+              {
                 path: "members/fantasy",
                 lazy: () => import("./pages/members/members-fantasy.js"),
               },

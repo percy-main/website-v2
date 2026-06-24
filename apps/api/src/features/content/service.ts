@@ -164,8 +164,12 @@ function selectSummary(db: Kysely<DB>) {
     .select([...summaryColumns, "updater.name as updated_by_name"]);
 }
 
-/** Snapshot the item's editorial fields into content_revision. */
-async function writeRevision(
+/**
+ * Snapshot the item's editorial fields into content_revision. Exported so
+ * the profile self-edit approval path (#575) writes history through the
+ * same helper - an approved proposal is just another save.
+ */
+export async function writeRevision(
   tx: Transaction<DB>,
   item: {
     id: string;

@@ -11,6 +11,8 @@ export { MembershipUpdated } from "./templates/MembershipUpdated.tsx";
 export { PaymentReminder } from "./templates/PaymentReminder.tsx";
 export { PlayerSponsorshipConfirmation } from "./templates/PlayerSponsorshipConfirmation.tsx";
 export { PlayerWithdrawal } from "./templates/PlayerWithdrawal.tsx";
+export { ProfileEditDecision } from "./templates/ProfileEditDecision.tsx";
+export { ProfileEditProposalSubmitted } from "./templates/ProfileEditProposalSubmitted.tsx";
 export { ResetPassword } from "./templates/ResetPassword.tsx";
 export { SponsorshipConfirmation } from "./templates/SponsorshipConfirmation.tsx";
 export { VerifyEmail } from "./templates/VerifyEmail.tsx";
