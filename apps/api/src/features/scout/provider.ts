@@ -49,12 +49,7 @@ export function resolveModel(
  * entry) — using a JSON tree avoids reaching into a transitive dep.
  */
 type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: JsonValue }
-  | JsonValue[];
+  string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
 
 export function deepseekFastProviderOptions(
   provider: ScoutProvider,

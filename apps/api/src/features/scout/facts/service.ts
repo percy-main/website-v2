@@ -144,8 +144,7 @@ export function recordFact(db: Kysely<DB>, voyage: VoyageClient) {
       ),
     );
     const nearest = nearestQuery.rows[0] as
-      | { id: string; distance: number | string }
-      | undefined;
+      { id: string; distance: number | string } | undefined;
 
     const distance = nearest ? Number(nearest.distance) : Infinity;
 

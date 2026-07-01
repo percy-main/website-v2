@@ -12,12 +12,7 @@ function getAbandonedCutoff(): string {
 }
 
 export type ChargeStatus =
-  | "paid"
-  | "pending"
-  | "unpaid"
-  | "abandoned"
-  | "deleted"
-  | "relieved";
+  "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | "relieved";
 
 function getChargeStatus(
   paidAt: string | null,

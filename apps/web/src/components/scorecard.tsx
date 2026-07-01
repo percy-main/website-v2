@@ -188,8 +188,7 @@ function transformMatchDetail(
   raw: Record<string, unknown>,
 ): MatchDetailData | null {
   const details = raw.match_details as
-    | Array<Record<string, unknown>>
-    | undefined;
+    Array<Record<string, unknown>> | undefined;
   if (!details || details.length === 0) return null;
 
   const d = details[0];

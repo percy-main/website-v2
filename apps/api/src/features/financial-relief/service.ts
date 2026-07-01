@@ -280,9 +280,7 @@ export function getMyReliefStatus(db: Kysely<DB>) {
           activeGrant: grant
             ? {
                 decision: grant.decision as
-                  | "approved_full"
-                  | "approved_partial"
-                  | "approved_temporary",
+                  "approved_full" | "approved_partial" | "approved_temporary",
                 coversMembership: grant.covers_membership,
                 coversMatchFees: grant.covers_match_fees,
                 effectiveFrom: toIsoString(grant.effective_from),
@@ -574,9 +572,7 @@ export function getReliefRequestDetail(db: Kysely<DB>) {
         ? {
             id: grant.id,
             decision: grant.decision as
-              | "approved_full"
-              | "approved_partial"
-              | "approved_temporary",
+              "approved_full" | "approved_partial" | "approved_temporary",
             coversMembership: grant.coversMembership,
             coversMatchFees: grant.coversMatchFees,
             membershipPartialPence: grant.membershipPartialPence,

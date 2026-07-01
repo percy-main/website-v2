@@ -152,9 +152,7 @@ export interface ScoringThresholdConfig {
 }
 
 export type ChaosRuleConfig =
-  | Record<string, never>
-  | ScoringModifierConfig
-  | ScoringThresholdConfig;
+  Record<string, never> | ScoringModifierConfig | ScoringThresholdConfig;
 
 // ---------------------------------------------------------------------------
 // Input types

@@ -3,17 +3,10 @@ import type { Kysely } from "kysely";
 import type { DB } from "../__generated__/db.ts";
 
 export type ChargeType =
-  | "manual"
-  | "donation"
-  | "membership"
-  | "sponsorship"
-  | "junior_membership";
+  "manual" | "donation" | "membership" | "sponsorship" | "junior_membership";
 
 export type ChargeSource =
-  | "admin"
-  | "webhook"
-  | "self_service"
-  | "historical_import";
+  "admin" | "webhook" | "self_service" | "historical_import";
 
 interface CreatePaymentChargeParams {
   memberEmail: string;
@@ -26,8 +19,7 @@ interface CreatePaymentChargeParams {
 }
 
 export type CreatePaymentChargeResult =
-  | { created: true }
-  | { created: false; reason: "no_member" | "duplicate" };
+  { created: true } | { created: false; reason: "no_member" | "duplicate" };
 
 export function createPaymentCharge(db: Kysely<DB>) {
   return async ({

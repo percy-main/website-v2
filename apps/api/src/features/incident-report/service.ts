@@ -215,10 +215,7 @@ export function listIncidentReports(db: Kysely<DB>) {
         affectedIsMinor: r.affected_is_minor,
         injuryOccurred: r.injury_occurred,
         injurySeverity: r.injury_severity as
-          | "minor"
-          | "serious"
-          | "fatal"
-          | null,
+          "minor" | "serious" | "fatal" | null,
         location: r.location,
         occurredAt: toIsoString(r.occurred_at),
         createdAt: toIsoString(r.created_at),
@@ -328,10 +325,7 @@ export function getIncidentReport(db: Kysely<DB>) {
       natureOfInjury: row.nature_of_injury,
       bodyPartsAffected: row.body_parts_affected,
       injurySeverity: row.injury_severity as
-        | "minor"
-        | "serious"
-        | "fatal"
-        | null,
+        "minor" | "serious" | "fatal" | null,
       firstAidGiven: row.first_aid_given,
       firstAiderName: row.first_aider_name,
       firstAidDetails: row.first_aid_details,

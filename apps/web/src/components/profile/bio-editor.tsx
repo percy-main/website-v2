@@ -87,6 +87,7 @@ export function BioEditor({ initialContent, onChange }: BioEditorProps) {
           // the full recursive shared schema.
           onChange(
             contentBodySchema.parse(
+              // eslint-disable-next-line react-doctor/no-json-parse-stringify-clone -- deliberate JSON round-trip: validates the exact plain-JSON shape the API receives, dropping non-JSON values structuredClone would keep
               JSON.parse(JSON.stringify(editor.document)),
             ),
           );

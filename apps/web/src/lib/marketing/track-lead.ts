@@ -7,8 +7,7 @@ import { getConsentSnapshot } from "./consent.js";
 import { sha256, trackEvent } from "./gtag.js";
 
 const ADS_CONVERSION_ID = import.meta.env.VITE_GOOGLE_ADS_CONVERSION_ID as
-  | string
-  | undefined;
+  string | undefined;
 
 function resolveConversionLabel(
   campaignId: CampaignId,

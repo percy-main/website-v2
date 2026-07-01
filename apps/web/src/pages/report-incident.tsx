@@ -27,12 +27,7 @@ type ReporterRelationship =
   | "other";
 
 type AffectedRelationship =
-  | "trustee"
-  | "member"
-  | "volunteer"
-  | "visitor"
-  | "contractor"
-  | "other";
+  "trustee" | "member" | "volunteer" | "visitor" | "contractor" | "other";
 
 type IncidentType =
   | "injury"

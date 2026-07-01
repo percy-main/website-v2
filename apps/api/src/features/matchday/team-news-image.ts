@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import opentype from "opentype.js";
-import sharp from "sharp";
+import sharp, { type OverlayOptions } from "sharp";
 import type { TeamNewsData } from "./service.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -377,7 +377,7 @@ export async function generateTeamNewsImage(
     .png()
     .toBuffer();
 
-  const layers: sharp.OverlayOptions[] = [{ input: svgBuffer, blend: "over" }];
+  const layers: OverlayOptions[] = [{ input: svgBuffer, blend: "over" }];
 
   // Club logo — top-left, sits inside the header band
   try {
