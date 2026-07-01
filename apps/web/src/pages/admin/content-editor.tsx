@@ -3517,6 +3517,7 @@ function ContentAiLauncher({
     (blocks: WriteContentBlock[]) => {
       const doc = editor.document;
       editor.insertBlocks(
+        // eslint-disable-next-line react-doctor/no-json-parse-stringify-clone -- deliberate JSON round-trip (same pattern as editorBody): strips non-JSON values so the blocks become plain PartialBlocks
         JSON.parse(JSON.stringify(blocks)) as PartialBlock[],
         doc[doc.length - 1],
         "after",
@@ -3627,6 +3628,7 @@ function LoadedEditor({
   });
 
   const editorBody = () =>
+    // eslint-disable-next-line react-doctor/no-json-parse-stringify-clone -- deliberate JSON round-trip: validates the exact plain-JSON shape the API receives, dropping non-JSON values structuredClone would keep
     contentBodySchema.parse(JSON.parse(JSON.stringify(editor.document)));
 
   const { restoreNotice, clearRestoreNotice, restoreRevision } =
