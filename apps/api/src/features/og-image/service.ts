@@ -3,7 +3,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import sharp from "sharp";
+import sharp, { type OverlayOptions } from "sharp";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -426,7 +426,7 @@ export function generateOgImage(
       .png()
       .toBuffer();
 
-    const layers: sharp.OverlayOptions[] = [
+    const layers: OverlayOptions[] = [
       { input: svgBuffer, blend: "over" },
     ];
 
