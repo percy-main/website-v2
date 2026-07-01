@@ -128,12 +128,12 @@ Same pattern as the existing Stripe/SES secrets.
 - [ ] Secret JSON shape:
       `json
 {
-  "developerToken": "...",
-  "clientId": "...",
-  "clientSecret": "...",
-  "refreshToken": "...",
-  "customerId": "8821235703",
-  "loginCustomerId": "<manager-account-customer-id>"
+"developerToken": "...",
+"clientId": "...",
+"clientSecret": "...",
+"refreshToken": "...",
+"customerId": "8821235703",
+"loginCustomerId": "<manager-account-customer-id>"
 }
 `
       `customerId` is the operating account (the Ad Grants account

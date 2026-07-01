@@ -29,12 +29,7 @@ const EXPENSE_TYPE_LABELS: Record<string, string> = {
 };
 
 type ChargeStatus =
-  | "paid"
-  | "pending"
-  | "unpaid"
-  | "abandoned"
-  | "deleted"
-  | "relieved";
+  "paid" | "pending" | "unpaid" | "abandoned" | "deleted" | "relieved";
 
 function formatMatchDate(dateStr: string): string {
   const d = new Date(dateStr);

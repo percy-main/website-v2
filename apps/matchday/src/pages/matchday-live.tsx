@@ -517,11 +517,7 @@ function labelExpense(t: string): string {
 }
 
 type ExpenseType =
-  | "umpire_fee"
-  | "scorer_fee"
-  | "match_ball"
-  | "teas"
-  | "miscellaneous";
+  "umpire_fee" | "scorer_fee" | "match_ball" | "teas" | "miscellaneous";
 
 function AddExpenseSheet({
   matchdayId,

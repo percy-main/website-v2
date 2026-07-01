@@ -7,10 +7,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 
 type MembershipType =
-  | "senior_player"
-  | "social"
-  | "senior_women_player"
-  | "concessionary";
+  "senior_player" | "social" | "senior_women_player" | "concessionary";
 
 function PayMembershipInner() {
   const [searchParams] = useSearchParams();

@@ -426,9 +426,7 @@ export function generateOgImage(
       .png()
       .toBuffer();
 
-    const layers: OverlayOptions[] = [
-      { input: svgBuffer, blend: "over" },
-    ];
+    const layers: OverlayOptions[] = [{ input: svgBuffer, blend: "over" }];
 
     // Composite sponsor logo into the footer if available
     if (matchData.sponsor?.logoUrl) {

@@ -14,10 +14,7 @@ import { readCookie, writeCookie } from "./cookies.js";
 export const CURRENT_CONSENT_VERSION = "2026-04-25";
 
 type ConsentAxis =
-  | "ad_storage"
-  | "ad_user_data"
-  | "ad_personalization"
-  | "analytics_storage";
+  "ad_storage" | "ad_user_data" | "ad_personalization" | "analytics_storage";
 
 type ConsentUpdate = Record<ConsentAxis, "granted" | "denied">;
 

@@ -51,12 +51,7 @@ const statusBadgeMap: Record<
   string,
   {
     variant:
-      | "success"
-      | "warning"
-      | "info"
-      | "destructive"
-      | "default"
-      | "secondary";
+      "success" | "warning" | "info" | "destructive" | "default" | "secondary";
     label: string;
   }
 > = {

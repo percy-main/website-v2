@@ -94,10 +94,7 @@ export function Component() {
       if (isSubscription) {
         if (!email) throw new Error("Email is required for subscriptions");
         const membership = parsed?.membership as
-          | "social"
-          | "senior_player"
-          | "senior_women_player"
-          | "concessionary";
+          "social" | "senior_player" | "senior_women_player" | "concessionary";
         const result = await callApi(
           api.POST("/api/subscribe", {
             body: {

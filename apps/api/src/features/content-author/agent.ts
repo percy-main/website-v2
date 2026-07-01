@@ -26,12 +26,7 @@ import { createWriteContentTool } from "./tools/write-content.ts";
 // (SharedV3ProviderOptions). Inline the structural shape - we only ever build
 // one nested object keyed by provider id. Mirrors scout/agent.ts.
 type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: JsonValue }
-  | JsonValue[];
+  string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
 type ProviderOptions = Record<string, Record<string, JsonValue>>;
 
 // Reasoning is always on for this agent (the feature requires it). Anthropic's

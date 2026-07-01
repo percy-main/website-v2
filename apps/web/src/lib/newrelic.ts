@@ -25,14 +25,11 @@ declare global {
 }
 
 const licenseKey = import.meta.env.VITE_NEW_RELIC_LICENSE_KEY as
-  | string
-  | undefined;
+  string | undefined;
 const applicationID = import.meta.env.VITE_NEW_RELIC_APP_ID as
-  | string
-  | undefined;
+  string | undefined;
 const accountID = import.meta.env.VITE_NEW_RELIC_ACCOUNT_ID as
-  | string
-  | undefined;
+  string | undefined;
 
 /**
  * Wrap a fetch with a noticeError on non-OK / network failure so S3
@@ -87,9 +84,9 @@ export async function noticedFetch(
     }
     return res;
   } catch (err) {
-    if (
-      !(err instanceof Error && err.message.startsWith("noticed_fetch_failed"))
-    ) {
+    if (!(
+      err instanceof Error && err.message.startsWith("noticed_fetch_failed")
+    )) {
       notice(err as Error, { ...attributes, path });
     }
     throw err;

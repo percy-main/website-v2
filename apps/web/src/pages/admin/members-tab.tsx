@@ -83,9 +83,7 @@ export function MembersTab() {
               ...(membershipStatus
                 ? {
                     membershipStatus: membershipStatus as
-                      | "active"
-                      | "lapsed"
-                      | "none",
+                      "active" | "lapsed" | "none",
                   }
                 : {}),
               ...(membershipType ? { membershipType } : {}),

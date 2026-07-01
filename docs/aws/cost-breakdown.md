@@ -248,13 +248,13 @@ While the application already mitigates common attack vectors at the code level 
 
 ## Cost Optimisation Options
 
-| Option                                                          | Potential Savings        | Trade-off                                                |
-| --------------------------------------------------------------- | ------------------------ | -------------------------------------------------------- |
-| **Single RDS instance** for prod + staging (separate databases) | ~$16/mo                  | Shared resource; staging load could affect production    |
-| **Fargate Spot** for staging tasks                              | ~$8/mo                   | Tasks can be interrupted (acceptable for non-production) |
-| **Reserved Instances** for RDS (1-year no-upfront)              | ~30% on RDS (~$10/mo)    | Upfront commitment                                       |
-| **Compute Savings Plans** (1-year)                              | ~20% on Fargate (~$5/mo) | Upfront commitment                                       |
-| **Share NAT Gateway** across prod + staging via VPC peering     | ~$35/mo                  | Cross-account networking complexity                      |
+| Option                                                          | Potential Savings          | Trade-off                                                |
+| --------------------------------------------------------------- | -------------------------- | -------------------------------------------------------- |
+| **Single RDS instance** for prod + staging (separate databases) | ~$16/mo                    | Shared resource; staging load could affect production    |
+| **Fargate Spot** for staging tasks                              | ~$8/mo                     | Tasks can be interrupted (acceptable for non-production) |
+| **Reserved Instances** for RDS (1-year no-upfront)              | ~~30% on RDS (~~$10/mo)    | Upfront commitment                                       |
+| **Compute Savings Plans** (1-year)                              | ~~20% on Fargate (~~$5/mo) | Upfront commitment                                       |
+| **Share NAT Gateway** across prod + staging via VPC peering     | ~$35/mo                    | Cross-account networking complexity                      |
 
 ---
 
