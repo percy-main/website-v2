@@ -466,6 +466,21 @@ data "aws_iam_policy_document" "deploy_s3_cloudfront" {
     ]
     resources = ["*"]
   }
+
+  # deploy-web pushes the prerenderer Lambda's code (built from the same
+  # web bundle it deploys to S3) and kicks a render-all after upload.
+  statement {
+    sid    = "PrerendererCodeDeploy"
+    effect = "Allow"
+    actions = [
+      "lambda:UpdateFunctionCode",
+      "lambda:GetFunction",
+      "lambda:InvokeFunction",
+    ]
+    resources = [
+      "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:percy-main-*-prerenderer",
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "deploy_s3_cloudfront" {

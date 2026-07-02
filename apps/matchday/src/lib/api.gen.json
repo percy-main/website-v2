@@ -25655,6 +25655,65 @@
         }
       }
     },
+    "/api/content/prerender-manifest": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "url": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "page",
+                              "news",
+                              "event",
+                              "person"
+                            ]
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          },
+                          "publishedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "url",
+                          "kind",
+                          "slug",
+                          "updatedAt",
+                          "publishedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/content-images/upload-url": {
       "post": {
         "requestBody": {

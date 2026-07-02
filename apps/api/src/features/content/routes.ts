@@ -26,6 +26,7 @@ import {
   pageByPathQuerySchema,
   pageTreeResponseSchema,
   playCricketIdParamSchema,
+  prerenderManifestResponseSchema,
   publicContentParamsSchema,
   publicContentResponseSchema,
   publishContentSchema,
@@ -45,6 +46,7 @@ import {
   getRevision,
   listContent,
   listPageTree,
+  listPrerenderManifest,
   listPublishedEvents,
   listPublishedNews,
   listPublishedPeople,
@@ -97,6 +99,7 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const publicEvents = listPublishedEvents(app.db);
   const publicPeople = listPublishedPeople(app.db);
   const publicNav = getPublishedNav(app.db);
+  const prerenderManifest = listPrerenderManifest(app.db);
   const publicPageByPath = getPublishedPageByPath(app.db);
 
   // ── Admin ──
@@ -427,6 +430,21 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async () => {
       return await publicNav();
+    },
+  );
+
+  // Consumed by the prerenderer Lambda (apps/web/server/prerender) on
+  // every sync. Public like the other list routes: it reveals nothing the
+  // nav/news/people lists don't already.
+  app.get(
+    "/content/prerender-manifest",
+    {
+      schema: {
+        response: { 200: prerenderManifestResponseSchema },
+      },
+    },
+    async () => {
+      return await prerenderManifest();
     },
   );
 };

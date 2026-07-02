@@ -11,7 +11,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const distDir = resolve(import.meta.dirname, "../dist");
-const ssrDir = join(distDir, "prerender");
+const ssrDir = resolve(import.meta.dirname, "../dist-server");
 
 if (!existsSync(ssrDir)) {
   console.error(`check-ssr-asset-parity: ${ssrDir} not found - run build:ssr first`);

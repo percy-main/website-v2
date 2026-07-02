@@ -209,10 +209,10 @@ module "ecs" {
     SCOUT_MODEL_REPORT            = "deepseek-v4-pro"
     SCOUT_ATTACHMENT_DERIVE_MODEL = "claude-haiku-4-5-20251001"
     # Content-author AI assistant ("Generate with AI" over the content editor).
-    CONTENT_AI_PROVIDER           = "deepseek"
-    CONTENT_AI_MODEL              = "deepseek-v4-pro"
-    VOYAGE_EMBED_MODEL            = "voyage-4"
-    VOYAGE_RERANK_MODEL           = "rerank-2.5"
+    CONTENT_AI_PROVIDER = "deepseek"
+    CONTENT_AI_MODEL    = "deepseek-v4-pro"
+    VOYAGE_EMBED_MODEL  = "voyage-4"
+    VOYAGE_RERANK_MODEL = "rerank-2.5"
     # Arize Phoenix LLM tracing - isolated from NR. The collector endpoint
     # is the bare Phoenix Cloud space URL; the API code appends /v1/traces.
     # Project name is per-env so prod traces don't collide with staging.
@@ -387,6 +387,21 @@ module "cdn" {
   acm_certificate_arn = local.shared.acm_cloudfront_certificate_arn
   extra_aliases       = ["www.percymain.org", "kit.percymain.org"]
   api_base_url        = "https://api.v2.percymain.org"
+}
+
+# Prerenderer: publish-time static HTML snapshots of public content
+# (pages/news/people/events) served as the initial document via the cdn
+# module's KeyValueStore-gated rewrite. Terraform owns the function; the
+# deploy-web workflow pushes its code on every web deploy.
+module "prerender" {
+  source               = "../../modules/prerender"
+  environment          = "production"
+  frontend_bucket_name = module.cdn.frontend_bucket_name
+  frontend_bucket_arn  = module.cdn.frontend_bucket_arn
+  kvs_arn              = module.cdn.prerender_kvs_arn
+  distribution_id      = module.cdn.distribution_id
+  distribution_arn     = module.cdn.distribution_arn
+  alarms_sns_topic_arn = module.monitoring.sns_topic_arn
 }
 
 # Matchday PWA distribution - separate from the main marketing site so a

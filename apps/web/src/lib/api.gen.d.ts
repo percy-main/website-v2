@@ -14235,6 +14235,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/content/prerender-manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                url: string;
+                                /** @enum {string} */
+                                kind: "page" | "news" | "event" | "person";
+                                slug: string;
+                                updatedAt: string;
+                                publishedAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/content-images/upload-url": {
         parameters: {
             query?: never;

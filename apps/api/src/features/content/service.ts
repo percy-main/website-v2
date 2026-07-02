@@ -7,6 +7,7 @@ import {
   newsMetadataSchema,
   pageMetadataSchema,
   personMetadataSchema,
+  publicContentUrl,
   RESERVED_ROOT_SLUGS,
   type ContentKind,
   type ContentStatus,
@@ -1599,6 +1600,47 @@ export function listPublishedPeople(db: Kysely<DB>) {
     return {
       items: rows.map((row) => toPublicListItem(personMetadataSchema, row)),
       removed: removedRows.map((row) => row.slug),
+    };
+  };
+}
+
+/**
+ * Everything the prerenderer needs to sync: one row per LIVE public
+ * content URL (game reports excluded - they keep the CloudFront OG
+ * redirect). The Lambda diffs this against its state file to decide what
+ * to (re)render, and builds sitemap.xml from it, so the timestamps must
+ * change whenever the rendered output would.
+ */
+export function listPrerenderManifest(db: Kysely<DB>) {
+  return async () => {
+    const rows = await publishedOnly(db)
+      .select(["kind", "slug", "path", "updated_at", "published_at"])
+      .where("kind", "in", ["page", "news", "event", "person"])
+      .orderBy("kind", "asc")
+      .orderBy("slug", "asc")
+      .execute();
+
+    return {
+      items: rows.flatMap((row) => {
+        // Non-null by check constraint when status='published'; skip
+        // rather than 500 so one bad row cannot take down the whole sync.
+        if (!row.published_at) return [];
+        const url = publicContentUrl(
+          row.kind as ContentKind,
+          row.slug,
+          row.path,
+        );
+        if (url === null) return [];
+        return [
+          {
+            url,
+            kind: row.kind as "page" | "news" | "event" | "person",
+            slug: row.slug,
+            updatedAt: row.updated_at.toISOString(),
+            publishedAt: row.published_at.toISOString(),
+          },
+        ];
+      }),
     };
   };
 }

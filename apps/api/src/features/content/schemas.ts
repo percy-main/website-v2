@@ -301,3 +301,21 @@ export const pageByPathQuerySchema = z.object({
 export const goneResponseSchema = z.object({
   error: z.string(),
 });
+
+/**
+ * One row per live public content URL, for the prerenderer Lambda: it
+ * diffs `updatedAt`/`publishedAt` against its state file to decide what
+ * to re-render, and builds sitemap.xml from the URL list. Game reports
+ * are excluded (they keep the CloudFront OG redirect).
+ */
+export const prerenderManifestResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      url: z.string(),
+      kind: z.enum(["page", "news", "event", "person"]),
+      slug: z.string(),
+      updatedAt: z.string(),
+      publishedAt: z.string(),
+    }),
+  ),
+});

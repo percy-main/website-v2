@@ -63,7 +63,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Build frontend
-        run: pnpm --filter web build
+        # build:ssr = the prerenderer Lambda bundle, built with the same
+        # env so markup and hashed asset references match the client
+        # build exactly (check:ssr-assets asserts it).
+        run: |
+          pnpm --filter web build
+          pnpm --filter web build:ssr
+          pnpm --filter web check:ssr-assets
         env:
           VITE_API_URL: https://api.v2.percymain.org/api
           VITE_STRIPE_PUBLIC_KEY: ${{ vars.STRIPE_PUBLIC_KEY }}
@@ -81,19 +87,36 @@ jobs:
           role-to-assume: ${{ vars.DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Sync to S3
+      - name: Upload to S3
+        # Two-phase deploy (mirrors deploy.yml): ADD/UPDATE only here; old
+        # hashed assets survive until every prerendered snapshot has been
+        # re-rendered against the new bundle. "Remove stale assets" below
+        # does the --delete pass.
         run: |
           aws s3 sync apps/web/dist/ s3://${{ vars.FRONTEND_BUCKET }} \
-            --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "index.html" \
-            --exclude "*.json"
+            --exclude "*.json" \
+            --exclude "robots.txt"
 
           aws s3 cp apps/web/dist/index.html s3://${{ vars.FRONTEND_BUCKET }}/index.html \
             --cache-control "public, max-age=0, must-revalidate"
 
+          aws s3 cp apps/web/dist/robots.txt s3://${{ vars.FRONTEND_BUCKET }}/robots.txt \
+            --cache-control "public, max-age=0, must-revalidate"
+
           find apps/web/dist -name "*.json" -exec sh -c \
             'aws s3 cp "$1" s3://${{ vars.FRONTEND_BUCKET }}/${1#apps/web/dist/} --cache-control "public, max-age=0, must-revalidate"' _ {} \;
+
+      - name: Deploy prerenderer Lambda
+        run: |
+          cp apps/web/dist/index.html apps/web/dist-server/template.html
+          (cd apps/web/dist-server && zip -qr ../../../prerenderer.zip .)
+          aws lambda update-function-code \
+            --function-name percy-main-production-prerenderer \
+            --zip-file fileb://prerenderer.zip >/dev/null
+          aws lambda wait function-updated \
+            --function-name percy-main-production-prerenderer
 
       - name: Invalidate CloudFront cache
         id: invalidate
@@ -112,6 +135,36 @@ jobs:
           aws cloudfront wait invalidation-completed \
             --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
             --id "${{ steps.invalidate.outputs.invalidation_id }}"
+
+      - name: Rerender prerendered pages
+        # Synchronous: stale-asset cleanup below must not run until every
+        # snapshot references the new bundle. Gated like deploy.yml.
+        if: vars.PRERENDER_ENABLED == 'true'
+        run: |
+          aws lambda invoke \
+            --function-name percy-main-production-prerenderer \
+            --cli-binary-format raw-in-base64-out \
+            --cli-read-timeout 360 \
+            --payload '{"action":"render-all"}' \
+            /tmp/render-all.json
+          cat /tmp/render-all.json
+          if grep -q '"errorMessage"' /tmp/render-all.json; then
+            echo "::error::prerenderer render-all failed"
+            exit 1
+          fi
+
+      - name: Remove stale assets
+        # The excludes protect the prerenderer's bucket-side objects
+        # (snapshots, sitemap, state.json) from --delete.
+        run: |
+          aws s3 sync apps/web/dist/ s3://${{ vars.FRONTEND_BUCKET }} \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "index.html" \
+            --exclude "*.json" \
+            --exclude "robots.txt" \
+            --exclude "_prerender/*" \
+            --exclude "sitemap.xml"
 
       - name: Record web deployment in New Relic
         id: nr-deploy-web

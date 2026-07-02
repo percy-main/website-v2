@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:ssr": "vite build --ssr server/prerender/lambda.ts --outDir dist/prerender",
+    "build:ssr": "vite build --ssr server/prerender/lambda.ts --outDir dist-server",
     "check:ssr-assets": "node scripts/check-ssr-asset-parity.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
@@ -62,7 +62,12 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@aws-sdk/client-cloudfront": "^3.1078.0",
+    "@aws-sdk/client-cloudfront-keyvaluestore": "^3.1078.0",
+    "@aws-sdk/client-s3": "^3.1078.0",
+    "@aws-sdk/signature-v4-multi-region": "^3.996.38",
     "@rolldown/plugin-babel": "^0.2.3",
+    "@smithy/signature-v4a": "^3.4.1",
     "@tailwindcss/vite": "^4.3.2",
     "@types/google.maps": "^3.65.2",
     "@types/node": "^25.9.3",

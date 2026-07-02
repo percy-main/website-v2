@@ -293,8 +293,19 @@ resource "aws_cloudfront_origin_access_control" "s3" {
 }
 
 # -----------------------------------------------------------------------------
-# CloudFront Function — SPA Rewrite
+# CloudFront Function — SPA Rewrite + prerender routing
+#
+# The KeyValueStore holds one key per prerendered public URL (written by
+# the prerenderer Lambda, infra/modules/prerender). The function rewrites
+# a KVS hit to its /_prerender/... object and falls back to /index.html
+# on a miss - so an EMPTY store is exactly the historical pure-SPA
+# behaviour, which is also the rollback path (delete all keys).
 # -----------------------------------------------------------------------------
+
+resource "aws_cloudfront_key_value_store" "prerender" {
+  name    = "${var.environment}-percy-main-prerender"
+  comment = "Prerendered public URLs; managed by the prerenderer Lambda"
+}
 
 resource "aws_cloudfront_function" "spa_rewrite" {
   name    = "${var.environment}-percy-main-spa-rewrite"
@@ -302,6 +313,7 @@ resource "aws_cloudfront_function" "spa_rewrite" {
   code = templatefile("${path.module}/spa-rewrite.js", {
     api_base_url = var.api_base_url
   })
+  key_value_store_associations = [aws_cloudfront_key_value_store.prerender.arn]
 }
 
 # -----------------------------------------------------------------------------
@@ -485,4 +497,19 @@ output "frontend_bucket_name" {
 output "uploads_bucket_name" {
   value       = aws_s3_bucket.uploads.id
   description = "S3 bucket name for user uploads"
+}
+
+output "frontend_bucket_arn" {
+  value       = aws_s3_bucket.frontend.arn
+  description = "S3 bucket ARN for frontend assets (prerenderer IAM scoping)"
+}
+
+output "distribution_arn" {
+  value       = aws_cloudfront_distribution.main.arn
+  description = "CloudFront distribution ARN (prerenderer invalidation IAM)"
+}
+
+output "prerender_kvs_arn" {
+  value       = aws_cloudfront_key_value_store.prerender.arn
+  description = "CloudFront KeyValueStore holding prerendered URL keys"
 }

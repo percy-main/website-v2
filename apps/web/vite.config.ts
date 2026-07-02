@@ -68,6 +68,9 @@ export default defineConfig(({ mode, isSsrBuild }) => ({
   // asserts that parity (scripts/check-ssr-asset-parity.mjs).
   ...(isSsrBuild ? { ssr: { noExternal: true } } : {}),
   build: {
+    // The Lambda zip doesn't serve static files; don't copy public/ into
+    // the SSR outDir.
+    ...(isSsrBuild ? { copyPublicDir: false } : {}),
     rollupOptions: {
       output: isSsrBuild
         ? {

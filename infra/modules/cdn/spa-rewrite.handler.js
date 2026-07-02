@@ -1,14 +1,19 @@
 /**
- * CloudFront Function handler — SPA rewrite + OG redirect.
+ * CloudFront Function handler — SPA rewrite + OG redirect + prerender
+ * routing.
  *
  * This module exports the handler for testing. The actual CF function
  * source (spa-rewrite.js) is a Terraform template that inlines the
- * API_BASE_URL variable. Both files must stay in sync.
+ * API_BASE_URL variable and obtains the KVS handle from the cloudfront
+ * runtime. Both files must stay in sync.
  *
  * @param {string} apiBaseUrl — injected at deploy time via Terraform templatefile()
+ * @param {{ get(key: string): Promise<string> } | null} kvsHandle — the
+ *   prerender KeyValueStore (cf.kvs() in the real function; get() throws
+ *   on a missing key). null when no store is associated.
  */
-export function createHandler(apiBaseUrl) {
-  return function handler(event) {
+export function createHandler(apiBaseUrl, kvsHandle) {
+  return async function handler(event) {
     var request = event.request;
     var host = request.headers.host && request.headers.host.value;
 
@@ -38,6 +43,12 @@ export function createHandler(apiBaseUrl) {
 
     var uri = request.uri;
     var qs = request.querystring;
+
+    // Snapshot objects are reachable only via the extensionless rewrite
+    // below; direct hits would serve duplicate content at the wrong URL.
+    if (uri.startsWith("/_prerender/")) {
+      return { statusCode: 404, statusDescription: "Not Found" };
+    }
 
     // Redirect game pages to API for OG meta tags (unless returning via bypass param)
     if (apiBaseUrl) {
@@ -78,8 +89,25 @@ export function createHandler(apiBaseUrl) {
       }
     }
 
-    // If URI has no file extension, rewrite to /index.html for SPA routing
+    // Extensionless URIs are app routes: prerendered documents when the
+    // KVS says a snapshot exists (trailing slash normalised so /club/ and
+    // /club share one cache entry), the SPA shell otherwise.
     if (!uri.includes(".")) {
+      var lookupUri = uri;
+      if (lookupUri.length > 1 && lookupUri.endsWith("/")) {
+        lookupUri = lookupUri.slice(0, -1);
+      }
+      // The home page is never a snapshot (the prerenderer only writes
+      // content URLs, which always have at least one slug segment).
+      if (kvsHandle && lookupUri !== "/") {
+        try {
+          await kvsHandle.get(lookupUri);
+          request.uri = "/_prerender" + lookupUri + ".html";
+          return request;
+        } catch (err) {
+          // Key missing (or KVS error): fall through to the SPA shell.
+        }
+      }
       request.uri = "/index.html";
     }
     return request;
