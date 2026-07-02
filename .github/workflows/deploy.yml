@@ -718,6 +718,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Bake nav snapshot
+        # Live nav into the bundle as react-query initialData - the menu
+        # paints complete on first render for SPA-shell routes. Fail-soft:
+        # an API blip keeps the committed empty snapshot.
+        run: node apps/web/scripts/fetch-nav-snapshot.mjs
+
       - name: Build frontend
         # The prerenderer bundle (build:ssr) is built alongside the client
         # bundle with the same env so its markup, baked API URL and hashed

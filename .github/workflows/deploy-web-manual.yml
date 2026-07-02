@@ -62,6 +62,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Bake nav snapshot
+        # Mirrors deploy.yml: live nav as initialData; fail-soft.
+        run: node apps/web/scripts/fetch-nav-snapshot.mjs
+
       - name: Build frontend
         # build:ssr = the prerenderer Lambda bundle, built with the same
         # env so markup and hashed asset references match the client

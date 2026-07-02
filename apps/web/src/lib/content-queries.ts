@@ -9,6 +9,7 @@ import {
   type PersonMetadata,
 } from "@percy-main/shared/content";
 import { queryOptions } from "@tanstack/react-query";
+import navSnapshot from "../generated/nav-snapshot.json";
 import { api, callApi } from "./api-client.js";
 
 // Shared query definitions for public DB-backed content (#489). List pages
@@ -164,6 +165,13 @@ export function navQueryOptions() {
     queryFn: () => callApi(api.GET("/api/content/nav")),
     staleTime: STALE_TIME,
     gcTime: NAV_GC_TIME,
+    // Deploy-time snapshot (scripts/fetch-nav-snapshot.mjs) so the menu
+    // paints complete on first render; updatedAt 0 = immediately stale,
+    // so a background refetch corrects any post-deploy drift. On
+    // prerendered documents the hydrated cache entry wins (hydrate()
+    // runs before mount and initialData never overwrites cache).
+    initialData: navSnapshot,
+    initialDataUpdatedAt: 0,
   });
 }
 

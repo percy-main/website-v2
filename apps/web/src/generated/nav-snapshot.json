@@ -1,0 +1,209 @@
+{
+  "items": [
+    {
+      "path": "/boxing",
+      "title": "Boxing",
+      "menuOrder": 5,
+      "isMainMenu": true
+    },
+    {
+      "path": "/charity",
+      "title": "Charity",
+      "menuOrder": 1,
+      "isMainMenu": true
+    },
+    {
+      "path": "/charity/agm-2025",
+      "title": "AGM 2025",
+      "menuOrder": 3,
+      "isMainMenu": false
+    },
+    {
+      "path": "/charity/agm-2026",
+      "title": "AGM 2026",
+      "menuOrder": 1,
+      "isMainMenu": false
+    },
+    {
+      "path": "/charity/redevelopment",
+      "title": "Redevelopment Plans",
+      "menuOrder": 0,
+      "isMainMenu": false
+    },
+    {
+      "path": "/charity/refugee-week-2025",
+      "title": "Refugee Week 2025",
+      "menuOrder": 2,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket",
+      "title": "Cricket",
+      "menuOrder": 2,
+      "isMainMenu": true
+    },
+    {
+      "path": "/cricket/become-a-sponsor",
+      "title": "Become A Sponsor",
+      "menuOrder": 8,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/committee",
+      "title": "Committee",
+      "menuOrder": 4,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/ground",
+      "title": "Ground",
+      "menuOrder": 4,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/ground/grounds-team",
+      "title": "Grounds Team",
+      "menuOrder": 1,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/juniors",
+      "title": "Juniors",
+      "menuOrder": 3,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/juniors/coaches",
+      "title": "Junior Coaches",
+      "menuOrder": 3,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/juniors/junior-code-of-conduct",
+      "title": "Junior Code of Conduct",
+      "menuOrder": 1,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/juniors/parents-code-of-conduct",
+      "title": "Parents Code of Conduct",
+      "menuOrder": 2,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/juniors/welcome-2026",
+      "title": "Welcome to Junior Cricket 2026",
+      "menuOrder": 0,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/kit-shop",
+      "title": "Kit Shop",
+      "menuOrder": 7,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/records",
+      "title": "Records",
+      "menuOrder": 5,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/records/club-records",
+      "title": "Club Records",
+      "menuOrder": 2,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/records/leaderboards",
+      "title": "Leaderboards",
+      "menuOrder": 1,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/safeguarding",
+      "title": "Safeguarding",
+      "menuOrder": 6,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/senior",
+      "title": "Senior Teams",
+      "menuOrder": 1,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/senior/1st-xi",
+      "title": "1st XI",
+      "menuOrder": 1,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/senior/2nd-xi",
+      "title": "2nd XI",
+      "menuOrder": 2,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/senior/midweek-xi",
+      "title": "Midweek XI",
+      "menuOrder": 3,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/social",
+      "title": "Social Media",
+      "menuOrder": 9,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/women",
+      "title": "Women's Cricket",
+      "menuOrder": 2,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/women/girls-dynamos",
+      "title": "Girls Dynamos",
+      "menuOrder": 1,
+      "isMainMenu": false
+    },
+    {
+      "path": "/cricket/women/players",
+      "title": "Players",
+      "menuOrder": 99,
+      "isMainMenu": false
+    },
+    {
+      "path": "/football",
+      "title": "Football",
+      "menuOrder": 4,
+      "isMainMenu": true
+    },
+    {
+      "path": "/legal",
+      "title": "Legal",
+      "menuOrder": 99,
+      "isMainMenu": false
+    },
+    {
+      "path": "/legal/privacy",
+      "title": "Privacy Policy",
+      "menuOrder": 99,
+      "isMainMenu": false
+    },
+    {
+      "path": "/people",
+      "title": "People",
+      "menuOrder": 7,
+      "isMainMenu": true
+    },
+    {
+      "path": "/running",
+      "title": "Running",
+      "menuOrder": 3,
+      "isMainMenu": true
+    }
+  ],
+  "removed": []
+}
