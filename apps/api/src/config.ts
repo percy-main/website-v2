@@ -311,6 +311,12 @@ const configSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+
+  // Prerenderer Lambda (publish-time static HTML snapshots). Optional
+  // AWS integration like SYNC_ECS_*: the function only exists in
+  // deployed environments; unset makes the publish-path trigger a
+  // logged no-op (dev / test / preview).
+  PRERENDER_LAMBDA_ARN: z.string().optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;

@@ -227,6 +227,11 @@ module "ecs" {
     SYNC_ECS_SUBNETS          = join(",", module.vpc.public_subnet_ids)
     SYNC_ECS_SECURITY_GROUP   = module.vpc.ecs_security_group_id
     SYNC_ECS_ASSIGN_PUBLIC_IP = "true"
+    # Publish-path trigger for the prerenderer (fire-and-forget async
+    # invoke; the Lambda's manifest diff decides what to re-render). Safe
+    # at the resource level: the function depends on cdn + the monitoring
+    # SNS topic, neither of which depends on the ECS task definition.
+    PRERENDER_LAMBDA_ARN = module.prerender.function_arn
   }
 
   # Migration task connects as app_ddl once the role split is active.
