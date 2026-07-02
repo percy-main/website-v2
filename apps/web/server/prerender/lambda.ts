@@ -78,7 +78,6 @@ interface Env {
   frontendBucket: string;
   kvsArn: string;
   distributionId: string;
-  siteOrigin: string;
 }
 
 function requiredEnv(name: string): string {
@@ -93,9 +92,14 @@ function getEnv(): Env {
     frontendBucket: requiredEnv("FRONTEND_BUCKET"),
     kvsArn: requiredEnv("KVS_ARN"),
     distributionId: requiredEnv("CLOUDFRONT_DISTRIBUTION_ID"),
-    siteOrigin: process.env.SITE_ORIGIN ?? "https://www.percymain.org",
   };
   return envCache;
+}
+
+// Resolved independently of the AWS env so renderDocument works without
+// any AWS configuration (local preview via scripts/prerender-preview.mjs).
+function siteOrigin(): string {
+  return process.env.SITE_ORIGIN ?? "https://www.percymain.org";
 }
 
 // Region comes from the Lambda's AWS_REGION; CloudFront + KVS are global
@@ -107,9 +111,10 @@ const kvs = new CloudFrontKeyValueStoreClient({ region: "us-east-1" });
 let templateCache: string | undefined;
 function loadTemplate(): string {
   // deploy-web zips the client build's dist/index.html alongside the
-  // bundle as template.html.
+  // bundle as template.html. TEMPLATE_PATH is the local-preview override.
   templateCache ??= readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), "template.html"),
+    process.env.TEMPLATE_PATH ??
+      join(dirname(fileURLToPath(import.meta.url)), "template.html"),
     "utf8",
   );
   return templateCache;
@@ -210,9 +215,26 @@ async function renderSnapshot(
       publishedAt: detail.publishedAt,
       updatedAt: detail.updatedAt,
     },
-    getEnv().siteOrigin,
+    siteOrigin(),
   );
   return assembleDocument({ template, headHtml, appHtml, dehydratedState });
+}
+
+/**
+ * Render one URL to its full document WITHOUT touching AWS - the local
+ * preview / smoke path (scripts/prerender-preview.mjs) and the seam the
+ * deploy pipeline's render-all is built on.
+ */
+export async function renderDocument(url: string): Promise<string> {
+  const [manifest, shared] = await Promise.all([
+    fetchManifest(),
+    fetchShared(),
+  ]);
+  const item = manifest.find((candidate) => candidate.url === url);
+  if (!item) throw new Error(`URL not in the prerender manifest: ${url}`);
+  const html = await renderSnapshot(item, shared, loadTemplate());
+  if (html === null) throw new Error(`Content vanished while rendering ${url}`);
+  return html;
 }
 
 // ── S3 ───────────────────────────────────────────────────────────────────
@@ -291,7 +313,11 @@ async function kvsUpdate(puts: string[], deletes: string[]): Promise<void> {
         break;
       } catch (error) {
         const name = (error as { name?: string }).name;
-        if (attempt < 3 && (name === "ConflictException" || name === "PreconditionFailedException")) {
+        if (
+          attempt < 3 &&
+          (name === "ConflictException" ||
+            name === "PreconditionFailedException")
+        ) {
           continue;
         }
         throw error;
@@ -340,7 +366,11 @@ async function sync(force: boolean): Promise<SyncSummary> {
         failed.add(item.url);
         continue;
       }
-      await putObject(snapshotS3Key(item.url), html, "text/html; charset=utf-8");
+      await putObject(
+        snapshotS3Key(item.url),
+        html,
+        "text/html; charset=utf-8",
+      );
       rendered.push(item.url);
     } catch (error) {
       console.error(`prerender render failed: ${item.url}`, error);
@@ -358,7 +388,7 @@ async function sync(force: boolean): Promise<SyncSummary> {
 
   await putObject(
     "sitemap.xml",
-    buildSitemap(manifest, getEnv().siteOrigin),
+    buildSitemap(manifest, siteOrigin()),
     "application/xml",
   );
   await putObject(
@@ -404,11 +434,7 @@ async function sync(force: boolean): Promise<SyncSummary> {
 
 /** Render one URL, bypassing state/sitemap - the rollout/debug tool. */
 async function renderOne(url: string): Promise<SyncSummary> {
-  const [manifest, shared] = await Promise.all([fetchManifest(), fetchShared()]);
-  const item = manifest.find((candidate) => candidate.url === url);
-  if (!item) throw new Error(`URL not in the prerender manifest: ${url}`);
-  const html = await renderSnapshot(item, shared, loadTemplate());
-  if (html === null) throw new Error(`Content vanished while rendering ${url}`);
+  const html = await renderDocument(url);
   await putObject(snapshotS3Key(url), html, "text/html; charset=utf-8");
   await kvsUpdate([snapshotKvsKey(url)], []);
   await invalidate([snapshotInvalidationPath(url)]);

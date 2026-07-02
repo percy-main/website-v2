@@ -42,9 +42,7 @@ export async function render(
   url: string,
   queryClient: QueryClient,
 ): Promise<RenderResult> {
-  const context = await handler.query(
-    new Request(new URL(url, RENDER_ORIGIN)),
-  );
+  const context = await handler.query(new Request(new URL(url, RENDER_ORIGIN)));
 
   // Without loaders/actions the handler never short-circuits to a
   // redirect/error Response; if one ever appears, fail the render loudly

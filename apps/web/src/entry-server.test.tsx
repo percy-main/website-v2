@@ -14,7 +14,12 @@ import { render } from "./entry-server.js";
 const NAV_DATA = {
   items: [
     { path: "/club", title: "The Club", menuOrder: 1, isMainMenu: true },
-    { path: "/club/history", title: "History", menuOrder: 1, isMainMenu: false },
+    {
+      path: "/club/history",
+      title: "History",
+      menuOrder: 1,
+      isMainMenu: false,
+    },
   ],
   removed: [],
 };

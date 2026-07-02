@@ -174,9 +174,7 @@ describe("spa-rewrite CloudFront function", () => {
     });
 
     it("normalises a trailing slash before the lookup", async () => {
-      const result = await kvsHandler(
-        makeEvent("/club/", "www.percymain.org"),
-      );
+      const result = await kvsHandler(makeEvent("/club/", "www.percymain.org"));
       expect(result.uri).toBe("/_prerender/club.html");
     });
 

@@ -7,7 +7,10 @@ import {
   type PrerenderState,
 } from "./reconcile.js";
 
-function item(url: string, overrides: Partial<ManifestItem> = {}): ManifestItem {
+function item(
+  url: string,
+  overrides: Partial<ManifestItem> = {},
+): ManifestItem {
   return {
     url,
     kind: "page",
@@ -18,7 +21,9 @@ function item(url: string, overrides: Partial<ManifestItem> = {}): ManifestItem 
   };
 }
 
-const NAV = [{ path: "/club", title: "The Club", menuOrder: 1, isMainMenu: true }];
+const NAV = [
+  { path: "/club", title: "The Club", menuOrder: 1, isMainMenu: true },
+];
 
 function state(
   items: Record<string, { updatedAt: string; publishedAt: string }>,
@@ -38,12 +43,8 @@ describe("navHash", () => {
 
   it("changes when a title, order or flag changes", () => {
     const base = [{ path: "/a", title: "A", menuOrder: 1, isMainMenu: true }];
-    expect(navHash(base)).not.toBe(
-      navHash([{ ...base[0], title: "A2" }]),
-    );
-    expect(navHash(base)).not.toBe(
-      navHash([{ ...base[0], menuOrder: 2 }]),
-    );
+    expect(navHash(base)).not.toBe(navHash([{ ...base[0], title: "A2" }]));
+    expect(navHash(base)).not.toBe(navHash([{ ...base[0], menuOrder: 2 }]));
     expect(navHash(base)).not.toBe(
       navHash([{ ...base[0], isMainMenu: false }]),
     );
@@ -72,7 +73,10 @@ describe("planReconcile", () => {
     const plan = planReconcile({
       manifest: [unchanged, edited, fresh],
       state: state({
-        "/club": { updatedAt: unchanged.updatedAt, publishedAt: unchanged.publishedAt },
+        "/club": {
+          updatedAt: unchanged.updatedAt,
+          publishedAt: unchanged.publishedAt,
+        },
         "/club/history": {
           updatedAt: "2026-06-01T10:00:00.000Z",
           publishedAt: edited.publishedAt,
@@ -122,7 +126,12 @@ describe("planReconcile", () => {
     const plan = planReconcile({
       manifest: [unchanged],
       state: state(
-        { "/club": { updatedAt: unchanged.updatedAt, publishedAt: unchanged.publishedAt } },
+        {
+          "/club": {
+            updatedAt: unchanged.updatedAt,
+            publishedAt: unchanged.publishedAt,
+          },
+        },
         "stale-nav-hash",
       ),
       currentNavHash: navHash(NAV),

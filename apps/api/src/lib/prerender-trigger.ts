@@ -19,11 +19,13 @@ export interface PrerenderTrigger {
 }
 
 export function createPrerenderTrigger(
-  config: Config,
+  // Optional because minimal integration-test apps register the content
+  // routes without decorating app.config; no config = unconfigured.
+  config: Config | undefined,
   log: FastifyBaseLogger,
 ): PrerenderTrigger {
-  const functionArn = config.PRERENDER_LAMBDA_ARN;
-  if (functionArn === undefined) {
+  const functionArn = config?.PRERENDER_LAMBDA_ARN;
+  if (config === undefined || functionArn === undefined) {
     return {
       reconcile() {
         log.debug("prerender trigger unconfigured; skipping reconcile");

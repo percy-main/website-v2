@@ -209,7 +209,11 @@ export function buildHead(
   }
 
   lines.push(
-    meta("name", "twitter:card", isDefaultImage ? "summary" : "summary_large_image"),
+    meta(
+      "name",
+      "twitter:card",
+      isDefaultImage ? "summary" : "summary_large_image",
+    ),
     meta("name", "twitter:title", input.title),
     meta("name", "twitter:description", description),
     meta("name", "twitter:image", image),

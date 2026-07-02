@@ -24,10 +24,7 @@ const ROOT_DIV = '<div id="root"></div>';
 
 /** `</script>`-safe serialization for the inline state payload. */
 function serializePayload(dehydratedState: DehydratedState): string {
-  return JSON.stringify({ v: 1, dehydratedState }).replaceAll(
-    "<",
-    "\\u003c",
-  );
+  return JSON.stringify({ v: 1, dehydratedState }).replaceAll("<", "\\u003c");
 }
 
 export function assembleDocument(input: AssembleInput): string {
@@ -40,7 +37,9 @@ export function assembleDocument(input: AssembleInput): string {
     ["root div", ROOT_DIV],
   ] as const) {
     if (
-      typeof needle === "string" ? !template.includes(needle) : !needle.test(template)
+      typeof needle === "string"
+        ? !template.includes(needle)
+        : !needle.test(template)
     ) {
       throw new Error(`Prerender template is missing the ${name}`);
     }

@@ -50,6 +50,15 @@ describe("createPrerenderTrigger", () => {
     expect(log.debug).toHaveBeenCalled();
   });
 
+  it("is a logged no-op without any config (minimal test apps)", async () => {
+    const log = makeLog();
+    const trigger = createPrerenderTrigger(undefined, log);
+    trigger.reconcile();
+    await flush();
+    expect(sendLambda).not.toHaveBeenCalled();
+    expect(log.debug).toHaveBeenCalled();
+  });
+
   it("fires an async Event invoke with the reconcile action", async () => {
     sendLambda.mockResolvedValue({});
     const log = makeLog();

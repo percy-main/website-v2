@@ -55,7 +55,9 @@ describe("assembleDocument", () => {
 
   it("injects the state payload before the rendered root", () => {
     const stateIndex = doc.indexOf("window.__PM_PRERENDER__");
-    const rootIndex = doc.indexOf('<div id="root"><div>rendered content</div></div>');
+    const rootIndex = doc.indexOf(
+      '<div id="root"><div>rendered content</div></div>',
+    );
     expect(stateIndex).toBeGreaterThan(-1);
     expect(rootIndex).toBeGreaterThan(stateIndex);
     expect(doc).toContain('"v":1');

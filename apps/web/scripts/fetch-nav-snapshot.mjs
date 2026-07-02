@@ -14,7 +14,8 @@ import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const NAV_URL =
-  process.env.NAV_SNAPSHOT_URL ?? "https://api.v2.percymain.org/api/content/nav";
+  process.env.NAV_SNAPSHOT_URL ??
+  "https://api.v2.percymain.org/api/content/nav";
 const OUT_PATH = resolve(
   import.meta.dirname,
   "../src/generated/nav-snapshot.json",

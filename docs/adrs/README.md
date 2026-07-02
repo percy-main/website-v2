@@ -30,3 +30,4 @@ To add a new ADR, use the [`add-adr` skill](../../.claude/skills/add-adr/SKILL.m
 | [049](049-ai-content-author-assistant.md)                | AI content-author assistant reuses Scout's tools                  | 2026-06-14 | Accepted |
 | [050](050-profile-self-edit-proposal-tier.md)            | Profile self-editing via a proposal/approval tier                 | 2026-06-23 | Accepted |
 | [051](051-member-slug-backfill-and-profile-fallback.md)  | Member slug backfill, member-backed profile fallback, self-create | 2026-06-24 | Accepted |
+| [052](052-publish-time-prerendering.md)                  | Publish-time prerendering via Lambda + CloudFront KeyValueStore   | 2026-07-03 | Accepted |

@@ -26,7 +26,9 @@ describe("buildHead", () => {
     expect(head).toContain(
       `<link rel="canonical" href="${ORIGIN}/club/history" />`,
     );
-    expect(head).toContain('<meta property="og:title" content="Club History" />');
+    expect(head).toContain(
+      '<meta property="og:title" content="Club History" />',
+    );
     expect(head).toContain(
       `<meta property="og:url" content="${ORIGIN}/club/history" />`,
     );
@@ -132,7 +134,10 @@ describe("buildHead", () => {
           {
             id: "1",
             type: "contentImage",
-            props: { src: "/uploads/content/abc/original.webp", picture: "{oops" },
+            props: {
+              src: "/uploads/content/abc/original.webp",
+              picture: "{oops",
+            },
             children: [],
           },
         ],

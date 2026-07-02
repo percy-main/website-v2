@@ -84,7 +84,8 @@ export function planReconcile(options: {
   );
 
   if (force) return { mode: "forced", toRender: manifest, toUnrender };
-  if (state === null) return { mode: "initial", toRender: manifest, toUnrender };
+  if (state === null)
+    return { mode: "initial", toRender: manifest, toUnrender };
   if (state.navHash !== currentNavHash) {
     return { mode: "nav-changed", toRender: manifest, toUnrender };
   }

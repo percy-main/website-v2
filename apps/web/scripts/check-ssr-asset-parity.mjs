@@ -14,7 +14,9 @@ const distDir = resolve(import.meta.dirname, "../dist");
 const ssrDir = resolve(import.meta.dirname, "../dist-server");
 
 if (!existsSync(ssrDir)) {
-  console.error(`check-ssr-asset-parity: ${ssrDir} not found - run build:ssr first`);
+  console.error(
+    `check-ssr-asset-parity: ${ssrDir} not found - run build:ssr first`,
+  );
   process.exit(1);
 }
 
