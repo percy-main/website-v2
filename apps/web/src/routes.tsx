@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import type { RouteObject } from "react-router";
 import { RequireAuth } from "./components/require-auth.js";
 import { RequireElevated } from "./components/require-elevated.js";
 import { RequirePermission } from "./components/require-permission.js";
@@ -7,7 +7,10 @@ import { RouteError } from "./components/route-error.js";
 import { AuthLayout } from "./layouts/auth-layout.js";
 import { RootLayout } from "./layouts/root-layout.js";
 
-export const router = createBrowserRouter([
+// The route table, shared by the browser router (main.tsx) and the
+// prerenderer's static handler (entry-server.tsx). Keep it free of
+// browser-only module-level work: it is imported in Node.
+export const routes: RouteObject[] = [
   {
     element: <RootLayout />,
     // Catches render exceptions in any descendant route, plus
@@ -269,4 +272,4 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];

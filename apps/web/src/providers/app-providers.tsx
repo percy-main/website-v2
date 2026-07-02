@@ -18,41 +18,54 @@ function noticeQueryError(
   attrs: Record<string, string | number | boolean>,
 ) {
   const error = err instanceof Error ? err : new Error(String(err));
-  if (window.newrelic) {
+  if (typeof window !== "undefined" && window.newrelic) {
     window.newrelic.noticeError(error, attrs);
   } else {
     console.error("react-query (NR not loaded):", error.message, attrs);
   }
 }
 
-export function AppProviders({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        queryCache: new QueryCache({
-          onError: (err, query) =>
-            noticeQueryError(err, {
-              kind: "query",
-              queryKey: query.queryKey
-                .flatMap((part) => (typeof part === "string" ? [part] : []))
-                .join(":"),
-            }),
+/**
+ * The app QueryClient, as a factory so main.tsx can create it before
+ * first render and seed it from a prerendered document's dehydrated
+ * state (take-over.ts) — the cache must be populated before React
+ * mounts or the first commit wipes the prerendered DOM with spinners.
+ */
+export function createAppQueryClient(): QueryClient {
+  return new QueryClient({
+    queryCache: new QueryCache({
+      onError: (err, query) =>
+        noticeQueryError(err, {
+          kind: "query",
+          queryKey: query.queryKey
+            .flatMap((part) => (typeof part === "string" ? [part] : []))
+            .join(":"),
         }),
-        mutationCache: new MutationCache({
-          onError: (err, _vars, _ctx, mutation) =>
-            noticeQueryError(err, {
-              kind: "mutation",
-              mutationKey:
-                mutation.options.mutationKey
-                  ?.flatMap((part) => (typeof part === "string" ? [part] : []))
-                  .join(":") ?? "unknown",
-            }),
+    }),
+    mutationCache: new MutationCache({
+      onError: (err, _vars, _ctx, mutation) =>
+        noticeQueryError(err, {
+          kind: "mutation",
+          mutationKey:
+            mutation.options.mutationKey
+              ?.flatMap((part) => (typeof part === "string" ? [part] : []))
+              .join(":") ?? "unknown",
         }),
-      }),
-  );
+    }),
+  });
+}
+
+export function AppProviders({
+  children,
+  queryClient,
+}: {
+  children: ReactNode;
+  queryClient?: QueryClient;
+}) {
+  const [client] = useState(() => queryClient ?? createAppQueryClient());
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
     </ThemeProvider>
   );
 }

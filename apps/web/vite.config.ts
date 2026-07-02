@@ -43,7 +43,7 @@ function gtagHtmlPlugin(mode: string): Plugin {
   };
 }
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode, isSsrBuild }) => ({
   plugins: [
     react(),
     babel({
@@ -62,24 +62,47 @@ export default defineConfig(({ mode }) => ({
     }),
     gtagHtmlPlugin(mode),
   ],
+  // The prerenderer bundle (build:ssr) ships to Lambda with no
+  // node_modules: bundle every dependency in. Asset imports still resolve
+  // to the same content-hashed /assets/ URLs as the client build - CI
+  // asserts that parity (scripts/check-ssr-asset-parity.mjs).
+  ...(isSsrBuild ? { ssr: { noExternal: true } } : {}),
   build: {
     rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (
-            /[\\/]node_modules[\\/](\.pnpm[\\/])?(@tanstack[\\/]react-query|react|react-dom|react-router|scheduler)([\\/@]|$)/.test(
-              id,
-            )
-          ) {
-            return "vendor";
+      output: isSsrBuild
+        ? {
+            // The Lambda zip ships no package.json, so Node only treats
+            // the bundle as ESM via the .mjs extension.
+            entryFileNames: "[name].mjs",
+            chunkFileNames: "chunks/[name]-[hash].mjs",
           }
-        },
-      },
+        : {
+            manualChunks(id) {
+              if (
+                /[\\/]node_modules[\\/](\.pnpm[\\/])?(@tanstack[\\/]react-query|react|react-dom|react-router|scheduler)([\\/@]|$)/.test(
+                  id,
+                )
+              ) {
+                return "vendor";
+              }
+              return undefined;
+            },
+          },
     },
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // The real package registers a web component at import time -
+      // browser-only; the prerender bundle renders nothing in its place.
+      ...(isSsrBuild
+        ? {
+            "add-to-calendar-button-react": path.resolve(
+              __dirname,
+              "./src/prerender/stubs/add-to-calendar-button.tsx",
+            ),
+          }
+        : {}),
     },
   },
   server: {

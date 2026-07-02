@@ -106,13 +106,13 @@ export const contentPathSchema = z
  * segment routes, so child pages are unaffected.
  *
  * Two sources:
- *  - the SPA router's top-level literals (apps/web/src/router.tsx) -
+ *  - the SPA router's top-level literals (apps/web/src/routes.tsx) -
  *    they are matched ahead of the content catch-all, so a root page at
  *    one of these could never be reached;
  *  - infra prefixes (API mount, upload/asset serving, the content API
  *    itself).
  *
- * Keep in lockstep with router.tsx when adding top-level routes.
+ * Keep in lockstep with routes.tsx when adding top-level routes.
  */
 export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
   // SPA router top-level literals
@@ -140,6 +140,33 @@ export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
   "assets",
   "content",
 ]);
+
+/**
+ * The public URL for a published content item - the single source of
+ * truth shared by the API's prerender triggers/manifest and the
+ * prerenderer Lambda's path mapping (they must agree byte-for-byte or a
+ * publish renders one path while the CDN routes another). Returns null
+ * for game reports: they keep the CloudFront-Function OG redirect and are
+ * never prerendered.
+ */
+export function publicContentUrl(
+  kind: ContentKind,
+  slug: string,
+  path: string | null,
+): string | null {
+  switch (kind) {
+    case "page":
+      return path;
+    case "news":
+      return `/news/article/${slug}`;
+    case "event":
+      return `/calendar/event/${slug}`;
+    case "person":
+      return `/person/${slug}`;
+    case "game_report":
+      return null;
+  }
+}
 
 // ── Kind-specific metadata (replaces MDX frontmatter) ───────────────────
 //
