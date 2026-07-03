@@ -39,6 +39,15 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+// Side-effect import: registers the pure-JS SigV4A implementation into
+// @smithy/signature-v4's container. The KVS data plane signs with
+// SigV4A, and the multi-region signer resolves the implementation from
+// that container at runtime - in the bundled Lambda there is no
+// node_modules for its optional lookup, so without this import every
+// KVS call fails with "Neither CRT nor JS SigV4a implementation is
+// available". The package declares sideEffects: true, so bundlers keep
+// this.
+import "@smithy/signature-v4a";
 import { QueryClient } from "@tanstack/react-query";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
